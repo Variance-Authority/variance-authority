@@ -27,9 +27,16 @@ describe('the files a seam keeps', () => {
 });
 
 describe('the headline of a selection that keeps no file', () => {
-  it('says no file runs', () => {
+  it('says no file runs, because the change reached none', () => {
     expect(selectedLines(selection(['a.test.ts', 'b.test.ts']), ['a.test.ts', 'b.test.ts'])[0]).toBe(
-      'variance-authority: selected none of 2, so none of them runs',
+      'variance-authority: selected none of 2, so none of them runs: the change reached none of them',
+    );
+  });
+
+  it('says how many a leg or a local selection left for a later run', () => {
+    const local = { ...selection(['a.test.ts', 'b.test.ts']), left: new Set(['a.test.ts', 'b.test.ts']) };
+    expect(selectedLines(local, ['a.test.ts', 'b.test.ts'])[0]).toBe(
+      'variance-authority: selected none of 2, so none of them runs: 2 test files are left for a later run',
     );
   });
 });

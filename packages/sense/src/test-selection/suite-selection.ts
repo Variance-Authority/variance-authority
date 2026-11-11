@@ -31,6 +31,12 @@ export interface SuiteSelection {
    * absent when it read none. A shard's record names it (`record-base.ts`).
    */
   readonly read?: string;
+  /**
+   * The test files in `skip` a leg or a local selection left for a later run,
+   * reached or not: absent when the selection left none. `notes` names the
+   * run that takes them.
+   */
+  readonly left?: ReadonlySet<string>;
   /** What a person reads after the count. Never parsed. */
   readonly notes: readonly string[];
 }
@@ -75,8 +81,10 @@ export function kept<File = string>(
  * them. The count is of those, so a file the record never saw counts as
  * selected, which is what it is: it runs.
  *
- * A selection that keeps none of the files says none runs. That is all it can
- * say: Jest asks once per project, so what the runner does next is not known here.
+ * A selection that keeps none of the files says none runs, and why: the
+ * change reached none, or a leg or a local selection left them for a later run. That is
+ * all it can say: Jest asks once per project, so what the runner does next is
+ * not known here.
  */
 export function selectedLines(selection: SuiteSelection, discovered: readonly string[]): readonly string[] {
   const all = new Set(discovered);
@@ -87,10 +95,17 @@ export function selectedLines(selection: SuiteSelection, discovered: readonly st
     selection.declined !== undefined
       ? `declined: ${selection.declined}`
       : runs.length === 0
-        ? `selected none of ${all.size}, so none of them runs`
+        ? `selected none of ${all.size}, so none of them runs: ${none(selection, all)}`
         : `selected ${runs.length} of ${all.size}`;
   const part = cut === 0 ? '' : `, skipping ${count(cut, 'case')} in ${inPart} of them`;
   return [`variance-authority: ${headline}${part}`, ...selection.notes.map((note) => `  ${note}`)];
+}
+
+/** Why a selection that keeps no file kept none: what it left, or what the change reached. */
+function none(selection: SuiteSelection, discovered: ReadonlySet<string>): string {
+  const left = [...discovered].filter((file) => selection.left?.has(file)).length;
+  if (left === 0) return 'the change reached none of them';
+  return `${count(left, 'test file')} ${left === 1 ? 'is' : 'are'} left for a later run`;
 }
 
 const count = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? '' : 's'}`;

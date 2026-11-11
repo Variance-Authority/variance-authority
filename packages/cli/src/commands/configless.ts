@@ -301,6 +301,7 @@ export async function answerConfigless(
         ...(parsed.suite === undefined ? {} : { suite: parsed.suite }),
         ...(parsed.diff === undefined ? {} : { diff: parsed.diff }),
         ...(atDistance === undefined ? {} : { atDistance }),
+        ...(parsed.local === true ? { local: true } : {}),
       });
       streams.err(said.err);
       streams.out(said.out);

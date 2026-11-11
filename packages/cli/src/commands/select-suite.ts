@@ -12,6 +12,7 @@
 import type { Relations } from '@variance-authority/core/relate';
 import type { SuiteSelection } from '@variance-authority/sense/test-selection';
 import { inLeg, type Leg } from './select-leg.js';
+import { fellTo, type LocalAnswer } from './select-local.js';
 import { skippableTests, type SelectInput, type TestSelection } from './select.js';
 
 /** What `selectSuite` is asked: the checkout, the base, the suite and the leg. */
@@ -48,6 +49,12 @@ export interface SuiteRequest {
    * the change (`SuiteSelection.cases`). The file is the grain when absent.
    */
   readonly grain?: 'file' | 'case';
+  /**
+   * A reading that cannot narrow falls to the changed files' importers, or
+   * their packages, instead of running every test file (`select-local.ts`).
+   * Asked by name: a gate never sets it.
+   */
+  readonly local?: boolean;
 }
 
 /** The selection, with the whole reading it was cut from, for a caller that prints it. */
@@ -55,14 +62,17 @@ export interface SuiteReading extends SuiteSelection {
   readonly reading: TestSelection;
 }
 
-/** The reading, cut to the leg asked for, as sets. */
-export function suiteOf(input: SelectInput, atDistance: Leg | undefined): SuiteReading {
-  const reading = inLeg(skippableTests(input), input, atDistance);
+/** The reading, fallen to `fell` when it widened and one is given, cut to the leg asked for, as sets. */
+export function suiteOf(input: SelectInput, atDistance: Leg | undefined, fell?: LocalAnswer): SuiteReading {
+  const read = skippableTests(input);
+  const reading = inLeg(fell === undefined || read.widened === undefined ? read : fellTo(read, fell), input, atDistance);
+  const left = reading.fell?.left ?? reading.left ?? [];
   const whole = input.ground.kind === 'read' ? input.ground.narrowing.whole : [];
   return {
     whole: new Set(whole),
     skip: new Set(reading.skip),
     ...(reading.widened === undefined ? {} : { declined: reading.widened }),
+    ...(left.length === 0 ? {} : { left: new Set(left) }),
     notes: reading.notes,
     reading,
   };

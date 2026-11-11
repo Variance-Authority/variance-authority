@@ -7,7 +7,8 @@
  * cuts the selection to one leg by import hops, as `--at-distance` does, and is
  * read only beside it. `VARIANCE_AUTHORITY_GRAIN=case` also skips, inside each
  * file that runs, the cases that ran none of the change; the file is the grain
- * otherwise.
+ * otherwise. `VARIANCE_AUTHORITY_LOCAL=1` is `--local`: a record that cannot
+ * narrow falls to the changed files' importers or packages instead of every file.
  *
  * The reading is `selectSuite` from `@variance-authority/cli`, the function
  * `variance select` prints. It parses the execution journal through
@@ -48,6 +49,7 @@ interface Selector {
     readonly suite?: string;
     readonly atDistance?: { readonly from: number; readonly to: number; readonly by?: 'environment' };
     readonly grain?: 'case';
+    readonly local?: boolean;
   }): Promise<SuiteSelection>;
   /** Absent from a cli older than placement by time. */
   suiteTimes?(request: { readonly root: string; readonly suite?: string }): Promise<SuiteTimes>;
@@ -80,6 +82,10 @@ export function selectionFrom(
   if (grain !== undefined && grain !== 'file' && grain !== 'case') {
     throw new Error(`VARIANCE_AUTHORITY_GRAIN=${grain} is not a grain: write \`case\` to skip the cases a change did not reach, or \`file\``);
   }
+  const local = env['VARIANCE_AUTHORITY_LOCAL'];
+  if (local !== undefined && local !== '1' && local !== '0') {
+    throw new Error(`VARIANCE_AUTHORITY_LOCAL=${local} is not 1 or 0: write \`1\` to fall to the changed files' importers or packages when the record cannot narrow`);
+  }
   const leg = distance === undefined ? undefined : distanceRange(distance);
   if (distance !== undefined && leg === undefined) {
     throw new Error(
@@ -95,6 +101,7 @@ export function selectionFrom(
       ...(request.suite === undefined ? {} : { suite: request.suite }),
       ...(leg === undefined ? {} : { atDistance: { ...leg, by: 'environment' } }),
       ...(grain === 'case' ? { grain } : {}),
+      ...(local === '1' ? { local: true } : {}),
     });
   };
 }
