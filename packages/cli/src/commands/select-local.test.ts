@@ -126,7 +126,7 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect(local.reading.fell).toMatchObject({ rung: 'package', left: [B] });
   });
 
-  it('selects no test for a lockfile no manifest moved with, and names every test it left', async () => {
+  it('falls to the root package, every test, for a lockfile no manifest moved with', async () => {
     const { root, head } = checkout();
     await writeTestCoverage(testCoverageFile(root), snapshot(head, true));
     const { local, gate } = await both(root, () => {
@@ -135,8 +135,36 @@ describe('a selection that cannot narrow, asked `--local`', () => {
 
     expect(gate.reading.ground).toBe('no-install');
     expect([...gate.skip]).toEqual([]);
-    expect([...local.skip]).toEqual([A, B]);
-    expect(local.reading.fell).toMatchObject({ rung: 'package', left: [A, B] });
+    expect([...local.skip]).toEqual([]);
+    expect(local.reading.fell).toMatchObject({ rung: 'package', left: [] });
+  });
+
+  it('falls to the root package of a single-package repository for a file the index does not hold', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'va-select-local-solo-'));
+    const git = (args: readonly string[]) => execFileSync('git', args, { cwd: root });
+    git(['init', '--quiet', '--initial-branch', 'main']);
+    git(['config', 'user.email', 'fixture@example.test']);
+    git(['config', 'user.name', 'Fixture']);
+    write(root, 'package.json', JSON.stringify({ name: 'solo' }));
+    write(root, 'src/s.ts', 'export const s = 1;\n');
+    write(root, 'test/s.test.ts', "import { s } from '../src/s';\nexport const seen = s;\n");
+    write(root, 'test/t.test.ts', 'export const seen = 1;\n');
+    git(['add', '-A']);
+    git(['commit', '--quiet', '-m', 'one package']);
+    const { local } = await both(root, () => write(root, 'fixtures/data.json', '{"answer":42}\n'));
+
+    expect([...local.skip]).toEqual([]);
+    expect(local.reading.fell).toMatchObject({ rung: 'package', left: [] });
+  });
+
+  it('refuses an explicit `--since` it cannot read, rather than reading the change from elsewhere', async () => {
+    const { root } = checkout();
+    editA(root)();
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    await expect(selectSuite({ root, since: 'no-such-ref', local: true })).rejects.toThrow('--since no-such-ref');
+    await expect(selectSuite({ root, execution: join(root, 'journey.json'), since: 'no-such-ref', local: true })).rejects.toThrow('--since no-such-ref');
   });
 
   it('falls to the package of a file the suite rests on', async () => {
@@ -158,14 +186,27 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect(local.reading.fell).toMatchObject({ rung: 'package', left: [B] });
   });
 
-  it('falls to the importers when a journey file cannot read what changed', async () => {
-    const { root } = checkout();
-    const { local, gate } = await both(root, editA(root), { execution: join(root, 'journey.json'), since: 'no-such-ref' });
+  it('selects the importers of a file the suite rests on, in another package, beside its own package', async () => {
+    const USES = 'packages/b/test/uses-setup.test.ts';
+    const { root } = checkout({
+      'variance.config.json': JSON.stringify({ suites: { unit: { kind: 'unit', before: ['packages/a/setup.ts'] } } }),
+      [USES]: "import { ready } from '../../a/setup';\nexport const seen = ready;\n",
+    });
+    const { local } = await both(root, () => write(root, 'packages/a/setup.ts', 'export const ready = 2;\n'), { suite: 'unit' });
 
-    expect(gate.reading.ground).toBe('no-diff');
+    expect([...local.skip]).toEqual([B]);
+    expect(local.reading.fell).toMatchObject({ rung: 'package', left: [B] });
+  });
+
+  it('falls to the package when a journey file reads a change to what the suite rests on', async () => {
+    const { root } = checkout({ 'variance.config.json': JSON.stringify({ suites: { unit: { kind: 'unit', before: ['packages/a/setup.ts'] } } }) });
+    const asked = { execution: join(root, 'journey.json'), since: 'HEAD', suite: 'unit' };
+    const { local, gate } = await both(root, () => write(root, 'packages/a/setup.ts', 'export const ready = 2;\n'), asked);
+
+    expect(gate.reading.ground).toBe('before');
     expect([...gate.skip]).toEqual([]);
     expect([...local.skip]).toEqual([B]);
-    expect(local.reading.fell).toMatchObject({ rung: 'importers', left: [B] });
+    expect(local.reading.fell).toMatchObject({ rung: 'package', left: [B] });
   });
 
   it('leaves a test file the record holds whose name does not say test', async () => {

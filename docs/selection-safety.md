@@ -137,11 +137,15 @@ instead of every test file:
 - **The tests that import a changed file.** The
   [source index](source-index.md) lists the importers of each
   changed file, and the test files among them run.
-- **The tests in a changed file's package.** A changed file the index does not
-  list, or one the suite declares in `before`, runs every test file in its
-  package. A file at the root, such as a lockfile, runs the tests of each
-  package whose `package.json` changed beside it, and every test file when none
-  did.
+- **The tests in a changed file's package**, beside its importers. A changed
+  file the index does not list, or one the suite declares in `before`, runs
+  every test file in its package. The root is a package too: a lockfile runs
+  the tests of each package whose `package.json` changed beside it, and every
+  test file when none did, and any other file at the root runs every test file.
+
+The change is the diff from `--since`, else from `HEAD`'s merge base with the
+mainline, else from `HEAD`. A `--since` git cannot read is refused, never
+answered from another base.
 
 The first line after the reason says which one ran and how many test files it
 selected. The test files it left are on the skip list and named on stderr, and

@@ -7,20 +7,23 @@
  * wait in an edit loop. Asked for by name, never detected, the selection falls
  * down a ladder instead: past the record, which a share's mainline already
  * answers for, to the changed files' importers in the source index, and to the
- * changed files' packages. A file the graph does not hold, or one the suite
- * rests on, is answered by its package; one the root owns, such as a lockfile,
- * by the packages whose manifest changed, and by no test when none did: the
- * ladder never selects every test file. The tests left are skipped and named,
- * and a skipped file keeps its stand, so a later run without `--local` runs them.
+ * changed files' packages. Every changed file is walked to its importers. A
+ * file the graph does not hold, or one the suite rests on, also selects its
+ * package, and the root is a package: a lockfile selects the packages whose
+ * manifest changed beside it, and every test file when none did, as does any
+ * other file the root owns. The tests left are skipped and named, and a skipped
+ * file keeps its stand, so a later run without `--local` runs them.
  */
 
 import { existsSync } from 'node:fs';
-import { relative } from 'node:path';
+import { basename, relative } from 'node:path';
 import { askCoverageFile, changedLines, isTestCoverageFile } from '@variance-authority/sense/test-selection';
 import { affectedBy, nodesOfKind, RUNTIME_EDGES, within, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { isTestPath } from '@variance-authority/sense';
+import { LOCKFILES } from '@variance-authority/sense/lock';
 import { packageOf } from '../package-home.js';
+import { OperatorError } from '../exit.js';
 import { diffSince, topLevel } from './since.js';
 import { selectMainline } from './mainline-selected.js';
 import { restsOf } from './select-before.js';
@@ -55,20 +58,19 @@ export interface LocalQuestion {
 /** The tests the changed files reach, by the coarsest rung any of them needed. */
 export function localLadder(question: LocalQuestion): LocalAnswer {
   const { root, relations, changed } = question;
-  const resting = new Set(question.rests);
-  const own = (file: string): string | undefined => {
+  // The root is a package, named `.`, which `within` reads as every file.
+  const own = (file: string): string => {
     const home = packageOf(root, file);
-    const named = home === undefined ? '' : relative(root, home);
-    return named === '' ? undefined : named;
+    return home === undefined ? '.' : relative(root, home) || '.';
   };
-  const walked = changed.filter((file) => !resting.has(file));
-  const { files, missing } = affectedBy(relations, walked, { through: RUNTIME_EDGES });
-  const fallen = [...question.rests, ...missing];
-  const manifests = changed.flatMap((file) => (file.endsWith('/package.json') ? [own(file)] : []));
-  // A file the root owns is answered by the packages whose manifest moved with it, and by none when none did.
+  const { files, missing } = affectedBy(relations, changed, { through: RUNTIME_EDGES });
+  const fallen = [...new Set([...question.rests, ...missing])];
+  const manifests = changed.filter((file) => file.endsWith('/package.json')).map(own);
+  const lockfile = (file: string): boolean => (LOCKFILES as readonly string[]).includes(basename(file));
+  // A lockfile the root owns moves the packages whose manifest moved with it, or every one when none did.
   const homes = fallen.flatMap((file) => {
     const home = own(file);
-    return home !== undefined ? [home] : manifests.flatMap((one) => (one === undefined ? [] : [one]));
+    return home === '.' && lockfile(file) && manifests.length > 0 ? manifests : [home];
   });
   const universe = [
     ...new Set([
@@ -95,16 +97,13 @@ export interface Held {
 /**
  * The ladder's answer for a reading declined on `ground`. A change not yet read
  * is the patch handed in, or the diff from `--since`, else from `HEAD`'s merge
- * base with the mainline, so committed work counts, else from `HEAD`; one that
- * cannot be read at all is no change, so every test is left. The test files
- * the `record` holds count whatever their names say.
+ * base with the mainline, so committed work counts, else from `HEAD`. A
+ * `--since` that cannot be read is refused, never read from another base. The
+ * test files the `record` holds count whatever their names say.
  */
 export async function localAnswer(request: SuiteRequest, ground: SelectGround, held?: Held, record?: string): Promise<LocalAnswer> {
   const root = (await topLevel(request.root)) ?? request.root;
-  const diff = held !== undefined ? undefined : isHanded(request)
-    ? await handedChange(request)
-    : (await diffSince(request.since ?? (await mainlineFork(root)) ?? 'HEAD', [], undefined, { cwd: root })) ??
-      (await diffSince('HEAD', [], undefined, { cwd: root }));
+  const diff = held !== undefined ? undefined : isHanded(request) ? await handedChange(request) : await changeSince(root, request.since);
   const changed = held?.changed ?? (diff === undefined ? [] : [...changedLines(diff).keys()]);
   let relations = held?.relations ?? request.relations;
   if (relations === undefined) {
@@ -120,6 +119,20 @@ export async function localAnswer(request: SuiteRequest, ground: SelectGround, h
     rests,
     whole: [...(ground.kind === 'read' ? ground.narrowing.whole : []), ...recordedTests(record)],
   });
+}
+
+/** The diff from `since`, or, unasked, from the mainline fork, else `HEAD`; a `since` it cannot read is refused. */
+async function changeSince(root: string, since: string | undefined): Promise<string | undefined> {
+  if (since === undefined) {
+    return (await diffSince((await mainlineFork(root)) ?? 'HEAD', [], undefined, { cwd: root })) ?? (await diffSince('HEAD', [], undefined, { cwd: root }));
+  }
+  const diff = await diffSince(since, [], undefined, { cwd: root });
+  if (diff === undefined) {
+    throw new OperatorError(
+      `\`--local --since ${since}\` could not read what changed. Reading it from another base would select for a change you did not ask about, so it refuses instead. Check the ref exists.`,
+    );
+  }
+  return diff;
 }
 
 /** The test files `record` holds, or none when it is no record or holds no coverage. */
