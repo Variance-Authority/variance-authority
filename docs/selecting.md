@@ -247,9 +247,17 @@ change alone selects the whole suite, touches a file the record holds nothing
 about or cannot place, such as a runner config no `before` names, or reaches a
 file whose imports HEAD's graph cannot all read, such as a name built at run
 time or a module the other side deleted; and so does a git or a record that
-cannot answer. A note names the reason. When the selection without `--tested`
-does not read the record, `--tested` does nothing, and a note says so. These
-are among the [places selection widens](#where-selection-widens).
+cannot answer. So does a side that changes a file the merge holds under
+another path, because the other side renamed it. A note names the reason. When
+the selection without `--tested` reads no record, or already runs every test
+file, `--tested` does nothing, and a note says so. These are among the
+[places selection widens](#where-selection-widens).
+
+A file a test reads at run time without importing it, such as a fixture or a
+snapshot, reaches only the tests a
+[`/// <depends>`](#where-sourcedirs-starts-the-answer) names. Undeclared, a
+change to it on one side reaches no test, and `--tested` skips what the other
+side reaches, as the selection without it does.
 
 ## What a change to a module's top level runs
 

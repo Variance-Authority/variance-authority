@@ -60,7 +60,7 @@ export type TestedState =
   | { readonly kind: 'asked'; readonly tested: string }
   | { readonly kind: 'selecting'; readonly tested: string; readonly runs: readonly string[] }
   | { readonly kind: 'merged'; readonly tested: string; readonly runs: readonly string[]; readonly merge: Merge }
-  | { readonly kind: 'declined'; readonly tested: string }
+  | { readonly kind: 'declined'; readonly tested: string; readonly why: string }
   | { readonly kind: 'widened'; readonly tested: string; readonly why: string }
   | { readonly kind: 'kept'; readonly tested: string; readonly merge: Merge; readonly runs: number }
   | { readonly kind: 'narrowed' | 'empty'; readonly tested: string; readonly merge: Merge; readonly dropped: readonly Dropped[] };
@@ -84,7 +84,7 @@ export function transition(state: TestedState, input: TestedInput): TestedState 
     case 'asked': {
       if (input.kind !== 'selected') return unexpected;
       const { full } = input;
-      if (full.reading.ground !== 'read' || full.declined !== undefined) return { kind: 'declined', tested };
+      if (full.reading.ground !== 'read' || full.declined !== undefined) return { kind: 'declined', tested, why: full.declined ?? full.reading.because };
       return { kind: 'selecting', tested, runs: [...full.whole].filter((test) => !full.skip.has(test)) };
     }
     case 'selecting':
@@ -144,7 +144,7 @@ export function selectionOf(state: TestedState, without: SuiteReading): SuiteRea
     case 'selecting':
       return without;
     case 'declined':
-      return withNotes(without, [`\`--tested ${state.tested}\` did nothing: the selection without it did not read the record, so there is nothing to narrow`]);
+      return withNotes(without, [`\`--tested ${state.tested}\` did nothing: the selection without it read no record, or already runs every test file (${state.why}), so there is nothing to narrow`]);
     case 'widened':
       return as(state.why);
     case 'kept':

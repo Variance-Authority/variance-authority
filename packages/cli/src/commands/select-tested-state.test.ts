@@ -36,8 +36,8 @@ const merged: TestedState = { kind: 'merged', tested: TESTED, runs: [A, B], merg
 describe('the `--tested` reconciliation machine', () => {
   it.each<[string, TestedState, TestedInput, TestedState['kind'], readonly string[], string | undefined]>([
     ['a selection that read the record and did not decline opens the merge', asked, { kind: 'selected', full: FULL }, 'selecting', [], undefined],
-    ['a selection that declined stays as it is', asked, { kind: 'selected', full: full([], 'read', 'every file') }, 'declined', [], `\`--tested ${TESTED}\` did nothing: the selection without it did not read the record`],
-    ['a selection that read no record stays as it is', asked, { kind: 'selected', full: full([], 'no-journal') }, 'declined', [], `\`--tested ${TESTED}\` did nothing: the selection without it did not read the record`],
+    ['a selection that declined stays as it is', asked, { kind: 'selected', full: full([], 'read', 'every file') }, 'declined', [], `\`--tested ${TESTED}\` did nothing: the selection without it read no record, or already runs every test file (every file), so there is nothing to narrow`],
+    ['a selection that read no record stays as it is', asked, { kind: 'selected', full: full([], 'no-journal') }, 'declined', [], `\`--tested ${TESTED}\` did nothing: the selection without it read no record, or already runs every test file (as asked), so there is nothing to narrow`],
     ['a known clean merge reads the sides', selecting, { kind: 'merge', answer: { is: 'known', merge } }, 'merged', [], undefined],
     ['a HEAD that is not that merge widens', selecting, { kind: 'merge', answer: { is: 'apart', why: `HEAD is not ${MAINLINE.slice(0, 12)} with one pull request merged onto it` } }, 'widened', [], 'with one pull request merged onto it'],
     ['a dirty working tree widens', selecting, { kind: 'merge', answer: { is: 'dirty' } }, 'widened', [], 'the working tree differs from HEAD'],
@@ -70,7 +70,7 @@ describe('the `--tested` reconciliation machine', () => {
   });
 
   it.each<TestedState>([
-    { kind: 'declined', tested: TESTED },
+    { kind: 'declined', tested: TESTED, why: 'every file' },
     { kind: 'widened', tested: TESTED, why: 'unknown' },
     { kind: 'kept', tested: TESTED, merge, runs: 2 },
   ])('stays at the final state $kind whatever it is handed', (final) => {
