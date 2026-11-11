@@ -3,10 +3,10 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseArgs } from '../parse.js';
 import { indexOutput } from './index-command.js';
-import { shareConfig } from './mainline-fixture.js';
+import { git, shareConfig } from './mainline-fixture.js';
 import { selectSuite } from './select-command.js';
 import { npmLock } from './select-install-fixture.js';
-import { OTHER, PADDED, TOTAL, queued, scratch, selected } from './select-tested.fixture.js';
+import { DEV, OTHER, PADDED, TOTAL, queued, scratch, selected } from './select-tested.fixture.js';
 import { testedSuite } from './select-tested.js';
 
 /**
@@ -50,6 +50,21 @@ describe('`variance select --tested` in a merge queue', () => {
       }
     },
   );
+
+  it('selects none of a group of one a queue squashed onto the mainline, whose two sides reach disjoint tests', async () => {
+    const queue = await queued(home(), {
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+      squash: true,
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // HEAD has one parent, the base, and holds the tree the clean merge would.
+    expect(here.out).toBe('test/other.test.ts\ntest/total.test.ts\n');
+    expect(here.err).toContain('the pull request and the mainline it meets reach no test in common');
+  });
 
   it('runs a test both sides reach, where the mainline renames a function the pull request adds a call to', async () => {
     const CART = "import { total } from './total';\nexport function cart(price: number): number {\n  return total(price);\n}\n\n\nexport const name = 'cart';\n";
@@ -159,11 +174,33 @@ describe('`variance select --tested` in a merge queue', () => {
       recordAt: 'fork',
     });
 
+    await git(queue.dir, 'checkout', '--quiet', '-b', 'elsewhere', queue.fork);
+    await writeFile(join(queue.dir, 'src/other.ts'), OTHER.replace('+ 1', '+ 3'));
+    await git(queue.dir, ...DEV, 'commit', '--quiet', '-am', 'elsewhere');
+    const elsewhere = await git(queue.dir, 'rev-parse', 'HEAD');
+    await git(queue.dir, 'checkout', '--quiet', 'gh-readonly-queue/main/pr-1');
+
     const whole = await selected(queue.dir, queue.base);
-    const here = await selected(queue.dir, queue.base, queue.fork);
+    const here = await selected(queue.dir, queue.base, elsewhere);
 
     expect(here.out).toBe(whole.out);
-    expect(here.err).toContain(`\`--tested ${queue.fork}\` selects as without it: HEAD is not ${queue.base.slice(0, 12)} with one pull request merged onto it`);
+    expect(here.err).toContain(`\`--tested ${elsewhere}\` selects as without it: HEAD is not ${queue.base.slice(0, 12)} with one pull request merged onto it`);
+  });
+
+  it('selects as without `--tested` when the tested commit is HEAD', async () => {
+    const queue = await queued(home(), {
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+    const head = await git(queue.dir, 'rev-parse', 'HEAD');
+
+    const whole = await selected(queue.dir, queue.base);
+    const here = await selected(queue.dir, queue.base, head);
+
+    // HEAD holds the mainline, so nothing ran apart from it.
+    expect(here.out).toBe(whole.out);
+    expect(here.err).toContain(`\`--tested ${head}\` selects as without it: ${queue.base.slice(0, 12)} and ${head.slice(0, 12)} are one line of history, so no merge joined them`);
   });
 
   it('selects as without `--tested` for a group of two pull requests', async () => {
@@ -193,7 +230,45 @@ describe('`variance select --tested` in a merge queue', () => {
 
     // The edit on top of the merge reaches `total`, which neither side's run saw.
     expect(here.out).toBe(whole.out);
-    expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: the working tree changes files HEAD holds`);
+    expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: the working tree differs from HEAD`);
+  });
+
+  it('selects as without `--tested` when the working tree holds a file HEAD does not', async () => {
+    const queue = await queued(home(), {
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+    await writeFile(join(queue.dir, 'src/rate.ts'), 'export const rate = 1;\n');
+
+    const whole = await selected(queue.dir, queue.base);
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // A file neither side wrote may be loaded by a test either side's run never saw it beside.
+    expect(here.out).toBe(whole.out);
+    expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: the working tree differs from HEAD`);
+  });
+
+  it('selects as without `--tested` when the two sides have more than one merge base', async () => {
+    const queue = await queued(home(), {
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+    // Each side merges the other's first commit: a criss-cross, whose fork is neither commit alone.
+    await git(queue.dir, 'checkout', '--quiet', '-b', 'pull', queue.tested);
+    await git(queue.dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', queue.base);
+    const tested = await git(queue.dir, 'rev-parse', 'HEAD');
+    await git(queue.dir, 'checkout', '--quiet', '-b', 'mainline', queue.base);
+    await git(queue.dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', queue.tested);
+    const mainline = await git(queue.dir, 'rev-parse', 'HEAD');
+    await git(queue.dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', tested);
+
+    const whole = await selected(queue.dir, mainline);
+    const here = await selected(queue.dir, mainline, tested);
+
+    expect(here.out).toBe(whole.out);
+    expect(here.err).toContain(`\`--tested ${tested}\` selects as without it: ${mainline.slice(0, 12)} and ${tested.slice(0, 12)} have more than one merge base`);
   });
 
   it('selects as without `--tested` when one side changes what the suite rests on before reach', async () => {

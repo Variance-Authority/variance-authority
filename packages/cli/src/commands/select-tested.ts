@@ -70,22 +70,24 @@ async function observe(
 }
 
 /**
- * What HEAD is against `since` and `tested`: known only when it is exactly
- * the clean merge of `tested` onto `since` and the tree holds nothing beyond it.
+ * What HEAD is against `since` and `tested`: known only when its tree is
+ * exactly the clean merge of `tested` onto `since`, by a merge commit or a
+ * squash, from one fork, and the working tree holds nothing beyond it.
  */
 function mergeOf(git: Git, asked: TestedRequest): MergeAnswer {
   try {
     const commit = (ref: string) => git('rev-parse', '--verify', `${ref}^{commit}`).trim();
     const [mainline, tested] = [commit(asked.since), commit(asked.tested)];
-    if (tested === commit('HEAD')) return { is: 'head' };
-    const parents = git('rev-parse', 'HEAD^@').split('\n').filter(Boolean);
-    const apart = { is: 'apart', why: `HEAD is not ${mainline.slice(0, 12)} with one pull request merged onto it` } as const;
-    if (mainline === tested || parents.length !== 2 || !parents.includes(mainline) || !parents.includes(tested)) return apart;
+    const [m12, t12] = [mainline.slice(0, 12), tested.slice(0, 12)];
+    const forks = git('merge-base', '--all', mainline, tested).split('\n').filter(Boolean);
+    if (forks.length > 1) return { is: 'apart', why: `${m12} and ${t12} have more than one merge base` };
+    // One holding the other merged nothing, so no second side ran apart from it.
+    if (forks[0] === mainline || forks[0] === tested) return { is: 'apart', why: `${m12} and ${t12} are one line of history, so no merge joined them` };
     // A merge HEAD resolved by hand holds lines neither side wrote.
     const clean = git('merge-tree', '--write-tree', mainline, tested).split('\n')[0];
-    if (clean !== git('rev-parse', 'HEAD^{tree}').trim()) return apart;
-    if (git('status', '--porcelain', '--untracked-files=no').trim() !== '') return { is: 'dirty' };
-    return { is: 'known', merge: { mainline, tested, fork: git('merge-base', mainline, tested).trim() } };
+    if (clean !== git('rev-parse', 'HEAD^{tree}').trim()) return { is: 'apart', why: `HEAD is not ${m12} with one pull request merged onto it` };
+    if (git('status', '--porcelain').trim() !== '') return { is: 'dirty' };
+    return { is: 'known', merge: { mainline, tested, fork: forks[0]! } };
   } catch {
     return { is: 'unknown', why: `git could not read the merge of ${asked.tested} onto ${asked.since}` };
   }

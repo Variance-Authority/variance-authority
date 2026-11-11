@@ -237,13 +237,19 @@ holds, since the record predates the pull request's own. A lockfile or
 other side did. When the two sides reach no test in common, no test file runs,
 and the report says so.
 
-The narrowing holds only for a group of one: HEAD must be exactly the clean
-merge of the tested commit onto `--since`, with nothing changed on top of it.
-Anything else — a group of two, a pull request pushed past its tested commit,
-a merge resolved by hand, an edited working tree, a side whose change alone
-selects the whole suite or touches a file the record holds nothing about, a
-git or a record that cannot answer — selects as without `--tested`, and a note names the reason. These are
-among the [places selection widens](#where-selection-widens).
+The narrowing holds only for a group of one: HEAD's tree must be exactly the
+clean merge of the tested commit onto `--since`, by a merge commit or a squash,
+from one merge base, with nothing changed or added on top of it. Anything else
+— a group of two, a pull request pushed past its tested commit, a merge
+resolved by hand, a criss-cross history, a working tree that differs from HEAD,
+untracked files included — selects as without `--tested`. So does a side whose
+change alone selects the whole suite, touches a file the record holds nothing
+about or cannot place, such as a runner config no `before` names, or reaches a
+file whose imports HEAD's graph cannot all read, such as a name built at run
+time or a module the other side deleted; and so does a git or a record that
+cannot answer. A note names the reason. When the selection without `--tested`
+does not read the record, `--tested` does nothing, and a note says so. These
+are among the [places selection widens](#where-selection-widens).
 
 ## What a change to a module's top level runs
 

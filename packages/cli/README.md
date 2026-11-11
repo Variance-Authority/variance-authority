@@ -2467,9 +2467,9 @@ nothing else can still ask.
 a merge queue merged onto `--since`, the mainline commit whose run passed too;
 nothing checks either run, so name only commits that passed. A test file only one side's change reaches is
 skipped, a file both reach runs, and a lockfile change on either side runs what
-it reaches. Each skip is named with the side that ran it. Anything but the clean
-merge of that one pull request at HEAD selects as without `--tested`, with a
-note saying why;
+it reaches. Each skip is named with the side that ran it. Anything but a HEAD
+whose tree is the clean merge of that one pull request, by a merge commit or a
+squash, selects as without `--tested`, with a note saying why;
 [a pull request in the merge queue](https://variance-authority.dev/docs/selecting#a-pull-request-in-the-merge-queue)
 walks through it.
 

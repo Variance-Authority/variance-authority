@@ -14,7 +14,7 @@
  * the state did not ask for — lands on `widened`, which selects as
  * without `--tested`. Only `merged` narrows, and only by adding to the
  * skip list. The answer is read from the final state alone; an open state
- * answers as without `--tested`.
+ * answers as without `--tested`, and `declined` says it did nothing.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -37,7 +37,6 @@ export interface Reach {
 /** What git says HEAD is, against `--since` and `--tested`. */
 export type MergeAnswer =
   | { readonly is: 'known'; readonly merge: Merge }
-  | { readonly is: 'head' }
   | { readonly is: 'apart'; readonly why: string }
   | { readonly is: 'dirty' }
   | { readonly is: 'unknown'; readonly why: string };
@@ -62,7 +61,6 @@ export type TestedState =
   | { readonly kind: 'selecting'; readonly tested: string; readonly runs: readonly string[] }
   | { readonly kind: 'merged'; readonly tested: string; readonly runs: readonly string[]; readonly merge: Merge }
   | { readonly kind: 'declined'; readonly tested: string }
-  | { readonly kind: 'current'; readonly tested: string }
   | { readonly kind: 'widened'; readonly tested: string; readonly why: string }
   | { readonly kind: 'kept'; readonly tested: string; readonly merge: Merge; readonly runs: number }
   | { readonly kind: 'narrowed' | 'empty'; readonly tested: string; readonly merge: Merge; readonly dropped: readonly Dropped[] };
@@ -93,7 +91,6 @@ export function transition(state: TestedState, input: TestedInput): TestedState 
       return input.kind === 'merge' ? fromMerge(state, input.answer) : unexpected;
     case 'merged':
       return input.kind === 'sides' ? fromSides(state, input.pull, input.main) : unexpected;
-    case 'current':
     case 'declined':
     case 'empty':
     case 'kept':
@@ -110,13 +107,11 @@ function fromMerge(state: Extract<TestedState, { kind: 'selecting' }>, answer: M
   switch (answer.is) {
     case 'known':
       return { kind: 'merged', tested, runs, merge: answer.merge };
-    case 'head':
-      return { kind: 'current', tested };
     case 'apart':
     case 'unknown':
       return { kind: 'widened', tested, why: answer.why };
     case 'dirty':
-      return { kind: 'widened', tested, why: 'the working tree changes files HEAD holds' };
+      return { kind: 'widened', tested, why: 'the working tree differs from HEAD' };
     default:
       return unreachable(answer);
   }
@@ -145,12 +140,11 @@ export function selectionOf(state: TestedState, without: SuiteReading): SuiteRea
   const as = (why: string) => withNotes(without, [`\`--tested ${state.tested}\` selects as without it: ${why}`]);
   switch (state.kind) {
     case 'asked':
-    case 'declined':
     case 'merged':
     case 'selecting':
       return without;
-    case 'current':
-      return as('the tested tree is HEAD, so no merge joined it');
+    case 'declined':
+      return withNotes(without, [`\`--tested ${state.tested}\` did nothing: the selection without it did not read the record, so there is nothing to narrow`]);
     case 'widened':
       return as(state.why);
     case 'kept':

@@ -35,13 +35,12 @@ const selecting: TestedState = { kind: 'selecting', tested: TESTED, runs: [A, B]
 const merged: TestedState = { kind: 'merged', tested: TESTED, runs: [A, B], merge };
 describe('the `--tested` reconciliation machine', () => {
   it.each<[string, TestedState, TestedInput, TestedState['kind'], readonly string[], string | undefined]>([
-    ['a selection that narrowed opens the merge', asked, { kind: 'selected', full: FULL }, 'selecting', [], undefined],
-    ['a selection that declined stays as it is', asked, { kind: 'selected', full: full([], 'read', 'every file') }, 'declined', [], undefined],
-    ['a selection that read no record stays as it is', asked, { kind: 'selected', full: full([], 'no-journal') }, 'declined', [], undefined],
+    ['a selection that read the record and did not decline opens the merge', asked, { kind: 'selected', full: FULL }, 'selecting', [], undefined],
+    ['a selection that declined stays as it is', asked, { kind: 'selected', full: full([], 'read', 'every file') }, 'declined', [], `\`--tested ${TESTED}\` did nothing: the selection without it did not read the record`],
+    ['a selection that read no record stays as it is', asked, { kind: 'selected', full: full([], 'no-journal') }, 'declined', [], `\`--tested ${TESTED}\` did nothing: the selection without it did not read the record`],
     ['a known clean merge reads the sides', selecting, { kind: 'merge', answer: { is: 'known', merge } }, 'merged', [], undefined],
-    ['a tested tree that is HEAD merged nothing', selecting, { kind: 'merge', answer: { is: 'head' } }, 'current', [], `the tested tree is HEAD`],
     ['a HEAD that is not that merge widens', selecting, { kind: 'merge', answer: { is: 'apart', why: `HEAD is not ${MAINLINE.slice(0, 12)} with one pull request merged onto it` } }, 'widened', [], 'with one pull request merged onto it'],
-    ['a dirty working tree widens', selecting, { kind: 'merge', answer: { is: 'dirty' } }, 'widened', [], 'the working tree changes files HEAD holds'],
+    ['a dirty working tree widens', selecting, { kind: 'merge', answer: { is: 'dirty' } }, 'widened', [], 'the working tree differs from HEAD'],
     ['git that cannot answer widens', selecting, { kind: 'merge', answer: { is: 'unknown', why: 'git could not read it' } }, 'widened', [], 'git could not read it'],
     ['a pull request that declines alone widens', merged, { kind: 'sides', pull: { whole: 'before moved' }, main: reach([A]) }, 'widened', [], "read alone, the pull request's change selects every test file (before moved)"],
     ['a mainline that declines alone widens', merged, { kind: 'sides', pull: reach([A]), main: { whole: 'no install' } }, 'widened', [], "read alone, the mainline's change selects every test file (no install)"],
@@ -72,7 +71,6 @@ describe('the `--tested` reconciliation machine', () => {
 
   it.each<TestedState>([
     { kind: 'declined', tested: TESTED },
-    { kind: 'current', tested: TESTED },
     { kind: 'widened', tested: TESTED, why: 'unknown' },
     { kind: 'kept', tested: TESTED, merge, runs: 2 },
   ])('stays at the final state $kind whatever it is handed', (final) => {
