@@ -1,5 +1,22 @@
 # @variance-authority/cli
 
+## 0.30.0
+
+### Minor Changes
+
+- fd43167: `variance coverage --packages` gives each package one row of coverage over its own regions, parted into what its own tests ran within one import hop, what only its own tests further away ran, what only other packages' tests ran, and what nothing ran, with a column per kind of suite of what its own tests ran, an `all` row over every package, and a line counting the regions that ran before reach, which are in the coverage and in no part. A package's coverage no longer counts its test files as its code. `coverageByOwner` takes the walked hops and counts `kinds` and `near` per file over the file's own package's tests, and `kinds` is absent when a counted suite has no kind; `withoutTests` leaves out the modules a suite runs as tests.
+
+### Patch Changes
+
+- edc6d7d: The README and the skill print `variance`, the command a package manager runs from the install, where they printed a runner that fetches another package when the install is missing.
+- f6adc0a: The skill's `ask grep` section says the query is a ripgrep regular expression, and how to match a literal.
+- 6382f07: An index of a directory or a worktree no longer parses again the modules another root in the same cache has already read. The cache keeps one parse store, keyed by a module's bytes and how they are read, that every root reads before it parses, and the cache prune reclaims the parses no root names.
+- d3f353a: A parse of a tracked file enters the shared parse store only when the bytes it was made from are the blob git named for that file. A checkout whose file differs from its blob without git saying so — edited under `git update-index --assume-unchanged` or `--skip-worktree`, or changed after the listing was read — keeps that parse in its own index, so another checkout of the same blob no longer takes imports the blob does not have. A blob one checkout read as other bytes at any of its paths is not offered from that checkout at all, and a module read with `packs: false` is not offered. Parses read off disk whose bytes are the blob are still shared.
+
+  A worktree's source index is built from nothing instead of from a copy of its primary checkout's index, which carried records of bytes that were not the blob into a clean worktree. Its first update reads every file and still parses none the primary checkout's update put in the parse store. `updateSourceIndex` no longer takes `primary` or answers `from`, `primarySourceIndexPath` is removed, and `variance index` in a worktree prints `source index built:` as in any checkout. An index named in the checkout's own cache directory, such as the one `variance docs` keeps for a workspace whose member list reaches beside its root, now reads the parse store too.
+- 7ee12a1: A checkout that is renamed or moved with its cache inside it keeps its recording: `variance covering` and `variance select` still read it there, and a prune leaves it. A worktree keeps its own when its primary checkout is still where it was as seen from the worktree, moved together with it or renamed beside it. The cache names a checkout by its path as seen from the cache directory, where it named it by its absolute path. A recording written before this release is not carried over, so the first run after the upgrade records afresh, and the directory the old recording sits in stays until you delete it or its checkout is gone.
+- 2c7aeac: `variance share --suite <name>` names the checkout's own record when that record keeps no cases. The mainline's record is not laid over a record the checkout already holds, so the line names that file, says the mainline's record was not laid over it, and says to delete it and run `variance share --suite <name>` again to take the mainline's. It no longer says the base record was read without its case index, which it now says only when the record it laid keeps none.
+
 ## 0.29.0
 
 ### Minor Changes

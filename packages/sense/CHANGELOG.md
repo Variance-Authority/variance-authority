@@ -1,5 +1,22 @@
 # @variance-authority/sense
 
+## 0.30.0
+
+### Minor Changes
+
+- fd43167: `variance coverage --packages` gives each package one row of coverage over its own regions, parted into what its own tests ran within one import hop, what only its own tests further away ran, what only other packages' tests ran, and what nothing ran, with a column per kind of suite of what its own tests ran, an `all` row over every package, and a line counting the regions that ran before reach, which are in the coverage and in no part. A package's coverage no longer counts its test files as its code. `coverageByOwner` takes the walked hops and counts `kinds` and `near` per file over the file's own package's tests, and `kinds` is absent when a counted suite has no kind; `withoutTests` leaves out the modules a suite runs as tests.
+
+### Patch Changes
+
+- 4c3d5a5: A `/// <depends path>` now selects its declarer for a change to anything the named file loads, at any depth, however the record answers that change. A test that runs a program in another process declares the program's entry, and a change inside the program selects it.
+- def2003: A source index read while other processes write it is no longer reported as damaged. A reader that finds a segment missing follows the manifest the writer left; when writers keep moving it, the reader answers from the older whole generation it read instead of rebuilding. Only a segment missing under a manifest that stayed put counts as damage.
+- 6382f07: An index of a directory or a worktree no longer parses again the modules another root in the same cache has already read. The cache keeps one parse store, keyed by a module's bytes and how they are read, that every root reads before it parses, and the cache prune reclaims the parses no root names.
+- d3f353a: A parse of a tracked file enters the shared parse store only when the bytes it was made from are the blob git named for that file. A checkout whose file differs from its blob without git saying so — edited under `git update-index --assume-unchanged` or `--skip-worktree`, or changed after the listing was read — keeps that parse in its own index, so another checkout of the same blob no longer takes imports the blob does not have. A blob one checkout read as other bytes at any of its paths is not offered from that checkout at all, and a module read with `packs: false` is not offered. Parses read off disk whose bytes are the blob are still shared.
+
+  A worktree's source index is built from nothing instead of from a copy of its primary checkout's index, which carried records of bytes that were not the blob into a clean worktree. Its first update reads every file and still parses none the primary checkout's update put in the parse store. `updateSourceIndex` no longer takes `primary` or answers `from`, `primarySourceIndexPath` is removed, and `variance index` in a worktree prints `source index built:` as in any checkout. An index named in the checkout's own cache directory, such as the one `variance docs` keeps for a workspace whose member list reaches beside its root, now reads the parse store too.
+- 35d6599: An index of a directory inside a worktree reads its primary checkout's parse store under the default cache locations, as the worktree's top already did. A checkout where git writes a module as other bytes than its blob — a filter, `ident`, `working-tree-encoding`, `eol=crlf`, `core.autocrlf=true`, or `core.eol=crlf` over a `text` file (`native` on Windows) — reads no parse store and adds to none, so it never takes a parse of bytes it does not hold.
+- 7ee12a1: A checkout that is renamed or moved with its cache inside it keeps its recording: `variance covering` and `variance select` still read it there, and a prune leaves it. A worktree keeps its own when its primary checkout is still where it was as seen from the worktree, moved together with it or renamed beside it. The cache names a checkout by its path as seen from the cache directory, where it named it by its absolute path. A recording written before this release is not carried over, so the first run after the upgrade records afresh, and the directory the old recording sits in stays until you delete it or its checkout is gone.
+
 ## 0.29.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

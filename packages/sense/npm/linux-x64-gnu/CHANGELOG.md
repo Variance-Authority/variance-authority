@@ -1,5 +1,9 @@
 # @variance-authority/sense-linux-x64-gnu
 
+## 0.30.0
+
+No changes in this release.
+
 ## 0.29.0
 
 No changes in this release.
