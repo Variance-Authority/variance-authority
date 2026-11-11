@@ -207,10 +207,12 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
     expect(first.layer?.pinned).toBeUndefined();
   });
 
-  it('records over the mainline it was laid on when it selects', async () => {
-    const { ran, layer } = await shard(1, true);
+  it('records the files it ran and nothing else when it selects, so the shards fold over the mainline', async () => {
+    const first = await shard(1, true);
+    const second = await shard(2, true);
 
-    expect(ran).toContain(at('elsewhere/only.case.ts'));
-    expect(layer?.pinned).toEqual({ mainline: 'main', commit: 'a'.repeat(40) });
+    expect([...first.ran, ...second.ran].sort()).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
+    expect(first.ran).toHaveLength(1);
+    expect(first.layer?.pinned).toBeUndefined();
   });
 });
