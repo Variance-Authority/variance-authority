@@ -217,7 +217,7 @@ not run it again. A test file both sides reach is where the two changes meet,
 and it runs:
 
 ```bash
-variance select --since <mainline> --tested <tested-commit>
+variance select --since origin/main --tested "$PR_HEAD_SHA"   # the commit the pull request passed at
 ```
 
 ```text

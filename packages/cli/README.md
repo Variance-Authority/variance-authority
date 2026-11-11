@@ -2469,7 +2469,7 @@ skipped, a file both reach runs, and a lockfile change on either side runs what
 it reaches. Each skip is named with the side that ran it. Anything but the clean
 merge of that one pull request at HEAD selects as without `--tested`, with a
 note saying why;
-[a pull request in the merge queue](../../docs/selecting.md#a-pull-request-in-the-merge-queue)
+[a pull request in the merge queue](https://variance-authority.dev/docs/selecting#a-pull-request-in-the-merge-queue)
 walks through it.
 
 #### Selecting from a journey file
