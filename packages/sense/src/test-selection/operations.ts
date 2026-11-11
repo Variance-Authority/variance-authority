@@ -172,8 +172,10 @@ export function graphReachFromView(
  * stylesheet or an image is walked through the modules that import it as an
  * asset (`importers.ts`).
  *
- * A file with a row is the row's, and a test that declares the file is the
- * preconditions'; neither is answered here. With `sourceAt`, a test that
+ * A file with a row is the row's, and is answered here only through the
+ * declarations behind it: a file in the runtime closure of a `/// <depends>`
+ * target charges that target's declarers, however else it is answered
+ * (`declared.ts`). With `sourceAt`, a test that
  * declared a file and already ran the text it arrives at is not held by it,
  * and the walk keeps its chain, as in the composition. A rowless file the
  * reading charges (`readRowlessFromView`) is the reading's in the composition:
@@ -199,7 +201,8 @@ export function importersFromView(
 
 /**
  * Each ignored file walked through the modules that declare they read it
- * (`/// <depends>`), and through nothing else: a suite's `ignore` cuts what
+ * (`/// <depends>`), or that declare a file whose run loads it, and through
+ * nothing else: a suite's `ignore` cuts what
  * selection infers from a file and keeps what code declares of it. A declaring
  * module with a row answers with its tests; one without goes on to its
  * importers, or, in a suite that declines relations, is unanswered.

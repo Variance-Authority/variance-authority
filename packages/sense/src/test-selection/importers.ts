@@ -217,10 +217,10 @@ export function answerByImporters(
     via: new Int32Array(relations.names.length).fill(-1),
   };
   /**
-   * Reads each file that declares it reads `from` (`/// <depends>`), or, `through` an
-   * asset edge as well, imports it as one. A declarer no row holds, for a file nothing
-   * else can answer for (`unheld`), goes where any unmeasured file goes: on to its
-   * importers, or named.
+   * Reads each file that reaches `from` `through` the edges given: one that declares it
+   * reads the file (`/// <depends>`), or one that imports it as an asset. A file no row
+   * holds, where nothing else answers for it (`unheld`), goes where any unmeasured file
+   * goes: on to its importers, or named.
    */
   const declarers = (from: NodeId, through: readonly EdgeKind[], seed: readonly string[], lead: readonly string[], unheld: boolean): void => {
     const traversal = dependentsOf(relations, [from], { through });
@@ -247,7 +247,8 @@ export function answerByImporters(
     const asset = !ignored && !declines && importedAsAsset(relations, id);
     // A module that declares it reads the file is a step to it as much as one that
     // imports it, and the one step an ignored file keeps: nothing else names it.
-    if (ignored || asset) declarers(id, ignored ? ['depends'] : ['asset', 'depends'], seed, [], ignored);
+    // An asset's declarers, and those of every file carrying it, are the declared walk's below.
+    if (ignored || asset) declarers(id, ignored ? ['depends'] : ['asset'], seed, [], ignored);
     else if (declines) unread.push(file);
     else if (!seed.some((name) => rowed.has(name))) {
       importersUntil(relations, id, walk, (other, trail) =>
@@ -257,7 +258,7 @@ export function answerByImporters(
     // A declaration charges its declarer for what the declared file loads, at any
     // depth and whatever answered the change above: the run it names left no row.
     for (const target of behind) {
-      if (target === id && (ignored || asset)) continue;
+      if (target === id && ignored) continue;
       declarers(target, ['depends'], seed, target === id ? [] : [file], true);
     }
   }

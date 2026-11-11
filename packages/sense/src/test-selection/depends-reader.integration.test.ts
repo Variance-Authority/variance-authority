@@ -118,4 +118,12 @@ describe('a test that declares a program it runs in another process', () => {
     });
     expect(narrowing.entered).toEqual(tests('entry', 'spawn'));
   });
+
+  it('leaves a declarer of a data file alone when the change is outside its closure', async () => {
+    const narrowing = await narrowByExecution(coverageFile, await edit(deep, 'return 1;', 'return 2;'), {
+      relations,
+      sourceAt,
+    });
+    expect(narrowing.entered).not.toContain(tests('table')[0]);
+  });
 });
