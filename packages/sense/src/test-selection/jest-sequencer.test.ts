@@ -6,9 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Sequencer from './jest-sequencer.cjs';
 import filter from './jest-filter.cjs';
+import { CACHE_VARIABLE } from './cache-layers.js';
 import { PLACING_SEQUENCER, placingSequencer } from './jest-placing.js';
-import { selectingFilter } from './jest-selection.js';
+import { placingPaths, selectingFilter } from './jest-selection.js';
 import { withTestSelection } from './jest.js';
+import { writeFetchedMainline } from './mainline-layer.js';
 
 const root = resolve('/checkout');
 /** A directory that resolves the Jest this repository tests against. */
@@ -127,7 +129,7 @@ describe('the Jest sequencer under --shard', () => {
     const part = async (index: number, skip: readonly string[]) => {
       const wave = { whole: new Set(files), skip: new Set(skip), placing: { skip: new Set<string>() }, notes: [] };
       selectingFilter({}, { root, rootDir, selection: async () => wave, argv: ['jest'], say: () => {} });
-      placingSequencer({}, { root, rootDir, times, say: () => {}, argv: ['jest', '--shard=1/2'] });
+      placingSequencer({}, { root, rootDir, times, placing: placingPaths, say: () => {}, argv: ['jest', '--shard=1/2'] });
       const { filtered } = await filter(files.map((file) => resolve(root, file)));
       return paths(await sequencer().shard(filtered.map((path) => test(path.slice(root.length + 1))), { shardIndex: index, shardCount: 2 }));
     };
@@ -138,11 +140,31 @@ describe('the Jest sequencer under --shard', () => {
     expect([await part(2, near), await part(2, far)]).toEqual([['b.test.ts'], ['c.test.ts', 'd.test.ts']]);
   });
 
+  it('places what a later run in the same process hands it when that run selects nothing', async () => {
+    const wave = { whole: new Set(files), skip: new Set<string>(), placing: { skip: new Set<string>() }, notes: [] };
+    selectingFilter({}, { root, rootDir, selection: async () => wave, argv: ['jest'], say: () => {} });
+    await filter(['a.test.ts', 'b.test.ts'].map((file) => resolve(root, file)));
+
+    placingSequencer({}, { root, rootDir, times, say: () => {}, argv: ['jest', '--shard=1/2'] });
+    const first = await sequencer().shard(files.map(test), { shardIndex: 1, shardCount: 2 });
+    const second = await sequencer().shard(files.map(test), { shardIndex: 2, shardCount: 2 });
+
+    expect([...paths(first), ...paths(second)].sort()).toEqual(files);
+  });
+
   // `runCLI` hands Jest a shard no command line spells: it is still one shard,
-  // and records alone, so it reads what it was handed, as `--shard` does.
-  it('reads the record it was handed when Jest was given a shard the command line does not spell', async () => {
+  // so handed a read it records alone and reads that read, as `--shard` does,
+  // and handed none it lands over its own record and reads that.
+  it.each([
+    ['reads the record it was handed', true],
+    ['reads its own record, handed none,', false],
+  ])('%s when Jest was given a shard the command line does not spell', async (_, handed) => {
     const checkout = await mkdtemp(resolve(tmpdir(), 'variance-jest-shard-'));
     temporary.push(checkout);
+    const cache = resolve(checkout, 'cache');
+    vi.stubEnv(CACHE_VARIABLE, cache);
+    if (handed) await writeFetchedMainline(cache, 'unit', { mainline: 'main', commit: 'a'.repeat(40), fetched: new Date().toISOString(), handed: true });
+    await writeFile(resolve(checkout, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
     const cli = resolve(checkout, 'node_modules', '@variance-authority', 'cli');
     await mkdir(cli, { recursive: true });
     await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
@@ -159,7 +181,7 @@ describe('the Jest sequencer under --shard', () => {
     vi.stubEnv('VARIANCE_AUTHORITY_SINCE', '');
     vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'jest']);
     vi.spyOn(process.stderr, 'write').mockReturnValue(true);
-    withTestSelection({ testSequencer: '<rootDir>/own.cjs' }, { root: checkout });
+    withTestSelection({ testSequencer: '<rootDir>/own.cjs' }, { root: checkout, suite: 'unit' });
     const shard = { shardIndex: 1, shardCount: 2 };
 
     // Jest makes its sequencer with the global configuration before any filter runs.
@@ -167,7 +189,7 @@ describe('the Jest sequencer under --shard', () => {
     const { filtered } = await filter([resolve(checkout, 'a.test.ts')]);
     await made.shard(filtered.map((path) => ({ path, context: { config: { rootDir: checkout } } })), shard);
 
-    expect(asked).toEqual([['selection', true], ['times', true]]);
+    expect(asked).toEqual([['selection', handed], ['times', handed]]);
   });
 
   it('places whole files by count when nothing is timed, and says why', async () => {

@@ -13,7 +13,8 @@ import { foldRun } from './selection-fold.js';
 import { declareConfig } from './governing-config.js';
 import { refusal, selectionPlugin, type ConfigPlugin } from './vitest-plugin.js';
 import { runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
-import { recordFileFor } from './record-location.js';
+import { handedRecord, recordFileFor } from './record-location.js';
+import { recordsAlone } from './mainline-layer.js';
 import { testFilesAt } from './test-files.js';
 import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
@@ -170,9 +171,9 @@ export function withTestSelection(
   // governs, which for the one that describes the run is every test.
   const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
-  // One shard reads the record it was handed, beneath what it or its earlier
-  // wave ran. Whether the run is one is Vitest's resolved `shard`, which the
-  // sequencer is made with before anything asks for the selection.
+  // A shard handed a read reads it, beneath what it or its earlier wave ran.
+  // Whether the run is one is Vitest's resolved `shard`, which the sequencer is
+  // made with before anything asks for the selection.
   const request = { root, from: configRoot, ...(options.suite === undefined ? {} : { suite: options.suite }) };
   const own = askedSelection(options.selection, () => coverageFile, request);
   const handed = askedSelection(options.selection, () => coverageFile, { ...request, beneath: true });
@@ -280,7 +281,7 @@ function selecting(
   const times = () => landingTimes(coverageFile, { ...asked, ...(run.alone ? { beneath: true } : {}) })();
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
-    sharded: (asked) => { run.alone = asked; },
+    sharded: (asked) => { run.alone = recordsAlone(asked, selection !== undefined, handedRecord(root, coverageFile)); },
     cut: (cases) => {
       for (const [file, names] of cases) run.cut.set(file, names);
       writeCut(run.cutFile, run.cut);

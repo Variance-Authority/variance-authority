@@ -229,13 +229,13 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
     expect(first.layer?.pinned).toBeUndefined();
   });
 
-  it('records the files it ran and nothing else when it selects, so the shards fold over the mainline', async () => {
-    const first = await shard(1, true);
-    const second = await shard(2, true);
+  // Its later wave selects from this record, so a part here would hide every
+  // test the earlier wave did not run.
+  it('records over the mainline it was laid on when it selects and was handed no read', async () => {
+    const { ran, layer } = await shard(1, true);
 
-    expect([...first.ran, ...second.ran].sort()).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
-    expect(first.ran).toHaveLength(1);
-    expect(first.layer?.pinned).toBeUndefined();
+    expect(ran).toContain(at('elsewhere/only.case.ts'));
+    expect(layer?.pinned).toEqual({ mainline: 'main', commit: 'a'.repeat(40) });
   });
 
   it('reads the last push\'s record and records only what it ran, so the shards fold over that record', async () => {

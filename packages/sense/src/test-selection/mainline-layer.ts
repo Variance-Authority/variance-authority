@@ -145,6 +145,25 @@ function fetchCaches(root: string, cacheRoot: string | undefined, suite: string)
 }
 
 /**
+ * Whether a run records the files it ran and nothing else, on no base: one
+ * shard of a run that selects nothing, or of a selected run handed its read.
+ *
+ * Such a shard is a part of one whole run, and the fan-in folds the parts over
+ * the base, refusing a test file two parts both hold. A shard placed by
+ * recorded time has read the suite's times, and that read can fetch the
+ * mainline's record into the shard's cache, where `seedTestCoverage` would lay
+ * it under the shard's run: every part would then carry every row of the base.
+ * A selected shard handed a read ({@link mainlineHanded}) selects every wave
+ * from that read and is folded over it. A selected shard handed none is not a
+ * part of a whole: it records over the base its selection was cut from, and
+ * its later wave selects from that record, so a part would hide every test its
+ * earlier wave did not run.
+ */
+export function recordsAlone(sharded: boolean, selected: boolean, handed: boolean): boolean {
+  return sharded && (!selected || handed);
+}
+
+/**
  * Whether this checkout holds another job's read of `suite`, so no layer under
  * it answers: a handed miss leaves the mark alone, which names no record.
  */

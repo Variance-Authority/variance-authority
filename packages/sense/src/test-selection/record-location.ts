@@ -258,6 +258,11 @@ export function cachedSuite(file: string): string | undefined {
   return /(?:^|\/)suites\/([^/]+)\/coverage\.bin$/u.exec(file.split(sep).join('/'))?.[1];
 }
 
+/** Whether `file` is a suite's record whose read another job handed this checkout. */
+export function handedRecord(root: string, file: string): boolean {
+  return mainlineHanded(root, cachedSuite(file));
+}
+
 /**
  * The record at `file`, as `bytes`, when a run under `instrumentation` cannot
  * be laid over it for its probes: the check `layRecord` makes first.

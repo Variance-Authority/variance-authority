@@ -21,7 +21,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { projectPath } from './instrumented-modules.js';
 import { jestDependency } from './jest-dependency.js';
-import { placingPaths, refuseUnfound } from './jest-selection.js';
+import { refuseUnfound } from './jest-selection.js';
 import { shardArgument, shardOf } from './shard-placement.js';
 import type { SuiteTimes } from './suite-selection.js';
 
@@ -54,6 +54,13 @@ export interface PlacingOptions {
    * filter asks for the selection or any shard for the times.
    */
   readonly sharded?: (asked: boolean) => void;
+  /**
+   * The files every wave of a selected shard places, by absolute path, from
+   * the filter this sequencer is installed beside: `undefined` when the shard
+   * places what it runs. Absent for a run that selects nothing, which places
+   * what Jest hands it whatever an earlier run in the process left behind.
+   */
+  readonly placing?: () => readonly string[] | undefined;
   readonly say?: (line: string) => void;
   /** The command line the configuration is evaluated under; `process.argv` unless handed. */
   readonly argv?: readonly string[];
@@ -94,7 +101,7 @@ export function placingSequencer(
     shard: async (tests: { path: string }[], shard: Shard): Promise<unknown[]> => {
       const asked = { index: shard.shardIndex, count: shard.shardCount };
       // A wave of one shard places every wave's files, and keeps its own of them.
-      const across = placingPaths() ?? tests.map((test) => test.path);
+      const across = options.placing?.() ?? tests.map((test) => test.path);
       const part = shardOf(across.map((path) => projectPath(options.root, path)), asked, await (read ??= options.times()));
       if (!told) say(part.line);
       told = true;

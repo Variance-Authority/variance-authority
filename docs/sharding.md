@@ -248,12 +248,14 @@ adds.
 
 Keep both off the push to your mainline: that build runs the whole suite, so
 its shards' records fold into the one the next build is placed by. Under Vitest
-and Jest, a shard, selected or not, records the files it ran and nothing else:
-it selects from the record it was handed, lays none under its own run, and a
-shard that runs no file leaves no record. A shard handed no record, with no
-`carry receive` before it, reads the one its checkout holds, which is the one
-`variance shards` priced. A shard that runs in more than one
-pass, near tests first and the far ones after, selects and places every pass
+and Jest, a shard of a whole run records the files it ran and nothing else, and
+so does a selected shard handed a record, by `carry receive` or `carry take
+--as-base`: it selects from that record, lays none under its own run, and a
+shard that runs no file leaves no record. A selected shard handed none records
+over the record its checkout holds, as a run that is not sharded does, so its
+record carries every row of that one and does not fold with another shard's:
+it records for itself, not for the share. A handed shard that runs in more than
+one pass, near tests first and the far ones after, selects and places every pass
 from that same record, beneath what its earlier passes ran, and each pass lands
 over the last, so the shard's one record holds what all of them ran. A later
 pass runs only the files the record placed in its range: a test new since the
@@ -264,7 +266,7 @@ of every pass the shard runs in `VARIANCE_AUTHORITY_PLACE_AT_DISTANCE`, such as
 as one and runs its own of that shard's part, so the passes together take the
 one part the plan priced. Unset, each pass is placed alone, which is the part a
 plan that priced that pass alone expects. A pull
-request's shards then fold over the record they selected from, and a test file
+request's handed shards then fold over the record they selected from, and a test file
 or case no shard ran keeps the row it had. A shard killed before it lands
 leaves no record and fails the build; the others' still fold. A Playwright
 shard still lands over the record it read, so keep a pull request's Playwright
