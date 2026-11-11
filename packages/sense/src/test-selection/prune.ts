@@ -12,7 +12,7 @@
  * the answer:
  *
  * - **A checkout that no longer exists.** Its layer's {@link CHECKOUT_MARKER}
- *   names the path from the cache directory; the file system says if it stands.
+ *   names the path, and the file system says whether it is still there.
  * - **A worktree git no longer lists.** For a layer written before markers
  *   existed, `git worktree list` in the primary checkout names every worktree
  *   the repository still has.

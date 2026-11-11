@@ -105,9 +105,9 @@ over it, so a repository that names its cache keeps one answer for everyone.
 ```
 
 `<repository>` is the first 32 hexadecimal characters of the SHA-256 of the
-checkout's path as seen from the cache directory, with links resolved. At the
-default location that path is `../../..` in every checkout, so a checkout
-renamed or moved with its cache inside it keeps its recording:
+checkout's path as seen from the cache directory, with the links in both
+resolved. At the default location that path is `../../..` in every checkout,
+so a checkout renamed or moved with its cache inside it keeps its recording:
 
 ```bash
 printf %s ../../.. | shasum -a 256 | cut -c1-32

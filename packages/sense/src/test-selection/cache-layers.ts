@@ -42,7 +42,7 @@
 
 // compass: variance-authority.reach
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
 import { digestString } from '../digest.js';
@@ -223,17 +223,23 @@ export function workDirectory(base: string): string {
  * cost is one small read for the first module of a build.
  */
 export function cacheLayers(root: string, cacheRoot?: string): CacheLayers {
-  const here = resolve(root);
+  const { top, base } = layersIn(resolve(root), cacheRoot);
+
+  return { top, base };
+}
+
+/** {@link cacheLayers}, and the cache directory `top` is in: the one its key and its marker are spelled from. */
+function layersIn(here: string, cacheRoot?: string): CacheLayers & { readonly cache: string } {
   const primary = primaryCheckout(here);
   const shared = cacheRoot ?? primaryCacheRoot(here);
   const base = resolve(shared, 'test-selection', checkoutKey(primary, shared));
-  if (primary === here) return { top: base, base };
+  if (primary === here) return { top: base, base, cache: shared };
   // Each checkout reads its own `cacheRoot`: a relative one names a directory
   // inside the worktree, which is the one directory a sandboxed agent may write.
   const own = cacheRoot ?? cacheRootFor(here);
   const repository = resolve(own, 'test-selection', checkoutKey(primary, own));
 
-  return { top: resolve(workDirectory(repository), checkoutKey(here, own)), base };
+  return { top: resolve(workDirectory(repository), checkoutKey(here, own)), base, cache: own };
 }
 
 /**
@@ -283,7 +289,34 @@ export function layeredFiles(layers: CacheLayers, name: string): readonly string
  * two checkouts sharing one cache are two paths.
  */
 export function checkoutKey(checkout: string, cacheRoot: string): string {
-  return digestString(relative(cacheRoot, checkout)).replace(/^[^:]+:/, '');
+  return digestString(seenFrom(cacheRoot, checkout)).replace(/^[^:]+:/, '');
+}
+
+/**
+ * `path` as seen from the cache directory, both with their links resolved: two
+ * names for one directory are one path, so a cache two checkouts reach through
+ * a link holds a layer for each, and a marker reads back from either name.
+ */
+function seenFrom(cacheRoot: string, path: string): string {
+  return relative(physical(cacheRoot), physical(path));
+}
+
+const physicals = new Map<string, string>();
+
+/** `path` with its links resolved, through its nearest ancestor that exists when it does not yet. Held: a transform asks per module. */
+function physical(path: string): string {
+  const held = physicals.get(path);
+  if (held !== undefined) return held;
+  let found: string;
+  try {
+    found = realpathSync(path);
+  } catch {
+    const parent = dirname(path);
+    found = parent === path ? path : resolve(physical(parent), basename(path));
+  }
+  physicals.set(path, found);
+
+  return found;
 }
 
 /** The file a layer names its checkout in, so the cache can ask whether the checkout is still there. */
@@ -301,10 +334,11 @@ export interface CheckoutMarker {
  * Write down which checkout a layer belongs to.
  *
  * A layer is named by a digest of its checkout's path, and a digest cannot be
- * read back into a path. Without this the cache can say of no directory whether
- * the checkout that wrote it still exists, so nothing can be removed on a fact
- * and everything can only be aged out. Every run that records rewrites the
- * file, which makes its mtime the time the layer was last written.
+ * read back into a path. Without this the cache holds thousands of directories
+ * and can say of none of them whether the checkout that wrote it still exists,
+ * so nothing can be removed on a fact and everything can only be aged out. The
+ * file is rewritten by every run that records, which makes its mtime the time
+ * the layer was last written.
  *
  * Called by the writers, never by {@link cacheLayers}: a command that only reads
  * the cache must leave it as it found it. Silent on failure, because a layer
@@ -313,11 +347,10 @@ export interface CheckoutMarker {
  */
 export function markCheckout(root: string, cacheRoot?: string): void {
   const checkout = resolve(root);
-  const { top } = cacheLayers(checkout, cacheRoot);
-  const from = cacheRoot ?? cacheRootFor(checkout);
+  const { top, cache } = layersIn(checkout, cacheRoot);
   const marker: CheckoutMarker = {
-    checkout: relative(from, checkout),
-    primary: relative(from, primaryCheckout(checkout)),
+    checkout: seenFrom(cache, checkout),
+    primary: seenFrom(cache, primaryCheckout(checkout)),
   };
   try {
     mkdirSync(top, { recursive: true });
@@ -333,7 +366,7 @@ export function readCheckoutMarker(layer: string, cacheRoot: string): CheckoutMa
   try {
     const value = JSON.parse(readFileSync(resolve(layer, CHECKOUT_MARKER), 'utf8')) as Partial<CheckoutMarker>;
     return typeof value.checkout === 'string' && typeof value.primary === 'string'
-      ? { checkout: resolve(cacheRoot, value.checkout), primary: resolve(cacheRoot, value.primary) }
+      ? { checkout: resolve(physical(cacheRoot), value.checkout), primary: resolve(physical(cacheRoot), value.primary) }
       : undefined;
   } catch {
     return undefined;

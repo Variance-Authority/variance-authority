@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rename, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
 import {
   CHECKOUT_MARKER,
@@ -216,6 +216,35 @@ describe('the key a checkout is kept under', () => {
     expect(feature.base).toBe(after.top);
   });
 
+  test('two worktrees whose `node_modules` is a link to the primary checkout\'s keep two layers there', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '');
+    const primary = resolve(await checkout(), 'primary');
+    await mkdir(resolve(primary, 'node_modules'));
+    const tops = [];
+    for (const name of ['a', 'b']) {
+      const path = resolve(primary, '.wt', name);
+      await mkdir(path, { recursive: true });
+      await writeFile(resolve(path, '.git'), `gitdir: ${resolve(primary, '.git', 'worktrees', name)}\n`);
+      await symlink(resolve(primary, 'node_modules'), resolve(path, 'node_modules'));
+      const { top } = cacheLayers(path);
+      await mkdir(top, { recursive: true });
+      tops.push(await realpath(top));
+    }
+    vi.unstubAllEnvs();
+
+    expect(tops[0]).not.toBe(tops[1]);
+  });
+
+  test('a cache directory reached through a link is the directory it links to', async () => {
+    const at = await checkout();
+    await mkdir(resolve(at, 'cache'));
+    await mkdir(resolve(at, 'elsewhere'));
+    await symlink(resolve(at, 'cache'), resolve(at, 'elsewhere', 'link'));
+
+    expect(basename(cacheLayers(resolve(at, 'primary'), resolve(at, 'elsewhere', 'link')).top))
+      .toBe(basename(cacheLayers(resolve(at, 'primary'), resolve(at, 'cache')).top));
+  });
+
   test('two checkouts that share one cache directory keep two layers in it', async () => {
     const at = await checkout();
 
@@ -232,7 +261,8 @@ describe('the key a checkout is kept under', () => {
 
     expect(JSON.parse(await readFile(resolve(cacheLayers(primary, cache).top, CHECKOUT_MARKER), 'utf8')))
       .toEqual({ checkout: join('..', '..'), primary: join('..', '..') });
-    expect(readCheckoutMarker(cacheLayers(primary, cache).top, cache)).toEqual({ checkout: primary, primary });
+    const physical = await realpath(primary);
+    expect(readCheckoutMarker(cacheLayers(primary, cache).top, cache)).toEqual({ checkout: physical, primary: physical });
   });
 });
 
