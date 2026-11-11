@@ -3,9 +3,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { indexOutput } from './index-command.js';
-import { PUSH, cloneOf, git, publishTo, shareConfig } from './mainline-fixture.js';
+import { PUSH, cloneOf, git, originAndCi, publishTo, shareConfig } from './mainline-fixture.js';
 import { selectOutput } from './select-command.js';
 
 /**
@@ -73,12 +74,7 @@ export function scratch(): () => string {
  * pull request merged onto it in turn. `tested` is the last pull request's tree.
  */
 export async function queued(home: string, queue: Queue): Promise<Queued> {
-  const origin = join(home, 'origin.git');
-  const ci = join(home, 'ci');
-  await git(home, 'init', '--quiet', '--bare', '--initial-branch', 'main', origin);
-  await git(home, 'init', '--quiet', '--initial-branch', 'main', ci);
-  await git(ci, 'config', 'user.email', 'fixture@example.test');
-  await git(ci, 'config', 'user.name', 'Fixture');
+  const { origin, ci } = await originAndCi(home);
   await written(ci, {
     'src/total.ts': TOTAL, 'src/other.ts': OTHER, 'test/total.test.ts': TOTAL_TEST, 'test/other.test.ts': OTHER_TEST,
     'variance.config.json': JSON.stringify({ suites: { unit: { kind: 'unit', carry: 'share' } }, share: shareConfig(home).share }),
@@ -149,7 +145,7 @@ async function recorded(home: string, ci: string, entered: Readonly<Record<strin
   const commit = await git(ci, 'rev-parse', 'HEAD');
   const held = { 'src/other.ts': 'test/other.test.ts', 'src/total.ts': 'test/total.test.ts', ...entered };
   const modules = [];
-  for (const [file, test] of Object.entries(held).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+  for (const [file, test] of Object.entries(held).sort(([a], [b]) => codeUnitOrder(a, b))) {
     modules.push(moduleOf(file, await readFile(join(ci, file), 'utf8'), test));
   }
   await writeTestCoverage(testCoverageFile(ci, { suite: 'unit' }), {

@@ -137,6 +137,17 @@ export async function published(
 /** A share on the checkout's own `origin`, whose mainline is `main`, as GitHub carries it. */
 export const GIT_SHARE = { kind: 'git', mainlines: ['main'] } as const;
 
+/** A bare `origin` under `home`, and an empty `ci` checkout beside it that commits as the fixture. */
+export async function originAndCi(home: string): Promise<{ origin: string; ci: string }> {
+  const origin = join(home, 'origin.git');
+  const ci = join(home, 'ci');
+  await git(home, 'init', '--quiet', '--bare', '--initial-branch', 'main', origin);
+  await git(home, 'init', '--quiet', '--initial-branch', 'main', ci);
+  await git(ci, 'config', 'user.email', 'fixture@example.test');
+  await git(ci, 'config', 'user.name', 'Fixture');
+  return { origin, ci };
+}
+
 /**
  * The CI checkout for {@link GIT_SHARE}: `unit` given to it, one commit pushed
  * to a bare `origin`, and the record a run of the whole suite made there, in
@@ -149,12 +160,7 @@ export async function gitPublished(
   home: string,
   options: { readonly publish?: boolean; readonly instrumentation?: string; readonly suites?: Readonly<Record<string, unknown>> } = {},
 ): Promise<{ ci: string; origin: string; first: string; record: Buffer }> {
-  const origin = join(home, 'origin.git');
-  const ci = join(home, 'ci');
-  await git(home, 'init', '--quiet', '--bare', '--initial-branch', 'main', origin);
-  await git(home, 'init', '--quiet', '--initial-branch', 'main', ci);
-  await git(ci, 'config', 'user.email', 'fixture@example.test');
-  await git(ci, 'config', 'user.name', 'Fixture');
+  const { origin, ci } = await originAndCi(home);
   await mkdir(join(ci, 'src'));
   await mkdir(join(ci, 'test'));
   await writeFile(join(ci, 'src/total.ts'), BEFORE);
