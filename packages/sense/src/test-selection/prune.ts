@@ -4,15 +4,15 @@
  * Everything under `test-selection` is keyed by a digest of a checkout's path,
  * and until the checkouts started naming themselves nothing could say which of
  * those directories still had a checkout behind them. So nothing was ever
- * removed: a worktree deleted this morning, a checkout moved last month and a
- * temporary directory a test made and dropped all left a directory behind, and
- * a machine that runs a few suites a day held thousands of them within a week.
+ * removed: a worktree deleted this morning, a checkout moved away from its
+ * cache last month and a temporary directory a test dropped all left a
+ * directory, and a machine running a few suites a day held thousands in a week.
  *
  * Each rule below removes something only on the word of the party that owns
  * the answer:
  *
  * - **A checkout that no longer exists.** Its layer's {@link CHECKOUT_MARKER}
- *   names the path, and the file system says whether it is still there.
+ *   names the path from the cache directory; the file system says if it stands.
  * - **A worktree git no longer lists.** For a layer written before markers
  *   existed, `git worktree list` in the primary checkout names every worktree
  *   the repository still has.
@@ -143,7 +143,7 @@ export async function planPrune(
 
   for (const name of await directoriesIn(root)) {
     const repository = join(root, name);
-    const marker = readCheckoutMarker(repository);
+    const marker = readCheckoutMarker(repository, cacheRoot);
     if (marker !== undefined && !owners.exists(marker.checkout)) {
       await drop(repository, 'gone');
       continue;
@@ -160,11 +160,11 @@ export async function planPrune(
     const work = workDirectory(repository);
     const layers = await directoriesIn(work);
     if (layers.length === 0) continue;
-    const primary = marker?.checkout ?? layers.map((key) => readCheckoutMarker(join(work, key))?.primary).find(Boolean);
-    const listed = primary === undefined ? undefined : await listedKeys(primary, owners);
+    const primary = marker?.checkout ?? layers.map((key) => readCheckoutMarker(join(work, key), cacheRoot)?.primary).find(Boolean);
+    const listed = primary === undefined ? undefined : await listedKeys(primary, owners, cacheRoot);
     for (const key of layers) {
       const path = join(work, key);
-      const own = readCheckoutMarker(path);
+      const own = readCheckoutMarker(path, cacheRoot);
       if (own !== undefined) {
         if (owners.exists(own.checkout)) await layer(path, owners, drop);
         else await drop(path, 'gone');
@@ -357,14 +357,14 @@ export function scratchPid(name: string): number | undefined | null {
   return name.endsWith('.tmp') ? undefined : null;
 }
 
-async function listedKeys(primary: string, owners: PruneOwners): Promise<ReadonlySet<string> | undefined> {
+async function listedKeys(primary: string, owners: PruneOwners, cacheRoot: string): Promise<ReadonlySet<string> | undefined> {
   const paths = await owners.worktrees(primary);
   if (paths === undefined) return undefined;
   const keys = new Set<string>();
   for (const path of paths) {
-    keys.add(checkoutKey(path));
+    keys.add(checkoutKey(path, cacheRoot));
     try {
-      keys.add(checkoutKey(realpathSync(path)));
+      keys.add(checkoutKey(realpathSync(path), cacheRoot));
     } catch { /* gone from disk; git will call it prunable */ }
   }
   return keys;

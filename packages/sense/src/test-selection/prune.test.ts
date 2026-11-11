@@ -73,6 +73,19 @@ describe('planPrune', () => {
     expect(plan.remove[0]!.bytes).toBeGreaterThan(0);
   });
 
+  test('a marker names its checkout from the cache directory, so a cache inside a checkout that moved is asked about where it stands now', async () => {
+    const checkout = await cache();
+    const root = join(checkout, 'node_modules', '.cache', 'variance-authority');
+    const kept = join(root, 'test-selection', 'aaa');
+    const away = join(root, 'test-selection', 'bbb');
+    await marker(kept, join('..', '..', '..'), join('..', '..', '..'), 90 * DAY);
+    await marker(away, join('..', '..', '..', 'sibling'), join('..', '..', '..', 'sibling'), DAY);
+
+    const plan = await planPrune(root, owners({ exists: (path) => path === checkout }));
+
+    expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[away, 'gone']]);
+  });
+
   test('a layer naming no checkout is kept until nothing in it was written for 30 days', async () => {
     const root = await cache();
     const young = join(root, 'test-selection', 'young');
@@ -93,9 +106,9 @@ describe('planPrune', () => {
     const repository = join(root, 'test-selection', 'repo');
     await marker(repository, '/primary', '/primary', DAY);
     const work = join(repository, '.work');
-    const listed = join(work, checkoutKey('/primary/.claude/worktrees/kept'));
-    const unlisted = join(work, checkoutKey('/primary/.claude/worktrees/dropped'));
-    const fresh = join(work, checkoutKey('/primary/.claude/worktrees/new'));
+    const listed = join(work, checkoutKey('/primary/.claude/worktrees/kept', root));
+    const unlisted = join(work, checkoutKey('/primary/.claude/worktrees/dropped', root));
+    const fresh = join(work, checkoutKey('/primary/.claude/worktrees/new', root));
     for (const [layer, age] of [[listed, 5 * DAY], [unlisted, 5 * DAY], [fresh, DAY / 2]] as const) {
       await put(join(layer, 'coverage.bin'), age);
       await date(layer, age);

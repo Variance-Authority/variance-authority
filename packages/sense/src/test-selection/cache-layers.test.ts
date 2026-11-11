@@ -1,9 +1,17 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, stat, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rename, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { describe, expect, test, vi } from 'vitest';
-import { cacheLayers, cacheRootFor, layeredFiles, repositoryLayers } from './cache-layers.js';
+import {
+  CHECKOUT_MARKER,
+  cacheLayers,
+  cacheRootFor,
+  layeredFiles,
+  markCheckout,
+  readCheckoutMarker,
+  repositoryLayers,
+} from './cache-layers.js';
 import { caseSectionsAt, recordOfCases, withoutCoverage } from './case-record.js';
 import { commitRunsFile } from './commit-runs.js';
 import { CrossingSets } from './crossing-sets.js';
@@ -189,6 +197,42 @@ describe('where a checkout keeps its cache', () => {
 
     expect(layers.top).toBe(layers.base);
     expect(layers.base).not.toBe(elsewhere.base);
+  });
+});
+
+describe('the key a checkout is kept under', () => {
+  test('a checkout renamed with its cache inside it keeps its layer, and its worktree the base it reads', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', '');
+    const at = await realpath(await checkout());
+    const before = cacheLayers(resolve(at, 'primary'));
+    const moved = `${at}-moved`;
+    await rename(at, moved);
+
+    const after = cacheLayers(resolve(moved, 'primary'));
+    const feature = cacheLayers(await worktree(moved, resolve(moved, 'primary', '.git', 'worktrees', 'feature')));
+    vi.unstubAllEnvs();
+
+    expect(relative(moved, after.top)).toBe(relative(at, before.top));
+    expect(feature.base).toBe(after.top);
+  });
+
+  test('two checkouts that share one cache directory keep two layers in it', async () => {
+    const at = await checkout();
+
+    expect(cacheLayers(resolve(at, 'primary'), resolve(at, 'cache')).top)
+      .not.toBe(cacheLayers(resolve(at, 'copy'), resolve(at, 'cache')).top);
+  });
+
+  test('the marker a checkout writes names it from the cache directory', async () => {
+    const at = await checkout();
+    const primary = resolve(at, 'primary');
+    const cache = resolve(primary, 'node_modules', '.cache');
+
+    markCheckout(primary, cache);
+
+    expect(JSON.parse(await readFile(resolve(cacheLayers(primary, cache).top, CHECKOUT_MARKER), 'utf8')))
+      .toEqual({ checkout: join('..', '..'), primary: join('..', '..') });
+    expect(readCheckoutMarker(cacheLayers(primary, cache).top, cache)).toEqual({ checkout: primary, primary });
   });
 });
 
