@@ -114,7 +114,9 @@ async function setAside(root: string, suite: string): Promise<string | undefined
  * Lay each suite under `dir` into the checkout at `root` as its own record,
  * replacing one a restore laid from the mainline: the last push was laid on a
  * mainline record, so it is that record plus what the pull request ran since.
- * `left` names the rest: the commits not had, `unlisted`, `undeclared`, or
+ * Each is read once as it is laid, so a mainline published since re-bases it
+ * then, and the bytes read are written back under `dir`: whatever takes `dir`
+ * next reads the record this take read. `left` names the rest: the commits not had, `unlisted`, `undeclared`, or
  * the probes it was written under when they are not `instrumentation`, the
  * run's next (`foreignProbes`); `undefined` takes any probes. The left are
  * removed from `dir` and the taken named there; a take over a directory an
@@ -198,6 +200,11 @@ export async function takePushed(
     const own = dirname(record);
     await rm(own, { recursive: true, force: true });
     await cp(from, own, { recursive: true });
+    // Read once here, so a mainline published since the push re-bases it now, and hand
+    // those bytes on: every shard taking them `--as-base` reads the record the plan priced.
+    await suiteBase(root, { suite, ...(options.env === undefined ? {} : { env: options.env }) });
+    await rm(from, { recursive: true, force: true });
+    await cp(own, from, { recursive: true });
     taken.push(suite);
   }
   const result: PushedTaken = {

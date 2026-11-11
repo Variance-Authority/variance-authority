@@ -271,9 +271,10 @@ shards out of the share. Rstest takes no `--shard` placement from variance.
 A pull request that [carries its last push](selecting.md#a-pull-requests-next-push)
 hands that record to its shards too: after `carry receive`, each shard runs
 `variance carry take <dir> --as-base` over the directory the plan's `take`
-handed on. That lays the last push where the received read sits, so every shard
-selects from the record the plan counted, and its own record still starts
-empty.
+handed on. The plan's `take` re-based that record on any mainline published
+since the push and wrote it back, and `--as-base` lays it where the received
+read sits, so every shard selects from the bytes the plan counted, and its own
+record still starts empty.
 
 GitHub Actions can build a matrix from an earlier job's output, so the count is
 decided per build. `--format json` gives a `matrix` of `k/n` strings, empty for

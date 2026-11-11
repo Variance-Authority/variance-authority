@@ -3,7 +3,7 @@ import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { nearestRecord, testCoverageFile } from '@variance-authority/sense/test-selection';
+import { landRun, nearestRecord, seedTestCoverage, testCoverageFile, withIndexLock } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OperatorError } from '../exit.js';
 import type { Env } from '../share-lines.js';
@@ -12,6 +12,8 @@ import { keepPushed, takePushed } from './carry-pushed.js';
 import { selectSuite } from './select-command.js';
 import { suiteTimes } from './suite-times.js';
 import { DISCOUNTS, git, gitPublished, ranWhole, recordIn } from './mainline-fixture.js';
+import { publishedNext, ranAlone } from './milestone-pin.fixture.js';
+import { suiteBase } from './suite-base.js';
 
 /**
  * A shard reads the record the run's orchestrator gave it and writes only what
@@ -87,6 +89,28 @@ describe('a shard takes the last push as its base', () => {
     const asked = { root: shard, suite: 'unit', beneath: true } as const;
     expect((await selectSuite(asked)).read).toEqual((await selectSuite({ root: shard, suite: 'unit', record: handedRecord })).read);
     expect((await suiteTimes(asked)).recording).toBe(handedRecord);
+  });
+
+  it('selects from the bytes the plan priced when the line moved on since the last push', async () => {
+    const { ci, origin, first } = await gitPublished(home);
+    // The last push ran over the mainline's first record, and kept what it ran.
+    const earlier = await job(origin, 'earlier');
+    expect(await suiteBase(earlier, { env: LOCAL })).toMatchObject({ from: 'mainline', mainline: { commit: first } });
+    const own = testCoverageFile(earlier, { suite: 'unit' });
+    await withIndexLock(own, (lock) => seedTestCoverage(lock, earlier, 'fixture'));
+    await landRun(own, ranAlone(first, 'test/total.test.ts'), earlier);
+    await keepPushed(earlier, carried, undefined);
+    // Main publishes a newer record before this push runs, and the plan reads it.
+    await publishedNext(home, ci);
+    const plan = await job(origin, 'plan');
+    await handBase(plan, handed, { env: LOCAL });
+    expect((await takePushed(plan, carried)).taken).toEqual(['unit']);
+    const priced = (await suiteTimes({ root: plan, suite: 'unit' })).recording;
+    const shard = await job(origin, 'shard');
+    await receiveBase(shard, handed);
+    await takePushed(shard, carried, { asBase: true });
+
+    expect(await readFile(nearestRecord(shard, { suite: 'unit' }).file)).toEqual(await readFile(priced));
   });
 
   it('reads the handed record when the last push kept nothing', async () => {

@@ -188,10 +188,11 @@ finish green: a failed one, and one the run never reached.
 `carry save` names, and the host cache saves it under a key only that pull
 request restores, red or green, with the commits it names that no remote
 holds. On the next push `variance carry take` reads those commits and lays the
-record over the mainline's; a suite whose commits cannot be had reads the
-mainline's record instead, as a first push does. Each other job of the run
-takes the directory the first one handed on, and stops when it cannot take
-what that one took:
+record over the mainline's, re-based on any mainline record published since,
+and writes those bytes back to the directory; a suite whose commits cannot be
+had reads the mainline's record instead, as a first push does. Each other job
+of the run takes the directory the first one handed on, so it reads the same
+record, and stops when it cannot take what that one took:
 
 ```bash
 variance carry keep                     # after the tests, red or green

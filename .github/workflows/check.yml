@@ -408,7 +408,9 @@ jobs:
       # remote holds beside the records, and `carry take` reads them before it
       # fetches the rest by name. A suite whose commits cannot be had is left,
       # reads `main`'s record, and is removed from the directory, which then
-      # names what was taken; checked once here, so every job reads the same.
+      # names what was taken. A taken record is re-based on the read handed
+      # above and written back, so the directory handed on holds the bytes
+      # `plan` prices; checked once here, so every job reads the same.
       - name: check what the last push ran
         id: taken
         if: steps.plan.outputs.pushed-key != ''
