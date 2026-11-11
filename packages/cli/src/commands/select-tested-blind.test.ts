@@ -8,6 +8,7 @@ import { OTHER, TOTAL, queued, scratch, selected } from './select-tested.fixture
  */
 
 const home = scratch();
+const RATE = 'export const rate = 1;\nexport const name = "rate";\nexport const unit = "eur";\n';
 
 describe('`variance select --tested` where the graph is blind', () => {
   it('selects as without `--tested` when the pull request imports a module the mainline deletes', async () => {
@@ -60,5 +61,47 @@ describe('`variance select --tested` where the graph is blind', () => {
     // `other` ran at the tested tree on the config the mainline has since changed.
     expect(here.out).toBe(whole.out);
     expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: read alone, the mainline's change selects every test file (nothing says which test vitest.config.ts reaches)`);
+  });
+
+  it('selects as without `--tested` when the pull request renames a module the mainline changes', async () => {
+    const queue = await queued(home(), {
+      start: { 'src/rate.ts': RATE, 'src/total.ts': "import { rate } from './rate';\n" + TOTAL.replace('0.9', 'rate') },
+      entered: { 'src/rate.ts': 'test/total.test.ts' },
+      base: { 'src/rate.ts': RATE.replace('rate = 1', 'rate = 5') },
+      prs: [{
+        'src/rate.ts': null, 'src/price-rate.ts': RATE,
+        'src/total.ts': "import { rate } from './price-rate';\n" + TOTAL.replace('0.9', 'rate'),
+        'src/other.ts': "import { rate } from './price-rate';\n" + OTHER.replace('+ 1', '+ rate'),
+      }],
+      recordAt: 'fork',
+    });
+
+    const whole = await selected(queue.dir, queue.base);
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // git carries the mainline's `rate = 5` into `price-rate.ts`, which `other` imports.
+    expect(here.out).toBe(whole.out);
+    expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: read alone, the mainline's change selects every test file (the merge holds its change to src/rate.ts under another path)`);
+  });
+
+  it('selects as without `--tested` when the mainline renames a module the pull request changes', async () => {
+    const queue = await queued(home(), {
+      start: { 'src/rate.ts': RATE, 'src/total.ts': "import { rate } from './rate';\n" + TOTAL.replace('0.9', 'rate') },
+      entered: { 'src/rate.ts': 'test/total.test.ts' },
+      base: {
+        'src/rate.ts': null, 'src/price-rate.ts': RATE,
+        'src/total.ts': "import { rate } from './price-rate';\n" + TOTAL.replace('0.9', 'rate'),
+        'src/other.ts': "import { rate } from './price-rate';\n" + OTHER.replace('+ 1', '+ rate'),
+      },
+      prs: [{ 'src/rate.ts': RATE.replace('rate = 1', 'rate = 5') }],
+      recordAt: 'fork',
+    });
+
+    const whole = await selected(queue.dir, queue.base);
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // git carries the pull request's `rate = 5` into `price-rate.ts`, which the mainline's `other` imports.
+    expect(here.out).toBe(whole.out);
+    expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: read alone, the pull request's change selects every test file (the merge holds its change to src/rate.ts under another path)`);
   });
 });

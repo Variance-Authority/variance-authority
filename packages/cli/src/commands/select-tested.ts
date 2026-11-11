@@ -116,6 +116,9 @@ async function reachOf(
   const walk = (files: readonly string[]) => affectedBy(asked.relations, files, { through: RUNTIME_EDGES }).files;
   const walked = walk(ownCode);
   // An import HEAD's graph could not read — a name built at run time, a file gone — may load what the other side changed.
+  // A clean merge follows renames: a path this side changed that HEAD lacks holds its change under another path.
+  const moved = git('diff', '--name-only', '-z', '--no-renames', '--diff-filter=D', end, 'HEAD').split('\0').find((file) => own.has(file));
+  if (moved !== undefined) return { whole: `the merge holds its change to ${moved} under another path` };
   const blind = [...ownCode, ...walked].find((file) => asked.relations.unknown[idOf(asked.relations, 'file', file) ?? -1] === 1);
   if (blind !== undefined) return { whole: `it reaches ${blind}, whose imports the graph could not all read` };
   const code = new Set(walked.filter((file) => asked.recorded.has(file)));
