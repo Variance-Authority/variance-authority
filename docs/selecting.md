@@ -247,8 +247,10 @@ change alone selects the whole suite, touches a file the record holds nothing
 about or cannot place, such as a runner config no `before` names, or reaches a
 file whose imports HEAD's graph cannot all read, such as a name built at run
 time or a module the other side deleted; and so does a git or a record that
-cannot answer. So does a side that changes a file the merge holds under
-another path, because the other side renamed it. A note names the reason. When
+cannot answer, or a [source index](source-index.md) that cannot be brought up
+to HEAD, whose graph may lack the import where the two sides meet. So does a
+side that changes a file the merge holds under another path, because the
+other side renamed it. A note names the reason. When
 the selection without `--tested` reads no record, or already runs every test
 file, `--tested` does nothing, and a note says so. These are among the
 [places selection widens](#where-selection-widens).

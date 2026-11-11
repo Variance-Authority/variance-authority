@@ -233,12 +233,13 @@ describe('`variance select --tested` in a merge queue', () => {
     expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: the working tree differs from HEAD`);
   });
 
-  it('selects as without `--tested` when the working tree holds a file HEAD does not', async () => {
+  it.each([['by default', 'all'], ['when git is set to hide untracked files', 'no']])('selects as without `--tested` when the working tree holds a file HEAD does not, %s', async (_, shown) => {
     const queue = await queued(home(), {
       base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
       prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
       recordAt: 'fork',
     });
+    await git(queue.dir, 'config', 'status.showUntrackedFiles', shown);
     await writeFile(join(queue.dir, 'src/rate.ts'), 'export const rate = 1;\n');
 
     const whole = await selected(queue.dir, queue.base);

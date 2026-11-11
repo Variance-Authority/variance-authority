@@ -18,7 +18,7 @@ import { affectedBy, idOf, RUNTIME_EDGES, type Relations } from '@variance-autho
 import { gitIn, topLevel } from './since.js';
 import type { SuiteReading, SuiteRequest } from './select-suite.js';
 import { initial, isOpen, selectionOf, transition, type MergeAnswer, type SideAnswer, type TestedInput, type TestedState } from './select-tested-state.js';
-import { relationsFor } from './source-graph.js';
+import { indexUpToCheckout, relationsFor } from './source-graph.js';
 
 /** What `--tested` adds to a selection: the two commits the merge joined. */
 export interface TestedRequest {
@@ -60,6 +60,9 @@ async function observe(
       try {
         const { mainline, tested, fork } = state.merge;
         const record = full.reading.commit ?? mainline;
+        // Narrowing reads HEAD's edges: an index left at an older commit may lack the import where the two sides meet.
+        const stale = await indexUpToCheckout(here, undefined, !asked.noGit);
+        if (stale !== undefined) return { kind: 'failed', why: stale };
         const relations = await relationsFor(here, ['.'], [], [], asked.noGit);
         const side = (end: string) => reachOf(git, read, { ...asked, at: full.reading.at, relations, recorded: full.whole }, record, fork, end);
         return { kind: 'sides', pull: await side(tested), main: await side(mainline) };
@@ -86,7 +89,8 @@ function mergeOf(git: Git, asked: TestedRequest): MergeAnswer {
     // A merge HEAD resolved by hand holds lines neither side wrote.
     const clean = git('merge-tree', '--write-tree', mainline, tested).split('\n')[0];
     if (clean !== git('rev-parse', 'HEAD^{tree}').trim()) return { is: 'apart', why: `HEAD is not ${m12} with one pull request merged onto it` };
-    if (git('status', '--porcelain').trim() !== '') return { is: 'dirty' };
+    // Named, so `status.showUntrackedFiles=no` cannot hide a file the tests may load.
+    if (git('status', '--porcelain', '--untracked-files=all').trim() !== '') return { is: 'dirty' };
     return { is: 'known', merge: { mainline, tested, fork: forks[0]! } };
   } catch {
     return { is: 'unknown', why: `git could not read the merge of ${asked.tested} onto ${asked.since}` };
