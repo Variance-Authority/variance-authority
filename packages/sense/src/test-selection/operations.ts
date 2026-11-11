@@ -166,20 +166,11 @@ export function graphReachFromView(
 }
 
 /**
- * Each file the record holds no instrumented row for, walked up its importers
- * over every edge a runtime loads through to the nearest file the record
- * holds — a test, or a row with probes — whose tests answer for it. A
- * stylesheet or an image is walked through the modules that import it as an
- * asset (`importers.ts`).
- *
- * A file with a row is the row's, and a test that declares the file is the
- * preconditions'; neither is answered here. With `sourceAt`, a test that
- * declared a file and already ran the text it arrives at is not held by it,
- * and the walk keeps its chain, as in the composition. A rowless file the
- * reading charges (`readRowlessFromView`) is the reading's in the composition:
- * ask this stage with what the reading left unanswered to get its answer. Unanswered is a file the graph does
- * not hold, every file the record has a row for, and every file when the suite
- * declines relations.
+ * The graph's walk (`importers.ts`): a rowless file up its importers to the
+ * nearest file the record holds, and a file behind a `/// <depends>` target to
+ * that target's declarers. With `sourceAt`, a declarer that already ran the
+ * text a file arrives at is not held by it. Unanswered is a file the graph does
+ * not hold, every rowed file, and every file when the suite declines relations.
  */
 export function importersFromView(
   coverage: TestCoverageView,
@@ -199,7 +190,8 @@ export function importersFromView(
 
 /**
  * Each ignored file walked through the modules that declare they read it
- * (`/// <depends>`), and through nothing else: a suite's `ignore` cuts what
+ * (`/// <depends>`), or that declare a file whose run loads it, and through
+ * nothing else: a suite's `ignore` cuts what
  * selection infers from a file and keeps what code declares of it. A declaring
  * module with a row answers with its tests; one without goes on to its
  * importers, or, in a suite that declines relations, is unanswered.

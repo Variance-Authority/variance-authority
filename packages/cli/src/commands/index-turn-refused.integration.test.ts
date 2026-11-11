@@ -1,3 +1,4 @@
+/// <depends path="../bin.ts" />
 import { execFileSync, spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

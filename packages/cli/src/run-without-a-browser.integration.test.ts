@@ -1,3 +1,5 @@
+/// <depends path="./bin.ts" />
+/// <depends path="../../route-collector/src/index.ts" />
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
