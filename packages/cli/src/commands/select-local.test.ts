@@ -99,6 +99,19 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect(local.reading.fell).toMatchObject({ rung: 'package', left: [B] });
   });
 
+  it('selects no test for a lockfile no manifest moved with, and names every test it left', async () => {
+    const { root, head } = checkout();
+    await writeTestCoverage(testCoverageFile(root), snapshot(head, true));
+    const { local, gate } = await both(root, () => {
+      write(root, 'package-lock.json', JSON.stringify({ name: 'fixture', lockfileVersion: 3, packages: { '': { name: 'fixture' } } }));
+    });
+
+    expect(gate.reading.ground).toBe('no-install');
+    expect([...gate.skip]).toEqual([]);
+    expect([...local.skip]).toEqual([A, B]);
+    expect(local.reading.fell).toMatchObject({ rung: 'package', left: [A, B] });
+  });
+
   it('falls to the package of a file the suite rests on', async () => {
     const { root, head } = checkout({ 'variance.config.json': JSON.stringify({ suites: { unit: { kind: 'unit', before: ['packages/a/setup.ts'] } } }) });
     await writeTestCoverage(testCoverageFile(root, { suite: 'unit' }), snapshot(head, true));

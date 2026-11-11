@@ -9,7 +9,8 @@
  * answers for, to the changed files' importers in the source index, and to the
  * changed files' packages. A file the graph does not hold, or one the suite
  * rests on, is answered by its package; one the root owns, such as a lockfile,
- * by the packages whose manifest changed. The tests left are skipped and named,
+ * by the packages whose manifest changed, and by no test when none did: the
+ * ladder never selects every test file. The tests left are skipped and named,
  * and a skipped file keeps its stand, so a later run without `--local` runs them.
  */
 
@@ -61,10 +62,10 @@ export function localLadder(question: LocalQuestion): LocalAnswer {
   const { files, missing } = affectedBy(relations, walked, { through: RUNTIME_EDGES });
   const fallen = [...question.rests, ...missing];
   const manifests = changed.flatMap((file) => (file.endsWith('/package.json') ? [own(file)] : []));
-  // A file the root owns is answered by the packages whose manifest moved with it, and by every test when none did.
+  // A file the root owns is answered by the packages whose manifest moved with it, and by none when none did.
   const homes = fallen.flatMap((file) => {
     const home = own(file);
-    return home !== undefined ? [home] : manifests.length > 0 ? manifests.flatMap((one) => (one === undefined ? [] : [one])) : ['.'];
+    return home !== undefined ? [home] : manifests.flatMap((one) => (one === undefined ? [] : [one]));
   });
   const universe = [
     ...new Set([
@@ -73,8 +74,7 @@ export function localLadder(question: LocalQuestion): LocalAnswer {
     ]),
   ].sort(codeUnitOrder);
   const reached = new Set(files);
-  const everything = homes.includes('.');
-  const selected = universe.filter((test) => everything || reached.has(test) || within(test, homes));
+  const selected = universe.filter((test) => reached.has(test) || within(test, homes));
   const chosen = new Set(selected);
   return {
     rung: fallen.length === 0 ? 'importers' : 'package',
