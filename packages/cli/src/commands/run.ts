@@ -1,6 +1,6 @@
 import { profileById, totalsOf, type SemanticSnapshot } from '@variance-authority/core/format';
 import { RasterStoreError } from '@variance-authority/raster';
-import { DEFAULT_ALONE_LIMIT } from '../config.js';
+import { DEFAULT_ALONE_LIMIT } from '../config-sections.js';
 import { OperatorError } from '../exit.js';
 import { keyFor, type Plan, type PlannedSubject } from './collector.js';
 import { observeOne } from './observe-one.js';
@@ -20,7 +20,8 @@ import { budgetOf } from './budget.js';
 import type { ObserveContext, Outcome, RunOptions } from './run-context.js';
 import { selectionFor } from './run-select.js';
 import { unplannedNotes } from './unplanned.js';
-import { isSlice, type CliObservationRecord, type CliRunReport, type NotObserved } from './run-report.js';
+import { isSlice, type CliObservationRecord, type CliRunReport } from './run-report.js';
+import type { NotObserved } from '@variance-authority/report';
 import { suitePartOf } from './suite-part.js';
 
 /**
@@ -55,48 +56,10 @@ import { suitePartOf } from './suite-part.js';
  * need), `alone.ts` (regression or leak), `schedule.ts` and `lanes.ts` (how wide, and
  * what may never widen), `shard.ts` (which subjects are this run's),
  * `resources.ts` (decoder, store, disk) and `run-report.ts` (the artifact's
- * shape and its reader). Every public name any of them exports is
- * re-exported below, so a caller of the loop has one import path. A caller that
- * only reads a report imports `run-report.js` itself: this file loads the
+ * shape and its reader). A caller imports each name from the file that declares
+ * it, so one that only reads a report never loads this file: it loads the
  * observer, the decoder and the store, and `ask` must answer without them.
  */
-
-export { matchesGlob, collectorPath, loadCollector, planFor, planList, planStorybook } from './collector.js';
-export type {
-  Collected,
-  Collector,
-  CollectorContext,
-  Plan,
-  PlannedSubject,
-  SubjectSource,
-} from './collector.js';
-export { settle, type Settlement } from '@variance-authority/raster';
-export { ledgerOf, liveIgnores, summarizeLedger, type IgnoreLedger, type IgnoreUsage } from './ignores.js';
-export {
-  sensitivityLedgerOf,
-  summarizeSensitivities,
-  type SensitivityLedger,
-  type SensitivityUsage,
-} from './sensitivities.js';
-export { recordOf } from './record.js';
-export { compositionOf, lexiconReportOf, type ComposeInput } from './compose.js';
-export {
-  decoderFor,
-  historyFor,
-  recordedJourneys,
-  storeFor,
-  suiteJourney,
-  writeArtifactToDisk,
-} from './resources.js';
-export { renderCacheRoot } from './renders.js';
-export { relationsFor, scanSourceDirs } from './source-graph.js';
-export { narrowingFor } from './narrowing.js';
-export { changedSince, diffSince, indexPosition } from './since.js';
-export { affectedProjects, type AffectedProjects, type ChangeSource, type ChangeTool } from './changes.js';
-export { readCliRunReport, subjectsInReport, writeCliRunReport } from './run-report.js';
-export type { CliObservationRecord, CliRunReport, NotObserved, NotObservedKind } from './run-report.js';
-export type { RunDeps, RunOptions } from './run-context.js';
-export { identityOf, type RunIdentity } from './history.js';
 
 /**
  * Run, and write the report.

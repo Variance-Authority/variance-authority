@@ -107,8 +107,6 @@ export interface ExecutionIndex {
   readonly modules: readonly ExecutionModule[];
 }
 
-export type { SourceTestTarget } from './source-target.js';
-
 /** One named test that reached requested source, carrying its nearest observation. */
 export interface CoveringTest extends ExecutionTest {
   /** Shortest observed call-stack depth to the requested source region. */

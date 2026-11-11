@@ -32,15 +32,6 @@ import { differencePixels, type DecodedImage } from './mask.js';
  */
 
 /**
- * One decoded image: raw 8-bit RGBA, row-major, no padding.
- *
- * Declared in [`mask.ts`](./mask.js), which is the half of this package a caller
- * can reach without a codec, and re-exported here because this is where the
- * decoder seam is.
- */
-export type { DecodedImage };
-
-/**
  * How image bytes become pixels, so that *which* decoder is a deployment choice.
  *
  * Decoding is **90% of a comparison** (journal 0016), so this is where a run's

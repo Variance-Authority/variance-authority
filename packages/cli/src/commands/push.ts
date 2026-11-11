@@ -9,7 +9,7 @@ import type {
   RenderIdentity,
 } from '@variance-authority/core/format';
 import { imageSize } from '@variance-authority/png';
-import type { ReviewConfig } from '../config.js';
+import type { ReviewConfig } from '../config-sections.js';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
 import type { CliRunReport } from './run-report.js';
@@ -478,12 +478,3 @@ async function candidate(
     },
   };
 }
-
-/**
- * Re-exported so a caller that pushes and then prints has one import.
- *
- * The seam is real — [`push-progress.ts`](./push-progress.ts) changes when
- * somebody watching says they were not told enough, and this file changes when
- * the body does — but it is a seam for whoever edits, not for whoever calls.
- */
-export { pushTicker, formatPush, type TickerClock } from './push-progress.js';

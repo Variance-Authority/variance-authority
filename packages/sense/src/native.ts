@@ -15,7 +15,7 @@
 import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Parsed } from './cache.js';
-import type { Digest } from './digest.js';
+import type { Digest } from '@variance-authority/core/format';
 import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import type { ResolveOptions } from './resolve.js';
@@ -35,20 +35,7 @@ import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
 import type { NativeRecords } from './native-record.js';
 import { witnessesOf } from './witness.js';
-export { PLATFORMS, native, nativeAvailable, nativeRefusal, refusal } from './addon.js';
-export type {
-  NativeJourneyGraph,
-  NativeJourneySelection,
-  NativeJourneyChange,
-  NativeJourneyProjection,
-  NativeJourneyFold,
-  NativeJourneyFoldResult,
-  NativeJourneyModule,
-  NativeJourneyStitch,
-  NativeJourneyStitchResult,
-} from './native-journey.js';
 import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict } from './native-module-reads.js';
-export type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict };
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing, NativeParseOrigins {

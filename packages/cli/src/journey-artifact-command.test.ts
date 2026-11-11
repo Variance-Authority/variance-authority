@@ -1,7 +1,8 @@
 import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { parseArgs } from './bin.js';
-import { main } from './bin.fixture.js';
+import { parseArgs } from './parse.js';
+import './bin.fixture.js';
+import { main } from './bin.js';
 import { EXIT_CLEAN } from './exit.js';
 import { finalizeJestJourneys, stitchJourneyArtifacts } from '@variance-authority/sense/test-selection';
 

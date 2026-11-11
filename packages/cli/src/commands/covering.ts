@@ -68,8 +68,6 @@ import type { CoveringAt, CoveringQuestion, ParsedCovering } from '../covering-a
  */
 export type CoveringFormat = 'text' | 'refs' | 'json';
 
-export { formatCovering } from './covering-text.js';
-
 /** A changed region, and the one state it is painted as. */
 export interface StatedRegion extends CoveringRegion {
   readonly state?: RangeState;

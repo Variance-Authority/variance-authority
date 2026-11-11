@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { keyFor, parseWay } from './files.js';
-import { native } from './native.js';
+import { native } from './addon.js';
 import { scanRelations } from './scan.js';
 
 /**

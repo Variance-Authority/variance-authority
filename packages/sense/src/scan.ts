@@ -47,23 +47,18 @@ import { access } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Digest } from './digest.js';
+import type { Digest } from '@variance-authority/core/format';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, type RecordCache } from './reuse.js';
-import { native, nativeFrontier, nativeGraph, nativeRefusal, type NativeBuilt, type NativeGitTree } from './native.js';
+import { nativeFrontier, nativeGraph, type NativeBuilt, type NativeGitTree } from './native.js';
+import { native, nativeRefusal } from './addon.js';
 import { adoptNativeParses } from './source-index.js';
 import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
 import type { IndexedRecord } from './source-index-format.js';
 import { handOverKept, type Unheld } from './parse-store.js';
-import {
-  READABLE,
-  keyFor,
-  languageFor,
-  parseWay,
-  seedPaths,
-  type ParseWay,
-} from './files.js';
+import { keyFor, languageFor, parseWay, seedPaths, type ParseWay } from './files.js';
+import { READABLE } from './language.js';
 import { worldIn, worldOn } from './world.js';
 import { declinedForSize, parsedOnce, recordFor, stillTooLarge } from './record.js';
 import { onlyListed } from './repo-path.js';

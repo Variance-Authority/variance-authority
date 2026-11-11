@@ -4,7 +4,8 @@
  * timers and event listeners.
  */
 
-export { addSessionSource, currentSession, nextSession, type SessionSource } from './session.js';
+export { addSessionSource, currentSession, nextSession } from './session.js';
+export { type SessionSource } from './realm.js';
 export { isolateEnv, isolateGlobals } from './globals.js';
 export { isolateListeners, type IsolateListenersOptions, type LeftListener } from './listeners.js';
 export { perSession, type PerSessionOptions } from './per-session.js';

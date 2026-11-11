@@ -13,8 +13,6 @@ import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import type { ModuleId } from '../instrument/index.js';
 import type { CoverageBlock } from './index.js';
 
-export type { ModuleId };
-
 /**
  * Where a module's probes go, on every seam that places them.
  *

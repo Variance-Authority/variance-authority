@@ -18,15 +18,6 @@ import { readRunReport, writeRunReport } from '@variance-authority/report/file';
  */
 
 /**
- * Why a subject is in the report without an observation.
- *
- * Re-exported rather than restated. Two declarations of a closed vocabulary are
- * two things that can gain a third word separately, and the run writes through
- * this one while every reader downstream checks the other.
- */
-export type { NotObserved, NotObservedKind } from '@variance-authority/report';
-
-/**
  * The one exclusion that is not a decision: a subject another shard was to take.
  *
  * `--subjects` narrows a run to a slice and records every subject outside it as

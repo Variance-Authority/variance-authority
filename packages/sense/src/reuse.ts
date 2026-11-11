@@ -54,11 +54,13 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { digestBytes, type Digest } from './digest.js';
+import { digestBytes } from './digest.js';
+import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { NativeIndexGraph } from './native-index-graph.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
-import { openSourceIndexFile, type IndexedRecord } from './source-index-file.js';
+import { openSourceIndexFile } from './source-index-file.js';
+import type { IndexedRecord } from './source-index-format.js';
 import { isNamed, treeOf, type Tree } from './tree.js';
 import { aliasesIn, movedDirectories, type Aliases } from './witness.js';
 

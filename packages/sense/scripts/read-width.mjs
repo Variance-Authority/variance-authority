@@ -42,7 +42,7 @@ import { cpuUsage } from 'node:process';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { MODULE_EXTENSIONS } from '../dist/read.js';
-import { native } from '../dist/native.js';
+import { native } from '../dist/addon.js';
 
 const run = promisify(execFile);
 

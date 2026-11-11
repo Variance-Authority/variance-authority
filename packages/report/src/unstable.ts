@@ -1,4 +1,5 @@
-import type { FlakinessRecord, ObservationRecord, RunReport } from './format.js';
+import type { ObservationRecord, RunReport } from './format.js';
+import type { FlakinessRecord } from './history-records.js';
 
 /**
  * The subjects that disagreed with themselves, folded once for every reader.

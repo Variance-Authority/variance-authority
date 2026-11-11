@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RasterStoreError } from '@variance-authority/raster';
-import type { Collector, Plan } from './run.js';
+import type { Collector, Plan } from './collector.js';
 import { configOf, documentFor, runWith, storeAnswering } from './run-fixture.js';
 
 /**

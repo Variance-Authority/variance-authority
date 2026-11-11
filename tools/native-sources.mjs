@@ -3,9 +3,6 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { NATIVE, NATIVE_EXTRA_INPUTS } from '../packages/sense/native/build-inputs.mjs';
 
-/** The crate `@variance-authority/sense` builds its addon from, repository-relative. */
-export { NATIVE };
-
 /**
  * Every file the addon is built from, as preconditions of every suite that records through it.
  *

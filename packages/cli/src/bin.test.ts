@@ -1,12 +1,13 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BOOLEAN } from './args.js';
-import { USAGE, main, parseArgs } from './bin.js';
+import { main } from './bin.js';
+import { USAGE, flagsFor, helpFor, isCommand } from './usage.js';
+import { parseArgs } from './parse.js';
 import { openRenderer } from './renderer.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from './exit.js';
 import { verbOf } from '@variance-authority/mcp/tools';
 import { QUESTIONS, argumentsOf } from './commands/asking.js';
-import { flagsFor, helpFor, isCommand } from './usage.js';
 
 describe('parseArgs', () => {
   it('reads a bare command with the default config path, made absolute', () => {

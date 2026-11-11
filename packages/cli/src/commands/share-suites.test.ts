@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { instrumentationId } from '@variance-authority/sense/instrument';
 import { commitRunsFile, readCommitRuns, readTestCoverage, testCoverageFile, writeCommitRuns, writeTestCoverage } from '@variance-authority/sense/test-selection';
-import { parseArgs } from '../bin.js';
+import { parseArgs } from '../parse.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { PUSH, gitPublished, totalCoverage, totalModule } from './mainline-fixture.js';
 import { suitesShare } from './share-suites.js';

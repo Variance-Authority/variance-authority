@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { readOfferings, type Help } from '@variance-authority/package/help';
-import { readWorkspace, readWorkspaceSnapshot } from './read.js';
+import { readWorkspace } from './read.js';
+import { readWorkspaceSnapshot } from './snapshot.js';
 import { publishWorkspaceFromIndex } from './refresh-native.js';
 import { scanScope } from './scan-scope.js';
 

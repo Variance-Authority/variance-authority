@@ -5,7 +5,7 @@ import {
   type Observation,
 } from '@variance-authority/observe';
 import type { BaselineKey } from '@variance-authority/raster';
-import { DEFAULT_ALONE_LIMIT } from '../config.js';
+import { DEFAULT_ALONE_LIMIT } from '../config-sections.js';
 import type { PlannedSubject } from './collector.js';
 import type { ObserveContext } from './run-context.js';
 import type { CliObservationRecord } from './run-report.js';

@@ -3,11 +3,8 @@ import { serve } from '@variance-authority/mcp';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { readOfferings, type Help } from '@variance-authority/package/help';
 import { caughtUp, foundNothingAnswer, outlived } from './caught-up.js';
-import {
-  readWorkspaceForAnswer,
-  workspaceGeneration,
-  type AnsweringOptions,
-} from './read.js';
+import { readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
+import { workspaceGeneration } from './snapshot.js';
 import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
 
 /**

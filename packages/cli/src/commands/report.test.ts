@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import { formatReport } from './report.js';
-import { readCliRunReport, writeCliRunReport, type CliRunReport } from './run.js';
+import { readCliRunReport, writeCliRunReport, type CliRunReport } from './run-report.js';
 
 const IDENTITY: RenderIdentity = {
   renderer: 'playwright-chromium',

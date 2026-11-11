@@ -6,7 +6,7 @@ import type { Config } from '../config.js';
 import { htmlPage } from './report.js';
 import { carrying, locatePictures, type Picture } from './report-html-pictures.js';
 import { reportWithPictures } from './report-read.js';
-import type { CliRunReport } from './run.js';
+import type { CliRunReport } from './run-report.js';
 
 /** A PNG's signature and header, saying 320 by 200. */
 const PNG = Buffer.alloc(24);

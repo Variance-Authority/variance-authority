@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { native, nativeAvailable } from './native.js';
+import { native, nativeAvailable } from './addon.js';
 import { realPath, resolveTo, resolversFor } from './resolve.js';
 import { scanRelations } from './scan.js';
 

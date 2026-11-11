@@ -8,7 +8,8 @@ import type { Placement } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { covering, formatCovering } from './covering.js';
+import { covering } from './covering.js';
+import { formatCovering } from './covering-text.js';
 
 /** The frame the next question is read in; none, as for an index no snapshot sits beside, unless a case sets one. */
 let framed: Placement | undefined;

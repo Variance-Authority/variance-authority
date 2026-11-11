@@ -13,7 +13,8 @@ import type {
 import type { Renderer } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import type { Config } from '../config.js';
-import { doctor, fontProbeDocument, machineProbes, type DoctorProbes } from './doctor.js';
+import { doctor, fontProbeDocument } from './doctor.js';
+import { machineProbes, type DoctorProbes } from './doctor-probes.js';
 import { exitForDiagnosis, formatDiagnosis } from './doctor-report.js';
 
 const VIEWPORT: Viewport = {

@@ -45,15 +45,11 @@ export { isKept } from './store.js';
 export type { FlakinessInput } from './flakiness.js';
 export { accumulateFlakiness, describeFlakiness } from './flakiness.js';
 
-export type { ChurnInput, DriftOptions, DriftStep, Quantity, TokenDrift } from './drift.js';
-export {
-  accumulateChurn,
-  describeChurn,
-  describeDrift,
-  describeLastChanged,
-  describeReach,
-  detectDrift,
-} from './drift.js';
+export type { ChurnInput } from './churn.js';
+export type { DriftOptions, DriftStep, Quantity, TokenDrift } from './token-drift.js';
+export { accumulateChurn } from './churn.js';
+export { describeChurn, describeDrift, describeLastChanged, describeReach } from './sentences.js';
+export { detectDrift } from './token-drift.js';
 
 export type {
   ApproveRequest,

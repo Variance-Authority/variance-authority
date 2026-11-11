@@ -1,10 +1,6 @@
-import {
-  causesBetween,
-  hashComponents,
-  type ComponentHash,
-} from '../attribute/component-hash.js';
+import { causesBetween, hashComponents } from '../attribute/component-hash.js';
+import type { ComponentHash, SemanticSnapshot } from '../format/snapshot.js';
 import type { Digest } from '../format/hash.js';
-import type { SemanticSnapshot } from '../format/snapshot.js';
 
 /**
  * What a working session accumulates, for the loop an agent actually runs.

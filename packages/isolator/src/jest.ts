@@ -31,13 +31,13 @@ import manifest from '../package.json' with { type: 'json' };
 import { relative, resolve } from 'node:path';
 import remapping, { type SourceMapInput } from '@jridgewell/remapping';
 import {
-  isTestFile,
   jestCacheKey,
   loadTransformer,
   type JestTransformer as Transformer,
   type JestTransformOptions,
   type TransformerEntry,
 } from './jest-transformer.js';
+import { isTestFile } from './jest-test-files.js';
 import { skipper } from './skips.js';
 import { isolate, type Isolated } from './transform.js';
 

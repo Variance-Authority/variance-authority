@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SourceIndex } from '@variance-authority/core/attribute';
-import type { Collected, Plan } from './run.js';
+import type { Collected, Plan } from './collector.js';
 import { collectorOf, configOf, documentFor, runWith, storeAnswering, whiteBaselineOf } from './run-fixture.js';
 
 /**

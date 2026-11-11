@@ -32,9 +32,6 @@ import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionModule
 import { LAYOUT } from './record-layout.js';
 import { EMPTY } from './set-translation.js';
 
-/** What `openSetColumns` hands back, for a reader that walks every case of a large record without decoding it. */
-export type { SetColumns, StringTable, TestColumns } from './execution-set-columns.js';
-
 /**
  * A journey-only execution index: every crossing has measured distance zero.
  *

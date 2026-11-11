@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { main } from './bin.fixture.js';
+import './bin.fixture.js';
+import { main } from './bin.js';
 import { COMMANDS, helpFor } from './usage.js';
 
 /**

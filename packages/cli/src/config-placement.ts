@@ -2,8 +2,6 @@ import { dirname, resolve } from 'node:path';
 import { CARRIERS, type Carrier, type DeclaredSuite } from '@variance-authority/sense/test-selection';
 import { fail, object, path, quote, resolveFrom, type ParseOptions } from './config-values.js';
 
-export type { Carrier };
-
 /**
  * Where the run's artifacts live, and who carries each one off the machine.
  *

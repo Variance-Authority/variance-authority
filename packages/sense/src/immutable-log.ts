@@ -16,7 +16,8 @@
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { digestBytes, type Digest } from './digest.js';
+import { digestBytes } from './digest.js';
+import type { Digest } from '@variance-authority/core/format';
 
 const MAGIC = Buffer.from('VAIDXLSM');
 const VERSION = 1;

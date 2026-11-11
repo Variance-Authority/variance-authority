@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ExecutionNarrowing, FileReading } from '@variance-authority/sense/test-selection';
-import type { Collected, Plan } from './run.js';
+import type { Collected, Plan } from './collector.js';
 import { collectorOf, configOf, documentFor, runWith, storeAnswering, whiteBaselineOf } from './run-fixture.js';
 import { formatSelection, selectionNotes, skippableTests } from './select.js';
 

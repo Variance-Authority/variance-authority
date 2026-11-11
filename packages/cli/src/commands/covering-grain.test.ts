@@ -5,7 +5,8 @@ import { describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { covering, formatCovering } from './covering.js';
+import { covering } from './covering.js';
+import { formatCovering } from './covering-text.js';
 
 // A module every case entered at its top level, a class of two methods with a
 // callback in one, and a function whose name begins like the class's. Lines

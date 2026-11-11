@@ -29,17 +29,15 @@ import {
 } from './config-sections.js';
 import { parseShare, type ShareConfig } from './config-share.js';
 import { parseBlanks, type BlankConfig } from './config-blank.js';
-import { parseSource, type ChangeConfig, type SourceConfig } from './config-source.js';
+import { parseSource, type SourceConfig } from './config-source.js';
 import { parseIgnores, type IgnoreConfig } from './config-ignore.js';
-import type { NameGrammar } from '@variance-authority/sense/test-selection';
+import type { Carrier, NameGrammar } from '@variance-authority/sense/test-selection';
 import { parseNames } from './config-names.js';
 import { parseSensitivities, type SensitivityConfig } from './config-sensitivity.js';
 import { parseRestsOn, type RestsOn } from './config-suites.js';
 import { parseRegion } from './config-region.js';
 import { parseDeclaredAt } from './config-declared.js';
-import { checkCarriers, parsePlacement, type Carrier } from './config-placement.js';
-
-export type { BlankConfig, ChangeConfig, IgnoreConfig, SensitivityConfig, SourceConfig };
+import { checkCarriers, parsePlacement } from './config-placement.js';
 
 /**
  * The configuration file, and the rule that nothing else configures a run.
@@ -79,24 +77,8 @@ export type { BlankConfig, ChangeConfig, IgnoreConfig, SensitivityConfig, Source
  * This file owns the top-level shape and nothing else. The settings that have a
  * shape of their own are in `config-sections.ts` beside the parsers that build
  * them, and the primitive checks every one of those parsers is written out of are
- * in `config-values.ts`. Both are re-exported here, so a reader or an importer
- * still meets the whole configuration at one path.
+ * in `config-values.ts`. An importer takes each name from the file that declares it.
  */
-
-export { DEFAULT_REPORT_PATH, type Carrier } from './config-placement.js';
-
-export { ConfigError } from './config-values.js';
-export type { ParseOptions } from './config-values.js';
-export { DEFAULT_ALONE_LIMIT } from './config-sections.js';
-export type { BaselinesConfig, DirectoryBaselines, LfsBaselines, RemoteBaselines } from './config-baselines.js';
-export type {
-  AloneConfig,
-  HistoryConfig,
-  ListSubjects,
-  ReviewConfig,
-  StorybookSubjects,
-  SubjectsConfig,
-} from './config-sections.js';
 
 export interface Config extends RestsOn, PageRegion {
   /**

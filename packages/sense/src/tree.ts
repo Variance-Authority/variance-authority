@@ -31,8 +31,10 @@ import { stat } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { promisify } from 'node:util';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { digestString, type Digest } from './digest.js';
-import { native, type NativeGitTree } from './native.js';
+import { digestString } from './digest.js';
+import type { Digest } from '@variance-authority/core/format';
+import type { NativeGitTree } from './native.js';
+import { native } from './addon.js';
 import { directoriesOf } from './witness.js';
 import { MAX_OUTPUT, workingTreeChanges } from './working-tree-changes.js';
 

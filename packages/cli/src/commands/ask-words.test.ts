@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { VANTAGE_VARIABLE } from '@variance-authority/vantage';
 import { describe, expect, it } from 'vitest';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { EXIT_OPERATOR } from '../exit.js';
 
 /**

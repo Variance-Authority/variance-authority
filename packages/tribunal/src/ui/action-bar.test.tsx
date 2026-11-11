@@ -7,7 +7,8 @@ import type { Decision, SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
 import { queueOf } from './rail.js';
 import { Reading } from './reading.js';
-import { SubjectPanel, type Place } from './subject.js';
+import { SubjectPanel } from './subject.js';
+import type { Place } from './action-bar.js';
 
 /**
  * The bar under a subject: where it sits in the queue and the moves that cost

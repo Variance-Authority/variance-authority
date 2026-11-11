@@ -10,11 +10,8 @@ import {
 import { caseIndexOf, coveringTests, decodeExecutionIndex, readTestCoverage } from '@variance-authority/sense/test-selection';
 import { describe, expect, it, vi } from 'vitest';
 import { varianceCompletedFixtures } from './completed.js';
-import {
-  createExecutionRecorder,
-  testOf,
-  type ExecutionRecorder,
-} from './execution.js';
+import { createExecutionRecorder, type ExecutionRecorder } from './execution.js';
+import { testOf } from './test-coordinate.js';
 import { INSTRUMENTATION, inRoot, instrumented, pageReporting } from './execution.fixture.js';
 
 // These drive the fixture with a `TestInfo` cut to what recording reads, which

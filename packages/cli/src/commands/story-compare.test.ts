@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Comparison, Place, StoryEntry } from '@variance-authority/sense/story';
-import { parseArgs } from '../bin.js';
+import { parseArgs } from '../parse.js';
 import { compareStory, formatComparison } from './story-compare.js';
 
 const REMOVE: Place = { file: 'src/cart.ts', name: 'removeItem', kind: 'function', at: 'src/cart.ts#removeItem/entry', startLine: 12, endLine: 30 };

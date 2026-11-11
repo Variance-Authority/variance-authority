@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { nativeAvailable } from './native.js';
+import { nativeAvailable } from './addon.js';
 import { realPath } from './resolve.js';
 import { scanRelations } from './scan.js';
 import { taintRecords, taintTable } from './taint/index.js';

@@ -13,7 +13,8 @@ import {
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { readFlags } from '../args.js';
 import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';

@@ -51,7 +51,8 @@ import { extname } from 'node:path';
 import { NOTHING, WHOLE, idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native } from '../addon.js';
-import type { NativeModuleReaders, NativeScanner } from '../native.js';
+import type { NativeScanner } from '../native.js';
+import type { NativeModuleReaders } from '../native-module-reads.js';
 import { MODULE_EXTENSIONS } from '../read.js';
 import { blocksAround, gapInside, moduleRegion, outsideRegions, regionOf } from './blocks-around.js';
 import type { LineRange } from './diff-lines.js';
@@ -60,10 +61,9 @@ import { arrivedFrame, commitFrame, frameOf, type Frame } from './frame.js';
 import type { TestCoverageView } from './format-view.js';
 import { walkImporters } from './importer-walk.js';
 import { importedAsAsset } from './importers.js';
-import type { ExecutionNarrowingOptions } from './narrowing.js';
 import { findModules, findTest } from './lookup.js';
 import { applied, hunksFor, hunksOf } from './patch.js';
-import { isUnasked, type SelectionReason, type Unasked } from './narrowing.js';
+import { isUnasked, type ExecutionNarrowingOptions, type SelectionReason, type Unasked } from './narrowing.js';
 
 /** What the reading made of one changed file, or why it made nothing. */
 export type FileReading =

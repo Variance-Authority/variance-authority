@@ -18,8 +18,6 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { JestTestFiles } from './jest-test-files.js';
 
-export { globMatcher, isTestFile, slashed, type JestTestFiles } from './jest-test-files.js';
-
 /** The fields of Jest's `TransformOptions` a wrapping transformer reads. */
 export interface JestTransformOptions {
   readonly config: JestTestFiles;

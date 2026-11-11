@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { nativeAvailable } from '../native.js';
+import { nativeAvailable } from '../addon.js';
 import { runsAsBefore } from './runs-as-before.js';
 
 /**

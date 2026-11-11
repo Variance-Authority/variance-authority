@@ -20,7 +20,8 @@ import { distanceFrom, keepsByCommit, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
 import { selectMainline, type MainlineSelection } from './mainline-selected.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
-import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
+import { describeDistance, describeMiss, mainlineSuite } from './share.js';
+import type { MainlineMiss } from './mainline-entry.js';
 
 /**
  * How long the line's answer that it gave no record stands without asking the

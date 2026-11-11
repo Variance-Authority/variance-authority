@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from '../exit.js';
 import { deletedAt } from './reach-command.js';
 

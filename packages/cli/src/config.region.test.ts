@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseConfig } from './config.js';
-import { rendererOptionsFor } from './commands/doctor.js';
+import { rendererOptionsFor } from './commands/doctor-probes.js';
 
 /**
  * The timezone the page's clock reads in and the language it formats for.

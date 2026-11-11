@@ -3,7 +3,9 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { INITIAL, INITIAL_VERSION, MIGRATIONS, SCHEMA_VERSION } from '../schema.js';
+import { SCHEMA_VERSION } from '../schema.js';
+import { INITIAL, INITIAL_VERSION } from '../migrations.js';
+import { MIGRATIONS } from '../migration-steps.js';
 import { openDatabase, schemaVersionOf, type TribunalDatabase } from './database.js';
 
 // The same `createRequire` hop `database.ts` makes: `node:sqlite` is a built-in

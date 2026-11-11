@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RenderDocument } from '@variance-authority/core/format';
 import type { Found } from '@variance-authority/raster';
-import type { Collector, Plan } from './run.js';
+import type { Collector, Plan } from './collector.js';
 import {
   collectorOf,
   configOf,

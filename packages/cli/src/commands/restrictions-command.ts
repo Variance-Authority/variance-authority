@@ -43,8 +43,6 @@ import { EXIT_CLEAN, EXIT_REVIEW, OperatorError, type ExitCode } from '../exit.j
 import type { ParsedRestrictions } from '../restrictions-args.js';
 import { RULE_FILE, ruleFiles } from './relations-file.js';
 
-export { RULE_FILE } from './relations-file.js';
-
 type PackageLayers = NonNullable<NonNullable<ReturnType<typeof packageLayers>>['packages']>;
 
 /** The code map's packages, read once and only when a ceiling needs them; a map that holds none is an error, not a pass. */

@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { OriginalPosition } from './source-map.js';
-import {
-  isVendorPath,
-  parseStackFrames,
-  servedPath,
-  writtenPath,
-  writerLocationOf,
-  type StackFrame,
-} from './stack.js';
+import { isVendorPath, parseStackFrames, servedPath, writtenPath, writerLocationOf } from './stack.js';
+import type { StackFrame } from '../format/provenance.js';
 
 /**
  * A `_debugStack` React actually constructed, read off a fiber in Chromium.

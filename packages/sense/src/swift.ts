@@ -50,7 +50,7 @@
  * ordinary import, which under-reports the transitive reach by exactly one hop.
  */
 
-import { native, nativeRefusal } from './native.js';
+import { native, nativeRefusal } from './addon.js';
 import type { TreeWorld } from './world.js';
 
 /** The request a file makes for its own target: the files it sees without asking. */
