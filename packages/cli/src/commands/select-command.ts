@@ -130,11 +130,18 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   // A snapshot handed in by path — the JVM agent's `coverage.va` — is read the
   // way this checkout's own is. Anything else `--execution` names is a journey
   // file.
+  // Under `--local`, a reading that cannot narrow falls to the changed files the caller already holds, or reads them.
+  const fall = async (input: SelectInput, held?: Held, record?: string): Promise<SuiteReading> => {
+    const narrowed = suiteOf(input, request.atDistance);
+    return request.local === true && narrowed.declined !== undefined
+      ? suiteOf(input, request.atDistance, await localAnswer(request, input.ground, held, record))
+      : narrowed;
+  };
   if (
     request.execution !== undefined &&
     !((await recordHeld(request.execution)) && selection.isTestCoverageFile(request.execution))
   ) {
-    return await journeyReading({ ...request, execution: request.execution });
+    return await journeyReading({ ...request, execution: request.execution }, fall);
   }
   // A snapshot named by path is the record, and so is the one `--suite` names.
   oneRecord(request.suite, request.execution, '--execution');
@@ -143,13 +150,8 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const { at, source } = found;
   // The record the selection reads, which a shard's record names; a skip list alone does not say which.
   const read = found.held ? selection.recordDigestAt(at) : undefined;
-  // Under `--local`, a reading that cannot narrow falls to the changed files the caller already holds, or reads them.
   const said = async (input: SelectInput, held?: Held): Promise<SuiteReading> => {
-    const sourced = source === undefined ? input : { ...input, source };
-    const narrowed = suiteOf(sourced, request.atDistance);
-    const reading = request.local === true && narrowed.declined !== undefined
-      ? suiteOf(sourced, request.atDistance, await localAnswer(request, sourced.ground, held))
-      : narrowed;
+    const reading = await fall(source === undefined ? input : { ...input, source }, held, at);
     return read === undefined ? reading : { ...reading, read };
   };
 

@@ -10,6 +10,8 @@ import { installDiff, installDiffOfPatch, patchPreimages, withoutManifests } fro
 import { beyondOf, withWhole } from './select-beyond.js';
 import { journeySuite, restingOf } from './select-before.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
+import type { Held } from './select-local.js';
+import type { SelectInput } from './select.js';
 import { diffPoint, diffSince } from './since.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
 
@@ -29,8 +31,14 @@ import { indexUpToCheckout, relationsFor } from './source-graph.js';
  * The lockfile is read as an install, not as a changed file. A handed-in patch
  * names both ends of it by blob, and the packages that moved between them are
  * walked back through the install to every file that imports them.
+ *
+ * Each reading goes through `fall`, which under `--local` answers one that
+ * cannot narrow from the changed files it is handed.
  */
-export async function journeyReading(request: SuiteRequest & { readonly execution: string }): Promise<SuiteReading> {
+export async function journeyReading(
+  request: SuiteRequest & { readonly execution: string },
+  fall: (input: SelectInput, held?: Held) => Promise<SuiteReading> = async (input) => suiteOf(input, request.atDistance),
+): Promise<SuiteReading> {
   const selection = await import('@variance-authority/sense/test-selection');
   const given = isHanded(request);
   if (!given && request.since === undefined) {
@@ -44,7 +52,7 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
   const here = await realpath(request.root).catch(() => request.root);
   const text = given ? await handedChange(request) : await diffSince(from, [], undefined, { cwd: here });
   if (text === undefined) {
-    return suiteOf({ at: request.execution, given: true, ground: { kind: 'no-diff', from } }, request.atDistance);
+    return fall({ at: request.execution, given: true, ground: { kind: 'no-diff', from } });
   }
   if (!/^diff --git /mu.test(text) && /^@@ /mu.test(text)) {
     throw new OperatorError(
@@ -65,7 +73,7 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
     ? await installDiffOfPatch(text, here)
     : await installDiff(await diffPoint(from, [], here), [...selection.changedLines(text).keys()]);
   if (installed !== undefined && 'whole' in installed) {
-    return suiteOf({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, request.atDistance);
+    return fall({ at: request.execution, given: true, ground: { kind: 'no-install', whole: installed.whole } }, { changed: [...selection.changedLines(text).keys()] });
   }
   if (request.relations === undefined) await indexUpToCheckout(request.root, undefined, !request.noGit);
   const relations = request.relations ?? await relationsFor(request.root, ['.'], [], [], request.noGit);
@@ -77,7 +85,7 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
   const declared = selection.declaredSuites(here)?.find((one) => one.name === suite);
   const { whole, ...rest } = await restingOf(here, suite, relations, [...changed.keys()], declared?.ignore);
   const base = { at: request.execution, given: true, ...rest };
-  if (whole !== undefined) return suiteOf({ ...base, ground: { kind: 'before', whole: whole.says, rests: whole.rests } }, request.atDistance);
+  if (whole !== undefined) return fall({ ...base, ground: { kind: 'before', whole: whole.says, rests: whole.rests } }, { changed: [...changed.keys()], relations });
   const preimages = await patchPreimages(text, request.root);
   const { read, readings } = selection.readJourneyChange(text, (file) => preimages.get(file), {
     root: request.root,
@@ -94,7 +102,7 @@ export async function journeyReading(request: SuiteRequest & { readonly executio
     ?? selection.narrowByJourneys((await readExecutionFor(request.execution, changed)).index, changed, options);
   const unread = [...withoutManifests(narrowing.unread, installed?.manifests ?? []), ...beyond.unplaced].sort();
   const every = selection.withEveryReading({ ...narrowing, unread, readings }, changed.keys());
-  return suiteOf({ ...base, ground: { kind: 'read', narrowing: every } }, request.atDistance);
+  return fall({ ...base, ground: { kind: 'read', narrowing: every } }, { changed: [...changed.keys()], relations });
 }
 
 /** Whether the change is handed in, as `change` text or as the `--diff` patch, rather than measured. */

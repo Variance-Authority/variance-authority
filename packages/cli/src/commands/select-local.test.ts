@@ -22,6 +22,7 @@ vi.mock('ci-info', () => ({ isCI: false }));
 
 const A = 'packages/a/test/a.test.ts';
 const B = 'packages/b/test/b.test.ts';
+const HEALTH = 'packages/b/checks/health.ts';
 const A_SOURCE = 'export const a = 1;\n';
 
 it('reads `--local` off the command line, and nothing without it', () => {
@@ -138,6 +139,33 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect(local.reading.fell).toMatchObject({ rung: 'package' });
   });
 
+  it('falls to the package of a file the suite rests on when there is no journal', async () => {
+    const { root } = checkout({ 'variance.config.json': JSON.stringify({ suites: { unit: { kind: 'unit', before: ['packages/a/setup.ts'] } } }) });
+    const { local } = await both(root, () => write(root, 'packages/a/setup.ts', 'export const ready = 2;\n'), { suite: 'unit' });
+
+    expect([...local.skip]).toEqual([B]);
+    expect(local.reading.fell).toMatchObject({ rung: 'package', left: [B] });
+  });
+
+  it('falls to the importers when a journey file cannot read what changed', async () => {
+    const { root } = checkout();
+    const { local, gate } = await both(root, editA(root), { execution: join(root, 'journey.json'), since: 'no-such-ref' });
+
+    expect(gate.reading.ground).toBe('no-diff');
+    expect([...gate.skip]).toEqual([]);
+    expect([...local.skip]).toEqual([B]);
+    expect(local.reading.fell).toMatchObject({ rung: 'importers', left: [B] });
+  });
+
+  it('leaves a test file the record holds whose name does not say test', async () => {
+    const { root } = checkout({ [HEALTH]: "import { b } from '../src/b';\nexport const seen = b;\n" });
+    await writeTestCoverage(testCoverageFile(root), snapshot('f'.repeat(40), true, [HEALTH]));
+    const { local } = await both(root, editA(root));
+
+    expect([...local.skip]).toEqual([HEALTH, B]);
+    expect(local.reading.fell).toMatchObject({ rung: 'importers', left: [HEALTH, B] });
+  });
+
   it('falls to the importers when the record holds no test whole', async () => {
     const { root, head } = checkout();
     await writeTestCoverage(testCoverageFile(root), snapshot(head, false));
@@ -221,8 +249,8 @@ function uncovered(root: string): void {
   }));
 }
 
-/** Both tests, `complete` or not, and the module of `a` entered by its own. */
-function snapshot(commit: string, complete: boolean): TestCoverage {
+/** Both tests and `more`, `complete` or not, and the module of `a` entered by its own. */
+function snapshot(commit: string, complete: boolean, more: readonly string[] = []): TestCoverage {
   return {
     version: 3,
     instrumentation: 'fixture',
@@ -230,6 +258,7 @@ function snapshot(commit: string, complete: boolean): TestCoverage {
     tests: [
       { file: A, complete, preconditions: [] },
       { file: B, complete, preconditions: [] },
+      ...more.map((file) => ({ file, complete, preconditions: [] })),
     ],
     modules: [
       {

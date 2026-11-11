@@ -14,14 +14,16 @@
  * and a skipped file keeps its stand, so a later run without `--local` runs them.
  */
 
+import { existsSync } from 'node:fs';
 import { relative } from 'node:path';
-import { changedLines } from '@variance-authority/sense/test-selection';
+import { askCoverageFile, changedLines, isTestCoverageFile } from '@variance-authority/sense/test-selection';
 import { affectedBy, nodesOfKind, RUNTIME_EDGES, within, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { isTestPath } from '@variance-authority/sense';
 import { packageOf } from '../package-home.js';
 import { diffSince, topLevel } from './since.js';
 import { selectMainline } from './mainline-selected.js';
+import { restsOf } from './select-before.js';
 import { handedChange, isHanded } from './select-journey.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
 import type { SuiteRequest } from './select-suite.js';
@@ -94,9 +96,10 @@ export interface Held {
  * The ladder's answer for a reading declined on `ground`. A change not yet read
  * is the patch handed in, or the diff from `--since`, else from `HEAD`'s merge
  * base with the mainline, so committed work counts, else from `HEAD`; one that
- * cannot be read at all is no change, so every test is left.
+ * cannot be read at all is no change, so every test is left. The test files
+ * the `record` holds count whatever their names say.
  */
-export async function localAnswer(request: SuiteRequest, ground: SelectGround, held?: Held): Promise<LocalAnswer> {
+export async function localAnswer(request: SuiteRequest, ground: SelectGround, held?: Held, record?: string): Promise<LocalAnswer> {
   const root = (await topLevel(request.root)) ?? request.root;
   const diff = held !== undefined ? undefined : isHanded(request)
     ? await handedChange(request)
@@ -108,13 +111,25 @@ export async function localAnswer(request: SuiteRequest, ground: SelectGround, h
     await indexUpToCheckout(root, undefined, !request.noGit);
     relations = await relationsFor(root, ['.'], [], [], request.noGit);
   }
+  // A reading that declined before it looked at what the suite rests on has not said, so the ladder asks.
+  const rests = ground.kind === 'before' ? ground.rests : (await restsOf(root, request.suite, relations, changed)).rests;
   return localLadder({
     root,
     relations,
     changed,
-    rests: ground.kind === 'before' ? ground.rests : [],
-    whole: ground.kind === 'read' ? ground.narrowing.whole : [],
+    rests,
+    whole: [...(ground.kind === 'read' ? ground.narrowing.whole : []), ...recordedTests(record)],
   });
+}
+
+/** The test files `record` holds, or none when it is no record or holds no coverage. */
+function recordedTests(record: string | undefined): readonly string[] {
+  if (record === undefined || !existsSync(record) || !isTestCoverageFile(record)) return [];
+  try {
+    return askCoverageFile(record, (view) => Array.from(view.testPath.all(), (path) => view.string(path)));
+  } catch {
+    return [];
+  }
 }
 
 /** `HEAD`'s merge base with the mainline selected for this checkout, when one is. */
