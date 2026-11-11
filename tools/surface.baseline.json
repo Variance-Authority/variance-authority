@@ -3023,7 +3023,6 @@
         "placesOf": "function",
         "prepareCodeMap": "function",
         "prepareJourneys": "function",
-        "primarySourceIndexPath": "function",
         "publishedNames": "function",
         "publishedSources": "function",
         "queryDependencyLexiconNative": "function",

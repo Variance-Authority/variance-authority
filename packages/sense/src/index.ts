@@ -64,7 +64,6 @@ export {
 
 export {
   openSourceIndex,
-  primarySourceIndexPath,
   readSourceRecords,
   sourceIndexPath,
   type PersistentSourceIndex,

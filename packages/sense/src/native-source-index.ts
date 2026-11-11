@@ -20,8 +20,6 @@ export interface NativeSourceIndexes {
    * Why the layers were not written, or `null` when they are.
    */
   appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
-  /** Start the chain at `path` as a copy of the one at `from`, when `path` has none; whether it did. */
-  seedSourceIndex(path: string, from: string): boolean;
   /** Drop what no chain in `chains` names from the parse store at `store`, past `graceMs`; how many parses went (`native/src/parse_store.rs`). */
   pruneParseStore(store: string, chains: string[], graceMs: number): number;
   /** The index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
