@@ -168,8 +168,9 @@ export function graphReachFromView(
 /**
  * The graph's walk (`importers.ts`): a rowless file up its importers to the
  * nearest file the record holds, and a file behind a `/// <depends>` target to
- * that target's declarers. Unanswered is a file the graph does not hold, every
- * rowed file, and every file when the suite declines relations.
+ * that target's declarers. With `sourceAt`, a declarer that already ran the
+ * text a file arrives at is not held by it. Unanswered is a file the graph does
+ * not hold, every rowed file, and every file when the suite declines relations.
  */
 export function importersFromView(
   coverage: TestCoverageView,

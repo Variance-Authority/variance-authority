@@ -109,6 +109,8 @@ describe('a test that declares a program it runs in another process', () => {
       sourceAt,
     });
     expect(narrowing.entered).toEqual(tests('entry', 'spawn'));
+    const [spawn] = tests('spawn');
+    expect(narrowing.because.find((reason) => reason.test === spawn)?.via).toContainEqual({ kind: 'importer', trail: [deep, entry, spawn] });
   });
 
   it('is reached by a change to the program that moves none of its names', async () => {
