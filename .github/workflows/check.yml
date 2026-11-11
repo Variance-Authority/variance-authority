@@ -652,23 +652,15 @@ jobs:
           SUITE: ${{ matrix.suite }}
           SHARD: ${{ matrix.shard }}
         run: |
-          if [ -n "$SHARD" ]; then
-            echo "into=shard" >> "$GITHUB_OUTPUT"
-            if [ "$SELECT" = true ]; then
-              yarn variance index
-              VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" --shard "$SHARD"
-              VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE" --shard "$SHARD"
-            else
-              yarn "test:$SUITE" --shard "$SHARD"
-            fi
-          elif [ "$SELECT" = true ]; then
-            echo "into=slice" >> "$GITHUB_OUTPUT"
+          into=slice
+          if [ -n "$SHARD" ]; then into=shard; fi
+          echo "into=$into" >> "$GITHUB_OUTPUT"
+          if [ "$SELECT" = true ]; then
             yarn variance index
-            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE"
-            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE"
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
           else
-            echo "into=slice" >> "$GITHUB_OUTPUT"
-            yarn "test:$SUITE"
+            yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
           fi
 
       # What this job recorded, for `record` to fold: the part a shard ran, or

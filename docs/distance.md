@@ -23,7 +23,8 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 
 The runner's own inventory is the other half of that join, so every selected
 file runs in one of the two legs. A test new since the recording runs in
-both. A test recorded incomplete runs in the leg of the shortest import path it
+both, except in the passes of one shard, where it runs in the first alone
+([Sharding](sharding.md)). A test recorded incomplete runs in the leg of the shortest import path it
 ran to a changed file it loaded, or in the second when it ran none.
 [Run the tests an edit needs](test-an-edit.md) is the page about that loop. The
 rest of this page is for a repository that composes the legs itself, across

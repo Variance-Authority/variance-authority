@@ -6,6 +6,7 @@ import { sourceIndexPath } from '@variance-authority/sense';
 import {
   atDistance,
   type ExecutionNarrowing,
+  kept,
   type TestDistance,
 } from '@variance-authority/sense/test-selection';
 import '../bin.fixture.js';
@@ -438,6 +439,36 @@ describe('one leg of the selection', () => {
 
     expect(selection.skip).toEqual([]);
     expect(selection.left).toEqual([]);
+  });
+
+  describe("as the waves of one shard, which read the same record and must not run a file twice", () => {
+    const NEW = 'test/new.test.ts';
+    const discovered = [...WHOLE, NEW, PARTIAL];
+    const waves = (input: SelectInput) =>
+      [{ from: 0, to: 2 }, { from: 3, to: Number.MAX_SAFE_INTEGER }].map((leg) => kept(suiteOf(input, { ...leg, partition: true }), discovered));
+
+    it('runs a file the record never saw in the leg that starts at 0 hops alone', () => {
+      const [near, far] = waves(read(DISTANCES, [PARTIAL]));
+
+      expect(near).toEqual([MID, NEAR, NEW]);
+      expect(far).toEqual([FAR, GHOST, PARTIAL]);
+    });
+
+    it('runs every file of a reading that could not narrow in the leg that starts at 0 hops alone', () => {
+      const [near, far] = waves({ at: '/cache/coverage.bin', ground: { kind: 'no-journal' } });
+
+      expect(near).toEqual(discovered);
+      expect(far).toEqual([]);
+    });
+
+    it('runs no nearer test in a later leg, whatever stands before HEAD', () => {
+      const input = read(DISTANCES, [PARTIAL]);
+      const after: SelectInput = input.ground.kind === 'read' ? { ...input, ground: { ...input.ground, unrunAtHead: [GHOST, MID] } } : input;
+      const [near, far] = waves(after);
+
+      expect([...near, ...far].sort()).toEqual([...new Set([...near, ...far])].sort());
+      expect(far).toEqual([FAR, GHOST, PARTIAL]);
+    });
   });
 
   it('refuses a leg over a journey file, which measures no hops', () => {

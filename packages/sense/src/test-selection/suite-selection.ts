@@ -37,6 +37,12 @@ export interface SuiteSelection {
    * run that takes them.
    */
   readonly left?: ReadonlySet<string>;
+  /**
+   * The only test files that run, when a later wave of one shard was asked: a
+   * file outside it, one the record never saw included, runs in an earlier
+   * wave. Absent, every file not in `skip` runs.
+   */
+  readonly only?: ReadonlySet<string>;
   /** What a person reads after the count. Never parsed. */
   readonly notes: readonly string[];
 }
@@ -63,14 +69,17 @@ export type SuiteTimes =
  * selection skips. `name` says each file as `skip` names it, so a seam keeps
  * its runner's own handles; without it the files are those names. A file the
  * record never saw, or never held whole because it failed, is kept. A declined
- * reading skips nothing, so it keeps every file.
+ * reading skips nothing, so it keeps every file. A selection that names `only`
+ * keeps none outside it.
  */
 export function kept<File = string>(
   selection: SuiteSelection,
   discovered: readonly File[],
   name: (file: File) => string = String,
 ): readonly File[] {
-  return [...new Set(discovered)].filter((file) => !selection.skip.has(name(file)));
+  return [...new Set(discovered)].filter(
+    (file) => !selection.skip.has(name(file)) && (selection.only === undefined || selection.only.has(name(file))),
+  );
 }
 
 /**
@@ -103,7 +112,7 @@ export function selectedLines(selection: SuiteSelection, discovered: readonly st
 
 /** Why a selection that keeps no file kept none: what it left, or what the change reached. */
 function none(selection: SuiteSelection, discovered: ReadonlySet<string>): string {
-  const left = [...discovered].filter((file) => selection.left?.has(file)).length;
+  const left = [...discovered].filter((file) => selection.left?.has(file) || selection.only?.has(file) === false).length;
   if (left === 0) return 'the change reached none of them';
   return `${count(left, 'test file')} ${left === 1 ? 'is' : 'are'} left for a later run`;
 }

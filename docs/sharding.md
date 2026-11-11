@@ -253,7 +253,10 @@ it selects from the record it was handed, lays none under its own run, and a
 shard that runs no file leaves no record. A shard that runs in more than one
 pass, near tests first and the far ones after, selects and places every pass
 from that same record, beneath what its earlier passes ran, and each pass lands
-over the last, so the shard's one record holds what all of them ran. A pull
+over the last, so the shard's one record holds what all of them ran. A later
+pass runs only the files the record placed in its range: a test new since the
+recording, and every file of a selection that declined to narrow, run in the
+first pass alone, so no file runs twice or lands in two shards. A pull
 request's shards then fold over the record they selected from, and a test file
 or case no shard ran keeps the row it had. A shard killed before it lands
 leaves no record and fails the build; the others' still fold. A Playwright

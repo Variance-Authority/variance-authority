@@ -35,6 +35,15 @@
  * list and runs in every leg. That is the safe side of a skip list: it costs a
  * file run twice, never a file run zero times.
  *
+ * ## The waves of one shard run each file once
+ *
+ * A shard runs its legs as waves over one record, and places each wave's files
+ * among the shards by their times. A file two waves both ran could land in two
+ * shards, whose records then both hold it. So under `partition` a leg that
+ * starts past 0 hops runs only the files the record placed in its range: a test
+ * new since the recording, and every file of a reading that could not narrow,
+ * run in the leg that starts at 0 hops alone.
+ *
  * ## A later leg runs what the earlier one could not see
  *
  * The legs run one after another, and each lands its run before the next is
@@ -44,7 +53,9 @@
  * earlier leg's reading did not enter, so no leg would run it. So when a run has
  * landed at HEAD, a leg that starts past 0 hops also runs every entered test
  * nearer than its first hop that still stands before HEAD. A test the earlier
- * leg ran is at HEAD and not among them, so none runs twice.
+ * leg ran is at HEAD and not among them, so none runs twice. The waves of one
+ * shard read the record they were handed, never what an earlier wave landed,
+ * so under `partition` no test is overdue.
  *
  * ## The reading a leg was cut from is said with it
  *
@@ -92,6 +103,12 @@ export interface Leg {
    * than a flag the run has no command line for. The `--at-distance` flag when absent.
    */
   readonly by?: 'environment';
+  /**
+   * The legs are the waves of one shard, which read one record: a leg that
+   * starts past 0 hops runs only what the record placed in it, so no file runs
+   * in two waves (`TestSelection.only`).
+   */
+  readonly partition?: true;
 }
 
 /**
@@ -114,9 +131,11 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   const range = spelled(leg);
   if (selection.fell !== undefined) {
     const why = 'hops are counted only on a record that narrowed';
+    if (later(leg)) return nearest(selection, leg, range, why);
     return { ...selection, ...asked, left: [], notes: [`${asking(leg, range)} runs every test file \`--local\` selected: ${why}`, ...selection.notes] };
   }
   if (selection.widened !== undefined || input.ground.kind !== 'read') {
+    if (later(leg)) return nearest(selection, leg, range, 'nothing was narrowed');
     return {
       ...selection,
       ...asked,
@@ -128,6 +147,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   // Hops read off edges the checkout may no longer hold place no test: every
   // leg runs what the selection runs.
   if (input.ground.stale !== undefined) {
+    if (later(leg)) return nearest(selection, leg, range, `the hops are measured on a graph that is not the checkout's, because ${input.ground.stale}`);
     return {
       ...selection,
       ...asked,
@@ -159,7 +179,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   // by its hops, an unplaced one when that leg is the end leg. One that a run
   // landed at HEAD left standing was run by no earlier leg, so this one runs it.
   const before = new Set(leg.from === 0 ? [] : atDistance(measured, 0, leg.from - 1));
-  const unrun = new Set(input.ground.unrunAtHead ?? []);
+  const unrun = new Set(leg.partition === true ? [] : (input.ground.unrunAtHead ?? []));
   const elsewhere = remaining(measured, leg.from, leg.to);
   const overdue = elsewhere.filter((test) => before.has(test) && unrun.has(test));
   const taking = new Set(overdue);
@@ -170,6 +190,9 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   const unseen = leg.to === Number.MAX_SAFE_INTEGER ? [] : partial.filter((test) => !placedPartial.has(test));
   const outside = [...cut, ...unseen].sort(codeUnitOrder);
   const skip = [...new Set([...selection.skip, ...outside])].sort(codeUnitOrder);
+  const skipping = new Set(skip);
+  const { whole: recorded, incomplete = [] } = input.ground.narrowing;
+  const only = later(leg) ? [...new Set([...recorded, ...incomplete, ...entered])].filter((test) => !skipping.has(test)).sort(codeUnitOrder) : undefined;
   const nearer = cut.filter((test) => before.has(test));
   const further = cut.length - nearer.length;
   const whole = selection.recorded?.whole ?? 0;
@@ -179,6 +202,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     ...asked,
     skip,
     left: outside,
+    ...(only === undefined ? {} : { only }),
     distances: measured,
     // `left` can hold an entered test the record never saw whole, so the two
     // counts are named apart rather than as a share of the whole.
@@ -199,6 +223,22 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
       ...overdueNote(overdue.length),
       ...selection.notes,
     ],
+  };
+}
+
+/** A wave of one shard that starts past 0 hops, which runs only what the record placed in it. */
+function later(leg: Leg): boolean {
+  return leg.partition === true && leg.from > 0;
+}
+
+/** A later wave of a reading that placed nothing: it runs no file, and the wave that starts at 0 hops runs every one. */
+function nearest(selection: TestSelection, leg: Leg, range: string, why: string): TestSelection {
+  return {
+    ...selection,
+    leg: legOf(leg),
+    left: [],
+    only: [],
+    notes: [`${asking(leg, range)} runs no test file: ${why}, so the leg that starts at 0 hops runs every one`, ...selection.notes],
   };
 }
 

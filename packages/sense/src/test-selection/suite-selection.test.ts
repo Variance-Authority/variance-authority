@@ -21,6 +21,10 @@ describe('the files a seam keeps', () => {
     expect(kept(selection(['a.test.ts']), files, (file) => file.path.slice('/repo/'.length))).toEqual([files[1]]);
   });
 
+  it('are only the files a leg names, when it names them, so a file the record never saw runs in no such leg', () => {
+    expect(kept({ ...selection(['a.test.ts']), only: new Set(['b.test.ts']) }, ['a.test.ts', 'b.test.ts', 'new.test.ts'])).toEqual(['b.test.ts']);
+  });
+
   it('are what the headline counts', () => {
     expect(selectedLines(selection(['a.test.ts']), ['a.test.ts', 'b.test.ts'])[0]).toBe('variance-authority: selected 1 of 2');
   });

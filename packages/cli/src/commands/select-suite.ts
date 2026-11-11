@@ -79,6 +79,7 @@ export function suiteOf(input: SelectInput, atDistance: Leg | undefined, fell?: 
     skip: new Set(reading.skip),
     ...(reading.widened === undefined ? {} : { declined: reading.widened }),
     ...(left.length === 0 ? {} : { left: new Set(left) }),
+    ...(reading.only === undefined ? {} : { only: new Set(reading.only) }),
     notes: reading.notes,
     reading,
   };

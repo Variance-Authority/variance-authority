@@ -21,7 +21,7 @@ import type { LastFetched, OwnLayer, Repin } from '@variance-authority/sense/tes
 import type { Env } from '../share-lines.js';
 import { checkoutRead } from './checkout-read.js';
 import { mainlineBase, mainlineMissed, mainlineRead, primaryRead, type MainlineAsk, type MainlineMissed, type MainlineRecord } from './mainline-base.js';
-import { recordHeld, selectedRecordOf } from './mainline-selected.js';
+import { recordHeld } from './mainline-selected.js';
 import { namedSuite, recordedSuite } from './suite-record.js';
 
 /** Which record a reader measures from, where it is, and why the others were passed over. */
@@ -136,12 +136,8 @@ export async function recordedOrMainline(
 ): Promise<FoundRecord> {
   const { name, declared } = await namedSuite(request.root, request.suite);
   if (declared?.carry !== 'share') {
-    if (request.beneath === true) {
-      const { file, origin } = await selectedRecordOf(request.root, name, declared, { beneath: true });
-      return { at: file, held: origin !== undefined };
-    }
-    const { file } = await recordedSuite(request.root, request.suite);
-    return { at: file, held: await recordHeld(file) };
+    const { file, origin } = await recordedSuite(request.root, name, request.beneath === true ? { beneath: true } : {});
+    return { at: file, held: origin !== undefined };
   }
   const suite = declared.name;
   const base = await suiteBase(request.root, { suite, ...options, ...(request.beneath === true ? { beneath: true } : {}) });
