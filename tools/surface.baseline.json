@@ -3478,6 +3478,7 @@
         "placeAcross": "function",
         "placeInText": "function",
         "placeInTexts": "function",
+        "placed": "function",
         "planPrune": "function",
         "prepareRecord": "function",
         "projectJourneyFile": "function",
