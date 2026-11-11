@@ -24,6 +24,8 @@ use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 
 use napi_derive::napi;
+
+use crate::GitTree;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha256};
@@ -256,9 +258,20 @@ fn named(path: &str) -> Option<HashSet<(String, String)>> {
     }
 }
 
+#[napi]
+impl GitTree {
+    /// Add to the first of `stores` every parse the chain at `chain` holds, no
+    /// store does, and this tree read only as the blob it is kept under; how
+    /// many went in.
+    #[napi(catch_unwind)]
+    pub fn fill_parse_store(&self, stores: Vec<String>, chain: String) -> napi::Result<u32> {
+        fill(&stores, &chain, &self.from_blob)
+    }
+}
+
 /// Add to the first of `stores` every parse the chain at `chain` holds, no
 /// store does and `from_blob` shares; how many went in.
-pub(crate) fn fill(stores: &[String], chain: &str, from_blob: &crate::parse_origin::FromBlob) -> napi::Result<u32> {
+fn fill(stores: &[String], chain: &str, from_blob: &crate::parse_origin::FromBlob) -> napi::Result<u32> {
     let fail = |error: String| napi::Error::from_reason(format!("the parse store at {} was not filled: {error}", stores.first().map_or("", String::as_str)));
     let Some(root) = read_chain(chain).map_err(fail)? else { return Ok(0) };
     let layers = opened(&root);

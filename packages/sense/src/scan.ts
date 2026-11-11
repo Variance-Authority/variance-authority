@@ -435,7 +435,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
       const nativeOptions = {
         addon,
         ...(packed === undefined ? {} : { tree: packed }),
-        ...(packed === undefined && tree !== undefined ? { listed: listedPaths(), ...(tree.native === undefined ? {} : { named: tree.native }) } : {}),
+        ...(packed === undefined && tree !== undefined ? { listed: listedPaths() } : {}),
         root,
         files: pending,
         largestFile,

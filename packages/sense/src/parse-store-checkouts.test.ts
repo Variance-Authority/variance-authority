@@ -98,9 +98,10 @@ describe('the checkouts a parse store answers', () => {
     expect(await records(right)).toBe(alone);
   });
 
-  it('parses nothing again for a checkout of blobs another read off the disk, as `packs: false` reads them', async () => {
+  // A wave this small is read off the disk, and each file's bytes are told from its blob as they are read.
+  it('parses nothing again for a checkout of blobs another read off the disk', async () => {
     process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
-    await updateSourceIndex(await checkout('left'), { packs: false });
+    await updateSourceIndex(await checkout('left'));
     const second = await updateSourceIndex(await checkout('left'));
     expect(second.files).toBeGreaterThan(0);
     expect(second.parsed).toBe(0);
@@ -121,6 +122,28 @@ describe('the checkouts a parse store answers', () => {
 
     process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
     await updateSourceIndex(edited, options);
+    await updateSourceIndex(clean);
+    expect(await records(clean)).toBe(alone);
+  });
+
+  // Paths of one blob share one parse key, so a clean read of one must not vouch for the others.
+  it.each(['first', 'last'] as const)('takes no parse of an edited file whose blob another path holds unedited, the %s one', async (unedited) => {
+    const twins = Array.from({ length: 40 }, (_, at) => `packages/a/src/twin-${String(at).padStart(2, '0')}.ts`);
+    const text = (target: string) => `import { side } from './${target}.js';\nexport const twin = side;\n`;
+    const twinned = async (root: string) => { for (const twin of twins) await write(root, twin, text('left')); };
+    const edited = await checkout('left', twinned);
+    const clean = await checkout('left', twinned);
+    for (const twin of unedited === 'first' ? twins.slice(1) : twins.slice(0, -1)) {
+      git(edited, 'update-index', '--assume-unchanged', twin);
+      await write(edited, twin, text('right'));
+    }
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
+    await updateSourceIndex(clean);
+    const alone = await records(clean);
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    await updateSourceIndex(edited);
     await updateSourceIndex(clean);
     expect(await records(clean)).toBe(alone);
   });

@@ -355,7 +355,6 @@ impl GitTree {
             Some(self.at.as_ref()),
             Some(self.listing()),
             &kept,
-            &[],
             &self.from_blob,
         )
     }

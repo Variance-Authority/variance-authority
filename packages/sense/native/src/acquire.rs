@@ -258,7 +258,7 @@ pub(crate) fn read_all(
 }
 
 /// Read `files` off the disk; `oids` is empty, or Git's name for each file.
-pub(crate) fn read_disk(
+fn read_disk(
     root: String,
     files: Vec<String>,
     oids: &[Option<Oid>],

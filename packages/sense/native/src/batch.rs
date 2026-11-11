@@ -99,8 +99,7 @@ pub fn read_batch(
     )
 }
 
-/// Read, parse, extract and resolve a frontier on one native side, off the disk
-/// (`GitTree::scan_disk` is the same read for a tree that names the blobs).
+/// Read, parse, extract and resolve a frontier on one native side.
 ///
 /// `listed` is what a listing the addon does not hold says about the paths
 /// the disk alone declines: the files Git lists under a `build/`. A scan over
@@ -134,7 +133,6 @@ pub fn scan_batch(
         listed.as_ref(),
         None,
         &|_, _| None,
-        &[],
         &FromBlob::default(),
     )
 }
@@ -145,7 +143,6 @@ pub(crate) fn scan_batch_with_oids(
     known: Option<&HashMap<String, u32>>,
     listing: Option<Arc<Listing>>,
     kept: Kept,
-    disk: &[Option<Oid>],
     from_blob: &FromBlob,
 ) -> ScanBatch {
     let ScanOptions {
@@ -161,7 +158,17 @@ pub(crate) fn scan_batch_with_oids(
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, listing));
     let (read, answered) = match oids {
         Some(oids) => read_kept(&root, &files, oids, largest_file, digests, readers, kept, from_blob),
-        None => (from_blob.read_disk(&root, &files, disk, largest_file, digests, readers), Vec::new()),
+        None => (
+            read_all(
+                root.clone(),
+                files.clone(),
+                largest_file,
+                digests,
+                readers,
+                true,
+            ),
+            Vec::new(),
+        ),
     };
     let targets = resolve_all(root_path, &files, &read, &resolvers, known);
     let columns = columns(read, true, &answered);
