@@ -2050,7 +2050,10 @@ layer: a reader that knows the selected mainline passes it as `selected`, here
 and to `lastFetchedMainline` and `prepareRecord`. A caller with none to pass, such
 as a runner seam, takes what was fetched. A shard passes `beneath`: the
 checkout's own record is passed over, so every pass of the shard selects from
-the record it was handed, not from what an earlier pass of it ran.
+the record it was handed, not from what an earlier pass of it ran. The Vitest and
+Jest seams read whether a run is a shard from the runner's resolved `shard`,
+whether the command line or the runner's API, such as `startVitest` or Jest's
+`runCLI`, set it.
 
 ### Read where the loads drift from the walk
 

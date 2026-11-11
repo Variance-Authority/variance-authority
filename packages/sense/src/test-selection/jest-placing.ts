@@ -48,6 +48,12 @@ export interface PlacingOptions {
   readonly rootDir: string;
   /** The suite's recorded times, read once, and only by a run under `--shard`. */
   readonly times: () => Promise<SuiteTimes>;
+  /**
+   * Told whether Jest's resolved configuration asks for a shard, from the
+   * command line or from `runCLI`, when Jest makes the sequencer: before any
+   * filter asks for the selection or any shard for the times.
+   */
+  readonly sharded?: (asked: boolean) => void;
   readonly say?: (line: string) => void;
   /** The command line the configuration is evaluated under; `process.argv` unless handed. */
   readonly argv?: readonly string[];
@@ -78,6 +84,7 @@ export function placingSequencer(
   let read: Promise<SuiteTimes> | undefined;
   let told = false;
   const handed = {
+    made: (globalConfig: object) => options.sharded?.((globalConfig as { shard?: unknown }).shard != null),
     sorting: refuseUnfound,
     own: (): SequencerClass => {
       const at = path === undefined ? jestDependency(options.rootDir, JEST_SEQUENCER) : from.resolve(path, { paths: [options.rootDir] });
