@@ -252,8 +252,8 @@ and Jest, a selected shard records the files it ran and nothing else, as a whole
 run's shard does: it removes the record it selected from before it lands, and a
 shard that runs no file leaves no record. A pull request's shards then fold over
 the record they selected from, and a test file or case no shard ran keeps the
-row it had. An Rstest shard still lands over its base, so keep its shards out of
-the share.
+row it had. A Playwright shard still lands over the record it read, so keep a
+pull request's Playwright shards out of the share.
 
 GitHub Actions can build a matrix from an earlier job's output, so the count is
 decided per build. `--format json` gives a `matrix` of `k/n` strings, empty for
