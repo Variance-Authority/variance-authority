@@ -69,7 +69,8 @@ export function recordPath(root: string, suite?: string): string {
  * A worktree's is empty until {@link seedTestCoverage} fills it.
  */
 export function testCoverageFile(root: string, options: RecordLocationOptions = {}): string {
-  return resolve(repositoryLayers(root, options.cacheRoot).top, recordPath(root, options.suite));
+  const { top } = repositoryLayers(root, options.cacheRoot);
+  return resolve(top, recordPath(root, options.suite));
 }
 
 /**
