@@ -731,9 +731,6 @@
   "packages/cli/src/commands/select-command.ts overview": [
     30
   ],
-  "packages/cli/src/commands/select-journey.ts docblock": [
-    13
-  ],
   "packages/cli/src/commands/select-leg.ts overview": [
     44
   ],
