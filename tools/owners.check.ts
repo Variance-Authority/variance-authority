@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { BASELINE, IDIOMS, counted, isSource, sites, sitesIn, sources, tests } from './owners.mjs';
+import { BASELINE, IDIOMS, counted, isSource, scripts, sites, sitesIn, sources, tests } from './owners.mjs';
 
 /**
  * Owned answers, computed again outside their owner (ADR-0069).
@@ -140,6 +140,53 @@ describe('the owners reader', () => {
 
   it('leaves a function of the caller\'s own that is named reload', () => {
     expect(idioms('packages/tribunal/src/ui/a.tsx', 'export const one = (reload: () => void) => reload();')).toEqual([]);
+  });
+
+  it('finds a module loaded through CommonJS: require, a createRequire result, and import-equals in an ECMAScript file', () => {
+    expect(
+      idioms(
+        'packages/cli/src/a.ts',
+        [
+          "import { createRequire, createRequire as made } from 'node:module';",
+          "import x = require('./x.cjs');",
+          'const load = createRequire(import.meta.url);',
+          "export const one = () => load('./a.cjs');",
+          "export const two = () => createRequire(import.meta.url)('../package.json');",
+          "export const three = () => made(import.meta.url)('./b.cjs');",
+          "export const four = () => module.createRequire(import.meta.url)('./c.cjs');",
+          "export const five = () => require('./d.cjs');",
+        ].join('\n'),
+      ),
+    ).toEqual([
+      'commonjs-load',
+      'commonjs-load one',
+      'commonjs-load two',
+      'commonjs-load three',
+      'commonjs-load four',
+      'commonjs-load five',
+    ]);
+  });
+
+  it("leaves a resolve, a local function named require, a type-only import and a CommonJS file's literal imports", () => {
+    const resolve = "import { createRequire } from 'node:module';\nexport const at = createRequire(import.meta.url).resolve('x');";
+    const local = "const require = (at: string): void => {};\nrequire('x');";
+    const typeOnly = "import type types = require('./types.cjs');\nexport type T = types.T;";
+    const commonjs = "import path = require('node:path');\nconst y = require('./y.cjs');\nexport = { path, y };";
+
+    expect(idioms('packages/cli/src/a.ts', resolve)).toEqual([]);
+    expect(idioms('packages/cli/src/b.ts', local)).toEqual([]);
+    expect(idioms('packages/cli/src/e.ts', typeOnly)).toEqual([]);
+    expect(idioms('packages/cli/src/c.cts', commonjs)).toEqual([]);
+    expect(idioms('packages/cli/src/d.cts', 'export const own = (file: string) => require(file);')).toEqual(['commonjs-load own']);
+  });
+
+  it("reads a package's scripts for CommonJS loads only", () => {
+    const text = "const wait = (page) => page.waitForTimeout(500);\nconst at = require('./x.cjs');";
+
+    expect(scripts()).toEqual(expect.arrayContaining(['packages/sense/scripts/record-load.mjs']));
+    expect((sitesIn('packages/a/scripts/a.mjs', text, ['commonjs-load']) as readonly Site[]).map((site) => site.idiom)).toEqual([
+      'commonjs-load',
+    ]);
   });
 
   it('leaves the owner of each idiom alone', () => {

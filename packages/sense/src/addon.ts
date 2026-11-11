@@ -61,6 +61,7 @@ const LOCAL_BUILD = '../dist/native/scan.node';
 export function native(): NativeScanner | undefined {
   if (loaded !== undefined) return loaded ?? undefined;
 
+  // A native addon, at a path chosen at run time: no `import` loads a `.node` file.
   const require = createRequire(import.meta.url);
   const platform = `${process.platform}-${process.arch}`;
   const shipped = PLATFORMS[platform];

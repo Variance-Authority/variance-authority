@@ -32,6 +32,8 @@ export { signer, type Signer } from './testing-issuer.js';
  * `wrangler`, no container, and no account.
  */
 
+// Loaded at run time: `node:sqlite` is not in `module.builtinModules` yet, so a
+// static import is bundled as a package; `server`'s `backend-sqlite.ts` says why.
 const { DatabaseSync: Database } = createRequire(import.meta.url)('node:sqlite') as {
   DatabaseSync: new (path: string) => DatabaseSync;
 };

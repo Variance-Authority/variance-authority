@@ -41,9 +41,9 @@ import { execFileSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
-import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { instrument } from '../dist/instrument/index.js';
+import { flat } from '../dist/test-selection/collectors.cjs';
 
 const COMPONENTS = Number(process.argv[2] ?? 2_000);
 /** Repeats per arm. The estimator is the minimum, so this buys a floor, not a mean. */
@@ -58,7 +58,7 @@ const tree = mkdtempSync(join(tmpdir(), 'variance-overhead-'));
 
 // The flat collector a test file gets, so the probed arm writes into the
 // shape a run installs and not a stand-in for it.
-const collector = createRequire(import.meta.url)('../dist/test-selection/collectors.cjs').flat(globalThis);
+const collector = flat(globalThis);
 
 try {
   for (const copy of ['plain', 'control', 'probed']) {

@@ -63,6 +63,7 @@ interface Cached {
   readonly children?: readonly Cached[];
 }
 
+// A project file at a computed path, loaded from where it lives.
 const load = (file: string): unknown => {
   const loaded = nodeModule.createRequire(file)(file) as { default?: unknown };
   return loaded.default ?? loaded;
@@ -214,6 +215,7 @@ function SelectionRuntime(config: ProjectConfig, environment: Environment, ...re
   if (options === undefined) throw new Error('variance-authority: the Jest runtime is named without its options');
   const jest = runner();
   const own = projectRuntime(jest, config, options);
+  // The project's own runtime, at the path its configuration names.
   const Base = interop(own === undefined ? jest('jest-runtime') : require(own)) as RuntimeClass;
   const runtime = new Base(config, environment, ...rest);
   // Jest's arguments after the environment: resolver, transformer, cacheFS, coverage options, test path.

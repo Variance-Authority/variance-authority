@@ -68,6 +68,7 @@ export function placingSequencer(
 ): { testSequencer?: string; passWithNoTests?: boolean } {
   if (config.testSequencer === PLACING_SEQUENCER) return {};
   const say = options.say ?? ((line: string) => process.stderr.write(`${line}\n`));
+  // The project's own sequencer, resolved from its root as Jest resolves it.
   const from = createRequire(resolve(options.rootDir, 'package.json'));
   const spelled = typeof config.testSequencer === 'string' ? config.testSequencer : undefined;
   const path = spelled === undefined

@@ -260,6 +260,11 @@
     "count": 1
   },
   {
+    "idiom": "commonjs-load",
+    "at": "packages/isolator/src/jest-transformer.ts",
+    "count": 1
+  },
+  {
     "idiom": "code-unit-order",
     "at": "packages/mcp/src/presentation.ts",
     "count": 1
@@ -300,6 +305,11 @@
     "count": 1
   },
   {
+    "idiom": "commonjs-load",
+    "at": "packages/playwright-test/src/file-selection.ts",
+    "count": 1
+  },
+  {
     "idiom": "timer",
     "at": "packages/playwright-test/src/in-place.ts",
     "count": 1
@@ -308,6 +318,11 @@
     "idiom": "timer",
     "at": "packages/playwright-test/src/vantage.ts",
     "count": 2
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/playwright-test/src/whole-file-shard.ts",
+    "count": 1
   },
   {
     "idiom": "fresh-page",
@@ -400,6 +415,11 @@
     "count": 1
   },
   {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/addon.ts",
+    "count": 1
+  },
+  {
     "idiom": "timer",
     "at": "packages/sense/src/index-turn.ts",
     "count": 1
@@ -417,6 +437,36 @@
   {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/jest-journey-artifact.ts",
+    "count": 1
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-placing.ts",
+    "count": 1
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-preset.ts",
+    "count": 1
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-runtime.cts",
+    "count": 2
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-selection.ts",
+    "count": 2
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-transform.ts",
+    "count": 1
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-transformer.ts",
     "count": 1
   },
   {
@@ -447,6 +497,11 @@
   {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/stage.ts",
+    "count": 1
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/server/src/backend-sqlite.ts",
     "count": 1
   },
   {
@@ -495,6 +550,11 @@
     "count": 1
   },
   {
+    "idiom": "commonjs-load",
+    "at": "packages/tribunal/src/node/database.ts",
+    "count": 1
+  },
+  {
     "idiom": "digest",
     "at": "packages/tribunal/src/objects.ts",
     "count": 1
@@ -502,6 +562,11 @@
   {
     "idiom": "code-unit-order",
     "at": "packages/tribunal/src/review-read.ts",
+    "count": 1
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/tribunal/src/testing.ts",
     "count": 1
   },
   {
@@ -883,5 +948,10 @@
     "idiom": "timer",
     "at": "packages/tribunal/src/ui/look.test.tsx",
     "count": 2
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/scripts/tuned-cost.mjs",
+    "count": 1
   }
 ]

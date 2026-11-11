@@ -177,6 +177,12 @@ these.
   whether a test *names* the export, not whether the test is about it — and it
   has no budget and no exemption list. A documented export nothing names is
   answered with a test or with a deletion.
+- **A module is reached by `import`.** A reader following imports does not see
+  a `require`, and `variance` reads no call through a `createRequire` result
+  unless it is named `require`, so our modules and JSON files are static
+  imports. A load no import can carry — a native addon, the project's own file
+  at a computed path — says why at the site, and the `commonjs-load` idiom in
+  `yarn owners` refuses a new one until `yarn owners --write` records it.
 - **Every answer has an owner.** See [orient](orient.md). Three idioms keep
   being typed again: a SHA-256 digest, a code-unit comparator and a
   write-then-rename. `tools/owners.check.ts` holds their sites per file and

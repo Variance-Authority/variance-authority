@@ -152,6 +152,7 @@ const SUPPORTED = 30;
 
 /** Refuses a Jest the filter's answer would be read as no files by, or none at all, by name. */
 function supported(rootDir: string): void {
+  // The project's Jest, not ours: resolved and read from its root.
   const from = createRequire(resolve(rootDir, 'package.json'));
   let version: string;
   try {
@@ -174,6 +175,7 @@ function supported(rootDir: string): void {
  * Jest 30 asks for paths, so either shape is read.
  */
 function ownFilter(spelled: string, rootDir: string): (testPaths: readonly string[]) => Promise<string[]> {
+  // The project's own filter, at the path its configuration names, from its root.
   const from = createRequire(resolve(rootDir, 'package.json'));
   const path = spelled.startsWith('<rootDir>') ? resolve(rootDir, spelled.replace(/^<rootDir>\/?/, '')) : spelled;
   let loaded: Promise<OwnFilter> | undefined;
