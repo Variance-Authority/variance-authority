@@ -79,6 +79,17 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect(local.reading.fell).toMatchObject({ rung: 'importers', left: [B] });
   });
 
+  it('reads the patch handed in as the change', async () => {
+    const { root } = checkout();
+    editA(root)();
+    const change = execFileSync('git', ['diff'], { cwd: root, encoding: 'utf8' });
+    execFileSync('git', ['checkout', '--quiet', '--', '.'], { cwd: root });
+    const { local } = await both(root, () => undefined, { change });
+
+    expect([...local.skip]).toEqual([B]);
+    expect(local.reading.fell).toMatchObject({ rung: 'importers', left: [B] });
+  });
+
   it('falls to the importers when the record holds no coverage', async () => {
     const { root } = checkout();
     uncovered(root);

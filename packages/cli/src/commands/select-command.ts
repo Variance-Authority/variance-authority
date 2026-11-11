@@ -214,6 +214,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     ...(stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!)),
   ];
   const stands = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
+  const standsChanged = stands.flatMap((stand) => stand.changed);
   const recorded = { at, ...(commit === undefined ? {} : { commit }), ...(standing.length === 0 ? {} : { standing }) };
   if (!handed && reading?.widened !== undefined) {
     return said({ ...recorded, ground: { kind: 'no-diff', from: reading.from! } });
@@ -272,7 +273,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   for (const installed of installs.values()) {
     if (installed !== undefined && 'whole' in installed) {
       const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
-      return said({ ...recorded, ground }, { changed: [...new Set([...changed, ...stands.flatMap((s) => s.changed)])] });
+      return said({ ...recorded, ground }, { changed: [...new Set([...changed, ...standsChanged])] });
     }
   }
 
@@ -284,7 +285,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const { declared } = await namedSuite(here, request.suite);
   const suite = declared?.name;
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
-  const moved = [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])];
+  const moved = [...new Set([...changed, ...standsChanged, ...beyondFiles])];
   const { whole, ...rest } = await restingOf(here, suite, relations, moved, declared?.ignore);
   // What the install changed whole is named whichever way the answer goes: a test it entered was entered by no line.
   const install = installReached(installs, beyond, (stand) =>
