@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -152,6 +152,18 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     git(['add', '-A']);
     git(['commit', '--quiet', '-m', 'one package']);
     const { local } = await both(root, () => write(root, 'fixtures/data.json', '{"answer":42}\n'));
+
+    expect([...local.skip]).toEqual([]);
+    expect(local.reading.fell).toMatchObject({ rung: 'package', left: [] });
+  });
+
+  it('runs every test file when it cannot read what changed from any base', async () => {
+    const { root } = checkout();
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+    rmSync(join(root, '.git'), { recursive: true, force: true });
+    editA(root)();
+    const local = await selectSuite({ root, local: true });
 
     expect([...local.skip]).toEqual([]);
     expect(local.reading.fell).toMatchObject({ rung: 'package', left: [] });

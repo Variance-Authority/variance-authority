@@ -16,7 +16,7 @@
  */
 
 import { existsSync } from 'node:fs';
-import { basename, relative } from 'node:path';
+import { basename, relative, sep } from 'node:path';
 import { askCoverageFile, changedLines, isTestCoverageFile } from '@variance-authority/sense/test-selection';
 import { affectedBy, nodesOfKind, RUNTIME_EDGES, within, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -48,7 +48,8 @@ export interface LocalAnswer {
 export interface LocalQuestion {
   readonly root: string;
   readonly relations: Relations;
-  readonly changed: readonly string[];
+  /** Absent when what changed could not be read from any base: every test file is selected. */
+  readonly changed: readonly string[] | undefined;
   /** The changed files the suite rests on: no importer walk says what they reach. */
   readonly rests: readonly string[];
   /** The test files the record holds whole, which the graph may not name as tests. */
@@ -57,14 +58,16 @@ export interface LocalQuestion {
 
 /** The tests the changed files reach, by the coarsest rung any of them needed. */
 export function localLadder(question: LocalQuestion): LocalAnswer {
-  const { root, relations, changed } = question;
+  const { root, relations } = question;
+  const changed = question.changed ?? [];
   // The root is a package, named `.`, which `within` reads as every file.
   const own = (file: string): string => {
     const home = packageOf(root, file);
-    return home === undefined ? '.' : relative(root, home) || '.';
+    return home === undefined ? '.' : relative(root, home).split(sep).join('/') || '.';
   };
   const { files, missing } = affectedBy(relations, changed, { through: RUNTIME_EDGES });
-  const fallen = [...new Set([...question.rests, ...missing])];
+  // A change that could not be read is the root's: every test file.
+  const fallen = [...new Set([...question.rests, ...missing, ...(question.changed === undefined ? ['.'] : [])])];
   const manifests = changed.filter((file) => file.endsWith('/package.json')).map(own);
   const lockfile = (file: string): boolean => (LOCKFILES as readonly string[]).includes(basename(file));
   // A lockfile the root owns moves the packages whose manifest moved with it, or every one when none did.
@@ -104,14 +107,14 @@ export interface Held {
 export async function localAnswer(request: SuiteRequest, ground: SelectGround, held?: Held, record?: string): Promise<LocalAnswer> {
   const root = (await topLevel(request.root)) ?? request.root;
   const diff = held !== undefined ? undefined : isHanded(request) ? await handedChange(request) : await changeSince(root, request.since);
-  const changed = held?.changed ?? (diff === undefined ? [] : [...changedLines(diff).keys()]);
+  const changed = held?.changed ?? (diff === undefined ? undefined : [...changedLines(diff).keys()]);
   let relations = held?.relations ?? request.relations;
   if (relations === undefined) {
     await indexUpToCheckout(root, undefined, !request.noGit);
     relations = await relationsFor(root, ['.'], [], [], request.noGit);
   }
   // A reading that declined before it looked at what the suite rests on has not said, so the ladder asks.
-  const rests = ground.kind === 'before' ? ground.rests : (await restsOf(root, request.suite, relations, changed)).rests;
+  const rests = ground.kind === 'before' ? ground.rests : (await restsOf(root, request.suite, relations, changed ?? [])).rests;
   return localLadder({
     root,
     relations,
