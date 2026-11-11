@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSync } from 'oxc-parser';
+import { tracked } from './modules.mjs';
 
 /**
  * Answers this repository already owns, computed again somewhere else.
@@ -67,6 +68,14 @@ export const IDIOMS = {
       'a browser, context or page is leased from `browsers.ts` or `PagePool` in `@variance-authority/playwright`',
     owns: ['packages/playwright/src/browsers.ts', 'packages/playwright/src/page-pool.ts'],
   },
+  'commonjs-load': {
+    owner:
+      "a static `import`, and `import … with { type: 'json' }` for a JSON file: a reader following imports does " +
+      'not see a `require`, and `variance` reads no call through a `createRequire` result unless it is named ' +
+      "`require`. A load no import can carry, such as a native addon or the project's own file at a computed path, " +
+      'says why at the site',
+    owns: [],
+  },
 };
 
 // Each call that waits on the clock, and each call that throws the page away.
@@ -113,6 +122,19 @@ const COLLECTED = ['packages/', 'cases/', 'examples/', 'site/app/', 'tools/'];
 const SCRIPT = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'];
 const IN_TESTS = new Set(['timer', 'fresh-page']);
 
+/**
+ * The scripts a package keeps under `scripts/`, read for CommonJS loads only.
+ *
+ * They are measurements and build steps, run by hand or by a package script,
+ * and they load what the package built. That edge is the one a reader of the
+ * script needs to follow; the other idioms are the script's own business.
+ */
+export function scripts() {
+  return tracked('packages/*/scripts/*').filter((file) => PACKAGE_SCRIPT.test(file));
+}
+const PACKAGE_SCRIPT = /^packages\/[^/]+\/scripts\/[^/]+\.[cm]?[jt]s$/;
+const IN_SCRIPTS = ['commonjs-load'];
+
 // A name a runner collects, and the directories that hold what a test reads.
 // `COLLECTED` is wider than any one runner's configuration on purpose: a wait
 // in a file no runner collects yet is still a wait.
@@ -145,7 +167,9 @@ export function sitesIn(file, text, read = Object.keys(IDIOMS)) {
     sites.push({ idiom, at: file, line: lineOf(node.start), name });
   };
 
+  const loads = commonjsLoads(file, parsed.program);
   visit(parsed.program, (node, scope) => {
+    if (loads(node)) found('commonjs-load', node, scope.name);
     if (node.type === 'CallExpression' && isHashCall(node)) found('digest', node, scope.name);
     if (node.type === 'ConditionalExpression' && isCodeUnitOrder(node)) found('code-unit-order', node, scope.name);
     if (isFunction(node) && writesThenRenames(node)) found('atomic-write', node, nameOf(node, scope));
@@ -159,7 +183,11 @@ export function sitesIn(file, text, read = Object.keys(IDIOMS)) {
 /** Every site in the repository: production sources, then the tests. */
 export function sites() {
   const read = (file, idioms) => sitesIn(file, readFileSync(join(ROOT, file), 'utf8'), idioms);
-  return [...sources().flatMap((file) => read(file)), ...tests().flatMap((file) => read(file, [...IN_TESTS]))];
+  return [
+    ...sources().flatMap((file) => read(file)),
+    ...tests().flatMap((file) => read(file, [...IN_TESTS])),
+    ...scripts().flatMap((file) => read(file, IN_SCRIPTS)),
+  ];
 }
 
 /** One row per idiom per file: what the baseline records. */
@@ -172,6 +200,50 @@ export function counted(found) {
     rows.set(key, row);
   }
   return [...rows.values()];
+}
+
+/**
+ * Which nodes of one file load a module through CommonJS: a call of `require`,
+ * of a name bound to a `createRequire(…)` result, or of that call itself, and an
+ * `import x = require(…)`. A `.resolve(…)` answers a path and loads nothing.
+ *
+ * A CommonJS file has no other spelling for a literal import, a `.cts` because
+ * `verbatimModuleSyntax` refuses an ECMAScript one there (TS1286), so its
+ * literal loads are its imports. A computed one is still a load.
+ */
+function commonjsLoads(file, program) {
+  const commonjs = /\.c[jt]s$/.test(file);
+  const creators = new Set(['createRequire']);
+  const bound = new Set();
+  const shadowed = new Set();
+  const creates = (node) =>
+    node?.type === 'CallExpression' &&
+    ((node.callee.type === 'Identifier' && creators.has(node.callee.name)) ||
+      (node.callee.type === 'MemberExpression' && !node.callee.computed && node.callee.property.name === 'createRequire'));
+  visit(program, (node) => {
+    if (node.type === 'ImportSpecifier' && (node.imported.name ?? node.imported.value) === 'createRequire') {
+      creators.add(node.local.name);
+    }
+  });
+  visit(program, (node) => {
+    if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') {
+      (creates(node.init) ? bound : shadowed).add(node.id.name);
+    }
+    if (node.type === 'AssignmentExpression' && node.left.type === 'Identifier' && creates(node.right)) {
+      bound.add(node.left.name);
+    }
+  });
+  const literal = (node) => node?.type === 'Literal' && typeof node.value === 'string';
+  return (node) => {
+    if (node.type === 'TSImportEqualsDeclaration') {
+      return node.moduleReference.type === 'TSExternalModuleReference' && !commonjs;
+    }
+    if (node.type !== 'CallExpression') return false;
+    const { callee } = node;
+    const loader = callee.type === 'Identifier' && (bound.has(callee.name) || (callee.name === 'require' && !shadowed.has('require')));
+    if (loader || creates(callee)) return !(commonjs && callee.name === 'require' && literal(node.arguments[0]));
+    return false;
+  };
 }
 
 // `createHash('sha256')`, `crypto.createHash('sha256')`,
