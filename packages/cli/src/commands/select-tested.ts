@@ -14,7 +14,7 @@
  * widened by HEAD's import graph, which holds edges the record predates.
  */
 
-import { affectedBy, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
+import { affectedBy, idOf, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import { gitIn, topLevel } from './since.js';
 import type { SuiteReading, SuiteRequest } from './select-suite.js';
 import { initial, isOpen, selectionOf, transition, type MergeAnswer, type SideAnswer, type TestedInput, type TestedState } from './select-tested-state.js';
@@ -111,7 +111,12 @@ async function reachOf(
   const names = (from: string, to: string) => git('diff', '--name-only', '-z', '--no-renames', from, to).split('\0').filter(Boolean);
   const own = new Set(names(fork, end));
   const ownCode = [...own].filter((file) => !selection.readByInstall(file));
-  const code = new Set(affectedBy(asked.relations, ownCode, { through: RUNTIME_EDGES }).files.filter((file) => asked.recorded.has(file)));
+  const walk = (files: readonly string[]) => affectedBy(asked.relations, files, { through: RUNTIME_EDGES }).files;
+  const walked = walk(ownCode);
+  // An import HEAD's graph could not read — a name built at run time, a file gone — may load what the other side changed.
+  const blind = [...ownCode, ...walked].find((file) => asked.relations.unknown[idOf(asked.relations, 'file', file) ?? -1] === 1);
+  if (blind !== undefined) return { whole: `it reaches ${blind}, whose imports the graph could not all read` };
+  const code = new Set(walked.filter((file) => asked.recorded.has(file)));
   const install = new Set<string>();
   for (const to of new Set([fork, end])) {
     if (to === record) continue;
@@ -134,6 +139,9 @@ async function reachOf(
       if (reading.declined !== undefined) return { whole: reading.declined };
       if (reading.reading.ground !== 'read') return { whole: 'and its record could not be read' };
       if (reading.reading.unread.length > 0) return { whole: `the record holds nothing about ${reading.reading.unread.join(', ')}` };
+      // Code read without a verdict whose importers reach no recorded test is placed nowhere: a runner config, a setup file.
+      const nowhere = into === install ? undefined : (reading.reading.readings ?? []).find((one) => one.verdict === undefined && !walk([one.file]).some((file) => asked.recorded.has(file)));
+      if (nowhere !== undefined) return { whole: `nothing says which test ${nowhere.file} reaches` };
       for (const test of reading.whole) if (!reading.skip.has(test)) into.add(test);
     }
   }
