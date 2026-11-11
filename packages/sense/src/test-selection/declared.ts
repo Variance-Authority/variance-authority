@@ -9,6 +9,8 @@
  * file's declarers, however the change is answered otherwise.
  */
 
+// compass: variance-authority.reach
+
 import { EDGE_KINDS, RUNTIME_EDGES, dependenciesOf, idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 
 const DEPENDS = EDGE_KINDS.indexOf('depends');

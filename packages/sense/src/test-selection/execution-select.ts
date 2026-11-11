@@ -188,8 +188,8 @@ export function declaredReach(
   index: ExecutionIndex,
   relations: Relations | undefined,
   ignored: readonly string[],
-  unmeasured?: Unmeasured,
-  declared: readonly string[] = [],
+  unmeasured: Unmeasured | undefined,
+  declared: readonly string[],
 ): { readonly entered: readonly string[]; readonly unread: readonly string[] } {
   const held = new Set(index.tests.map((test) => test.file));
   const owned = shadowedFor(relations);

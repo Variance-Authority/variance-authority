@@ -1,3 +1,4 @@
+/// <depends path="../../cli/src/bin.ts" />
 /**
  * A case run under two Playwright projects, twice under two labels, read back
  * by the `variance` binary: a story per project, `--project` reads one, and

@@ -2,8 +2,9 @@
  * A journey file read for one change, with the reading done by the addon.
  *
  * Two questions, and neither expands the file. `selectJourneyFile` answers the
- * one `variance select` asks — which test files — entirely in the addon, graph
- * walk included. `projectJourneyFile` answers the one a reader of regions asks,
+ * one `variance select` asks — which test files — in the addon, graph walk
+ * included; only what a `/// <depends>` declares is added after, in TypeScript,
+ * from the part of the file that holds its readers. `projectJourneyFile` answers the one a reader of regions asks,
  * by handing back the part of the file the change can see.
  *
  * `decodeExecutionIndex` expands every crossing into an object, which is the

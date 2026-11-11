@@ -1,3 +1,4 @@
+/// <depends path="../bin.ts" />
 import { execFile } from 'node:child_process';
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
