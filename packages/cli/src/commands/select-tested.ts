@@ -136,6 +136,14 @@ async function reachOf(
     const reading = await read(readOf(asked, selection.standDiff((...args) => git(...args, '--', ...past), record, EMPTY_TREE)));
     if (reading.declined !== undefined) return { whole: reading.declined };
     if (reading.reading.ground !== 'read') return { whole: 'and its record could not be read' };
+    if (reading.reading.unread.length > 0) return { whole: `the record holds nothing about ${reading.reading.unread.join(', ')}` };
+    // A module is placed by a recorded test the graph reaches from it, or else by a test the record saw run it:
+    // one the record never saw run may be loaded, after the merge, by a name some test builds.
+    for (const file of past.filter((one) => !walk([one]).some((test) => asked.recorded.has(test)))) {
+      const alone = await read(readOf(asked, selection.standDiff((...args) => git(...args, '--', file), record, EMPTY_TREE)));
+      if (alone.declined !== undefined) return { whole: alone.declined };
+      if (alone.reading.ground !== 'read' || ![...alone.whole].some((test) => !alone.skip.has(test))) return { whole: `nothing says which test ${file} reaches` };
+    }
     for (const test of reading.whole) if (!reading.skip.has(test)) code.add(test);
   }
   for (const to of new Set([fork, end])) {

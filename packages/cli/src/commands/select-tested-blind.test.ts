@@ -118,4 +118,20 @@ describe('`variance select --tested` where the graph is blind', () => {
     // HEAD's graph stops at `other`, which `other.test` loads by a name it builds; the record says it ran `other`.
     expect(here.out).toBe('test/total.test.ts\n');
   });
+  it('selects as without `--tested` when a side reaches a module the record never saw run, which no recorded test imports', async () => {
+    const LOADS = "it('others', async () => {\n  const prefix = '../src/';\n  const { other } = await import(prefix + 'other');\n  if (other(1) === 3) {\n    const { check } = await import(prefix + 'latent');\n    check();\n  }\n});\n";
+    const queue = await queued(home(), {
+      start: { 'test/other.test.ts': LOADS, 'src/latent.ts': "import { total } from './total';\nexport function check(): void {\n  if (total(100) !== 90) throw new Error('the merge broke it');\n}\n" },
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+
+    const whole = await selected(queue.dir, queue.base);
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // The run that made the record never loaded `latent`, and nothing in HEAD's graph says which test does.
+    expect(here.out).toBe(whole.out);
+    expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: read alone, the mainline's change selects every test file (nothing says which test src/latent.ts reaches)`);
+  });
 });
