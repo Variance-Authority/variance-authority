@@ -36,16 +36,13 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import {
-  globMatcher,
-  isTestFile,
   jestCacheKey,
   loadTransformer,
-  slashed,
-  type JestTestFiles,
   type JestTransformer as JestShapedTransformer,
   type JestTransformOptions,
   type TransformerEntry,
 } from './jest-transformer.js';
+import { globMatcher, isTestFile, slashed, type JestTestFiles } from './jest-test-files.js';
 import { cadence, type CutTestFile } from '../instrument/cadence.js';
 import { behindCut, inlineBehindCut } from './cut-map.js';
 import { probeRecipe, type InstrumentMode, type ModuleId } from '../instrument/index.js';

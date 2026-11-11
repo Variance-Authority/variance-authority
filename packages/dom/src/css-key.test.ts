@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { indexStyleSheets, matchRulesFor } from './css.js';
+import { indexStyleSheets } from './css-index.js';
+import { matchRulesFor } from './css-match.js';
 
 /**
  * Which bucket a rule is filed under, asked through the only thing that reads

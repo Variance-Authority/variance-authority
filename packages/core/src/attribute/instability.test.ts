@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { locateInstability, summarizeInstability } from './instability.js';
 import { normalize } from '../rules/normalize/index.js';
-import { CHROMIUM_PROFILE, capture, node } from '../rules/normalize/fixture.js';
+import { capture, node } from '../rules/normalize/fixture.js';
+import { CHROMIUM_PROFILE } from '../format/profile.js';
 import type { RawCapture } from '../format/capture.js';
 import type { SourceIndex } from './source.js';
 

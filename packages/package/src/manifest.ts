@@ -4,8 +4,6 @@ import { parse as parseYaml } from 'yaml';
 import { type ImportTargets, declaresEntry, entrySubpaths, importTargets, isPublished } from './entry.js';
 import { declares, members } from './members.js';
 
-export { requested } from './exports.js';
-
 /**
  * What a workspace publishes, read from the manifests rather than from a build.
  *

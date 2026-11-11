@@ -10,15 +10,11 @@
  * team has a different policy.
  */
 
-export { diffSnapshots, matchTrees } from './diff/index.js';
-export type {
-  SemanticDiff,
-  Delta,
-  Root,
-  RootKind,
-  ChangedComponent,
-  Matching,
-} from './diff/index.js';
+export { diffSnapshots } from './diff/index.js';
+export { matchTrees } from './diff/match.js';
+export type { SemanticDiff } from './diff/index.js';
+export type { Delta, Root, RootKind, ChangedComponent } from './diff/delta.js';
+export type { Matching } from './diff/match.js';
 
 export { impactOf, canReflow, aggregateImpact } from './impact.js';
 export type { PropertyImpact, AggregateImpact } from './impact.js';

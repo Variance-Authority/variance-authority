@@ -4,8 +4,6 @@ import { PNG } from 'pngjs';
 import type { DecodedImage } from './mask.js';
 import { imageFormat } from './header.js';
 
-export { imageFormat, type ImageFormat } from './header.js';
-
 /**
  * Decode either format without a native addon: PNG through `pngjs`, WebP
  * through libwebp compiled to WebAssembly (`@jsquash/webp`, a 135 KB module

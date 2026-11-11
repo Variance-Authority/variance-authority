@@ -20,7 +20,7 @@
 
 import { builtinModules, isBuiltin } from 'node:module';
 import type { FileRecord } from '@variance-authority/core/relate';
-import type { Digest } from './digest.js';
+import type { Digest } from '@variance-authority/core/format';
 import { CODE_EXTENSIONS } from './language.js';
 import type { NativeGitTree } from './native.js';
 import type { Aliases } from './witness.js';

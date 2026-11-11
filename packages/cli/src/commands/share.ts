@@ -24,9 +24,6 @@ import { mainlineEntry, type MainlineAt, type MainlineMiss, type MainlineMissed 
 import { suiteIndexRoot } from './resources.js';
 import { isSlice, readCliRunReport, suitePartPath, type CliRunReport } from './run-report.js';
 
-export { mainlinesOf, type Mainlines } from '../share-lines.js';
-export { lineEntry, mainlineEntry, type LineEntry, type MainlineAt, type MainlineMiss, type MainlineMissed } from './mainline-entry.js';
-
 /**
  * Publishing a run to its line, and reading a mainline's suite index back — the
  * CLI half of ADR-0077.

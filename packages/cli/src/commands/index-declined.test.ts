@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { indexOutput } from './index-command.js';
 
 /**

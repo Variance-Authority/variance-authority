@@ -56,11 +56,6 @@ import { waitForFonts, waitForImages } from './waits.js';
  * digest, and the vocabulary belongs beside the key it is part of.
  */
 
-// Re-exported from here because this is where a reader arrives looking for the
-// vocabulary; [`intervention.ts`](./intervention.js) holds the declaration.
-export type { Intervention, ScreenshotOptions, SettleTarget, Trick } from './intervention.js';
-export { waitForFonts, waitForImages } from './waits.js';
-
 /**
  * Hand animations to the browser rather than emulating the hold in CSS.
  *

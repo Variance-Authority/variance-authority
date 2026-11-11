@@ -1,4 +1,4 @@
-import type { ComponentHash } from './component-hash.js';
+import type { ComponentHash } from '../format/snapshot.js';
 
 /**
  * Which subjects cover which components, and what each subject covers alone.

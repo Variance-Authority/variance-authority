@@ -5,8 +5,6 @@ import type { SemanticNode } from '../format/snapshot.js';
 import { declares } from '../compare/cascade.js';
 import { renamedAlias, renamedAttributes, renamedTokens, type Rename } from './rename.js';
 
-export type { Rename } from './rename.js';
-
 /**
  * Where one component's nodes stop and the next component's begin.
  *

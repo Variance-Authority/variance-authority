@@ -2,7 +2,7 @@ import { didYouMean } from '@variance-authority/core';
 import { notObservedSentence, toolByName } from '@variance-authority/mcp/tools';
 import { OperatorError } from '../exit.js';
 import { listed } from './prose-counts.js';
-import type { CliRunReport } from './run.js';
+import type { CliRunReport } from './run-report.js';
 import { reportHtml } from './report-html.js';
 import type { Placement } from './report-html-pictures.js';
 import { describeRecipe, recipeOf } from '@variance-authority/core/format';

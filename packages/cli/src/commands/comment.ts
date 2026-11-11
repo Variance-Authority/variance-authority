@@ -1,5 +1,5 @@
 import { EXIT_CLEAN, exitFor } from '../exit.js';
-import type { CliRunReport } from './run.js';
+import type { CliRunReport } from './run-report.js';
 import { docketOf } from './docket.js';
 import {
   bulkBlocks,

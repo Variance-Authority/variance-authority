@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { alsoCovering, coverageOf, summarizeCoverage, type SubjectCoverage } from './coverage.js';
-import type { ComponentHash } from './component-hash.js';
+import type { ComponentHash } from '../format/snapshot.js';
 
 /**
  * Overlap, tested for what it must refuse to conclude.

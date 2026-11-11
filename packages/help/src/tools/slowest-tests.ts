@@ -15,8 +15,6 @@ import { limitOf, spellingOf, type Spelling } from '@variance-authority/mcp/tool
 import { formatSlowest } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
-export { formatSlowest, spent } from './slowest-format.js';
-
 /** Files, and cases, listed per suite when the question names no limit. */
 export const SLOWEST = 10;
 

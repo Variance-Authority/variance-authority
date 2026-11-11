@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Comparison, Place, Side, StoryEntry } from '@variance-authority/sense/story';
-import { parseArgs } from '../bin.js';
-import { main } from '../bin.fixture.js';
+import { parseArgs } from '../parse.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { formatStory, story } from './story.js';
 
 const PAY = 'src/pay.test.ts';

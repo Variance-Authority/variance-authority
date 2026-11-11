@@ -2,7 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { SubjectView } from '../review.js';
 import { createReviewClient } from './client.js';
-import { RegionOverlay, RegionTable, Viewer, modesFor } from './review.js';
+import { RegionOverlay, RegionTable } from './regions.js';
+import { Viewer, modesFor } from './viewer.js';
 
 /**
  * The comparison itself, held to what it may and may not claim.

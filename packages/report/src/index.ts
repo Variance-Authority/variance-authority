@@ -28,24 +28,19 @@
 
 // compass: variance-authority.report
 
+export type { RunReport, ObservationRecord } from './format.js';
+export type { RegionRecord } from './region-record.js';
+export type { FindingRecord } from './finding-record.js';
 export type {
-  RunReport,
-  ObservationRecord,
-  RegionRecord,
-  FindingRecord,
   PresentationEffectEvidence,
   PresentationEffectRecord,
   PresentationEffectTransition,
   PresentationInformationRecord,
   PresentationSignalRecord,
-  NotObserved,
-  NotObservedKind,
-  FlakinessRecord,
-  ChurnRecord,
-  DriftRecord,
-  VariationRecord,
-  VariationStep,
-} from './format.js';
+} from './presentation-record.js';
+export type { NotObserved, NotObservedKind } from './not-observed.js';
+export type { FlakinessRecord, ChurnRecord, DriftRecord } from './history-records.js';
+export type { VariationRecord, VariationStep } from './variation.js';
 
 export type { JourneysReport, JourneyParting, JourneyRegionRecord } from './journeys.js';
 

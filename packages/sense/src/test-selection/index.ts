@@ -29,9 +29,9 @@ export {
   type ExecutionIndex,
   type ExecutionModule,
   type ExecutionTest,
-  type SourceTestTarget,
   type SourceTestRange,
 } from './reverse.js';
+export { type SourceTestTarget } from './source-target.js';
 export { overwrittenIn, overwrittenOn, type OverwrittenOn } from './overwritten.js';
 export { anyStopped } from './stopped.js';
 export { unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
@@ -59,16 +59,28 @@ export {
 export { byRelations, PRECISION_STEPS, type Precision } from './precision.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
-export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause, type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
+export { rankDistillCauses, readDistillRecords, type DistillRecords } from './distill-native.js';
+export {
+  type NativeDistillCause,
+  type NativeDistillFile,
+  type NativeDistillRegion,
+  type NativeDistillScope,
+} from '../native-distill.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { absentText, formatCoveringChange, lostText, type CoveringChangeHeading } from './covering-change-text.js';
 export { limitAcross } from './execution-set-columns.js';
 export { EXECUTION_FORMAT, decodeExecutionIndex, encodeExecutionIndex, isEncodedExecutionIndex } from './execution-format.js';
-export { combineRecords, type CombinedRecord, type CombinedShard } from './record-combine.js';
+export { combineRecords } from './record-combine.js';
+export {
+  type NativeCombinedRecord as CombinedRecord,
+  type NativeCombinedShard as CombinedShard,
+} from '../native-record.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
-export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps, type SetColumns, type StringTable, type TestColumns } from './execution-set-format.js';
+export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps } from './execution-set-format.js';
+export { type SetColumns, type StringTable, type TestColumns } from './execution-set-columns.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
-export { readingLines, withEveryReading, type FileReading } from './reading-lines.js';
+export { readingLines, withEveryReading } from './reading-lines.js';
+export { type FileReading } from './reading.js';
 export { atDistance, distanceRange, groupByDistance, remaining, type DistanceGroup } from './at-distance.js';
 export { distanceFromView, nearestFirst, type Bearing, type DistanceOptions, type TestDistance } from './distance.js';
 export { testsReaching, testsReachingFromView, distanceToSource } from './at-source.js';

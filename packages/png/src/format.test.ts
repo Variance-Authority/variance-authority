@@ -1,7 +1,8 @@
 import { PNG } from 'pngjs';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { decodePortable, imageFormat } from './format.js';
+import { decodePortable } from './format.js';
+import { imageFormat } from './header.js';
 import { diffImage, pngjsDecoder } from './compare.js';
 
 /**

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { SubjectView } from '../review.js';
 import { createReviewClient } from './client.js';
-import { Variations } from './review.js';
+import { Variations } from './variations.js';
 
 const client = createReviewClient({ endpoint: '/api', token: 'unused-in-a-static-render' });
 

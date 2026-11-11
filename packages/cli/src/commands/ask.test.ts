@@ -7,8 +7,10 @@ import type { VantageState } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName, verbOf } from '@variance-authority/mcp/tools';
-import { ASKED, ask, askSource, questions, type Sourced } from './ask.js';
-import type { CliRunReport } from './run.js';
+import { ask, askSource, type Sourced } from './ask.js';
+import { ASKED } from './ask-previous.js';
+import { questions } from './ask-questions.js';
+import type { CliRunReport } from './run-report.js';
 
 const IDENTITY: RenderIdentity = {
   renderer: 'playwright-chromium',

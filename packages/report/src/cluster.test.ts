@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { clusterChanges, describeClustering } from './cluster.js';
-import type { ObservationRecord, RegionRecord } from './format.js';
+import type { ObservationRecord } from './format.js';
+import type { RegionRecord } from './region-record.js';
 
 /**
  * Grouping a run into the decisions it actually contains.

@@ -10,7 +10,8 @@
  */
 
 import { BROWSER_JOURNAL, type PageStorySource } from './worker-source.js';
-import type { PageStory, StoryCase } from '../story/page.js';
+import type { StoryCase } from '../story/page.js';
+import type { PageStory } from '../story/page-story.js';
 
 /** What a case in a page left on its `meta`: its tape. */
 export interface CarriedStory {

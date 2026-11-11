@@ -2,7 +2,8 @@ import { existsSync } from 'node:fs';
 import { rename, rm } from 'node:fs/promises';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cacheRootFor, pruneSelection, testCoverageFile } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { recordFixture } from './covering-record.fixture.js';
 
 // `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.

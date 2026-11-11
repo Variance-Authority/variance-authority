@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ComponentRecord } from './composition.js';
-import type { ObservationRecord, RegionRecord, RunReport } from './format.js';
+import type { ObservationRecord, RunReport } from './format.js';
+import type { RegionRecord } from './region-record.js';
 import { adjudicateRun, describeAdjudication, parseRoot } from './intent.js';
 
 /**

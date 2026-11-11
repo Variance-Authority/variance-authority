@@ -13,30 +13,15 @@
  * serves: the host answers exactly the paths this surface will ever produce.
  */
 
-export {
-  BuildList,
-  ChangelogEntries,
-  ChangelogPage,
-  ChurnLine,
-  CoverageLine,
-  OriginsPanel,
-  RegionOverlay,
-  RegionTable,
-  ReviewApp,
-  StabilityLine,
-  SubjectHistory,
-  SubjectPanel,
-  Variations,
-  Viewer,
-  modesFor,
-  originsOf,
-  type Appearance,
-  type Origin,
-  type Origins,
-  type Pictures,
-  type ReviewAppProps,
-  type ViewerMode,
-} from './review.js';
+export { ReviewApp, type ReviewAppProps } from './review.js';
+export { BuildList, CoverageLine } from './builds.js';
+export { ChangelogEntries, ChangelogPage, ChurnLine, StabilityLine, SubjectHistory } from './history.js';
+export { OriginsPanel } from './origins.js';
+export { RegionOverlay, RegionTable } from './regions.js';
+export { SubjectPanel } from './subject.js';
+export { Variations, type Pictures } from './variations.js';
+export { Viewer, modesFor, type ViewerMode } from './viewer.js';
+export { originsOf, type Appearance, type Origin, type Origins } from './grouping.js';
 export {
   hrefOf,
   isPagePath,

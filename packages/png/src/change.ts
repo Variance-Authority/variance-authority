@@ -6,8 +6,6 @@ import { blankColumns, inked, inkOf, spacingRow, texted } from './change-ink.js'
 import { composeSheet, drawWindow, type ChangeLabels, type Gap, type Mark, type Moved, type SheetRow } from './change-draw.js';
 import { differencePixels, type DecodedImage } from './mask.js';
 
-export { CHANGE_COLOURS, changeLayout, type ChangeLabels } from './change-draw.js';
-
 /**
  * The change at its own size: what a reviewer reads in place of two pages.
  *

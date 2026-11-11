@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ledgerOf, liveIgnores, summarizeLedger, withLiveIgnores } from './ignores.js';
-import type { Config, IgnoreConfig } from '../config.js';
+import type { Config } from '../config.js';
+import type { IgnoreConfig } from '../config-ignore.js';
 import type { CliObservationRecord } from './run-report.js';
 
 /**

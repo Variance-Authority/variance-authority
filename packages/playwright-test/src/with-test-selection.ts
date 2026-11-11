@@ -27,7 +27,7 @@ import { existsSync, realpathSync, statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, parse, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { ExecutionRecording } from './execution.js';
+import type { ExecutionRecording } from './execution-recording.js';
 import {
   askedSelection,
   recordFileFor,

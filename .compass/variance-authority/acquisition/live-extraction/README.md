@@ -78,7 +78,7 @@ about content.
 
 - `packages/dom/src/collect.ts` — `collect`, `conditionsFor`
 - `packages/dom/src/profile.ts` — `detectProfile`
-- `packages/dom/src/css.ts`, `css-index.ts`, `css-match.ts`, `specificity.ts`,
+- `packages/dom/src/css-index.ts`, `css-match.ts`, `specificity.ts`,
   `selector-parts.ts`, `media.ts` — applicability pruning
 - `packages/dom/src/generated-box.ts` — `::before` and `::after` as children
 - `packages/dom/src/inherit.ts` — the ancestor cascade at the subject root

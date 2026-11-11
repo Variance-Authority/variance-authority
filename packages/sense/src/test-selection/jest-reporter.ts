@@ -19,7 +19,7 @@ import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { dirname, isAbsolute, resolve, sep } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Digest } from '../digest.js';
+import type { Digest } from '@variance-authority/core/format';
 import { runTexts } from '../text-digests.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { probesRegions } from '../instrument/identity.js';

@@ -44,31 +44,18 @@ export type {
   SubjectPlan,
 } from './subjects.js';
 
-export {
-  PREVIEW_PATH,
-  STORY_ROOT_SELECTORS,
-  STORYBOOK_EVENTS,
-  STORYBOOK_ERROR_OVERLAY,
-  previewUrl,
-  showStory,
-  harnessPage,
-  collectStory,
-  collectStories,
-  readParameters,
-} from './preview.js';
+export { harnessPage, collectStory, collectStories, readParameters } from './preview.js';
+export { PREVIEW_PATH, previewUrl } from './preview-url.js';
+export { STORY_ROOT_SELECTORS, STORYBOOK_EVENTS, STORYBOOK_ERROR_OVERLAY } from './preview-protocol.js';
+export { showStory } from './show-story.js';
 export { watchStoryTiming } from './story-timing.js';
 export type { StoryTiming } from './story-timing.js';
 export type {
   BrowserHarness,
-  ShowEvents,
-  ErrorOverlay,
-  ShowRequest,
-  ShowStatus,
-  Readiness,
-  ShowResult,
   StoryPage,
   CollectOptions,
   CollectManyOptions,
   StoryOutcome,
   StoryError,
 } from './preview.js';
+export type { ShowEvents, ErrorOverlay, ShowRequest, ShowStatus, Readiness, ShowResult } from './preview-protocol.js';

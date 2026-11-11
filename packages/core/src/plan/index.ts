@@ -9,11 +9,5 @@
  */
 
 export { planIdentity, validatePlan, planForTier, describePlan } from './tool.js';
-export type {
-  ToolKind,
-  Tier,
-  IdentityContribution,
-  ToolDeclaration,
-  Plan,
-  PlanProblem,
-} from './tool.js';
+export type { ToolKind, IdentityContribution, ToolDeclaration, Plan, PlanProblem } from './tool.js';
+export type { Tier } from '../format/tier.js';

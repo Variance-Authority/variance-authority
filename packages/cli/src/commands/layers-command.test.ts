@@ -4,7 +4,8 @@ import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 /** `variance layers`, through the command a person types, over a checkout of a chain of packages. */

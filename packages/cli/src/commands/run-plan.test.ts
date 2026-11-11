@@ -2,8 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { keyFor, planList } from './collector.js';
-import { planStorybook } from './run.js';
+import { keyFor, planList, planStorybook } from './collector.js';
 
 /**
  * The route from a story to the name and place of its baseline.

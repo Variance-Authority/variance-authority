@@ -14,32 +14,19 @@
 
 export { normalize } from './normalize/index.js';
 export type { NormalizeOptions } from './normalize/index.js';
-export type {
-  AliasMap,
-  AliasResult,
-  InheritContext,
-  ResolvedStyle,
-  DeclarationOrigin,
-} from './normalize/index.js';
+export type { AliasMap, AliasResult } from './normalize/alias.js';
+export type { InheritContext, ResolvedStyle, DeclarationOrigin } from './normalize/cascade.js';
+export { buildAliasMap, aliasAttributeValue, aliasStyleValue } from './normalize/alias.js';
 export {
-  buildAliasMap,
-  aliasAttributeValue,
-  aliasStyleValue,
   declaredValue,
   resolveStyle,
   resolveVariables,
   INHERITED_PROPERTIES,
   EMPTY_CONTEXT,
-  canonicalizeValue,
-  canonicalizeTokens,
-  canonicalizeDimension,
-  matchingParen,
-  canonicalizeColor,
-  parseColor,
-  formatColor,
-  expandDeclaration,
-  SHORTHAND_PROPERTIES,
-} from './normalize/index.js';
+} from './normalize/cascade.js';
+export { canonicalizeValue, canonicalizeTokens, canonicalizeDimension, matchingParen } from './normalize/value.js';
+export { canonicalizeColor, parseColor, formatColor } from './normalize/color.js';
+export { expandDeclaration, SHORTHAND_PROPERTIES } from './normalize/shorthand.js';
 
 export {
   RULESET_VERSION,

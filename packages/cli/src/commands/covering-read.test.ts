@@ -10,7 +10,8 @@ import {
   writeTestCoverage,
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
-import { covering, formatCovering } from './covering.js';
+import { covering } from './covering.js';
+import { formatCovering } from './covering-text.js';
 
 const SPEC = 'checkout.test.ts';
 

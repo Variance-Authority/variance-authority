@@ -1,7 +1,7 @@
 import type { ObservationProfile } from '@variance-authority/core/format';
 import { EMPTY_CONTEXT, resolveStyle } from '@variance-authority/core/rules';
-import type { StyleIndex } from './css.js';
-import { matchRulesFor } from './css.js';
+import type { StyleIndex } from './css-index.js';
+import { matchRulesFor } from './css-match.js';
 import { propertyNames } from './dom-list.js';
 
 /**

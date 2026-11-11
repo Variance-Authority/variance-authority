@@ -74,7 +74,11 @@ export async function constantAnswer(
   streams: { out(text: string): void },
 ): Promise<ExitCode | undefined> {
   if (parsed.command !== 'ask') return undefined;
-  const [{ askSource, questions }, { questionFor }] = await Promise.all([import('./ask.js'), import('./asking.js')]);
+  const [{ askSource }, { questions }, { questionFor }] = await Promise.all([
+    import('./ask.js'),
+    import('./ask-questions.js'),
+    import('./asking.js'),
+  ]);
   if (parsed.question === undefined) {
     streams.out(questions());
     return EXIT_CLEAN;
@@ -206,9 +210,10 @@ export async function answerConfigless(
     // them. `--out` keeps the answer as files, because a workflow uploads it and
     // comments with it in steps that do not share this process's output.
     case 'review': {
-      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }, { uncoveredVerdict }, { lostVerdict }] = await Promise.all([
+      const [{ reviewWithCoverage }, { reviewFromRun }, { REVIEW_ARTIFACT }, { formatReview, reviewPieces }, { uncoveredVerdict }, { lostVerdict }] = await Promise.all([
         import('./review-evidence.js'),
         import('./review-from-run.js'),
+        import('../review-args.js'),
         import('./review-text.js'),
         import('./review-scope.js'),
         import('./review-coverage.js'),

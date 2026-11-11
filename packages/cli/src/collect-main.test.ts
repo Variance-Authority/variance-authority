@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { decodeSuiteIndex } from '@variance-authority/report/suite-index';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { main } from './bin.fixture.js';
+import './bin.fixture.js';
+import { main } from './bin.js';
 import { EXIT_CLEAN } from './exit.js';
 
 /**

@@ -7,9 +7,8 @@ import * as help from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as read from './read.js';
-import { publishedGeneration } from './read.js';
+import { publishedGeneration, readWorkspaceSnapshot, workspaceSnapshotPath } from './snapshot.js';
 import { publishWorkspaceFromIndex } from './refresh-native.js';
-import { readWorkspaceSnapshot, workspaceSnapshotPath } from './snapshot.js';
 
 /**
  * The questions `variance index` publishes, with the manifests read once.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ObservationRecord } from '@variance-authority/report';
 import { renderComment } from './comment.js';
-import type { CliRunReport } from './run.js';
+import type { CliRunReport } from './run-report.js';
 
 const PROJECT = 'storybook-case';
 

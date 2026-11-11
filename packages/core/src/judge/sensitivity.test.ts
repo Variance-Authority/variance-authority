@@ -3,7 +3,8 @@ import { applySensitivity, asIgnore, bandsOf, summarizeSensitivity } from './sen
 import { validateIgnoreRule } from './ignore.js';
 import { diffSnapshots, type SemanticDiff } from '../compare/diff/index.js';
 import { normalize } from '../rules/normalize/index.js';
-import { CHROMIUM_PROFILE, capture, node } from '../rules/normalize/fixture.js';
+import { capture, node } from '../rules/normalize/fixture.js';
+import { CHROMIUM_PROFILE } from '../format/profile.js';
 
 /**
  * Route-level assertion, and the line it must not cross.

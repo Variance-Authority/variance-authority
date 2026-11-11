@@ -2,7 +2,9 @@ import { boundaries as componentBoundaries, UNATTRIBUTED } from '../attribute/bo
 import type { Digest } from '../format/hash.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import { BANDS, type Band } from './band.js';
-import { compareTrees, matchTrees, type Delta } from './diff/index.js';
+import { compareTrees } from './diff/index.js';
+import { matchTrees } from './diff/match.js';
+import type { Delta } from './diff/delta.js';
 import { cascadeInputs, declaredIn } from './cascade.js';
 import { compareHoldings } from './holding-diff.js';
 import { sameTree, sliceOf, type PartingSlice } from './slice.js';

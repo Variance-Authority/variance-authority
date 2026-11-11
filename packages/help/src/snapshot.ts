@@ -9,8 +9,14 @@ import {
   type Tree,
 } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { encodeSearch, exportedDigest, readSourceRecords, sourceIndexPath } from '@variance-authority/sense';
-import { openSearchIndex, publishedRows, type SearchGeneration, type SearchIndex } from './search-index.js';
+import {
+  type SearchGeneration,
+  encodeSearch,
+  exportedDigest,
+  readSourceRecords,
+  sourceIndexPath,
+} from '@variance-authority/sense';
+import { openSearchIndex, publishedRows, type SearchIndex } from './search-index.js';
 
 export interface SnapshotOptions {
   /** The source index this reading was published beside. */

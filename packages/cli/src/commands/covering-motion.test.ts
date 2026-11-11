@@ -12,7 +12,8 @@ import {
   type ExecutionBlock,
   type ExecutionIndex,
 } from '@variance-authority/sense/test-selection';
-import { covering, formatCovering, type Covering } from './covering.js';
+import { covering, type Covering } from './covering.js';
+import { formatCovering } from './covering-text.js';
 import { coveringAnswer } from './covering-suites.js';
 import { motionOfLast, motionOfRuns, motionText, runsWrote } from './covering-motion.js';
 import { indexOutput } from './index-command.js';

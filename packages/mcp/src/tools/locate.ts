@@ -19,8 +19,6 @@ import { startPointArg, START_POINT_SCHEMA } from './start-point.js';
 import { heldWeight, rarity as rarityOf } from './rarity.js';
 import type { Tree } from './tree.js';
 
-export { tokensOf, type LocateField } from './locate-index.js';
-
 /**
  * `variance_locate` — the subject you can only describe.
  *

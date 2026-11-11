@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { ask, askSearch, askSearchJson } from './ask.js';
-import { readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath } from './read.js';
+import { readWorkspace, readWorkspaceForAnswer } from './read.js';
+import { workspaceSearchPath, workspaceSnapshotPath } from './snapshot.js';
 import { countingShown } from './ask.js';
 import { readSearchForAnswer, unopenedLine } from './search-read.js';
-import { workspaceSearchPath } from './snapshot.js';
 import { importingOf } from './tools/published-match.js';
 
 /**

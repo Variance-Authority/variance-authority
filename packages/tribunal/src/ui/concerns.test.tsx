@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Concern, ConcernTally, RaiseConcern } from '../concern-types.js';
 import type { SubjectView } from '../review-types.js';
 import type { ReviewClient } from './client.js';
-import { ConcernTrail, Concerns, ConcernTallyLine, evidenceFor, useConcernTally } from './concerns.js';
+import { ConcernTrail, Concerns, ConcernTallyLine, useConcernTally } from './concerns.js';
+import { evidenceFor } from './concern-form.js';
 
 /**
  * "Looks suspicious", on the subject page: the form that raises a concern, the

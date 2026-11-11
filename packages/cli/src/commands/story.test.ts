@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { Arm, Place, Route } from '@variance-authority/sense/story';
-import { parseArgs } from '../bin.js';
+import { parseArgs } from '../parse.js';
 import { formatStory, story } from './story.js';
 
 const place = (file: string, name: string, startLine: number, endLine: number, kind: Place['kind'] = 'function') =>

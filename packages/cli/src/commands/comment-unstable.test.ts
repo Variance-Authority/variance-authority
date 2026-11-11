@@ -3,7 +3,7 @@ import type { RenderIdentity } from '@variance-authority/core/format';
 import type { ObservationRecord } from '@variance-authority/report';
 import { renderComment } from './comment.js';
 import { docketOf } from './docket.js';
-import type { CliRunReport } from './run.js';
+import type { CliRunReport } from './run-report.js';
 
 const IDENTITY: RenderIdentity = {
   renderer: 'playwright-chromium',

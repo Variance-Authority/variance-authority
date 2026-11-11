@@ -1,5 +1,5 @@
 import { clusterChanges, type Change } from '@variance-authority/report';
-import type { CliRunReport } from './run.js';
+import type { CliRunReport } from './run-report.js';
 import type { CommentLimits } from './comment.js';
 import type { CauseEntry, Collateral, Docket } from './docket.js';
 import { code, count } from './comment-text.js';

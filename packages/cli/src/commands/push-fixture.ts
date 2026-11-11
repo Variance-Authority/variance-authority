@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import type { ReviewConfig } from '../config.js';
+import type { ReviewConfig } from '../config-sections.js';
 import type { PushOptions } from './push.js';
-import type { CliRunReport } from './run.js';
+import type { CliRunReport } from './run-report.js';
 import { NEEDS_API } from '../version.js';
 
 

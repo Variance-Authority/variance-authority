@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { encodeExecutionIndex, writeTestCoverage, type ExecutionIndex } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { DISCOUNTS, cloneOf, git, published, ranHere } from './mainline-fixture.js';
 
 /**

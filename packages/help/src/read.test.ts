@@ -7,15 +7,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import { readHelp, type Help } from '@variance-authority/package/help';
 import { taintTable } from '@variance-authority/sense/taint';
-import { workspaceReadStarted } from './snapshot.js';
-import {
-  readWorkspace,
-  readWorkspaceForAnswer,
-  readWorkspaceSnapshot,
-  refreshWorkspace,
-  workspaceGeneration,
-  workspaceSnapshotPath,
-} from './read.js';
+import { readWorkspaceSnapshot, workspaceGeneration, workspaceReadStarted, workspaceSnapshotPath } from './snapshot.js';
+import { readWorkspace, readWorkspaceForAnswer, refreshWorkspace } from './read.js';
 import { HELP } from './tools.js';
 import { search } from './tools/search.js';
 

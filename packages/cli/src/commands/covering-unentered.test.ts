@@ -8,7 +8,8 @@ import type { Placement } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { covering, formatCovering } from './covering.js';
+import { covering } from './covering.js';
+import { formatCovering } from './covering-text.js';
 
 /**
  * A held text the edit wrote line 3 into: held lines after it are the recorded

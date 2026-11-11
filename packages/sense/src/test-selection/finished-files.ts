@@ -14,7 +14,7 @@
  * against whichever the project installed.
  */
 
-import type { Digest } from '../digest.js';
+import type { Digest } from '@variance-authority/core/format';
 import type { ModuleId } from '../instrument/index.js';
 import journalFormat from './journal-format.cjs';
 import {

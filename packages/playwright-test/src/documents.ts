@@ -29,7 +29,7 @@ import type {
 } from '@playwright/test';
 import { format } from 'node:util';
 import type { RecorderFixture } from './completed.js';
-import { testOf } from './execution.js';
+import { testOf } from './test-coordinate.js';
 
 export interface VarianceDocumentFixtures {
   /**

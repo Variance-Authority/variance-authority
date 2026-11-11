@@ -46,8 +46,6 @@ import { quietly } from './quiet.js';
 import { reachedLines } from './reached-lines.js';
 import { caseKey, ownerOf, type ObservedTest } from './test-coordinate.js';
 
-export { ownerOf, testOf, type ObservedTest } from './test-coordinate.js';
-export type { ExecutionRecording } from './execution-recording.js';
 
 /** One worker's accumulation, drained per observation and written once. */
 export interface ExecutionRecorder {

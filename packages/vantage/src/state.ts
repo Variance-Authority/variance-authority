@@ -16,7 +16,6 @@ import type { RecordedEvent } from '@variance-authority/event/collect';
  * {@link WatchedTest} needs the type of the things in it, and reaching past this
  * package for it would make every such reader depend on the announcing half too.
  */
-export type { RecordedEvent };
 
 /**
  * Where a test got to.

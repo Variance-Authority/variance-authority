@@ -10,25 +10,11 @@
 
 // compass: variance-authority.reach.relations
 
-import { native, nativeRefusal } from './native.js';
+import { native, nativeRefusal } from './addon.js';
 import type { NativeDeclaredRoleCheck, NativeOrientLayers, NativeOrientMapAnswer, NativeOrientMapPrepared, NativeOrientShipped } from './native-orient.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
-
-export type {
-  NativeOrientLayers as PackageLayers,
-  NativeOrientPackageLayer as PackageLayer,
-  NativeOrientMapAnswer as CodeMapAnswer,
-  NativeOrientMapMade as CodeMapMade,
-  NativeOrientMapPage as CodeMapPage,
-  NativeOrientMapPrepared as CodeMapPrepared,
-  NativeOrientMapRow as CodeMapRow,
-  NativeOrientMapShare as CodeMapShare,
-  NativeOrientShipped as ShippedFiles,
-  NativeDeclaredRoleCheck as DeclaredRoleCheck,
-  NativeDeclaredRoleFinding as DeclaredRoleFinding,
-} from './native-orient.js';
 
 function entry<Name extends 'prepareOrientMap' | 'orientMapPage' | 'orientLayers' | 'orientShipped' | 'checkDeclaredRoles'>(name: Name) {
   const scanner = native();

@@ -5,7 +5,8 @@ import type { BaselineKey, Found, RasterStore } from '@variance-authority/raster
 import { createEphemeralStore } from '@variance-authority/raster';
 import { promotionOf } from '@variance-authority/report';
 import { accept } from './accept.js';
-import type { CliRunReport, Plan } from './run.js';
+import type { CliRunReport } from './run-report.js';
+import type { Plan } from './collector.js';
 import {
   IDENTITY,
   VIEWPORT,

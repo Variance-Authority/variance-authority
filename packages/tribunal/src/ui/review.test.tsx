@@ -3,7 +3,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { BuildSummary, SubjectView } from '../review.js';
 import { createReviewClient } from './client.js';
-import { BuildList, CoverageLine, SubjectPanel, Variations } from './review.js';
+import { BuildList, CoverageLine } from './builds.js';
+import { SubjectPanel } from './subject.js';
+import { Variations } from './variations.js';
 
 /**
  * What is worth testing in a review surface, and what is not.

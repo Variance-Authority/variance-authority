@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage, type FanInFile } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
 
 type Index = Parameters<typeof encodeExecutionIndex>[0];

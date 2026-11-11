@@ -72,9 +72,6 @@ import {
   workspaceReadStarted,
 } from './snapshot.js';
 
-export { publishedGeneration, readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
-export type { SnapshotOptions } from './snapshot.js';
-
 export interface ReadingOptions extends HelpOptions, IndexedUsageOptions {}
 
 export interface AnsweringOptions extends ReadingOptions {

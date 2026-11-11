@@ -32,7 +32,7 @@ import { mintJourney } from '@variance-authority/sense/journey';
 import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { WIRE_REPORT, wireCarrierSource, type Wire } from '@variance-authority/wire/listen';
 import type { RecorderFixture } from './completed.js';
-import { testOf } from './execution.js';
+import { testOf } from './test-coordinate.js';
 import type { VarianceVantageWorkerFixtures } from './vantage.js';
 import type { VarianceWireFixtures } from './wire.js';
 

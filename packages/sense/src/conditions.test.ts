@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { customConditionsFor } from './conditions.js';
-import { native, nativeAvailable } from './native.js';
+import { native, nativeAvailable } from './addon.js';
 import { realPath, resolveTo, resolversFor, type ResolveOptions } from './resolve.js';
 import { scanRelations } from './scan.js';
 

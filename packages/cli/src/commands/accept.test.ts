@@ -5,7 +5,7 @@ import { createEphemeralStore } from '@variance-authority/raster';
 import type { ObservationRecord } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
 import { accept, formatAcceptance } from './accept.js';
-import type { CliObservationRecord, CliRunReport } from './run.js';
+import type { CliObservationRecord, CliRunReport } from './run-report.js';
 import { keptRaster } from '@variance-authority/store/keep';
 
 const IDENTITY: RenderIdentity = {

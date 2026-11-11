@@ -7,9 +7,6 @@ import { digestValue } from '../format/hash.js';
 import type { ComponentHash, SemanticSnapshot } from '../format/snapshot.js';
 import { boundaries, shapeOf, UNATTRIBUTED } from './boundary.js';
 
-export type { ComponentHash } from '../format/snapshot.js';
-export { UNATTRIBUTED } from './boundary.js';
-
 /**
  * The digests a comparison of two component states actually reads.
  *
