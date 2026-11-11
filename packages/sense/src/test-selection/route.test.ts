@@ -71,6 +71,19 @@ describe('a file added after the record, read off a snapshot', () => {
     expect(narrowing).toMatchObject({ entered: [], because: [], unread: [], declined: ['src/added.ts'] });
   });
 
+  it('still runs the declarer of a program that loads it in a suite that declines relations, and names it declined', () => {
+    const declared = relationsOfFiles([
+      { file: 'src/added.ts' },
+      { file: 'src/entry.ts', edges: [{ to: 'src/added.ts', kind: 'imports' }] },
+      { file: 'test/beta.test.ts', edges: [{ to: 'src/entry.ts', kind: 'depends' }] },
+    ]);
+
+    expect(narrowByExecutionFromView(view(), added, { relations: declared, unmeasured: 'nothing' })).toMatchObject({
+      entered: ['test/beta.test.ts'],
+      declined: ['src/added.ts'],
+    });
+  });
+
   it('declines a path nothing knows rather than reporting it unread, because the graph was not asked', () => {
     expect(narrowByExecutionFromView(view(), edit('README.md'), { relations, unmeasured: 'nothing' })).toMatchObject({
       unread: [],
