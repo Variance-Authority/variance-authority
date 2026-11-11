@@ -24,7 +24,8 @@ import { cachedRecord, noteSeeded, seedTestCoverage } from './record-location.js
  * land on: a cached record under other probes goes, in one printed line, and
  * the checkout's base is laid when it holds none. Does nothing for a record
  * outside the cache. A run that lays no coverage passes no probes (`laidProbes`)
- * and replaces nothing. `alone`, see `recordsAlone`, lays no base. `selected`
+ * and replaces nothing. `alone`, see `recordsAlone`, lays no base and removes the
+ * record already here, which the run selected from. `selected`
  * is the name of the mainline a caller worked out, which judges the base it lays.
  *
  * Inside the hold the run lands in, so no other writer's run can land between
@@ -45,7 +46,10 @@ export async function prepareRecord(
         `records under \`${instrumentation}\`, so this run cannot be laid over it.`,
     );
   }
-  if (options.alone !== true) noteSeeded(await seedTestCoverage(lock, root, instrumentation, options.cacheRoot, options.selected));
+  // A run alone lands on nothing: the record already here is the one it
+  // selected from, and its rows are the base the fold lays the parts over.
+  if (options.alone === true) await removeRecord(file);
+  else noteSeeded(await seedTestCoverage(lock, root, instrumentation, options.cacheRoot, options.selected));
 }
 
 /**
@@ -56,10 +60,15 @@ export async function prepareRecord(
 async function replaceForeign(file: string, run: string | undefined): Promise<string | undefined> {
   const written = foreignAt(file, run);
   if (written === undefined) return undefined;
+  await removeRecord(file);
+  return written;
+}
+
+/** Delete the record at `file` with the files beside it, the record last: a crash leaves a record to delete again. */
+async function removeRecord(file: string): Promise<void> {
   await rm(commitRunsFile(file), { force: true });
   await rm(ownLayerFile(file), { force: true });
   await rm(file, { force: true });
-  return written;
 }
 
 /** {@link foreignProbes} of the record at `file`, read from its header. Nothing for one that is gone. */

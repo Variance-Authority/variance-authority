@@ -155,8 +155,8 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
    * suite's times through the cli leaves there. The record is at the path a
    * run of this repository's `unit` suite lands in, a suite given to the share.
    */
-  async function shard(k: number, selected: boolean, flags: readonly string[] = []) {
-    const cache = resolve(directory, `alone-${k}-${String(selected)}-${flags.join('')}`);
+  async function shard(k: number, selected: boolean, flags: readonly string[] = [], carried?: { readonly skip: readonly string[] }) {
+    const cache = resolve(directory, `alone-${k}-${String(selected)}-${flags.join('')}-${String(carried !== undefined)}`);
     const commit = 'a'.repeat(40);
     const fetched = resolve(mainlineReadRoot(cache, 'unit'), commit, 'coverage.bin');
     await mkdir(dirname(fetched), { recursive: true });
@@ -173,6 +173,21 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
     });
     await writeFetchedMainline(cache, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString() });
     const coverageFile = testCoverageFile(repository, { cacheRoot: cache, suite: 'unit' });
+    // What `carry take` lays: the last push's record, as this checkout's own.
+    if (carried !== undefined) {
+      await mkdir(dirname(coverageFile), { recursive: true });
+      await writeTestCoverage(coverageFile, {
+        version: 3,
+        instrumentation: instrumentationId('presence'),
+        commit,
+        tests: [
+          { file: at('unit/unit.case.ts'), complete: true, preconditions: [] },
+          { file: at('dom/dom.case.ts'), complete: true, preconditions: [] },
+          { file: at('elsewhere/pushed.case.ts'), complete: true, preconditions: [] },
+        ],
+        modules: [],
+      });
+    }
     // A selection the run of this test was handed is not the fixture's.
     const { VARIANCE_AUTHORITY_SINCE: _since, VARIANCE_AUTHORITY_AT_DISTANCE: _distance, ...inherited } = process.env;
     await execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts', '--shard', `${k}/2`, ...flags], {
@@ -181,9 +196,11 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
         ...inherited,
         VARIANCE_AUTHORITY_COVERAGE: coverageFile,
         VARIANCE_AUTHORITY_CACHE: cache,
-        ...(selected ? { FIXTURE_SKIP: '[]' } : {}),
+        ...(selected ? { FIXTURE_SKIP: JSON.stringify(carried?.skip ?? []) } : {}),
       },
     });
+    // A shard that runs nothing records nothing: its part of the fold is empty.
+    if (!existsSync(coverageFile)) return { ran: [], layer: undefined };
     return {
       ran: decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort(),
       layer: await readOwnLayer(coverageFile),
@@ -214,5 +231,19 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
     expect([...first.ran, ...second.ran].sort()).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
     expect(first.ran).toHaveLength(1);
     expect(first.layer?.pinned).toBeUndefined();
+  });
+
+  it('reads the last push\'s record and records only what it ran, so the shards fold over that record', async () => {
+    const skip = { skip: [at('unit/unit.case.ts')] };
+    const first = await shard(1, true, [], skip);
+    const second = await shard(2, true, [], skip);
+
+    expect([...first.ran, ...second.ran]).toEqual([at('dom/dom.case.ts')]);
+  });
+
+  it('keeps none of the last push\'s record when its selection skips every file', async () => {
+    const first = await shard(1, true, [], { skip: [at('unit/unit.case.ts'), at('dom/dom.case.ts')] });
+
+    expect(first.ran).toEqual([]);
   });
 });

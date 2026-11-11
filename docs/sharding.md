@@ -247,10 +247,13 @@ and a change that skips every one of them still gets one shard, for whatever it
 adds.
 
 Keep both off the push to your mainline: that build runs the whole suite, so
-its shards' records fold into the one the next build is placed by. A selected
-shard records the files it ran and nothing else, as a whole run's shard does, so
-a pull request's shards fold over the record they selected from, and a test file
-no shard ran keeps the row it had.
+its shards' records fold into the one the next build is placed by. Under Vitest
+and Jest, a selected shard records the files it ran and nothing else, as a whole
+run's shard does: it removes the record it selected from before it lands, and a
+shard that runs no file leaves no record. A pull request's shards then fold over
+the record they selected from, and a test file or case no shard ran keeps the
+row it had. An Rstest shard still lands over its base, so keep its shards out of
+the share.
 
 GitHub Actions can build a matrix from an earlier job's output, so the count is
 decided per build. `--format json` gives a `matrix` of `k/n` strings, empty for

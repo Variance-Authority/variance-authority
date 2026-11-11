@@ -6,14 +6,14 @@ import { expect, it } from 'vitest';
 
 const ROOT = resolve(import.meta.dirname, '..');
 
-it('prices whole shards from their frozen mainline and selection from the carried layer', () => {
+it('prices the whole suite and the selection from the one record every leg selects from', () => {
   const root = mkdtempSync(join(tmpdir(), 'va-ci-planning-'));
   try {
     for (const dir of ['tools', 'bin']) mkdirSync(join(root, dir));
     for (const file of ['plan-suites.mjs', 'ci-plan.mjs']) copyFileSync(join(ROOT, 'tools', file), join(root, 'tools', file));
     writeFileSync(join(root, 'vitest.config.mts'), 'export const SLICES = {unit:{workers:1}, integration:{workers:1}, chromium:{workers:1}};');
-    // The owner's prices differ: the carried layer would keep one job, while
-    // the frozen mainline the whole shards actually read prices two faster.
+    // The whole suite is priced faster in two jobs, and the selection fits the
+    // budget in one: the selection holds fewer runners, so it runs.
     const fake = `#!${process.execPath}
 import { appendFileSync } from 'node:fs';
 const args=process.argv.slice(2);
@@ -21,7 +21,7 @@ const cache=process.env.VARIANCE_AUTHORITY_CACHE;
 appendFileSync(process.env.CALLS,JSON.stringify({args,cache})+'\\n');
 if (args[0]==='vitest') console.log('a.test.ts\\nb.test.ts');
 if (args[1]==='shards') {
-  const whole=cache?.endsWith('/whole-plan');
+  const whole=!args.includes('--since');
   console.log(JSON.stringify({by:'recorded',shards:whole?2:1,matrix:whole?['1/2','2/2']:['1/1'],wall:whole?20000:30000,files:2}));
 }
 `;
@@ -34,17 +34,14 @@ if (args[1]==='shards') {
     const calls = join(root, 'calls');
     execFileSync(process.execPath, ['tools/plan-suites.mjs'], { cwd: root, stdio: 'pipe', env: {
       ...process.env, PATH: `${join(root, 'bin')}:${process.env.PATH}`, EVENT: 'pull_request',
-      BASELINE_READ: join(root, 'frozen'), RUNNER_TEMP: root,
+      RUNNER_TEMP: root,
       VARIANCE_AUTHORITY_CACHE: join(root, 'carried'), GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: join(root, 'summary'), CALLS: calls,
     } });
     const legs = JSON.parse(readFileSync(output, 'utf8').trim().slice('legs='.length));
-    expect(legs).toHaveLength(6);
-    expect(legs.every((leg: { mode: string }) => leg.mode === 'whole')).toBe(true);
+    expect(legs).toEqual(['unit', 'integration', 'chromium'].map((suite) => ({ suite, mode: 'selected' })));
     const read = readFileSync(calls, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
-    expect(read).toContainEqual({ args: ['packages/cli/dist/bin.js', 'carry', 'receive', join(root, 'frozen')], cache: join(root, 'whole-plan') });
-    for (const call of read.filter((call) => call.args[1] === 'shards')) {
-      expect(call.cache).toBe(join(root, call.args.includes('--since') ? 'carried' : 'whole-plan'));
-    }
+    expect(read.filter((call) => call.args[1] === 'carry')).toEqual([]);
+    for (const call of read.filter((call) => call.args[1] === 'shards')) expect(call.cache).toBe(join(root, 'carried'));
     // A pull request's selection is sized like a whole run: no one-job cap.
     expect(read.find((call) => call.args.includes('--since'))?.args).not.toContain('--max');
   } finally { rmSync(root, { recursive: true, force: true }); }
