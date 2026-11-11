@@ -21,6 +21,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { isTestPath } from '@variance-authority/sense';
 import { packageOf } from '../package-home.js';
 import { diffSince, topLevel } from './since.js';
+import { selectMainline } from './mainline-selected.js';
 import { handedChange, isHanded } from './select-journey.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
 import type { SuiteRequest } from './select-suite.js';
@@ -91,14 +92,16 @@ export interface Held {
 
 /**
  * The ladder's answer for a reading declined on `ground`. A change not yet read
- * is the patch handed in, or the diff from `--since`, else from HEAD; one that
+ * is the patch handed in, or the diff from `--since`, else from `HEAD`'s merge
+ * base with the mainline, so committed work counts, else from `HEAD`; one that
  * cannot be read at all is no change, so every test is left.
  */
 export async function localAnswer(request: SuiteRequest, ground: SelectGround, held?: Held): Promise<LocalAnswer> {
   const root = (await topLevel(request.root)) ?? request.root;
   const diff = held !== undefined ? undefined : isHanded(request)
     ? await handedChange(request)
-    : (await diffSince(request.since ?? 'HEAD', [], undefined, { cwd: root })) ?? (await diffSince('HEAD', [], undefined, { cwd: root }));
+    : (await diffSince(request.since ?? (await mainlineFork(root)) ?? 'HEAD', [], undefined, { cwd: root })) ??
+      (await diffSince('HEAD', [], undefined, { cwd: root }));
   const changed = held?.changed ?? (diff === undefined ? [] : [...changedLines(diff).keys()]);
   let relations = held?.relations ?? request.relations;
   if (relations === undefined) {
@@ -112,6 +115,12 @@ export async function localAnswer(request: SuiteRequest, ground: SelectGround, h
     rests: ground.kind === 'before' ? ground.rests : [],
     whole: ground.kind === 'read' ? ground.narrowing.whole : [],
   });
+}
+
+/** `HEAD`'s merge base with the mainline selected for this checkout, when one is. */
+async function mainlineFork(root: string): Promise<string | undefined> {
+  const chosen = await selectMainline(root);
+  return 'unconfigured' in chosen ? undefined : chosen.named?.base;
 }
 
 /** How many named tests a note lists before it counts the rest. */

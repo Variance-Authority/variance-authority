@@ -61,6 +61,21 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect([...gate.skip]).toEqual([]);
     expect([...local.skip]).toEqual([B]);
     expect(local.reading.fell).toMatchObject({ rung: 'importers', left: [B] });
+    expect([...(local.left ?? [])]).toEqual([B]);
+  });
+
+  it('reads the change from the merge base with the mainline when the edit is committed and the tree clean', async () => {
+    const { root } = checkout();
+    const git = (args: readonly string[]) => execFileSync('git', args, { cwd: root });
+    git(['update-ref', 'refs/remotes/origin/main', 'HEAD']);
+    git(['symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main']);
+    const { local } = await both(root, () => {
+      editA(root)();
+      git(['commit', '--quiet', '-am', 'the edit, committed']);
+    });
+
+    expect([...local.skip]).toEqual([B]);
+    expect(local.reading.fell).toMatchObject({ rung: 'importers', left: [B] });
   });
 
   it('falls to the importers when the record holds no coverage', async () => {
