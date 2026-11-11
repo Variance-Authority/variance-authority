@@ -39,10 +39,11 @@ export interface RecordLocationOptions {
   /** The name of the mainline this reader worked out, which `lastFetchedMainline` judges a fetched record by; `null` when it could not read the selection. */
   readonly selected?: string | null | undefined;
   /**
-   * Pass over this checkout's own layer: one shard of a run reads the record
-   * it was handed, never what it or an earlier wave of it ran, so every shard
-   * and every wave select from the same record. An `own` answer then means no
-   * layer under it holds one.
+   * Pass over this checkout's own layer where a read was handed here: one
+   * shard of a run reads the record it was handed, never what it or an earlier
+   * wave of it ran, so every shard and every wave select from the same record.
+   * An `own` answer then means no layer under it holds one. A checkout handed
+   * nothing reads its own record first, the one its shards were planned by.
    */
   readonly beneath?: boolean | undefined;
 }
@@ -433,13 +434,14 @@ export function nearestRecord(
 ): { readonly file: string; readonly origin: RecordOrigin } {
   const inside = recordPath(root, options.suite);
   const [own, ...under] = layeredFiles(repositoryLayers(root, options.cacheRoot), inside);
-  if (options.beneath !== true && present(own!)) return { file: own!, origin: 'own' };
+  const suite = cachedSuite(inside);
+  const handed = mainlineHanded(root, suite, options.cacheRoot);
+  if (!(options.beneath === true && handed) && present(own!)) return { file: own!, origin: 'own' };
   // The fetched record is the base only when the first run here would lay it:
   // one this build does not read is passed over, as seeding passes it over.
-  const suite = cachedSuite(inside);
   const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot, options.selected);
   if (fetched !== undefined) return { file: fetched.coverage, origin: 'mainline' };
-  if (!mainlineHanded(root, suite, options.cacheRoot)) for (const file of under) if (present(file)) return { file, origin: 'primary' };
+  if (!handed) for (const file of under) if (present(file)) return { file, origin: 'primary' };
   return { file: own!, origin: 'own' };
 }
 

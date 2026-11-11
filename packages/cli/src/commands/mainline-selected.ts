@@ -113,7 +113,8 @@ export async function selectedRecordOf(
 ): Promise<{ readonly file: string; readonly origin?: RecordOrigin }> {
   const selection = await import('@variance-authority/sense/test-selection');
   const own = selection.testCoverageFile(root, { suite });
-  if (options.beneath !== true && (await recordHeld(own))) return { file: own, origin: 'own' };
+  const beneath = options.beneath === true && selection.mainlineHanded(root, suite);
+  if (!beneath && (await recordHeld(own))) return { file: own, origin: 'own' };
   const nearest = selection.nearestRecord(root, { suite, selected: await selectedMainline(root, declared), beneath: options.beneath });
   return nearest.origin === 'own' ? { file: nearest.file } : nearest;
 }

@@ -250,7 +250,9 @@ Keep both off the push to your mainline: that build runs the whole suite, so
 its shards' records fold into the one the next build is placed by. Under Vitest
 and Jest, a shard, selected or not, records the files it ran and nothing else:
 it selects from the record it was handed, lays none under its own run, and a
-shard that runs no file leaves no record. A shard that runs in more than one
+shard that runs no file leaves no record. A shard handed no record, with no
+`carry receive` before it, reads the one its checkout holds, which is the one
+`variance shards` priced. A shard that runs in more than one
 pass, near tests first and the far ones after, selects and places every pass
 from that same record, beneath what its earlier passes ran, and each pass lands
 over the last, so the shard's one record holds what all of them ran. A later

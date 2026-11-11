@@ -72,7 +72,9 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
     ...(options.cacheRoot === undefined ? {} : { cacheRoot: options.cacheRoot }),
     ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
   };
-  if (options.beneath !== true && (await recordHeld(own))) {
+  // A shard passes over its own record only where a read was handed to it: see sense's `RecordLocationOptions.beneath`.
+  const beneath = options.beneath === true && selection.mainlineHanded(root, suite, options.cacheRoot);
+  if (!beneath && (await recordHeld(own))) {
     // The milestone under the checkout moves forward when the mainline's
     // newest record is one HEAD contains: see `repinOwnLayer`. A read that
     // fetches nothing can be killed mid-way, so it rewrites nothing either.
@@ -91,7 +93,7 @@ export async function suiteBase(root: string, options: SuiteBaseOptions = {}): P
   // A miss names the mainline selected, so nothing fetched for another answers,
   // and a share section that does not parse names none, so nothing fetched does.
   const selected = read?.miss.kind === 'unconfigured' ? null : read?.mainline;
-  const nearest = await selection.readableTestCoverage(root, { ...named, selected, beneath: options.beneath });
+  const nearest = await selection.readableTestCoverage(root, { ...named, selected, beneath });
   if (nearest !== own && (await recordHeld(nearest))) return { from: 'primary', ...at, file: nearest, ...missed };
   return { from: 'none', ...at, file: own, ...missed };
 }

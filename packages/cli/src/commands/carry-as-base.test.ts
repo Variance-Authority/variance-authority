@@ -135,3 +135,17 @@ describe('a shard takes the last push as its base', () => {
     expect(existsSync(testCoverageFile(shard, { suite: 'unit' }))).toBe(false);
   });
 });
+
+describe('a shard handed no base', () => {
+  it('selects and places from the record this checkout holds, the one `variance shards` priced', async () => {
+    const { origin, first } = await gitPublished(home);
+    const checkout = await job(origin, 'checkout');
+    await recordIn(checkout, first, ['test/other.test.ts'], [DISCOUNTS]);
+    await updateSourceIndex(checkout);
+    const priced = await suiteTimes({ root: checkout, suite: 'unit' });
+
+    const asked = { root: checkout, suite: 'unit', beneath: true } as const;
+    expect((await suiteTimes(asked)).recording).toBe(priced.recording);
+    expect((await selectSuite(asked)).read).toEqual((await selectSuite({ root: checkout, suite: 'unit' })).read);
+  });
+});
