@@ -1,12 +1,14 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import Sequencer from './jest-sequencer.cjs';
 import filter from './jest-filter.cjs';
 import { PLACING_SEQUENCER, placingSequencer } from './jest-placing.js';
 import { selectingFilter } from './jest-selection.js';
+import { withTestSelection } from './jest.js';
 
 const root = resolve('/checkout');
 /** A directory that resolves the Jest this repository tests against. */
@@ -25,6 +27,8 @@ const temporary: string[] = [];
 const HANDED = Symbol.for('variance-authority:jest-selection');
 
 afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   delete (globalThis as { [HANDED]?: unknown })[HANDED];
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
@@ -132,6 +136,38 @@ describe('the Jest sequencer under --shard', () => {
 
     expect([await part(1, near), await part(1, far)]).toEqual([['a.test.ts'], []]);
     expect([await part(2, near), await part(2, far)]).toEqual([['b.test.ts'], ['c.test.ts', 'd.test.ts']]);
+  });
+
+  // `runCLI` hands Jest a shard no command line spells: it is still one shard,
+  // and records alone, so it reads what it was handed, as `--shard` does.
+  it('reads the record it was handed when Jest was given a shard the command line does not spell', async () => {
+    const checkout = await mkdtemp(resolve(tmpdir(), 'variance-jest-shard-'));
+    temporary.push(checkout);
+    const cli = resolve(checkout, 'node_modules', '@variance-authority', 'cli');
+    await mkdir(cli, { recursive: true });
+    await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+    await writeFile(
+      resolve(cli, 'index.js'),
+      'export async function selectSuite(request) { globalThis.__beneath.push(["selection", request.beneath ?? false]); return { whole: new Set(), skip: new Set(), notes: [] }; }\n' +
+        'export async function suiteTimes(request) { globalThis.__beneath.push(["times", request.beneath ?? false]); return { unread: "a fixture" }; }\n',
+    );
+    await writeFile(resolve(checkout, 'own.cjs'), 'module.exports = class { sort(tests) { return tests; } };\n');
+    // The checkout's Jest is the one this package tests against.
+    await symlink(dirname(createRequire(import.meta.url).resolve('jest/package.json')), resolve(checkout, 'node_modules', 'jest'));
+    const asked: [string, boolean][] = [];
+    (globalThis as { __beneath?: typeof asked }).__beneath = asked;
+    vi.stubEnv('VARIANCE_AUTHORITY_SINCE', '');
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'jest']);
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    withTestSelection({ testSequencer: '<rootDir>/own.cjs' }, { root: checkout });
+    const shard = { shardIndex: 1, shardCount: 2 };
+
+    // Jest makes its sequencer with the global configuration before any filter runs.
+    const made = new Sequencer({ contexts: [], globalConfig: { shard } } as never);
+    const { filtered } = await filter([resolve(checkout, 'a.test.ts')]);
+    await made.shard(filtered.map((path) => ({ path, context: { config: { rootDir: checkout } } })), shard);
+
+    expect(asked).toEqual([['selection', true], ['times', true]]);
   });
 
   it('places whole files by count when nothing is timed, and says why', async () => {

@@ -22,6 +22,7 @@ interface Shard {
 type Sortable = object & { sort: (tests: unknown[]) => unknown };
 
 interface Handed {
+  readonly made: (globalConfig: object) => void;
   readonly sorting: (tests: readonly unknown[], globalConfig: object) => void;
   readonly own: () => new (options: unknown) => Sortable;
   readonly shard: (tests: { path: string }[], options: Shard) => Promise<unknown[]>;
@@ -36,6 +37,8 @@ class PlacingSequencer {
           '`withTestSelection` handed it one in this process',
       );
     }
+    // Made before any filter or shard: whether the run is one is known here first.
+    handed.made(options.globalConfig);
     const inner = new (handed.own())(options);
     return new Proxy(inner, {
       get(target, key) {

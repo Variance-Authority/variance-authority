@@ -170,9 +170,13 @@ export function withTestSelection(
   // governs, which for the one that describes the run is every test.
   const declared = (options.preconditions ?? []).map((file) => resolve(configRoot, file));
 
-  // One shard reads the record it was handed, beneath what it or its earlier wave ran.
-  const suite = { ...(options.suite === undefined ? {} : { suite: options.suite }), ...(shardArgument(process.argv) === undefined ? {} : { beneath: true }) };
-  const selection = askedSelection(options.selection, () => coverageFile, { root, from: configRoot, ...suite });
+  // One shard reads the record it was handed, beneath what it or its earlier
+  // wave ran. Whether the run is one is Vitest's resolved `shard`, which the
+  // sequencer is made with before anything asks for the selection.
+  const request = { root, from: configRoot, ...(options.suite === undefined ? {} : { suite: options.suite }) };
+  const own = askedSelection(options.selection, () => coverageFile, request);
+  const handed = askedSelection(options.selection, () => coverageFile, { ...request, beneath: true });
+  const selection = own && handed && (() => (run.alone ? handed : own)());
   const settle = foldRun(run, { coverageFile, shims: [setupId, runnerId] });
   // Asked of the mode, not of `run.cases`: a page clears that on the run, and
   // Vitest loads the configuration again for its browser server, in this process.
@@ -254,7 +258,7 @@ export function withTestSelection(
 }
 
 /**
- * The sequencer that drops what the selection skips and places a `--shard` by
+ * The sequencer that drops what the selection skips and places a shard by
  * recorded time. Under `--shard` the run passes with no tests unless the
  * configuration says otherwise: Vitest 4 refuses a run with fewer files than
  * shards before any sequencer places one, and a shard left no file is a
@@ -272,7 +276,8 @@ function selecting(
   const suite = options.suite === undefined ? {} : { suite: options.suite };
   const sequence = config.test?.sequence;
   const own = sequence?.sequencer as unknown as SequencerClass | undefined;
-  const times = landingTimes(coverageFile, { root, from: configRoot, ...suite, byFile: options.coverageFile !== undefined });
+  const asked = { root, from: configRoot, ...suite, byFile: options.coverageFile !== undefined };
+  const times = () => landingTimes(coverageFile, { ...asked, ...(run.alone ? { beneath: true } : {}) })();
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
     sharded: (asked) => { run.alone = asked; },
