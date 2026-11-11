@@ -471,7 +471,7 @@ jobs:
     # theirs: a pull request selects its chromium files and compares their
     # execution with `main`'s. The image decides the raster: the browser and its
     # fonts are part of what the `cases/*` files assert, and they run here, in
-    # the unit and chromium slices, and nowhere else.
+    # the unit and chromium slices, and in `queue`, in no job of their own.
     #
     # `base` compares the recorded wall time of a serial selected run with
     # a sharded whole run. Cheap selections start one job; broad selections
