@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseSync } from 'oxc-parser';
-import { ROOT, isSource, lines, visit } from './owners.mjs';
+import { ROOT, lines, sources, visit } from './owners.mjs';
 
 /**
  * Every module our code loads through CommonJS, and why each one may.
@@ -17,8 +17,8 @@ import { ROOT, isSource, lines, visit } from './owners.mjs';
  * A `.resolve(…)` is not a load: it answers a path and runs nothing.
  */
 
-/** Production sources, and the scripts a package ships under `scripts/`. */
-export const isRead = (file) => isSource(file) || /^packages\/[^/]+\/scripts\/[^/]+\.[cm]?[jt]s$/.test(file);
+/** A script a package ships under `scripts/`, which `sources()` leaves out. */
+const SCRIPT = /^packages\/[^/]+\/scripts\/[^/]+\.[cm]?[jt]s$/;
 
 /**
  * A CommonJS file, whose imports have no other spelling: `import x = require(…)`
@@ -147,13 +147,12 @@ export function loadsIn(file, text) {
   return found;
 }
 
-/** Every CommonJS load in the files this reads. */
+/** Every CommonJS load in the production sources and the packages' scripts. */
 export function loads() {
-  return execFileSync('git', ['ls-files'], { cwd: ROOT, encoding: 'utf8' })
+  const scripts = execFileSync('git', ['ls-files', '--', 'packages/*/scripts/*'], { cwd: ROOT, encoding: 'utf8' })
     .split('\n')
-    .filter(isRead)
-    .filter((file) => existsSync(join(ROOT, file)))
-    .flatMap((file) => loadsIn(file, readFileSync(join(ROOT, file), 'utf8')));
+    .filter((file) => SCRIPT.test(file) && existsSync(join(ROOT, file)));
+  return [...sources(), ...scripts].flatMap((file) => loadsIn(file, readFileSync(join(ROOT, file), 'utf8')));
 }
 
 /** What breaks the rule: loads no row allows, and rows no load is left for. */

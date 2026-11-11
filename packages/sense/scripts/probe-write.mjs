@@ -32,13 +32,11 @@
  *       yarn probe-write 64 1000000 9   # regions, sweeps, rounds
  */
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { probeRuntime } from '../dist/instrument/index.js';
-
-const probeLog = createRequire(import.meta.url)('../dist/instrument/probe-log.cjs');
+import * as probeLog from '../dist/instrument/probe-log.cjs';
 
 const REGIONS = Number(process.argv[2] ?? 4);
 const SWEEPS = Number(process.argv[3] ?? 1_000_000);

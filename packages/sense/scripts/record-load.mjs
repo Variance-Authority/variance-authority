@@ -27,13 +27,10 @@
  */
 
 import { writeFileSync, readFileSync, mkdirSync, rmSync, statSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { probeRuntime } from '../dist/instrument/index.js';
 import { readTestCoverage } from '../dist/test-selection/index.js';
-
-const require = createRequire(import.meta.url);
-const install = require('../dist/test-selection/jest-globals.cjs');
-const { encodeJournal, scanJournal } = require('../dist/test-selection/journal-format.cjs');
+import install from '../dist/test-selection/jest-globals.cjs';
+import { encodeJournal, scanJournal } from '../dist/test-selection/journal-format.cjs';
 
 const SNAPSHOT = process.argv[2];
 const MODULES = Number(process.argv[3] ?? 40_000);

@@ -177,6 +177,11 @@ these.
   whether a test *names* the export, not whether the test is about it — and it
   has no budget and no exemption list. A documented export nothing names is
   answered with a test or with a deletion.
+- **A module is reached by `import`.** A `require`, a `createRequire(…)(…)` or
+  an ECMAScript file's `import x = require(…)` is an edge no reader and no
+  `variance ask uses` follows, so our modules and JSON files are static
+  imports. `tools/commonjs-loads.check.ts` refuses any other load unless a row
+  in `tools/commonjs-loads.mjs` names its file, specifier and reason.
 - **Every answer has an owner.** See [orient](orient.md). Three idioms keep
   being typed again: a SHA-256 digest, a code-unit comparator and a
   write-then-rename. `tools/owners.check.ts` holds their sites per file and

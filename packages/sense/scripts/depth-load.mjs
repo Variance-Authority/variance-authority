@@ -26,13 +26,10 @@
 
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { instrument } from '../dist/instrument/index.js';
-
-const require = createRequire(import.meta.url);
-const collectors = require('../dist/test-selection/collectors.cjs');
-const { encodeJournal } = require('../dist/test-selection/journal-format.cjs');
+import * as collectors from '../dist/test-selection/collectors.cjs';
+import { encodeJournal } from '../dist/test-selection/journal-format.cjs';
 
 const MODULES = Number(process.argv[2] ?? 2_000);
 const DEPTH = Number(process.argv[3] ?? 10);

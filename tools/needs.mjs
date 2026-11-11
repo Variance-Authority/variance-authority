@@ -4,6 +4,7 @@ import { createRequire, isBuiltin } from 'node:module';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseSync } from 'oxc-parser';
+import oxcParser from 'oxc-parser/package.json' with { type: 'json' };
 import { digestString } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { tokensOf } from '@variance-authority/mcp';
@@ -234,7 +235,7 @@ export const READS = [
   join(dirname(require.resolve('@variance-authority/mcp')), 'tools', 'locate-index.js'),
 ];
 
-const reader = () => digestString([...READS.map((path) => readFileSync(path, 'utf8')), require('oxc-parser/package.json').version].join('\0'));
+const reader = () => digestString([...READS.map((path) => readFileSync(path, 'utf8')), oxcParser.version].join('\0'));
 
 // What the cache held, or nothing when it was written by another reader or
 // cannot be read: a cache is a shortcut, never an answer.
