@@ -2,68 +2,10 @@
  * `variance select --at-distance`: one leg of the selection, still a skip list.
  *
  * A leg is the part of the selection a given number of import hops from the
- * change. It is the cut a seam runs under `VARIANCE_AUTHORITY_AT_DISTANCE`,
- * made by the same `atDistance` over the same reading, through `selectSuite`. What the leg
- * leaves out is added to the skip list. Nothing else changes, so the four ways
- * {@link skippableTests} declines to narrow still decline here: a selection
- * that declines to narrow skips nothing, whichever leg was asked (ADR-0062).
- *
- * ## A leg is opt-in, and it says what it left
- *
- * Every leg is a smaller claim than the selection. A green `0-2` says nothing
- * about the test four hops out. So the leg is never the default, `json` gives
- * the files it left in `left`, and stderr gives their count and the flag that
- * runs them.
- *
- * ## Where an unplaced test runs
- *
- * The *open leg* is the one with no upper bound, such as `3-`. The *end leg* is
- * the one leg that holds the furthest hop the reading measured: `0-2` is the
- * end leg when something is placed and nothing past 2, and `3-` then is not.
- * With nothing placed, the open leg is the end leg. An entered test with no hop
- * count runs in the end leg, as `atDistance` carries it.
- *
- * A test the record holds incomplete, such as a file a partial run demoted, or
- * one whose every case skipped, may call the change from a case the record did
- * not see. When the change entered it, it is placed by its hops like any other.
- * When it did not, sense places it by the shortest path it executed to a
- * changed file it loaded (`distanceFromView` names which changed files count),
- * and it runs in the leg those hops fall in. With no hop count it is unplaced,
- * and runs in the open leg only: it is on the skip list of every closed leg. A
- * placed one counts toward the furthest hop, so it decides which leg is the end
- * leg. A test new since the recording is named nowhere, so it is in no skip
- * list and runs in every leg. That is the safe side of a skip list: it costs a
- * file run twice, never a file run zero times.
- *
- * ## The waves of one shard run each file once
- *
- * A shard runs its legs as waves over one record, and places each wave's files
- * among the shards by their times. A file two waves both ran could land in two
- * shards, whose records then both hold it. So under `partition` a leg that
- * starts past 0 hops runs only the files the record placed in its range: a test
- * new since the recording, and every file of a reading that could not narrow,
- * run in the leg that starts at 0 hops alone.
- *
- * ## A later leg runs what the earlier one could not see
- *
- * The legs run one after another, and each lands its run before the next is
- * cut. The next leg then reads another record: the tests the earlier leg ran
- * stand at HEAD, and every other test is read from where it last ran, from both
- * texts. That reading can enter a test nearer than the leg's first hop that the
- * earlier leg's reading did not enter, so no leg would run it. So when a run has
- * landed at HEAD, a leg that starts past 0 hops also runs every entered test
- * nearer than its first hop that still stands before HEAD. A test the earlier
- * leg ran is at HEAD and not among them, so none runs twice. The waves of one
- * shard read the record they were handed, never what an earlier wave landed,
- * so under `partition` no test is overdue.
- *
- * ## The reading a leg was cut from is said with it
- *
- * A leg is chosen by hop counts, so the counts it was chosen from are given
- * beside it: stderr counts the entered tests at each distance, and `json` gives
- * each one's distance as sense measured it, its bearing and, for one it could
- * not place, the reason. A test the change entered by no import it executed is
- * the one a reader expects in the near leg and finds in the end leg.
+ * change: the cut a seam runs under `VARIANCE_AUTHORITY_AT_DISTANCE`, made by
+ * `atDistance` over the reading `selectSuite` made. What the leg leaves out is
+ * added to the skip list, and nothing else changes: a selection that declines
+ * to narrow skips nothing, whichever leg was asked (ADR-0062).
  */
 
 import { atDistance, distanceRange, groupByDistance, remaining, type TestDistance } from '@variance-authority/sense/test-selection';
@@ -115,9 +57,12 @@ export interface Leg {
  * Cut a selection down to one leg.
  *
  * The leg's skip list is the selection's, plus every entered or incomplete
- * test outside the leg. A widened selection stays empty and names the leg
- * anyway, so a loop reading `json` sees which leg it asked for and that nothing
- * was left.
+ * test outside the leg. A leg is a smaller claim than the selection, so it is
+ * never the default, and it says what it left: `json` in `left`, stderr by
+ * count with the flag that runs them. A widened selection stays empty and
+ * names the leg anyway. A test new since the recording is in no skip list and
+ * runs in every leg — a file run twice, never zero times — except under
+ * `partition` (see `later`).
  */
 export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | undefined): TestSelection {
   if (leg === undefined) return selection;
@@ -167,7 +112,8 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     .sort((one, other) => codeUnitOrder(one.test, other.test));
   // Named only by the record, which never saw them whole: placed by the hops
   // they executed to a changed file when sense measured them, and otherwise run
-  // by the open leg alone. A distance with no hops places nothing.
+  // by the open leg alone. An entered test with no hops runs in the end leg, the
+  // one holding the furthest hop measured, or the open leg when none is.
   const entering = new Set(entered);
   const partial = (input.ground.narrowing.incomplete ?? []).filter((test) => !entering.has(test));
   const hopped = partial.flatMap((test) => {
@@ -175,9 +121,10 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     return distance?.hops === undefined ? [] : [distance];
   });
   const measured = [...reading, ...hopped].sort((one, other) => codeUnitOrder(one.test, other.test));
-  // A test the leg left is nearer when the leg before it runs it: a placed one
-  // by its hops, an unplaced one when that leg is the end leg. One that a run
-  // landed at HEAD left standing was run by no earlier leg, so this one runs it.
+  // Each leg lands before the next is cut, so a later leg's reading can enter a
+  // test nearer than its first hop that no earlier leg ran: one still standing
+  // before HEAD is overdue, and this leg runs it. The waves of one shard read
+  // the record they were handed, so under `partition` nothing is overdue.
   const before = new Set(leg.from === 0 ? [] : atDistance(measured, 0, leg.from - 1));
   const unrun = new Set(leg.partition === true ? [] : (input.ground.unrunAtHead ?? []));
   const elsewhere = remaining(measured, leg.from, leg.to);
@@ -226,7 +173,13 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   };
 }
 
-/** A wave of one shard that starts past 0 hops, which runs only what the record placed in it. */
+/**
+ * A wave of one shard that starts past 0 hops. A shard places each wave's
+ * files among the shards by their times, so a file two waves ran could land in
+ * two shards' records. Such a wave runs only what the record placed in its
+ * range: a new test, and every file of a reading that could not narrow, run in
+ * the wave that starts at 0 hops alone.
+ */
 function later(leg: Leg): boolean {
   return leg.partition === true && leg.from > 0;
 }
@@ -243,7 +196,8 @@ function nearest(selection: TestSelection, leg: Leg, range: string, why: string)
 }
 
 /**
- * How many entered tests sit at each distance, nearest first, the unplaced last.
+ * How many entered tests sit at each distance, nearest first, the unplaced last:
+ * a leg is chosen by hop counts, so the counts it was chosen from are said with it.
  *
  * `measured` is the reading the leg was cut from, which also holds the
  * incomplete tests placed by their hops: one of those can hold the furthest
