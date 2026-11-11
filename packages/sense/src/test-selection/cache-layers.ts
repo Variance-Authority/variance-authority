@@ -309,7 +309,9 @@ function physical(path: string): string {
   if (held !== undefined) return held;
   let found: string;
   try {
-    found = realpathSync(path);
+    // The native call, as `realPath` in `resolve.ts` makes: only it corrects
+    // case. Not imported from there, which would load the resolver in every seam.
+    found = realpathSync.native(path);
   } catch {
     const parent = dirname(path);
     found = parent === path ? path : resolve(physical(parent), basename(path));

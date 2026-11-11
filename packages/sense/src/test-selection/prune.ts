@@ -36,7 +36,7 @@
 // compass: variance-authority.retention
 
 import { execFile } from 'node:child_process';
-import { realpathSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { lstat, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pruneParseStore } from '../parse-store.js';
@@ -363,9 +363,6 @@ async function listedKeys(primary: string, owners: PruneOwners, cacheRoot: strin
   const keys = new Set<string>();
   for (const path of paths) {
     keys.add(checkoutKey(path, cacheRoot));
-    try {
-      keys.add(checkoutKey(realpathSync(path), cacheRoot));
-    } catch { /* gone from disk; git will call it prunable */ }
   }
   return keys;
 }
