@@ -126,6 +126,31 @@ imports keeps no test in the run.
 [How a change before reach is declared](changes-before-and-beyond.md#how-a-change-before-reach-is-declared)
 shows the declaration.
 
+## Ask for a local answer with `--local`
+
+Running every test file is the right answer for a gate, and a long wait on a
+laptop where you want a verdict after each edit. `variance select --local`, or
+`VARIANCE_AUTHORITY_LOCAL=1` beside `VARIANCE_AUTHORITY_SINCE` for a runner's
+seam, answers the first six doubts in the table with a smaller selection
+instead of every test file:
+
+- **The tests that import a changed file.** The
+  [source index](source-index.md) lists the importers of each
+  changed file, and the test files among them run.
+- **The tests in a changed file's package.** A changed file the index does not
+  list, or one the suite declares in `before`, runs every test file in its
+  package. A file at the root, such as a lockfile, runs the tests of each
+  package whose `package.json` changed beside it, and every test file when none
+  did.
+
+The first line after the reason says which one ran and how many test files it
+selected. The test files it left are on the skip list and named on stderr, and
+`--format json` lists them under `fell.left`. A run without `--local` reads them
+from the commit they last ran at, so the next full run runs them.
+
+`--local` is never on by default, and CI should not set it: it is for a run
+whose answer you check again before the change merges.
+
 ## A file nothing connects to a test keeps none, and is named
 
 A changed file can have no row in the record: no test executed it as code. The

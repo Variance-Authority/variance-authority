@@ -13,6 +13,7 @@ import { main } from '../bin.js';
 import { parseArgs } from '../parse.js';
 import { followUpsLogPath, holdFollowUps, releaseFollowUps } from './index-follow-ups.js';
 import { inLeg, parseAtDistance } from './select-leg.js';
+import { suiteOf } from './select-suite.js';
 import { formatSelection, selectionNotes, skippableTests, type SelectInput } from './select.js';
 
 /**
@@ -106,6 +107,13 @@ describe('one leg of the selection', () => {
     expect(selection.left).toEqual([FAR, GHOST]);
     expect(selection.leg).toEqual({ from: 0, to: 2 });
     expect(selection.widened).toBeUndefined();
+  });
+
+  it('hands a seam the tests the leg left, so a headline over none does not say the change reached none', () => {
+    const suite = suiteOf(read(), { from: 0, to: 0 });
+
+    expect([...suite.skip]).toEqual(WHOLE);
+    expect([...(suite.left ?? [])]).toEqual([FAR, GHOST, MID, NEAR]);
   });
 
   it('skips the tests nearer than an open leg, and runs the unplaced with it', () => {

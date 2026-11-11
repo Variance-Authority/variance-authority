@@ -112,6 +112,10 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   }
   const asked = { leg: legOf(leg) };
   const range = spelled(leg);
+  if (selection.fell !== undefined) {
+    const why = 'hops are counted only on a record that narrowed';
+    return { ...selection, ...asked, left: [], notes: [`${asking(leg, range)} runs every test file \`--local\` selected: ${why}`, ...selection.notes] };
+  }
   if (selection.widened !== undefined || input.ground.kind !== 'read') {
     return {
       ...selection,

@@ -49,6 +49,7 @@ import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
 import { handedChange, isHanded, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
+import { localAnswer, type Held } from './select-local.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { fetchable } from './execution-input.js';
@@ -81,6 +82,8 @@ export interface SelectRequest {
   readonly suite?: string;
   /** `--at-distance <hops>`: one leg of the selection, by import hops from the change. */
   readonly atDistance?: Leg;
+  /** `--local`: a reading that cannot narrow falls to the changed files' importers or packages. */
+  readonly local?: boolean;
 }
 
 /**
@@ -140,8 +143,13 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const { at, source } = found;
   // The record the selection reads, which a shard's record names; a skip list alone does not say which.
   const read = found.held ? selection.recordDigestAt(at) : undefined;
-  const said = (input: SelectInput) => {
-    const reading = suiteOf(source === undefined ? input : { ...input, source }, request.atDistance);
+  // Under `--local`, a reading that cannot narrow falls to the changed files the caller already holds, or reads them.
+  const said = async (input: SelectInput, held?: Held): Promise<SuiteReading> => {
+    const sourced = source === undefined ? input : { ...input, source };
+    const narrowed = suiteOf(sourced, request.atDistance);
+    const reading = request.local === true && narrowed.declined !== undefined
+      ? suiteOf(sourced, request.atDistance, await localAnswer(request, sourced.ground, held))
+      : narrowed;
     return read === undefined ? reading : { ...reading, read };
   };
 
@@ -262,7 +270,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   for (const installed of installs.values()) {
     if (installed !== undefined && 'whole' in installed) {
       const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
-      return said({ ...recorded, ground });
+      return said({ ...recorded, ground }, { changed: [...new Set([...changed, ...stands.flatMap((s) => s.changed)])] });
     }
   }
 
@@ -274,14 +282,15 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const { declared } = await namedSuite(here, request.suite);
   const suite = declared?.name;
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
-  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])], declared?.ignore);
+  const moved = [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])];
+  const { whole, ...rest } = await restingOf(here, suite, relations, moved, declared?.ignore);
   // What the install changed whole is named whichever way the answer goes: a test it entered was entered by no line.
   const install = installReached(installs, beyond, (stand) =>
     handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
   );
   const notes = unkept.size === 0 ? {} : { standing: [...(recorded.standing ?? []), ...unkept] };
   const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
-  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole: whole.says, rests: whole.rests } });
+  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole: whole.says, rests: whole.rests } }, { changed: moved, relations });
   // Each group is charged the install that moved since it ran, and the files
   // a stand reads whole leave the hunk diff, so none is also read by its hunks.
   // What changed between a stand and the journal's commit is the diff between
@@ -327,7 +336,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           }),
         };
 
-  const answer = said({ ...rested, ground });
+  const answer = await said({ ...rested, ground }, { changed: moved, relations });
   // FIXME: a stand's tests were read against their own diff, and the case cut
   // reads the journal's alone, so a selection with stands runs its files whole.
   if (request.grain !== 'case' || ground.kind !== 'read' || stands.length > 0) return answer;

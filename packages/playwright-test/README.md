@@ -608,7 +608,7 @@ a project's replaces the top level's. Playwright asks it about each file it
 finds, so the drop costs one lookup a file. The selection is read in a
 `globalSetup` the wrapper puts ahead of yours, so a record it cannot read fails
 the run with the reason before any test starts. A selection that drops every
-file prints `selected none of M, so none of them runs`, and the run passes
+file prints `selected none of M, so none of them runs` and why, and the run passes
 rather than failing on Playwright's "No tests found".
 
 Three runs do not select, and say so on stderr: watch and UI mode, and

@@ -100,8 +100,13 @@ Set to a ref, it also names the base for a snapshot that names no commit.
 one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time), and
 a value that is not a range fails the run. Before the first file starts, stderr
 shows one line: `selected 12 of 340`, `selected none of 340, so none of them
-runs`, or `declined:` and the reason the selection could not be read, in which
-case every file runs. A test file the snapshot has never seen runs. A run the
+runs` and whether the change reached none of them or a leg or `--local` left them
+for a later run, or
+`declined:` and the reason the selection could not be read, in which case every
+file runs. `VARIANCE_AUTHORITY_LOCAL=1` is `variance select --local`: where the
+record cannot narrow, the files that import a changed file run, or a changed
+file's package, instead of every file; any value other than `1` or `0` fails
+the run. A test file the snapshot has never seen runs. A run the
 selection leaves nothing to run — `selected none`, or a shard that took none of
 the files kept — passes: the seam sets `passWithNoTests` for that run. A run
 that drops nothing keeps your setting.
