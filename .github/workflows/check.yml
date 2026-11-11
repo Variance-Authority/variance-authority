@@ -3,7 +3,7 @@ name: check
 # This repository's own gate.
 #
 # These jobs run the suite and the repository's own rules, one job per harness.
-# The suite and the cases run in the CI image, the pinned Playwright image with
+# The suite runs in the CI image, the pinned Playwright image with
 # this repository's tools, built from `docker/ci.Dockerfile`, so the chromium
 # slice is recorded, selected and compared like the other two. Until they existed, nothing ran `yarn build`, `yarn check` or `yarn test`
 # anywhere but a laptop, so `tools/boundaries.check.ts` and the
@@ -464,14 +464,14 @@ jobs:
         run: node tools/plan-suites.mjs
 
   suite:
-    # One slice, or one shard of one, per job, in the CI image `cases` and
-    # `variance.yml` run in: the pinned Playwright image with this repository's
-    # tools, built from `docker/ci.Dockerfile`. The image carries the browser, so the
+    # One slice, or one shard of one, per job, in the CI image `variance.yml`
+    # runs in: the pinned Playwright image with this repository's tools, built
+    # from `docker/ci.Dockerfile`. The image carries the browser, so the
     # chromium slice runs here like the other two and its record is shared like
     # theirs: a pull request selects its chromium files and compares their
-    # execution with `main`'s. The image decides the raster, and `cases` running
-    # green in it on `main` is what showed the browser suites' numbers survive
-    # the move off the machine that made them.
+    # execution with `main`'s. The image decides the raster: the browser and its
+    # fonts are part of what the `cases/*` files assert, and they run here, in
+    # the unit and chromium slices, and nowhere else.
     #
     # `base` compares the recorded wall time of a serial selected run with
     # a sharded whole run. Cheap selections start one job; broad selections
@@ -507,7 +507,10 @@ jobs:
         with:
           node-version: 24
 
-      # For the reason written at the same step in `cases`.
+      # `actions/checkout` trusts the workspace only in a throwaway HOME it
+      # removes afterwards, and the cases run their own child processes under
+      # the job's HOME. Git refuses a directory it does not trust, and the
+      # cases would then fall back to naming files from their own directory.
       - name: trust the workspace
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -976,82 +979,16 @@ jobs:
           set -o pipefail
           node packages/cli/dist/bin.js share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected" | tee -a "$GITHUB_STEP_SUMMARY"
 
-  cases:
-    # The cases, run. `cases/*` drives real Storybooks, a real Playwright and a
-    # real Rstest, and every file in it that needs a Chromium or a built subject
-    # announces a skip when it has neither, and fails instead on CI. This job and
-    # every chromium leg of `suite` and `queue` build the subjects through
-    # `./.github/actions/case-subjects`.
-    #
-    # The CI image is the one `variance.yml` observes in, for the same reason:
-    # the browser and its fonts are part of what these cases assert.
-    # Whether the numbers written on a Mac survive this image is what this job
-    # asks. It reports separately from the required `check`: a red result here
-    # is a finding about the image, not a reason to weaken a case.
-    #
-    # The cases' own fixture files stay at zero coverage: they run in child
-    # processes and builds that carry no probe. Running them does not move that
-    # figure, and nothing here claims it does.
-    #
-    # It is the second wave: it starts once `rules` is green. A lint or a
-    # documentation failure is two minutes to find and is the same failure
-    # whatever a browser says, so the five-minute browser job waits for it
-    # rather than spending a runner on a change that is already red. `cases` is
-    # not in `needs` of `check`, so the wait adds nothing to the gate's time.
-    needs: rules
-    runs-on: ubuntu-24.04
-    container:
-      image: ghcr.io/variance-authority/ci:33602dc5866e9770c88223131f3057d61611d121
-      # See `variance.yml`: Chromium's renderers need more shared memory than a
-      # container's default.
-      options: --ipc=host
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-
-      - name: rust
-        shell: bash
-        run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
-      # `actions/checkout` trusts the workspace only in a throwaway HOME it
-      # removes afterwards, and the cases run their own child processes under
-      # the job's HOME. Git refuses a directory it does not trust, and the
-      # cases would then fall back to naming files from their own directory.
-      # The last line prints the answer they will get.
-      - name: trust the workspace
-        shell: bash
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git -C cases/journey-tracing-case rev-parse --show-cdup
-
-      - name: install
-        shell: bash
-        run: corepack enable && yarn install --immutable
-
-      - uses: ./.github/actions/build
-
-      # The subjects the cases observe, for the reason written in the action.
-      - uses: ./.github/actions/case-subjects
-
-      # The cases' own unit tests, then the ones that launch a browser, each
-      # under its slice's config (`vitest.config.mts` says why they are apart).
-      - name: run the cases
-        shell: bash
-        run: yarn test:unit cases && yarn test:chromium cases
-
   shared:
     # The unit slice with each worker keeping its modules across files and the
     # isolator giving every test the values they loaded with: `yarn test:shared`,
     # the isolator README's Vitest config run over this repository. It reports
     # separately from the required `check`: a red result is a finding about the
     # isolator or a file that leaves state in the process, read against the same
-    # file under `suite`, and it waits for `rules` as `cases` does.
+    # file under `suite`. It starts once `rules` is green: a lint or a
+    # documentation failure is two minutes to find, so it does not spend a
+    # runner on a change that is already red, and it is not in `needs` of
+    # `check`, so the wait adds nothing to the gate's time.
     needs: rules
     runs-on: ubuntu-24.04
 
@@ -1211,7 +1148,7 @@ jobs:
         with:
           node-version: 24
 
-      # For the reason written at the same step in `cases`.
+      # For the reason written at the same step in `suite`.
       - name: trust the workspace
         shell: bash
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"

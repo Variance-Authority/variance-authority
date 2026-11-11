@@ -18,9 +18,9 @@ describe('the required check timing summary', () => {
     expect(timingSummary([{ name: 'pending', steps: [{ name: 'test', conclusion: null }] }], undefined, 10_000)).toContain('unknown');
   });
   it('omits jobs skipped by this event and identifies work outside the required gate', () => {
-    const text = timingSummary([{ name: 'queue expression', conclusion: 'skipped', steps: [] }, { name: 'cases', steps: [] }], 0, 1000);
+    const text = timingSummary([{ name: 'queue expression', conclusion: 'skipped', steps: [] }, { name: 'shared', steps: [] }], 0, 1000);
     expect(text).not.toContain('queue expression');
-    expect(text).toContain('cases (non-gating)');
+    expect(text).toContain('shared (non-gating)');
   });
   it('uses elapsed time rather than summing parallel jobs, and escapes table text', () => {
     const jobs = ['suite | one', 'suite two'].map((name) => ({ name, started_at: new Date(0).toISOString(), completed_at: new Date(50_000).toISOString(), steps: [step('test', 0, 50)] }));
