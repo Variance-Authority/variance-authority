@@ -119,6 +119,21 @@ describe('the Jest sequencer under --shard', () => {
     expect(lines).toEqual(['variance-authority: shard 1/2 by the times recorded at eeeeeeeeeeee: 1 of 4 files, 9.0 s (shards 9.0 s to 9.0 s)']);
   });
 
+  it('places the waves of one shard as one selection, so its waves together take one part', async () => {
+    const part = async (index: number, skip: readonly string[]) => {
+      const wave = { whole: new Set(files), skip: new Set(skip), skipEveryWave: new Set<string>(), notes: [] };
+      selectingFilter({}, { root, rootDir, selection: async () => wave, argv: ['jest'], say: () => {} });
+      placingSequencer({}, { root, rootDir, times, say: () => {}, argv: ['jest', '--shard=1/2'] });
+      const { filtered } = await filter(files.map((file) => resolve(root, file)));
+      return paths(await sequencer().shard(filtered.map((path) => test(path.slice(root.length + 1))), { shardIndex: index, shardCount: 2 }));
+    };
+    const near = ['c.test.ts', 'd.test.ts'];
+    const far = ['a.test.ts', 'b.test.ts'];
+
+    expect([await part(1, near), await part(1, far)]).toEqual([['a.test.ts'], []]);
+    expect([await part(2, near), await part(2, far)]).toEqual([['b.test.ts'], ['c.test.ts', 'd.test.ts']]);
+  });
+
   it('places whole files by count when nothing is timed, and says why', async () => {
     const lines: string[] = [];
     placingSequencer({}, { root, rootDir, times: async () => ({ unread: 'nothing is recorded there' }), say: (line) => lines.push(line) });

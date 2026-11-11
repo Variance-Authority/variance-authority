@@ -232,6 +232,22 @@ describe('the sequencer under --shard', () => {
     expect(names(first)).toEqual(['b.test.ts']);
   });
 
+  it('places the waves of one shard as one selection, so its waves together take one part', async () => {
+    // The near wave runs `a` and `b`, the far wave `c` and `d`. Placed apart,
+    // shard 1 takes `a` and `c`, 12 s against 6 s. Placed together, it takes
+    // `a` alone, 9 s against 9 s, as the plan priced it.
+    const part = async (index: number, skip: readonly string[]) => {
+      const wave = selection(skip, { skipEveryWave: new Set() });
+      const Sequencer = selectingSequencer(Reversing, { root, configRoot: root, selection: async () => wave, times, say: () => {} });
+      return names(await new Sequencer(context({ shard: { index, count: 2 } })).shard(files.map(spec)));
+    };
+    const near = ['c.test.ts', 'd.test.ts'];
+    const far = ['a.test.ts', 'b.test.ts'];
+
+    expect([await part(1, near), await part(1, far)]).toEqual([['a.test.ts'], []]);
+    expect([await part(2, near), await part(2, far)]).toEqual([['b.test.ts'], ['c.test.ts', 'd.test.ts']]);
+  });
+
   it('passes the shard the selection left nothing to run, and only that one', async () => {
     const Sequencer = selectingSequencer(Reversing, {
       root,

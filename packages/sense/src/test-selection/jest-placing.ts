@@ -21,7 +21,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { projectPath } from './instrumented-modules.js';
 import { jestDependency } from './jest-dependency.js';
-import { refuseUnfound } from './jest-selection.js';
+import { placingPaths, refuseUnfound } from './jest-selection.js';
 import { shardArgument, shardOf } from './shard-placement.js';
 import type { SuiteTimes } from './suite-selection.js';
 
@@ -86,10 +86,14 @@ export function placingSequencer(
     },
     shard: async (tests: { path: string }[], shard: Shard): Promise<unknown[]> => {
       const asked = { index: shard.shardIndex, count: shard.shardCount };
-      const part = shardOf(tests.map((test) => projectPath(options.root, test.path)), asked, await (read ??= options.times()));
+      // A wave of one shard places every wave's files, and keeps its own of them.
+      const across = placingPaths() ?? tests.map((test) => test.path);
+      const part = shardOf(across.map((path) => projectPath(options.root, path)), asked, await (read ??= options.times()));
       if (!told) say(part.line);
       told = true;
-      return part.take.map((at) => tests[at]!);
+      const handed = new Map<string, typeof tests>();
+      for (const test of tests) handed.set(test.path, [...(handed.get(test.path) ?? []), test]);
+      return [...new Set(part.take.map((at) => across[at]!))].flatMap((path) => handed.get(path) ?? []);
     },
   };
   (globalThis as { [HANDED]?: typeof handed })[HANDED] = handed;

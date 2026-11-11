@@ -43,7 +43,7 @@ import { pathToFileURL } from 'node:url';
 import { cutOf, type CaseCut } from './case-cut.js';
 import { projectPath } from './instrumented-modules.js';
 import { shardOf, type ShardAsked } from './shard-placement.js';
-import { kept, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
+import { kept, placed, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 
 /** Marks a sequencer that already selects, so a second wrap is the first one. */
 const SELECTING = Symbol.for('variance-authority:selecting-sequencer');
@@ -138,7 +138,7 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
   let asked: Promise<SuiteSelection> | undefined;
   let timed: Promise<SuiteTimes> | undefined;
   let said = false;
-  let placed = false;
+  let told = false;
   let seeded = false;
   let reading: Promise<void> | undefined;
   let commandLine: CommandLine | undefined;
@@ -188,11 +188,16 @@ export function selectingSequencer(own: SequencerClass | undefined, options: Sel
       const shard = shardAsked(this.#ctx.config.shard);
       if (shard === undefined) return (await this.#sequencer()).shard(kept);
       timed ??= options.times?.() ?? Promise.resolve({ unread: 'no record was named to read them from' });
-      const part = shardOf(kept.map((file) => projectPath(options.root, moduleOf(file))), shard, await timed);
-      if (!placed) say(part.line);
-      placed = true;
-      if (part.take.length === 0 && kept.length > 0) this.#dropped = true;
-      return part.take.map((at) => kept[at]!);
+      const name = (file: T) => projectPath(options.root, moduleOf(file));
+      const selection = asked === undefined || this.#ctx.config.watch === true ? undefined : await asked;
+      const across = selection === undefined ? kept : [...placed(selection, files, name)];
+      const part = shardOf(across.map(name), shard, await timed);
+      if (!told) say(part.line);
+      told = true;
+      const keeping = new Set(kept);
+      const mine = part.take.map((at) => across[at]!).filter((file) => keeping.has(file));
+      if (mine.length === 0 && kept.length > 0) this.#dropped = true;
+      return mine;
     }
 
     async sort<T extends Spec>(files: T[]): Promise<T[]> {

@@ -7,6 +7,7 @@ import {
   atDistance,
   type ExecutionNarrowing,
   kept,
+  placed,
   type TestDistance,
 } from '@variance-authority/sense/test-selection';
 import '../bin.fixture.js';
@@ -468,6 +469,16 @@ describe('one leg of the selection', () => {
 
       expect([...near, ...far].sort()).toEqual([...new Set([...near, ...far])].sort());
       expect(far).toEqual([FAR, GHOST, PARTIAL]);
+    });
+
+    it('places the same files in every wave, so a shard places its waves as the one selection the plan priced', () => {
+      const input = read(DISTANCES, [PARTIAL]);
+      const [near, far] = [{ from: 0, to: 2 }, { from: 3, to: Number.MAX_SAFE_INTEGER }].map((leg) =>
+        placed(suiteOf(input, { ...leg, partition: true }), discovered),
+      );
+
+      expect(near).toEqual(far);
+      expect([...near!].sort()).toEqual(waves(input).flat().sort());
     });
   });
 

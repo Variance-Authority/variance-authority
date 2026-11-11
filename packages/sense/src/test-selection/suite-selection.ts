@@ -43,6 +43,11 @@ export interface SuiteSelection {
    * wave. Absent, every file not in `skip` runs.
    */
   readonly only?: ReadonlySet<string>;
+  /**
+   * The test files no wave of one shard runs, when this selection is one of its
+   * waves. Absent, a shard places the files this selection keeps.
+   */
+  readonly skipEveryWave?: ReadonlySet<string>;
   /** What a person reads after the count. Never parsed. */
   readonly notes: readonly string[];
 }
@@ -80,6 +85,22 @@ export function kept<File = string>(
   return [...new Set(discovered)].filter(
     (file) => !selection.skip.has(name(file)) && (selection.only === undefined || selection.only.has(name(file))),
   );
+}
+
+/**
+ * The test files a seam under `--shard` places: those it keeps, or, for a wave
+ * of one shard, every file the runner discovered that some wave runs. Each wave
+ * then keeps its own files of one placement, so a shard's waves together take
+ * the part the plan priced, rather than the heaviest part of each wave.
+ */
+export function placed<File = string>(
+  selection: SuiteSelection,
+  discovered: readonly File[],
+  name: (file: File) => string = String,
+): readonly File[] {
+  const every = selection.skipEveryWave;
+  if (every === undefined) return kept(selection, discovered, name);
+  return [...new Set(discovered)].filter((file) => !every.has(name(file)));
 }
 
 /**
