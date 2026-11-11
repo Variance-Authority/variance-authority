@@ -22,6 +22,8 @@ export interface ParsedSelect {
   readonly suite?: string;
   /** `--at-distance <hops>`: one leg of the selection, the text as typed, read by `parseAtDistance`. */
   readonly atDistance?: string;
+  /** `--local`: a reading that cannot narrow falls to the changed files' importers or packages. */
+  readonly local?: boolean;
 }
 
 /**
@@ -72,5 +74,6 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
     ...(diff === undefined ? {} : { diff: diff === '-' ? diff : resolve(diff) }),
     ...(suite === undefined ? {} : { suite }),
     ...(atDistance === undefined ? {} : { atDistance }),
+    ...(flags.present.has('--local') ? { local: true } : {}),
   };
 }

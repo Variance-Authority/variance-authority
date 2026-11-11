@@ -188,9 +188,11 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 
 - **Read the first stderr line.** `variance-authority: selected N of M` is the
   run you asked for. `declined:` means the selection could not be read and every
-  file ran; the reason follows it. `selected none of M, so none of them runs`
-  means the edit reached no recorded test: a type or comment edit, or a file no
-  test ran. That run passes under Vitest and Jest, with nothing run. A run that
+  file ran; the reason follows it. `selected none of M, so none of them runs:
+  the change reached none of them` means the edit reached no recorded test: a
+  type or comment edit, or a file no test ran. Ending `N test files are left for
+  a later run` instead, a leg or `VARIANCE_AUTHORITY_LOCAL=1` left them, and
+  the lines below name the run that takes them. That run passes under Vitest and Jest, with nothing run. A run that
   found no test file at all has nothing to select from and fails: check
   `testMatch` and the working directory.
 - **Each run lands.** The next edit is measured from what each test last ran,
@@ -200,6 +202,11 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
   before you call the change done.
 - **Do not put paths on the command line.** The configuration drops the files
   itself; `variance select --format vitest|jest` is deprecated.
+- **Get a smaller answer when the record cannot narrow.** On a laptop, add
+  `VARIANCE_AUTHORITY_LOCAL=1`: in place of `declined:` and every file, the
+  tests that import a changed file run, or a changed file's package. stderr
+  names the test files it left; run once without it before you call the change
+  done. Never set it in CI.
 - **Skip cases, too, under Jest and Vitest.** `VARIANCE_AUTHORITY_GRAIN=case`
   also skips the cases of each selected file that entered none of the changed
   regions; the first stderr line then ends `skipping N cases in K of them`. A

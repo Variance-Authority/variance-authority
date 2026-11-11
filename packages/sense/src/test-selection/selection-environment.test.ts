@@ -58,6 +58,25 @@ describe('the selection the environment asks for', () => {
     }
   });
 
+  it('asks the cli to fall to the local rungs when VARIANCE_AUTHORITY_LOCAL is 1, and refuses another value', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-local-'));
+    try {
+      const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
+      await mkdir(cli, { recursive: true });
+      await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+      await writeFile(resolve(cli, 'index.js'), 'export async function selectSuite(request) { return { notes: [JSON.stringify(request.local ?? null)] }; }');
+      const asked = async (env: NodeJS.ProcessEnv) => (await selectionFrom({ VARIANCE_AUTHORITY_SINCE: '', ...env }, { root }, () => {})!()).notes;
+
+      expect(await asked({ VARIANCE_AUTHORITY_LOCAL: '1' })).toEqual(['true']);
+      expect(await asked({ VARIANCE_AUTHORITY_LOCAL: '0' })).toEqual(['null']);
+      expect(await asked({})).toEqual(['null']);
+      expect(() => selectionFrom({ VARIANCE_AUTHORITY_SINCE: '', VARIANCE_AUTHORITY_LOCAL: 'yes' }, { root }, () => {}))
+        .toThrow('VARIANCE_AUTHORITY_LOCAL=yes is not 1 or 0');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('tells the cli the leg was read from the environment, so its notes name the variable', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-leg-'));
     try {

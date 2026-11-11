@@ -221,6 +221,11 @@ export interface TestSelection {
   readonly left?: readonly string[];
   /** How far the change travelled to each test it entered. Present when a leg cut a narrowed selection. */
   readonly distances?: readonly TestDistance[];
+  /**
+   * Under `--local`, the rung a widened reading fell to, the reason it widened,
+   * and the test files that rung left, which `skip` holds. Absent otherwise.
+   */
+  readonly fell?: { readonly rung: 'importers' | 'package'; readonly from: string; readonly left: readonly string[] };
 }
 
 /**

@@ -154,7 +154,7 @@ ids are the safe default after initial setup.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
-variance select  [--since <ref> [--tested <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
+variance select  [--since <ref> [--tested <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
@@ -2393,6 +2393,15 @@ It declines to narrow, out loud on stderr and with an empty stdout, whenever the
 journal holds no answer: no record of the suite, neither this checkout's nor the
 mainline's, a diff git would not produce, a lockfile that cannot be compared at the diff's base, or a journal
 with no whole observation in it.
+
+`--local` answers each of those, and a diff that moves what the suite rests on,
+with a smaller selection instead: the test files that import a changed file, by
+the [source index](#index-publish-the-file-graph-once), or every test file in a
+changed file's package when the index does not list it. stderr names which one
+ran and the test files it left, which stay on the skip list, and `--format json`
+gives them under `fell`, with its `rung`, `importers` or `package`, and `left`.
+It is for a laptop's edit loop, never a gate, and `VARIANCE_AUTHORITY_LOCAL=1`
+asks the same of a runner's seam.
 
 A changed file the journal records nothing about is not one of those. Prose, a
 workflow, or a fixture your tests read with `fs` keeps no test in the run, and
