@@ -197,6 +197,7 @@ what that one took:
 variance carry keep                     # after the tests, red or green
 variance carry take                     # next push, before the tests
 variance carry take "$RUNNER_TEMP/carried"   # another job, over the handed-on directory
+variance carry take "$RUNNER_TEMP/carried" --as-base   # a shard, which selects from it and records only what it runs
 ```
 
 [What the next job reads](../packages/cli/README.md#what-the-next-job-reads)

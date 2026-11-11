@@ -248,12 +248,19 @@ adds.
 
 Keep both off the push to your mainline: that build runs the whole suite, so
 its shards' records fold into the one the next build is placed by. Under Vitest
-and Jest, a selected shard records the files it ran and nothing else, as a whole
-run's shard does: it removes the record it selected from before it lands, and a
+and Jest, a shard, selected or not, records the files it ran and nothing else:
+it selects from the record it was handed, lays none under its own run, and a
 shard that runs no file leaves no record. A pull request's shards then fold over
 the record they selected from, and a test file or case no shard ran keeps the
 row it had. A Playwright shard still lands over the record it read, so keep a
 pull request's Playwright shards out of the share.
+
+A pull request that [carries its last push](selecting.md#a-pull-requests-next-push)
+hands that record to its shards too: after `carry receive`, each shard runs
+`variance carry take <dir> --as-base` over the directory the plan's `take`
+handed on. That lays the last push where the received read sits, so every shard
+selects from the record the plan counted, and its own record still starts
+empty.
 
 GitHub Actions can build a matrix from an earlier job's output, so the count is
 decided per build. `--format json` gives a `matrix` of `k/n` strings, empty for

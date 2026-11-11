@@ -168,8 +168,8 @@ export type Seeded =
  * says where each of its tests last ran: see {@link seedCommitRuns}.
  *
  * Does nothing at all when the caller named its own file. Returns what it laid,
- * or `undefined` when it laid nothing. A run that {@link recordsAlone} does not
- * ask.
+ * or `undefined` when it laid nothing. A shard, which records alone, does not
+ * ask: see `prepareRecord`.
  */
 export async function seedTestCoverage(
   lock: IndexLock,
@@ -266,21 +266,6 @@ function passedOver(file: string, bytes: Uint8Array | undefined, instrumentation
     return undefined;
   }
   return written === instrumentation ? undefined : { file, instrumentation: written, run: instrumentation };
-}
-
-/**
- * Whether a run records the files it ran and nothing else, on no base: one
- * shard of a run, selected or not.
- *
- * Such a shard is a part of one run, and the fan-in folds the parts over the
- * base, refusing a test file two parts both hold. The record a shard read its
- * times or its selection from sits in its cache, where {@link seedTestCoverage}
- * would lay it under the run, and every part would carry every row of the base.
- * The shard removes it before it lands instead, and the fold lays the parts
- * over the base, keeping the rows of every test file and case no part ran.
- */
-export function recordsAlone(sharded: boolean): boolean {
-  return sharded;
 }
 
 /**

@@ -107,7 +107,7 @@ export interface SelectionRun {
   watching: boolean;
   /**
    * Whether the run lands on no base: it is one shard of a run, selected or
-   * not, set once the runner has said so. See `recordsAlone`.
+   * not, set once the runner has said so. See `prepareRecord`.
    */
   alone: boolean;
 }

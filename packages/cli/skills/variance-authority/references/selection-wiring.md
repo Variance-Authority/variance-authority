@@ -227,6 +227,7 @@ merge with it:
 variance carry keep                                 # after the run: the records, and the commits no remote holds
 variance carry take --format github >> "$GITHUB_OUTPUT"   # next push, before the run
 variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"   # each other job, over the directory the first take handed on
+variance carry take "$RUNNER_TEMP/carried" --as-base   # a shard, after `carry receive`: lays it as the read, so the shard's own record holds only what it runs
 ```
 
 `keep` writes `commits.bundle` beside the records, holding the commits they

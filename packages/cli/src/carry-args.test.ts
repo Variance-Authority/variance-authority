@@ -17,6 +17,13 @@ describe('the arguments', () => {
     expect(() => parse('save', '--format', 'json')).toThrow('--format must be text or github');
   });
 
+  it("lay the last push as a shard's read only when taking it", () => {
+    const parse = (...argv: string[]) => parseCarryArgs(readFlags(argv, 'carry', ['--config', '--format', '--as-base']));
+
+    expect(parse('take', 'here', '--as-base')).toEqual({ command: 'carry', direction: 'take', dir: resolve('here'), asBase: true, format: 'text' });
+    expect(() => parse('keep', 'here', '--as-base')).toThrow('`--as-base` belongs to `carry take`, not `carry keep`');
+  });
+
   it('name the directory the host moves between a run\'s jobs', () => {
     const parse = (...argv: string[]) => parseCarryArgs(readFlags(argv, 'carry', ['--config', '--format']));
 

@@ -14,6 +14,8 @@ export interface ParsedCarry {
   readonly config?: string;
   /** `take` and `keep`: where the pushed records are, when not `.variance/pushed`. `hand` and `receive`: the directory the host moves, always named. */
   readonly dir?: string;
+  /** `take`: lay the last push as the read `receive` laid, for a shard to select from and land nothing on. */
+  readonly asBase?: boolean;
   /** `merge`: the commit the mainline's record was made at, empty when there is none. */
   readonly commit?: string;
   /** `merge`: the pull request's head, when named rather than read from the event. */
@@ -37,7 +39,7 @@ const MERGE_FLAGS = ['--head', '--on-conflict', '--expect'] as const;
  * it is an artifact's path, which the workflow chose. `merge` names the
  * record's commit, which a workflow output may leave empty, and is the one
  * direction that takes `--head`, `--on-conflict` and `--expect`; an empty one
- * of those is not given.
+ * of those is not given. `take --as-base` lays the push as a shard's read.
  */
 export function parseCarryArgs(flags: Flags): ParsedCarry {
   const [direction, ...rest] = flags.positionals;
@@ -53,6 +55,7 @@ export function parseCarryArgs(flags: Flags): ParsedCarry {
   for (const flag of MERGE_FLAGS) {
     if (!merging && flags.present.has(flag)) throw new OperatorError(`\`${flag}\` belongs to \`carry merge\`, not \`carry ${typed}\``);
   }
+  if (typed !== 'take' && flags.present.has('--as-base')) throw new OperatorError(`\`--as-base\` belongs to \`carry take\`, not \`carry ${typed}\``);
   const handing = typed === 'hand' || typed === 'receive';
   const named = merging || handing || typed === 'take' || typed === 'keep';
   const [first, ...more] = named ? rest : [undefined, ...rest];
@@ -71,6 +74,7 @@ export function parseCarryArgs(flags: Flags): ParsedCarry {
     ...(config === undefined ? {} : { config: resolve(config) }),
     ...(first === undefined || merging ? {} : { dir: resolve(first) }),
     ...(merging ? mergeAsk(first ?? '', flags) : {}),
+    ...(flags.present.has('--as-base') ? { asBase: true } : {}),
     format,
   };
 }

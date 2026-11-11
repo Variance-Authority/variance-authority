@@ -59,7 +59,6 @@ import {
   type CoverageTest,
   type TestCoverage,
 } from './index.js';
-import { recordsAlone } from './record-location.js';
 import { prepareRecord } from './replaced-record.js';
 import { refuseUnreadable } from './precondition-entries.js';
 
@@ -127,7 +126,7 @@ class JestCoverageReporter {
    */
   readonly #governing = new Map<string, Set<string>>();
 
-  /** Whether this run is one shard of a run, selected or not — see `recordsAlone`. */
+  /** Whether this run is one shard of a run, selected or not — see `prepareRecord`. */
   readonly #alone: boolean;
 
   /**
@@ -146,7 +145,7 @@ class JestCoverageReporter {
   ) {
     this.#config = config;
     this.#named = (globalConfig?.testNamePattern ?? '') !== '';
-    this.#alone = recordsAlone(globalConfig?.shard != null);
+    this.#alone = globalConfig?.shard != null;
   }
 
   onTestFileResult(test: JestTest): void {

@@ -13,7 +13,7 @@ import { foldRun } from './selection-fold.js';
 import { declareConfig } from './governing-config.js';
 import { refusal, selectionPlugin, type ConfigPlugin } from './vitest-plugin.js';
 import { runFor, seamModuleId, writeSeamModule, type SelectionRun } from './selection-run.js';
-import { recordFileFor, recordsAlone } from './record-location.js';
+import { recordFileFor } from './record-location.js';
 import { testFilesAt } from './test-files.js';
 import { selectionReporter } from './vitest-reporter.js';
 import { repositoryRoot } from './repository-root.js';
@@ -274,7 +274,7 @@ function selecting(
   const times = landingTimes(coverageFile, { root, from: configRoot, ...suite, byFile: options.coverageFile !== undefined });
   const sequencer = selectingSequencer(own, {
     root, configRoot, ...(selection === undefined ? {} : { selection }), times, shuffle: sequence?.shuffle,
-    sharded: (asked) => { run.alone = recordsAlone(asked); },
+    sharded: (asked) => { run.alone = asked; },
     cut: (cases) => {
       for (const [file, names] of cases) run.cut.set(file, names);
       writeCut(run.cutFile, run.cut);

@@ -13,7 +13,7 @@ import { suitePlan } from './ci-plan.mjs';
 const near = process.env.EVENT === 'merge_group';
 const pull = process.env.EVENT === 'pull_request';
 const legs = near ? [{ part: 'rules' }] : [];
-const run = (command, args, env = process.env) => execFileSync(command, args, { env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+const run = (command, args) => execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
 const since = process.env.BASE || 'HEAD';
 const summary = ['### Suite plan', '', '| Suite | Selected / collected | Mode | Jobs | Predicted wall |', '| --- | --- | --- | --- | --- |'];
 run('yarn', ['variance', 'index']);

@@ -24,9 +24,15 @@ import { cachedRecord, noteSeeded, seedTestCoverage } from './record-location.js
  * land on: a cached record under other probes goes, in one printed line, and
  * the checkout's base is laid when it holds none. Does nothing for a record
  * outside the cache. A run that lays no coverage passes no probes (`laidProbes`)
- * and replaces nothing. `alone`, see `recordsAlone`, lays no base and removes the
- * record already here, which the run selected from. `selected`
- * is the name of the mainline a caller worked out, which judges the base it lays.
+ * and replaces nothing. `selected` is the name of the mainline a caller worked
+ * out, which judges the base it lays.
+ *
+ * `alone` lays no base: the run is one shard of a run, selected or not, and
+ * records the files it ran and nothing else. The fan-in folds the parts over
+ * the record the shards selected from, keeping the rows of every test file and
+ * case no part ran, and refuses a test file two parts both hold, which a base
+ * laid under every part would make of every row. The shard selects from the
+ * read its workflow laid, never from its own layer, so it finds that empty.
  *
  * Inside the hold the run lands in, so no other writer's run can land between
  * the record going and the base arriving, and be copied over.
@@ -46,10 +52,7 @@ export async function prepareRecord(
         `records under \`${instrumentation}\`, so this run cannot be laid over it.`,
     );
   }
-  // A run alone lands on nothing: the record already here is the one it
-  // selected from, and its rows are the base the fold lays the parts over.
-  if (options.alone === true) await removeRecord(file);
-  else noteSeeded(await seedTestCoverage(lock, root, instrumentation, options.cacheRoot, options.selected));
+  if (options.alone !== true) noteSeeded(await seedTestCoverage(lock, root, instrumentation, options.cacheRoot, options.selected));
 }
 
 /**

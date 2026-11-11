@@ -445,8 +445,9 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Lay the same carried/mainline record the suite jobs will read: `share`
-      # lays every suite the root config gives to the share. Prices and
+      # Lay the record the suite jobs are handed: what the last push ran, taken
+      # above, or else the mainline's. `share` lays every suite the root config
+      # gives to the share. Prices and
       # collection are read after the merge, on the suite jobs' own tree.
       - name: keep the planning records
         shell: bash
@@ -475,8 +476,9 @@ jobs:
     # `base` prices the selection from the record a leg selects from, and
     # shards it to fit the budget. It runs whole only when nothing prices the
     # selection, or when the selection misses the budget and a sharded whole
-    # run is faster. No job installs merely to skip. Every shard records alone
-    # and folds over the record it selected from.
+    # run is faster. No job installs merely to skip. A shard reads the record
+    # `base` gave it and writes only what it ran; `record` folds the parts
+    # over that same record.
     #
     # Not `fail-fast`: a red unit shard says nothing about chromium, and a
     # cancelled job reports nothing.
@@ -563,10 +565,13 @@ jobs:
         shell: bash
         run: node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
 
-      # What this pull request's last push ran, as `base` checked it, laid as
-      # this checkout's own layer. The step below then keeps it rather than lay
-      # the mainline's, and the selection diffs each test from the commit it
-      # last ran at. A suite `base` handed on and this job cannot take stops
+      # What this pull request's last push ran, as `base` checked it. A whole
+      # slice lays it as this checkout's own layer, the step below then keeps
+      # it rather than lay the mainline's, and its run records over it. A
+      # shard lays it with `--as-base` where the read sits instead: it selects
+      # from it, as `plan` priced, and its own layer stays empty for what it
+      # runs. Either way the selection diffs each test from the commit it last
+      # ran at. A suite `base` handed on and this job cannot take stops
       # `carry take`, and the job with it.
       - uses: actions/download-artifact@v8
         if: needs.base.outputs.carried == 'true'
@@ -577,7 +582,9 @@ jobs:
       - name: take what the last push ran
         if: needs.base.outputs.carried == 'true'
         shell: bash
-        run: node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried"
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" ${SHARD:+--as-base}
 
       # The mainline's record of this slice, read by `base` from
       # `refs/variance/mainline/main` on `origin`, where the `publish` job
@@ -592,9 +599,12 @@ jobs:
       # build could be laid over it.
       #
       # `based=true` says the record laid keeps its case index, which enables
-      # selection.
+      # selection. A shard lays nothing here: it reads the record `base` gave
+      # it where `carry receive` and `carry take` put it, and a record without
+      # a case index cuts nothing.
       - name: keep the base record
         id: base
+        if: matrix.shard == null
         shell: bash
         env:
           SUITE: ${{ matrix.suite }}
@@ -618,13 +628,14 @@ jobs:
       # so the far wave reads the tests it ran as run at this commit.
       #
       # A shard runs the same waves, each in a copy of this checkout's cache:
-      # every leg selects from the record the steps above laid, the one `plan`
-      # priced, and Vitest cuts the selected files the same way in every leg.
-      # A run under `--shard` records alone: it sets aside the record it
-      # selected from and keeps only what it ran, so `record` folds the parts
-      # over that same record, and every file and case no part ran keeps the
-      # row it had. The far wave reads the base, not the near wave's part; the
-      # two select disjoint files, so neither needs the other's rows.
+      # every leg selects from the record the steps above laid where the read
+      # sits, the one `plan` priced, and Vitest cuts the selected files the
+      # same way in every leg. A run under `--shard` records alone: its own
+      # layer starts empty and keeps only what it ran, so `record` folds the
+      # parts over that same record, and every file and case no part ran keeps
+      # the row it had. The far wave reads the same record, not the near
+      # wave's part; the two select disjoint files, so neither needs the
+      # other's rows.
       #
       # A push to `main` and a dispatch run every file. That is the gate a
       # selection is a smaller claim than, and on a push it is what the record
@@ -640,7 +651,7 @@ jobs:
         id: test
         shell: bash
         env:
-          SELECT: ${{ matrix.mode == 'selected' && steps.base.outputs.based == 'true' }}
+          SELECT: ${{ matrix.mode == 'selected' && (matrix.shard != null || steps.base.outputs.based == 'true') }}
           SUITE: ${{ matrix.suite }}
           SHARD: ${{ matrix.shard }}
         run: |
