@@ -1,7 +1,7 @@
-import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { CHECKOUT_MARKER, checkoutKey } from './cache-layers.js';
 import {
@@ -21,9 +21,9 @@ import { testCoverageFile } from './record-location.js';
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.UTC(2026, 8, 27);
 
-/** A cache under a temporary root, with every file dated by the test rather than the clock. */
+/** A cache under a temporary root, named with its links resolved, with every file dated by the test rather than the clock. */
 async function cache(): Promise<string> {
-  return await mkdtemp(resolve(tmpdir(), 'va-prune-'));
+  return await realpath(await mkdtemp(resolve(tmpdir(), 'va-prune-')));
 }
 
 async function put(path: string, age: number, text = 'x'): Promise<string> {
@@ -38,7 +38,13 @@ async function date(path: string, age: number): Promise<void> {
   await utimes(path, when, when);
 }
 
+/** The marker a writer leaves in `layer`: both paths as seen from the cache directory, the one holding `test-selection`. */
 async function marker(layer: string, checkout: string, primary: string, age: number): Promise<void> {
+  const root = layer.slice(0, layer.lastIndexOf(`${sep}test-selection${sep}`));
+  await written(layer, relative(root, checkout), relative(root, primary), age);
+}
+
+async function written(layer: string, checkout: string, primary: string, age: number): Promise<void> {
   await put(join(layer, CHECKOUT_MARKER), age, JSON.stringify({ checkout, primary }));
   await date(layer, age);
 }
@@ -73,6 +79,31 @@ describe('planPrune', () => {
     expect(plan.remove[0]!.bytes).toBeGreaterThan(0);
   });
 
+  test('a marker names its checkout from the cache directory, so a cache inside a checkout that moved is asked about where it stands now', async () => {
+    const checkout = await cache();
+    const root = join(checkout, 'node_modules', '.cache', 'variance-authority');
+    const kept = join(root, 'test-selection', 'aaa');
+    const away = join(root, 'test-selection', 'bbb');
+    await written(kept, join('..', '..', '..'), join('..', '..', '..'), 90 * DAY);
+    await written(away, join('..', '..', '..', 'sibling'), join('..', '..', '..', 'sibling'), DAY);
+
+    const plan = await planPrune(root, owners({ exists: (path) => path === checkout }));
+
+    expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[away, 'gone']]);
+  });
+
+  test('a marker that names its checkout by an absolute path is asked about that path', async () => {
+    const root = await cache();
+    const gone = join(root, 'test-selection', 'aaa');
+    const here = join(root, 'test-selection', 'bbb');
+    await written(gone, '/gone', '/gone', DAY);
+    await written(here, '/here', '/here', 90 * DAY);
+
+    const plan = await planPrune(root, owners({ exists: (path) => path === '/here' }));
+
+    expect(plan.remove.map((entry) => [entry.path, entry.reason])).toEqual([[gone, 'gone']]);
+  });
+
   test('a layer naming no checkout is kept until nothing in it was written for 30 days', async () => {
     const root = await cache();
     const young = join(root, 'test-selection', 'young');
@@ -93,9 +124,9 @@ describe('planPrune', () => {
     const repository = join(root, 'test-selection', 'repo');
     await marker(repository, '/primary', '/primary', DAY);
     const work = join(repository, '.work');
-    const listed = join(work, checkoutKey('/primary/.claude/worktrees/kept'));
-    const unlisted = join(work, checkoutKey('/primary/.claude/worktrees/dropped'));
-    const fresh = join(work, checkoutKey('/primary/.claude/worktrees/new'));
+    const listed = join(work, checkoutKey('/primary/.claude/worktrees/kept', root));
+    const unlisted = join(work, checkoutKey('/primary/.claude/worktrees/dropped', root));
+    const fresh = join(work, checkoutKey('/primary/.claude/worktrees/new', root));
     for (const [layer, age] of [[listed, 5 * DAY], [unlisted, 5 * DAY], [fresh, DAY / 2]] as const) {
       await put(join(layer, 'coverage.bin'), age);
       await date(layer, age);

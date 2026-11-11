@@ -51,9 +51,9 @@ place by time, your mainline has to publish one:
    `<repository>/suites/<name>/coverage.bin` for a
    [declared suite](execution-record.md#one-record-for-each-suite), or
    `<repository>/coverage.bin` when you declare none. `<repository>` is a
-   digest of the checkout's absolute path, which is the same on every runner of
-   one workflow; a job that checks out to another path looks under another
-   name and finds nothing. Upload the `test-selection` directory whole, as
+   digest of the checkout's path as seen from the cache directory, which is the
+   same on every runner of one workflow; a job that keeps its cache somewhere
+   else relative to its checkout looks under another name and finds nothing. Upload the `test-selection` directory whole, as
    [a suite with no run report](sharing.md#a-suite-with-no-run-report) does.
 2. Publish them with `variance share --publish <records>`, to the
    [share](sharing.md), the store CI keeps each run's record in. It folds the

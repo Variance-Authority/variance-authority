@@ -384,7 +384,7 @@ tree:
 ```
 
 `<cache>` is [your cache](cache.md), and
-`<repository-digest>` is a digest of the checkout's absolute path, so two
+`<repository-digest>` is a digest of the checkout's path as seen from the cache directory, so two
 checkouts never write one another's records. The only files both write are the
 lock that lets [one checkout of a repository index at a time](source-index.md) and the file that
 names its holder. At the default location `git status`
@@ -399,9 +399,9 @@ A fresh runner has no record, so the first `--since` there runs everything. Two
 ways to give the next job something to read:
 
 - **Cache the directory.** Cache and restore the directory the snapshot sits in,
-  and restore it to the same absolute path it was written from — the digest in
-  the path is the checkout's absolute path, so a record restored under a
-  different working directory is read as absent. Key it by that path rather than
+  and restore it to the same place in the checkout it was written from — the
+  digest in the path is the checkout's path as seen from the cache directory, so
+  a record restored elsewhere in the checkout is read as absent. Key it by that path rather than
   by the branch or the commit; the contents are content-addressed, so a record
   restored from another branch costs a slower run and cannot produce a wrong
   answer. [The source index](source-index.md) states the same four rules for the

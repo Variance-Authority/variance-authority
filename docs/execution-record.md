@@ -30,7 +30,7 @@ you want the nearest snapshot a worktree can actually read:
 ```
 
 `<cache>` is [your cache](cache.md).
-`<repository-digest>` is a digest of the checkout's absolute path, so two
+`<repository-digest>` is a digest of the checkout's path as seen from the cache directory, so two
 checkouts never write one another's records. The only files both write are
 `.work/index-turn` and `.work/index-turn.holder`, the lock that lets
 [one checkout of a repository index at a time](source-index.md) and the file that names its

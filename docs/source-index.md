@@ -205,7 +205,7 @@ published records to the directories one question is about.
 ## Where it goes
 
 In [your cache](cache.md), in a directory named for a digest of the checkout's
-absolute path with links resolved:
+path as seen from the cache directory, with the links in both resolved:
 
 ```text
 <cache>/test-selection/<digest>/source-index.bin

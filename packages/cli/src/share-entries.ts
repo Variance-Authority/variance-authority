@@ -18,7 +18,7 @@
  *   finished record never consults it.
  *
  * Neither entry holds the digest that keys a local cache layer, because that
- * digest is of one machine's absolute path.
+ * digest is of where one machine keeps a checkout and its cache.
  *
  * Both are framed the same way: one ASCII line of JSON naming each part and its
  * length, then the parts end to end. A reader takes the parts it knows by name,
