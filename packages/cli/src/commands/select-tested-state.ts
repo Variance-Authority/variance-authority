@@ -189,7 +189,7 @@ function narrowed(state: Extract<TestedState, { kind: 'empty' | 'narrowed' }>, w
 }
 
 function ran(state: Extract<TestedState, { kind: 'ran' }>, without: SuiteReading): SuiteReading {
-  const skip = [...without.whole].sort(codeUnitOrder);
+  const skip = [...new Set([...without.reading.skip, ...without.whole])].sort(codeUnitOrder);
   const because = `skipping all ${many(skip.length, 'test file')}: HEAD's tree already ran them`;
   return skipping(without, skip, because, [`\`--tested ${state.tested}\` skips every test file: HEAD's tree is the tree ${state.at.slice(0, 12)} ran its selection on`]);
 }
