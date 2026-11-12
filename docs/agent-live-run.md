@@ -75,7 +75,7 @@ may, enters it first. On macOS and Linux:
   "mcpServers": {
     "variance-live": {
       "command": "sh",
-      "args": ["-c", "cd /path/to/repo && exec variance-authority-mcp --watch"]
+      "args": ["-c", "cd /path/to/repo && exec npx variance-authority-mcp --watch"]
     }
   }
 }

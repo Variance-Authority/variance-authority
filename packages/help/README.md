@@ -83,8 +83,8 @@ nothing published, so every answer comes from what the source exports.
 
 ## Ask one question
 
-The binary is `variance-authority-help`. Installed as a devDependency it is on
-the path under `npx`:
+The binary is `variance-authority-help`. Installed as a devDependency, it runs
+through your package manager:
 
 ```bash
 npm install --save-dev @variance-authority/help

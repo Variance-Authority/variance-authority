@@ -193,7 +193,7 @@ its publish step holds the token itself:
 ```yaml
       - env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
+        run: npx --no-install variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
 ```
 
 `share` hands that token to git for the remote on `GITHUB_SERVER_URL`'s host

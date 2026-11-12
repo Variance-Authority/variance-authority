@@ -303,7 +303,8 @@ publishes, and nothing writes the token to the clone. The count is written once,
 in the matrix. Every report names its shard as `k/n`, so a shard that never
 uploaded, a shard given twice, or shards cut two ways exit 2 naming which.
 `if: always()` keeps the merge running when a shard found a change and failed
-its own job.
+its own job. The merge job's install runs a pull request's own code with that
+`contents: write`; a pull request from a fork gets a read-only token.
 
 How the suite is split is in
 [sharding](https://variance-authority.dev/docs/sharding#split-stories-and-routes-the-same-way).
@@ -392,14 +393,21 @@ the branch a person asked about, so turn it on only for a run a person started:
 
 Any other run, such as a push or a dispatch on a tag, names no branch to push to,
 and the step exits 2 and says so. The job needs `contents: write`, and a token
-whose push starts a workflow if the commit should be checked again.
+whose push starts a workflow if the commit should be checked again. The token
+the checkout is given stays in the clone for that push, so it reaches every later
+step with the job's `contents: write`, the install and the build included: a pull
+request from a branch of this repository runs its own code with them, while a
+fork's pull request gets no secrets and a read-only token.
 
 ## Deleting a pull request's images
 
 `image-ref-prefix: refs/variance/project` puts the leading change's before and
 after on the comment's first screen. The action pushes them to
 `refs/variance/project/<project>/images/<head branch>`, which needs
-`contents: write`, and they outlive the branch unless a job deletes them when the
+`contents: write` in the job that runs the action. That write reaches every step
+of the job, the install and the build included: a pull request from a branch of
+this repository runs its own code with it, while a fork's pull request gets a
+read-only token. The images outlive the branch unless a job deletes them when the
 pull request closes, merged or not:
 
 ```yaml

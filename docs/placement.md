@@ -434,9 +434,12 @@ catch.
 
 To show the leading change's before and after on the comment's first screen as
 well, give the action `image-ref-prefix: refs/variance/project` and the job
-`contents: write`. The action pushes the pictures to a ref per project and branch,
-outside `refs/heads/`, and they stay there until a second workflow deletes them
-when the pull request closes, merged or not:
+`contents: write`. That write reaches every step of the job, the install and the
+build included: a pull request from a branch of this repository runs its own
+code with it, while a fork's pull request gets a read-only token. The action
+pushes the pictures to a ref per project and branch, outside `refs/heads/`, and
+they stay there until a second workflow deletes them when the pull request
+closes, merged or not:
 
 ```yaml
 name: variance images
@@ -588,6 +591,12 @@ and in the job's steps:
     exit-zero-on-changes: "${{ github.event_name == 'push' }}"
     to-accept: 'run the **variance** workflow on this branch with **accept** ticked'
 ```
+
+`contents: write` reaches every step of the job, the install and the build
+included, and so does the checkout's token, which stays in the clone for the
+action's push: `VARIANCE_PUSH_TOKEN` when it is set, whose push starts
+workflows. A pull request from a branch of this repository runs its own code
+with both, while a fork's pull request gets no secrets and a read-only token.
 
 The box accepts into the CI cache, so a committed store leaves `tick-to-accept`
 off.

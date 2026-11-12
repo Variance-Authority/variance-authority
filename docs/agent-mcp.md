@@ -64,7 +64,7 @@ repository, as Claude Desktop may, enters it first. On macOS and Linux:
   "mcpServers": {
     "variance": {
       "command": "sh",
-      "args": ["-c", "cd /path/to/repo && exec variance-authority-mcp .variance/report.json"]
+      "args": ["-c", "cd /path/to/repo && exec npx variance-authority-mcp .variance/report.json"]
     }
   }
 }
