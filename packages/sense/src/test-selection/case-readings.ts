@@ -11,7 +11,6 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import { linesOf, valueAt } from './case-lines.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex } from './execution-set-format.js';
-import { EMPTY } from './set-translation.js';
 import type { CoverageModule, CoverageTest, TestCoverage } from './index.js';
 
 /** Distinct readings kept per case, newest first. */
@@ -262,7 +261,6 @@ function readsOf(index: OpenedSetExecutionIndex, wanted: ReadonlySet<string>): M
   for (const [place, module] of index.modules.entries()) {
     for (const [block, region] of module.blocks.entries()) {
       const set = module.called[block]!;
-      if (set === EMPTY) continue;
       for (const row of index.sets.members(set)) {
         const read = rows.get(row);
         if (read === undefined) continue;
