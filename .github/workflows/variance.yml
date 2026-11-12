@@ -519,8 +519,9 @@ jobs:
 
       # What the site's job read and wrote, recorded under `site-job` from the
       # build to the last photograph, so selection can answer by what the job
-      # touched rather than by the list in `tools/site-reach.mjs`. Off a pull
-      # request only: a record is what `main` ran, and a pull request reads it.
+      # touched rather than by the list in `tools/site-reach.mjs`. On a
+      # dispatch only: a record is what a branch ran, and no check reads one
+      # yet, so a push to `main` does not pay 220 s to re-record it.
       #
       # The recorder is `variance` itself, which the job also builds, so the
       # first build above makes the recorder, a copy keeps it out of the way,
@@ -535,7 +536,7 @@ jobs:
       # a hole fails the verdict and no record is uploaded.
       - name: build again, recorded
         id: job
-        if: matrix.project == 'site' && github.event_name != 'pull_request'
+        if: matrix.project == 'site' && github.event_name == 'workflow_dispatch'
         shell: bash
         run: |
           set -euo pipefail
