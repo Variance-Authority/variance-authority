@@ -28,7 +28,7 @@ describe('CI chooses a suite run by recorded wall time', () => {
   it('runs a selection that fits the budget though a sharded whole run is predicted faster', () => {
     expect(suitePlan('unit', full, selected(230_000), budget)).toEqual([{ suite: 'unit', mode: 'selected', shard: '1/1' }]);
   });
-  it('keeps an empty selection in one job so its record is still handed on', () => {
+  it('starts an empty selection as the shard `1/1`, which passes with no files', () => {
     const none = { by: 'recorded', shards: 0, matrix: [], wall: 0, files: 0 };
     expect(suitePlan('unit', full, none, budget)).toEqual([{ suite: 'unit', mode: 'selected', shard: '1/1' }]);
   });

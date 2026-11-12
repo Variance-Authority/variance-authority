@@ -608,11 +608,12 @@ jobs:
       # receive` and `carry take` put it, and a record without a case index
       # cuts nothing.
       - name: keep the base record
+        id: base
         if: matrix.shard == null
         shell: bash
         env:
           SUITE: ${{ matrix.suite }}
-        run: node packages/cli/dist/bin.js share --suite "$SUITE"
+        run: node packages/cli/dist/bin.js share --suite "$SUITE" --format github >> "$GITHUB_OUTPUT"
 
       # A pull request runs its selection, in as many shards as `plan` counts
       # and one, `1/1`, when one job fits, unless no record prices it or the
