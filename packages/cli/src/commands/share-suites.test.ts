@@ -73,7 +73,7 @@ async function collectedEach(): Promise<string> {
 }
 
 describe('`variance share --publish <records>`', () => {
-  it("folds a suite's shards over the mainline's base and publishes the run they make whole", async () => {
+  it("lands a suite's shards and publishes the run they make whole", async () => {
     const { ci, origin, second } = await nextPush();
     await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
     await handedOn('variance-shard-unit-2', 'unit', 'test/other.test.ts', second);
@@ -85,6 +85,20 @@ describe('`variance share --publish <records>`', () => {
     expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
     expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).not.toBe(before);
     expect(testCoverageFile(ci, { suite: 'unit' })).toContain(join(home, 'publish-cache'));
+  });
+
+  it("publishes a whole run as its shards recorded it, keeping nothing only the mainline's record held", async () => {
+    const { ci, second } = await nextPush();
+    await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
+    const collected = join(home, 'collected-total.txt');
+    await writeFile(collected, 'test/total.test.ts\n');
+
+    const done = await suitesShare(ci, { suite: 'unit', publish: true, records: [join(home, 'ran')], collected }, { env: PUSH });
+
+    expect(done.exit).toBe(EXIT_CLEAN);
+    const record = testCoverageFile(ci, { suite: 'unit' });
+    expect((await readTestCoverage(record)).tests.map((test) => test.file)).toEqual(['test/total.test.ts']);
+    expect((await readCommitRuns(record))?.over).toBeUndefined();
   });
 
   it("lays a slice's record, already laid over the base in its job, as that job left it, and refuses it when the slice ran part of the suite", async () => {
@@ -243,7 +257,7 @@ describe('`variance share --publish <records>`', () => {
     const done = await suitesShare(ci, { publish: true, records: [join(home, 'ran')], collected: await collectedEach() }, { env: PUSH });
 
     expect(done.exit).toBe(EXIT_OPERATOR);
-    expect(done.lines).toContain('integration: nothing was handed on, so the base stands.');
+    expect(done.lines).toContain('integration: nothing was handed on, so nothing is published.');
     expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
     expect(done.lines.at(-1)).toBe('not published: integration.');
   });

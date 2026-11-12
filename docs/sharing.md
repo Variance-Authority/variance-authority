@@ -1136,10 +1136,12 @@ kept the record at 3f1c9a2… beside the latest.
 - **The artifact path is the [cache](cache.md)'s default location**, or
   `cacheRoot` when you set it. Each record in it sits at
   `suites/<name>/coverage.bin`, which says the suite it is of. The publish
-  takes the records as they were downloaded: it fetches the mainline's record
-  of each suite, lands the records over it as
+  takes the records as they were downloaded, lands them as
   [`variance journeys <shard>... --suite`](../packages/cli/README.md#sharding-journeys-takes-more-than-one-file-too)
-  does, and publishes the result. A suite's one record that its job laid over
+  does, and publishes the result: this run's record alone. Nothing of the
+  mainline's last record, or of a record an earlier run left in the publish
+  job's cache, is carried into it. The record holds one run; what earlier runs
+  found is in the line's history in git. A suite's one record that its job laid over
   a base, as its runs record says, is put in place as the job left it, so a test that
   only the base ran is not counted as run again. A test job split into
   [shards](sharding.md) uploads one artifact per shard, and the same step folds

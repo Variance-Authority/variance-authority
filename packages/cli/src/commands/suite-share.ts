@@ -22,7 +22,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, readFile, readdir, realpath } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, realpath, rm } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { publishLine } from '@variance-authority/core/share';
 import { instrumentationId } from '@variance-authority/sense/instrument';
@@ -56,8 +56,10 @@ export interface SuiteShareOptions {
    */
   readonly format?: 'text' | 'github';
   /**
-   * Records this suite's jobs handed on, folded over the base before the read
-   * is told or the publish writes: a sharded or sliced run made one again.
+   * Records this suite's jobs handed on: a sharded or sliced run made one
+   * again, folded over the base before the read is told, or before a
+   * `partial` publish writes. A publish of the whole suite lands them over
+   * nothing.
    */
   readonly records?: readonly string[];
 }
@@ -144,14 +146,20 @@ export interface SuiteShare {
  * The read lays the mainline's record into this checkout's own layer, where
  * the run it makes next lands on it, and says when the suite has no base to
  * run from. `records`, when given, are folded over that base, as `variance
- * journeys --suite` lands shards, before the read is told or the publish
- * writes; a publish given none publishes the record this checkout holds.
+ * journeys --suite` lands shards, before the read is told. A publish given
+ * `records` of the whole suite lands them over nothing (`wholeRun`), and one
+ * of part of it (`partial`) folds them over the base; a publish given none
+ * publishes the record this checkout holds.
  */
 export async function suiteShare(root: string, options: SuiteShareOptions, here: Here = {}): Promise<SuiteShare> {
   const selection = await import('@variance-authority/sense/test-selection');
   if (options.publish) {
-    const based = options.records === undefined ? undefined : await baseAndFold(root, options.suite, options.records, here);
-    const folded = based === undefined ? [] : [based.said, ...based.notices, ...based.landed];
+    const based = options.records === undefined
+      ? undefined
+      : options.partial === true
+        ? await baseAndFold(root, options.suite, options.records, here)
+        : { said: '', notices: [], landed: [await wholeRun(root, options.suite, options.records)] };
+    const folded = based === undefined ? [] : [...(based.said === '' ? [] : [based.said]), ...based.notices, ...based.landed];
     const share = rootShare(selection.rootConfig(root));
     const { done, mainline } = await publishOnLine(root, options.suite, here, options);
     const lines = [...folded, ...describePublish(share === undefined ? {} : { share }, done)];
@@ -245,6 +253,22 @@ async function laidAsLeft(root: string, suite: string, records: readonly string[
     if (beside) await copyFile(join(dirname(record), name), join(dirname(target), `${to}${name.slice(from!.length)}`));
   }
   return `${suite}: its record, laid over a base in its job, as that job left it.`;
+}
+
+/**
+ * `records`, a run of the whole suite, landed over nothing: the record it
+ * publishes is that run's alone. The suite's own layer is emptied first, so
+ * neither the mainline's record nor one an earlier run left here is carried
+ * forward; what earlier runs read is git's history and `history`'s, not the
+ * record's. A slice's record its job laid over a base is put in place as
+ * `laidAsLeft` says, and the publish refuses it unless every test it collects
+ * ran here.
+ */
+async function wholeRun(root: string, suite: string, records: readonly string[]): Promise<string> {
+  if (records.length === 0) return `${suite}: nothing was handed on, so nothing is published.`;
+  const selection = await import('@variance-authority/sense/test-selection');
+  await rm(dirname(selection.testCoverageFile(root, { suite })), { recursive: true, force: true });
+  return (await laidAsLeft(root, suite, records)) ?? (await landSuite(root, records, suite));
 }
 
 const noBase = (suite: string): string => `So ${suite} has no base: it runs whole, and its coverage is printed without a comparison.`;
