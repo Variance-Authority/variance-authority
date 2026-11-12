@@ -818,11 +818,15 @@ jobs:
       # --suite` lands shards, printing only the landing: nobody reads a whole
       # journal in a log. A slice, laid over a base in its job, is put in
       # place as the job left it. A slice nothing handed on keeps the base, and on a
-      # push the publish refuses it as recorded at another commit.
+      # push the publish refuses it as recorded at another commit. A shard that
+      # selected nothing hands nothing on, and when none handed anything the
+      # download makes no directory, so it is made here, empty.
       - name: fold the slices
         id: records
         shell: bash
-        run: node packages/cli/dist/bin.js share "$RUNNER_TEMP/ran"
+        run: |
+          mkdir -p "$RUNNER_TEMP/ran"
+          node packages/cli/dist/bin.js share "$RUNNER_TEMP/ran"
 
       # What the change did, read from what the suite just recorded: the edits,
       # the changed regions no case covered or only a distant test covered, the
