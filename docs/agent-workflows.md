@@ -16,10 +16,9 @@ exercises before keeping the change.
 ```bash
 npm install --save-dev @variance-authority/cli
 npx playwright install chromium
-variance ask
+npx --no-install variance ask
 ```
 
-The CLI installs as a devDependency, so every invocation is `variance`.
 `variance ask` with no question lists each question a finished run can be
 asked, the arguments it takes, and what it answers; it reads no configuration,
 so it works before any run exists. Producing the run those questions read is

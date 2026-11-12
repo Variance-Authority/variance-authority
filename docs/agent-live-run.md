@@ -45,7 +45,7 @@ From a shell, with the CLI installed as a devDependency:
 
 ```bash
 npm install --save-dev @variance-authority/cli
-variance watch
+npx --no-install variance watch
 ```
 
 From an MCP client, install the server and add it to the client's server list,
@@ -75,7 +75,7 @@ may, enters it first. On macOS and Linux:
   "mcpServers": {
     "variance-live": {
       "command": "sh",
-      "args": ["-c", "cd /path/to/repo && exec variance-authority-mcp --watch"]
+      "args": ["-c", "cd /path/to/repo && exec npx variance-authority-mcp --watch"]
     }
   }
 }

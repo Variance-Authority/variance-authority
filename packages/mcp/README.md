@@ -33,7 +33,7 @@ default, and nothing in this package produces it. It comes from the CLI:
 npm install --save-dev @variance-authority/cli
 npx playwright install chromium
 # write variance.config.json, then:
-variance run --config variance.config.json
+npx --no-install variance run --config variance.config.json
 ```
 
 `variance run` writes the report at the path the config's `report` key names,

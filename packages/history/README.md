@@ -192,7 +192,7 @@ npm install --save-dev @variance-authority/server
 VARIANCE_HISTORY_TOKEN=$(node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))") \
 VARIANCE_HISTORY_DB=/srv/variance/history.db \
 VARIANCE_HISTORY_PORT=7788 \
-variance-authority-server
+npx --no-install variance-authority-server
 ```
 
 The bearer token is the one you generate here and nothing else: the service has

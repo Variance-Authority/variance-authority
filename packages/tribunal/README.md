@@ -169,7 +169,7 @@ The package ships the deployable Worker, its review page and its migrations.
 
 ```bash
 npm install @variance-authority/tribunal wrangler
-variance-authority-tribunal-provision --config wrangler.jsonc
+npx --no-install variance-authority-tribunal-provision --config wrangler.jsonc
 ```
 
 When `wrangler.jsonc` is absent the command writes it, named for the repository:

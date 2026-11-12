@@ -13,8 +13,8 @@ through `npx`:
 
 ```bash
 npm install --save-dev @variance-authority/cli
-variance run --config variance.config.json
-variance accept --config variance.config.json cart/empty
+npx --no-install variance run --config variance.config.json
+npx --no-install variance accept --config variance.config.json cart/empty
 ```
 
 Start with the harness that already gets the app into that state

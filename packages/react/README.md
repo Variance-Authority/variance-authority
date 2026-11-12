@@ -47,7 +47,7 @@ required.
 React itself is never imported, so there is no version to match — what matters
 is the expando `react-dom` writes on every host node it creates:
 `__reactFiber$` on React 17 and later, `__reactInternalInstance$` on React 16.
-The suite runs against React 19.2.8. Where a React version changes an answer
+This package's own tests run against React 19. Where a React version changes an answer
 rather than the reading — source locations, chiefly — this page says so.
 
 ## Read one node

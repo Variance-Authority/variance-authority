@@ -39,7 +39,7 @@ one.
 npm install --save-dev @variance-authority/sense
 ```
 
-Node 22.15 or newer. Vitest (`^2.1.9 || ^3.0.0 || ^4.0.0 || ^5.0.0`) and Jest
+Node 22.15 or newer. Vitest (`^4.1.0 || ^5.0.0`) and Jest
 (`^30.0.0`, with the `@jest/globals` and `jest-circus` it installs) are
 optional peer dependencies: install the runner whose seam you use, and your own
 copy is the one that runs. Under an older Jest, a
@@ -2719,7 +2719,7 @@ same under every host:
 
 | import | Use it for | Requires |
 |---|---|---|
-| `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^2.1.9` and product tests |
+| `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^4.1.0 \|\| ^5.0.0` and product tests |
 | `@variance-authority/sense/jest` | the same around the transformer your project already uses | Jest 30 and product tests |
 | `@variance-authority/sense/jest-transform`, `/jest-globals`, `/jest-setup`, `/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
 | `@variance-authority/sense/precondition` | `variancePrecondition`, to record the state the running case ran under | nothing; a call outside a recording does nothing |

@@ -24,7 +24,7 @@ npm install --save-dev @variance-authority/cli
 
 ```yaml
 - run: npx playwright install --with-deps chromium
-- run: variance run --config variance.config.json
+- run: npx --no-install variance run --config variance.config.json
 ```
 
 `variance run` exits `0` when nothing needs review, `1` when it found

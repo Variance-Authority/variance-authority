@@ -174,7 +174,7 @@ jobs:
             variance-${{ runner.os }}-${{ runner.arch }}-
       - run: |
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            variance index
+            npx --no-install variance index
             export VARIANCE_AUTHORITY_SINCE=
           fi
           npx vitest run

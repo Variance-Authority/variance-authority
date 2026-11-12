@@ -130,7 +130,7 @@ jobs:
         with:
           fetch-depth: 0
       - run: npm ci
-      - run: variance carry hand "$RUNNER_TEMP/base"
+      - run: npx --no-install variance carry hand "$RUNNER_TEMP/base"
       - uses: actions/upload-artifact@v7
         with:
           name: variance-base
@@ -154,7 +154,7 @@ jobs:
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
-      - run: variance carry receive "$RUNNER_TEMP/base"
+      - run: npx --no-install variance carry receive "$RUNNER_TEMP/base"
       - run: npx vitest run --shard ${{ matrix.shard }}
 ```
 
@@ -298,14 +298,14 @@ jobs:
       - id: count
         run: |
           set -o pipefail
-          variance carry hand "$RUNNER_TEMP/base"
+          npx --no-install variance carry hand "$RUNNER_TEMP/base"
           npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
           since=()
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            variance index
+            npx --no-install variance index
             since=(--since origin/main --collected "$RUNNER_TEMP/collected.txt")
           fi
-          shards=$(variance shards --suite unit --setup 90 --workers 8 "${since[@]}" --format json | jq -c .matrix)
+          shards=$(npx --no-install variance shards --suite unit --setup 90 --workers 8 "${since[@]}" --format json | jq -c .matrix)
           echo "shards=$shards" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
@@ -331,10 +331,10 @@ jobs:
         with:
           name: variance-base
           path: ${{ runner.temp }}/base
-      - run: variance carry receive "$RUNNER_TEMP/base"
+      - run: npx --no-install variance carry receive "$RUNNER_TEMP/base"
       - run: |
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            variance index
+            npx --no-install variance index
             export VARIANCE_AUTHORITY_SINCE=
           fi
           npx vitest run --shard ${{ matrix.shard }}
@@ -407,9 +407,9 @@ shard takes work from another. A shard finishes last for one of four reasons:
 browser ([your first run](start.md) sets one up). `variance run --shard k/n`
 places them by the same rule: each
 story file, and each route with all its widths, goes to one job, by the time it
-took on the mainline's last run. A last job merges the shards' reports, fails
-any story no shard observed, and publishes the times the next build splits by.
-With [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
+took on the mainline's last run. A last job merges the shards' reports and fails
+any story no shard observed, and on a push it publishes the times the next build
+splits by. With [`Variance-Authority/action`](https://github.com/Variance-Authority/action)
 that is the matrix job and one merge step:
 
 ```yaml
@@ -438,11 +438,27 @@ jobs:
             ${{ steps.variance.outputs.images }}
   merge:
     needs: shard
-    if: ${{ always() }}
+    if: ${{ always() && github.event_name != 'push' }}
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read # this job runs the pull request's code
+      pull-requests: write # the comment
+    steps:
+      # check out and install
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: variance-shard-*
+          path: shards
+      - uses: Variance-Authority/action@v1
+        with:
+          reports: shards/*/report.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+  publish:
+    needs: shard
+    if: ${{ always() && github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the times the next build splits by
     steps:
       # check out and install
       - uses: actions/download-artifact@v8
@@ -455,10 +471,15 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-The count is written once, in the matrix: every report names its shard as
-`k/n`, and the merge step exits 2, naming which, when a shard is missing or the
-shards were cut two ways. `if: always()` is what lets the suite be judged when a
-shard found a change and failed its own job.
+The merge is two jobs with the same steps, because a job's permissions cannot
+depend on the event. On a pull request, `merge` runs the pull request's code
+with a token that can write the comment but not the repository: it posts the
+docket, and its publish is refused, which the step prints without failing. On a
+push, `publish` runs the mainline's code and writes the times. The count is
+written once, in the matrix: every report names its shard as `k/n`, and the
+merge step exits 2, naming which, when a shard is missing or the shards were cut
+two ways. `always()` is what lets the suite be judged when a shard found a
+change and failed its own job.
 [A sharded build](sharing.md#a-sharded-build) covers what the publish writes, and
 [Sharding: `report` takes more than one file](../packages/cli/README.md#sharding-report-takes-more-than-one-file)
 covers the merge itself.

@@ -88,8 +88,8 @@ the path under `npx`:
 
 ```bash
 npm install --save-dev @variance-authority/help
-variance-authority-help search viewport
-variance-authority-help search viewport --from packages/app/ --just-answer
+npx --no-install variance-authority-help search viewport
+npx --no-install variance-authority-help search viewport --from packages/app/ --just-answer
 ```
 
 The verbs each take the same arguments as the tool of the same name below:
@@ -384,7 +384,7 @@ With no verb, the binary speaks the protocol on stdio:
 
 ```bash
 npm install --save-dev @variance-authority/help
-variance-authority-help .
+npx --no-install variance-authority-help .
 ```
 
 ```json
@@ -416,7 +416,7 @@ person:
 
 ```bash
 npm install --save-dev @variance-authority/help
-variance-authority-help write . --out docs/api
+npx --no-install variance-authority-help write . --out docs/api
 ```
 
 Four files, and the command prints each with its size:

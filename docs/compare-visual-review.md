@@ -372,12 +372,15 @@ renderer capacity, and the pager on your team. It does not provide a managed
 browser fleet, hosted reviewer accounts, a support SLA, contractual data
 residency, or vendor-operated retention.
 
-**What you are installing.** Every package is MIT-licensed, published to npm
-under the `@variance-authority` scope, and the licence grants use, modification
-and redistribution, including commercially. They share a single version line —
-`0.2.0` across the CLI, the collectors, the Playwright package and the review
-service — so the pieces change together and a half-upgraded install is not a
-state you can arrive in. The repository and these pages are the support.
+**What you are installing.** Every `@variance-authority` package is
+MIT-licensed and published to npm under that scope, and the licence grants use,
+modification and redistribution, including commercially. Their dependencies keep
+their own licences: the CLI installs [`sharp`](native-code.md), which is
+Apache-2.0 and brings a prebuilt libvips under LGPL-3.0-or-later. The packages
+publish together under one version number, so the CLI, the collectors and the
+Playwright package change together. A review service you deploy stays at the
+version you deployed, and `variance push` says which side is older when the
+difference matters. The repository and these pages are the support.
 
 That ownership is also where data placement is decided. Remote rendering and
 storage use operator-supplied endpoints. Portable documents may cross that
