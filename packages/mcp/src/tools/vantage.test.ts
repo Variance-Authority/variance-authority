@@ -39,10 +39,12 @@ function test(over: Partial<WatchedTest> = {}): WatchedTest {
 }
 
 const ADDRESS = 'http://127.0.0.1:53411';
+const NOTHING_RAN: VantageState['ran'] = { executions: [], forgotten: 0, common: [], lost: 0 };
 
 const RUNNING: VantageState = {
   address: ADDRESS,
   forgotten: 0,
+  ran: NOTHING_RAN,
   tests: [
     test({
       id: 'passed-one',
@@ -68,6 +70,7 @@ describe('variance_run_signals', () => {
       expect.objectContaining({ name: 'variance_run_signals' }),
       expect.objectContaining({ name: 'variance_waiting' }),
       expect.objectContaining({ name: 'variance_test_signals' }),
+      expect.objectContaining({ name: 'variance_ran' }),
       expect.objectContaining({ name: 'variance_diff' }),
     ]);
   });
@@ -82,7 +85,7 @@ describe('variance_run_signals', () => {
   it('says what to set when nothing has reported, and says the address itself', () => {
     // The empty answer decides whether this is ever used: a reader told only
     // "no tests" concludes the suite has none, or that the tool is broken.
-    const text = runSignals.run({ address: ADDRESS, tests: [], forgotten: 0 }, {});
+    const text = runSignals.run({ address: ADDRESS, tests: [], forgotten: 0, ran: NOTHING_RAN }, {});
     expect(text).toContain(`VARIANCE_AUTHORITY_VANTAGE=${ADDRESS}`);
     expect(text).toContain('takes no screenshot');
   });
@@ -231,7 +234,7 @@ describe('the handshake', () => {
     // The failure this prevents is the whole capability going unused. A tool
     // list describes tools; it cannot say that this one needs a run started a
     // particular way, and the address is on stderr where no model reads it.
-    const state: VantageState = { address: 'http://127.0.0.1:54321', tests: [], forgotten: 0 };
+    const state: VantageState = { address: 'http://127.0.0.1:54321', tests: [], forgotten: 0, ran: NOTHING_RAN };
 
     const answer = handle(initialize, () => state, VANTAGE);
 
@@ -267,10 +270,22 @@ describe('variance_self', () => {
   it('distinguishes a watcher nothing has reported to from a suite with no tests', () => {
     // The two are indistinguishable from any other answer, and they need opposite
     // things done about them: start the suite, or start it with the variable set.
-    const text = self.run({ address: ADDRESS, tests: [], forgotten: 0 }, {});
+    const text = self.run({ address: ADDRESS, tests: [], forgotten: 0, ran: NOTHING_RAN }, {});
 
     expect(text).toContain(ADDRESS);
     expect(text).not.toContain('Watching 0 test(s)');
+  });
+
+  it('counts the executions an application reported, where no test has', () => {
+    const execution = { id: 'request-0', ordinal: 0, open: false, heads: [] };
+    const text = self.run(
+      { address: ADDRESS, tests: [], forgotten: 0, ran: { ...NOTHING_RAN, executions: [execution] } },
+      {},
+    );
+
+    expect(text).not.toContain('Nothing has reported');
+    expect(text).toContain('1 execution(s) of an application used by hand');
+    expect(text).toContain('variance_ran');
   });
 
   it('admits what it dropped, rather than reporting a shorter run', () => {

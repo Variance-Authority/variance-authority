@@ -12,6 +12,7 @@ import {
   type JsonRpcRequest,
 } from './framing.js';
 import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
+import { cutFor } from './tools/cut.js';
 import type { Served } from './tools/tool.js';
 import type { Tree } from './tools/tree.js';
 
@@ -158,9 +159,12 @@ export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Su
       const asked = askedTool(request);
       const answer = async (subject: Subject, unseen?: string) => {
         const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
+        const tool = options.served.tools.find((one) => one.name === asked);
+        const modules = await cutFor(tool, subject, askedInput(request) ?? {}, options.root);
         return answering(request, () => subject, options.served, {
           ...(previous === undefined ? {} : { previous }),
           ...(tree === undefined ? {} : { tree }),
+          ...(modules === undefined ? {} : { modules }),
           ...(options.root === undefined ? {} : { root: options.root }),
           ...(unseen === undefined ? {} : { unseen }),
         });

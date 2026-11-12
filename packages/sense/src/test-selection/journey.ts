@@ -67,9 +67,15 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { channelFrom, JOURNEY_COOKIE, type Channel } from '@variance-authority/wire';
+import {
+  channelFrom,
+  channelTo,
+  JOURNEY_COOKIE,
+  WATCHER_VARIABLE,
+  type Channel,
+} from '@variance-authority/wire';
 import { INSTRUMENTATION_ID } from '../instrument/identity.js';
-import type { ModuleId } from '../instrument/index.js';
+import { commonCrossings } from './journey-common.js';
 import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 import probeLists from '../instrument/probe-lists.cjs';
@@ -179,6 +185,14 @@ export interface JourneyCollectorOptions {
    * A trace carries an id and no way home, so this writes {@link parts}.
    */
   readonly trace?: JourneyTrace;
+  /**
+   * Where a watcher listens: the address `variance watch` prints. Defaults to
+   * {@link WATCHER_VARIABLE}. Set, it enables the head, and a request that
+   * carries no way home is reported there as an execution of its own, so an
+   * application used by hand says what each request entered. A request a case
+   * drove still answers that case, and a watcher hears nothing of it.
+   */
+  readonly watcher?: string;
 }
 
 /** A head's participation in a run, or its cheap absence. */
@@ -259,7 +273,8 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   const head = options.head ?? process.env[JOURNEY_HEAD_VARIABLE] ?? 'head';
   const parts = options.parts ?? process.env[JOURNEY_PARTS_VARIABLE];
   if (parts !== undefined && options.enabled !== false) return writeParts(head, parts, journeyOf, options.trace);
-  const enabled = options.enabled ?? process.env[JOURNEY_VARIABLE] !== undefined;
+  const watcher = options.watcher ?? process.env[WATCHER_VARIABLE];
+  const enabled = options.enabled ?? (watcher !== undefined || process.env[JOURNEY_VARIABLE] !== undefined);
   if (enabled && options.trace !== undefined) throw new Error(untraceable(options.trace));
   if (!enabled) {
     return {
@@ -277,6 +292,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   let lost = 0;
   const depth = new Map<string, number>();
   const previous = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
+  const { keep, since } = commonCrossings(HOMES);
 
   // One bucket per journey, and the root asks the store on every probe, which
   // is what lets two concurrent requests each keep their own. See
@@ -357,45 +373,9 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     });
   };
 
-  // Every subject's crossings, in the order the process first made them, and
-  // how far along that list each driver has been told. A driver that first
-  // hears from this head late — a second worker, or a run against a server an
-  // earlier run started — is told everything before it, which it depends on
-  // and would otherwise never see.
-  const common = new Map<ModuleId, Set<number>>();
-  const kept: (readonly [ModuleId, number])[] = [];
-  const told = new Map<string, number>();
-
-  const keep = (modules: readonly ExecutedModule[], of: (module: ExecutedModule) => readonly number[]): void => {
-    for (const module of modules) {
-      let ordinals = common.get(module.id);
-      for (const ordinal of of(module)) {
-        if (ordinals === undefined) common.set(module.id, (ordinals = new Set()));
-        if (ordinals.has(ordinal)) continue;
-        ordinals.add(ordinal);
-        kept.push([module.id, ordinal]);
-      }
-    }
-  };
-
   const catchUp = (over: Channel): void => {
-    const from = told.get(over.home) ?? 0;
-    if (from === kept.length) return;
-    told.delete(over.home);
-    told.set(over.home, kept.length);
-    if (told.size > HOMES) told.delete(told.keys().next().value!);
-    const since = new Map<ModuleId, number[]>();
-    for (const [id, ordinal] of kept.slice(from)) {
-      const ordinals = since.get(id);
-      if (ordinals === undefined) since.set(id, [ordinal]);
-      else ordinals.push(ordinal);
-    }
-    send(over, {
-      scope: 'process',
-      modules: [...since]
-        .map(([id, hits]) => ({ id, hits: hits.sort((left, right) => left - right), shared: [] }))
-        .sort((left, right) => codeUnitOrder(left.id, right.id)),
-    });
+    const modules = since(over.home);
+    if (modules !== undefined) send(over, { scope: 'process', modules });
   };
 
   const release = (journey: string): void => {
@@ -463,7 +443,12 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     collecting: true,
     head,
     enter: <Result,>(carried: string | undefined, body: () => Result): Result => {
-      const channel = channelFrom(carried);
+      const driven = channelFrom(carried);
+      // Nobody drove it, so it is its own execution, unless it already runs inside one.
+      const channel =
+        driven?.journey !== undefined || watcher === undefined || store.getStore() !== undefined
+          ? driven
+          : channelTo(watcher, mintJourney());
       const journey = channel?.journey;
       if (channel === undefined || journey === undefined) return body();
       // Most recent last, so the one forgotten first is the one released longest ago.

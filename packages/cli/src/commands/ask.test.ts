@@ -354,6 +354,7 @@ const RUNNING: VantageState = {
     },
   ],
   forgotten: 0,
+  ran: { executions: [], forgotten: 0, common: [], lost: 0 },
 };
 
 function about(question: string, reading: VantageReading, rest: Record<string, unknown> = {}) {

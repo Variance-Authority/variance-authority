@@ -86,6 +86,49 @@ export interface WatchedTest {
   readonly error?: string;
 }
 
+/** One module an execution entered, by the name its build gave it: `path@digest`. */
+export interface EnteredModule {
+  readonly id: string;
+  /** The ordinals of the regions entered, ascending, as the module's own build numbered them. */
+  readonly entered: readonly number[];
+}
+
+/** What one head — one process of the application — entered. */
+export interface HeadRan {
+  readonly head: string;
+  /** Which build of the probes numbered the regions, so a reader numbers them the same way. */
+  readonly instrumentation: string;
+  /** In the order each was first entered. */
+  readonly modules: readonly EnteredModule[];
+}
+
+/** One request nobody drove, and the code it entered in every head it reached. */
+export interface WatchedExecution {
+  /** The id its head reported it under. */
+  readonly id: string;
+  /** Arrival order in this vantage, from 0. */
+  readonly ordinal: number;
+  /** Whether a head still holds a scope open for it, so more may arrive. */
+  readonly open: boolean;
+  readonly heads: readonly HeadRan[];
+}
+
+/** What the heads of an application used by hand reported. */
+export interface WatchedRan {
+  /** Newest last, which is the order they arrived in. */
+  readonly executions: readonly WatchedExecution[];
+  /** Executions dropped from the front of {@link executions} to stay bounded. */
+  readonly forgotten: number;
+  /**
+   * What each process entered outside any execution, or while a module
+   * evaluated: every execution's, so it is held once and not under whichever
+   * request happened to be first.
+   */
+  readonly common: readonly HeadRan[];
+  /** Accounts the heads said they could not deliver. */
+  readonly lost: number;
+}
+
 /** A run, as it stood the moment somebody asked. */
 export interface VantageState {
   /**
@@ -97,4 +140,6 @@ export interface VantageState {
   readonly tests: readonly WatchedTest[];
   /** Tests dropped from the front of {@link tests} to stay bounded. */
   readonly forgotten: number;
+  /** What an application's heads reported of requests no test drove. */
+  readonly ran: WatchedRan;
 }

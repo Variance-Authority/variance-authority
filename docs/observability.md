@@ -284,7 +284,9 @@ export function handled(cookie, run) {
 
 `collectJourneys` takes its name from `VARIANCE_AUTHORITY_HEAD` and turns itself
 on from `VARIANCE_AUTHORITY_JOURNEYS`, so that `env` block is the whole of the
-configuration on the service side. With neither set, it installs nothing and
+configuration on the service side. A watcher's address in
+`VARIANCE_AUTHORITY_VANTAGE` turns it on too, for [an application you use by
+hand](vantage.md#watch-an-application-you-use-by-hand). With none of them set, it installs nothing and
 `enter` is the identity function — which is why the call above ships to
 production rather than sitting behind a build flag. Each module the head
 reports names its file and the digest of the text its probes were placed on, and

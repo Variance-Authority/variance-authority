@@ -5,8 +5,13 @@ than it should. [Variance Authority](README.md) can show you what that
 test has heard, and from whom, while it is still in flight rather than after
 teardown has thrown all of it away.
 
-This page covers a different half of the same problem: what a Playwright suite
-reports while it is still running. Read it when a test hangs, when you want to
+No suite, and an application you click through by hand? The same watcher lists
+the code each of your requests ran: go to [watch an application you use by
+hand](#watch-an-application-you-use-by-hand), which needs nothing else on this
+page.
+
+The rest of this page covers what a Playwright suite reports while it is still
+running. Read it when a test hangs, when you want to
 see which work a test started and never finished, or when you want to stop a
 test and look at the browser it left open. New here? Start with [your first
 run](start.md).
@@ -144,13 +149,118 @@ One watcher keeps:
 - the 200 newest tests
 - per test, the 500 newest announcements
 - per test, the 100 newest notes
+- the 200 newest executions of an application used by hand
 
 Past those, entries drop from the front and are counted in `forgotten` and
 `forgottenNotes`, so an empty list is never mistaken for a beginning that was
-dropped.
+dropped. Dropped executions are counted in the answer that lists the rest.
 
 `pending` is exact regardless: what is bounded is the list of announcements, not
 the tally of work that opened and never closed.
+
+## Watch an application you use by hand
+
+You click through a service running on your machine, then ask which code
+answered. The watcher lists each request you made as its own **execution**,
+with the functions and branches that request ran. This is the answer after two
+requests to a pricing service:
+
+```bash
+variance ask ran --at http://127.0.0.1:53393
+```
+
+```
+2 execution(s) at http://127.0.0.1:53393.
+
+  b4128c59-ac7c-45d3-abdd-882e39f0e906
+  head pricing
+      cases/journey-tracing-case/src/pricing.mjs:1 module
+      cases/journey-tracing-case/src/pricing.mjs:6 quote entry
+      cases/journey-tracing-case/src/pricing.mjs:7 quote if#0/then
+
+  8f7fffec-33b8-4205-978f-ee5209482314
+  head pricing
+      cases/journey-tracing-case/src/pricing.mjs:1 module
+      cases/journey-tracing-case/src/pricing.mjs:6 quote entry
+      cases/journey-tracing-case/src/pricing.mjs:10 quote if#0/else
+      cases/journey-tracing-case/src/pricing.mjs:11 quote if#0/after
+
+Ran outside any request, or while a module loaded, and so listed under none of them:
+  head pricing
+      cases/journey-tracing-case/src/pricing.mjs:1 module
+```
+
+Each execution is one request, oldest first, so the request you just made is
+the last one. `head pricing` is the process that ran it, under the name that
+process chose. Each line below it is a **region** the request ran: a file, a
+line, the function declared there, and the branch inside it. Both requests ran
+`quote`, and each took a different side of its first `if`. What the process ran
+before any request arrived is listed once, at the end.
+
+Three steps get you that answer. Start the watcher in its own terminal; it
+prints the address the other two steps use:
+
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/sense
+variance watch
+```
+
+```
+  VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393
+```
+
+Build the application with the probes on. A probe is a counter the build puts
+at the start of each function and each branch, which is how a request can say
+what it ran. Under Vite that is one plugin, and it needs no test to exist;
+[the build change](observability.md#journeys-the-flag-and-the-build-change)
+has the Rspack and webpack form:
+
+```ts
+// vite.config.ts
+import { testSelectionProbes } from '@variance-authority/sense/journal';
+
+export default {
+  plugins: [testSelectionProbes()],
+};
+```
+
+Run the request handler inside `enter`, and start the process with the address
+the watcher printed. `enter` is what makes one request one execution. It reads
+the request's cookie to tell a request a test drove from one you made, and
+`head` is the name this process is listed under:
+
+```ts
+import { createServer } from 'node:http';
+import { collectJourneys } from '@variance-authority/sense/journey';
+
+const journeys = collectJourneys({ head: 'pricing' });
+
+createServer((request, response) => {
+  journeys.enter(request.headers.cookie, () => handle(request, response));
+}).listen(3000);
+```
+
+```bash
+VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 node dist/server.js
+```
+
+Use the application, then run `variance ask ran` from the repository it was
+built from. Rebuild after you edit a file: a file changed since the build is
+listed with a count of its regions and no names, because the names are read
+from your checkout and would no longer match what ran.
+
+Three limits keep the listing honest:
+
+- A request a test drove is reported to that test's run, and is not listed here.
+- Code that runs in the browser is not listed. Only a process that calls
+  `collectJourneys` reports.
+- An application started without the variable reports nothing, so the `enter`
+  call stays in place in production.
+
+`--name <function>`, `--file <path>` and `--limit <n>` narrow the listing.
+The agent skill
+[installed with the CLI](agent-workspace-api.md#finding-your-way-in-the-code)
+has each of them, and what to do about a region that was not named.
 
 ## Reading it from an agent
 
@@ -159,8 +269,9 @@ the tally of work that opened and never closed.
 for an agent, and answers from the same snapshot: `variance_run_signals` lists
 tests in opening order and marks the one still running, `variance_test_signals`
 reads one test's announcements, the realm that sent each, and its unclosed work,
-`variance_waiting` lists the tests that have stopped, and `variance_diff` answers
-what changed since the preceding call.
+`variance_waiting` lists the tests that have stopped, `variance_ran` lists what an
+application used by hand ran, and `variance_diff` answers what changed since the
+preceding call.
 The workflow is in [inspect a live run](agent-live-run.md).
 
 ## Stop a test where you want to look at it

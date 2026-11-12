@@ -110,6 +110,7 @@ Start with identity, then narrow to the test:
 | Which tests opened, and which is still running? | `variance ask run-signals` | `variance_run_signals` |
 | What did one test announce, in order? | `variance ask test-signals --test <id>` | `variance_test_signals` |
 | What arrived since the previous reading? | `variance ask diff` | `variance_diff` |
+| What did the application run for each request I made by hand? | `variance ask ran` | `variance_ran` |
 | Which tests have stopped for me to look at them? | — | `variance_waiting` |
 | Let a stopped test go on. | — | `variance_continue` |
 

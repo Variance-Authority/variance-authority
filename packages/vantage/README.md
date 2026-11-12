@@ -476,11 +476,12 @@ over stdio for an agent, and answers from the same snapshot:
 | `variance_run_signals` | every test that has reported, its state, and how much each has announced |
 | `variance_test_signals` | one test's announcements in order, the realm that sent each, and its unclosed work |
 | `variance_waiting` | which tests have stopped, where, and what they sent from there |
+| `variance_ran` | what an application used by hand ran, one execution per request no test drove |
 | `variance_diff` | what changed between this reading and the one before it |
 | `variance_continue` | let one stopped test go on, or all of them |
 
 `variance ask` answers all but the last from a shell — `self`,
-`run-signals`, `test-signals`, `waiting`, `diff` — against a watcher named with
+`run-signals`, `test-signals`, `waiting`, `ran`, `diff` — against a watcher named with
 `--at <address>`. `variance_continue` has no `ask` equivalent, for the reason
 above.
 

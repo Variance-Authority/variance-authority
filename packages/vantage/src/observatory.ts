@@ -28,6 +28,7 @@
  */
 
 import type { RecordedEvent } from '@variance-authority/event/collect';
+import { createExecutions, type HeadAccount } from './executions.js';
 import type { VantageReport } from './report.js';
 import type { Note, TestState, VantageState, WatchedTest } from './state.js';
 
@@ -43,12 +44,16 @@ export interface ObservatoryOptions {
   readonly heard?: number;
   /** How many notes to keep per test. Defaults to 100, newest kept. */
   readonly notes?: number;
+  /** How many executions a head reported to keep. Defaults to 200, newest kept. */
+  readonly executions?: number;
 }
 
 /** A watcher's memory of a run. */
 export interface Observatory {
   /** Take one thing a run said about one test. */
   readonly took: (test: string, report: VantageReport) => void;
+  /** Take one account a head sent about one execution no test drove. */
+  readonly ran: (execution: string, account: HeadAccount) => void;
   /** The run as it stands now, as plain values that will not change again. */
   readonly snapshot: () => VantageState;
   /**
@@ -111,6 +116,7 @@ export function createObservatory(options: ObservatoryOptions = {}): Observatory
   const keptTests = options.tests ?? 200;
   const keptHeard = options.heard ?? 500;
   const keptNotes = options.notes ?? 100;
+  const executions = createExecutions(options.executions ?? 200);
   const held = new Map<string, Held>();
   let opened = 0;
   let forgotten = 0;
@@ -232,7 +238,9 @@ export function createObservatory(options: ObservatoryOptions = {}): Observatory
       ...(options.address === undefined ? {} : { address: options.address }),
       tests: [...held].map(([id, one]) => watched(id, one)),
       forgotten,
+      ran: executions.snapshot(),
     }),
+    ran: executions.took,
   };
 }
 

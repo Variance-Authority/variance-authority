@@ -27,6 +27,13 @@ announce, what opened and never closed, the remarks, and the address reports
 arrive on, so a reader with nothing to show can name what to set rather than
 leaving somebody to guess it is broken.
 
+In as well: an application used by hand. A head started with the watcher's
+address reports each request no test drove as one execution, with the regions
+it ran as ordinals, and what its process ran outside every request apart from
+all of them. Out: those executions in arrival order, bounded and counted as the
+tests are. A reader names the ordinals from the checkout; the watcher holds no
+source and names nothing.
+
 The signals are not collected for this. A worker already knows which test is
 running, which realms answered it, what opened and never closed, and how it
 ended; all of it is spent settling waits and printing failures and then
@@ -81,6 +88,8 @@ unusable once rather than per report. `packages/vantage/src/attach.ts` —
 `attachVantage`, the only half that opens a socket.
 `packages/vantage/src/report.ts` — the four sentences and the version guard.
 `packages/vantage/src/state.ts` — the snapshot handed to readers.
+`packages/vantage/src/executions.ts` — the executions an application used by
+hand reported, and their bound.
 `packages/playwright-test/src/vantage.ts` — the automatic lifecycle fixture.
 
 ## Diagram

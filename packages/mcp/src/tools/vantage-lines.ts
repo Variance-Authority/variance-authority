@@ -96,4 +96,5 @@ export function unattached(state: VantageState): string {
   return ['Nothing has reported to this vantage yet.', '', attaching(state)].join('\n');
 }
 
-const VARIABLE = 'VARIANCE_AUTHORITY_VANTAGE';
+/** The variable a run, or an application, reads this watcher's address from. */
+export const VARIABLE = 'VARIANCE_AUTHORITY_VANTAGE';

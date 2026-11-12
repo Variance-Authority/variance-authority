@@ -36,6 +36,7 @@ variance ask run-signals  --at "$VARIANCE_AUTHORITY_VANTAGE"  # tests in opening
 variance ask waiting      --at "$VARIANCE_AUTHORITY_VANTAGE"  # tests stopped at variance.observe()
 variance ask test-signals --at "$VARIANCE_AUTHORITY_VANTAGE" --test <id>
 variance ask diff         --at "$VARIANCE_AUTHORITY_VANTAGE"  # what changed since the last reading
+variance ask ran          --at "$VARIANCE_AUTHORITY_VANTAGE"  # what an application used by hand ran
 ```
 
 ## Ask `self` first
@@ -56,6 +57,46 @@ A suite reporting to a different address and a suite that never started look
 the same to every other question, and both look like a quiet run. An empty
 announcement list for a listed test is a wiring or application signal. It is
 not permission to reconstruct a trace from source.
+
+## Ask what an application ran
+
+`ran` is about an application somebody uses by hand, not a suite. The
+application reports when its build placed the probes, its request handler runs
+inside `collectJourneys().enter` from `@variance-authority/sense/journey`, and
+it was started with the same `VARIANCE_AUTHORITY_VANTAGE` assignment. Each
+request no test drove is one execution.
+
+```bash
+variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE"
+variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE" --name quote --limit 1
+variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE" --file src/pricing.mjs
+```
+
+| Flag | Narrows to |
+|---|---|
+| `--name <name>` | executions that ran a region of that name: a declaration, or one segment of `Cart/render` |
+| `--file <path>` | executions that ran code in that file, as a path from the repository root |
+| `--limit <n>` | the `n` most recent; 20 by default |
+
+Executions are listed oldest first, so the request just made is the last one.
+`▸` marks one a process still holds open. Each region is `file:line name`,
+followed by its branch. What a process ran outside every request, or while a
+module loaded, is listed once after them.
+
+A region arrives as a number and is named from the checkout `ask` runs in, so
+ask from the repository the application was built from. A module whose regions
+cannot be named is counted, with the reason:
+
+| Reason | What to do |
+|---|---|
+| the file has changed since the application was built | rebuild the application, then repeat the request |
+| the file is not in this checkout | ask from the repository the application was built from |
+| numbered by an instrumentation this build does not read | install the CLI version the application was built with |
+| its build placed no probe in it | nothing; the module is known only to have loaded |
+
+A request a test drove answers that test's run and is not listed. The watcher
+keeps the 200 newest executions and the answer counts what it dropped. Never
+fill a missing execution in from source.
 
 ## Nothing is written down
 

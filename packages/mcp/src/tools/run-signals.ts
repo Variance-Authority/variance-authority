@@ -131,7 +131,7 @@ function stateArg(input: Readonly<Record<string, unknown>>): TestState | undefin
  * one, the argument is taken as that name already, because resolving it against
  * this process's working directory would be guessing at a root nobody named.
  */
-function fileArg(input: Readonly<Record<string, unknown>>, root: string | undefined): string | undefined {
+export function fileArg(input: Readonly<Record<string, unknown>>, root: string | undefined): string | undefined {
   const value = input['file'];
   if (value === undefined) return undefined;
   if (typeof value !== 'string' || value === '') {

@@ -19,6 +19,7 @@ import { decisions } from './tools/decisions.js';
 import { distillTool, observability } from './tools/observability.js';
 import { presentations, type PresentationEvidence } from './tools/presentations.js';
 import { scenarios, type ScenarioEvidence } from './tools/scenarios.js';
+import { ran } from './tools/ran.js';
 import { runSignals } from './tools/run-signals.js';
 import { self } from './tools/self.js';
 import { testSignals } from './tools/test-signals.js';
@@ -128,6 +129,9 @@ export type { StateDifference };
 // server over another subject writes tools against the same interface, and the
 // first thing any tool does with a model's argument is refuse it or narrow it.
 export { NO_ARGS, stringArg };
+// A host's half of a tool that names regions: the modules it asked for, cut from the checkout.
+export { cutFor } from './tools/cut.js';
+export type { CutModule, CutModules, CutRegion } from './tools/tool.js';
 export { notObservedSentence } from './tools/subject.js';
 // A long part of an answer, capped and counted the same way in every server.
 export { cappedRows } from './tools/capped.js';
@@ -162,6 +166,7 @@ export const VANTAGE_TOOLS = [
   runSignals,
   waiting,
   testSignals,
+  ran,
   diff as Tool<VantageState>,
 ] as const;
 
@@ -292,6 +297,14 @@ function lift<Subject>(
     description: tool.description,
     inputSchema: tool.inputSchema,
     ...(tool.wants === undefined ? {} : { wants: tool.wants }),
+    ...(tool.cuts === undefined
+      ? {}
+      : {
+          cuts: (subject: ObservabilitySubject, input: Readonly<Record<string, unknown>>) => {
+            const evidence = read(subject);
+            return evidence === undefined ? new Map<string, readonly string[]>() : tool.cuts!(evidence, input);
+          },
+        }),
     run(subject, input, invocation) {
       const evidence = read(subject);
       if (evidence === undefined) {
