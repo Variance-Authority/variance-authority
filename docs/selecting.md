@@ -209,60 +209,6 @@ with. `take` prints the path of the mainline's cases: the record it set aside,
 or the share's. `variance review --against` that path compares your change's
 cases with the mainline's, not with the last push's.
 
-## A pull request in the merge queue
-
-A merge queue tests a pull request again on top of the mainline it will land
-on. Both sides already passed: the pull request at its tested commit, the
-mainline at its tip. A test file only one side's change reaches ran on that
-side's tree with the other side's change out of its reach, so the queue need
-not run it again. A test file both sides reach is where the two changes meet,
-and it runs:
-
-```bash
-variance select --since origin/main --tested "$PR_HEAD_SHA"   # the pull request's last commit, whose checks passed
-```
-
-```text
-one pull request, tested at 3f2a9c1e0b7d, meets the mainline at 8e41d07a5c22, so 2 test files only one side reaches are skipped
-test/cart.test.ts: only the pull request reaches it; `--tested` names its tree 3f2a9c1e0b7d as tested
-test/total.test.ts: only the mainline reaches it; `--since` names its tree 8e41d07a5c22 as tested
-```
-
-Nothing checks that either run passed: the skip rests on your word. `--tested`
-must name the commit whose run of the suite passed, and `--since` the mainline
-commit the queue merges onto, whose run passed too — never the base of a queue
-that stacks one group on another, which no run tested.
-
-A side reaches a test through the record's lines, and through the imports HEAD
-holds, since the record predates the pull request's own. A lockfile or
-`package.json` change on either side runs every test it reaches, whatever the
-other side did. When the two sides reach no test in common, no test file runs,
-and the report says so.
-
-The narrowing holds only for a group of one: HEAD's tree must be exactly the
-clean merge of the tested commit onto `--since`, by a merge commit or a squash,
-from one merge base, with nothing changed or added on top of it. Anything else
-— a group of two, a pull request pushed past its tested commit, a merge
-resolved by hand, a criss-cross history, a working tree that differs from HEAD,
-untracked files included — selects as without `--tested`. So does a side whose
-change alone selects the whole suite, touches a file the record holds nothing
-about or cannot place, such as a runner config no `before` names, or reaches a
-file whose imports HEAD's graph cannot all read, such as a name built at run
-time or a module the other side deleted; and so does a git or a record that
-cannot answer, or a [source index](source-index.md) that cannot be brought up
-to HEAD, whose graph may lack the import where the two sides meet. So does a
-side that changes a file the merge holds under another path, because the
-other side renamed it. A note names the reason. When
-the selection without `--tested` reads no record, or already runs every test
-file, `--tested` does nothing, and a note says so. These are among the
-[places selection widens](#where-selection-widens).
-
-A file a test reads at run time without importing it, such as a fixture or a
-snapshot, reaches only the tests a
-[`/// <depends>`](#where-sourcedirs-starts-the-answer) names. Undeclared, a
-change to it on one side reaches no test, and `--tested` skips what the other
-side reaches, as the selection without it does.
-
 ## What a change to a module's top level runs
 
 A line at a module's top level sits in no function, so by its lines alone it is

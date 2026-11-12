@@ -154,7 +154,7 @@ ids are the safe default after initial setup.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
-variance select  [--since <ref> [--tested <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest] [--no-git]
+variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
@@ -2471,18 +2471,6 @@ numbers are coordinates in that commit's text. `--since <ref>` names a base only
 for a journal recorded outside a checkout, which names no commit of its own.
 No `variance.config.json` is read, so a repository that uses this tool for
 nothing else can still ask.
-
-#### Selecting a merge queue's group of one
-
-`--tested <commit>` names the commit whose run a pull request passed at, which
-a merge queue merged onto `--since`, the mainline commit whose run passed too;
-nothing checks either run, so name only commits that passed. A test file only one side's change reaches is
-skipped, a file both reach runs, and a lockfile change on either side runs what
-it reaches. Each skip is named with the side that ran it. Anything but a HEAD
-whose tree is the clean merge of that one pull request, by a merge commit or a
-squash, selects as without `--tested`, with a note saying why;
-[a pull request in the merge queue](https://variance-authority.dev/docs/selecting#a-pull-request-in-the-merge-queue)
-walks through it.
 
 #### Selecting from a journey file
 
