@@ -1004,9 +1004,8 @@ jobs:
     # `check`, so the wait adds nothing to the gate's time. It runs on `main`,
     # not on a pull request: its finding is about the whole slice in one
     # process, which no change's selection holds, and nothing gates on it, so a
-    # pull request paid a runner for about six minutes to learn what its unit
-    # `suite` legs had already said. In 60 pull request runs it was red 8 times,
-    # each beside a red unit `suite` of the same change (#1266).
+    # pull request paid a runner to learn what its unit `suite` legs had
+    # already said.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: rules
     runs-on: ubuntu-24.04
