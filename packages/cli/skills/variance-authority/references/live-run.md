@@ -26,9 +26,9 @@ It holds the run in memory and writes nothing down. Stop it and the run is gone.
 
 `watch` reads no config and can be started in any directory. Start the suite
 with that exact assignment in its environment; an address added after the suite
-started belongs to the next run. Then ask from any shell that can connect to it
-and that has a `variance.config.json` or a `--config <path>`: `ask` loads a
-config for these questions too, and never reads it.
+started belongs to the next run. Then ask from any shell that can connect to
+it. A question only the watcher answers reads no config; `diff` also reads a
+finished run, and needs a `variance.config.json` or a `--config <path>`.
 
 ```bash
 variance ask self         --at "$VARIANCE_AUTHORITY_VANTAGE"  # where it listens, what it has

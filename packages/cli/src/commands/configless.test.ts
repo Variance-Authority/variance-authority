@@ -30,4 +30,10 @@ describe('an answer that needs no config', () => {
   it('lists the questions `ask` answers, for `ask` with no question', async () => {
     expect(await answer(['ask'])).toEqual({ code: EXIT_CLEAN, out: questions(), err: '' });
   });
+
+  it('asks a watcher what only a watcher answers, where no project was ever configured', async () => {
+    const { err } = await answer(['ask', 'ran']);
+    expect(err).toContain('needs a watcher to ask');
+    expect(err).not.toContain('variance.config.json');
+  });
 });

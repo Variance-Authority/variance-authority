@@ -60,8 +60,8 @@ variance ask run-signals --at http://127.0.0.1:53393
 variance ask test-signals --test f8a1c2d3e4b5 --at http://127.0.0.1:53393
 ```
 
-`variance ask` reads `variance.config.json` from the working directory before
-it answers, so run it from your project root. With
+A question only the watcher answers reads no `variance.config.json`; `diff`
+also reads a finished run, so ask it from your project root. With
 `VARIANCE_AUTHORITY_VANTAGE` unset, `varianceFixtures` costs one environment read
 per worker and reports nothing, so the fixtures stay in place in CI.
 
@@ -226,8 +226,9 @@ export default {
 
 Run the request handler inside `enter`, and start the process with the address
 the watcher printed. `enter` is what makes one request one execution. It reads
-the request's cookie to tell a request a test drove from one you made, and
-`head` is the name this process is listed under:
+the request's cookie only to recognise a request a test drove; you set no
+cookie, and a request without one is yours. `head` is the name this process is
+listed under:
 
 ```ts
 import { createServer } from 'node:http';
@@ -245,7 +246,7 @@ VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 node dist/server.js
 ```
 
 Use the application, then run `variance ask ran` from the repository it was
-built from. Rebuild after you edit a file: a file changed since the build is
+built from. It needs no `variance.config.json`. Rebuild after you edit a file: a file changed since the build is
 listed with a count of its regions and no names, because the names are read
 from your checkout and would no longer match what ran.
 
@@ -259,7 +260,7 @@ Three limits keep the listing honest:
 
 `--name <function>`, `--file <path>` and `--limit <n>` narrow the listing.
 The agent skill
-[installed with the CLI](agent-workspace-api.md#finding-your-way-in-the-code)
+[installed with the CLI](agent-workspace-api.md)
 has each of them, and what to do about a region that was not named.
 
 ## Reading it from an agent

@@ -178,8 +178,8 @@ function unreported(state: VantageState): string {
   return [
     'No request has reported to this watcher yet.',
     '',
-    'An application reports here when it is built with the probes on, calls ' +
-      '`collectJourneys()` from `@variance-authority/sense/journey` where it starts, ' +
+    'An application reports here when it is built with the probes on, runs its request ' +
+      'handler inside `collectJourneys().enter` from `@variance-authority/sense/journey`, ' +
       'and is started with this in its environment:',
     '',
     `  ${VARIABLE}=${address}`,

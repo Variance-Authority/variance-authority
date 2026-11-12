@@ -110,8 +110,9 @@ costs one environment read per worker and reports nothing.
 variance ask run-signals --at http://127.0.0.1:53393
 ```
 
-`variance ask` reads `variance.config.json` from the working directory before
-it answers anything, live questions included, so run it from your project root.
+A question only the watcher answers reads no `variance.config.json`, so it can
+be asked from any directory. `diff` also reads a finished run, so ask it from
+your project root.
 
 ### What you get
 
