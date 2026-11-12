@@ -1,9 +1,8 @@
 # Spec 0101 — the deployer decides who the tribunal recognizes
 
-**Missing:** a way for a deployment to say who it recognizes, and a way to
-recognize a machine without a shared secret. So every consumer mints a
-token, a person carries it into a CI secret store, and a pull
-request that needs the tribunal waits until that person has done it.
+**Missing:** no code; the table at the end names where each piece is on `main`.
+Left are the chart lines that still name `grant`, two secrets or a header
+replacement, and the ADRs that retire this file, which have their own issue.
 **Built on:** the capability split
 ([ADR-0022](../context/adr/0022-deciding-is-not-writing.md)); the packaged
 Worker's `grant` in `packages/tribunal/src/worker-auth.ts`; the `authorize` hook
@@ -352,49 +351,23 @@ there is nothing to provision and the step disappears.
 
 | Area | Today | Missing |
 |---|---|---|
-| Handler seam | The mount substitutes `INGEST_TOKEN` or `REVIEW_TOKEN`, and `createTribunal` requires both. | The handler takes the policy's principal: a capability and a name. |
-| GitHub Actions | Nothing. | An instance of that verifier: discovery, the five checks, the log line on refusal. |
-| Client | A string, or `{ "env": … }`, read when the request is made for `review` and `share` and at parse time for `history` and `baselines`; synchronous either way. | `{ "github-actions": { "audience": … } }`, fetched asynchronously and refreshed near expiry. |
-| Decision name | `by` is whatever the decision or concern body says. | `by` written from the verified identity. |
-| Review token | Accepted from outside as a reviewer on every deployment. | Gone. |
-| Loopback | Implicit on any loopback bind, with a reviewer named by `VARIANCE_TRIBUNAL_REVIEWER` or the OS user. | Declared as `loopback`. |
-| Provisioning | `wrangler secret put`, typed by a person. | One command: the GitHub App, the declarations and the first deploy. `token`, when declared, is generated and handed to one destination. |
+| Handler seam | `createTribunal` asks `TribunalOptions.policy` for a principal: a capability and a name. | Nothing. |
+| GitHub Actions | `githubActions` on `createIssuer`: discovery, the five checks, a logged refusal. | Nothing. |
+| Client | A string, `{ "env": … }` or `{ "github-actions": { "audience": … } }` on every token field, the last fetched when sent and again near expiry. | Nothing. |
+| Decision name | `attributed` writes `by` from the principal and refuses another name. | Nothing. |
+| Review token | Logged when set, and never read. | Nothing. |
+| Loopback | Declared as `loopback`, only on a loopback bind; the reviewer is `VARIANCE_TRIBUNAL_REVIEWER` or the OS user. | Nothing. |
+| Provisioning | `provision` registers the App, declares `github-actions` and `github`, and deploys; a declared `token` is minted into the Worker and the repository's secrets. | Nothing. |
 
 ## What would discharge it
 
-1. **Move the Access verifier into `@variance-authority/tribunal`** as the one
-   issuer verifier, with the unknown-`kid` refetch. It is the refactor the rest
-   stands on.
-2. **Build the policy from the declaration.** One function reads the two
-   variables and the mechanisms' values, refuses missing or undeclared
-   configuration by name, and answers a principal. `createTribunal` takes it in
-   place of the two tokens; Node passes it as its `authorize` and hands its
-   principal to the handler; the packaged Worker uses it in place
-   of `grant`. Each ships declaring what the table above says. `authorize` stays
-   a hook: the declared policy is what the shipped deployments pass to it, not a
-   default the package applies.
-3. **Add `github-actions`** as a second instance of the verifier, with a test against a locally signed
-   token and a recorded discovery document: each of the five checks refused on
-   its own, routing by `iss`, and an undeclared kind refused.
-4. **Add the client form**, with a test that a missing
-   `ACTIONS_ID_TOKEN_REQUEST_URL` fails before any request and names the
-   permission.
-5. **Write `by` from the principal** on decisions and concerns, and refuse a
-   body that disagrees.
-6. **Retire the review token** on both deployments, scripted approval
-   included.
-7. **Provisioning**: register the App, declare `github` and `github-actions`, and
-   deploy. Under `token`, generate the ingest token and hand it to one destination.
-8. **Update the charts.** The capability chart's responsibility says it decides
-   "which of a deployment's secrets a caller presented", and its boundary that it
-   "ships no default policy for a hosted mount"; the review context's README and
-   `VIEWPORTS.md` repeat the two-secrets wording. With `github-actions` it
-   decides which declared credential a caller presented, and one of them is not
-   a secret. Its "Depends on: Nothing" changes too: an issuer verifier fetches
-   keys. The deployment-adapters chart's mount stops replacing the incoming
-   authorization with a token and passes the principal. The identity chart's
-   boundary does not change.
-9. **Write the ADRs** — trust is deployment configuration; machines never review —
+Everything in the table above is on `main`. What remains:
+
+1. **Update the charts.** `grant` and `refuseWeakTokens`, which `main` no longer
+   has, are still named by the capability chart, the review-router diagram and
+   `VIEWPORTS.md`; those and the decision chart still speak of two secrets or an
+   implied token, and the deployment-adapters chart of a header replacement.
+2. **Write the ADRs** — trust is deployment configuration; machines never review —
    mark ADR-0022 and ADR-0087 as amended by them, update
    [`checkpoint.md`](../context/checkpoint.md), and delete this file.
 
