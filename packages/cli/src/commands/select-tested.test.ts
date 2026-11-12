@@ -187,7 +187,7 @@ describe('`variance select --tested` in a merge queue', () => {
     expect(here.err).toContain(`\`--tested ${elsewhere}\` selects as without it: HEAD is not ${queue.base.slice(0, 12)} with one pull request merged onto it`);
   });
 
-  it('selects as without `--tested` when the tested commit is HEAD', async () => {
+  it('skips every test file when HEAD holds the tree the tested commit ran on', async () => {
     const queue = await queued(home(), {
       base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
       prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
@@ -195,12 +195,11 @@ describe('`variance select --tested` in a merge queue', () => {
     });
     const head = await git(queue.dir, 'rev-parse', 'HEAD');
 
-    const whole = await selected(queue.dir, queue.base);
     const here = await selected(queue.dir, queue.base, head);
 
-    // HEAD holds the mainline, so nothing ran apart from it.
-    expect(here.out).toBe(whole.out);
-    expect(here.err).toContain(`\`--tested ${head}\` selects as without it: ${queue.base.slice(0, 12)} and ${head.slice(0, 12)} are one line of history, so no merge joined them`);
+    // A pull request up to date with the mainline: the queue's merge is its tree, whose selection already ran.
+    expect(here.out).toBe('test/other.test.ts\ntest/total.test.ts\n');
+    expect(here.err).toContain(`\`--tested ${head}\` skips every test file: HEAD's tree is the tree ${head.slice(0, 12)} ran its selection on`);
   });
 
   it('selects as without `--tested` for a group of two pull requests', async () => {
@@ -256,12 +255,16 @@ describe('`variance select --tested` in a merge queue', () => {
       prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
       recordAt: 'fork',
     });
-    // Each side merges the other's first commit: a criss-cross, whose fork is neither commit alone.
+    // Each side merges the other's first commit, then changes a file of its own: a criss-cross, whose fork is neither commit alone, merged to a tree neither side ran.
     await git(queue.dir, 'checkout', '--quiet', '-b', 'pull', queue.tested);
     await git(queue.dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', queue.base);
+    await writeFile(join(queue.dir, 'src/other.ts'), OTHER.replace('+ 1', '+ 3'));
+    await git(queue.dir, ...DEV, 'commit', '--quiet', '-am', 'pull moves on');
     const tested = await git(queue.dir, 'rev-parse', 'HEAD');
     await git(queue.dir, 'checkout', '--quiet', '-b', 'mainline', queue.base);
     await git(queue.dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', queue.tested);
+    await writeFile(join(queue.dir, 'src/total.ts'), TOTAL.replace('0.9', '0.7'));
+    await git(queue.dir, ...DEV, 'commit', '--quiet', '-am', 'mainline moves on');
     const mainline = await git(queue.dir, 'rev-parse', 'HEAD');
     await git(queue.dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', tested);
 

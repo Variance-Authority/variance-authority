@@ -13,7 +13,8 @@
  * tree, a side that alone selects every test, a read that failed, an input
  * the state did not ask for — lands on `widened`, which selects as
  * without `--tested`. Only `merged` narrows, and only by adding to the
- * skip list. The answer is read from the final state alone; an open state
+ * skip list, save `ran`: HEAD's clean tree is the tree a named commit ran its
+ * selection on, so nothing is left to run on it. The answer is read from the final state alone; an open state
  * answers as without `--tested`, and `declined` says it did nothing.
  */
 
@@ -37,6 +38,7 @@ export interface Reach {
 /** What git says HEAD is, against `--since` and `--tested`. */
 export type MergeAnswer =
   | { readonly is: 'known'; readonly merge: Merge }
+  | { readonly is: 'ran'; readonly at: string }
   | { readonly is: 'apart'; readonly why: string }
   | { readonly is: 'dirty' }
   | { readonly is: 'unknown'; readonly why: string };
@@ -63,6 +65,7 @@ export type TestedState =
   | { readonly kind: 'declined'; readonly tested: string; readonly why: string }
   | { readonly kind: 'widened'; readonly tested: string; readonly why: string }
   | { readonly kind: 'kept'; readonly tested: string; readonly merge: Merge; readonly runs: number }
+  | { readonly kind: 'ran'; readonly tested: string; readonly at: string }
   | { readonly kind: 'narrowed' | 'empty'; readonly tested: string; readonly merge: Merge; readonly dropped: readonly Dropped[] };
 
 /** The machine before anything is read: `tested` is the commit as asked. */
@@ -95,6 +98,7 @@ export function transition(state: TestedState, input: TestedInput): TestedState 
     case 'empty':
     case 'kept':
     case 'narrowed':
+    case 'ran':
     case 'widened':
       return state;
     default:
@@ -107,6 +111,8 @@ function fromMerge(state: Extract<TestedState, { kind: 'selecting' }>, answer: M
   switch (answer.is) {
     case 'known':
       return { kind: 'merged', tested, runs, merge: answer.merge };
+    case 'ran':
+      return { kind: 'ran', tested, at: answer.at };
     case 'apart':
     case 'unknown':
       return { kind: 'widened', tested, why: answer.why };
@@ -133,8 +139,8 @@ function fromSides(state: Extract<TestedState, { kind: 'merged' }>, pull: SideAn
 
 /**
  * The selection a state answers, built on `without`, the selection without
- * `--tested`. Every state but `narrowed` and `empty` skips what `without`
- * skips.
+ * `--tested`. Every state but `narrowed`, `empty` and `ran` skips what
+ * `without` skips.
  */
 export function selectionOf(state: TestedState, without: SuiteReading): SuiteReading {
   const as = (why: string) => withNotes(without, [`\`--tested ${state.tested}\` selects as without it: ${why}`]);
@@ -156,6 +162,8 @@ export function selectionOf(state: TestedState, without: SuiteReading): SuiteRea
     case 'empty':
     case 'narrowed':
       return narrowed(state, without);
+    case 'ran':
+      return ran(state, without);
     default:
       return unreachable(state);
   }
@@ -177,7 +185,18 @@ function narrowed(state: Extract<TestedState, { kind: 'empty' | 'narrowed' }>, w
   const because =
     `skipping ${many(skip.length, 'test file')}: ${without.reading.skip.length} the selection skips without \`--tested\`, ` +
     `and ${dropped.length} only one side of the merge reaches; every other test file runs`;
-  const reading = { ...without.reading, skip, because, notes: [...notes, ...without.reading.notes] };
+  return skipping(without, skip, because, notes);
+}
+
+function ran(state: Extract<TestedState, { kind: 'ran' }>, without: SuiteReading): SuiteReading {
+  const skip = [...without.whole].sort(codeUnitOrder);
+  const because = `skipping all ${many(skip.length, 'test file')}: HEAD's tree already ran them`;
+  return skipping(without, skip, because, [`\`--tested ${state.tested}\` skips every test file: HEAD's tree is the tree ${state.at.slice(0, 12)} ran its selection on`]);
+}
+
+/** `without`, skipping `skip` for `because`, with `notes` ahead of its own. */
+function skipping(without: SuiteReading, skip: readonly string[], because: string, notes: readonly string[]): SuiteReading {
+  const reading = { ...without.reading, skip: [...skip], because, notes: [...notes, ...without.reading.notes] };
   return { ...without, skip: new Set(skip), notes: reading.notes, reading };
 }
 
