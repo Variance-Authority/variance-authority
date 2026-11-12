@@ -80,7 +80,7 @@ export interface ProvisionRequest {
   readonly rotate: boolean;
   /** Where the deployment serves the API, when not at the root: `/api`. */
   readonly mount?: string;
-  /** Leave publishing to a deployment with its own build, such as a Next.js app that mounts the routes. */
+  /** Leave publishing to a deployment with its own build. */
   readonly skipDeploy?: boolean;
 }
 

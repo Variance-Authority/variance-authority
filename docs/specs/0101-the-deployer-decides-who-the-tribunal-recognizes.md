@@ -1,7 +1,9 @@
 # Spec 0101 — the deployer decides who the tribunal recognizes
 
 **Missing:** a way for a deployment to say who it recognizes, and a way to
-recognize a machine without a shared secret.
+recognize a machine without a shared secret. So every consumer mints a
+token, a person carries it into a CI secret store, and a pull
+request that needs the tribunal waits until that person has done it.
 **Built on:** the capability split
 ([ADR-0022](../context/adr/0022-deciding-is-not-writing.md)); the packaged
 Worker's `grant` in `packages/tribunal/src/worker-auth.ts`; the `authorize` hook
