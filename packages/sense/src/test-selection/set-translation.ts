@@ -1,7 +1,7 @@
 import { CrossingSets, type CrossingSetsPool, type SetId } from './crossing-sets.js';
 import type { CrossingSetsView } from './crossing-sets-read.js';
 
-/** The first set a pool interns is the empty one, and every translation starts it that way. */
+/** The empty set's id in a translation's pool, which interns it first. A pool another writer laid, such as a native fold, may give this id to any set. */
 export const EMPTY = 0;
 
 /**
