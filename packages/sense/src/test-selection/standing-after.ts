@@ -16,7 +16,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CommitRuns, RecordedTests, StandingEntry } from './commit-runs.js';
 import { installKey } from './kept-install.js';
-import { partlyIn } from './landings.js';
+import { partlyIn, partOf } from './landings.js';
 
 /**
  * Where each test the snapshot held before this run last ran, this run's own
@@ -72,10 +72,7 @@ export function standingAfter(
   const pending = new Set(unobserved);
   return [...stands].flatMap(([at, entry]) => {
     const files = [...new Set(grouped.get(at))].sort(codeUnitOrder);
-    const ran = [...(partly.get(at) ?? [])].sort(([one], [other]) => codeUnitOrder(one, other));
-    // The cases a stand names are known for every file it ran in part, or none.
-    const cases = ran.every(([, ids]) => ids !== undefined) ? { cases: Object.fromEntries(ran) as Record<string, readonly string[]> } : {};
-    const part = partlyIn({ partly: ran.map(([file]) => file), ...cases }, (file) => pending.has(file));
+    const part = partlyIn(partOf(partly.get(at) ?? new Map()), (file) => pending.has(file));
     if (files.length === 0 && part.partly === undefined) return [];
     return [{ ...entry, files, ...part }];
   });
