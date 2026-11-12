@@ -3635,6 +3635,7 @@
         "TestSelectionRule": "interface",
         "TestSelectionRuleOptions": "interface",
         "afterHook": "function",
+        "claimPageSource": "function",
         "closeStage": "function",
         "createSubjectRecorder": "function",
         "drainExecution": "function",

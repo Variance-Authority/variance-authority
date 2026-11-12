@@ -147,7 +147,7 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
       // Each in a scope of its own, as a module has: a probed file declares what it reports through.
       modules.map(([name, source]) => `<script>(() => {${probed(root, name, source)}\n})();</script>`).join('') +
       '</head><body><a id="away" href="/plain">away</a></body></html>';
-    const pages: Record<string, string> = { '/': shop, '/wide': wide, '/plain': '<!doctype html><title>plain</title>' };
+    const pages: Record<string, string> = { '/': shop, '/wide': wide, '/plain': '<!doctype html><title>plain</title><a id="home" href="/">home</a>' };
 
     /** The execution each request to a handler arrived under, in the order they arrived. */
     const asked: string[] = [];
@@ -272,24 +272,27 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
       vantage!.observatory.snapshot().ran.executions.flatMap((one) => one.heads).filter((one) => one.head === 'page').length;
     const drained = async (): Promise<string[]> => ((await drainExecution(page!))?.modules ?? []).map((module) => module.id);
 
+    /** The page's own moment to send, made to happen: it sends as it starts to leave, and nothing here leaves. */
+    const prompted = (): Promise<void> => page!.evaluate(() => void window.dispatchEvent(new Event('beforeunload')));
+
     // A driver that comes to a page already reporting, as a helper attached after the suite navigated: its first drain claims it.
-    await page!.goto(`http://127.0.0.1:${port}/`);
+    await page!.click('#home');
     await expect.poll(journeyOf).not.toBe('');
     await drainExecution(page!);
     const before = told();
     await page!.click('#ask');
     await expect.poll(() => page!.textContent('#out')).toBe('quote: 42');
-    // Longer than the page waits between sends: what the click ran is still the driver's to take.
-    await page!.waitForTimeout(1200);
+    await prompted();
     expect(await drained()).toEqual([expect.stringContaining('shop.js')]);
     expect(told()).toBe(before);
     expect(await journeyOf()).toBe('');
 
     // A driver there before the page, in a run that names no head and so leaves no cookie.
     await page!.context().addInitScript(claimPageSource());
-    await page!.reload();
+    await page!.click('#next');
+    await page!.waitForURL('**/next');
     await expect.poll(() => page!.textContent('#out')).toBe('ready');
-    await page!.waitForTimeout(1200);
+    await prompted();
     expect(await journeyOf()).toBe('');
     expect(await drained()).toEqual([expect.stringContaining('shop.js')]);
     expect(told()).toBe(before);
