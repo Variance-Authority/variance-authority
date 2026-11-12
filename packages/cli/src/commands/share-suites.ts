@@ -100,16 +100,20 @@ async function sharedSuites(root: string, options: SuitesShareOptions, here: Her
   if (suites.length === 0) throw new OperatorError('the root variance.config.json gives no suite to the share: name one with `"carry": "share"`');
   const records = options.records.length === 0 ? undefined : await recordsOf(root, options.records, options.suite, shared, selection.cachedSuite);
   const collected = options.collected === undefined ? undefined : await collectedOf(root, options.collected, suites);
-  if (options.suite !== undefined) return suiteShare(root, suiteOptions(options.suite, options, records, collected, partial), here);
+  // A suite the queue ran none of has no record at this commit to publish.
+  const ranNone = (suite: string) => partial && (records?.get(suite) ?? []).length === 0;
+  if (options.suite !== undefined) {
+    if (ranNone(options.suite)) return { lines: [ranNoneOf(options.suite)], exit: EXIT_CLEAN };
+    return suiteShare(root, suiteOptions(options.suite, options, records, collected, partial), here);
+  }
 
   const lines: string[] = [];
   const notes: string[] = [];
   const refused: string[] = [];
   const keyed = options.format === 'github';
   for (const suite of suites) {
-    // A suite the queue ran none of has no record at this commit to publish.
-    if (partial && (records?.get(suite) ?? []).length === 0) {
-      (keyed ? notes : lines).push(`${suite}: the merge queue ran none of it; the whole run at this commit publishes its record.`);
+    if (ranNone(suite)) {
+      (keyed ? notes : lines).push(ranNoneOf(suite));
       continue;
     }
     try {
@@ -125,6 +129,10 @@ async function sharedSuites(root: string, options: SuitesShareOptions, here: Her
   }
   if (refused.length > 0) (keyed ? notes : lines).push(`${options.publish ? 'not published' : 'not read'}: ${refused.join(', ')}.`);
   return { lines, ...(keyed ? { notes } : {}), exit: refused.length > 0 ? EXIT_OPERATOR : EXIT_CLEAN };
+}
+
+function ranNoneOf(suite: string): string {
+  return `${suite}: the merge queue ran none of it; the whole run at this commit publishes its record.`;
 }
 
 function suiteOptions(

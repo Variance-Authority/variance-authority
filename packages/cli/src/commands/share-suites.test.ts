@@ -150,6 +150,22 @@ describe('`variance share --publish <records>`', () => {
     expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
   });
 
+  it('skips the suite it is named when the merge queue ran none of it', async () => {
+    const { ci, origin, second } = await nextPush();
+    await handedOn('variance-shard-unit-0', 'unit', 'test/total.test.ts', second);
+    const before = await git(home, 'ls-remote', origin, 'refs/variance/mainline/main');
+    const queue = async () => {
+      const dir = join(home, 'downloaded-named');
+      await cp(join(home, 'ran'), dir, { recursive: true });
+      return { dir };
+    };
+
+    const done = await suitesShare(ci, { suite: 'integration', publish: true, records: [], fromQueue: 'variance-shard-*', collected: join(await collectedEach(), 'integration.txt') }, { env: PUSH }, queue);
+
+    expect(done).toEqual({ lines: ['integration: the merge queue ran none of it; the whole run at this commit publishes its record.'], exit: EXIT_CLEAN });
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toBe(before);
+  });
+
   it('publishes the merge queue\'s run when the runner collects a test file no run has listed yet', async () => {
     const { ci, origin, second } = await nextPush();
     await handedOn('variance-shard-unit-0', 'unit', 'test/total.test.ts', second);
