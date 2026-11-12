@@ -31,8 +31,8 @@ does to its branch detection.
    filter it out, and the filter does not distinguish the clean ones.
 4. The commit-back runs once on a pull request's branch where accepting is
    correct, and its three refusals are each provoked: no baselines to commit, no
-   head branch, and a workspace on a detached merge ref. The `lfs` job of
-   `variance.yml` runs the commit-back onto a pull request's branch on a
+   head branch, and a workspace on a detached merge ref. The committed store in
+   `variance.yml`'s `variance` job runs the commit-back onto a pull request's branch on a
    dispatch with `accept` ticked; no refusal has been met.
 
 **Then the second platform, on its own terms.** The Bitbucket recipe in
