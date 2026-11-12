@@ -1,11 +1,15 @@
 # Spec 0027 — a test is selected by what it executed
 
 **Missing:** the readings that decide whether it ships. Of the bars in
-[What decides whether this ships](#what-decides-whether-this-ships), `f`, `w`,
-`s` and the twenty-run volatility floor have no reading, and `o` has one, which
+[What decides whether this ships](#what-decides-whether-this-ships), none has a
+reading that settles it. [0047](0047-a-skip-list-is-worth-what-it-skips.md)
+produces three: `f`, the failures missed on a mutation plan; `s`, the share of
+the suite selected; and a published reading of `o`, the overhead, which has one
+reading today that
 [journal 0027](../context/journal/0027-what-instrumentation-costs.md) calls a
-weak bound. [0047](0047-a-skip-list-is-worth-what-it-skips.md) is the spec that
-produces them.
+weak bound. The twenty-run volatility floor is the measurement
+[0029](0029-what-a-run-remembers.md) asks for. `w`, the wall clock against a
+full run at the median commit, has no spec that produces it but this one.
 
 **Built on:** [`selecting.md`](../selecting.md) (the static selector this
 narrows, and the forks it cannot see the outcome of),

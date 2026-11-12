@@ -9,8 +9,9 @@ entered to the subject that caused it
 probes. `fetch('/api/cart')` is still a string: nothing records that a subject
 called an endpoint, nothing resolves an endpoint to the file that served it, and
 nothing follows a call the browser never made.
-**Built on:** [the execution record](../execution-record.md#what-each-host-records) (the instrument, and its rule that a
-new realm needs a transport rather than a second instrument),
+**Built on:** [the execution record](../execution-record.md#what-each-host-records) (the instrument),
+[ADR-0100](../context/adr/0100-a-realm-gets-a-transport-not-an-instrument.md)
+(a new realm needs a transport rather than a second instrument),
 [ADR-0062](../context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md) (what may be trusted rather than merely
 read), [tracing a diff](../execution-record.md#tracing-a-diff-to-tests) (the diff-to-block mapping this
 feeds), [0035](0035-a-flake-is-what-the-run-did-not-execute.md) (the ladder that
