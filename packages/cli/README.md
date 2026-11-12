@@ -3065,11 +3065,12 @@ owns its own collector, renderer, storage, or review surface:
   and rewrites no record, `'always'` asks it whatever was fetched. `beneath`
   passes over the checkout's own record, as one shard of a run does, so a shard
   measures from the record it was handed, not from what it already ran. After the shards ran,
-  `landSuite(cwd, shards, suite)` lands their records on `suite`'s record in the
-  checkout, as `variance journeys <shards> --suite` does, and returns what the
-  landing said without the reading. A CI fan-in does not compose these:
+  `landSuite(cwd, shards, suite, alone?)` lands their records on `suite`'s record
+  in the checkout, as `variance journeys <shards> --suite` does, and returns what
+  the landing said without the reading; `alone` lands them over nothing, reading
+  no record already there. A CI fan-in does not compose these:
   `variance share <record>...` lays the mainline's record and lands the records
-  over it, and `share --publish <record>...` publishes what they make.
+  over it, and `share --publish <record>...` publishes the run they make alone.
 - `recordedExecutionFile(root, suite)` names the record `distill` and `review`
   read for a suite, and refuses as `unrecorded` when no run kept
   its cases. A script that reads a record with the sense readers starts here,

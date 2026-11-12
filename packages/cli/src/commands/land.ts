@@ -211,6 +211,8 @@ async function landCombined(
       // before, an older commit than the one it last ran at, so `test:since`
       // reads more of the change for it rather than less.
       if (runs !== undefined) await rename(stagedRuns, runsAt);
+      // Over nothing, a runs record this landing did not write answers for an earlier run.
+      else if (alone) await rm(runsAt, { force: true });
       return {
         landed: landed === undefined
           ? undefined

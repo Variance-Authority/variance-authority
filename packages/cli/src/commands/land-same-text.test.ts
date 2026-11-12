@@ -1,10 +1,13 @@
-import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   caseSectionsOf,
   encodeAsSetExecutionIndex,
+  readCommitRuns,
+  recordBase,
+  recordOfCases,
   testCoverageFile,
   writeTestCoverage,
   type CoverageBlock,
@@ -13,7 +16,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { readExecutionIndex } from './execution-input.js';
 import { landJourneys } from './land.js';
-import { published } from './mainline-fixture.js';
+import { published, ranWhole } from './mainline-fixture.js';
 
 /**
  * A shard that cut one module's unchanged text into one region more than the
@@ -121,6 +124,20 @@ describe('landJourneys and a shard that cut the same text into one region more',
 });
 
 describe('landJourneys alone', () => {
+  it('keeps no runs record of an earlier run beside a landing of shards that measured nothing', async () => {
+    const { dir, first } = await published(home, { publish: false });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    await recordOf(record, first, [MODULE, FIRST, THIRD], TOTAL, [DISCOUNTS], [FIRST, THIRD]);
+    await ranWhole(record, first);
+    const shard = join(home, 'shard-1.bin');
+    await writeFile(shard, recordOfCases({ index: encodeAsSetExecutionIndex({ tests: [DISCOUNTS], modules: [] }), base: recordBase(undefined, first, undefined) }));
+
+    await landJourneys(dir, [shard], record, undefined, true);
+
+    // `ranWhole` names both test files; this landing ran `test/total.test.ts` alone.
+    expect((await readCommitRuns(record))?.landings.flatMap((landing) => landing.files) ?? []).not.toContain(OTHER);
+  });
+
   it('keeps no reading the record at the target held of a case the shards ran again', async () => {
     const { dir, first } = await published(home, { publish: false });
     const record = testCoverageFile(dir, { suite: 'unit' });

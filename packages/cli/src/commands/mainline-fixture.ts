@@ -158,7 +158,12 @@ export async function originAndCi(home: string): Promise<{ origin: string; ci: s
  */
 export async function gitPublished(
   home: string,
-  options: { readonly publish?: boolean; readonly instrumentation?: string; readonly suites?: Readonly<Record<string, unknown>> } = {},
+  options: {
+    readonly publish?: boolean;
+    readonly instrumentation?: string;
+    readonly suites?: Readonly<Record<string, unknown>>;
+    readonly readings?: Uint8Array;
+  } = {},
 ): Promise<{ ci: string; origin: string; first: string; record: Buffer }> {
   const { origin, ci } = await originAndCi(home);
   await mkdir(join(ci, 'src'));
@@ -176,7 +181,7 @@ export async function gitPublished(
   await git(ci, 'fetch', '--quiet', 'origin');
 
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
-  await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS], options.instrumentation);
+  await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS], options.instrumentation, options.readings);
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
   const record = await readFile(testCoverageFile(ci, { suite: 'unit' }));
   if (options.publish !== false) {
@@ -335,6 +340,7 @@ export async function recordIn(
   covering: readonly string[],
   cases: readonly (typeof DISCOUNTS)[],
   instrumentation = 'fixture',
+  readings?: Uint8Array,
 ): Promise<void> {
   const record = testCoverageFile(dir, { suite: 'unit' });
   await mkdir(dirname(record), { recursive: true });
@@ -343,7 +349,7 @@ export async function recordIn(
     startLine: 1, endLine: 3, source: true, testFiles: [...covering],
   }];
   await writeTestCoverage(record, { ...totalCoverage(commit, ['test/total.test.ts', 'test/other.test.ts'], blocks), instrumentation });
-  await keepCases(record, casesOf(cases));
+  await keepCases(record, casesOf(cases), readings);
 }
 
 /** What a run of `tests`, each whole, records at `commit` over `src/total.ts` as `BEFORE` holds it: `blocks`, the module first. */
@@ -445,9 +451,14 @@ export async function ranHere(dir: string, at: string): Promise<void> {
   await updateSourceIndex(dir);
 }
 
-/** `index`, kept in the record at `record` the way a run keeps its cases. */
-async function keepCases(record: string, index: ExecutionIndex): Promise<void> {
-  await writeFile(record, withCaseSections(await readFile(record), { index: encodeAsSetExecutionIndex(index) }));
+/** `index`, kept in the record at `record` the way a run keeps its cases, with `readings` beside it when given. */
+async function keepCases(record: string, index: ExecutionIndex, readings?: Uint8Array): Promise<void> {
+  await writeFile(record, withCaseSections(await readFile(record), { index: encodeAsSetExecutionIndex(index), ...(readings === undefined ? {} : { readings }) }));
+}
+
+/** The case index a run that ran `cases` keeps, each entering `applyDiscount`. */
+export function casesIndex(cases: readonly (typeof DISCOUNTS)[]): Uint8Array {
+  return encodeAsSetExecutionIndex(casesOf(cases));
 }
 
 function casesOf(tests: readonly (typeof DISCOUNTS)[]): ExecutionIndex {
