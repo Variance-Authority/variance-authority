@@ -33,11 +33,13 @@ export interface Reading {
 }
 
 /**
- * A reading as stored. The newest holds no regions where the landed index
- * holds the case as it ran; an earlier one holds what it read otherwise than
- * the newest: the newest's regions it did not cross by position (`gone`), the
- * values it charged them otherwise (`values`), and the regions only it crossed,
- * each at its position among its own (`added`).
+ * A reading as stored: what it read otherwise than its base, which for the
+ * newest is the case as the landed index holds it, and for an earlier one the
+ * newest. It holds the base's regions it did not cross by position (`gone`),
+ * the values it charged them otherwise (`values`), and the regions only it
+ * crossed, each at its position among its own (`added`); nothing where it read
+ * as its base did. The newest holds its `regions` in full only where the
+ * landed index does not hold the case.
  */
 interface StoredReading {
   readonly count: number;
@@ -171,51 +173,59 @@ export function layReadings(
   return Buffer.from(JSON.stringify(section), 'utf8');
 }
 
-/** A case's readings as stored: the newest without its regions where the landed index holds them as they ran, each earlier one as what it read otherwise. */
+/** A case's readings as stored: the newest as what it read otherwise than the landed index holds the case, each earlier one as what it read otherwise than the newest. */
 function packed(readings: readonly Reading[], there: Read | undefined): StoredReading[] {
   const [newest, ...rest] = readings;
-  const base = newest!.regions;
-  const place = new Map(base.map((region, at) => [region.slice(0, 5).join('\0'), at]));
   return [
-    alike(newest!, there) ? { count: newest!.count, ...stop(newest!) } : newest!,
-    ...rest.map((reading): StoredReading => {
-      const crossed = new Set<number>();
-      const values: [number, number | null][] = [];
-      const added: [number, ReadRegion][] = [];
-      reading.regions.forEach((region, at) => {
-        const from = place.get(region.slice(0, 5).join('\0'));
-        if (from === undefined) return void added.push([at, region]);
-        crossed.add(from);
-        if (base[from]![5] !== region[5]) values.push([from, region[5]]);
-      });
-      const gone = base.flatMap((_, at) => crossed.has(at) ? [] : [at]);
-      return {
-        count: reading.count,
-        ...stop(reading),
-        ...(gone.length === 0 ? {} : { gone }),
-        ...(values.length === 0 ? {} : { values }),
-        ...(added.length === 0 ? {} : { added }),
-      };
-    }),
+    there === undefined ? newest! : difference(newest!, there.regions),
+    ...rest.map((reading) => difference(reading, newest!.regions)),
   ];
 }
 
-/** A case's stored readings in full, the newest's regions `base` where it holds none; absent where neither holds them. */
-function expanded(stored: readonly StoredReading[], base: readonly ReadRegion[] | undefined): Reading[] | undefined {
-  const newest = stored[0]?.regions ?? base;
-  if (newest === undefined) return undefined;
-  return stored.map(({ count, stopped, regions, gone, values, added }, at): Reading => {
-    const read = { count, ...(stopped === undefined ? {} : { stopped }) };
-    if (at === 0) return { ...read, regions: newest };
-    if (regions !== undefined) return { ...read, regions };
-    const charged = new Map(values ?? []);
-    const dropped = new Set(gone ?? []);
-    const own: ReadRegion[] = newest.flatMap((region, place) => dropped.has(place) ? [] : [
-      charged.has(place) ? [...region.slice(0, 5), charged.get(place)!] as unknown as ReadRegion : region,
-    ]);
-    for (const [place, region] of added ?? []) own.splice(place, 0, region);
-    return { ...read, regions: own };
+/** `reading` as what it read otherwise than `base`. */
+function difference(reading: Reading, base: readonly ReadRegion[]): StoredReading {
+  const place = new Map(base.map((region, at) => [region.slice(0, 5).join('\0'), at]));
+  const crossed = new Set<number>();
+  const values: [number, number | null][] = [];
+  const added: [number, ReadRegion][] = [];
+  reading.regions.forEach((region, at) => {
+    const from = place.get(region.slice(0, 5).join('\0'));
+    if (from === undefined) return void added.push([at, region]);
+    crossed.add(from);
+    if (base[from]![5] !== region[5]) values.push([from, region[5]]);
   });
+  const gone = base.flatMap((_, at) => crossed.has(at) ? [] : [at]);
+  return {
+    count: reading.count,
+    ...stop(reading),
+    ...(gone.length === 0 ? {} : { gone }),
+    ...(values.length === 0 ? {} : { values }),
+    ...(added.length === 0 ? {} : { added }),
+  };
+}
+
+/** A case's stored readings in full, the newest read against `base`, the case as the index they were laid into holds it; absent where neither holds its regions. */
+function expanded(stored: readonly StoredReading[], base: readonly ReadRegion[] | undefined): Reading[] | undefined {
+  const [first, ...rest] = stored;
+  if (first === undefined) return undefined;
+  const newest = first.regions ?? (base === undefined ? undefined : applied(first, base));
+  if (newest === undefined) return undefined;
+  return [{ count: first.count, ...stop(first), regions: newest }, ...rest.map((reading): Reading => ({
+    count: reading.count,
+    ...stop(reading),
+    regions: reading.regions ?? applied(reading, newest),
+  }))];
+}
+
+/** The regions `stored` read, as what it read otherwise than `base`. */
+function applied({ gone, values, added }: StoredReading, base: readonly ReadRegion[]): ReadRegion[] {
+  const charged = new Map(values ?? []);
+  const dropped = new Set(gone ?? []);
+  const own: ReadRegion[] = base.flatMap((region, place) => dropped.has(place) ? [] : [
+    charged.has(place) ? [...region.slice(0, 5), charged.get(place)!] as unknown as ReadRegion : region,
+  ]);
+  for (const [place, region] of added ?? []) own.splice(place, 0, region);
+  return own;
 }
 
 /** What each test file ran over when its cases were last read, as `section` names it; absent when it names none. */

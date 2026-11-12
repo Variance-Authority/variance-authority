@@ -192,6 +192,13 @@ describe('layReadings', () => {
     ]);
   });
 
+  it('stores the newest reading as what it read otherwise than the landed index holds the case', () => {
+    const landed = run(true, { wire: 2, handle: 3 });
+    const section = layReadings(undefined, undefined, landed, cases, over(run(true, { handle: 3 })));
+
+    expect(JSON.parse(section!.toString('utf8'))).toEqual({ cases: { [ID]: [{ count: 1, stopped: true, gone: [0] }] } });
+  });
+
   it('stores the newest reading of a case run once where the landed index holds it otherwise', () => {
     const threw = run(true, { handle: 3 });
     const section = layReadings(undefined, undefined, run(true, { wire: 2, handle: 3 }), cases, over(threw));
