@@ -144,7 +144,7 @@ export interface TribunalOptions extends TribunalBindings {
  *
  * Deliberately nothing else. A handler is what a Worker exports, what a Next
  * route handler is, and what `node:http` can be adapted to in a dozen lines — so
- * the three deployments differ in their wiring and not in their router. It is
+ * the hosts differ in their wiring and not in their router. It is
  * also the reason a `Tribunal` cannot be asked for its own secrets: a value of
  * two methods has nothing to leak when it is logged.
  */

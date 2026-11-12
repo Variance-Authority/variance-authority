@@ -9,8 +9,8 @@ import { ReviewApp } from './review.js';
  *
  * A Next.js app renders {@link ReviewApp} itself and never loads this — it has a
  * bundler, a router and a hydration story of its own, and handing it a
- * pre-bundled React would give the page two of them. This file exists for the
- * Node service, which has none of that: it serves a document and needs one script
+ * pre-bundled React would give the page two of them. The Node service and the
+ * packaged Worker have none of that: each serves a document and needs one script
  * that turns it into the surface.
  *
  * Bundled at this repository's build time by `tools/tribunal-ui.mjs` into

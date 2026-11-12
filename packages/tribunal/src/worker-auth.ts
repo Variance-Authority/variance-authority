@@ -108,7 +108,7 @@ async function fingerprint(token: string): Promise<Uint8Array> {
 /**
  * The name a person's action is written under: the proved one.
  *
- * A body may repeat it, and the console does. A body naming somebody else is
+ * A body may repeat it, and the review surface does. A body naming somebody else is
  * refused rather than corrected, because the caller believes something false about
  * who is signed in and the record must not quietly disagree with them.
  */

@@ -1,12 +1,8 @@
 # Spec 0101 — the deployer decides who the tribunal recognizes
 
-**Missing:** a way for a deployment to say who it recognizes, and a way to
-recognize a machine without a shared secret. Today each deployment hard-codes
-whom it recognizes: whoever holds `INGEST_TOKEN`, `REVIEW_TOKEN` or
-`SHARE_TOKEN`; on the console, whoever passes Cloudflare Access; and on a
-loopback Node process, whoever sends no token at all. So every consumer mints a
-token, a person carries it into a CI secret store, and a pull
-request that needs the tribunal waits until that person has done it.
+**Missing:** no code. Left to discharge it are the chart lines that still name
+`grant`, two secrets, an implied token or a header replacement, and the ADRs
+that retire this file.
 **Built on:** the capability split
 ([ADR-0022](../context/adr/0022-deciding-is-not-writing.md)); the packaged
 Worker's `grant` in `packages/tribunal/src/worker-auth.ts`; the `authorize` hook
@@ -109,7 +105,6 @@ Each deployment ships declaring what it does today, less the review token:
 
 | Deployment | Declares | What stops working |
 |---|---|---|
-| The console | What provisioning writes, or `token` and `access` where the deployer declares them | A script approving with `REVIEW_TOKEN` |
 | The packaged Worker | What provisioning writes: `INGEST_CREDENTIALS=github-actions`, `REVIEW_CREDENTIALS=github` | Reviewing with a token, for a person or a script |
 | Node | `INGEST_CREDENTIALS=token`, and `REVIEW_CREDENTIALS=loopback` on a loopback bind | Approving with `REVIEW_TOKEN`, on any bind |
 
@@ -127,17 +122,16 @@ deployment routes by shape and never tries every verifier in turn:
 - A value that parses as a JWT goes to the one declared mechanism whose issuer
   matches its unverified `iss`. No match is refusal.
 - Anything else is a token, compared in constant time against `INGEST_TOKEN`
-  only if `token` is declared. Today only the packaged Worker compares in
-  constant time; the console and Node use `===`.
+  only if `token` is declared.
 
 Routing on an unverified `iss` is safe because it only picks which key set the
 signature is checked against. It never grants anything by itself.
 
 ### What the policy hands the handler
 
-Today the console and Node mount answer `authorize`, then replace the request's
-`Authorization` header with `INGEST_TOKEN` or `REVIEW_TOKEN`, and the handler
-checks that token again. That seam carries a capability and nothing else, so it
+A mount that answers `authorize`, then replaces the request's `Authorization`
+header with `INGEST_TOKEN` or `REVIEW_TOKEN`, leaves the handler to check that
+token again. That seam carries a capability and nothing else, so it
 cannot carry a name, and it needs both tokens in every deployment's secret store
 whatever the deployment declared.
 
@@ -308,9 +302,7 @@ work this way, and the split holds once machines are recognized without secrets:
 Two things today let a caller with no proven name decide, and both go:
 
 - **`REVIEW_TOKEN` as an outside bearer.** Every deployment grants it `review`.
-  The console documents it as "a machine acting for the operator — a script
-  approving on `main`"; the packaged Worker documents it as held by people; Node
-  accepts it on any bind. Each is a decision with no reviewer behind it, and the
+  Each is a decision with no reviewer behind it, and the
   scripted approval is removed on purpose. `review` is not a value of
   `INGEST_CREDENTIALS` or `REVIEW_CREDENTIALS`, and with the policy handing the
   handler a principal, nothing substitutes the token either: it stops existing.
@@ -355,55 +347,16 @@ there is nothing to provision and the step disappears.
   does `github` here. Provisioning cannot make Access applications with a
   `wrangler login` token, so Access stays an option a deployer declares.
 
-## What exists, and what does not
-
-| Area | Today | Missing |
-|---|---|---|
-| Policy | Each deployment hard-codes its own: the console's `authorize` in `route.ts`, Node's `authorizeFor`, and the packaged Worker's `grant`, which runs inside `createTribunal` with no mount. | One policy built from `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS`, in the package, used by all three. |
-| Handler seam | The mount substitutes `INGEST_TOKEN` or `REVIEW_TOKEN`, and `createTribunal` requires both. | The handler takes the policy's principal: a capability and a name. |
-| Access | Verified only in `tribunal-cloudflare/app/access.ts`, with no refetch on an unknown `kid`. An unset `ACCESS_*` silently means no surface. | One issuer verifier in the package, so the packaged Worker and Node can declare it. A declared `access` without its values fails loudly. |
-| GitHub Actions | Nothing. | An instance of that verifier: discovery, the five checks, the log line on refusal. |
-| Client | A string, or `{ "env": … }`, read when the request is made for `review` and `share` and at parse time for `history` and `baselines`; synchronous either way. | `{ "github-actions": { "audience": … } }`, fetched asynchronously and refreshed near expiry. |
-| Decision name | `by` is whatever the decision or concern body says. | `by` written from the verified identity. |
-| Review token | Accepted from outside as a reviewer on every deployment. | Gone. |
-| Loopback | Implicit on any loopback bind, with a reviewer named by `VARIANCE_TRIBUNAL_REVIEWER` or the OS user. | Declared as `loopback`. |
-| Provisioning | `wrangler secret put`, typed by a person. | One command: the GitHub App, the declarations and the first deploy. `token`, when declared, is generated and handed to one destination. |
-
 ## What would discharge it
 
-1. **Move the Access verifier into `@variance-authority/tribunal`** as the one
-   issuer verifier, with the unknown-`kid` refetch, and have the console import
-   it. It is the refactor the rest stands on.
-2. **Build the policy from the declaration.** One function reads the two
-   variables and the mechanisms' values, refuses missing or undeclared
-   configuration by name, and answers a principal. `createTribunal` takes it in
-   place of the two tokens; the console and Node pass it as their `authorize`
-   and hand its principal to the handler; the packaged Worker uses it in place
-   of `grant`. Each ships declaring what the table above says. `authorize` stays
-   a hook: the declared policy is what the shipped deployments pass to it, not a
-   default the package applies.
-3. **Add `github-actions`** as a second instance of the verifier, with a test against a locally signed
-   token and a recorded discovery document: each of the five checks refused on
-   its own, routing by `iss`, and an undeclared kind refused.
-4. **Add the client form**, with a test that a missing
-   `ACTIONS_ID_TOKEN_REQUEST_URL` fails before any request and names the
-   permission.
-5. **Write `by` from the principal** on decisions and concerns, and refuse a
-   body that disagrees.
-6. **Retire the review token** on all three deployments, scripted approval
-   included.
-7. **Provisioning**: register the App, declare `github` and `github-actions`, and
-   deploy. Under `token`, generate the ingest token and hand it to one destination.
-8. **Update the charts.** The capability chart's responsibility says it decides
-   "which of a deployment's secrets a caller presented", and its boundary that it
-   "ships no default policy for a hosted mount"; the review context's README and
-   `VIEWPORTS.md` repeat the two-secrets wording. With `github-actions` it
-   decides which declared credential a caller presented, and one of them is not
-   a secret. Its "Depends on: Nothing" changes too: an issuer verifier fetches
-   keys. The deployment-adapters chart's mount stops replacing the incoming
-   authorization with a token and passes the principal. The identity chart's
-   boundary does not change.
-9. **Write the ADRs** — trust is deployment configuration; machines never review —
+1. **Update the charts.** `grant`, which `main` no longer has, is still named by
+   the capability chart, the review-router diagram and `VIEWPORTS.md`, and
+   `refuseWeakTokens` by the first and last. The decision chart and
+   `VIEWPORTS.md` still speak of two secrets, and the capability chart of which
+   secret was presented. The capability chart, the deployment-adapters chart and
+   `VIEWPORTS.md` speak of the token the policy's answer implies, and the last
+   two of a mount that replaces the incoming authorization.
+2. **Write the ADRs** — trust is deployment configuration; machines never review —
    mark ADR-0022 and ADR-0087 as amended by them, update
    [`checkpoint.md`](../context/checkpoint.md), and delete this file.
 
