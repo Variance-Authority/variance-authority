@@ -1214,7 +1214,8 @@ push to a mainline, `--from-queue` publishes it:
 ```
 
 - **The `merge_group` run uploads its records** under names the pattern
-  matches, as the push run's test job does above.
+  matches, as the push run's test job does above, with `merge_group` added to
+  that step's `if:`.
 - **The run is the latest green `merge_group` run of the same workflow** whose
   head is `HEAD`, found and downloaded with `gh`, which reads `GH_TOKEN`.
 - **The entry is marked partial.** What the queue ran stands at this commit,
