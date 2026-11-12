@@ -9,6 +9,8 @@
  * file that runs, the cases that ran none of the change; the file is the grain
  * otherwise. `VARIANCE_AUTHORITY_LOCAL=1` is `--local`: a record that cannot
  * narrow falls to the changed files' importers or packages instead of every file.
+ * `VARIANCE_AUTHORITY_TESTED` is `--tested`: the pull request a merge queue
+ * merged onto the base, read only beside a base that is not empty.
  *
  * The reading is `selectSuite` from `@variance-authority/cli`, the function
  * `variance select` prints. It parses the execution journal through
@@ -59,6 +61,8 @@ interface Selector {
     readonly grain?: 'case';
     readonly local?: boolean;
     readonly beneath?: boolean;
+    /** Ignored by a cli older than `selectSuite` taking it, which selects as without it. */
+    readonly tested?: string;
   }): Promise<SuiteSelection>;
   /** Absent from a cli older than placement by time. */
   suiteTimes?(request: { readonly root: string; readonly suite?: string; readonly beneath?: boolean }): Promise<SuiteTimes>;
@@ -95,6 +99,10 @@ export function selectionFrom(
   if (local !== undefined && local !== '1' && local !== '0') {
     throw new Error(`VARIANCE_AUTHORITY_LOCAL=${local} is not 1 or 0: write \`1\` to fall to the changed files' importers or packages when the record cannot narrow`);
   }
+  const tested = env['VARIANCE_AUTHORITY_TESTED'];
+  if (tested !== undefined && tested !== '' && since === '') {
+    throw new Error(`VARIANCE_AUTHORITY_TESTED=${tested} names the pull request a merge queue merged onto VARIANCE_AUTHORITY_SINCE, which is empty: set it to the base the queue merged onto`);
+  }
   const leg = distance === undefined ? undefined : distanceRange(distance);
   if (distance !== undefined && leg === undefined) {
     throw new Error(
@@ -122,6 +130,7 @@ export function selectionFrom(
       ...(grain === 'case' ? { grain } : {}),
       ...(local === '1' ? { local: true } : {}),
       ...(request.beneath === true ? { beneath: true } : {}),
+      ...(tested === undefined || tested === '' ? {} : { tested }),
     });
   };
 }
