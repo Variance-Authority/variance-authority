@@ -40,7 +40,7 @@ export interface JourneyCollectorOptions {
   readonly enabled?: boolean;
   /**
    * A directory to write this head's parts to, or the `http(s)://` address of
-   * a {@link receiveParts} that writes them for a runtime with no host
+   * a `receiveParts` that writes them for a runtime with no host
    * filesystem. Defaults to
    * {@link JOURNEY_PARTS_VARIABLE}. A part is what one journey ran here, as a
    * case frame owned by the journey id alone; the case that handed the id out
@@ -52,20 +52,23 @@ export interface JourneyCollectorOptions {
    * `sentry(Sentry)` or `openTelemetry(api)`, handed the SDK the application
    * initialized. Set, the head asks it which journey is running wherever
    * {@link JourneyCollector.enter} did not say, so a service whose tracing
-   * continues the incoming trace needs no `enter` when its parts go to a
-   * directory. Over HTTP, `enter(undefined, ...)` holds each request open until
-   * its frame is sent. Each case runs inside that trace: the same SDK named as
-   * `trace` to `withJourneyCoverage`, as `sense/case-journey` shows.
-   *
-   * A trace carries an id and no way home, so this writes {@link parts}.
+   * continues the incoming trace needs no `enter`. A trace carries an id and no
+   * way home, so the head writes {@link JourneyCollectorOptions.parts} or
+   * reports to a {@link JourneyCollectorOptions.watcher}, and refuses to start
+   * with neither. A watcher lists one execution per trace: one per page view
+   * where a browser SDK propagates its trace. With parts sent over HTTP,
+   * `enter(undefined, ...)` holds each request open until its frame is sent.
    */
   readonly trace?: JourneyTrace;
   /**
    * Where a watcher listens: the address `variance watch` prints. Defaults to
-   * {@link WATCHER_VARIABLE}, and is read only by an enabled head. A request
+   * `VARIANCE_AUTHORITY_VANTAGE`, and is read only by an enabled head. A request
    * that carries no way home is reported there as an execution of its own, so
-   * an application used by hand says what each request entered. A request a
-   * case drove still answers that case, and a watcher hears nothing of it.
+   * an application used by hand says what each request entered. What a request
+   * a case drove runs inside `enter` still answers that case, and a watcher
+   * hears nothing of it. With a {@link JourneyCollectorOptions.trace}, what a
+   * traced flow runs outside every `enter` is listed under its trace id: a
+   * flow no `enter` wrapped, and a middleware ahead of `enter` in any request.
    */
   readonly watcher?: string;
 }

@@ -242,7 +242,9 @@ trace. It does not matter how many services away that request is. `openTelemetry
 the same with the API your OpenTelemetry provider registered with. A head a
 build installed before your application initialized its tracing learns the SDK
 from this call. A trace has no return address, so a head that is handed a trace
-writes parts. A head that reports to a driver refuses one.
+writes parts, or reports to a
+[watcher](vantage.md#watch-an-application-you-use-by-hand) whose address it was
+started with. A head with neither refuses one.
 
 A JVM service wraps each request in `Journey.enter(cookie, baggage)` and runs
 with the agent and `-Dva.parts=<dir>` (or `VARIANCE_AUTHORITY_PARTS`). At exit

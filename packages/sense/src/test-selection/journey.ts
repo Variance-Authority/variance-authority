@@ -80,7 +80,7 @@ import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
-import { isThenable, TOLD, writeParts } from './journey-parts.js';
+import { isThenable, journeyScope, TOLD, writeParts } from './journey-parts.js';
 import { journeyOf, type JourneyTrace } from './journey-carrier.js';
 import {
   JOURNEY_HEAD_VARIABLE,
@@ -153,8 +153,8 @@ const INSTALLED: unique symbol = Symbol.for('variance-authority.journeys');
 type Told = JourneyCollector & { readonly [TOLD]?: (trace: JourneyTrace) => void };
 
 const untraceable = (trace: JourneyTrace): string =>
-  `a ${trace.name} trace carries the journey and no way home, so a head it feeds writes parts: ` +
-  `set \`parts\` or ${JOURNEY_PARTS_VARIABLE}`;
+  `a ${trace.name} trace carries the journey and no way home, so a head it feeds writes parts or reports to a watcher: ` +
+  `set \`parts\` or ${JOURNEY_PARTS_VARIABLE}, or \`watcher\` or ${WATCHER_VARIABLE}`;
 
 /**
  * Install the journey-keyed collector in this process.
@@ -181,7 +181,9 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
   if (installed !== undefined) {
     if (options.trace !== undefined) {
       const tell = installed[TOLD];
-      if (tell === undefined) throw new Error(untraceable(options.trace));
+      if (tell === undefined) {
+        throw new Error(`a ${options.trace.name} trace reached a reporting head installed without it, and such a head takes its trace only as it starts: hand \`trace\` to the call that installs it`);
+      }
       tell(options.trace);
     }
     return installed;
@@ -204,7 +206,10 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   const parts = options.parts ?? process.env[JOURNEY_PARTS_VARIABLE];
   if (parts !== undefined && options.enabled !== false) return writeParts(head, parts, journeyOf, options.trace);
   const enabled = options.enabled ?? process.env[JOURNEY_VARIABLE] !== undefined;
-  if (enabled && options.trace !== undefined) throw new Error(untraceable(options.trace));
+  // Empty is unset, as a run reads it: an unset variable interpolated into an environment arrives empty.
+  const watcher = (options.watcher ?? process.env[WATCHER_VARIABLE]) || undefined;
+  // A watcher's address is the way home a trace lacks; with neither, a traced head would hold what nobody reads.
+  if (enabled && options.trace !== undefined && watcher === undefined) throw new Error(untraceable(options.trace));
   if (!enabled) {
     return {
       collecting: false,
@@ -215,8 +220,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     };
   }
 
-  // Empty is unset, as a run reads it: an unset variable interpolated into an environment arrives empty.
-  const watcher = (options.watcher ?? process.env[WATCHER_VARIABLE]) || undefined;
+  const trace = options.trace;
   // Said now: a head that tells an address nothing looks like a quiet application.
   const watching = watcher === undefined ? undefined : channelTo(watcher, UNATTRIBUTED);
   const watched = watching?.home;
@@ -225,6 +229,12 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   }
   const store = new AsyncLocalStorage<string>();
   const channels = new Map<string, Channel>();
+  // Most recent last, so the way home forgotten first is the one released longest ago.
+  const remember = (journey: string, home: Channel): void => {
+    channels.delete(journey);
+    channels.set(journey, home);
+    if (channels.size > HOMES) channels.delete(channels.keys().next().value!);
+  };
   const sending = new Set<Promise<void>>();
   // Counted apart: a report the watcher missed is no test's loss, nor a test's the watcher's.
   const lost = { watcher: 0, drivers: 0 };
@@ -250,18 +260,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     }
     return bucket;
   };
-  // The last answer, kept: consecutive probes almost always share a journey,
-  // and a string compare is cheaper than a `Map.get`.
-  let lastJourney = UNATTRIBUTED;
-  let lastBucket = bucketFor(UNATTRIBUTED);
-  engine.scope((): Bucket => {
-    const journey = store.getStore() ?? UNATTRIBUTED;
-    if (journey !== lastJourney || lastBucket.closed) {
-      lastJourney = journey;
-      lastBucket = bucketFor(journey);
-    }
-    return lastBucket;
-  });
+  engine.scope(journeyScope(() => store.getStore() ?? trace?.current(), bucketFor));
 
   const send = (over: Channel, account: Omit<JourneyAccount, 'version' | 'instrumentation' | 'head' | 'lost'>): void => {
     const to = over.home === watched ? 'watcher' : 'drivers';
@@ -344,19 +343,25 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
    * A crossing for a journey whose scope already released: a promise the
    * handler started and did not return, still running in the request's context.
    * It belongs to that request, so it goes home as a scope of its own, opened
-   * now and settled on the next turn of the loop. One whose way home was
-   * forgotten counts as lost, which the driver reads as an account that never
-   * arrived.
+   * now and settled on the next turn of the loop. One the trace named, where no
+   * `enter` ran, goes to the watcher as an execution of that name. Any other
+   * whose way home was forgotten counts as lost, which the driver reads as an
+   * account that never arrived.
    */
   function straggle(journey: string): void {
-    const over = channels.get(journey);
+    let over = channels.get(journey);
+    if (over === undefined && watcher !== undefined && store.getStore() === undefined) {
+      over = channelTo(watcher, journey)!;
+      remember(journey, over);
+    }
     if (over === undefined) {
       lost.drivers += 1;
       return;
     }
     depth.set(journey, 1);
     // Off the probe's own stack: this runs inside an instrumented call.
-    queueMicrotask(() => send(over, { scope: 'journey', opened: 1, modules: [] }));
+    const home = over;
+    queueMicrotask(() => send(home, { scope: 'journey', opened: 1, modules: [] }));
     setImmediate(() => release(journey));
   }
 
@@ -393,10 +398,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
           : channelTo(watcher, mintJourney());
       const journey = channel?.journey;
       if (channel === undefined || journey === undefined) return body();
-      // Most recent last, so the one forgotten first is the one released longest ago.
-      channels.delete(journey);
-      channels.set(journey, channel);
-      if (channels.size > HOMES) channels.delete(channels.keys().next().value!);
+      remember(journey, channel);
       const opening = !depth.has(journey);
       depth.set(journey, (depth.get(journey) ?? 0) + 1);
       // Said before the body runs, so the driver knows to wait for this scope
