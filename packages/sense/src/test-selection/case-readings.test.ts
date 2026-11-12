@@ -149,6 +149,10 @@ describe('layReadings', () => {
     expect(() => readingsOf(Buffer.from('[]'), index, ID)).toThrow(/readings section/);
   });
 
+  it('reads a case the section names with no reading as keeping none', () => {
+    expect(readingsOf(Buffer.from(JSON.stringify({ cases: { [ID]: [] } })), run(false, { wire: 2 }), ID)).toBeUndefined();
+  });
+
   it('drops the oldest distinct reading past the bound', () => {
     const runs = Array.from({ length: READINGS + 1 }, (_, at) => run(at % 2 === 0, { wire: at + 1 }));
     const { section, index } = laid(runs);
