@@ -342,7 +342,24 @@ function repinnedRuns(
   const unplaced = [...kept].filter((file) => !here.has(file) && !placed.has(file));
   if (held.over !== undefined) standAt({ commit: held.over, files: [], assumed: true }, unplaced);
   const known = unplaced.length === 0 || held.over !== undefined;
-  const standing = [...groups.values()]
+  // Both records list their stands earliest first; where they share one, the
+  // published order holds, and a stand only this checkout holds keeps its place
+  // before the next one they share.
+  const shared = new Set((published?.standing ?? []).map(standKey));
+  const heldOrder = (held.standing ?? []).map(standKey);
+  const order: string[] = [];
+  let next = 0;
+  for (const key of shared) {
+    const at = heldOrder.indexOf(key, next);
+    if (at >= 0) {
+      order.push(...heldOrder.slice(next, at).filter((one) => !shared.has(one)));
+      next = at + 1;
+    }
+    order.push(key);
+  }
+  order.push(...heldOrder.slice(next).filter((one) => !shared.has(one)));
+  const standing = [...new Set([...order, ...groups.keys()])]
+    .map((key) => groups.get(key)!)
     .filter(({ files: its, partly }) => its.length > 0 || partly.size > 0)
     .map(({ stand, files: its, partly }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder), ...partOf(partly) }));
   const at = commit ?? held.commit;

@@ -128,6 +128,29 @@ describe('the runs record under a repinned checkout', () => {
     expect(standing.filter((stand) => stand.partly !== undefined).map((stand) => [stand.commit, stand.partly])).toEqual([[first, ['test/other.test.ts']]]);
   });
 
+  it('keeps the published order of stands this checkout holds one of, earliest first', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    // Two runs at the older commit each ran a case of `other`; this checkout holds only the later.
+    const at = '2026-01-01T00:00:00.000Z';
+    const later = '2026-01-02T00:00:00.000Z';
+    const stand = (time: string) => ({ commit: first, files: [], partly: ['test/other.test.ts'], cases: { 'test/other.test.ts': ['one'] }, first: time, latest: time, runs: 1 });
+    const held = (await readCommitRuns(own))!;
+    await writeFile(commitRunsFile(own), JSON.stringify({ ...held, standing: [...(held.standing ?? []), stand(later)] }));
+    const read = join(home, 'laptop-cache');
+    const fetched = (await readdir(read, { recursive: true })).filter((path) => path.includes(next) && path.endsWith('.runs.json'));
+    const partial = { commit: next, latest: later, runs: 1, landings: [{ files: ['test/total.test.ts'], first: later, latest: later, runs: 1 }], standing: [stand(at), stand(later)] };
+    await writeFile(join(read, fetched[0]!), JSON.stringify(partial));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    const standing = (await readCommitRuns(own))!.standing!;
+    expect(standing.filter((one) => one.partly !== undefined).map((one) => one.latest)).toEqual([at, later]);
+  });
+
   it('keeps a run the published record landed in part at the milestone beside where the test stands, earliest stand first', async () => {
     const { ci, first, worktree, own } = await laidWorktree(home);
     const next = await publishedNext(home, ci);
