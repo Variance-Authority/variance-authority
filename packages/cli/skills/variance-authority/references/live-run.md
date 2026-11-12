@@ -74,6 +74,17 @@ same two variables. The listing is then one execution per trace, named by the
 trace id. A browser SDK that propagates its trace makes that one per page view,
 with every request the page made listed together.
 
+A page reports too when its build placed the probes and it calls
+`reportPage(address)` from `@variance-authority/sense/page`, with the address
+`variance watch` printed. Each load is then one execution with a `head page`,
+and so is each click or submit; a click and the submit it causes are one. A
+server the click reached is a second head under the same id. A request sent
+after the next click is listed under that later click, and the request for a
+document under the last execution of the page it replaces.
+Without the call, nothing the browser ran is listed. The call installs nothing
+for an address that is absent or not `http` on this machine, or on a page a
+test drives.
+
 ```bash
 variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE"
 variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE" --name quote --limit 1

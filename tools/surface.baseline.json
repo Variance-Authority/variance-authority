@@ -2751,6 +2751,10 @@
           "types": "./dist/test-selection/journey.d.ts",
           "default": "./dist/test-selection/journey.js"
         },
+        "./page": {
+          "types": "./dist/test-selection/page.d.ts",
+          "default": "./dist/test-selection/page.js"
+        },
         "./precondition": {
           "types": "./dist/test-selection/precondition.d.ts",
           "default": "./dist/test-selection/precondition.js"
@@ -3631,6 +3635,7 @@
         "TestSelectionRule": "interface",
         "TestSelectionRuleOptions": "interface",
         "afterHook": "function",
+        "claimPageSource": "function",
         "closeStage": "function",
         "createSubjectRecorder": "function",
         "drainExecution": "function",
@@ -3677,6 +3682,9 @@
         "sentry": "const",
         "stitchJourneys": "function",
         "unsettledScopes": "function"
+      },
+      "./page": {
+        "reportPage": "function"
       },
       "./precondition": {
         "variancePrecondition": "function"

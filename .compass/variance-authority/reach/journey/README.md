@@ -51,6 +51,10 @@ nor that anyone is listening, a participant installs nothing and the entry point
 is the identity function, which is what lets the call ship to production rather
 than be conditional on a build flag.
 
+A page used by hand is the one participant with no execution to be bounded by:
+it is bounded by interactions, a load and then each click or submit. Its
+account goes only to a watcher and never reaches a selection.
+
 Every participant a run declares must report at least once. Silence does not
 narrow: a declared participant that reported nothing all run, or one reporting a
 different probe recipe, marks every observation in the run incomplete —
@@ -70,6 +74,9 @@ first.
 
 - `packages/sense/src/test-selection/journey.ts` — `collectJourneys`,
   `mintJourney`, and the per-execution factory behind the probe's global
+- `packages/sense/src/test-selection/page.ts` — `reportPage`, a page used by
+  hand as its own driver: it names an execution per load and per click or
+  submit, leaves the two cookies, and reports itself as a head
 - `packages/sense/src/test-selection/stitch.ts` — `stitchJourneys`, the driver's
   join, and the name unattributed regions report under
 - `packages/sense/src/test-selection/journey-driver.ts` — `driveJourneys`, the

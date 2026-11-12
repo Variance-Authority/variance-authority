@@ -15,7 +15,8 @@
 
 import { vitestCutSource } from './case-cut.js';
 import { runnerHelpersSource } from './runner-helpers-source.js';
-import { EXECUTION_GLOBAL, executionCollectorSource } from './probes.js';
+import { EXECUTION_GLOBAL } from './execution-global.js';
+import { executionCollectorSource } from './probes.js';
 import type { InstrumentMode } from '../instrument/index.js';
 
 /**

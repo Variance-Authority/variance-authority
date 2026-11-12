@@ -99,6 +99,8 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'src/flags.ts': "a reader's own module, quoted from a sample answer about case preconditions",
   'test/cleanup.test.ts': "a reader's own test file, quoted from a sample warning about case preconditions",
   'test/misplaced.test.ts': "a reader's own test file, quoted from a sample error about case preconditions",
+  'shop.js': "a reader's own page script, quoted from a watcher's listing of one click",
+  'pricing.js': "a reader's own server module, quoted from a watcher's listing of one click",
 };
 
 

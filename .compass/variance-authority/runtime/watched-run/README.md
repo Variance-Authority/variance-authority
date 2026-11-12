@@ -30,7 +30,8 @@ leaving somebody to guess it is broken.
 In as well: an application used by hand. A head that is enabled and told the
 watcher's address reports each request no test drove as one execution, with the regions
 it ran as ordinals, and what its process ran outside every request apart from
-all of them. Out: those executions in arrival order, bounded and counted as the
+all of them. A page that reports itself is a head too, with one execution per
+load and per click or submit, under the id its requests carry. Out: those executions in arrival order, bounded and counted as the
 tests are. A reader names the ordinals from the checkout; the watcher holds no
 source and names nothing.
 
