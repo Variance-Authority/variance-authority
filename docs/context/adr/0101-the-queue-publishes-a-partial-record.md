@@ -40,6 +40,10 @@ replaces it, and a partial one never replaces a whole one.**
   marks its entry `partial`, and only for a run GitHub reports as the queue's.
 - **The manifest holds `partial`.** A whole entry at a commit is kept against
   a partial one at the same commit, on any line, and the publish says so.
+- **A reader takes partiality from the manifest.** A checkout keeps the
+  entry's mark with the record it fetched, asks the line again while it holds
+  a partial record, and moves its own record onto the whole one at the same
+  commit when that lands.
 
 ## Alternatives
 
