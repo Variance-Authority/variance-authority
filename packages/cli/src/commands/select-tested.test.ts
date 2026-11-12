@@ -5,6 +5,7 @@ import { parseArgs } from '../parse.js';
 import { indexOutput } from './index-command.js';
 import { git, shareConfig } from './mainline-fixture.js';
 import { selectSuite } from './select-command.js';
+import { shardsOutput } from './shards-command.js';
 import { npmLock } from './select-install-fixture.js';
 import { DEV, OTHER, PADDED, TOTAL, queued, scratch, selected } from './select-tested.fixture.js';
 import { testedSuite } from './select-tested.js';
@@ -213,6 +214,21 @@ describe('`variance select --tested` in a merge queue', () => {
     // A pull request up to date with the mainline: the queue's merge is its tree, whose selection already ran.
     expect(here.out).toBe('test/other.test.ts\ntest/total.test.ts\n');
     expect(here.err).toContain(`\`--tested ${head}\` skips every test file: HEAD's tree is the tree ${head.slice(0, 12)} ran its selection on`);
+  });
+
+  it('asks for no shard when HEAD holds the tree the tested commit ran on', async () => {
+    const queue = await queued(home(), {
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+    const head = await git(queue.dir, 'rev-parse', 'HEAD');
+    const collected = join(home(), 'collected.txt');
+    await writeFile(collected, 'test/other.test.ts\ntest/total.test.ts\n');
+
+    const answer = JSON.parse(await shardsOutput({ cwd: queue.dir, since: queue.base, tested: head, collected, format: 'json' }));
+
+    expect(answer).toMatchObject({ shards: 0, files: 0, skipped: 2 });
   });
 
   it('selects as without `--tested` for a group of two pull requests', async () => {
