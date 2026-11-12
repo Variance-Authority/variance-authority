@@ -563,53 +563,35 @@ request's diff beside the change that caused them, and the merge takes them to
 `main` with the code. Never dispatch it with **accept** on `main`: that run
 would push the images to `main` itself.
 
-The workflow is [the whole job](#the-whole-job), with its `contents: read`
-token, and a second job that commits. The `variance` job compares on every run
-but an accept, and leaves out `accept` and the tick:
+The job is [the whole job](#the-whole-job) with a write token, the pull request's
+branch checked out, and the action's commit in place of `accept` and the tick:
 
 ```yaml
-variance:
-  if: github.event_name != 'merge_group' && !inputs.accept # an accept runs the job below
+permissions:
+  contents: write # the commit with the accepted images
+  pull-requests: write # the comment
 ```
 
-with this as its action step:
+and in the job's steps:
 
 ```yaml
+- uses: actions/checkout@v7
+  with:
+    repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+    ref: ${{ github.head_ref }} # the branch, not the merge commit; a dispatch is on its branch already
+    token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
 - uses: Variance-Authority/action@v1
   with:
     config: variance.config.json
     github-token: ${{ secrets.GITHUB_TOKEN }}
+    commit-baselines: "${{ inputs.accept }}"
     exit-zero-on-changes: "${{ github.event_name == 'push' }}"
     to-accept: 'run the **variance** workflow on this branch with **accept** ticked'
 ```
 
-The `accept` job runs only on a dispatch with **accept** ticked, so it is the
-only job that can write to the repository. It renders the images it commits, so
-it repeats the `variance` job's setup:
-
-```yaml
-accept:
-  if: github.event_name == 'workflow_dispatch' && inputs.accept
-  permissions:
-    contents: write # the commit with the accepted images
-  runs-on: ubuntu-24.04 # the variance job's image: the runner paints the baselines
-  steps:
-    - uses: actions/checkout@v7 # a dispatch is on its branch already
-      with:
-        token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
-    - uses: actions/setup-node@v7
-      with:
-        node-version: 22
-        cache: npm
-    - run: npm ci
-    - run: npx playwright install --with-deps chromium
-    - run: npm run build-storybook
-    - uses: Variance-Authority/action@v1
-      with:
-        config: variance.config.json
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        commit-baselines: 'true'
-```
+`contents: write` reaches every step of the job, the install and the build
+included: a pull request from a branch of this repository runs its own code
+with it, while a fork's pull request gets a read-only token.
 
 The box accepts into the CI cache, so a committed store leaves `tick-to-accept`
 off.

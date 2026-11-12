@@ -88,11 +88,11 @@ repository root for Claude Code:
 
 A client launches `command` from its own `PATH`, where a local install puts
 nothing, so the entry goes through `npx --no-install`, which finds the binary in
-`node_modules/.bin` and never asks the registry. Change `npx` to however your
-package manager runs a local binary. Both `npx` and `.` read the directory the
-client starts in. A client that starts outside the repository takes its absolute
-path twice: `"args": ["--prefix", "/path/to/repo", "--no-install",
-"variance-authority-help", "/path/to/repo"]`.
+`node_modules/.bin` and never asks the registry. Change `npx --no-install` to
+however your package manager runs a local binary. Both `npx` and `.` read the
+directory the client starts in. A client that starts outside the repository
+takes its absolute path twice: `"args": ["--prefix", "/path/to/repo",
+"--no-install", "variance-authority-help", "/path/to/repo"]`.
 
 A workspace that already has a `variance.config.json` can declare `variance serve`
 instead of this entry: it carries the same tools under the same names, beside the

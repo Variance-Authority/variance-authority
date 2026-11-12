@@ -145,24 +145,20 @@ pull request, with the new reason.
   never absorbed by a workaround, which turns a defect into a result that
   depends on the machine.
 - **A process is codified in the action or the CLI, never pasted.** The
-  owner, 2026-11-12, in the session that wrote this entry: "We avoid any
-  imperative code that someone should copy past and rely on codified process in
-  action or cli. We pick the abstraction that withstands time." [What we ship
-  is installed, never
-  copied](../../docs/AGENTS.md#what-we-ship-is-installed-never-copied) covers
-  the glue around our steps too. Glue is what an adopter writes around `uses:`
-  of the action or a `variance` command to decide what variance does on an
-  event, or to compute, move or post variance's data: a branch that runs
-  `index` only on a pull request, a cache key, an artifact path, a `jq` over
-  our output, a poster for a platform's API. Each is a missing input or
-  command. A page never adds glue, and a recipe a page already prints stays
-  only until the action or the CLI carries it. The adopter's own steps
-  (checkout, install, a build, a browser), which events run their jobs, and
-  another service stay theirs. Pasted glue is code every adopter maintains and
-  that drifts with each release; a codified step is fixed once, by us. The
-  coverage badge was first written as shell in a workflow, and was turned down
-  before it merged for `variance coverage --format badge` and the action's
-  `badge` input.
+  owner, 2026-11-12: "We avoid any imperative code that someone should copy
+  past and rely on codified process in action or cli. We pick the abstraction
+  that withstands time." A printed workflow holds `on:`, the adopter's own
+  steps (checkout, install, a build, a browser, the tests), and our action's
+  `uses:` with its inputs or one `variance` command, whose output may be
+  redirected to a file. Anything else is a recipe: shell around a command (a
+  condition, a second command, a pipe into `jq`), a cache key or an artifact
+  move for our data, a poster, or an `if:` or a second job that runs variance
+  one way on one event and another way on another. An `if:` that only skips a
+  job, and an input's expression, stay the adopter's. A page adds no recipe;
+  each one already printed is an `it.todo` in `tools/docs-action.check.ts`
+  until the action or the CLI carries it. [What we ship is installed, never
+  copied](../../docs/AGENTS.md#what-we-ship-is-installed-never-copied) is the
+  rule for our files; this one is for what an adopter writes around them.
 - **A collision breaks loudly.** An id clash that only input the test framework
   would reject can produce is not engineered around: the fold throws, naming
   both tests. Silent merging or renumbering hides a broken suite.
