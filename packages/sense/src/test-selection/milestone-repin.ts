@@ -321,6 +321,13 @@ function repinnedRuns(
   for (const landing of published?.landings ?? []) {
     standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files.filter((one) => milestone.delete(one)));
   }
+  // A record that did not run every test says where the others stand, and
+  // they keep that stand: moved to its commit, the change since would be
+  // charged to nobody.
+  for (const entry of published?.standing ?? []) {
+    const { files: its, partly: _part, cases: _cases, ...stand } = entry;
+    standAt({ ...stand, files: [] }, its.filter((one) => milestone.delete(one)));
+  }
   standAt({ commit: record.commit, files: [] }, [...milestone]);
   // Where the record cannot place a kept test, it stands where the runs started,
   // assumed, and with no start the record does not say (`commit-runs.ts`).

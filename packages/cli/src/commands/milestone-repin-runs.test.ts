@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -65,6 +65,25 @@ describe('the runs record under a repinned checkout', () => {
     const runs = await readCommitRuns(own);
     expect(runs).toMatchObject({ over: next, landings: [] });
     expect(runs!.standing).toEqual([{ commit: next, files: ['test/other.test.ts', 'test/total.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1 }]);
+  });
+
+  it('stands a milestone test where the published runs record stood it, not at the milestone', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    // The record at the new milestone ran `total` alone; `other` stands where it last ran, as a partial run's record says.
+    const read = join(home, 'laptop-cache');
+    const fetched = (await readdir(read, { recursive: true })).filter((path) => path.includes(next) && path.endsWith('.runs.json'));
+    expect(fetched).toHaveLength(1);
+    const at = '2026-01-01T00:00:00.000Z';
+    const partial = { commit: next, latest: at, runs: 1, landings: [{ files: ['test/total.test.ts'], first: at, latest: at, runs: 1 }], standing: [{ commit: first, files: ['test/other.test.ts'], first: at, latest: at, runs: 1 }] };
+    await writeFile(join(read, fetched[0]!), JSON.stringify(partial));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    expect((await readCommitRuns(own))!.standing!.map((stand) => [stand.commit, stand.files])).toEqual([[next, ['test/total.test.ts']], [first, ['test/other.test.ts']]]);
   });
 
   it('writes no runs record for a record that holds none, which does not say where its tests stand', async () => {
