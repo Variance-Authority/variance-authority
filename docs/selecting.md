@@ -239,7 +239,16 @@ holds, since the record predates the pull request's own. A lockfile or
 other side did. When the two sides reach no test in common, no test file runs,
 and the report says so.
 
-The narrowing holds only for a group of one: HEAD's tree must be exactly the
+A pull request already up to date with the mainline merges nothing new: the
+merge's tree is the tested commit's tree. When HEAD's clean tree is the tree
+`--tested` or `--since` names, every test file is skipped, and the note names
+the commit that ran them:
+
+```text
+`--tested 3f2a9c1e0b7d` skips every test file: HEAD's tree is the tree 3f2a9c1e0b7d ran its selection on
+```
+
+Otherwise the narrowing holds only for a group of one: HEAD's tree must be exactly the
 clean merge of the tested commit onto `--since`, by a merge commit or a squash,
 from one merge base, with nothing changed or added on top of it. Anything else
 — a group of two, a pull request pushed past its tested commit, a merge
@@ -256,6 +265,20 @@ other side renamed it. A note names the reason. When
 the selection without `--tested` reads no record, or already runs every test
 file, `--tested` does nothing, and a note says so. These are among the
 [places selection widens](#where-selection-widens).
+
+A queue that runs its tests through the
+[runner's seam](../packages/sense/README.md#let-the-runner-skip-them) names the tested commit beside the
+base, and `variance shards` takes the same flag, so the plan counts the shards
+the narrowed selection needs, none when every file is skipped:
+
+```bash
+VARIANCE_AUTHORITY_SINCE="$BASE_SHA" VARIANCE_AUTHORITY_TESTED="$PR_HEAD_SHA" npx vitest run
+variance shards --since "$BASE_SHA" --tested "$PR_HEAD_SHA" --collected collected.txt
+```
+
+`VARIANCE_AUTHORITY_TESTED` beside an empty `VARIANCE_AUTHORITY_SINCE` is
+refused, as `--tested` is without `--since`: the base must be the commit the
+queue merged onto.
 
 A file a test reads at run time without importing it, such as a fixture or a
 snapshot, reaches only the tests a
