@@ -1001,8 +1001,8 @@ jobs:
     # file under `suite`. It starts once `rules` is green: a lint or a
     # documentation failure is two minutes to find, so it does not spend a
     # runner on a change that is already red, and it is not in `needs` of
-    # `check`, so the wait adds nothing to the gate's time. It runs on `main`,
-    # not on a pull request: its finding is about the whole slice in one
+    # `check`, so the wait adds nothing to the gate's time. It runs on `main`
+    # and on a dispatch, not on a pull request: its finding is about the whole slice in one
     # process, which no change's selection holds, and nothing gates on it, so a
     # pull request paid a runner to learn what its unit `suite` legs had
     # already said.
