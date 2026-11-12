@@ -217,7 +217,7 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
     });
   });
 
-  it('is published as partial for a mainline that takes part of a run, when every test it did not run says where it last ran', async () => {
+  it('is published as partial for a mainline that takes part of a run, a test no run lists among those it did not run', async () => {
     const older = 'c'.repeat(40);
     const { root, commit } = await ranAt('queued', (at) => ({ ...ran(at, [{ commit: older, files: ['test/other.test.ts'] }]) }));
     const both = new Set(['test/kept.test.ts', 'test/other.test.ts']);
@@ -226,9 +226,9 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
 
     expect(entry).toMatchObject({ name: 'suite-v1/unit', commit, partial: true });
     expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected, partial: true })).not.toHaveProperty('partial');
-    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set([...both, 'test/new.test.ts']), partial: true })).toHaveProperty(
-      'unpublished',
-    );
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/kept.test.ts', 'test/new.test.ts']), partial: true })).toMatchObject({
+      partial: true,
+    });
   });
 
   it('is not published for a mainline when a test file the runner collects is in no run the record lists, and names it', async () => {

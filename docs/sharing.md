@@ -1220,8 +1220,14 @@ push to a mainline, `--from-queue` publishes it:
   head is `HEAD`, found and downloaded with `gh`, which reads `GH_TOKEN`.
 - **The entry is marked partial.** What the queue ran stands at this commit,
   and every other test keeps the stand the mainline's record gave it. The whole
-  run's publish at the same commit replaces it; a partial publish never
-  replaces a whole entry, and says so:
+  run's publish at the same commit replaces it. A test file no run has listed,
+  such as one the group added, stands nowhere, so a checkout runs it. A suite the
+  queue ran none of is skipped with a line, and a group whose tests had already
+  run on the pull request's head may have run none, so it publishes nothing.
+- **A newer commit's entry wins.** When the next push's partial entry lands
+  before this commit's whole run publishes, the whole one is kept off the line as
+  older. A partial publish never replaces a whole entry at its own commit, and
+  says so:
 
 ```text
 kept suite-v1/unit: the line holds the whole run at 3f1c…, and this run ran part of it.

@@ -191,7 +191,7 @@ export async function suiteEntryOf(
   // A record whose run instrumented no module narrows no reader, so it has no
   // whole run to show and is published under the commit of its cases.
   if (options.whole === true && !uncovered) {
-    const stood = standingAt(runs, at.commit, options.collected);
+    const stood = standingAt(runs, at.commit, options.collected, options.partial === true);
     const lacks = typeof stood === 'string' ? stood : options.partial === true ? undefined : beforeIt(stood, at.commit);
     if (lacks !== undefined) return { unpublished: `its record at ${coverage} is not a whole run: ${lacks}` };
     // Every collected file is still listed, run or standing; any that last ran
@@ -244,7 +244,7 @@ const RUNS_PART = 'coverage.runs.json';
  * the run. The runner owns what is collected, so without `collected` nothing
  * here can tell tests from other files, and the refusal says to pass it.
  */
-function standingAt(runs: Uint8Array | undefined, commit: string, collected?: ReadonlySet<string>): readonly string[] | string {
+function standingAt(runs: Uint8Array | undefined, commit: string, collected?: ReadonlySet<string>, partial = false): readonly string[] | string {
   if (runs === undefined) return 'no runs record lies beside it, so nothing says which tests ran at this commit';
   let parsed: CommitRuns;
   try {
@@ -260,15 +260,17 @@ function standingAt(runs: Uint8Array | undefined, commit: string, collected?: Re
   }
   const listed = new Set([...whatLanded(parsed.landings).files, ...parsed.standing.flatMap((entry) => entry.files)]);
   const unlisted = [...collected].filter((path) => !listed.has(path)).sort();
-  if (unlisted.length > 0) {
+  // A part of the suite leaves unlisted what no run reached, such as a file the
+  // merge group added: it stands nowhere, so a reader runs it.
+  if (unlisted.length > 0 && !partial) {
     const named = unlisted.length > 5 ? `${unlisted.slice(0, 5).join(', ')} and ${unlisted.length - 5} more` : unlisted.join(', ');
     return `${unlisted.length} test file(s) the suite collects are listed nowhere in the runs record: ${named}`;
   }
   // A test standing at this commit ran at it, in a run before the latest.
-  return parsed.standing
+  return [...unlisted, ...parsed.standing
     .filter((entry) => entry.commit !== commit)
     .flatMap((entry) => entry.files)
-    .filter((path) => collected.has(path));
+    .filter((path) => collected.has(path))];
 }
 
 function beforeIt(kept: readonly string[], commit: string): string | undefined {

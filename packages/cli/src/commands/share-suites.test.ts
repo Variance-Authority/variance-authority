@@ -134,6 +134,41 @@ describe('`variance share --publish <records>`', () => {
     expect(await stat(join(home, 'downloaded-1')).catch(() => undefined)).toBeUndefined();
   });
 
+  it('skips a shared suite the merge queue ran none of, and publishes the one it ran', async () => {
+    const { ci, second } = await nextPush();
+    await handedOn('variance-shard-unit-0', 'unit', 'test/total.test.ts', second);
+    const queue = async () => {
+      const dir = join(home, 'downloaded-skip');
+      await cp(join(home, 'ran'), dir, { recursive: true });
+      return { dir };
+    };
+
+    const done = await suitesShare(ci, { publish: true, records: [], fromQueue: 'variance-shard-*', collected: await collectedEach() }, { env: PUSH }, queue);
+
+    expect(done.exit).toBe(EXIT_CLEAN);
+    expect(done.lines).toContain('integration: the merge queue ran none of it; the whole run at this commit publishes its record.');
+    expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
+  });
+
+  it('publishes the merge queue\'s run when the runner collects a test file no run has listed yet', async () => {
+    const { ci, origin, second } = await nextPush();
+    await handedOn('variance-shard-unit-0', 'unit', 'test/total.test.ts', second);
+    const collected = await collectedEach();
+    await writeFile(join(collected, 'unit.txt'), 'test/added.test.ts\ntest/other.test.ts\ntest/total.test.ts\n');
+    const before = await git(home, 'ls-remote', origin, 'refs/variance/mainline/main');
+    const queue = async () => {
+      const dir = join(home, 'downloaded-added');
+      await cp(join(home, 'ran'), dir, { recursive: true });
+      return { dir };
+    };
+
+    const done = await suitesShare(ci, { suite: 'unit', publish: true, records: [], fromQueue: 'variance-shard-*', collected: join(collected, 'unit.txt') }, { env: PUSH }, queue);
+
+    expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
+    expect(done.exit).toBe(EXIT_CLEAN);
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).not.toBe(before);
+  });
+
   it('says why it published nothing when the merge queue kept no run of the commit, and leaves the publish to the whole run', async () => {
     const { ci, origin } = await nextPush();
     const before = await git(home, 'ls-remote', origin, 'refs/variance/mainline/main');

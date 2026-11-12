@@ -107,6 +107,11 @@ async function sharedSuites(root: string, options: SuitesShareOptions, here: Her
   const refused: string[] = [];
   const keyed = options.format === 'github';
   for (const suite of suites) {
+    // A suite the queue ran none of has no record at this commit to publish.
+    if (partial && (records?.get(suite) ?? []).length === 0) {
+      (keyed ? notes : lines).push(`${suite}: the merge queue ran none of it; the whole run at this commit publishes its record.`);
+      continue;
+    }
     try {
       const done = await suiteShare(root, suiteOptions(suite, options, records, collected, partial), here);
       lines.push(...(keyed ? done.lines.map((line) => line.replace(/^([\w-]+)=/u, `$1-${suite}=`)) : done.lines));

@@ -50,6 +50,14 @@ replaces it, and a partial one never replaces a whole one.**
 
 ## Cost
 
-- One more job per push to `main`: install, build and `vitest list`.
-- A test the queue's near wave did not reach stands at an older commit until
-  the whole run publishes, so a checkout charges it from there, as before.
+- One more job per push to `main`: install, build and `vitest list`, about
+  three and a half minutes before the record is on the line.
+- The queue runs the near wave alone, and a group whose tree its pull request
+  already ran runs nothing, so what it publishes is often a few files, or
+  nothing. A test it did not reach stands at an older commit until the whole
+  run publishes, so a checkout charges it from there, as before; a test file no
+  run lists stands nowhere, and a checkout runs it.
+- Under merges faster than the whole run, the next commit's partial entry lands
+  first and the whole run at this commit is kept off the line as older, so the
+  mainline may hold partial entries alone until a whole run outruns the next
+  merge.
