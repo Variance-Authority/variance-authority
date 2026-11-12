@@ -65,10 +65,6 @@ export function withoutConfig(parsed: Parsed): parsed is Configless {
  * want of `variance.config.json` would send a reader to write a file that has
  * no bearing on the answer.
  *
- * So is a question only a watcher answers. The watcher holds the whole of its
- * subject and reads no project, and an application used by hand has no visual
- * suite to have configured one for.
- *
  * `comment --marker` is not one of them: the marker names the config's
  * `project`, so it is answered after the config is read, like any other answer
  * about a project.
@@ -91,11 +87,13 @@ export async function constantAnswer(
     streams.out(await askSource({ ...parsed, question: parsed.question }));
     return EXIT_CLEAN;
   }
+  // A question only a watcher answers reads no project either: the watcher
+  // holds its whole subject, and an application used by hand has no visual
+  // suite to have configured. It has no `report` arm, so `read` is never called.
   const question = questionFor(parsed.question);
   if (question.live !== undefined && question.report === undefined) {
     const [{ ask }, { VANTAGE_VARIABLE }] = await Promise.all([import('./ask.js'), import('@variance-authority/vantage')]);
     const at = parsed.at ?? process.env[VANTAGE_VARIABLE];
-    // No report is configured and none is read: the question has no `report` arm.
     const read = (): never => {
       throw new OperatorError(`\`${parsed.question}\` reads no report`);
     };

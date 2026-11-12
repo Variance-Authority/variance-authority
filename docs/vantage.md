@@ -246,9 +246,10 @@ VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 node dist/server.js
 ```
 
 Use the application, then run `variance ask ran` from the repository it was
-built from. It needs no `variance.config.json`. Rebuild after you edit a file: a file changed since the build is
-listed with a count of its regions and no names, because the names are read
-from your checkout and would no longer match what ran.
+built from. It needs no `variance.config.json`. Rebuild after you edit a file:
+a file changed since the build is listed with a count of its regions and no
+names, because the names are read from your checkout and would no longer match
+what ran.
 
 Three limits keep the listing honest:
 

@@ -443,10 +443,11 @@ keeps:
 | `tests` | 200 | tests kept, newest |
 | `heard` | 500 | announcements kept per test, newest |
 | `notes` | 100 | notes kept per test, newest |
+| `executions` | 200 | executions an application used by hand reported, newest |
 | `address` | the one it is listening on | included in every answer, so a tool with nothing to show can name what to set. Set it only when something in front of the watcher rewrites the origin a run must use |
 
 Past those, entries drop from the front and are counted: `forgotten` on the run,
-`forgotten` and `forgottenNotes` on each test. Every printed answer counts how
+`forgotten` and `forgottenNotes` on each test, `ran.forgotten` for executions. Every printed answer counts how
 many were dropped, so an empty list is never mistaken for a beginning that was
 forgotten. `pending` is exact regardless — what is bounded is the list of
 announcements, not the tally of work that opened and never closed.

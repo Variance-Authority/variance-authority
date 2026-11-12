@@ -16,11 +16,6 @@ import { VARIABLE } from './vantage-lines.js';
  * something is looking for the last one. What a process entered outside any
  * request, or while a module evaluated, is every request's and so is listed
  * once, apart, and never under whichever request arrived first.
- *
- * A region arrives as an ordinal. Its name and line are read from the file its
- * build was made from, by the host, and where that file is no longer that text
- * the region is counted and the reason said: a name read off the new text would
- * be a name for some other region.
  */
 export const ran: Tool<VantageState> = {
   name: 'variance_ran',
@@ -116,6 +111,12 @@ function fileOf(id: string): string {
   return at < 0 ? id : id.slice(0, at);
 }
 
+/**
+ * A region arrives as an ordinal. Its name and line are read from the file its
+ * build was made from, by the host, and where that file is no longer that text
+ * the region is counted and the reason said: a name read off the new text would
+ * be a name for some other region.
+ */
 function regionsOf(head: HeadRan, cut: CutModules | undefined): readonly Entered[] {
   return head.modules.flatMap((module): readonly Entered[] => {
     const file = fileOf(module.id);
