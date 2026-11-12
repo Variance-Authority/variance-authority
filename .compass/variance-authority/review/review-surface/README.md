@@ -83,7 +83,8 @@ made, to recover from a network error.
   throws rather than becoming an empty list
 - `packages/tribunal/src/node/ui-assets.ts` — the document that loads it, with the
   endpoint and the reviewer name as configuration and no token
-- `tribunal-cloudflare/app/review.tsx` — the deployed console's mount
+- `packages/tribunal/src/ui/browser-entry.tsx` — the mount the packaged Worker's
+  page loads
 
 ## Diagram
 
