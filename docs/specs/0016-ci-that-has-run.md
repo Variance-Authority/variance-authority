@@ -41,6 +41,16 @@ is three steps against a different API and is currently a starting point
 somebody still has to prove. Either run it or say plainly that it is untested —
 and running it is cheaper than the paragraph explaining why it is not.
 
+*Amended 2026-11-12:* this replaces the paragraph above, and running the recipe
+no longer discharges it. The recipe's last step is `bitbucket-comment.sh`, a
+poster for the platform's comments API that the adopter writes from a paragraph,
+and the owner ruled that out: "We avoid any imperative code that someone should
+copy past and rely on codified process in action or cli. We pick the abstraction
+that withstands time." The second platform is discharged when a step we ship, an
+input of the action or a `variance` command, posts on Bitbucket as the action
+posts on GitHub, or when the README stops printing the recipe and says plainly
+that Bitbucket gets the gate and the rendered body but no comment.
+
 ## Constraints this must not break
 
 - **`comment` posts nothing itself.** Rendering the body and sending it stay

@@ -144,6 +144,20 @@ pull request, with the new reason.
 - **CI runs like a clock.** Anything unexpected fails loudly and is reported,
   never absorbed by a workaround, which turns a defect into a result that
   depends on the machine.
+- **A process is codified in the action or the CLI, never pasted.** The
+  owner, 2026-11-12: "We avoid any imperative code that someone should copy
+  past and rely on codified process in action or cli. We pick the abstraction
+  that withstands time." [What we ship is installed, never
+  copied](../../docs/AGENTS.md#what-we-ship-is-installed-never-copied) covers
+  the glue around our steps too. An event branch, a cache key, an artifact
+  path, a `jq` over our output or a poster for a platform's API, written by the
+  adopter around `uses:` of the action or a `variance` command, is a missing
+  input or command: it is filed as a gap, never printed as a recipe. The
+  adopter's own steps (checkout, install, a build, a browser) and another
+  service stay theirs. Pasted glue is code every adopter maintains and that
+  drifts with each release; a codified step is fixed once, by us. The coverage
+  badge was first written as shell in a workflow, and was turned down before it
+  merged for `variance coverage --format badge` and the action's `badge` input.
 - **A collision breaks loudly.** An id clash that only input the test framework
   would reject can produce is not engineered around: the fold throws, naming
   both tests. Silent merging or renumbering hides a broken suite.
