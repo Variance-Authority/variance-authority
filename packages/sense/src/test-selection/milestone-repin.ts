@@ -266,9 +266,10 @@ function repinnedEyes(
  * The runs record once the record stands on `record`: the runs at its commit
  * as they were, for the tests it keeps, its change now starting at the new
  * milestone, each kept test standing where the record placed it, beside the
- * runs that ran it in part since, and every other test at the milestone, as
- * the run that published it landed there (`published`, which a fetch keeps
- * beside the snapshot). A kept test the record places nowhere stands where its
+ * runs that ran it in part since, and every other test where the run that
+ * published the record left it (`published`, which a fetch keeps beside the
+ * snapshot): landed at the milestone, or standing where that record says, and
+ * at the milestone where it says nothing. A kept test the record places nowhere stands where its
  * runs started, assumed, and with no start either the record says nothing of
  * where its tests stand.
  */
@@ -310,13 +311,14 @@ function repinnedRuns(
   // The ledger says which tests are this checkout's, and the runs record where
   // each stands and what it ran on there: a run that ran one in part left it
   // where it stood, and stays beside it.
-  const placed = new Set<string>();
-  for (const entry of held.standing ?? []) {
-    const { files: its, partly: _part, cases: _cases, ...stand } = entry;
-    const files = its.filter((file) => kept.has(file));
-    for (const file of files) placed.add(file);
-    standAt({ ...stand, files: [], ...partlyIn(entry, (file) => kept.has(file)) }, files);
-  }
+  const carry = (standing: readonly StandingEntry[] | undefined, take: (file: string) => boolean, ours: (file: string) => boolean): string[] =>
+    (standing ?? []).flatMap((entry) => {
+      const { files: its, partly: _part, cases: _cases, ...stand } = entry;
+      const files = its.filter(take);
+      standAt({ ...stand, files: [], ...partlyIn(entry, ours) }, files);
+      return files;
+    });
+  const placed = new Set(carry(held.standing, (file) => kept.has(file), (file) => kept.has(file)));
   const milestone = new Set(recorded.filter((file) => !kept.has(file)));
   for (const landing of published?.landings ?? []) {
     standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files.filter((one) => milestone.delete(one)));
@@ -324,10 +326,7 @@ function repinnedRuns(
   // A record that did not run every test says where the others stand, and
   // they keep that stand: moved to its commit, the change since would be
   // charged to nobody.
-  for (const entry of published?.standing ?? []) {
-    const { files: its, partly: _part, cases: _cases, ...stand } = entry;
-    standAt({ ...stand, files: [] }, its.filter((one) => milestone.delete(one)));
-  }
+  carry(published?.standing, (one) => milestone.delete(one), (one) => !kept.has(one));
   standAt({ commit: record.commit, files: [] }, [...milestone]);
   // Where the record cannot place a kept test, it stands where the runs started,
   // assumed, and with no start the record does not say (`commit-runs.ts`).
