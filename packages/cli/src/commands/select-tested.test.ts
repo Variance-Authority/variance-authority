@@ -66,6 +66,19 @@ describe('`variance select --tested` in a merge queue', () => {
     expect(here.err).toContain('the pull request and the mainline it meets reach no test in common');
   });
 
+  it('narrows for every caller of `selectSuite`, as for the command', async () => {
+    const queue = await queued(home(), {
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+
+    // The seam and `shards` ask `selectSuite`, never the command's printer.
+    const asked = await selectSuite({ root: queue.dir, since: queue.base, tested: queue.tested });
+
+    expect([...asked.skip].sort()).toEqual(['test/other.test.ts', 'test/total.test.ts']);
+  });
+
   it('runs a test both sides reach, where the mainline renames a function the pull request adds a call to', async () => {
     const CART = "import { total } from './total';\nexport function cart(price: number): number {\n  return total(price);\n}\n\n\nexport const name = 'cart';\n";
     const queue = await queued(home(), {

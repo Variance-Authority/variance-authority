@@ -67,6 +67,12 @@ export interface SuiteRequest {
    * wave of it ran, so every shard and wave cut the same selection.
    */
   readonly beneath?: boolean;
+  /**
+   * The pull request's tested commit, which a merge queue merged onto
+   * `since`: what only one side of the merge reaches is skipped
+   * (`select-tested.ts`). Read only beside `since`.
+   */
+  readonly tested?: string;
 }
 
 function placingOf(span: TestSelection): NonNullable<SuiteSelection['placing']> {

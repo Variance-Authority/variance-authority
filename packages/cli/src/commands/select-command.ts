@@ -105,12 +105,8 @@ export interface SelectOutput {
 
 /** Read the journal against what has changed, and say what may be skipped. */
 export async function selectOutput(request: SelectRequest): Promise<SelectOutput> {
-  const { cwd, format, tested, ...asked } = request;
-  const full = await selectSuite({ root: cwd, ...asked });
-  const { reading } =
-    tested === undefined || asked.since === undefined
-      ? full
-      : await testedSuite({ root: cwd, since: asked.since, tested, suite: asked.suite, noGit: asked.noGit }, full, selectSuite);
+  const { cwd, format, ...asked } = request;
+  const { reading } = await selectSuite({ root: cwd, ...asked });
   return { out: formatSelection(reading, format, cwd), err: deprecated(format) + selectionNotes(reading) };
 }
 
@@ -133,6 +129,14 @@ function deprecated(format: SelectFormat): string {
  * drops the files in `skip` inside its runner.
  */
 export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> {
+  const { tested, ...asked } = request;
+  const full = await untested(asked);
+  if (tested === undefined || asked.since === undefined) return full;
+  return await testedSuite({ root: asked.root, since: asked.since, tested, suite: asked.suite, noGit: asked.noGit }, full, selectSuite);
+}
+
+/** The selection of everything `since` and the working tree change, before `tested` narrows it. */
+async function untested(request: SuiteRequest): Promise<SuiteReading> {
   const selection = await import('@variance-authority/sense/test-selection');
   // A snapshot handed in by path — the JVM agent's `coverage.va` — is read the
   // way this checkout's own is. Anything else `--execution` names is a journey
