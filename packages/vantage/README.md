@@ -110,8 +110,9 @@ costs one environment read per worker and reports nothing.
 variance ask run-signals --at http://127.0.0.1:53393
 ```
 
-`variance ask` reads `variance.config.json` from the working directory before
-it answers anything, live questions included, so run it from your project root.
+A question only the watcher answers reads no `variance.config.json`, so it can
+be asked from any directory. `diff` also reads a finished run, so ask it from
+your project root.
 
 ### What you get
 
@@ -442,10 +443,11 @@ keeps:
 | `tests` | 200 | tests kept, newest |
 | `heard` | 500 | announcements kept per test, newest |
 | `notes` | 100 | notes kept per test, newest |
+| `executions` | 200 | executions an application used by hand reported, newest |
 | `address` | the one it is listening on | included in every answer, so a tool with nothing to show can name what to set. Set it only when something in front of the watcher rewrites the origin a run must use |
 
 Past those, entries drop from the front and are counted: `forgotten` on the run,
-`forgotten` and `forgottenNotes` on each test. Every printed answer counts how
+`forgotten` and `forgottenNotes` on each test, `ran.forgotten` for executions. Every printed answer counts how
 many were dropped, so an empty list is never mistaken for a beginning that was
 forgotten. `pending` is exact regardless — what is bounded is the list of
 announcements, not the tally of work that opened and never closed.
@@ -476,11 +478,12 @@ over stdio for an agent, and answers from the same snapshot:
 | `variance_run_signals` | every test that has reported, its state, and how much each has announced |
 | `variance_test_signals` | one test's announcements in order, the realm that sent each, and its unclosed work |
 | `variance_waiting` | which tests have stopped, where, and what they sent from there |
+| `variance_ran` | what an application used by hand ran, one execution per request no test drove |
 | `variance_diff` | what changed between this reading and the one before it |
 | `variance_continue` | let one stopped test go on, or all of them |
 
 `variance ask` answers all but the last from a shell — `self`,
-`run-signals`, `test-signals`, `waiting`, `diff` — against a watcher named with
+`run-signals`, `test-signals`, `waiting`, `ran`, `diff` — against a watcher named with
 `--at <address>`. `variance_continue` has no `ask` equivalent, for the reason
 above.
 

@@ -22,7 +22,12 @@ function test(over: Partial<WatchedTest> = {}): WatchedTest {
 }
 
 function state(...tests: WatchedTest[]): VantageState {
-  return { address: 'http://127.0.0.1:53411', forgotten: 0, tests };
+  return {
+    address: 'http://127.0.0.1:53411',
+    forgotten: 0,
+    tests,
+    ran: { executions: [], forgotten: 0, common: [], lost: 0 },
+  };
 }
 
 const STOPPED = test({

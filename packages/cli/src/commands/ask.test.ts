@@ -354,6 +354,7 @@ const RUNNING: VantageState = {
     },
   ],
   forgotten: 0,
+  ran: { executions: [], forgotten: 0, common: [], lost: 0 },
 };
 
 function about(question: string, reading: VantageReading, rest: Record<string, unknown> = {}) {
@@ -448,7 +449,7 @@ describe('a question about a suite that is still running', () => {
     const path = join(await directory(), 'report.json');
 
     await expect(ask(asking(path, 'run-signals'))).rejects.toThrow(
-      'is about a suite that is still running, and needs a watcher to ask',
+      'is about a suite or an application that is still running, and needs a watcher to ask',
     );
   });
 

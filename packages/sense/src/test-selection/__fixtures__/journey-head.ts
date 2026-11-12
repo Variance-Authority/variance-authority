@@ -83,6 +83,8 @@ export async function forget(): Promise<void> {
 /** What a head answers to, and everything it has said so far. */
 export interface Driver {
   readonly reports: JourneyReport[];
+  /** Where it listens, which is what a head is told when no request brings an address. */
+  readonly origin: string;
   /** The `Cookie` header a request driven by this journey carries. */
   readonly carrying: (journey: string) => string;
 }
@@ -97,6 +99,7 @@ export async function driver(): Promise<Driver> {
   });
   return {
     reports,
+    origin: wire.origin,
     carrying: (journey) =>
       `theme=dark; ${JOURNEY_COOKIE}=${journey}; ${RETURN_COOKIE}=${wire.addressFor(journey)}`,
   };

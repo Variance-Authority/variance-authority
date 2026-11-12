@@ -159,6 +159,8 @@ export {
   type SuiteKind,
 } from './suites.js';
 export { defaultInclude } from './instrumented-modules.js';
+// The join's cut of a module from its id, for a reader that holds ids and no record.
+export { deriveModules } from './captured-modules.js';
 export { declaredEntrypoints, parseEntrypoints, EntrypointsError, type Entrypoints } from './entrypoints.js';
 export { repositoryRoot } from './repository-root.js';
 export {

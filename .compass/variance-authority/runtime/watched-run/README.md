@@ -27,6 +27,13 @@ announce, what opened and never closed, the remarks, and the address reports
 arrive on, so a reader with nothing to show can name what to set rather than
 leaving somebody to guess it is broken.
 
+In as well: an application used by hand. A head that is enabled and told the
+watcher's address reports each request no test drove as one execution, with the regions
+it ran as ordinals, and what its process ran outside every request apart from
+all of them. Out: those executions in arrival order, bounded and counted as the
+tests are. A reader names the ordinals from the checkout; the watcher holds no
+source and names nothing.
+
 The signals are not collected for this. A worker already knows which test is
 running, which realms answered it, what opened and never closed, and how it
 ended; all of it is spent settling waits and printing failures and then
@@ -38,6 +45,9 @@ discarded. This is the second reader, given the same signals at the same moment.
   with the suite as the participant
 - [`announcements`](../announcements/README.md) — told about each announcement
   and remark as the log records it
+- [`journey`](../../reach/journey/README.md) — a head's account of a request no
+  test drove. The watcher spells the account's shape itself and does not import
+  the head: it is installed without the instrument
 
 ## Used by
 
@@ -62,6 +72,10 @@ is actually asked about.
 It cannot break its subject. Reporting is fire-and-forget always: a run that
 failed because the thing looking at it went away would be worse than no watcher.
 
+It names no region. An execution holds module ids and ordinals; the reader in
+[`agent surface`](../../report/agent-surface/README.md) names them from a
+checkout, because the watcher holds no source.
+
 It renames nothing. A test's end is spelled in the runner's own words, because a
 watcher that renamed them would ask a reader to hold two vocabularies for one
 fact. It knows nothing about **subjects**; a suite that never captures anything
@@ -81,6 +95,8 @@ unusable once rather than per report. `packages/vantage/src/attach.ts` —
 `attachVantage`, the only half that opens a socket.
 `packages/vantage/src/report.ts` — the four sentences and the version guard.
 `packages/vantage/src/state.ts` — the snapshot handed to readers.
+`packages/vantage/src/executions.ts` — the executions an application used by
+hand reported, and their bound.
 `packages/playwright-test/src/vantage.ts` — the automatic lifecycle fixture.
 
 ## Diagram

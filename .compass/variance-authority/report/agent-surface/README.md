@@ -14,7 +14,8 @@ tools that read and never act.
 ## Inputs and outputs
 
 In: whatever was already read — the run artifact, a live suite held in a
-watching process, **attention** journals and **scenario** evidence from
+watching process, the executions an application used by hand reported to it,
+**attention** journals and **scenario** evidence from
 [`runtime`](../../runtime/README.md), presentation readings from
 [`presentation`](../../presentation/README.md), the execution index from
 [`reach`](../../reach/README.md), a workspace's published names, and the
@@ -76,6 +77,7 @@ previous reading standing — stale rather than wrong.
 - `packages/mcp/src/tools.ts` — the sets, their order, and the lift that puts
   several subjects behind one connection
 - `packages/mcp/src/tools/` — one module per answer
+- `packages/mcp/src/tools/ran.ts`, `packages/mcp/src/tools/cut.ts` — what an application used by hand ran, and the cut its regions are named from
 - `packages/mcp/src/tools/diff.ts` — the one stateful tool, and the single prior invocation it holds
 - `packages/help/src/tools.ts`, `packages/help/src/tools/` — the questions asked of a workspace
 - `packages/mcp/src/tools/names.ts` — what each file declares and imports by name, read off the scan's own parse; `packages/help/src/tools/discover.ts` crosses whole sets of files on it

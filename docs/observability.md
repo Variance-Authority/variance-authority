@@ -24,6 +24,12 @@ process that runs your suite, as the collector — but the traced thing is a tes
 execution rather than a user request, the retention is a file rather than a
 backend, and the consumer is the next run rather than a dashboard.
 
+One case is wider than a test run. A service built with the probes on and used
+by hand reports each request no test drove to a watcher, which holds it in
+memory while it runs and writes nothing: see [an application you use by
+hand](vantage.md#watch-an-application-you-use-by-hand). Nothing on this page
+promises anything about those requests. The contracts below are a test run's.
+
 The **contracts** in the title are the promises attached to that retained data,
 and there are two parties:
 
@@ -284,7 +290,9 @@ export function handled(cookie, run) {
 
 `collectJourneys` takes its name from `VARIANCE_AUTHORITY_HEAD` and turns itself
 on from `VARIANCE_AUTHORITY_JOURNEYS`, so that `env` block is the whole of the
-configuration on the service side. With neither set, it installs nothing and
+configuration on the service side. Turned on, it also reads a watcher's address
+from `VARIANCE_AUTHORITY_VANTAGE`, for [an application you use by
+hand](vantage.md#watch-an-application-you-use-by-hand). Turned off, it installs nothing and
 `enter` is the identity function — which is why the call above ships to
 production rather than sitting behind a build flag. Each module the head
 reports names its file and the digest of the text its probes were placed on, and

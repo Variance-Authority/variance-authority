@@ -295,12 +295,16 @@ another shell:
 variance ask self --at http://127.0.0.1:54321
 variance ask run-signals --at http://127.0.0.1:54321
 variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
+variance ask ran --at http://127.0.0.1:54321
 ```
 
 `--at` defaults to `VARIANCE_AUTHORITY_VANTAGE`, so a shell that already exports
 it for the suite needs nothing extra. Ask `self` first: it reports where the
 watcher is listening and what it has received, which is what separates a suite
 that reported to a different address from one that has not started.
+`ask ran --at` lists what an application reporting to the same address ran for
+each request made by hand; [watch an application you use by
+hand](vantage.md#watch-an-application-you-use-by-hand) covers what it needs.
 `ask diff --at` compares against the reading the watcher handed out last — that
 state lives in the watcher rather than in a file, because these questions write
 nothing down and the run lives in memory that ends with the watcher.

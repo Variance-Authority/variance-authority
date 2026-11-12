@@ -21,7 +21,7 @@
  */
 
 import type { RecordedEvent } from '@variance-authority/event/collect';
-import { channelTo } from '@variance-authority/wire';
+import { channelTo, WATCHER_VARIABLE } from '@variance-authority/wire';
 import type { VantageReport } from './report.js';
 import { VANTAGE_VERSION } from './report.js';
 import type { TestState } from './state.js';
@@ -33,7 +33,7 @@ import type { TestState } from './state.js';
  * listens on an ephemeral port and says which, so nothing is agreed in advance
  * and two of them never collide.
  */
-export const VANTAGE_VARIABLE = 'VARIANCE_AUTHORITY_VANTAGE';
+export const VANTAGE_VARIABLE = WATCHER_VARIABLE;
 
 /** What a test's arrival is described by, once. */
 export interface WatchedTestIdentity {

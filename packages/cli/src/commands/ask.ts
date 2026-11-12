@@ -11,7 +11,7 @@ import { containment, discover, grep, intersection, journeyMapTool, orient, sear
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
-import { readTree, verbOf, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { cutFor, readTree, verbOf, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
@@ -377,9 +377,12 @@ async function live(
   // `file` is a path, and a terminal, unlike the watcher, has a directory `./x` is read from.
   const file = input['file'];
   const asked = typeof file === 'string' && file !== '' ? { ...input, file: resolve(file) } : input;
+  const root = repositoryRoot(process.cwd());
+  const modules = await cutFor(tool, reading.state, asked, root);
   return tool.run(reading.state, asked, invocationOf({
     ...(reading.previous === undefined ? {} : { previous: reading.previous }),
-    root: repositoryRoot(process.cwd()),
+    ...(modules === undefined ? {} : { modules }),
+    root,
   }));
 }
 
@@ -445,8 +448,8 @@ async function sourceTree(): Promise<Tree | undefined> {
  */
 function noWatcher(question: Question): OperatorError {
   return new OperatorError(
-    `\`${verbOf(question.tool)}\` is about a suite that is still running, and needs a ` +
-      'watcher to ask. Start one with `variance watch`, start the suite with the ' +
+    `\`${verbOf(question.tool)}\` is about a suite or an application that is still running, and needs a ` +
+      'watcher to ask. Start one with `variance watch`, start what it watches with the ' +
       `\`${VANTAGE_VARIABLE}\` line it prints, then ask again — with \`--at <address>\`, or ` +
       `with \`${VANTAGE_VARIABLE}\` set in this shell too.`,
   );

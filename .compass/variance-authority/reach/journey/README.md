@@ -31,6 +31,8 @@ per **subject** covering every process it reached.
 
 - [`crossings`](../crossings/README.md) — one row per **subject**, folded
   together with what the driven realm itself reported
+- [`watched run`](../../runtime/watched-run/README.md) — a request no test
+  drove, reported as an execution of its own to a watcher the head was told of
 
 ## Boundary
 
@@ -42,7 +44,9 @@ after an `await` is attributed.
 
 The **subject**'s name never leaves the driver. A participant reports counts
 under an id and writes nothing down; the driver mints, holds the mapping, and is
-the only party that persists anything. Told neither which build it is part of
+the only party that persists anything. A participant told a watcher's address
+mints an id itself for a request nobody drove, which names no **subject**; what
+that request entered stays every driver's, settled or still open. Told neither which build it is part of
 nor that anyone is listening, a participant installs nothing and the entry point
 is the identity function, which is what lets the call ship to production rather
 than be conditional on a build flag.

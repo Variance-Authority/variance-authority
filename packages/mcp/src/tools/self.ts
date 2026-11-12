@@ -1,4 +1,6 @@
 import type { TestState, VantageState } from '@variance-authority/vantage';
+import { ran } from './ran.js';
+import { spellingOf } from './spelling.js';
 import { attaching, unattached } from './vantage-lines.js';
 import { NO_ARGS, type Tool } from './tool.js';
 
@@ -22,11 +24,18 @@ export const self: Tool<VantageState> = {
   description:
     'This watcher: where it is listening, whether a run has reported to it yet, and exactly what to start a suite with. Ask first, and ask again when an answer is emptier than expected.',
   inputSchema: NO_ARGS,
-  run(state) {
-    if (state.tests.length === 0) return unattached(state);
+  run(state, _input, invocation) {
+    const executions = state.ran.executions.length;
+    // An application used by hand reports executions and no test.
+    const used =
+      executions === 0
+        ? []
+        : [`${executions} execution(s) of an application used by hand have reported: ${spellingOf(invocation).tool(ran)} lists them.`];
+    if (state.tests.length === 0) return used.length === 0 ? unattached(state) : [...used, '', attaching(state)].join('\n');
 
     return [
       held(state),
+      ...used,
       ...(state.forgotten === 0
         ? []
         : [`${state.forgotten} earlier test(s) were dropped to keep this watcher bounded.`]),

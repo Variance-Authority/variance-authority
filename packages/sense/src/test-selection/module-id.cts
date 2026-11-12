@@ -23,4 +23,9 @@ function marked(id: ModuleId): ModuleId {
   return id.replace(/@(?=[0-9a-f]+$)/u, '@~') as ModuleId;
 }
 
-export = { ID, pathOf, marked };
+/** Whether an id names a module marked as loaded, which no probe was placed in. */
+function isMarked(id: ModuleId): boolean {
+  return ID.exec(id)?.[2] === '~';
+}
+
+export = { ID, pathOf, marked, isMarked };

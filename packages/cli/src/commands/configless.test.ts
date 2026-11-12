@@ -1,7 +1,7 @@
 import { mkdtempSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
 import { EXIT_CLEAN } from '../exit.js';
@@ -15,6 +15,7 @@ import { questions } from './ask-questions.js';
 const cwd = process.cwd();
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   process.chdir(cwd);
 });
 
@@ -29,5 +30,13 @@ async function answer(argv: readonly string[]): Promise<{ code: number; out: str
 describe('an answer that needs no config', () => {
   it('lists the questions `ask` answers, for `ask` with no question', async () => {
     expect(await answer(['ask'])).toEqual({ code: EXIT_CLEAN, out: questions(), err: '' });
+  });
+
+  it('asks a watcher what only a watcher answers, where no project was ever configured', async () => {
+    // A shell that exports a watcher's address would answer from it.
+    vi.stubEnv('VARIANCE_AUTHORITY_VANTAGE', undefined);
+    const { err } = await answer(['ask', 'ran']);
+    expect(err).toContain('needs a watcher to ask');
+    expect(err).not.toContain('variance.config.json');
   });
 });

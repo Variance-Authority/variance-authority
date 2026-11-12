@@ -87,6 +87,19 @@ export async function constantAnswer(
     streams.out(await askSource({ ...parsed, question: parsed.question }));
     return EXIT_CLEAN;
   }
+  // A question only a watcher answers reads no project either: the watcher
+  // holds its whole subject, and an application used by hand has no visual
+  // suite to have configured. It has no `report` arm, so `read` is never called.
+  const question = questionFor(parsed.question);
+  if (question.live !== undefined && question.report === undefined) {
+    const [{ ask }, { VANTAGE_VARIABLE }] = await Promise.all([import('./ask.js'), import('@variance-authority/vantage')]);
+    const at = parsed.at ?? process.env[VANTAGE_VARIABLE];
+    const read = (): never => {
+      throw new OperatorError(`\`${parsed.question}\` reads no report`);
+    };
+    streams.out(await ask({ ...parsed, ...(at === undefined ? {} : { at }), report: '', read }));
+    return EXIT_CLEAN;
+  }
   return undefined;
 }
 

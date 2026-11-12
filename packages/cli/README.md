@@ -1700,6 +1700,7 @@ what one that does reports. Start the suite in one shell and ask from another:
 ```bash
 variance ask self --at http://127.0.0.1:54321
 variance ask run-signals --at http://127.0.0.1:54321
+variance ask ran --at http://127.0.0.1:54321
 variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
 ```
 
