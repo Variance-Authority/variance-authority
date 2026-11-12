@@ -128,6 +128,34 @@ describe('the runs record under a repinned checkout', () => {
     expect(standing.filter((stand) => stand.partly !== undefined).map((stand) => [stand.commit, stand.partly])).toEqual([[first, ['test/other.test.ts']]]);
   });
 
+  it('keeps a run the published record landed in part at the milestone beside where the test stands', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    // `other` last finished at the older commit, and one of its cases ran again at the milestone.
+    const read = join(home, 'laptop-cache');
+    const fetched = (await readdir(read, { recursive: true })).filter((path) => path.includes(next) && path.endsWith('.runs.json'));
+    const at = '2026-01-01T00:00:00.000Z';
+    const later = '2026-01-02T00:00:00.000Z';
+    const landings = [
+      { files: ['test/total.test.ts'], first: at, latest: at, runs: 1 },
+      { files: [], partly: ['test/other.test.ts'], cases: { 'test/other.test.ts': ['one'] }, first: later, latest: later, runs: 1 },
+    ];
+    const partial = { commit: next, latest: later, runs: 2, landings, standing: [{ commit: first, files: ['test/other.test.ts'], first: at, latest: at, runs: 1 }] };
+    await writeFile(join(read, fetched[0]!), JSON.stringify(partial));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    const standing = (await readCommitRuns(own))!.standing!;
+    expect(standing.map((stand) => [stand.commit, stand.files, stand.partly, stand.cases])).toEqual([
+      [next, ['test/total.test.ts'], undefined, undefined],
+      [next, [], ['test/other.test.ts'], { 'test/other.test.ts': ['one'] }],
+      [first, ['test/other.test.ts'], undefined, undefined],
+    ]);
+  });
+
   it('writes no runs record for a record that holds none, which does not say where its tests stand', async () => {
     const { ci, worktree, own } = await laidWorktree(home);
     const next = await publishedNext(home, ci);

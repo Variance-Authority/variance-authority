@@ -325,7 +325,8 @@ function repinnedRuns(
   const others = new Set(recorded.filter((file) => !kept.has(file)));
   const milestone = new Set(others);
   for (const landing of published?.landings ?? []) {
-    standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files.filter((one) => milestone.delete(one)));
+    // A run that landed a test in part at the milestone stays beside wherever the test stands.
+    standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing), ...partlyIn(landing, (one) => others.has(one)) }, landing.files.filter((one) => milestone.delete(one)));
   }
   // A record that did not run every test says where the others stand, and
   // they keep that stand: moved to its commit, the change since would be
