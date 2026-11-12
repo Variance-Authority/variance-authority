@@ -75,7 +75,8 @@ server the click reached is a second head under the same id. A request sent
 after the next click is listed under that later click, and the request for a
 document under the last execution of the page it replaces.
 Without the call, nothing the browser ran is listed. The call installs nothing
-for an address that is absent or not `http` on this machine.
+for an address that is absent or not `http` on this machine, or on a page a
+test drives.
 
 ```bash
 variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE"

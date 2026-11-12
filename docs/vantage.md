@@ -167,8 +167,9 @@ answered. The watcher lists each thing you did as its own **execution**, with
 the functions and branches it ran. For a server alone an execution is one
 request. For a page that reports as well, it is one load or one click, and
 [the click's listing](#one-click-the-page-and-the-server) holds the page and
-the server together. This is the answer after two requests to a pricing
-service:
+the server together. Use the application, then run `variance ask ran` from
+the repository it was built from. This is the answer after two requests to a
+pricing service:
 
 ```bash
 variance ask ran --at http://127.0.0.1:53393
@@ -203,8 +204,9 @@ line, the function declared there, and the branch inside it. Both requests ran
 before any request arrived is listed once, at the end.
 
 Four steps get you there: three for the server, and one more for the page.
-Start the watcher in its own terminal; it prints the address the later steps
-use:
+A **watcher** is a small process on your machine that the application reports
+to as it runs, and that you ask from any other shell. Start it in its own
+terminal; it prints the address the later steps use:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/sense
@@ -315,9 +317,8 @@ The first execution is the load. The second is the click: the page ran `ask`,
 which sent a request, and the server answered it in `quote`. A click and the
 submit it causes are one execution.
 
-Use the application, then run `variance ask ran` from the repository it was
-built from. It needs no `variance.config.json`. Rebuild after you edit a file:
-a file changed since the build is listed with a count of its regions and no
+`variance ask ran` needs no `variance.config.json`. Rebuild after you edit a
+file: a file changed since the build is listed with a count of its regions and no
 names, because the names are read from your checkout and would no longer match
 what ran.
 
@@ -331,8 +332,11 @@ These limits keep the listing honest:
   recorded.
 - A server joins a click only when the browser sends it the page's cookies. A
   server on another origin that receives none lists its requests as executions
-  of their own. Two tabs of one origin share those cookies, so a request from
-  one can be listed under a click in the other.
+  of their own. A browser keeps cookies per host and not per port, so every
+  application on `127.0.0.1` shares them, as two tabs of one application do: a
+  request from one can be listed under a click in another.
+- A page a test drives is that test's: `reportPage` installs nothing on a page
+  whose cookies answer somewhere other than this watcher.
 - The request for a document is listed apart from the load it starts: under
   the last execution of the page it replaces, whether a click led to it or a
   reload or a typed address did. A page the back button restores sends its

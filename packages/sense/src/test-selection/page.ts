@@ -11,7 +11,7 @@
  * Its own code is in no account. A build places no probe under `node_modules`
  * or `dist`, which is where an application finds this module.
  */
-import { JOURNEY_COOKIE, RETURN_COOKIE, channelTo } from '@variance-authority/wire';
+import { JOURNEY_COOKIE, RETURN_COOKIE, channelFrom, channelTo } from '@variance-authority/wire';
 import { EXECUTION_GLOBAL } from './execution-global.js';
 import type { ExecutedModule, ExecutionCollector } from './probes.js';
 import type { JourneyAccount } from './stitch.js';
@@ -35,6 +35,9 @@ const HEAD = 'page';
 /** How long, in milliseconds, what a page ran can wait for the next click before it is sent. */
 const CADENCE = 500;
 
+/** The documents that report, each once: an effect a framework runs twice calls twice. */
+const reporting = new WeakSet<object>();
+
 /** One execution: opaque, and minted without `randomUUID`, which a page served over plain http lacks. */
 const mint = (): string => Array.from(crypto.getRandomValues(new Uint8Array(16)), (byte) => byte.toString(16).padStart(2, '0')).join('');
 
@@ -46,7 +49,8 @@ const mint = (): string => Array.from(crypto.getRandomValues(new Uint8Array(16))
  * submit it causes are one. A request the page sends is listed under the
  * execution before it, by any server whose handler runs inside
  * `collectJourneys().enter`. Given no address, an empty one, or one that is
- * not http on this machine, it installs nothing and sends nothing.
+ * not http on this machine, it installs nothing and sends nothing. Nor does
+ * it on a page a test drives, or one that reports already.
  */
 export function reportPage(watcher: string | undefined): void {
   const home = watcher === undefined || watcher === '' ? undefined : channelTo(watcher, HEAD)?.home;
@@ -112,14 +116,20 @@ export function reportPage(watcher: string | undefined): void {
   };
 
   try {
+    if (reporting.has(browser.document)) return;
+    // Cookies that answer somewhere else are a driver's, and so are the page and what its collector holds.
+    const led = channelFrom(browser.document.cookie);
+    if (led !== undefined && led.home !== home) return;
     name();
   } catch {
     return;
   }
+  reporting.add(browser.document);
   browser.document.addEventListener('click', quietly(turn), true);
   browser.document.addEventListener('submit', quietly(turn), true);
   // Leaving starts before the document goes, and by then the collector has kept what is left for the next document,
-  // which would report it as its load. So what a click ran is sent as the page starts to leave, and the rest as it goes.
+  // which reports it as its load. So what a click ran is sent as the page starts to leave; when it
+  // goes, only a page the browser keeps for the back button has anything left.
   browser.addEventListener('beforeunload', quietly(flush));
   browser.addEventListener('pagehide', quietly(depart));
   // A cadence, since nothing says a click has finished running: its promises settle whenever they do, and a reader asks meanwhile.

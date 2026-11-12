@@ -251,11 +251,5 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
     await page.click('#away');
     await page.waitForURL('**/plain');
     expect(await journeyOf()).toBe('');
-
-    // Nothing but the application's own files: the export's code is in no account a page sent.
-    const { executions, common } = await ran();
-    const sent = [...executions.flatMap((one) => one.heads), ...common].filter((one) => one.head === 'page');
-    const files = sent.flatMap((one) => one.modules.map((module) => module.id.split('@')[0]!));
-    expect([...new Set(files)].filter((file) => !file.startsWith('wide/'))).toEqual(['shop.js']);
   }, 120_000);
 });

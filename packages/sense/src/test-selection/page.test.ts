@@ -1,4 +1,4 @@
-import { JOURNEY_COOKIE } from '@variance-authority/wire';
+import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXECUTION_GLOBAL } from './execution-global.js';
 import { reportPage } from './page.js';
@@ -11,16 +11,21 @@ const RAN = { id: 'src/cart.ts@1', hits: [0, 1], shared: [] };
  * `reportPage` listens to, the cookies it leaves and what it sends. The page
  * itself, with a server beside it, is `ran-page.chromium.test.ts`'s.
  */
-function standIn(options: { cookies?: () => void; beacon?: () => boolean } = {}) {
+function standIn(options: { cookies?: () => void; beacon?: () => boolean; left?: Record<string, string> } = {}) {
   const on = new Map<string, () => void>();
   const listen = vi.fn((type: string, listener: () => void) => void on.set(type, listener));
   const cookies: string[] = [];
+  /** What the document holds, as a browser keeps it: a write of no age takes its cookie away. */
+  const jar = new Map(Object.entries(options.left ?? {}));
   const document = { addEventListener: listen };
   Object.defineProperty(document, 'cookie', {
-    get: () => '',
+    get: () => [...jar].map(([name, value]) => `${name}=${value}`).join('; '),
     set: (value: string) => {
       options.cookies?.();
       cookies.push(value);
+      const [name = '', held = ''] = value.split(';')[0]!.split('=');
+      if (value.includes('Max-Age=0')) jar.delete(name);
+      else jar.set(name, held);
     },
   });
   const sent = vi.fn((_url: string, _init: { body: string }) => Promise.resolve(new Response()));
@@ -32,7 +37,7 @@ function standIn(options: { cookies?: () => void; beacon?: () => boolean } = {})
   /** How many executions were named: each leaves the journey cookie once. */
   const named = (): number =>
     cookies.filter((cookie) => cookie.startsWith(`${JOURNEY_COOKIE}=`) && !cookie.includes('Max-Age=0')).length;
-  return { on, listen, cookies, sent, named };
+  return { on, listen, cookies, jar, sent, named };
 }
 
 beforeEach(() => {
@@ -80,6 +85,59 @@ describe('a page that reports', () => {
     const [url, init] = page.sent.mock.calls[0]!;
     expect(url).toMatch(/^http:\/\/127\.0\.0\.1:4000\/[0-9a-f]{32}\/journeys$/);
     expect(JSON.parse(init.body)).toMatchObject({ head: 'page', scope: 'journey', modules: [RAN] });
+  });
+});
+
+describe('a page somebody else reports', () => {
+  it('installs nothing on a page a driver left its cookies on', () => {
+    const drain = vi.fn();
+    const page = standIn({ left: { [JOURNEY_COOKIE]: 'driven', [RETURN_COOKIE]: 'http://127.0.0.1:5000/driven' } });
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain });
+    reportPage(WATCHER);
+    vi.advanceTimersByTime(1000);
+    expect(page.listen).not.toHaveBeenCalled();
+    expect(page.cookies).toEqual([]);
+    expect(drain).not.toHaveBeenCalled();
+  });
+
+  it('reports a page whose cookies another page left for this watcher', () => {
+    const page = standIn({
+      beacon: () => true,
+      left: { [JOURNEY_COOKIE]: 'another', [RETURN_COOKIE]: encodeURIComponent(`${WATCHER}/another`) },
+    });
+    reportPage(WATCHER);
+    expect(page.named()).toBe(1);
+    expect(page.jar.get(JOURNEY_COOKIE)).not.toBe('another');
+  });
+
+  it('does nothing when called a second time on one document', () => {
+    const page = standIn({ beacon: () => true });
+    reportPage(WATCHER);
+    const held = page.jar.get(JOURNEY_COOKIE);
+    reportPage(WATCHER);
+    expect(page.named()).toBe(1);
+    expect(page.jar.get(JOURNEY_COOKIE)).toBe(held);
+    expect(page.listen).toHaveBeenCalledTimes(4);
+    expect(vi.getTimerCount()).toBe(1);
+  });
+});
+
+describe('a page that goes away', () => {
+  it('takes its cookies with it', () => {
+    const page = standIn({ beacon: () => true });
+    reportPage(WATCHER);
+    page.on.get('pagehide')!();
+    expect([...page.jar.keys()]).toEqual([]);
+  });
+
+  it('leaves the cookies the next document has already named its own', () => {
+    const page = standIn({ beacon: () => true });
+    reportPage(WATCHER);
+    page.jar.set(JOURNEY_COOKIE, 'next');
+    page.jar.set(RETURN_COOKIE, encodeURIComponent(`${WATCHER}/next`));
+    page.on.get('pagehide')!();
+    expect(page.jar.get(JOURNEY_COOKIE)).toBe('next');
+    expect(page.jar.has(RETURN_COOKIE)).toBe(true);
   });
 });
 
