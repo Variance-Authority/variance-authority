@@ -154,12 +154,11 @@ export interface SuiteShare {
 export async function suiteShare(root: string, options: SuiteShareOptions, here: Here = {}): Promise<SuiteShare> {
   const selection = await import('@variance-authority/sense/test-selection');
   if (options.publish) {
-    const based = options.records === undefined
-      ? undefined
+    const folded = options.records === undefined
+      ? []
       : options.partial === true
-        ? await baseAndFold(root, options.suite, options.records, here)
-        : { said: '', notices: [], landed: [await wholeRun(root, options.suite, options.records)] };
-    const folded = based === undefined ? [] : [...(based.said === '' ? [] : [based.said]), ...based.notices, ...based.landed];
+        ? await foldedOver(root, options.suite, options.records, here)
+        : [await wholeRun(root, options.suite, options.records)];
     const share = rootShare(selection.rootConfig(root));
     const { done, mainline } = await publishOnLine(root, options.suite, here, options);
     const lines = [...folded, ...describePublish(share === undefined ? {} : { share }, done)];
@@ -255,16 +254,22 @@ async function laidAsLeft(root: string, suite: string, records: readonly string[
   return `${suite}: its record, laid over a base in its job, as that job left it.`;
 }
 
+/** `records`, part of the suite, laid over the mainline's record, and what that said. */
+async function foldedOver(root: string, suite: string, records: readonly string[], here: Here): Promise<string[]> {
+  const { said, notices, landed } = await baseAndFold(root, suite, records, here);
+  return [said, ...notices, ...landed];
+}
+
 /**
  * `records`, a run of the whole suite, landed over nothing: the record it
  * publishes is that run's alone, and no mainline record is read to lay it
- * over; what earlier runs read is git's history, not the record's. A slice's record its job laid over a base is put in place as
- * `laidAsLeft` says, and the publish refuses it unless every test it collects
- * ran here.
+ * over; what earlier runs read is git's history, not the record's. A slice's
+ * record its job laid over a base is put in place as `laidAsLeft` says, and
+ * the publish refuses it unless every test it collects ran here.
  */
 async function wholeRun(root: string, suite: string, records: readonly string[]): Promise<string> {
   if (records.length === 0) return `${suite}: nothing was handed on, so nothing is published.`;
-  return (await laidAsLeft(root, suite, records)) ?? (await landSuite(root, records, suite));
+  return (await laidAsLeft(root, suite, records)) ?? (await landSuite(root, records, suite, true));
 }
 
 const noBase = (suite: string): string => `So ${suite} has no base: it runs whole, and its coverage is printed without a comparison.`;

@@ -48,12 +48,18 @@ import { landingRecord } from './suite-record.js';
  * sentence naming the file is worth more than the evidence a silent overwrite
  * would cost. The checkout's cached record under other probes is the tool's own,
  * and `prepareRecord` replaces it, as it does for a runner.
+ *
+ * `alone` lands the shards over nothing: no base is seeded, and the snapshot,
+ * the cases and the runs record already at the target are not read, so the
+ * record written is the shards' run and nothing else. A run of the whole suite
+ * publishes this way; what earlier runs found is git's history.
  */
 export async function landJourneys(
   root: string,
   shards: readonly string[],
   into?: string,
   suite?: string,
+  alone = false,
 ): Promise<LandedJourneys> {
   const selection = await import('@variance-authority/sense/test-selection');
   if (into !== undefined && selection.writesBase(selection.repositoryLayers(root), into)) {
@@ -68,7 +74,7 @@ export async function landJourneys(
   // a file system, and the staged name ends in `.tmp` for prune to find.
   const combinedAt = `${at}.${process.pid}-${randomUUID()}-combined.tmp`;
   try {
-    return await landCombined(selection, root, shards, at, combinedAt, selected);
+    return await landCombined(selection, root, shards, at, combinedAt, selected, alone);
   } finally {
     await rm(combinedAt, { force: true });
   }
@@ -83,6 +89,7 @@ async function landCombined(
   at: string,
   combinedAt: string,
   selected: string | null | undefined,
+  alone: boolean,
 ): Promise<LandedJourneys> {
   let combined;
   try {
@@ -142,11 +149,13 @@ async function landCombined(
     // primary checkout's. Without the copy the fold would land over nothing and stand for
     // the whole suite. A cached record under other probes is replaced first. A
     // no-op for `--into`, and after the first landing.
-    await selection.prepareRecord(lock, root, fold?.coverage.instrumentation, { selected });
+    await selection.prepareRecord(lock, root, fold?.coverage.instrumentation, { selected, alone });
     let [previous, over]: [Opened | undefined, Buffer | undefined] = [undefined, undefined];
     try {
-      over = await readFile(at);
-      previous = opened(selection, at, over);
+      if (!alone) {
+        over = await readFile(at);
+        previous = opened(selection, at, over);
+      }
     } catch (error) {
       // A record whose run instrumented nothing has no coverage to fold over,
       // and its cases are laid under the shards' below.
@@ -176,14 +185,14 @@ async function landCombined(
     // A runs record that cannot be read is written afresh, and said so, as a
     // runner's `landRun` does: refusing would leave the operator to delete it
     // and land again, which writes the same record.
-    const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
+    const held = alone ? undefined : await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const before = previous === undefined ? undefined : selection.recordedRun(previous.coverage);
     // The index beside the snapshot was cut from the texts the snapshot names,
     // and a module no shard recorded is laid onto the cut its rows landed at.
     const texts = selection.textsOf(before);
     const { landing, sections: laid } = selection.landCases(
       at,
-      selection.caseSectionsAt(at),
+      alone ? {} : selection.caseSectionsAt(at),
       root,
       [{ path: combinedAt, ...(run === undefined ? {} : { coverage: run }) }],
       texts,

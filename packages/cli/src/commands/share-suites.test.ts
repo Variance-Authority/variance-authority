@@ -101,6 +101,21 @@ describe('`variance share --publish <records>`', () => {
     expect((await readCommitRuns(record))?.over).toBeUndefined();
   });
 
+  it("publishes a whole run alone where the publish job already fetched the mainline's record", async () => {
+    const { ci, second } = await nextPush();
+    expect((await suitesShare(ci, { suite: 'unit', records: [] }, { env: PUSH })).lines.join('\n')).toMatch(/read from mainline main/u);
+    await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
+    const collected = join(home, 'collected-total.txt');
+    await writeFile(collected, 'test/total.test.ts\n');
+
+    const done = await suitesShare(ci, { suite: 'unit', publish: true, records: [join(home, 'ran')], collected }, { env: PUSH });
+
+    expect(done.exit).toBe(EXIT_CLEAN);
+    const record = testCoverageFile(ci, { suite: 'unit' });
+    expect((await readTestCoverage(record)).tests.map((test) => test.file)).toEqual(['test/total.test.ts']);
+    expect((await readCommitRuns(record))?.over).toBeUndefined();
+  });
+
   it("lays a slice's record, already laid over the base in its job, as that job left it, and refuses it when the slice ran part of the suite", async () => {
     const { ci, second } = await nextPush();
     const slice = join(home, 'ran', 'variance-slice-unit');
