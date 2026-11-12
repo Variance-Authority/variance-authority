@@ -777,13 +777,17 @@ flowchart TB
   one shipped policy is `declaredPolicy` in `packages/tribunal/src/policy.ts`:
   every host reads the same `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS`, and a
   host's only say is its defaults.
-- Assertion to name. `identify`, `tokenOf`, `verify` and `published` in
-  `tribunal-cloudflare/app/access.ts` turn a signed token — from the header or
-  the browser's cookie — into an `Identity`, with `alg` pinned to RS256, `aud`
-  compared against this application's own tag, `exp` checked, `iss` checked and
-  the signature verified against the team's published keys. A settable header is
-  never trusted. Absent configuration returns `null`, which means the surface is
-  not drawn; there is no anonymous view to fall back to.
+- Assertion to name. The `access` mechanism in
+  `packages/tribunal/src/policy.ts` takes a signed token — from the
+  `cf-access-jwt-assertion` header or the browser's `CF_Authorization` cookie —
+  and hands it to `createIssuer` in `packages/tribunal/src/issuer.ts`, which pins
+  `alg` to RS256, compares `iss` and `aud` against what the deployer declared,
+  checks `exp` and `nbf` with thirty seconds of skew, and verifies the signature
+  against the team's published keys, fetching them again for an unknown `kid` at
+  most once a minute. The verified email is the name; a service token carries
+  none and decides nothing. A settable header is never trusted. `access`
+  declared without `ACCESS_TEAM_DOMAIN` or `ACCESS_AUD` is refused at
+  construction by name.
 - Credential to `Granted`. `grant` in `packages/tribunal/src/worker-auth.ts`
   digests the presented bearer and every secret to a fixed 32 bytes and always
   compares each, so *which token is this* costs the same either way; the answer

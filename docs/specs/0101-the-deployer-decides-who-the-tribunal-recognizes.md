@@ -3,8 +3,8 @@
 **Missing:** a way for a deployment to say who it recognizes, and a way to
 recognize a machine without a shared secret. Today each deployment hard-codes
 whom it recognizes: whoever holds `INGEST_TOKEN`, `REVIEW_TOKEN` or
-`SHARE_TOKEN`; on the console, whoever passes Cloudflare Access; and on a
-loopback Node process, whoever sends no token at all. So every consumer mints a
+`SHARE_TOKEN`; and on a loopback Node process, whoever sends no token at
+all. So every consumer mints a
 token, a person carries it into a CI secret store, and a pull
 request that needs the tribunal waits until that person has done it.
 **Built on:** the capability split
@@ -109,7 +109,6 @@ Each deployment ships declaring what it does today, less the review token:
 
 | Deployment | Declares | What stops working |
 |---|---|---|
-| The console | What provisioning writes, or `token` and `access` where the deployer declares them | A script approving with `REVIEW_TOKEN` |
 | The packaged Worker | What provisioning writes: `INGEST_CREDENTIALS=github-actions`, `REVIEW_CREDENTIALS=github` | Reviewing with a token, for a person or a script |
 | Node | `INGEST_CREDENTIALS=token`, and `REVIEW_CREDENTIALS=loopback` on a loopback bind | Approving with `REVIEW_TOKEN`, on any bind |
 
@@ -128,14 +127,14 @@ deployment routes by shape and never tries every verifier in turn:
   matches its unverified `iss`. No match is refusal.
 - Anything else is a token, compared in constant time against `INGEST_TOKEN`
   only if `token` is declared. Today only the packaged Worker compares in
-  constant time; the console and Node use `===`.
+  constant time; Node uses `===`.
 
 Routing on an unverified `iss` is safe because it only picks which key set the
 signature is checked against. It never grants anything by itself.
 
 ### What the policy hands the handler
 
-Today the console and Node mount answer `authorize`, then replace the request's
+Today the Node mount answers `authorize`, then replaces the request's
 `Authorization` header with `INGEST_TOKEN` or `REVIEW_TOKEN`, and the handler
 checks that token again. That seam carries a capability and nothing else, so it
 cannot carry a name, and it needs both tokens in every deployment's secret store
@@ -308,9 +307,8 @@ work this way, and the split holds once machines are recognized without secrets:
 Two things today let a caller with no proven name decide, and both go:
 
 - **`REVIEW_TOKEN` as an outside bearer.** Every deployment grants it `review`.
-  The console documents it as "a machine acting for the operator — a script
-  approving on `main`"; the packaged Worker documents it as held by people; Node
-  accepts it on any bind. Each is a decision with no reviewer behind it, and the
+  The packaged Worker documents it as held by people; Node accepts it on any
+  bind. Each is a decision with no reviewer behind it, and the
   scripted approval is removed on purpose. `review` is not a value of
   `INGEST_CREDENTIALS` or `REVIEW_CREDENTIALS`, and with the policy handing the
   handler a principal, nothing substitutes the token either: it stops existing.
@@ -359,9 +357,9 @@ there is nothing to provision and the step disappears.
 
 | Area | Today | Missing |
 |---|---|---|
-| Policy | Each deployment hard-codes its own: the console's `authorize` in `route.ts`, Node's `authorizeFor`, and the packaged Worker's `grant`, which runs inside `createTribunal` with no mount. | One policy built from `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS`, in the package, used by all three. |
+| Policy | `declaredPolicy` in `packages/tribunal/src/policy.ts`, built from `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS` and read by both deployments: the packaged Worker's `worker-entry.ts` and Node's `bin.ts`. | Nothing. |
 | Handler seam | The mount substitutes `INGEST_TOKEN` or `REVIEW_TOKEN`, and `createTribunal` requires both. | The handler takes the policy's principal: a capability and a name. |
-| Access | Verified only in `tribunal-cloudflare/app/access.ts`, with no refetch on an unknown `kid`. An unset `ACCESS_*` silently means no surface. | One issuer verifier in the package, so the packaged Worker and Node can declare it. A declared `access` without its values fails loudly. |
+| Access | `createIssuer` in `packages/tribunal/src/issuer.ts`, with the refetch on an unknown `kid`, behind the `access` mechanism `declaredPolicy` builds, so either deployment can declare it. A declared `access` without `ACCESS_TEAM_DOMAIN` or `ACCESS_AUD` is refused by name. | Nothing. |
 | GitHub Actions | Nothing. | An instance of that verifier: discovery, the five checks, the log line on refusal. |
 | Client | A string, or `{ "env": … }`, read when the request is made for `review` and `share` and at parse time for `history` and `baselines`; synchronous either way. | `{ "github-actions": { "audience": … } }`, fetched asynchronously and refreshed near expiry. |
 | Decision name | `by` is whatever the decision or concern body says. | `by` written from the verified identity. |
@@ -372,13 +370,13 @@ there is nothing to provision and the step disappears.
 ## What would discharge it
 
 1. **Move the Access verifier into `@variance-authority/tribunal`** as the one
-   issuer verifier, with the unknown-`kid` refetch, and have the console import
-   it. It is the refactor the rest stands on.
+   issuer verifier, with the unknown-`kid` refetch. It is the refactor the rest
+   stands on.
 2. **Build the policy from the declaration.** One function reads the two
    variables and the mechanisms' values, refuses missing or undeclared
    configuration by name, and answers a principal. `createTribunal` takes it in
-   place of the two tokens; the console and Node pass it as their `authorize`
-   and hand its principal to the handler; the packaged Worker uses it in place
+   place of the two tokens; Node passes it as its `authorize` and hands its
+   principal to the handler; the packaged Worker uses it in place
    of `grant`. Each ships declaring what the table above says. `authorize` stays
    a hook: the declared policy is what the shipped deployments pass to it, not a
    default the package applies.
@@ -390,7 +388,7 @@ there is nothing to provision and the step disappears.
    permission.
 5. **Write `by` from the principal** on decisions and concerns, and refuse a
    body that disagrees.
-6. **Retire the review token** on all three deployments, scripted approval
+6. **Retire the review token** on both deployments, scripted approval
    included.
 7. **Provisioning**: register the App, declare `github` and `github-actions`, and
    deploy. Under `token`, generate the ingest token and hand it to one destination.

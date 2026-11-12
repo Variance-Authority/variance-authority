@@ -70,8 +70,6 @@ where the next person reading that repository can see it.
   reading every host makes of what a deployer declared
 - `packages/tribunal/src/node/bin.ts` — the defaults for a process on a machine
   somebody owns
-- `tribunal-cloudflare/app/tribunal.ts` — the deployed console, on the same
-  declared policy
 
 ## Diagram
 

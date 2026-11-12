@@ -77,8 +77,6 @@ advisory lock to serialize one running under concurrent load.
   declarations, the GitHub App and the first deploy, and the ingest token in both
   the Worker and the repository secret where `token` is declared. It runs only
   when the operator runs it, never on a request
-- `tribunal-cloudflare/app/tribunal.ts`, `tribunal-cloudflare/app/env.ts`,
-  `tribunal-cloudflare/app/routes.ts`, `tribunal-cloudflare/wrangler.jsonc` — the deployed console
 
 ## Diagram
 

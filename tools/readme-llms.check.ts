@@ -16,12 +16,12 @@ import { publishable } from './released.mjs';
  * The pages are every published package's, which npm renders — the release
  * owns which those are — and the ones published without a release: the root,
  * which GitHub renders, the editor clients', which their marketplaces render,
- * the JVM agent's, and the review console's, which is there to be copied out.
+ * and the JVM agent's.
  */
 
 const LLMS = 'https://variance-authority.dev/llms.txt';
 
-const UNRELEASED = ['README.md', 'editors/vscode/README.md', 'editors/webstorm/README.md', 'jvm/README.md', 'tribunal-cloudflare/README.md'];
+const UNRELEASED = ['README.md', 'editors/vscode/README.md', 'editors/webstorm/README.md', 'jvm/README.md'];
 
 const READMES = [
   ...(publishable() as readonly { readonly directory: string }[])
