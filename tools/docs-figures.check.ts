@@ -7,7 +7,6 @@ import { ROOT } from './markdown.js';
 const pages = [
   'packages/sense/README.md',
   'docs/source.md',
-  'docs/specs/0028-the-instrument.md',
 ] as const;
 
 describe('test selection documentation', () => {

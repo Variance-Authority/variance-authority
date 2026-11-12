@@ -1,12 +1,14 @@
-# Spec 0049 — the record answers a diff, and nobody can ask it about a place
+# Spec 0049 — a point answer costs the point, not the repository
 
-**Missing:** the question surface. Every entry point over the execution record
-takes a *diff* and returns a set to skip. The record physically holds the other
-direction — region to tests, as its primary relation — and no command, no served
-tool and, until now, no exported function let anyone stand on a line and ask who
-goes there. One function with exactly the right name exists and reads a
-different artifact: a JSON sidecar only Vitest writes, only under `cases: true`,
-whose every crossing carries a depth of zero.
+**Missing:** an addressed point answer, a branch asked by its path, and the
+questions beside them. `variance covering` finds a module by scanning the
+decoded case index (`index.modules.find` in
+`packages/sense/src/test-selection/reverse.ts`), so a point costs what the
+repository costs, and no point has been measured on a 200,000-module fixture.
+No command asks who takes a branch: `testsReaching` answers it by the branch's
+path, and nothing calls it. No served tool asks any of them. A test's blast
+radius (`blocksCrossedBy`, called only by its test) and two tests with the same
+crossing set have no answer.
 **Built on:** [0043](0043-a-record-costs-what-the-run-cost.md) (the record this
 queries), [0045](0045-a-snapshot-states-its-own-age.md) (a point answer inherits
 every integrity gap the file has),
@@ -52,123 +54,42 @@ sorted path column, one module's regions, one pool run per region. A point in a
 [ADR-0061](../context/adr/0061-a-crossing-relation-is-interned-not-owned.md)
 says so on purpose.
 
-The gap is that the question was never asked. What shipped:
-
-- Every file-taking entry point in `packages/sense/src/test-selection/index.ts`
-  either takes a diff — `selectTestFiles`, `narrowByExecution`,
-  `distanceByExecution` — or decodes the whole model.
-- `coveringTests` and `coveringTestsInFile`
-  (`packages/sense/src/test-selection/reverse.ts:69`, `:85`) ask exactly the
-  three questions above, over an `ExecutionIndex` a caller supplies. The only
-  producer is `executionIndexFrom`
-  (`packages/sense/src/test-selection/cases.ts:194`), written by the shared
-  runner fold beside the snapshot when `cases: true`
-  (`packages/sense/src/test-selection/selection-fold.ts:126`). Jest writes none. Its
-  `find` over `index.modules` is a linear scan of a decoded JSON model, so the
-  cost is the repository's rather than the point's. And every crossing in it
-  carries `distance: 0` (`packages/sense/src/test-selection/cases.ts:279`), which
-  [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md) requires
-  and which makes the tool's own "ranked by observed call-stack depth"
-  (its description at 0d0beb24a) a promise about a number nothing measured.
-- `variance_source_tests` is a working tool in a defined served set
-  (`packages/mcp/src/tools.ts:116`, `packages/mcp/src/protocol.ts:65`) that **no
-  binary serves**. `variance serve` serves the report set;
-  `packages/mcp/src/bin.ts` offers a report path or `--watch`. `variance ask`
-  derives its entire question list from the report and live-run sets
-  (`packages/cli/src/commands/asking.ts:67-68`), so `variance ask source-tests`
-  does not exist.
-- `variance select` takes `--since` and `--format` and nothing else, and
-  `packages/cli/src/select-args.ts:25` refuses a positional, so it cannot be
-  pointed at a file.
-
-`packages/sense/src/test-selection/at-source.ts` now answers the first two
-questions over the snapshot itself, exported as `testsReaching`. That is the
-floor this spec builds on, not its discharge: the answer names test *files*,
-nothing user-facing calls it, and the third question is only half answered.
+The answer does not use it. `variance covering` reads the case index, decoded
+whole, and finds the module in it by a linear scan, so the cost is the
+repository's rather than the point's.
 
 ## What would discharge it
 
-**1. A named test, from a record every runner writes.** The snapshot's test
-table is keyed by path, so `testsReaching` answers at the granularity of a test
-file and no finer. Names live only in the cases sidecar, which is Vitest-only,
-opt-in, JSON, and scanned linearly.
+**1. A point is addressed rather than scanned.** The named answer is read the
+way the snapshot is: the module found by a binary search over a sorted path
+column, and each of its regions' audiences read from one pool run. A point's
+peak and wall clock then do not grow with the repository.
 
-Either the case axis enters the snapshot, with the size it costs measured and
-published the way every other axis of this file has been, or the sidecar becomes
-a real artifact: written by both runners, addressed rather than scanned, and
-carrying the identity the snapshot joins on. Until one of those,
-"which tests" has two answers at two granularities from two files, and a caller
-has to know which one it is holding.
+**2. A branch is asked by its path.** `variance covering` takes a file, a line
+or a function. `testsReaching` in `packages/sense/src/test-selection/at-source.ts`
+answers *who takes this branch* by the branch's path, and no command names one.
 
-**2. One surface, reachable without a diff.** A command — `variance who <file>`,
-`--line`, `--function`, `--branch` — and the served tool set that already exists
-wired into a binary. Both read the same function, or they answer differently
-within a release.
+**3. A served tool asks it.** An agent holding a file and a line and no diff
+asks this far more often than a hand does. The tool reads the function
+`variance covering` reads, or the two answer differently within a release.
 
-The served half is the smaller half and it is the one that matters most: the
-question is asked by agents far more often than by hands, `SOURCE_TESTS` is
-declared and tested, and what is missing is a mode on
-`packages/mcp/src/bin.ts` and a subject to open.
+**4. The questions beside it are answered from the same columns.**
 
-**3. The distance question gets its honest half and refuses the other.** *Within
-five hops* is two different distances and only one of them exists here.
-
-- **Import hops** are real, measured, and already implemented in
-  `packages/sense/src/test-selection/distance.ts`. `distanceToSource` composes
-  them onto a point answer. But the walk needs, per test, every module that test
-  entered — the direction the pool does not index — so it costs a pass over
-  every region in the snapshot however narrow the point is. That cost is stated
-  and paid in a separate entry point, and it is the honest shape until something
-  indexes the other direction.
-- **Call-stack depth** is foreclosed by
-  [ADR-0056](../context/adr/0056-a-journey-is-the-places-visited.md) and is the
-  number a caller asking "how far is this test from this branch" usually means.
-  The tool description that promises it is corrected rather than the number
-  invented.
-
-**4. The three absences are told apart.** A point with no tests is *this file
-was never recorded*, *this build never read it*, *the snapshot has no region at
-this line*, or *nothing ran it*. `at-source.ts` separates all four, and the
-surfaces above have to keep them separate — an empty list that means four things
-is how a reader concludes the code is dead.
-
-**5. The answer says what it is a reading of.** A point answer is taken from a
-snapshot with a commit on it, and the lines a caller is pointing at are lines in
-the working tree. `select.ts` has `sourceAt` for exactly this and a point query
-has nothing: a file edited since the recording returns the audience of whatever
-used to be on that line, and nothing says so. The same frame check, or the
-answer carries the recorded commit and the caller is told to check.
-
-**6. The question family is answered from one place.** The three above are the
-near neighbours of a wider set that all read the same columns and none of which
-has a caller:
-
-- *Which regions of this file did nothing enter?* — the dead-code question, and
-  `blockSet` naming the empty set answers it directly.
-- *Which tests enter this file and nothing else under this directory?* — who
-  owns a unit.
 - *What else does this test's crossing set contain?* — a test's blast radius,
   which is `blocksCrossedBy`
-  (`packages/sense/src/test-selection/crossing-sets-read.ts:188`), built, unexported
-  and unused.
+  (`packages/sense/src/test-selection/crossing-sets-read.ts`), built and called
+  only by its test.
 - *Which two tests cross exactly the same regions?* — redundancy in a suite,
   which is a set-identity comparison the pool makes free: two regions with the
   same `SetId` have the same audience by construction.
-- *Which region has the largest audience?* — the hub, which `docs/distance.md`
-  raises and nothing answers from a record.
 
-Each is a few lines against the same columns. What they are missing is the
-same thing the first three were missing, and a surface that admits one of them
-and not the others will be extended by copy.
+Each is a few lines against the same columns, and a surface that admits one of
+them and not the other will be extended by copy.
 
-**Acceptance:** one command and one served tool, over the snapshot rather than
-the sidecar, answering *which tests reach this file*, *which enter this
-function* and *which take this branch* for a point in a 200,000-module fixture,
-under `/usr/bin/time -l`, with a peak that does not move when the fixture grows
-and a wall clock in milliseconds. Then the same three with hop distance, whose
-cost is reported separately and is allowed to be a pass over the file. Then a
-test that edits the file after recording and asserts the answer says the frame
-moved rather than answering from stale lines.
+**Acceptance:** `variance covering` and one served tool answer *which tests
+reach this file*, *which enter this function* and *which take this branch* for
+a point in a 200,000-module fixture, under `/usr/bin/time -l`, with a peak that
+does not move when the fixture grows and a wall clock in milliseconds.
 
 ## What it forecloses
 

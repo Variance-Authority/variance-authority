@@ -14,7 +14,7 @@ and `alone`, which this does not replace),
 [ADR-0008](../context/adr/0008-per-profile-expectations.md) (blindness is not
 an answer — the rule this rung currently breaks),
 [0027](0027-a-test-is-selected-by-what-it-executed.md) /
-[0029](0029-what-a-run-remembers.md) / [0030](0030-a-diff-lands-on-blocks.md)
+[the execution record](../execution-record.md#tracing-a-diff-to-tests)
 (the index this reads, and the diff-to-block mapping it shares),
 [`prior-art.md`](../context/prior-art.md) (DeFlaker, which is this argument
 made once already in another language).
@@ -56,7 +56,7 @@ The asymmetry is the whole design and it only points one way:
 
 **1. An execution footprint addressed by subject, not by test file.** The
 coverage index keys crossings to test files
-([0029](0029-what-a-run-remembers.md)). A visual subject is a story, a route or
+([the execution record](../execution-record.md#what-each-host-records)). A visual subject is a story, a route or
 a fixture, and the rendering that moved is a component instance inside it. The
 footprint this rung needs is *the set of blocks entered while producing this
 subject's document* — which is a narrower window than a test file's whole run
@@ -64,7 +64,7 @@ and is the reason this cannot be a query against the existing shape alone.
 
 **2. Both profiles, or the rung declares itself blind.** The `jsdom` collector
 runs in Node, so probes reach it through the same Vitest seam
-([0028](0028-the-instrument.md)). A Chromium subject is produced in a browser,
+([ADR-0068](../context/adr/0068-a-seam-takes-the-hosts-own-unit.md)). A Chromium subject is produced in a browser,
 so its bundle carries the probes and the page carries the collector, and until
 it does the rung has no evidence for that profile. Spec 0027 already committed
 to one index across every origin rather than a later feature; this is its first
@@ -119,7 +119,7 @@ list. It has not been explained, and the ladder continues past it.
 **A footprint is not a coverage percentage.** The question is which regions were
 entered, never how many, and no threshold, ratio or score is derived from this
 index for a flake rung, a selection or a verdict. The instrument records the
-path, not the percentage ([0028](0028-the-instrument.md)). A ratio that is only
+path, not the percentage ([ADR-0081](../context/adr/0081-a-coverage-ratio-is-reported-never-read.md)). A ratio that is only
 reported, and read back by nothing, is
 [ADR-0081](../context/adr/0081-a-coverage-ratio-is-reported-never-read.md).
 

@@ -4,7 +4,7 @@
 **Date:** 2026-10-15
 **Reverses:** the probe-first placement of commit `3ece7550b` (every seam
 probed the text the author wrote, before any other transform)
-**Amends:** [spec 0028](../../specs/0028-the-instrument.md) §2, §4 and §5
+**Amends:** spec 0028 §2, §4 and §5
 **Relates to:** [`packages/sense/native/instrument/src/place.rs`](../../../packages/sense/native/instrument/src/place.rs),
 [`packages/sense/src/test-selection/captured-modules.ts`](../../../packages/sense/src/test-selection/captured-modules.ts),
 [`packages/sense/src/test-selection/unmapped-transforms.ts`](../../../packages/sense/src/test-selection/unmapped-transforms.ts),
