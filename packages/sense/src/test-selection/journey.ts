@@ -156,6 +156,11 @@ const untraceable = (trace: JourneyTrace): string =>
   `a ${trace.name} trace carries the journey and no way home, so a head it feeds writes parts or reports to a watcher: ` +
   `set \`parts\` or ${JOURNEY_PARTS_VARIABLE}, or \`watcher\` or ${WATCHER_VARIABLE}`;
 
+const sameTrace = (held: JourneyTrace, by: JourneyTrace): void => {
+  if (by.name === held.name) return;
+  throw new Error(`a ${by.name} trace reached a reporting head that reads a ${held.name} trace, and a head reads one trace: close it before another starts`);
+};
+
 /**
  * Install the journey-keyed collector in this process.
  *
@@ -190,8 +195,12 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
   }
   const collector = installJourneys(options);
   if (!collector.collecting) return collector;
+  const trace = options.trace;
   const held: Told = {
     ...collector,
+    // A reporting head keeps the trace it started with: an adapter is made anew by each
+    // bootstrap, so the name says it is the same one, and any other is refused.
+    ...(trace !== undefined && !(TOLD in collector) ? { [TOLD]: (by: JourneyTrace) => sameTrace(trace, by) } : {}),
     close: async () => {
       if (realm[INSTALLED] === held) delete realm[INSTALLED];
       await collector.close();

@@ -287,6 +287,20 @@ describe('a head handed the application\'s trace and a watcher\'s address', () =
     });
   });
 
+  it('hands a bootstrap that runs again the head it installed, and refuses another tracing', async () => {
+    const watcher = await driver();
+    const installed = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin, trace: tracing() });
+    try {
+      // An adapter is made anew by each bootstrap, so the same tracing is the same name, not the same object.
+      expect(collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin, trace: tracing() })).toBe(installed);
+      expect(() => collectJourneys({ trace: { ...tracing(), name: 'second' } })).toThrow(
+        'a second trace reached a reporting head that reads a tracer trace',
+      );
+    } finally {
+      await installed.close();
+    }
+  });
+
   it('lists one execution for a trace that spans two requests', async () => {
     await inRoot(async (root) => {
       const watcher = await driver();
