@@ -603,39 +603,37 @@ jobs:
       # notice naming both, and the slice has no base either: no run of this
       # build could be laid over it.
       #
-      # `based=true` says the record laid keeps its case index, which enables
-      # selection. A shard lays nothing here: it reads the record `base` gave
-      # it where `carry receive` and `carry take` put it, and a record without
-      # a case index cuts nothing.
+      # Only a whole slice lays it. A shard, and every selection runs as one,
+      # lays nothing here: it reads the record `base` gave it where `carry
+      # receive` and `carry take` put it, and a record without a case index
+      # cuts nothing.
       - name: keep the base record
-        id: base
         if: matrix.shard == null
         shell: bash
         env:
           SUITE: ${{ matrix.suite }}
-        run: node packages/cli/dist/bin.js share --suite "$SUITE" --format github >> "$GITHUB_OUTPUT"
+        run: node packages/cli/dist/bin.js share --suite "$SUITE"
 
-      # A pull request runs its selection, sharded when one job would take
-      # longer than the budget, unless no record prices it or the selection
-      # misses the budget where a sharded whole run is faster; `plan` says
-      # which. Otherwise it runs the whole suite.
-      # `VARIANCE_AUTHORITY_SINCE` turns on the selection the slice's
-      # config is wrapped in: it reads the mainline's record the step above
-      # laid, diffs each test from the commit it last ran at, which for a record
-      # the mainline made whole is the commit it was published at, and Vitest
-      # runs the files whose recorded regions the change entered. When the
-      # reading cannot be made, the slice runs whole and the run says why.
+      # A pull request runs its selection, in as many shards as `plan` counts
+      # and one, `1/1`, when one job fits, unless no record prices it or the
+      # selection misses the budget where a sharded whole run is faster; `plan`
+      # says which. Otherwise it runs the whole suite.
+      # `VARIANCE_AUTHORITY_SINCE` turns on the selection the slice's config is
+      # wrapped in: it diffs each test from the commit it last ran at, which for
+      # a record the mainline made whole is the commit it was published at, and
+      # Vitest runs the files whose recorded regions the change entered. When
+      # the reading cannot be made, the shard runs whole and the run says why.
       #
       # The selection runs in two waves, the legs `verify:near` and
       # `verify:far` run on a laptop: the tests within two imports of the
       # change, then the rest. A red near wave ends the step before the far
-      # wave spends minutes saying less. The near wave records over the base,
-      # so the far wave reads the tests it ran as run at this commit.
-      #
-      # A shard runs the same waves: every wave of every leg selects and places
-      # from the record the steps above laid where the read sits, the one
-      # `plan` priced, beneath whatever this shard has already run, and Vitest
-      # cuts the selected files the same way in every leg. A run under
+      # wave spends minutes saying less. Every wave selects and places from the
+      # record the steps above laid where the read sits, the one `plan` priced,
+      # beneath whatever this shard has already run, and Vitest cuts the
+      # selected files the same way in every leg. A job of one shard is no
+      # exception: were it to select from its own layer, its far wave would
+      # read what the near wave landed at HEAD, and run again every file the
+      # near wave did not. A run under
       # `--shard` records alone: its own layer starts empty and keeps only what
       # its waves ran, the far wave landing over the near one, so `record`
       # folds the parts over that same record, and every file and case no part
@@ -653,7 +651,7 @@ jobs:
         id: test
         shell: bash
         env:
-          SELECT: ${{ matrix.mode == 'selected' && (matrix.shard != null || steps.base.outputs.based == 'true') }}
+          SELECT: ${{ matrix.mode == 'selected' }}
           SUITE: ${{ matrix.suite }}
           SHARD: ${{ matrix.shard }}
         run: |

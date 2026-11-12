@@ -8,7 +8,8 @@
 export function suitePlan(suite, full, selected, budget) {
   const recorded = selected?.by === 'recorded' && full.by === 'recorded';
   if (recorded && (selected.wall <= budget || selected.wall <= full.wall)) {
-    return selected.shards <= 1 ? [{ suite, mode: 'selected' }] : selected.matrix.map((shard) => ({ suite, mode: 'selected', shard }));
+    // One job is the shard `1/1`, so every selection reads the record priced here.
+    return (selected.shards >= 1 ? selected.matrix : ['1/1']).map((shard) => ({ suite, mode: 'selected', shard }));
   }
   return full.shards <= 1
     ? [{ suite, mode: 'whole' }]

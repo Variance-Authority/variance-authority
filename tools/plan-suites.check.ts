@@ -38,7 +38,7 @@ if (args[1]==='shards') {
       VARIANCE_AUTHORITY_CACHE: join(root, 'carried'), GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: join(root, 'summary'), CALLS: calls,
     } });
     const legs = JSON.parse(readFileSync(output, 'utf8').trim().slice('legs='.length));
-    expect(legs).toEqual(['unit', 'integration', 'chromium'].map((suite) => ({ suite, mode: 'selected' })));
+    expect(legs).toEqual(['unit', 'integration', 'chromium'].map((suite) => ({ suite, mode: 'selected', shard: '1/1' })));
     const read = readFileSync(calls, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
     expect(read.filter((call) => call.args[1] === 'carry')).toEqual([]);
     for (const call of read.filter((call) => call.args[1] === 'shards')) expect(call.cache).toBe(join(root, 'carried'));
