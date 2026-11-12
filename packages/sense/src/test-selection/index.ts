@@ -95,7 +95,7 @@ export { hunksOf } from './patch.js';
 export { blobsAt, readBlobsAt, readTextsAt, textAtRecording, textsAt } from './recorded-text.js';
 export { keptDigests, keptTexts, type KeptTexts } from './kept-texts.js';
 // A landing of shards reads the install each shard's own landing kept, and
-// `select --tested` splits a side's change by the same files.
+// `select --ran-at` splits a side's change by the same files.
 export { readByInstall, shardsInstall, shardsTexts, type KeptInstall, type ShardRuns } from './kept-install.js';
 // A text cut as a seam records it, so rows written by hand stand where a
 // landing that cuts the text again puts them.

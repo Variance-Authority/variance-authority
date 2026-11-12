@@ -76,12 +76,12 @@ it('hands a group of one its pull request head as tested, which every count and 
     git('checkout', '--quiet', 'main');
     git('merge', '--quiet', '--no-ff', '--no-edit', 'pull');
   });
-  expect(outputs.tested).toBe(head);
-  for (const call of calls.filter((call) => call.args[1] === 'shards')) expect(call.args).toEqual(expect.arrayContaining(['--tested', head]));
+  expect(outputs['ran-at']).toBe(head);
+  for (const call of calls.filter((call) => call.args[1] === 'shards')) expect(call.args).toEqual(expect.arrayContaining(['--ran-at', head]));
 });
 
 it('hands no tested commit to a group whose commit has one parent', () => {
   const { outputs, calls } = plan('merge_group', "() => ({by:'recorded',shards:1,matrix:['1/1'],wall:30000,files:2})");
-  expect(outputs.tested).toBe('');
-  expect(calls.flatMap((call) => call.args)).not.toContain('--tested');
+  expect(outputs['ran-at']).toBe('');
+  expect(calls.flatMap((call) => call.args)).not.toContain('--ran-at');
 });

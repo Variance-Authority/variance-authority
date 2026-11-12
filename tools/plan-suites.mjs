@@ -16,9 +16,9 @@ const legs = near ? [{ part: 'rules' }] : [];
 const run = (command, args) => execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
 const since = process.env.BASE || 'HEAD';
 // A group of one is the queue's merge of the pull request onto `since`, and its
-// second parent is the head whose checks passed: `--tested` lets the selection
+// second parent is the head whose checks passed: `--ran-at` lets the selection
 // skip what that run already ran. A squash has no second parent and selects as before.
-const tested = near ? spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD^2'], { encoding: 'utf8' }).stdout.trim() : '';
+const ranAt = near ? spawnSync('git', ['rev-parse', '--verify', '--quiet', 'HEAD^2'], { encoding: 'utf8' }).stdout.trim() : '';
 const summary = ['### Suite plan', '', '| Suite | Selected / collected | Mode | Jobs | Predicted wall |', '| --- | --- | --- | --- | --- |'];
 run('yarn', ['variance', 'index']);
 const budget = process.env.BUDGET ?? '240';
@@ -37,7 +37,7 @@ for (const [suite, config, unrecorded] of [
     '--workers', String(workers), '--unrecorded', String(unrecorded), '--collected', listed, '--format', 'json'];
   const answer = (extra) => JSON.parse(run('node', [...args, ...extra]));
   if (near) {
-    const selected = answer(['--since', since, ...(tested === '' ? [] : ['--tested', tested]), '--at-distance', '0-2']);
+    const selected = answer(['--since', since, ...(ranAt === '' ? [] : ['--ran-at', ranAt]), '--at-distance', '0-2']);
     // The rules leg keeps the queue gate running even when no test is selected.
     legs.push(...selected.matrix.map((shard) => ({ part: suite, shard })));
     summary.push(`| ${suite} | ${selected.files ?? 'unknown'} / ${total} | near | ${selected.shards} | ${selected.wall === undefined ? 'unrecorded' : `${Math.round(selected.wall / 1000)} s`} |`);
@@ -51,5 +51,5 @@ for (const [suite, config, unrecorded] of [
     console.log(`${suite}: ${planned[0].mode}, ${planned.length} job(s); selected prediction ${selected?.wall ?? 'unknown'} ms, whole prediction ${full.wall ?? 'unknown'} ms`);
   }
 }
-if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `legs=${JSON.stringify(legs)}\ntested=${tested}\n`);
+if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `legs=${JSON.stringify(legs)}\nran-at=${ranAt}\n`);
 if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary.join('\n')}\n\nPredictions use recorded test durations and the configured setup estimate. Actual stage times appear in the required check's summary.\n`);

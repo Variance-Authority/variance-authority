@@ -10,7 +10,7 @@ import { PUSH, cloneOf, git, originAndCi, publishTo, shareConfig } from './mainl
 import { selectOutput } from './select-command.js';
 
 /**
- * A merge queue's checkout for `variance select --tested`: a pull request
+ * A merge queue's checkout for `variance select --ran-at`: a pull request
  * tested at its own tree meets the mainline that moved past it.
  *
  * Two folders, one test each: `total` and `other`. The fork `R` is the
@@ -182,5 +182,5 @@ function moduleOf(file: string, source: string, test: string) {
 export async function selected(dir: string, since: string, tested?: string): Promise<{ out: string; err: string }> {
   process.chdir(dir);
   await indexOutput({ cwd: dir });
-  return selectOutput({ cwd: dir, format: 'plain', since, ...(tested === undefined ? {} : { tested }) });
+  return selectOutput({ cwd: dir, format: 'plain', since, ...(tested === undefined ? {} : { ranAt: tested }) });
 }

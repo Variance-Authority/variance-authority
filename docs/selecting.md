@@ -219,16 +219,16 @@ not run it again. A test file both sides reach is where the two changes meet,
 and it runs:
 
 ```bash
-variance select --since origin/main --tested "$PR_HEAD_SHA"   # the pull request's last commit, whose checks passed
+variance select --since origin/main --ran-at "$PR_HEAD_SHA"   # the pull request's last commit, whose checks passed
 ```
 
 ```text
 one pull request, tested at 3f2a9c1e0b7d, meets the mainline at 8e41d07a5c22, so 2 test files only one side reaches are skipped
-test/cart.test.ts: only the pull request reaches it; `--tested` names its tree 3f2a9c1e0b7d as tested
+test/cart.test.ts: only the pull request reaches it; `--ran-at` names its tree 3f2a9c1e0b7d as tested
 test/total.test.ts: only the mainline reaches it; `--since` names its tree 8e41d07a5c22 as tested
 ```
 
-Nothing checks that either run passed: the skip rests on your word. `--tested`
+Nothing checks that either run passed: the skip rests on your word. `--ran-at`
 must name the commit whose run of the suite passed, and `--since` the mainline
 commit the queue merges onto, whose run passed too — never the base of a queue
 that stacks one group on another, which no run tested.
@@ -241,11 +241,11 @@ and the report says so.
 
 A pull request already up to date with the mainline merges nothing new: the
 merge's tree is the tested commit's tree. When HEAD's clean tree is the tree
-`--tested` names, every test file is skipped, and the note names
+`--ran-at` names, every test file is skipped, and the note names
 the commit that ran them:
 
 ```text
-`--tested 3f2a9c1e0b7d` skips every test file: HEAD's tree is the tree 3f2a9c1e0b7d ran its selection on
+`--ran-at 3f2a9c1e0b7d` skips every test file: HEAD's tree is the tree 3f2a9c1e0b7d ran its selection on
 ```
 
 Otherwise the narrowing holds only for a group of one: HEAD's tree must be exactly the
@@ -253,7 +253,7 @@ clean merge of the tested commit onto `--since`, by a merge commit or a squash,
 from one merge base, with nothing changed or added on top of it. Anything else
 — a group of two, a pull request pushed past its tested commit, a merge
 resolved by hand, a criss-cross history, a working tree that differs from HEAD,
-untracked files included — selects as without `--tested`. So does a side whose
+untracked files included — selects as without `--ran-at`. So does a side whose
 change alone selects the whole suite, touches a file the record holds nothing
 about or cannot place, such as a runner config no `before` names, or reaches a
 file whose imports HEAD's graph cannot all read, such as a name built at run
@@ -262,8 +262,8 @@ cannot answer, or a [source index](source-index.md) that cannot be brought up
 to HEAD, whose graph may lack the import where the two sides meet. So does a
 side that changes a file the merge holds under another path, because the
 other side renamed it. A note names the reason. When
-the selection without `--tested` reads no record, or already runs every test
-file, `--tested` does nothing, and a note says so. These are among the
+the selection without `--ran-at` reads no record, or already runs every test
+file, `--ran-at` does nothing, and a note says so. These are among the
 [places selection widens](#where-selection-widens).
 
 A queue that runs its tests through the
@@ -272,18 +272,18 @@ base, and `variance shards` takes the same flag, so the plan counts the shards
 the narrowed selection needs, none when every file is skipped:
 
 ```bash
-VARIANCE_AUTHORITY_SINCE="$BASE_SHA" VARIANCE_AUTHORITY_TESTED="$PR_HEAD_SHA" npx vitest run
-variance shards --since "$BASE_SHA" --tested "$PR_HEAD_SHA" --collected collected.txt
+VARIANCE_AUTHORITY_SINCE="$BASE_SHA" VARIANCE_AUTHORITY_RAN_AT="$PR_HEAD_SHA" npx vitest run
+variance shards --since "$BASE_SHA" --ran-at "$PR_HEAD_SHA" --collected collected.txt
 ```
 
-`VARIANCE_AUTHORITY_TESTED` beside an empty `VARIANCE_AUTHORITY_SINCE` is
-refused, as `--tested` is without `--since`: the base must be the commit the
+`VARIANCE_AUTHORITY_RAN_AT` beside an empty `VARIANCE_AUTHORITY_SINCE` is
+refused, as `--ran-at` is without `--since`: the base must be the commit the
 queue merged onto.
 
 A file a test reads at run time without importing it, such as a fixture or a
 snapshot, reaches only the tests a
 [`/// <depends>`](#where-sourcedirs-starts-the-answer) names. Undeclared, a
-change to it on one side reaches no test, and `--tested` skips what the other
+change to it on one side reaches no test, and `--ran-at` skips what the other
 side reaches, as the selection without it does.
 
 ## What a change to a module's top level runs

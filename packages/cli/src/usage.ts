@@ -66,8 +66,8 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   ],
   collect: ['--subjects', '--shard', '--workers', '--out'],
   index: ['--no-git', '--wait', '--follow-ups'],
-  select: ['--since', '--tested', '--execution', '--diff', '--suite', '--at-distance', '--local', '--format', '--no-git'],
-  shards: ['--setup', '--budget', '--max', '--workers', '--since', '--tested', '--collected', '--at-distance', '--suite', '--unrecorded', '--format'],
+  select: ['--since', '--ran-at', '--execution', '--diff', '--suite', '--at-distance', '--local', '--format', '--no-git'],
+  shards: ['--setup', '--budget', '--max', '--workers', '--since', '--ran-at', '--collected', '--at-distance', '--suite', '--unrecorded', '--format'],
   reach: ['--since', '--format', '--whole-files', '--no-git'],
   covering: [
     '--file',
@@ -159,8 +159,8 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
 export const USAGE = [
   'variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]',
   'variance index   [--no-git] [--wait | --follow-ups]',
-  'variance select  [--since <ref> [--tested <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest] [--no-git]',
-  'variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--tested <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]',
+  'variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest] [--no-git]',
+  'variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]',
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
   'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]',

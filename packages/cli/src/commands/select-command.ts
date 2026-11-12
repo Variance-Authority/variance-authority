@@ -83,8 +83,8 @@ export interface SelectRequest {
   readonly suite?: string;
   /** `--at-distance <hops>`: one leg of the selection, by import hops from the change. */
   readonly atDistance?: Leg;
-  /** `--tested <commit>`: the pull request's tested tree, which a merge queue merged onto `since`. */
-  readonly tested?: string;
+  /** `--ran-at <commit>`: the pull request's tested tree, which a merge queue merged onto `since`. */
+  readonly ranAt?: string;
   /** `--local`: a reading that cannot narrow falls to the changed files' importers or packages. */
   readonly local?: boolean;
 }
@@ -129,13 +129,13 @@ function deprecated(format: SelectFormat): string {
  * drops the files in `skip` inside its runner.
  */
 export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> {
-  const { tested, ...asked } = request;
+  const { ranAt, ...asked } = request;
   const full = await untested(asked);
-  if (tested === undefined || asked.since === undefined) return full;
-  return await testedSuite({ root: asked.root, since: asked.since, tested, suite: asked.suite, noGit: asked.noGit }, full, selectSuite);
+  if (ranAt === undefined || asked.since === undefined) return full;
+  return await testedSuite({ root: asked.root, since: asked.since, ranAt, suite: asked.suite, noGit: asked.noGit }, full, selectSuite);
 }
 
-/** The selection of everything `since` and the working tree change, before `tested` narrows it. */
+/** The selection of everything `since` and the working tree change, before `ranAt` narrows it. */
 async function untested(request: SuiteRequest): Promise<SuiteReading> {
   const selection = await import('@variance-authority/sense/test-selection');
   // A snapshot handed in by path — the JVM agent's `coverage.va` — is read the

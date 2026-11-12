@@ -1,10 +1,10 @@
 // compass: variance-authority.reach
 /**
- * `variance select --tested <commit>`: a merge queue's group of one, selected
+ * `variance select --ran-at <commit>`: a merge queue's group of one, selected
  * by what the two sides of its merge reach together.
  *
  * A queue merges a pull request whose tree the operator names as tested at
- * `--tested` onto the mainline at `--since`, named as tested too. A test file
+ * `--ran-at` onto the mainline at `--since`, named as tested too. A test file
  * only one side's change reaches ran on that side's tree with everything the
  * other side changed out of its reach, so it is skipped. This file reads git
  * and the record for the machine in
@@ -20,11 +20,11 @@ import type { SuiteReading, SuiteRequest } from './select-suite.js';
 import { initial, isOpen, selectionOf, transition, type MergeAnswer, type SideAnswer, type TestedInput, type TestedState } from './select-tested-state.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
 
-/** What `--tested` adds to a selection: the two commits the merge joined. */
+/** What `--ran-at` adds to a selection: the two commits the merge joined. */
 export interface TestedRequest {
   readonly root: string;
   readonly since: string;
-  readonly tested: string;
+  readonly ranAt: string;
   readonly suite?: string | undefined;
   readonly noGit?: boolean | undefined;
 }
@@ -40,7 +40,7 @@ type Git = (...args: string[]) => string;
 export async function testedSuite(asked: TestedRequest, full: SuiteReading, read: Read): Promise<SuiteReading> {
   const here = (await topLevel(asked.root)) ?? asked.root;
   const git = gitIn(here);
-  let state = initial(asked.tested);
+  let state = initial(asked.ranAt);
   while (isOpen(state)) state = transition(state, await observe(state, { git, here, asked, full, read }));
   return selectionOf(state, full);
 }
@@ -81,7 +81,7 @@ async function observe(
 function mergeOf(git: Git, asked: TestedRequest): MergeAnswer {
   try {
     const commit = (ref: string) => git('rev-parse', '--verify', `${ref}^{commit}`).trim();
-    const [mainline, tested] = [commit(asked.since), commit(asked.tested)];
+    const [mainline, tested] = [commit(asked.since), commit(asked.ranAt)];
     const [m12, t12] = [mainline.slice(0, 12), tested.slice(0, 12)];
     const head = git('rev-parse', 'HEAD^{tree}').trim();
     // Named, so `status.showUntrackedFiles=no` cannot hide a file the tests may load.
@@ -99,7 +99,7 @@ function mergeOf(git: Git, asked: TestedRequest): MergeAnswer {
     if (dirty()) return { is: 'dirty' };
     return { is: 'known', merge: { mainline, tested, fork: forks[0]! } };
   } catch {
-    return { is: 'unknown', why: `git could not read the merge of ${asked.tested} onto ${asked.since}` };
+    return { is: 'unknown', why: `git could not read the merge of ${asked.ranAt} onto ${asked.since}` };
   }
 }
 

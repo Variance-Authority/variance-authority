@@ -3,7 +3,7 @@
  *
  * `VARIANCE_AUTHORITY_SINCE` turns selection on and is `--since`; set and
  * empty, it has no fallback base. Beside it, `_AT_DISTANCE`, `_LOCAL=1` and
- * `_TESTED` are `--at-distance`, `--local` and `--tested`, the last only beside
+ * `_RAN_AT` are `--at-distance`, `--local` and `--ran-at`, the last only beside
  * a base that is not empty, and `_GRAIN=case` also skips the cases of a kept
  * file that ran none of the change.
  *
@@ -57,7 +57,7 @@ interface Selector {
     readonly local?: boolean;
     readonly beneath?: boolean;
     /** Ignored by a cli older than `selectSuite` taking it, which selects as without it. */
-    readonly tested?: string;
+    readonly ranAt?: string;
   }): Promise<SuiteSelection>;
   /** Absent from a cli older than placement by time. */
   suiteTimes?(request: { readonly root: string; readonly suite?: string; readonly beneath?: boolean }): Promise<SuiteTimes>;
@@ -94,9 +94,9 @@ export function selectionFrom(
   if (local !== undefined && local !== '1' && local !== '0') {
     throw new Error(`VARIANCE_AUTHORITY_LOCAL=${local} is not 1 or 0: write \`1\` to fall to the changed files' importers or packages when the record cannot narrow`);
   }
-  const tested = env['VARIANCE_AUTHORITY_TESTED'];
-  if (tested !== undefined && tested !== '' && since === '') {
-    throw new Error(`VARIANCE_AUTHORITY_TESTED=${tested} names the pull request a merge queue merged onto VARIANCE_AUTHORITY_SINCE, which is empty: set it to the base the queue merged onto`);
+  const ranAt = env['VARIANCE_AUTHORITY_RAN_AT'];
+  if (ranAt !== undefined && ranAt !== '' && since === '') {
+    throw new Error(`VARIANCE_AUTHORITY_RAN_AT=${ranAt} names the pull request a merge queue merged onto VARIANCE_AUTHORITY_SINCE, which is empty: set it to the base the queue merged onto`);
   }
   const leg = distance === undefined ? undefined : distanceRange(distance);
   if (distance !== undefined && leg === undefined) {
@@ -125,7 +125,7 @@ export function selectionFrom(
       ...(grain === 'case' ? { grain } : {}),
       ...(local === '1' ? { local: true } : {}),
       ...(request.beneath === true ? { beneath: true } : {}),
-      ...(tested === undefined || tested === '' ? {} : { tested }),
+      ...(ranAt === undefined || ranAt === '' ? {} : { ranAt }),
     });
   };
 }

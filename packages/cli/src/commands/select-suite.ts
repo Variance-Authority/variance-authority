@@ -72,7 +72,7 @@ export interface SuiteRequest {
    * `since`: what only one side of the merge reaches is skipped
    * (`select-tested.ts`). Read only beside `since`.
    */
-  readonly tested?: string;
+  readonly ranAt?: string;
 }
 
 function placingOf(span: TestSelection): NonNullable<SuiteSelection['placing']> {

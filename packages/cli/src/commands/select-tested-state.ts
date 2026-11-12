@@ -1,10 +1,10 @@
 // compass: variance-authority.reach
 /**
- * The reconciliation machine of `variance select --tested`: pure, so every
+ * The reconciliation machine of `variance select --ran-at`: pure, so every
  * answer it gives can be read off one table.
  *
  * Open states ask for one input each: `asked` the selection without
- * `--tested` (`selected`), `selecting` the merge HEAD holds (`merge`),
+ * `--ran-at` (`selected`), `selecting` the merge HEAD holds (`merge`),
  * `merged` what each side's change reaches (`sides`). Any open state may
  * instead be told its input could not be read (`failed`). Every other state
  * is final and keeps whatever it is handed.
@@ -12,10 +12,10 @@
  * Invariants: an unsafe or unknown input — HEAD not that merge, a dirty
  * tree, a side that alone selects every test, a read that failed, an input
  * the state did not ask for — lands on `widened`, which selects as
- * without `--tested`. Only `merged` narrows, and only by adding to the
+ * without `--ran-at`. Only `merged` narrows, and only by adding to the
  * skip list, save `ran`: HEAD's clean tree is the tree a named commit ran its
  * selection on, so nothing is left to run on it. The answer is read from the final state alone; an open state
- * answers as without `--tested`, and `declined` says it did nothing.
+ * answers as without `--ran-at`, and `declined` says it did nothing.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -35,7 +35,7 @@ export interface Reach {
   readonly install: ReadonlySet<string>;
 }
 
-/** What git says HEAD is, against `--since` and `--tested`. */
+/** What git says HEAD is, against `--since` and `--ran-at`. */
 export type MergeAnswer =
   | { readonly is: 'known'; readonly merge: Merge }
   | { readonly is: 'ran'; readonly at: string }
@@ -139,25 +139,25 @@ function fromSides(state: Extract<TestedState, { kind: 'merged' }>, pull: SideAn
 
 /**
  * The selection a state answers, built on `without`, the selection without
- * `--tested`. Every state but `narrowed`, `empty` and `ran` skips what
+ * `--ran-at`. Every state but `narrowed`, `empty` and `ran` skips what
  * `without` skips.
  */
 export function selectionOf(state: TestedState, without: SuiteReading): SuiteReading {
-  const as = (why: string) => withNotes(without, [`\`--tested ${state.tested}\` selects as without it: ${why}`]);
+  const as = (why: string) => withNotes(without, [`\`--ran-at ${state.tested}\` selects as without it: ${why}`]);
   switch (state.kind) {
     case 'asked':
     case 'merged':
     case 'selecting':
       return without;
     case 'declined':
-      return withNotes(without, [`\`--tested ${state.tested}\` did nothing: the selection without it read no record, or already runs every test file (${state.why}), so there is nothing to narrow`]);
+      return withNotes(without, [`\`--ran-at ${state.tested}\` did nothing: the selection without it read no record, or already runs every test file (${state.why}), so there is nothing to narrow`]);
     case 'widened':
       return as(state.why);
     case 'kept':
       return withNotes(without, [
         state.runs === 0
-          ? `\`--tested ${state.tested}\` skips nothing more: no test file runs without it`
-          : `\`--tested ${state.tested}\` skips nothing more: every test file that runs is reached by both sides of the merge, or by neither`,
+          ? `\`--ran-at ${state.tested}\` skips nothing more: no test file runs without it`
+          : `\`--ran-at ${state.tested}\` skips nothing more: every test file that runs is reached by both sides of the merge, or by neither`,
       ]);
     case 'empty':
     case 'narrowed':
@@ -177,13 +177,13 @@ function narrowed(state: Extract<TestedState, { kind: 'empty' | 'narrowed' }>, w
     ...(state.kind === 'empty' ? ['the pull request and the mainline it meets reach no test in common, so no test file runs'] : []),
     ...dropped.map(({ test, side }) =>
       side === 'pull request'
-        ? `${test}: only the pull request reaches it; \`--tested\` names its tree ${t12} as tested`
+        ? `${test}: only the pull request reaches it; \`--ran-at\` names its tree ${t12} as tested`
         : `${test}: only the mainline reaches it; \`--since\` names its tree ${m12} as tested`,
     ),
   ];
   const skip = [...new Set([...without.reading.skip, ...dropped.map(({ test }) => test)])].sort(codeUnitOrder);
   const because =
-    `skipping ${many(skip.length, 'test file')}: ${without.reading.skip.length} the selection skips without \`--tested\`, ` +
+    `skipping ${many(skip.length, 'test file')}: ${without.reading.skip.length} the selection skips without \`--ran-at\`, ` +
     `and ${dropped.length} only one side of the merge reaches; every other test file runs`;
   return skipping(without, skip, because, notes);
 }
@@ -191,7 +191,7 @@ function narrowed(state: Extract<TestedState, { kind: 'empty' | 'narrowed' }>, w
 function ran(state: Extract<TestedState, { kind: 'ran' }>, without: SuiteReading): SuiteReading {
   const skip = [...new Set([...without.reading.skip, ...without.whole])].sort(codeUnitOrder);
   const because = `skipping all ${many(skip.length, 'test file')}: HEAD's tree already ran them`;
-  return skipping(without, skip, because, [`\`--tested ${state.tested}\` skips every test file: HEAD's tree is the tree ${state.at.slice(0, 12)} ran its selection on`]);
+  return skipping(without, skip, because, [`\`--ran-at ${state.tested}\` skips every test file: HEAD's tree is the tree ${state.at.slice(0, 12)} ran its selection on`]);
 }
 
 /** `without`, skipping `skip` for `because`, with `notes` ahead of its own. */
@@ -206,5 +206,5 @@ function withNotes(without: SuiteReading, notes: readonly string[]): SuiteReadin
 }
 
 function unreachable(value: never): never {
-  throw new Error(`the \`--tested\` machine met ${JSON.stringify(value)}`);
+  throw new Error(`the \`--ran-at\` machine met ${JSON.stringify(value)}`);
 }
