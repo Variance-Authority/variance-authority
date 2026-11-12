@@ -642,13 +642,10 @@ jobs:
       # test uploads nothing, and a shard that selected nothing has nothing to.
       - name: hand the shard on
         if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
-        uses: actions/upload-artifact@v7
+        uses: ./.github/actions/hand-on
         with:
-          name: variance-shard-${{ matrix.suite }}-${{ strategy.job-index }}
-          path: node_modules/.cache/variance-authority/test-selection/*/suites/${{ matrix.suite }}
-          include-hidden-files: true
-          if-no-files-found: ignore
-          retention-days: 30
+          suite: ${{ matrix.suite }}
+          index: ${{ strategy.job-index }}
 
   record:
     # The suite's record of this change, made whole again from the jobs that
@@ -1243,13 +1240,10 @@ jobs:
       # that selected nothing has nothing to hand on.
       - name: hand the shard on
         if: ${{ !cancelled() && matrix.part != 'rules' && steps.near.outcome != 'skipped' }}
-        uses: actions/upload-artifact@v7
+        uses: ./.github/actions/hand-on
         with:
-          name: variance-shard-${{ matrix.part }}-${{ strategy.job-index }}
-          path: node_modules/.cache/variance-authority/test-selection/*/suites/${{ matrix.part }}
-          include-hidden-files: true
-          if-no-files-found: ignore
-          retention-days: 30
+          suite: ${{ matrix.part }}
+          index: ${{ strategy.job-index }}
 
   # A `feat`, `fix` or `perf` pull request carries an idea that passed review
   # before its code was written: its body's first line says `Closes #<n>` or `Part of #<n>`, and the
