@@ -22,7 +22,7 @@ import { flagsFor, synopsisFor } from '../usage.js';
 import { checkoutRead } from './checkout-read.js';
 import { covering } from './covering.js';
 import { BEFORE, DISCOUNTS, probedModule, ROUNDS } from './mainline-fixture.js';
-import { git, laidWorktree, LOCAL, publishedNext, ranAlone, refetch } from './milestone-pin.fixture.js';
+import { git, laidWorktree, lineAged, LOCAL, publishedNext, publishedPartialNext, publishedWhole, ranAlone, refetch } from './milestone-pin.fixture.js';
 import { suiteBase } from './suite-base.js';
 
 // `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.
@@ -160,6 +160,26 @@ describe('the milestone under a checkout', () => {
     expect(base).not.toHaveProperty('repin');
     expect(await readFile(own)).toEqual(before);
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next } });
+  });
+
+  it('moves again when the mainline replaces the partial snapshot it moved to with a whole one at the same commit', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedPartialNext(home, ci, first);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, from: first, to: next } });
+    await publishedWhole(home, ci, next);
+    await lineAged(home);
+
+    const base = await suiteBase(worktree, { env: LOCAL });
+
+    expect(base).toMatchObject({ repin: { repinned: true, from: next, to: next } });
+    // Both stand where the whole run at `next` ran them, when it ran them, not where the partial one did.
+    expect(await readCommitRuns(own)).toMatchObject({
+      over: next,
+      standing: [{ commit: next, files: ['test/other.test.ts', 'test/total.test.ts'], latest: '2026-01-01T00:00:00.000Z' }],
+    });
   });
 
   it('answers a test file standing at the new milestone over the text the publishing run ran it over, when that run landed', async () => {

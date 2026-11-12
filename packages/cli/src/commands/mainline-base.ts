@@ -63,6 +63,8 @@ export interface MainlineRecord {
   readonly runs?: string;
   /** When it was fetched, as an ISO time: now, unless it is the record fetched earlier. */
   readonly fetched: string;
+  /** The mainline's entry was partial: a whole one at the same commit replaces it. */
+  readonly partial?: true;
   /**
    * Present when it is the record fetched earlier: reused without asking
    * because the line holds nothing nearer `HEAD`'s merge base with the mainline
@@ -125,9 +127,11 @@ export interface MainlineAsk {
  * share that keeps by commit can still gain a record at the merge base, so only
  * one already there stands. A share that keeps the latest only can hold nothing
  * nearer once its record is past the merge base, and is asked once per merge
- * base behind it.
+ * base behind it. A partial record is asked again wherever it stands: the
+ * line replaces it with the whole run's at the same commit.
  */
-function reuseOf(distance: number | undefined, keptByCommit: boolean, askedHere: boolean): 'nearest' | 'asked' | undefined {
+function reuseOf(distance: number | undefined, keptByCommit: boolean, askedHere: boolean, partial: boolean): 'nearest' | 'asked' | undefined {
+  if (partial) return undefined;
   if (distance === 0) return 'nearest';
   if (keptByCommit) return undefined;
   return distance !== undefined && distance < 0 ? 'nearest' : askedHere ? 'asked' : undefined;
@@ -187,7 +191,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
     const mainline = named?.name;
     if (held !== undefined && named !== undefined) {
       const distance = await distanceFrom(place, held.mainline, held.commit, root, named?.base);
-      const reused = reuseOf(distance, keepsByCommit(share), held.base === named?.base);
+      const reused = reuseOf(distance, keepsByCommit(share), held.base === named?.base, held.partial === true);
       if (reused !== undefined) return earlier(held, { reused }, distance);
     }
     if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
@@ -259,7 +263,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // name finds them.
   const fetched = asked;
   const base = baseOf(found.mainline);
-  await selection.writeFetchedMainline(cacheRoot, suite, { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }) });
+  await selection.writeFetchedMainline(cacheRoot, suite, { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true } : {}) });
   await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
@@ -275,6 +279,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
     ...(casesUnread !== undefined ? { casesUnread } : {}),
     ...(runs === undefined ? {} : { runs }),
     fetched,
+    ...(found.partial === true ? { partial: true } : {}),
     ...(pruned === '' ? {} : { pruned }),
   };
 }
@@ -311,6 +316,7 @@ async function earlier(
     ...(keepsCases(last.coverage) ? { cases: last.coverage } : {}),
     ...(last.runs === undefined ? {} : { runs: last.runs }),
     fetched: last.fetched,
+    ...(last.partial === true ? { partial: true } : {}),
     earlier: why,
   };
 }

@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -107,6 +107,94 @@ describe('`variance share --publish <records>`', () => {
     expect(done.lines.join('\n')).toMatch(/is not a whole run: 1 test file\(s\) the suite collects last ran before \w+, test\/other\.test\.ts among them/u);
   });
 
+  it("publishes the merge queue's run of part of the suite, every test it did not run standing where it last ran", async () => {
+    const { ci, origin, second } = await nextPush();
+    await handedOn('variance-shard-1-0', 'unit', 'test/total.test.ts', second);
+    const before = await git(home, 'ls-remote', origin, 'refs/variance/mainline/main');
+    const asked: string[] = [];
+    // The download is a directory of its own, which the share removes once it has read it.
+    const queue = async ({ pattern, commit }: { readonly pattern: string; readonly commit: string }) => {
+      asked.push(`${pattern}@${commit}`);
+      const dir = join(home, `downloaded-${asked.length}`);
+      await cp(join(home, 'ran'), dir, { recursive: true });
+      return { dir };
+    };
+
+    const done = await suitesShare(ci, { suite: 'unit', publish: true, records: [], fromQueue: 'variance-shard-*', collected: join(await collectedEach(), 'unit.txt') }, { env: PUSH }, queue);
+
+    expect(asked).toEqual([`variance-shard-*@${second}`]);
+    expect(done.exit).toBe(EXIT_CLEAN);
+    expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).not.toBe(before);
+
+    // The whole run at the commit replaces it.
+    await handedOn('variance-shard-2-0', 'unit', 'test/other.test.ts', second);
+    const whole = await suitesShare(ci, { suite: 'unit', publish: true, records: [join(home, 'ran')], collected: join(await collectedEach(), 'unit.txt') }, { env: PUSH });
+    expect(whole.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
+    expect(await stat(join(home, 'downloaded-1')).catch(() => undefined)).toBeUndefined();
+  });
+
+  it('skips a shared suite the merge queue ran none of, and publishes the one it ran', async () => {
+    const { ci, second } = await nextPush();
+    await handedOn('variance-shard-unit-0', 'unit', 'test/total.test.ts', second);
+    const queue = async () => {
+      const dir = join(home, 'downloaded-skip');
+      await cp(join(home, 'ran'), dir, { recursive: true });
+      return { dir };
+    };
+
+    const done = await suitesShare(ci, { publish: true, records: [], fromQueue: 'variance-shard-*', collected: await collectedEach() }, { env: PUSH }, queue);
+
+    expect(done.exit).toBe(EXIT_CLEAN);
+    expect(done.lines).toContain('integration: the merge queue ran none of it; the whole run at this commit publishes its record.');
+    expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
+  });
+
+  it('skips the suite it is named when the merge queue ran none of it', async () => {
+    const { ci, origin, second } = await nextPush();
+    await handedOn('variance-shard-unit-0', 'unit', 'test/total.test.ts', second);
+    const before = await git(home, 'ls-remote', origin, 'refs/variance/mainline/main');
+    const queue = async () => {
+      const dir = join(home, 'downloaded-named');
+      await cp(join(home, 'ran'), dir, { recursive: true });
+      return { dir };
+    };
+
+    const done = await suitesShare(ci, { suite: 'integration', publish: true, records: [], fromQueue: 'variance-shard-*', collected: join(await collectedEach(), 'integration.txt') }, { env: PUSH }, queue);
+
+    expect(done).toEqual({ lines: ['integration: the merge queue ran none of it; the whole run at this commit publishes its record.'], exit: EXIT_CLEAN });
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toBe(before);
+  });
+
+  it('publishes the merge queue\'s run when the runner collects a test file no run has listed yet', async () => {
+    const { ci, origin, second } = await nextPush();
+    await handedOn('variance-shard-unit-0', 'unit', 'test/total.test.ts', second);
+    const collected = await collectedEach();
+    await writeFile(join(collected, 'unit.txt'), 'test/added.test.ts\ntest/other.test.ts\ntest/total.test.ts\n');
+    const before = await git(home, 'ls-remote', origin, 'refs/variance/mainline/main');
+    const queue = async () => {
+      const dir = join(home, 'downloaded-added');
+      await cp(join(home, 'ran'), dir, { recursive: true });
+      return { dir };
+    };
+
+    const done = await suitesShare(ci, { suite: 'unit', publish: true, records: [], fromQueue: 'variance-shard-*', collected: join(collected, 'unit.txt') }, { env: PUSH }, queue);
+
+    expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
+    expect(done.exit).toBe(EXIT_CLEAN);
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).not.toBe(before);
+  });
+
+  it('says why it published nothing when the merge queue kept no run of the commit, and leaves the publish to the whole run', async () => {
+    const { ci, origin } = await nextPush();
+    const before = await git(home, 'ls-remote', origin, 'refs/variance/mainline/main');
+
+    const done = await suitesShare(ci, { publish: true, records: [], fromQueue: 'variance-shard-*' }, { env: PUSH }, async () => ({ none: 'no green merge-queue run' }));
+
+    expect(done).toEqual({ lines: ['nothing published from the merge queue: no green merge-queue run; the whole run at this commit publishes its record.'], exit: EXIT_CLEAN });
+    expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).toBe(before);
+  });
+
   it("lays a slice's record laid over the last push's, not the mainline's, as its job left it, whatever the file is named", async () => {
     const { ci, second } = await nextPush();
     vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ran', 'variance-slice-unit'));
@@ -202,5 +290,11 @@ describe('`variance share --publish <records>`', () => {
   it('takes records and `--collected` beside `--publish`, with or without `--suite`', () => {
     expect(parseArgs(['share', '--publish', 'ran', '--collected', 'collected'])).toMatchObject({ command: 'share', publish: true, reports: ['ran'], collected: 'collected' });
     expect(() => parseArgs(['share', '--collected', 'files.txt'])).toThrow('`--collected` is for `share --publish`, which counts a whole run against it');
+  });
+
+  it("takes `--from-queue` beside `--publish` alone, for the merge queue's shards", () => {
+    expect(parseArgs(['share', '--publish', '--from-queue', 'variance-shard-*', '--collected', 'c'])).toMatchObject({ command: 'share', publish: true, fromQueue: 'variance-shard-*', reports: [] });
+    expect(() => parseArgs(['share', '--from-queue', 'variance-shard-*'])).toThrow("`--from-queue` publishes the merge queue's records, so it is for `share --publish`, beside no record");
+    expect(() => parseArgs(['share', '--publish', '--from-queue', 'variance-shard-*', 'ran'])).toThrow("`--from-queue` publishes the merge queue's records, so it is for `share --publish`, beside no record");
   });
 });

@@ -284,14 +284,23 @@ export async function collectedBoth(home: string): Promise<string> {
  * writer that does not check a record before publishing it would: an older CLI,
  * or another tool. `publishTo` goes through the CLI's own publish, which leaves
  * out a record that does not read or names another commit, so a test about a
- * reader meeting one of those puts it on the line this way.
+ * reader meeting one of those puts it on the line this way. `withRuns` puts the
+ * runs record beside it, `partial` marks the entry as the merge queue's publish
+ * of part of the suite does, and `share: 'git'` publishes to the share
+ * `gitPublished` configures.
  */
-export async function publishRaw(home: string, dir: string, commit: string): Promise<void> {
-  const cell = await lineCellOf(shareConfig(home));
+export async function publishRaw(
+  home: string,
+  dir: string,
+  commit: string,
+  options: { readonly withRuns?: boolean; readonly partial?: true; readonly share?: 'git' } = {},
+): Promise<void> {
+  const cell = options.share === 'git' ? await lineCellOf({ share: GIT_SHARE } as unknown as Config, { cwd: dir }) : await lineCellOf(shareConfig(home));
   if (cell === undefined || !('load' in cell)) throw new Error(`the share in ${home} is not a line cell: ${JSON.stringify(cell)}`);
   const record = testCoverageFile(dir, { suite: 'unit' });
-  const bytes = frame([['coverage.bin', await readFile(record)]]);
-  const done = await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: suiteEntry('unit'), commit, bytes }], {
+  const runs: [string, Uint8Array][] = options.withRuns === true ? [['coverage.runs.json', await readFile(commitRunsFile(record))]] : [];
+  const bytes = frame([['coverage.bin', await readFile(record)], ...runs]);
+  const done = await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: suiteEntry('unit'), commit, bytes, ...(options.partial ? { partial: true as const } : {}) }], {
     descends: async () => undefined,
     image: async (digest) => { throw new Error(`no image ${digest}`); },
   });

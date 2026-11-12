@@ -57,6 +57,28 @@ describe('publishLine', () => {
     expect((await held(cell)).entries[0]?.commit).toBe('bbbb');
   });
 
+  it('keeps a whole entry when a run of part of the suite offers the same commit', async () => {
+    const cell = memoryLineCell();
+    await publishLine(cell, MAIN, [entry('suite-v1/unit', 'bbbb', 'whole')], { descends: linear, image: images });
+    const result = await publishLine(cell, MAIN, [{ ...entry('suite-v1/unit', 'bbbb', 'part'), partial: true }], {
+      descends: linear,
+      image: images,
+    });
+    expect(result).toMatchObject({ written: [], kept: [{ name: 'suite-v1/unit', commit: 'bbbb', because: 'whole' }] });
+    expect((await held(cell)).entries[0]).not.toHaveProperty('partial');
+  });
+
+  it('replaces a partial entry with a whole one at the same commit, and says which it holds', async () => {
+    const cell = memoryLineCell();
+    await publishLine(cell, MAIN, [{ ...entry('suite-v1/unit', 'bbbb', 'part'), partial: true }], {
+      descends: linear,
+      image: images,
+    });
+    expect((await held(cell)).entries[0]).toMatchObject({ commit: 'bbbb', partial: true });
+    await publishLine(cell, MAIN, [entry('suite-v1/unit', 'bbbb', 'whole')], { descends: linear, image: images });
+    expect((await held(cell)).entries[0]).not.toHaveProperty('partial');
+  });
+
   it('replaces after a force-push, when neither commit descends from the other', async () => {
     const cell = memoryLineCell();
     const unrelated: Descends = async () => false;

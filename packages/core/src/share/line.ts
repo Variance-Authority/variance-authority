@@ -40,6 +40,11 @@ export interface ShareEntry {
   readonly head?: string;
   /** Digests of the images this entry names, which the line keeps while it keeps the entry. */
   readonly images?: readonly string[];
+  /**
+   * True when the run behind it ran part of the suite, so a whole entry at the
+   * same commit wins over it and a reader knows to take the whole one when it lands.
+   */
+  readonly partial?: true;
   readonly bytes: Uint8Array;
 }
 
@@ -49,6 +54,7 @@ export interface HeldEntry {
   readonly commit: string;
   readonly head?: string;
   readonly images?: readonly string[];
+  readonly partial?: true;
   readonly digest: string;
   readonly size: number;
 }
@@ -208,6 +214,7 @@ export function encodeManifest(manifest: LineManifest): Uint8Array {
       commit: entry.commit,
       ...(entry.head !== undefined ? { head: entry.head } : {}),
       ...(entry.images !== undefined ? { images: [...entry.images].sort() } : {}),
+      ...(entry.partial === true ? { partial: true } : {}),
       digest: entry.digest,
       size: entry.size,
     })),
@@ -258,10 +265,11 @@ export function decodeManifest(bytes: Uint8Array): LineManifest | ShareMiss {
 
 function heldEntry(value: unknown): HeldEntry | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
-  const { name, commit, head, images, digest, size } = value as Record<string, unknown>;
+  const { name, commit, head, images, partial, digest, size } = value as Record<string, unknown>;
   if (typeof name !== 'string' || parseEntryName(name) === undefined) return undefined;
   if (typeof commit !== 'string' || !COMMIT.test(commit)) return undefined;
   if (head !== undefined && (typeof head !== 'string' || !COMMIT.test(head))) return undefined;
+  if (partial !== undefined && partial !== true) return undefined;
   if (typeof digest !== 'string' || !DIGEST.test(digest)) return undefined;
   if (typeof size !== 'number' || !Number.isInteger(size) || size < 0) return undefined;
   if (images !== undefined) {
@@ -274,6 +282,7 @@ function heldEntry(value: unknown): HeldEntry | undefined {
     commit,
     ...(head !== undefined ? { head: head as string } : {}),
     ...(images !== undefined ? { images: images as string[] } : {}),
+    ...(partial === true ? { partial: true as const } : {}),
     digest,
     size,
   };
