@@ -3434,7 +3434,7 @@ ran, red or green:
 ```yaml
 - id: carry
   run: npx --no-install variance carry restore --format github >> "$GITHUB_OUTPUT"
-# … restore the suites' caches, or read the share, as above …
+# … restore suite-unit-path from suite-unit-key and suite-unit-restore-keys with actions/cache/restore, or read the share when the suite is shared …
 - if: steps.carry.outputs.pushed-key != ''
   uses: actions/cache/restore@v6
   with:

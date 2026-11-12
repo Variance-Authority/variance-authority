@@ -42,15 +42,14 @@ Then add the server to the file your client keeps its server list in:
 `.mcp.json` at the repository root for Claude Code, `claude_desktop_config.json`
 for Claude Desktop, the equivalent file for any other client. A client launches
 `command` from its own `PATH`, where a local install puts nothing, so the entry
-goes through `npx --no-install`, which finds the installed copy and never fetches
-another:
+goes through `npx`:
 
 ```json
 {
   "mcpServers": {
     "variance": {
       "command": "npx",
-      "args": ["--no-install", "variance-authority-mcp", ".variance/report.json"]
+      "args": ["variance-authority-mcp", ".variance/report.json"]
     }
   }
 }
@@ -65,7 +64,7 @@ repository, as Claude Desktop may, enters it first. On macOS and Linux:
   "mcpServers": {
     "variance": {
       "command": "sh",
-      "args": ["-c", "cd /path/to/repo && exec npx --no-install variance-authority-mcp .variance/report.json"]
+      "args": ["-c", "cd /path/to/repo && exec npx variance-authority-mcp .variance/report.json"]
     }
   }
 }

@@ -392,7 +392,7 @@ variance-authority-help .
   "mcpServers": {
     "workspace-api": {
       "command": "npx",
-      "args": ["--no-install", "variance-authority-help", "."]
+      "args": ["variance-authority-help", "."]
     }
   }
 }

@@ -1277,42 +1277,16 @@ runs again after a merge, because the merge can take a different lockfile.
 
 A bucket in S3 or Google Cloud Storage needs signed requests, and an `http`
 share signs nothing. Put a service that takes a bearer token and signs for the
-bucket in front of it, use a Tribunal deployment in place of the bucket, or sync
-a directory share with it:
-
-```yaml
-      - run: aws s3 sync s3://example-variance/share .variance-share
-      - run: npx --no-install variance run
-      - run: npx --no-install variance share --publish
-        if: always()
-      - run: aws s3 sync .variance-share s3://example-variance/share
-        if: always()
-```
-
-The config says `{ "kind": "directory", "root": ".variance-share" }`, and the
-credentials stay out of it. For Google Cloud Storage, the two steps are
-`gcloud storage rsync --recursive` in each direction.
-
-- **The sync fits one publishing job per line at a time.** Each job locks only
-  its own copy, and the last upload's `manifest.json` wins, so a matrix that
-  publishes to one line needs `git`, or an `http` store with conditional
-  writes.
-- **On a runner that starts empty, every sync downloads everything under the
-  prefix**, which grows with every branch: nothing deletes, and a bucket
-  lifecycle rule is the collector.
-- **A mainline publish queries git about descent**, so the job needs fetch
-  access to `share.remote`, which git gets as it does [for a `git`
-  share](#the-repositorys-own-refs). Without it, the publish prints *replaced …
-  git could not answer*.
+bucket in front of it, or use a [Tribunal deployment](#a-tribunal-deployment)
+in place of the bucket.
 
 ## Locally
 
 A lookup on your checkout needs only the config CI uses:
 
 - **With `kind: "git"`**, it fetches from the remote you already push to.
-- **With a directory**, `root` is the same `.variance-share`: run the
-  `aws s3 sync` download step before you ask, or make `.variance-share` a link
-  to a mount your team shares.
+- **With a directory**, `root` is the same `.variance-share`: make it a link to
+  a mount your team shares.
 - **With `kind: "http"`**, set the environment variable your `token` setting
   names to a token that reads: on a [Tribunal
   deployment](#a-tribunal-deployment), the share token. The share token cannot

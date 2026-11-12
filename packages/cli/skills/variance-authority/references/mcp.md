@@ -29,16 +29,16 @@ same server over the same functions; it needs `variance.config.json`, as every
 ## Writing the client config
 
 A client launches `command` from its own `PATH`, where a local install puts
-nothing, so write `npx` there, then `--no-install` and the binary first in `args`,
-or the same through another package manager's runner. `npx --no-install` finds
-the binary in `node_modules/.bin` and never asks the registry.
+nothing, so write `npx` there and the binary first in `args`, or the same through
+another package manager's runner. `npx` finds the binary in `node_modules/.bin`
+without asking the registry.
 
 ```json
 {
   "mcpServers": {
     "workspace-api": {
       "command": "npx",
-      "args": ["--no-install", "variance-authority-help", "."]
+      "args": ["variance-authority-help", "."]
     }
   }
 }
@@ -47,10 +47,10 @@ the binary in `node_modules/.bin` and never asks the registry.
 After the binary, `args` is a bare root and no verb, which is the form that starts
 a stdio server. `npx` and `.` both read the directory the client starts the
 process in. A client that starts outside the workspace takes its absolute path
-twice: `"args": ["--prefix", "<workspace>", "--no-install",
-"variance-authority-help", "<workspace>"]`. The server key, `workspace-api` here,
-is yours to name. `docs_orient` with no files reads the code map `variance index`
-makes, which needs `@variance-authority/cli` beside this package and no config.
+twice: `"args": ["--prefix", "<workspace>", "variance-authority-help",
+"<workspace>"]`. The server key, `workspace-api` here, is yours to name.
+`docs_orient` with no files reads the code map `variance index` makes, which needs
+`@variance-authority/cli` beside this package and no config.
 
 `npx @modelcontextprotocol/inspector@1 --cli --config .mcp.json --server
 workspace-api --method tools/list` launches the entry and lists its tools, with

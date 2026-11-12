@@ -83,7 +83,7 @@ Either binary goes in the client's server list:
 // .mcp.json, or any MCP client that starts in the repository
 {
   "mcpServers": {
-    "variance": { "command": "npx", "args": ["--no-install", "variance-authority-mcp", ".variance/report.json"] }
+    "variance": { "command": "npx", "args": ["variance-authority-mcp", ".variance/report.json"] }
   }
 }
 ```

@@ -60,7 +60,7 @@ npm install --save-dev @variance-authority/mcp
   "mcpServers": {
     "variance-live": {
       "command": "npx",
-      "args": ["--no-install", "variance-authority-mcp", "--watch"]
+      "args": ["variance-authority-mcp", "--watch"]
     }
   }
 }
@@ -75,7 +75,7 @@ may, enters it first. On macOS and Linux:
   "mcpServers": {
     "variance-live": {
       "command": "sh",
-      "args": ["-c", "cd /path/to/repo && exec npx --no-install variance-authority-mcp --watch"]
+      "args": ["-c", "cd /path/to/repo && exec npx variance-authority-mcp --watch"]
     }
   }
 }

@@ -277,7 +277,7 @@ describe('the review is posted by a job that runs nothing of the pull request', 
 // carries it, and the todo goes green when its page prints the one step.
 describe('every printed workflow is the adopter’s steps and ours, with no recipe', () => {
   it.todo(
-    'sharing.md’s GitHub Actions job and its S3 variant publish the mainline’s record with no `share --publish` step behind `if: always()` — needs an action input that publishes from a single mainline run ({{GAP:a}})',
+    'sharing.md’s GitHub Actions job publishes the mainline’s record with no `share --publish` step behind `if: always()` — needs an action input that publishes from a single mainline run ({{GAP:a}})',
   );
   it.todo(
     'the visual shards on sharding.md and the action README hand their reports to the merge with no artifact steps — needs each shard’s report to reach the merge’s `reports` input without an artifact ({{GAP:g}})',
