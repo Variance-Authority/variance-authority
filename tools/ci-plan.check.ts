@@ -43,7 +43,7 @@ describe('CI chooses a suite run by recorded wall time', () => {
       { suite: 'unit', mode: 'whole', shard: '1/2' }, { suite: 'unit', mode: 'whole', shard: '2/2' },
     ]);
   });
-  it('uses a slice record for a whole run of one job', () => {
-    expect(suitePlan('integration', { ...full, shards: 1, matrix: ['1/1'] })).toEqual([{ suite: 'integration', mode: 'whole' }]);
+  it('runs a whole run of one job as the shard `1/1`, as every other job runs', () => {
+    expect(suitePlan('integration', { ...full, shards: 1, matrix: ['1/1'] })).toEqual([{ suite: 'integration', mode: 'whole', shard: '1/1' }]);
   });
 });
