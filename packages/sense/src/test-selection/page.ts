@@ -25,7 +25,7 @@ interface Listened {
 
 /** The browser this reads. Spelled here, since the DOM's types would retype every `fetch` this package compiles. */
 interface Browser extends Listened {
-  readonly document: Listened & { cookie: string };
+  readonly document: { cookie: string };
   readonly navigator: { sendBeacon?(url: string, body: string): boolean };
 }
 
@@ -125,8 +125,9 @@ export function reportPage(watcher: string | undefined): void {
     return;
   }
   reporting.add(browser.document);
-  browser.document.addEventListener('click', quietly(turn), true);
-  browser.document.addEventListener('submit', quietly(turn), true);
+  // On the window, where an event is heard first: a handler the application puts there later runs under this click's execution.
+  browser.addEventListener('click', quietly(turn), true);
+  browser.addEventListener('submit', quietly(turn), true);
   // Leaving starts before the document goes, and by then the collector has kept what is left for the next document,
   // which reports it as its load. So what a click ran is sent as the page starts to leave; when it
   // goes, only a page the browser keeps for the back button has anything left.

@@ -330,6 +330,9 @@ These limits keep the listing honest:
 - A request the page sends after the next click is listed under that later
   click. The click is a boundary and nothing more: the control clicked is not
   recorded.
+- A handler the application put on `window` for the capture phase before
+  `reportPage` was called runs ahead of the boundary, so what it runs is
+  listed under the execution before its click.
 - A server joins a click only when the browser sends it the page's cookies. A
   server on another origin that receives none lists its requests as executions
   of their own. A browser keeps cookies per host and not per port, so every

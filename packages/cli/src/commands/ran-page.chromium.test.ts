@@ -129,7 +129,11 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
       '<script type="module">import { reportPage } from "@variance-authority/sense/page";' +
       `reportPage(${JSON.stringify(watcher)});</script>`;
     const shop =
-      `<!doctype html><html><head>${mounted}<script>${probed(root, 'shop.js', PAGE_SOURCE)}</script></head><body>` +
+      `<!doctype html><html><head>${mounted}<script>${probed(root, 'shop.js', PAGE_SOURCE)}</script>` +
+      // An application's own handler on the window, in the capture phase, registered once the page reports.
+      "<script>document.addEventListener('DOMContentLoaded', () => window.addEventListener('click', (event) => {" +
+      " if (event.target.id === 'early') __shop_ask(); }, true));</script></head><body>" +
+      '<button id="early">early</button>' +
       '<button id="ask" onclick="__shop_ask()">ask</button>' +
       '<form id="order" onsubmit="event.preventDefault(); __shop_ask()"><button id="buy" onclick="__shop_pick()">buy</button></form>' +
       '<a id="next" href="/next" onclick="__shop_pick()">next</a> <a id="wide" href="/wide">wide</a>' +
@@ -224,11 +228,17 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
     expect([load, click, buy]).not.toContain(submit);
     await expect.poll(() => heads(submit)).toEqual(['page', 'pricing']);
 
+    // A handler the application put on the window runs for the click it handles, not for the one before.
+    await page.click('#early');
+    const early = await arrived(4);
+    expect([load, click, buy, submit]).not.toContain(early);
+    await expect.poll(() => heads(early)).toEqual(['page', 'pricing']);
+
     // A link that runs page code and then leaves: what the page ran for that click is the click's, not the next document's.
     await page.click('#next');
     await page.waitForURL('**/next');
-    const next = await arrived(4);
-    expect([load, click, buy, submit]).not.toContain(next);
+    const next = await arrived(5);
+    expect([load, click, buy, submit, early]).not.toContain(next);
     await expect.poll(() => heads(next)).toEqual(['page', 'pricing']);
 
     // A page of a few hundred modules reports all of them, however much one account weighs.

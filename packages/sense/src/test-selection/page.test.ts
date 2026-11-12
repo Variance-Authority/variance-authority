@@ -13,11 +13,18 @@ const RAN = { id: 'src/cart.ts@1', hits: [0, 1], shared: [] };
  */
 function standIn(options: { cookies?: () => void; beacon?: () => boolean; left?: Record<string, string> } = {}) {
   const on = new Map<string, () => void>();
-  const listen = vi.fn((type: string, listener: () => void) => void on.set(type, listener));
+  /** Where each listener was put, as `target type phase`. Order between targets is the browser's, and `ran-page.chromium.test.ts`'s. */
+  const put: string[] = [];
+  const listener = (target: string) => (type: string, heard: () => void, capture?: boolean) => {
+    put.push(`${target} ${type} ${capture === true ? 'capture' : 'bubble'}`);
+    on.set(type, heard);
+  };
+  const listen = vi.fn(listener('window'));
+  const listenDocument = vi.fn(listener('document'));
   const cookies: string[] = [];
   /** What the document holds, as a browser keeps it: a write of no age takes its cookie away. */
   const jar = new Map(Object.entries(options.left ?? {}));
-  const document = { addEventListener: listen };
+  const document = { addEventListener: listenDocument };
   Object.defineProperty(document, 'cookie', {
     get: () => [...jar].map(([name, value]) => `${name}=${value}`).join('; '),
     set: (value: string) => {
@@ -37,7 +44,7 @@ function standIn(options: { cookies?: () => void; beacon?: () => boolean; left?:
   /** How many executions were named: each leaves the journey cookie once. */
   const named = (): number =>
     cookies.filter((cookie) => cookie.startsWith(`${JOURNEY_COOKIE}=`) && !cookie.includes('Max-Age=0')).length;
-  return { on, listen, cookies, jar, sent, named };
+  return { on, put, cookies, jar, sent, named };
 }
 
 beforeEach(() => {
@@ -58,7 +65,7 @@ describe('a page given nowhere to report', () => {
   ])('installs nothing for %s', (_, watcher) => {
     const page = standIn();
     expect(reportPage(watcher)).toBeUndefined();
-    expect(page.listen).not.toHaveBeenCalled();
+    expect(page.put).toEqual([]);
     expect(page.cookies).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
   });
@@ -75,6 +82,12 @@ describe('a page that reports', () => {
     vi.advanceTimersByTime(0);
     page.on.get('submit')!();
     expect(page.named()).toBe(3);
+  });
+
+  it('hears a click and a submit where they are heard first: on the window, in the capture phase', () => {
+    const page = standIn({ beacon: () => true });
+    reportPage(WATCHER);
+    expect(page.put.filter((one) => /click|submit/.test(one))).toEqual(['window click capture', 'window submit capture']);
   });
 
   it('sends what a refused beacon carried another way', () => {
@@ -95,7 +108,7 @@ describe('a page somebody else reports', () => {
     vi.stubGlobal(EXECUTION_GLOBAL, { drain });
     reportPage(WATCHER);
     vi.advanceTimersByTime(1000);
-    expect(page.listen).not.toHaveBeenCalled();
+    expect(page.put).toEqual([]);
     expect(page.cookies).toEqual([]);
     expect(drain).not.toHaveBeenCalled();
   });
@@ -117,7 +130,7 @@ describe('a page somebody else reports', () => {
     reportPage(WATCHER);
     expect(page.named()).toBe(1);
     expect(page.jar.get(JOURNEY_COOKIE)).toBe(held);
-    expect(page.listen).toHaveBeenCalledTimes(4);
+    expect(page.put).toHaveLength(4);
     expect(vi.getTimerCount()).toBe(1);
   });
 });
@@ -158,7 +171,7 @@ describe('a page that cannot be reported from', () => {
       },
     });
     expect(() => reportPage(WATCHER)).not.toThrow();
-    expect(page.listen).not.toHaveBeenCalled();
+    expect(page.put).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
   });
 });
