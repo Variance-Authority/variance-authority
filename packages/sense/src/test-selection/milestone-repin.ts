@@ -41,7 +41,7 @@ import type { TestCoverage } from './index.js';
 import { partlyIn, partOf, whatLanded, type Landing } from './landings.js';
 import { landedOf, ranOn, standKey } from './standing-after.js';
 import { opensFetched, type LastFetched } from './mainline-layer.js';
-import { readOwnLayer, writeOwnLayer, type OwnLayer } from './own-layer.js';
+import { pinOf, readOwnLayer, writeOwnLayer, type OwnLayer } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
 
 /** What {@link repinOwnLayer} did, and why it left the pin when it did. */
@@ -85,7 +85,8 @@ export async function repinOwnLayer(coverageFile: string, record: LastFetched, r
 function refusal(layer: OwnLayer | undefined, record: LastFetched, root: string): RepinRefusal | undefined {
   const pinned = layer?.pinned;
   if (pinned === undefined) return 'unpinned';
-  if (pinned.commit === record.commit) return 'current';
+  // A whole record at the pinned commit replaces the partial one the pin stands on.
+  if (pinned.commit === record.commit && (pinned.partial !== true || record.partial === true)) return 'current';
   if (pinned.mainline !== record.mainline) return 'other-mainline';
   const contained = ancestor(root, record.commit, 'HEAD');
   if (contained === undefined) return 'unknown';
@@ -161,7 +162,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   }));
   if (runs === undefined) await rm(commitRunsFile(coverageFile), { force: true });
   else await writeCommitRuns(commitRunsFile(coverageFile), runs);
-  await writeOwnLayer(coverageFile, { pinned: { mainline: record.mainline, commit: record.commit }, ran: states });
+  await writeOwnLayer(coverageFile, { pinned: pinOf(record), ran: states });
   return { repinned: true, from: layer.pinned!.commit, to: record.commit, kept: [...kept], dropped };
 }
 

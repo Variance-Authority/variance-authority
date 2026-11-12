@@ -28,6 +28,8 @@ export interface MainlineAt {
   readonly commit: string;
   /** Commits the entry is behind `HEAD`'s merge base with the mainline; negative when ahead. */
   readonly distance?: number;
+  /** The run behind it ran part of the suite, so a whole entry at the same commit replaces it on the line. */
+  readonly partial?: true;
 }
 
 /**
@@ -76,7 +78,8 @@ export async function mainlineEntry(
   if ('miss' in found) return { mainline, ...found };
 
   const distance = await distanceFrom(config, mainline, found.entry.commit, cwd, base);
-  return { at: { mainline, commit: found.entry.commit, ...(distance !== undefined ? { distance } : {}) }, held: found };
+  const partial = found.entry.partial === true ? { partial: true as const } : {};
+  return { at: { mainline, commit: found.entry.commit, ...(distance !== undefined ? { distance } : {}), ...partial }, held: found };
 }
 
 /** One entry a line holds, and its bytes and images on demand. */

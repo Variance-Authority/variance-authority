@@ -38,9 +38,22 @@ import { writeCoverageBytes } from './record-location.js';
 /** The ledger beside a checkout's record. */
 export interface OwnLayer {
   /** The milestone the record stands on, as `fetched.json` named it. */
-  readonly pinned?: { readonly mainline: string; readonly commit: string };
+  readonly pinned?: Pinned;
   /** The tests this checkout ran, by the state they ran over, the latest landing last. A test is in one entry. */
   readonly ran: readonly OwnState[];
+}
+
+/** A milestone: the mainline's record a checkout's record stands on. */
+export interface Pinned {
+  readonly mainline: string;
+  readonly commit: string;
+  /** The mainline's entry was partial, so a whole one at the same commit is still a milestone to move to. */
+  readonly partial?: true;
+}
+
+/** The pin of the record `fetched` names. */
+export function pinOf(fetched: Pinned): Pinned {
+  return { mainline: fetched.mainline, commit: fetched.commit, ...(fetched.partial === true ? { partial: true } : {}) };
 }
 
 /** Tests one or more runs of this checkout observed over one state. */
@@ -73,9 +86,7 @@ export async function readOwnLayer(coverageFile: string): Promise<OwnLayer | und
   );
   if (states.length !== ran.length) return undefined;
   return {
-    ...(typeof pinned?.mainline === 'string' && typeof pinned.commit === 'string'
-      ? { pinned: { mainline: pinned.mainline, commit: pinned.commit } }
-      : {}),
+    ...(typeof pinned?.mainline === 'string' && typeof pinned.commit === 'string' ? { pinned: pinOf(pinned) } : {}),
     ran: states.map((state) => ({ commit: state.commit, ...(typeof state.tree === 'string' ? { tree: state.tree } : {}), files: state.files })),
   };
 }

@@ -29,7 +29,7 @@ import { openSetExecutionIndex } from './execution-set-format.js';
 import { RecordWithoutCoverage } from './format-validation.js';
 import { openTestCoverage } from './format-view.js';
 import type { IndexLock } from './index-lock.js';
-import { writeOwnLayer } from './own-layer.js';
+import { pinOf, writeOwnLayer } from './own-layer.js';
 import { repositoryRoot } from './repository-root.js';
 import { declaredSuites, onlySuite } from './suites.js';
 
@@ -48,6 +48,8 @@ export interface FetchedMainline {
   readonly base?: string;
   /** Another job of this run read it and handed it on: the run's answer, which no reader in it asks the line past. */
   readonly handed?: true;
+  /** The mainline's entry was marked partial: the run behind it ran part of the suite, and a whole one at the same commit replaces it. */
+  readonly partial?: true;
 }
 
 /** The mainline's record of one suite, as the last fetch on this machine kept it. */
@@ -86,8 +88,15 @@ export function readFetchedMainline(readRoot: string): FetchedMainline | undefin
   try {
     const value = JSON.parse(readFileSync(join(readRoot, FETCHED_MAINLINE), 'utf8')) as Partial<FetchedMainline>;
     if (typeof value.mainline !== 'string' || typeof value.commit !== 'string' || typeof value.fetched !== 'string') return undefined;
-    const { mainline, commit, fetched, base, handed } = value;
-    return { mainline, commit, fetched, ...(typeof base === 'string' ? { base } : {}), ...(handed === true ? { handed } : {}) };
+    const { mainline, commit, fetched, base, handed, partial } = value;
+    return {
+      mainline,
+      commit,
+      fetched,
+      ...(typeof base === 'string' ? { base } : {}),
+      ...(handed === true ? { handed } : {}),
+      ...(partial === true ? { partial } : {}),
+    };
   } catch {
     return undefined;
   }
@@ -207,7 +216,7 @@ export async function layFetchedMainline(record: LastFetched, lock: IndexLock): 
   await place(commitRunsFile(file), runs);
   await place(file, coverage);
   // The ledger names the milestone and no test of this checkout's yet.
-  await writeOwnLayer(file, { pinned: { mainline: record.mainline, commit: record.commit }, ran: [] });
+  await writeOwnLayer(file, { pinned: pinOf(record), ran: [] });
   return true;
 }
 

@@ -240,6 +240,7 @@ function fetchedOf(record: MainlineRecord): LastFetched {
     mainline: record.mainline,
     commit: record.commit,
     fetched: record.fetched,
+    ...(record.partial === true ? { partial: true } : {}),
     coverage: record.coverage,
     ...(record.runs === undefined ? {} : { runs: record.runs }),
   };
