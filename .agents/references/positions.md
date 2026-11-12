@@ -150,13 +150,13 @@ pull request, with the new reason.
   that withstands time." A printed workflow holds `on:`, the adopter's own
   steps (checkout, install, a build, a browser, the tests), and our action's
   `uses:` with its inputs or one `variance` command, whose output may be
-  redirected to a file. Anything else is a recipe: shell around a command (a
-  condition, a second command, a pipe into `jq`), a cache key or an artifact
-  move for our data, a poster, or an `if:` or a second job that runs variance
-  one way on one event and another way on another. An `if:` that only skips a
-  job, and an input's expression, stay the adopter's. A page adds no recipe;
-  each one already printed is an `it.todo` in `tools/docs-action.check.ts`
-  until the action or the CLI carries it. [What we ship is installed, never
+  redirected to a file. Anything else is a recipe: a condition or shell around
+  a command (an event branch, a second command, a pipe into `jq`), a cache key
+  or an artifact move for our data, a poster. An `if:` that only skips a job,
+  the jobs a run is split into, and an input's expression stay the adopter's.
+  A page adds no recipe; each one already printed is an `it.todo` in
+  `tools/docs-action.check.ts` until the action or the CLI carries it. [What
+  we ship is installed, never
   copied](../../docs/AGENTS.md#what-we-ship-is-installed-never-copied) is the
   rule for our files; this one is for what an adopter writes around them.
 - **A collision breaks loudly.** An id clash that only input the test framework

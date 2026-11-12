@@ -132,7 +132,7 @@ Nothing here replaces the upload step. Declare your suites in the root
 the job summary after the suite:
 
 ```bash
-npx --no-install variance coverage --format markdown >> "$GITHUB_STEP_SUMMARY"
+variance coverage --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
 For a badge in a public repository's `README.md`, set `badge: 'true'` on the
