@@ -1,12 +1,8 @@
 # Spec 0101 — the deployer decides who the tribunal recognizes
 
 **Missing:** no code. Left to discharge it are the chart lines that still name
-`grant`, two secrets or a header replacement, and the ADRs that retire this file.
-Its Built on line and its *today* describe the code it was written against, and
-`main` has replaced `grant`, the `authorize` hook, the two tokens `createTribunal`
-took, Access keys never refetched on an unknown `kid`, the `() => string` that
-`declaredSecret` returned, a `by` the body chose and a `REVIEW_TOKEN` that grants
-`review`.
+`grant`, two secrets, an implied token or a header replacement, and the ADRs
+that retire this file.
 **Built on:** the capability split
 ([ADR-0022](../context/adr/0022-deciding-is-not-writing.md)); the packaged
 Worker's `grant` in `packages/tribunal/src/worker-auth.ts`; the `authorize` hook
@@ -353,10 +349,13 @@ there is nothing to provision and the step disappears.
 
 ## What would discharge it
 
-1. **Update the charts.** `grant` and `refuseWeakTokens`, which `main` no longer
-   has, are still named by the capability chart, the review-router diagram and
-   `VIEWPORTS.md`; those and the decision chart still speak of two secrets or an
-   implied token, and the deployment-adapters chart of a header replacement.
+1. **Update the charts.** `grant`, which `main` no longer has, is still named by
+   the capability chart, the review-router diagram and `VIEWPORTS.md`, and
+   `refuseWeakTokens` by the first and last. The decision chart and
+   `VIEWPORTS.md` still speak of two secrets, and the capability chart of which
+   secret was presented. The capability chart, the deployment-adapters chart and
+   `VIEWPORTS.md` speak of the token the policy's answer implies, and the last
+   two of a mount that replaces the incoming authorization.
 2. **Write the ADRs** — trust is deployment configuration; machines never review —
    mark ADR-0022 and ADR-0087 as amended by them, update
    [`checkpoint.md`](../context/checkpoint.md), and delete this file.
