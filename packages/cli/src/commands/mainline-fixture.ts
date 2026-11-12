@@ -16,7 +16,6 @@ import {
   writeTestCoverage,
   type CoverageBlock,
   type ExecutionBlock,
-  type ExecutionIndex,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
@@ -158,12 +157,7 @@ export async function originAndCi(home: string): Promise<{ origin: string; ci: s
  */
 export async function gitPublished(
   home: string,
-  options: {
-    readonly publish?: boolean;
-    readonly instrumentation?: string;
-    readonly suites?: Readonly<Record<string, unknown>>;
-    readonly readings?: Uint8Array;
-  } = {},
+  options: { readonly publish?: boolean; readonly instrumentation?: string; readonly suites?: Readonly<Record<string, unknown>>; readonly readings?: Uint8Array } = {},
 ): Promise<{ ci: string; origin: string; first: string; record: Buffer }> {
   const { origin, ci } = await originAndCi(home);
   await mkdir(join(ci, 'src'));
@@ -349,7 +343,7 @@ export async function recordIn(
     startLine: 1, endLine: 3, source: true, testFiles: [...covering],
   }];
   await writeTestCoverage(record, { ...totalCoverage(commit, ['test/total.test.ts', 'test/other.test.ts'], blocks), instrumentation });
-  await keepCases(record, casesOf(cases), readings);
+  await keepCases(record, casesIndex(cases), readings);
 }
 
 /** What a run of `tests`, each whole, records at `commit` over `src/total.ts` as `BEFORE` holds it: `blocks`, the module first. */
@@ -442,7 +436,7 @@ export async function ranHere(dir: string, at: string): Promise<void> {
       }],
     }],
   });
-  await keepCases(record, casesOf([DISCOUNTS, ROUNDS]));
+  await keepCases(record, casesIndex([DISCOUNTS, ROUNDS]));
   const landed = '2026-09-26T00:00:00.000Z';
   await writeFile(commitRunsFile(record), JSON.stringify({
     commit: at, latest: landed, runs: 1, landings: [{ files: ['test/total.test.ts'], first: landed, latest: landed, runs: 1 }],
@@ -452,21 +446,17 @@ export async function ranHere(dir: string, at: string): Promise<void> {
 }
 
 /** `index`, kept in the record at `record` the way a run keeps its cases, with `readings` beside it when given. */
-async function keepCases(record: string, index: ExecutionIndex, readings?: Uint8Array): Promise<void> {
-  await writeFile(record, withCaseSections(await readFile(record), { index: encodeAsSetExecutionIndex(index), ...(readings === undefined ? {} : { readings }) }));
+async function keepCases(record: string, index: Uint8Array, readings?: Uint8Array): Promise<void> {
+  await writeFile(record, withCaseSections(await readFile(record), { index, ...(readings === undefined ? {} : { readings }) }));
 }
 
-/** The case index a run that ran `cases` keeps, each entering `applyDiscount`. */
-export function casesIndex(cases: readonly (typeof DISCOUNTS)[]): Uint8Array {
-  return encodeAsSetExecutionIndex(casesOf(cases));
-}
-
-function casesOf(tests: readonly (typeof DISCOUNTS)[]): ExecutionIndex {
+/** The case index a run that ran `tests` keeps, each entering `applyDiscount`. */
+export function casesIndex(tests: readonly (typeof DISCOUNTS)[]): Uint8Array {
   const block: ExecutionBlock = {
     kind: 'function', name: 'applyDiscount', path: 'applyDiscount', startLine: 1, endLine: 3, source: true,
     crossings: [{ test: 0, distance: 0 }],
   };
-  return { tests, modules: [{ file: 'src/total.ts', blocks: [block] }] };
+  return encodeAsSetExecutionIndex({ tests, modules: [{ file: 'src/total.ts', blocks: [block] }] });
 }
 
 async function reportAt(home: string, commit: string): Promise<string> {
