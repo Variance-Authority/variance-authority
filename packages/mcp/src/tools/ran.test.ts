@@ -126,6 +126,14 @@ describe('variance_ran', () => {
     expect(text).toContain('ran no code the build placed a probe in');
   });
 
+  it('does not call a request still open unprobed: its head reports when it settles', () => {
+    const open = { id: 'request-9', ordinal: 9, open: true, heads: [] };
+    const text = ran.run(state({ executions: [open] }), {}, { modules: CUT });
+    expect(text).toContain('▸ request-9');
+    expect(text).not.toContain('ran no code');
+    expect(text).toContain('still open: what it ran is listed when it settles');
+  });
+
   it('reads a module its build marked as loaded as loaded, and never as changed', () => {
     const text = ran.run(state({ executions: [execution(0, { 'lib/big.ts@~dd44': [] })] }), {}, { modules: CUT });
     expect(text).toContain('lib/big.ts — 0 region(s), not named: its build placed no probe in it');

@@ -169,7 +169,7 @@ function listed(execution: WatchedExecution, cut: CutModules | undefined): strin
     `${mark} ${execution.id}`,
     ...execution.heads.flatMap((head) => [`  head ${head.head}`, ...regionsOf(head, cut).map(line)]),
     // A request that reached a head and none of its probed code: a route the build left out.
-    ...(execution.heads.some((head) => head.modules.length > 0) ? [] : ['  ran no code the build placed a probe in']),
+    ...(execution.heads.some((head) => head.modules.length > 0) ? [] : [execution.open ? '  still open: what it ran is listed when it settles' : '  ran no code the build placed a probe in']),
   ];
 }
 

@@ -285,9 +285,11 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     };
   }
 
-  const watcher = options.watcher ?? process.env[WATCHER_VARIABLE];
+  // Empty is unset, as a run reads it: an unset variable interpolated into an environment arrives empty.
+  const watcher = (options.watcher ?? process.env[WATCHER_VARIABLE]) || undefined;
   // Said now: a head that tells an address nothing looks like a quiet application.
-  const watched = watcher === undefined ? undefined : channelTo(watcher, UNATTRIBUTED)?.home;
+  const watching = watcher === undefined ? undefined : channelTo(watcher, UNATTRIBUTED);
+  const watched = watching?.home;
   if (watcher !== undefined && watched === undefined) {
     throw new Error(`collectJourneys cannot report to the watcher address ${JSON.stringify(watcher)}: it must be an http address on this machine, as \`variance watch\` prints it.`);
   }
@@ -433,13 +435,9 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     // it again; `report` deletes the bucket it was handed, which is the one
     // being visited — the only mutation a Map iteration may see and go on.
     const journeys = new Set([...buckets.keys(), ...depth.keys()]);
-    for (const journey of journeys) {
-      report(journey, channels.get(journey), depth.has(journey) ? 1 : 0);
-    }
-    for (const journey of journeys) {
-      const over = channels.get(journey);
-      if (over !== undefined) catchUp(over);
-    }
+    for (const journey of journeys) report(journey, channels.get(journey), depth.has(journey) ? 1 : 0);
+    // What ran outside every request since the last one settled: no later request will carry it.
+    for (const over of [...journeys].map((journey) => channels.get(journey)).concat(watching)) if (over !== undefined) catchUp(over);
     await Promise.all(sending);
   };
 

@@ -1012,12 +1012,12 @@ both off the request's `Cookie` header, runs the handler inside an
 `AsyncLocalStorage` scope keyed by the journey, and when the scope settles
 delivers the account as a JSON `POST` to `<return>/journeys`, three attempts,
 or through the `__VAW__` sink function when the driver is in the same realm.
-The head installs nothing unless `VARIANCE_AUTHORITY_JOURNEYS` or
-`VARIANCE_AUTHORITY_VANTAGE` is set, and names itself from
-`VARIANCE_AUTHORITY_HEAD` when no name is passed. With
-`VARIANCE_AUTHORITY_VANTAGE` set, a request carrying no journey is delivered to
-that watcher as an execution of its own, and what ran outside every request is
-delivered apart from all of them.
+The head installs nothing unless `VARIANCE_AUTHORITY_JOURNEYS` is set, and
+names itself from `VARIANCE_AUTHORITY_HEAD` when no name is passed. Turned on
+and given a watcher's address in `VARIANCE_AUTHORITY_VANTAGE`, it delivers a
+request carrying no journey to that watcher as an execution of its own, and
+what ran outside every request apart from all of them. The address alone turns
+nothing on.
 `stitchJourneys` joins every account bearing one id to the subject the driver
 minted it for, counts an account under an id the driver never minted as
 unclaimed, and marks the whole run incomplete when a declared head stayed

@@ -68,7 +68,9 @@ describe('a head told where a watcher listens', () => {
 
       await until(() => driven.reports.some((report) => report.settled === 1));
       expect(entered(driven.reports).has(journey)).toBe(true);
-      expect(watcher.reports).toEqual([]);
+      // The watcher hears what the process ran, and of no execution.
+      expect(entered(watcher.reports).size).toBe(0);
+      expect(watcher.reports.filter((report) => report.opened !== undefined || report.settled !== undefined)).toEqual([]);
     });
   });
 
@@ -208,6 +210,31 @@ describe('a head told where a watcher listens', () => {
         delete process.env[JOURNEY_VARIABLE];
       }
     });
+  });
+
+  it('tells the watcher what ran outside every request after the last one, when it closes', async () => {
+    await inRoot(async (root) => {
+      const watcher = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
+      const parts = await head(root);
+
+      collector.enter(undefined, () => 1);
+      await collector.flush();
+      const before = watcher.reports.length;
+      // A timer or a queue worker: no request is open, and none follows.
+      await parts.currency('en');
+      await collector.close();
+
+      const after = watcher.reports.slice(before).filter((report) => report.journey === UNATTRIBUTED);
+      expect(after.flatMap((report) => report.modules.flatMap((module) => module.hits)).length).toBeGreaterThan(0);
+    });
+  });
+
+  it('reads an empty address as no address, as a run does', async () => {
+    // An unset CI variable interpolated into a service's environment arrives empty.
+    const collector = collectJourneys({ head: 'api', enabled: true, watcher: '' });
+    expect(collector.collecting).toBe(true);
+    await collector.close();
   });
 
   it('refuses a watcher address it cannot reach, since a head told nothing looks like a quiet one', () => {
