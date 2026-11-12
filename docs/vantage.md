@@ -21,7 +21,7 @@ Start the watcher first, in its own terminal:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/playwright-test
-npx --no-install variance watch
+variance watch
 ```
 
 It takes an ephemeral port and prints the one line the suite needs:

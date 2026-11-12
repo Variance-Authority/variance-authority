@@ -38,9 +38,11 @@ the second command is for.
 is the other shipped adapter, for served routes, a sitemap or a static build.
 Anything else is a module you write, and step 1 has its shape.
 
-An installed `variance` is not on your `PATH`. Run it as `npx --no-install
-variance`, as the workflow steps on this page do: it finds the installed copy
-and never fetches another. `yarn variance` and `pnpm exec variance` do the same.
+The package installs one command, `variance`. Run it through your package
+manager (`yarn variance`, `pnpm exec variance`, or a `package.json` script),
+which finds the installed copy and never fetches another. A workflow step has no
+package manager in front, so the steps on this page run `npx --no-install
+variance`.
 
 ## Integrate the CLI
 

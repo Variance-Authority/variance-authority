@@ -33,7 +33,7 @@ default, and nothing in this package produces it. It comes from the CLI:
 npm install --save-dev @variance-authority/cli
 npx playwright install chromium
 # write variance.config.json, then:
-npx --no-install variance run --config variance.config.json
+variance run --config variance.config.json
 ```
 
 `variance run` writes the report at the path the config's `report` key names,
@@ -83,7 +83,7 @@ Either binary goes in the client's server list:
 // .mcp.json, or any MCP client that starts in the repository
 {
   "mcpServers": {
-    "variance": { "command": "npx", "args": ["variance-authority-mcp", ".variance/report.json"] }
+    "variance": { "command": "npx", "args": ["--no-install", "variance-authority-mcp", ".variance/report.json"] }
   }
 }
 ```

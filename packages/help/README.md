@@ -83,13 +83,13 @@ nothing published, so every answer comes from what the source exports.
 
 ## Ask one question
 
-The binary is `variance-authority-help`. Installed as a devDependency it is on
-the path under `npx`:
+The binary is `variance-authority-help`. Installed as a devDependency, it runs
+through your package manager:
 
 ```bash
 npm install --save-dev @variance-authority/help
-npx --no-install variance-authority-help search viewport
-npx --no-install variance-authority-help search viewport --from packages/app/ --just-answer
+variance-authority-help search viewport
+variance-authority-help search viewport --from packages/app/ --just-answer
 ```
 
 The verbs each take the same arguments as the tool of the same name below:
@@ -384,7 +384,7 @@ With no verb, the binary speaks the protocol on stdio:
 
 ```bash
 npm install --save-dev @variance-authority/help
-npx --no-install variance-authority-help .
+variance-authority-help .
 ```
 
 ```json
@@ -392,7 +392,7 @@ npx --no-install variance-authority-help .
   "mcpServers": {
     "workspace-api": {
       "command": "npx",
-      "args": ["variance-authority-help", "."]
+      "args": ["--no-install", "variance-authority-help", "."]
     }
   }
 }
@@ -416,7 +416,7 @@ person:
 
 ```bash
 npm install --save-dev @variance-authority/help
-npx --no-install variance-authority-help write . --out docs/api
+variance-authority-help write . --out docs/api
 ```
 
 Four files, and the command prints each with its size:

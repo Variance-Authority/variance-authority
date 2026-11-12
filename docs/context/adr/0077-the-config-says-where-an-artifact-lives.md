@@ -173,19 +173,6 @@ builds no key.**
     keeps `uses: actions/cache/restore@v4` and `save@v4`, with every `with:`
     value taken from a `carry` output.
 
-    *Amended 2026-11-12:* that is our own proof, never an adopter's route. The
-    owner: "We avoid any imperative code that someone should copy past and
-    rely on codified process in action or cli. We pick the abstraction that
-    withstands time." The sweep and the sharded merge are now steps of the
-    action, and `Variance-Authority/action/review` restores and saves a
-    suite's record when it is given `test`. A published page prints no
-    `actions/cache` around a `carry` output: a job the action does not carry
-    yet is a missing input, filed as a gap under #1140. The pages that still
-    print one, `docs/cache.md` and the pushed record in the CLI README, select
-    tests on a pull request, and wait on #1181 for the review action to do
-    that. `check.yml` keeps running the steps itself until it calls the
-    action as an adopter would.
-
 ## Alternatives
 
 - **The CLI speaks the Actions cache protocol itself.** GitHub hands

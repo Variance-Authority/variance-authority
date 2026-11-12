@@ -150,8 +150,8 @@ If you have not installed the CLI yet:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/route-collector
-npx --no-install variance doctor --config variance.config.json
-npx --no-install variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 `variance doctor` prints which **tier** the run will use before the first

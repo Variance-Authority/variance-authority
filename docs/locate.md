@@ -18,7 +18,7 @@ done*, *the thing that uses the accent token*. Search turns that description
 into ids. It does not grep your source, and it is not a code search tool.
 
 New here? Start with [your first run](start.md). The CLI is a devDependency, so
-every invocation below runs through `npx`:
+every invocation below runs through your package manager:
 
 ```bash
 npm install --save-dev @variance-authority/cli

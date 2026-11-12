@@ -8,13 +8,13 @@ already trust. New to [Variance Authority](README.md)?
 [Your first run](start.md) takes one UI state through capture, review and
 acceptance end to end.
 
-Every path below shares one CLI, installed as a devDependency and invoked
-through `npx`:
+Every path below shares one CLI, installed as a devDependency and run through
+your package manager:
 
 ```bash
 npm install --save-dev @variance-authority/cli
-npx --no-install variance run --config variance.config.json
-npx --no-install variance accept --config variance.config.json cart/empty
+variance run --config variance.config.json
+variance accept --config variance.config.json cart/empty
 ```
 
 Start with the harness that already gets the app into that state

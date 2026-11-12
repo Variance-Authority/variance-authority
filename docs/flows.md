@@ -8,7 +8,7 @@ kept, who reviews a change, and which machine paints the images.
 
 ```bash
 npm install --save-dev @variance-authority/cli
-npx --no-install variance run --config variance.config.json
+variance run --config variance.config.json
 ```
 
 A **subject** is one named UI state you asked for and can ask for again,

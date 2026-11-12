@@ -584,7 +584,8 @@ with this as its action step:
 ```
 
 The `accept` job runs only on a dispatch with **accept** ticked, so it is the
-only job that can write to the repository:
+only job that can write to the repository. It renders the images it commits, so
+it repeats the `variance` job's setup:
 
 ```yaml
 accept:
@@ -596,7 +597,13 @@ accept:
     - uses: actions/checkout@v7 # a dispatch is on its branch already
       with:
         token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
-    # the variance job's setup, install and build steps
+    - uses: actions/setup-node@v7
+      with:
+        node-version: 22
+        cache: npm
+    - run: npm ci
+    - run: npx playwright install --with-deps chromium
+    - run: npm run build-storybook
     - uses: Variance-Authority/action@v1
       with:
         config: variance.config.json

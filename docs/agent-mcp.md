@@ -17,7 +17,7 @@ default, and nothing in the MCP package writes it. The CLI does:
 ```bash
 npm install --save-dev @variance-authority/cli
 npx playwright install chromium
-npx --no-install variance run --config variance.config.json
+variance run --config variance.config.json
 ```
 
 `variance run` writes the report at the path your config's `report` key names,
@@ -42,14 +42,15 @@ Then add the server to the file your client keeps its server list in:
 `.mcp.json` at the repository root for Claude Code, `claude_desktop_config.json`
 for Claude Desktop, the equivalent file for any other client. A client launches
 `command` from its own `PATH`, where a local install puts nothing, so the entry
-goes through `npx`:
+goes through `npx --no-install`, which finds the installed copy and never fetches
+another:
 
 ```json
 {
   "mcpServers": {
     "variance": {
       "command": "npx",
-      "args": ["variance-authority-mcp", ".variance/report.json"]
+      "args": ["--no-install", "variance-authority-mcp", ".variance/report.json"]
     }
   }
 }
@@ -64,7 +65,7 @@ repository, as Claude Desktop may, enters it first. On macOS and Linux:
   "mcpServers": {
     "variance": {
       "command": "sh",
-      "args": ["-c", "cd /path/to/repo && exec npx variance-authority-mcp .variance/report.json"]
+      "args": ["-c", "cd /path/to/repo && exec npx --no-install variance-authority-mcp .variance/report.json"]
     }
   }
 }

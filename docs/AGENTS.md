@@ -113,7 +113,9 @@ own, and the action reaches readers as
 which every release publishes. A capability a reader can only get by copying is
 not shipped yet; ship it as a package or an input of the action, then document
 that. `tools/docs-installs.check.ts` enforces this over every markdown file and
-every workflow comment.
+every workflow comment. The glue a reader would write around our steps falls
+under it too, as the position [a process is codified in the action or the CLI,
+never pasted](../.agents/references/positions.md#names-and-surface) lists.
 
 ## `docs/` is not a work log
 

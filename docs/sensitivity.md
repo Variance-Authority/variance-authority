@@ -66,7 +66,8 @@ scope or spelling error rather than a policy whose reason no longer applies.
 
 ## Declaring one
 
-The CLI is a devDependency, so every invocation goes through `npx`:
+The CLI is a devDependency, so every invocation goes through your package
+manager:
 
 ```bash
 npm install --save-dev @variance-authority/cli
