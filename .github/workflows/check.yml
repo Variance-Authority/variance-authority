@@ -25,8 +25,8 @@ on:
   # required on `main`, the queue merges a group only when it is green, so two
   # pull requests green on their own bases cannot break what `check` tests
   # together through the queue. A group runs `plan` and the `queue` jobs
-  # alone: lint and the repository's rules in one, and in the others, a slice
-  # or a shard each, as many as `plan` counts the group's change is worth, the
+  # alone: lint and the repository's rules in one, and in the others, a shard
+  # each, as many as `plan` counts the group's change is worth, the
   # tests within two imports of what it changes, `verify:near`'s wave. Every
   # pull request in it already ran its own whole selection, and the push to
   # `main` after it runs every file, so the queue asks only whether the group's
@@ -1033,6 +1033,9 @@ jobs:
       # `queue` job, as `base` hands its read to `suite`: the line can move
       # while the legs start, and two shards of one slice that read two
       # records cut two different selections, so a file can fall between them.
+      # A miss is handed as the read, for the reasons written at `read the
+      # mainline once` in `base`, and each shard selects from what `take the
+      # base` lays.
       - name: keep the base records
         id: read
         shell: bash
@@ -1171,25 +1174,6 @@ jobs:
         if: matrix.part != 'rules'
         shell: bash
         run: node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
-
-      # The mainline's record of this slice, read by `plan` from
-      # `refs/variance/mainline/main` on `origin`, where the `publish` job
-      # leaves it after every push to `main`. `share --suite` reads it and lays
-      # it, with the runs record its publishing run carried as a seed, into
-      # this checkout's own layer, which the near wave selects from: a group
-      # records nothing, so no shard's own layer is folded. When the ref is
-      # missing or does not read, the line says why and the slice has no base;
-      # nothing older is put in its place. A record written under other probes
-      # than this build records under, as a group that changes the
-      # instrumentation sees it, is passed over with a notice naming both, and
-      # the slice has no base either: no run of this build could be laid over
-      # it.
-      - name: keep the base record
-        if: matrix.part != 'rules'
-        shell: bash
-        env:
-          SUITE: ${{ matrix.part }}
-        run: node packages/cli/dist/bin.js share --suite "$SUITE"
 
       - name: near tests
         if: matrix.part != 'rules'
