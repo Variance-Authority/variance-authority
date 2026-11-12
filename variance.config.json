@@ -42,6 +42,9 @@
       "before": [
         ".github/actions/build/action.yml",
         ".github/actions/variance/action.yml",
+        ".github/actions/variance/post-comment.mjs",
+        ".github/actions/variance/push-ref.sh",
+        ".github/actions/variance/tick",
         ".github/workflows/variance.yml",
         "docker/ci.Dockerfile",
         "site/wrangler.jsonc"
