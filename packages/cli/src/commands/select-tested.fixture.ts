@@ -153,8 +153,8 @@ async function recorded(home: string, ci: string, entered: Readonly<Record<strin
     instrumentation: 'fixture',
     commit,
     tests: [
-      { file: 'test/other.test.ts', complete: true, preconditions: [] },
-      { file: 'test/total.test.ts', complete: true, preconditions: [] },
+      { file: 'test/other.test.ts', complete: true, preconditions: [], duration: 60_000 },
+      { file: 'test/total.test.ts', complete: true, preconditions: [], duration: 60_000 },
     ],
     modules,
   });

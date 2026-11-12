@@ -83,6 +83,12 @@ describe('parsing variance shards', () => {
       .toMatchObject({ since: 'origin/main', collected: 'files.txt' });
   });
 
+  it('counts from the selection a merge queue narrows by its tested commit, which needs a base', () => {
+    expect(parseArgs(['shards', '--since', 'main', '--tested', 'abc123'])).toMatchObject({ since: 'main', tested: 'abc123' });
+    expect(() => parseArgs(['shards', '--tested', 'abc123']))
+      .toThrow('`--tested` names the pull request a merge queue merged onto `--since`, and no `--since` was passed');
+  });
+
   it('takes --at-distance without --since, which the answer says cuts nothing', () => {
     expect(parseArgs(['shards', '--setup', '1', '--at-distance', '0-2'])).toMatchObject({ atDistance: '0-2' });
   });

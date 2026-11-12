@@ -69,6 +69,13 @@ describe('the `--tested` reconciliation machine', () => {
     expect(selectionOf(state, full([A])).notes.join('\n')).toContain(`${B}: only the mainline reaches it; \`--since\` names its tree ${MAINLINE.slice(0, 12)} as tested`);
   });
 
+  it("keeps a skip the selection already made outside its whole when HEAD's tree already ran", () => {
+    const state = transition(selecting, { kind: 'merge', answer: { is: 'ran', at: TESTED } });
+
+    expect(state.kind).toBe('ran');
+    expect([...selectionOf(state, full(['test/c.test.ts'])).skip]).toEqual([A, B, 'test/c.test.ts']);
+  });
+
   it.each<TestedState>([
     { kind: 'declined', tested: TESTED, why: 'every file' },
     { kind: 'widened', tested: TESTED, why: 'unknown' },

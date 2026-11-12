@@ -5,6 +5,7 @@ import { parseArgs } from '../parse.js';
 import { indexOutput } from './index-command.js';
 import { git, shareConfig } from './mainline-fixture.js';
 import { selectSuite } from './select-command.js';
+import { shardsOutput } from './shards-command.js';
 import { npmLock } from './select-install-fixture.js';
 import { DEV, OTHER, PADDED, TOTAL, queued, scratch, selected } from './select-tested.fixture.js';
 import { testedSuite } from './select-tested.js';
@@ -64,6 +65,32 @@ describe('`variance select --tested` in a merge queue', () => {
     // HEAD has one parent, the base, and holds the tree the clean merge would.
     expect(here.out).toBe('test/other.test.ts\ntest/total.test.ts\n');
     expect(here.err).toContain('the pull request and the mainline it meets reach no test in common');
+  });
+
+  it("does not take HEAD's tree as run when the tested commit does not hold the mainline, though the trees match", async () => {
+    // The pull request's checks ran on its head merged with the mainline of their day, not on the head alone: the
+    // mainline may have held what it has since reverted, so a matching tree says nothing of what ran.
+    const SAME = { 'src/other.ts': OTHER.replace('+ 1', '+ 2') };
+    const queue = await queued(home(), { base: SAME, prs: [SAME], recordAt: 'fork' });
+    expect(await git(queue.dir, 'rev-parse', 'HEAD^{tree}')).toBe(await git(queue.dir, 'rev-parse', `${queue.tested}^{tree}`));
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    expect(here.err).not.toContain("HEAD's tree already ran them");
+  });
+
+  it('narrows for every caller of `selectSuite`, as for the command', async () => {
+    const queue = await queued(home(), {
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+
+    await indexOutput({ cwd: queue.dir });
+    // The seam and `shards` ask `selectSuite`, never the command's printer.
+    const asked = await selectSuite({ root: queue.dir, since: queue.base, tested: queue.tested });
+
+    expect([...asked.skip].sort()).toEqual(['test/other.test.ts', 'test/total.test.ts']);
   });
 
   it('runs a test both sides reach, where the mainline renames a function the pull request adds a call to', async () => {
@@ -187,7 +214,7 @@ describe('`variance select --tested` in a merge queue', () => {
     expect(here.err).toContain(`\`--tested ${elsewhere}\` selects as without it: HEAD is not ${queue.base.slice(0, 12)} with one pull request merged onto it`);
   });
 
-  it('selects as without `--tested` when the tested commit is HEAD', async () => {
+  it('skips every test file when HEAD holds the tree the tested commit ran on', async () => {
     const queue = await queued(home(), {
       base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
       prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
@@ -195,12 +222,43 @@ describe('`variance select --tested` in a merge queue', () => {
     });
     const head = await git(queue.dir, 'rev-parse', 'HEAD');
 
-    const whole = await selected(queue.dir, queue.base);
     const here = await selected(queue.dir, queue.base, head);
 
-    // HEAD holds the mainline, so nothing ran apart from it.
+    // A pull request up to date with the mainline: the queue's merge is its tree, whose selection already ran.
+    expect(here.out).toBe('test/other.test.ts\ntest/total.test.ts\n');
+    expect(here.err).toContain(`\`--tested ${head}\` skips every test file: HEAD's tree is the tree ${head.slice(0, 12)} ran its selection on`);
+  });
+
+  it('selects as without `--tested` when HEAD holds the tree of `--since`, which no check named as passed', async () => {
+    const queue = await queued(home(), {
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+    await git(queue.dir, 'checkout', '--quiet', queue.base);
+
+    const whole = await selected(queue.dir, queue.base);
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // A stacked queue's base is the group before it, whose run has not passed.
     expect(here.out).toBe(whole.out);
-    expect(here.err).toContain(`\`--tested ${head}\` selects as without it: ${queue.base.slice(0, 12)} and ${head.slice(0, 12)} are one line of history, so no merge joined them`);
+    expect(here.err).not.toContain('skips every test file');
+  });
+
+  it('asks for no shard when HEAD holds the tree the tested commit ran on', async () => {
+    const queue = await queued(home(), {
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+    const head = await git(queue.dir, 'rev-parse', 'HEAD');
+    const collected = join(home(), 'collected.txt');
+    await writeFile(collected, 'test/other.test.ts\ntest/total.test.ts\n');
+    await indexOutput({ cwd: queue.dir });
+
+    const answer = JSON.parse(await shardsOutput({ cwd: queue.dir, since: queue.base, tested: head, collected, format: 'json' }));
+
+    expect(answer).toMatchObject({ shards: 0, files: 0, skipped: 2 });
   });
 
   it('selects as without `--tested` for a group of two pull requests', async () => {
@@ -256,12 +314,16 @@ describe('`variance select --tested` in a merge queue', () => {
       prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
       recordAt: 'fork',
     });
-    // Each side merges the other's first commit: a criss-cross, whose fork is neither commit alone.
+    // Each side merges the other's first commit, then changes a file of its own: a criss-cross, whose fork is neither commit alone, merged to a tree neither side ran.
     await git(queue.dir, 'checkout', '--quiet', '-b', 'pull', queue.tested);
     await git(queue.dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', queue.base);
+    await writeFile(join(queue.dir, 'src/other.ts'), OTHER.replace('+ 1', '+ 3'));
+    await git(queue.dir, ...DEV, 'commit', '--quiet', '-am', 'pull moves on');
     const tested = await git(queue.dir, 'rev-parse', 'HEAD');
     await git(queue.dir, 'checkout', '--quiet', '-b', 'mainline', queue.base);
     await git(queue.dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', queue.tested);
+    await writeFile(join(queue.dir, 'src/total.ts'), TOTAL.replace('0.9', '0.7'));
+    await git(queue.dir, ...DEV, 'commit', '--quiet', '-am', 'mainline moves on');
     const mainline = await git(queue.dir, 'rev-parse', 'HEAD');
     await git(queue.dir, ...DEV, 'merge', '--quiet', '--no-ff', '--no-edit', tested);
 

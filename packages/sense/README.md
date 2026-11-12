@@ -106,7 +106,12 @@ for a later run, or
 file runs. `VARIANCE_AUTHORITY_LOCAL=1` is `variance select --local`: where the
 record cannot narrow, the files that import a changed file run, or a changed
 file's package, instead of every file; any value other than `1` or `0` fails
-the run. A test file the snapshot has never seen runs. A run the
+the run. `VARIANCE_AUTHORITY_TESTED=<commit>` is `variance select --tested`:
+in a merge queue's group of one, it names the pull request's tested commit,
+and `VARIANCE_AUTHORITY_SINCE` the base the queue merged onto; beside an empty
+`VARIANCE_AUTHORITY_SINCE` it fails the run
+([a pull request in the merge queue](https://variance-authority.dev/docs/selecting#a-pull-request-in-the-merge-queue)).
+A test file the snapshot has never seen runs. A run the
 selection leaves nothing to run — `selected none`, or a shard that took none of
 the files kept — passes: the seam sets `passWithNoTests` for that run. A run
 that drops nothing keeps your setting.
