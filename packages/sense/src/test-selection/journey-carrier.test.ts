@@ -123,14 +123,15 @@ describe('a head told which trace is running', () => {
     });
   });
 
-  it('refuses a trace for a head that reports home, since a trace carries no way back', async () => {
+  it('refuses a trace for a head with no watcher address and no parts, since a trace carries no way back', async () => {
     const trace = tracer();
-    expect(() => collectJourneys({ head: 'api', enabled: true, trace })).toThrow(
+    expect(() => collectJourneys({ head: 'api', enabled: true, watcher: '', trace })).toThrow(
       'a tracer trace carries the journey and no way home',
     );
-    const installed = collectJourneys({ head: 'api', enabled: true });
+    const installed = collectJourneys({ head: 'api', enabled: true, watcher: '' });
     try {
-      expect(() => collectJourneys({ trace })).toThrow('a tracer trace carries the journey and no way home');
+      // Its advice is not to set what may already be set: the head is installed, and takes no trace now.
+      expect(() => collectJourneys({ trace })).toThrow('a tracer trace reached a reporting head installed without it');
     } finally {
       await installed.close();
     }

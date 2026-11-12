@@ -1,6 +1,13 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WATCHER_VARIABLE } from '@variance-authority/wire';
-import { collectJourneys, JOURNEY_VARIABLE, mintJourney, type JourneyReport } from './journey.js';
+import {
+  collectJourneys,
+  JOURNEY_VARIABLE,
+  mintJourney,
+  type JourneyReport,
+  type JourneyTrace,
+} from './journey.js';
 import { UNATTRIBUTED } from './stitch.js';
 import { driver, forget, head, inRoot, until } from './__fixtures__/journey-head.js';
 
@@ -239,5 +246,107 @@ describe('a head told where a watcher listens', () => {
 
   it('refuses a watcher address it cannot reach, since a head told nothing looks like a quiet one', () => {
     expect(() => collectJourneys({ head: 'api', enabled: true, watcher: 'http://example.com:9' })).toThrow(/watcher/);
+  });
+});
+
+/** A tracer as the application runs one: each flow asks its own async context for its trace id. */
+function tracing(): JourneyTrace & { readonly within: <Result>(id: string, body: () => Result) => Result } {
+  const running = new AsyncLocalStorage<string>();
+  return {
+    name: 'tracer',
+    carry: (_journey, _name, body) => body(),
+    current: () => running.getStore(),
+    within: (id, body) => running.run(id, body),
+  };
+}
+
+const settledLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+
+describe('a head handed the application\'s trace and a watcher\'s address', () => {
+  it('lists each traced flow under its trace id, apart, where no `enter` ran', async () => {
+    await inRoot(async (root) => {
+      const watcher = await driver();
+      const trace = tracing();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin, trace });
+      const parts = await head(root);
+      const [de, en] = ['a'.repeat(32), 'b'.repeat(32)];
+
+      // The framework owns both requests: they interleave, and nothing wraps either.
+      await Promise.all([
+        trace.within(de, async () => (await Promise.resolve(), parts.currency('de'))),
+        trace.within(en, async () => (await Promise.resolve(), parts.currency('en'))),
+      ]);
+      await settledLoop();
+      await collector.close();
+
+      const executions = entered(watcher.reports);
+      expect([...executions.keys()].sort()).toEqual([de, en]);
+      // Each took one branch of `currency`, so each holds a region the other lacks.
+      expect(executions.get(de)!.some((ordinal) => !executions.get(en)!.includes(ordinal))).toBe(true);
+      expect(executions.get(en)!.some((ordinal) => !executions.get(de)!.includes(ordinal))).toBe(true);
+    });
+  });
+
+  it('hands a bootstrap that runs again the head it installed, and refuses another tracing', async () => {
+    const watcher = await driver();
+    const installed = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin, trace: tracing() });
+    try {
+      // An adapter is made anew by each bootstrap, so the same tracing is the same name, not the same object.
+      expect(collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin, trace: tracing() })).toBe(installed);
+      expect(() => collectJourneys({ trace: { ...tracing(), name: 'second' } })).toThrow(
+        'a second trace reached a reporting head that reads a tracer trace',
+      );
+    } finally {
+      await installed.close();
+    }
+  });
+
+  it('lists one execution for a trace that spans two requests', async () => {
+    await inRoot(async (root) => {
+      const watcher = await driver();
+      const trace = tracing();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin, trace });
+      const parts = await head(root);
+      const [view, first] = ['c'.repeat(32), 'f'.repeat(32)];
+
+      await trace.within(view, () => parts.currency('de'));
+      await settledLoop();
+      await trace.within(view, () => parts.currency('en'));
+      await settledLoop();
+      // What the first request alone enters, under an id of its own, to tell the second's regions by.
+      await trace.within(first, () => parts.currency('de'));
+      await settledLoop();
+      await collector.close();
+
+      const executions = entered(watcher.reports);
+      expect([...executions.keys()]).toEqual([view, first]);
+      // The second request's branch is listed under the same id as the first's.
+      expect(executions.get(view)!.some((ordinal) => !executions.get(first)!.includes(ordinal))).toBe(true);
+    });
+  });
+
+  it('leaves a request a test drove to the test, whatever trace it runs in', async () => {
+    await inRoot(async (root) => {
+      const watcher = await driver();
+      const driven = await driver();
+      const trace = tracing();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin, trace });
+      const parts = await head(root);
+      const [de, en] = [mintJourney(), mintJourney()];
+
+      // One trace runs both, as a page view does, and each is a request a test drove.
+      await trace.within('d'.repeat(32), async () => {
+        await collector.enter(driven.carrying(de), () => parts.currency('de'));
+        await collector.enter(driven.carrying(en), () => parts.currency('en'));
+      });
+      await collector.close();
+
+      await until(() => driven.reports.filter((report) => report.settled === 1).length === 2);
+      const executions = entered(driven.reports);
+      // What each body crossed is under the id `enter` gave it: each holds a region the other lacks.
+      expect(executions.get(de)!.some((ordinal) => !executions.get(en)!.includes(ordinal))).toBe(true);
+      expect(executions.get(en)!.some((ordinal) => !executions.get(de)!.includes(ordinal))).toBe(true);
+      expect(entered(watcher.reports).size).toBe(0);
+    });
   });
 });

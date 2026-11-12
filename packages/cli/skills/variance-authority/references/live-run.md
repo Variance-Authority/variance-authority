@@ -67,6 +67,13 @@ it was started with `VARIANCE_AUTHORITY_JOURNEYS=1` and the same
 `VARIANCE_AUTHORITY_VANTAGE` assignment: the first turns the reporting on, the
 second says where it goes. Each request no test drove is one execution.
 
+Where a framework owns the request and no handler can be wrapped, the
+application hands its Sentry or OpenTelemetry SDK to the head instead:
+`collectJourneys({ trace: sentry(Sentry) })` or `openTelemetry(api)`, with the
+same two variables. The listing is then one execution per trace, named by the
+trace id. A browser SDK that propagates its trace makes that one per page view,
+with every request the page made listed together.
+
 A page reports too when its build placed the probes and it calls
 `reportPage(address)` from `@variance-authority/sense/page`, with the address
 `variance watch` printed. Each load is then one execution with a `head page`,
