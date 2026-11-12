@@ -55,9 +55,9 @@ It reports rather than blocks: a change it finds is a warning on a green check,
 with its docket and report as on the other two, and its box still accepts it. It turns red when the run did not happen, when a subject
 could not be observed, an observation errored or the report cannot be read, and
 when an accept the comparison after it did not hold. The action's
-`exit-zero-on-changes` input does that for any job. Off a pull request the same
-row also builds everything again under `variance job`, and the record of what it
-read and wrote is the run's `site-job-record` artifact.
+`exit-zero-on-changes` input does that for any job. On a dispatch of `main`
+the same row also builds everything again under `variance job`, and the record
+of what it read and wrote is the run's `site-job-record` artifact.
 The case's Storybook also runs under the other two ways of keeping a
 baseline, each with its own config and comment. The `variance` job runs it a
 second time against baselines it commits to the pull request's branch through

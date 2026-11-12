@@ -257,6 +257,16 @@ describe('the projects the workflow observes', () => {
     expect(rows.find((row) => row['project'] === 'tribunal')?.['exit-zero-on-changes']).toBeUndefined();
   });
 
+  it('records the site\'s whole job only on a dispatch of the default branch', async () => {
+    const workflow = parse(await readFile(WORKFLOW, 'utf8')) as {
+      jobs: { project: { steps: ReadonlyArray<{ id?: string; if?: string }> } };
+    };
+
+    expect(workflow.jobs.project.steps.find((step) => step.id === 'job')?.if).toBe(
+      "matrix.project == 'site' && github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch",
+    );
+  });
+
   it('hands each row\'s choice to the action', async () => {
     expect(await readFile(WORKFLOW, 'utf8')).toContain("exit-zero-on-changes: ${{ matrix['exit-zero-on-changes'] || 'false' }}");
   });
