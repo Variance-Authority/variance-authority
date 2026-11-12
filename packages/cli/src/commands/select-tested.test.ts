@@ -67,6 +67,18 @@ describe('`variance select --tested` in a merge queue', () => {
     expect(here.err).toContain('the pull request and the mainline it meets reach no test in common');
   });
 
+  it("does not take HEAD's tree as run when the tested commit does not hold the mainline, though the trees match", async () => {
+    // The pull request's checks ran on its head merged with the mainline of their day, not on the head alone: the
+    // mainline may have held what it has since reverted, so a matching tree says nothing of what ran.
+    const SAME = { 'src/other.ts': OTHER.replace('+ 1', '+ 2') };
+    const queue = await queued(home(), { base: SAME, prs: [SAME], recordAt: 'fork' });
+    expect(await git(queue.dir, 'rev-parse', 'HEAD^{tree}')).toBe(await git(queue.dir, 'rev-parse', `${queue.tested}^{tree}`));
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    expect(here.err).not.toContain("HEAD's tree already ran them");
+  });
+
   it('narrows for every caller of `selectSuite`, as for the command', async () => {
     const queue = await queued(home(), {
       base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
