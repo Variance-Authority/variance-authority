@@ -324,14 +324,18 @@ function repinnedRuns(
   const placed = new Set(carry(held.standing, (file) => kept.has(file), (file) => kept.has(file)));
   const others = new Set(recorded.filter((file) => !kept.has(file)));
   const milestone = new Set(others);
-  for (const landing of published?.landings ?? []) {
-    // A run that landed a test in part at the milestone stays beside wherever the test stands.
-    standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing), ...partlyIn(landing, (one) => others.has(one)) }, landing.files.filter((one) => milestone.delete(one)));
-  }
+  // A test the record landed stands at its commit, whatever its standing says;
+  // the landings are laid after the standing all the same, being later runs, so
+  // the stands stay earliest first.
+  const landed = (published?.landings ?? []).map((landing) => [landing, landing.files.filter((one) => milestone.delete(one))] as const);
   // A record that did not run every test says where the others stand, and
   // they keep that stand: moved to its commit, the change since would be
   // charged to nobody.
   carry(published?.standing, (one) => milestone.delete(one), (one) => others.has(one));
+  for (const [landing, files] of landed) {
+    // A run that landed a test in part at the milestone stays beside wherever the test stands.
+    standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing), ...partlyIn(landing, (one) => others.has(one)) }, files);
+  }
   standAt({ commit: record.commit, files: [] }, [...milestone]);
   // Where the record cannot place a kept test, it stands where the runs started,
   // assumed, and with no start the record does not say (`commit-runs.ts`).

@@ -83,7 +83,7 @@ describe('the runs record under a repinned checkout', () => {
 
     expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
 
-    expect((await readCommitRuns(own))!.standing!.map((stand) => [stand.commit, stand.files])).toEqual([[next, ['test/total.test.ts']], [first, ['test/other.test.ts']]]);
+    expect((await readCommitRuns(own))!.standing!.map((stand) => [stand.commit, stand.files])).toEqual([[first, ['test/other.test.ts']], [next, ['test/total.test.ts']]]);
   });
 
   it('keeps a run the published record ran in part beside its stand, and stands a test it places nowhere at the milestone', async () => {
@@ -128,7 +128,7 @@ describe('the runs record under a repinned checkout', () => {
     expect(standing.filter((stand) => stand.partly !== undefined).map((stand) => [stand.commit, stand.partly])).toEqual([[first, ['test/other.test.ts']]]);
   });
 
-  it('keeps a run the published record landed in part at the milestone beside where the test stands', async () => {
+  it('keeps a run the published record landed in part at the milestone beside where the test stands, earliest stand first', async () => {
     const { ci, first, worktree, own } = await laidWorktree(home);
     const next = await publishedNext(home, ci);
     await git(worktree, 'fetch', '--quiet', 'origin');
@@ -150,9 +150,9 @@ describe('the runs record under a repinned checkout', () => {
 
     const standing = (await readCommitRuns(own))!.standing!;
     expect(standing.map((stand) => [stand.commit, stand.files, stand.partly, stand.cases])).toEqual([
+      [first, ['test/other.test.ts'], undefined, undefined],
       [next, ['test/total.test.ts'], undefined, undefined],
       [next, [], ['test/other.test.ts'], { 'test/other.test.ts': ['one'] }],
-      [first, ['test/other.test.ts'], undefined, undefined],
     ]);
   });
 
