@@ -55,8 +55,8 @@ interface StoredReading {
  * when its cases were last read. A case is held once it keeps more than one
  * run the landed index does not say: an earlier reading, or the count of the
  * runs read alike. A file the run did not finish is laid over its earlier
- * crossings (`case-layer.ts`), and a cut index holds less, so the newest
- * reading of either keeps its regions.
+ * crossings (`case-layer.ts`), so the newest reading is stored against the
+ * index, and keeps its regions only where the index does not hold the case.
  */
 interface Section {
   readonly cases?: Readonly<Record<string, readonly StoredReading[]>>;
@@ -158,12 +158,38 @@ export function layReadings(
       : { ...found, count: found.count + 1 };
     laid.set(id, [first, ...readings].slice(0, READINGS));
   }
-  // One run, as the index holds it, is what the index already says.
-  for (const [id, readings] of laid) if (readings.length === 1 && readings[0]!.count === 1 && alike(readings[0]!, there.get(id))) laid.delete(id);
+  for (const [id, readings] of laid) if (lone(readings, there.get(id))) laid.delete(id);
   const files = new Set(opened?.tests.map((test) => test.file));
   // A file the run carried keeps what it ran over when it last ran.
   const read = new Set([...now.values()].map((reading) => reading.file));
   const inputs = new Map([...held, ...[...run?.inputs ?? []].filter(([file]) => read.has(file))].filter(([file]) => files.has(file)));
+  return written(laid, there, inputs);
+}
+
+/**
+ * The readings section `section`, laid into `from`, stored against `to`
+ * instead: an index re-cut after the readings were laid (`case-cuts.ts`)
+ * holds its cases otherwise, and the newest reading is stored against the
+ * index it is written beside.
+ */
+export function readingsOver(section: Uint8Array | undefined, from: Uint8Array, to: Uint8Array): Buffer | undefined {
+  const { cases: stored, inputs } = parsed(section);
+  if (stored.size === 0) return section === undefined ? undefined : Buffer.from(section);
+  const before = openSetExecutionIndex(from);
+  const after = openSetExecutionIndex(to);
+  if (before === undefined || after === undefined) throw new Error('a readings section is laid over an index this build cannot open');
+  const earlier = readsOf(before, new Set(stored.keys()));
+  const there = readsOf(after, new Set(stored.keys()));
+  const laid = new Map<string, readonly Reading[]>();
+  for (const [id, readings] of stored) {
+    const read = expanded(readings, earlier.get(id)?.regions);
+    if (read !== undefined && !lone(read, there.get(id))) laid.set(id, read);
+  }
+  return written(laid, there, inputs);
+}
+
+/** The section holding `laid` against `there`, and `inputs`; absent when it holds neither. */
+function written(laid: ReadonlyMap<string, readonly Reading[]>, there: ReadonlyMap<string, Read>, inputs: ReadonlyMap<string, string>): Buffer | undefined {
   if (laid.size === 0 && inputs.size === 0) return undefined;
   const ids = [...laid.keys()].sort(codeUnitOrder);
   const section: Section = {
@@ -171,6 +197,11 @@ export function layReadings(
     ...(inputs.size === 0 ? {} : { inputs: Object.fromEntries([...inputs].sort(([left], [right]) => codeUnitOrder(left, right))) }),
   };
   return Buffer.from(JSON.stringify(section), 'utf8');
+}
+
+/** Whether `readings` is one run, as the index holds it: what the index already says. */
+function lone(readings: readonly Reading[], there: Read | undefined): boolean {
+  return readings.length === 1 && readings[0]!.count === 1 && alike(readings[0]!, there);
 }
 
 /** A case's readings as stored: the newest as what it read otherwise than the landed index holds the case, each earlier one as what it read otherwise than the newest. */
@@ -236,14 +267,15 @@ export function inputsIn(section: Uint8Array | undefined): ReadonlyMap<string, s
 
 /**
  * Every reading the record keeps of case `id`, newest first, the newest read
- * off `index`; absent when the record keeps no earlier reading of it.
+ * off `index`; absent when the record keeps no earlier reading of it, or
+ * stores its newest against a case `index` does not hold.
  */
 export function readingsOf(section: Uint8Array | undefined, index: Uint8Array | undefined, id: string): readonly Reading[] | undefined {
   const opened = index === undefined ? undefined : openSetExecutionIndex(index);
   const stored = parsed(section).cases.get(id);
   if (stored === undefined) return undefined;
   const newest = opened === undefined || stored[0]?.regions !== undefined ? undefined : readsOf(opened, new Set([id])).get(id)?.regions;
-  return expanded(stored, newest ?? []);
+  return expanded(stored, newest);
 }
 
 function stop(read: Pick<Read, 'stopped'>): { readonly stopped?: boolean } {

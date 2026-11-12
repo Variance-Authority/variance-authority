@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CaseLinesBuilder, lineValue } from './case-lines.js';
-import { inputsOf, layReadings, readingsOf, READINGS } from './case-readings.js';
+import { inputsOf, layReadings, readingsOf, readingsOver, READINGS } from './case-readings.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 
@@ -197,6 +197,14 @@ describe('layReadings', () => {
     const section = layReadings(undefined, undefined, landed, cases, over(run(true, { handle: 3 })));
 
     expect(JSON.parse(section!.toString('utf8'))).toEqual({ cases: { [ID]: [{ count: 1, stopped: true, gone: [0] }] } });
+  });
+
+  it('reads the newest reading back as it ran once the index it was laid into is re-cut', () => {
+    const landed = run(true, { wire: 2, handle: 3 });
+    const section = layReadings(undefined, undefined, landed, cases, over(run(true, { handle: 3 })));
+    const recut = run(true, {});
+
+    expect(readingsOf(readingsOver(section, landed, recut), recut, ID)!.map(({ regions }) => regions.map(([, name]) => name))).toEqual([['handle']]);
   });
 
   it('stores the newest reading of a case run once where the landed index holds it otherwise', () => {

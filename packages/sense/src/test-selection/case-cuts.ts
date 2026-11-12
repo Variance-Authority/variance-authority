@@ -25,6 +25,7 @@ import type { CaseSections } from './case-record.js';
 import { LaidLines } from './case-layer-lines.js';
 import { carriedRow, laidOn, layeredCases, recordedIn } from './case-layer.js';
 import type { ModuleTexts } from './case-landing.js';
+import { readingsOver } from './case-readings.js';
 import { indexCut, type CutRegion } from './cases.js';
 import type { SetExecutionModule } from './execution-set-format.js';
 import { BLOCK_KINDS, NO_OWNER } from './format-layout.js';
@@ -115,7 +116,11 @@ function cutOf(file: string, blocks: readonly CutRegion[]): SetExecutionModule {
 function followed(sections: CaseSections, cuts: RowCuts, edit: EditOf): CaseSections {
   if (sections.index === undefined || cuts.size === 0) return sections;
   const index = followCuts(sections.index, cuts, edit);
-  return index === undefined ? sections : { ...sections, index };
+  if (index === undefined) return sections;
+  // The readings were stored against the index before it was re-cut.
+  const { readings: stored, ...rest } = sections;
+  const readings = readingsOver(stored, sections.index, index);
+  return { ...rest, index, ...(readings === undefined ? {} : { readings }) };
 }
 
 /**
