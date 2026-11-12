@@ -58,9 +58,10 @@ when an accept the comparison after it did not hold. The action's
 `exit-zero-on-changes` input does that for any job. Off a pull request the same
 row also builds everything again under `variance job`, and the record of what it
 read and wrote is the run's `site-job-record` artifact.
-Two more jobs run the case's Storybook under the other two ways of keeping a
-baseline, each with its own config and comment: `lfs` commits the
-baselines to the pull request's branch through git-LFS, and `tribunal-service`
+The case's Storybook also runs under the other two ways of keeping a
+baseline, each with its own config and comment. The `variance` job runs it a
+second time against baselines it commits to the pull request's branch through
+git-LFS, on the install and build it already paid for, and `tribunal-service`
 deploys this commit's review service to workers.dev and pushes the build to it.
 That one needs the `CLOUDFLARE_API_TOKEN` secret and fails without it.
 
@@ -109,7 +110,8 @@ Accepting a change writes a new baseline, so where the baselines live decides
 who accepts and how.
 [`docs/placement.md`](../../docs/placement.md#who-accepts-a-change) compares the
 three arrangements. This repository runs the CI cache for the case and its own
-surfaces, and a committed store in the `lfs` job. This is what each one needs:
+surfaces, and a committed store as the `variance` job's second run. This is
+what each one needs:
 
 | store | `baselines` in the config | the baseline root | secret |
 |---|---|---|---|
@@ -121,9 +123,9 @@ surfaces, and a committed store in the `lfs` job. This is what each one needs:
   docket accepts on a pull request, a dispatch with `accept` accepts on its
   branch, the store is saved to the runner's cache, and every push to `main`
   accepts what `main` renders.
-- **git**, the `lfs` job, checks out the pull request's branch instead of the
-  merge, skips the cache, and turns on the action's `commit-baselines` for a
-  dispatch with `accept` on that branch. That run stays red, because it found
+- **git**, the `variance` job's second run, skips the cache and turns on the
+  action's `commit-baselines` for a dispatch with `accept` on a pull request's
+  branch, which is what a dispatch checks out. That run stays red, because it found
   the change it then committed. The push starts the run that checks the new
   commit, which is why the token has to be one whose push starts a workflow.
   On `main` a change is a warning, since the images merged with the code. For
@@ -171,7 +173,7 @@ the mark off accepts nothing and says why in the tick's log. A push brings a new
 new head, and the rewritten comment drops the name: the accepting run's log, the
 comment's edit history and, where a history is kept, the approval row hold it.
 The box is on the CI cache's checks, since what it accepts into is the runner's
-cache; the `lfs` job's docket names the dispatch instead.
+cache; the committed store's docket names the dispatch instead.
 
 Merging is an accept too. A pull request is where a change is judged, and what
 lands on `main` is `main`: every push to `main` promotes what it renders,
@@ -378,6 +380,6 @@ bash around the same binary.
 **Accept without a person.** Every accept is a tick, a dispatch, a push to
 `main`, or a decision on the service. The outer loop's ticks and dispatches in the
 examples are the one exception: they land only on pull requests it opened to
-close. `commit-baselines` is on only in `variance.yml`'s `lfs` job, and only
+close. `commit-baselines` is on only for `variance.yml`'s committed store, and only
 for a dispatch with `accept`. On every run it would accept what the run just found, and a check that
 does that has stopped being a gate.

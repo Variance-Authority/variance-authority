@@ -377,6 +377,6 @@ describe('against a real git', () => {
   // What git-lfs itself does to these files — the clean filter, a pointer in the
   // object database, a clone that skipped the smudge, the bytes coming back — is
   // asked of a real git-lfs by `lfs-fetch.test.ts` where git-lfs is installed,
-  // and by the `lfs` job of `.github/workflows/variance.yml`, on this
+  // and by the `variance` job's committed store in `.github/workflows/variance.yml`, on this
   // repository's pull requests, where `variance doctor` is asserted too.
 });
