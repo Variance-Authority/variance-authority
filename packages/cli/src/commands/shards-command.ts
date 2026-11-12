@@ -27,8 +27,8 @@ export interface ShardsRequest {
   readonly cwd: string;
   readonly suite?: string;
   readonly since?: string;
-  /** The pull request a merge queue merged onto `since`, as `select --tested` takes it. */
-  readonly tested?: string;
+  /** The pull request a merge queue merged onto `since`, as `select --ran-at` takes it. */
+  readonly ranAt?: string;
   /** The runner's list of test files, read as `share --collected` reads it. */
   readonly collected?: string;
   /** The leg of the selection to count, as `select --at-distance` cuts it. */
@@ -42,12 +42,12 @@ export interface ShardsRequest {
 }
 
 export async function shardsOutput(request: ShardsRequest): Promise<string> {
-  const { cwd, suite, since, tested, collected: listed, atDistance, format, ...counting } = request;
+  const { cwd, suite, since, ranAt, collected: listed, atDistance, format, ...counting } = request;
   const asked = { root: cwd, ...(suite === undefined ? {} : { suite }) };
   const times = await suiteTimes(asked);
   const skipped = since === undefined || 'unread' in times
     ? undefined
-    : { since, files: (await selectSuite({ ...asked, since, ...(tested === undefined ? {} : { tested }), ...(atDistance === undefined ? {} : { atDistance }) })).skip };
+    : { since, files: (await selectSuite({ ...asked, since, ...(ranAt === undefined ? {} : { ranAt }), ...(atDistance === undefined ? {} : { atDistance }) })).skip };
   const collected = listed === undefined || 'unread' in times ? undefined : await collectedIn(cwd, listed);
   const input: ShardsInput = {
     times,

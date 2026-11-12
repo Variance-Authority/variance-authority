@@ -5,9 +5,9 @@ import { selectOutput } from './select-command.js';
 import { OTHER, TOTAL, queued, scratch } from './select-tested.fixture.js';
 
 /**
- * `variance select --tested` where the source index could not be brought up
+ * `variance select --ran-at` where the source index could not be brought up
  * to the checkout: the graph it reads may be an older commit's, so a test the
- * merge's own imports reach runs, as it does without `--tested`.
+ * merge's own imports reach runs, as it does without `--ran-at`.
  */
 
 const STALE = 'the source index at /cache/index could not be updated to the checkout: EACCES';
@@ -18,8 +18,8 @@ vi.mock('./source-graph.js', async (original) => ({
 
 const home = scratch();
 
-describe('`variance select --tested` over a source index that could not be updated', () => {
-  it('selects as without `--tested` when the index still holds the fork\'s graph', async () => {
+describe('`variance select --ran-at` over a source index that could not be updated', () => {
+  it('selects as without `--ran-at` when the index still holds the fork\'s graph', async () => {
     const queue = await queued(home(), {
       base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
       // HEAD's `other` imports `total`; the fork's does not, so a graph indexed there misses the edge.
@@ -31,10 +31,10 @@ describe('`variance select --tested` over a source index that could not be updat
     await indexOutput({ cwd: queue.dir });
     await git(queue.dir, 'checkout', '--quiet', '-');
 
-    const here = await selectOutput({ cwd: queue.dir, format: 'plain', since: queue.base, tested: queue.tested });
+    const here = await selectOutput({ cwd: queue.dir, format: 'plain', since: queue.base, ranAt: queue.tested });
 
-    // Without `--tested` both tests run: the selection skips nothing.
+    // Without `--ran-at` both tests run: the selection skips nothing.
     expect(here.out).toBe('');
-    expect(here.err).toContain(`\`--tested ${queue.tested}\` selects as without it: ${STALE}`);
+    expect(here.err).toContain(`\`--ran-at ${queue.tested}\` selects as without it: ${STALE}`);
   });
 });

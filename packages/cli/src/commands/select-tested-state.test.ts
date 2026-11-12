@@ -3,11 +3,11 @@ import type { SuiteReading } from './select-suite.js';
 import { initial, selectionOf, transition, type Reach, type TestedInput, type TestedState } from './select-tested-state.js';
 
 /**
- * The reconciliation machine of `variance select --tested`, one row per
+ * The reconciliation machine of `variance select --ran-at`, one row per
  * transition: each open state, each input it can be handed, the state it
  * lands on, and what the selection of that state skips. Every unsafe or
  * unknown input lands on `widened`, which skips what the selection without
- * `--tested` skips.
+ * `--ran-at` skips.
  */
 
 const MAINLINE = 'b'.repeat(40);
@@ -33,11 +33,11 @@ const FULL = full();
 const asked = initial(TESTED);
 const selecting: TestedState = { kind: 'selecting', tested: TESTED, runs: [A, B] };
 const merged: TestedState = { kind: 'merged', tested: TESTED, runs: [A, B], merge };
-describe('the `--tested` reconciliation machine', () => {
+describe('the `--ran-at` reconciliation machine', () => {
   it.each<[string, TestedState, TestedInput, TestedState['kind'], readonly string[], string | undefined]>([
     ['a selection that read the record and did not decline opens the merge', asked, { kind: 'selected', full: FULL }, 'selecting', [], undefined],
-    ['a selection that declined stays as it is', asked, { kind: 'selected', full: full([], 'read', 'every file') }, 'declined', [], `\`--tested ${TESTED}\` did nothing: the selection without it read no record, or already runs every test file (every file), so there is nothing to narrow`],
-    ['a selection that read no record stays as it is', asked, { kind: 'selected', full: full([], 'no-journal') }, 'declined', [], `\`--tested ${TESTED}\` did nothing: the selection without it read no record, or already runs every test file (as asked), so there is nothing to narrow`],
+    ['a selection that declined stays as it is', asked, { kind: 'selected', full: full([], 'read', 'every file') }, 'declined', [], `\`--ran-at ${TESTED}\` did nothing: the selection without it read no record, or already runs every test file (every file), so there is nothing to narrow`],
+    ['a selection that read no record stays as it is', asked, { kind: 'selected', full: full([], 'no-journal') }, 'declined', [], `\`--ran-at ${TESTED}\` did nothing: the selection without it read no record, or already runs every test file (as asked), so there is nothing to narrow`],
     ['a known clean merge reads the sides', selecting, { kind: 'merge', answer: { is: 'known', merge } }, 'merged', [], undefined],
     ['a HEAD that is not that merge widens', selecting, { kind: 'merge', answer: { is: 'apart', why: `HEAD is not ${MAINLINE.slice(0, 12)} with one pull request merged onto it` } }, 'widened', [], 'with one pull request merged onto it'],
     ['a dirty working tree widens', selecting, { kind: 'merge', answer: { is: 'dirty' } }, 'widened', [], 'the working tree differs from HEAD'],
@@ -49,7 +49,7 @@ describe('the `--tested` reconciliation machine', () => {
     ['both sides reaching every running test keep it', merged, { kind: 'sides', pull: reach([A, B]), main: reach([A, B]) }, 'kept', [], 'reached by both sides of the merge, or by neither'],
     ['an install on either side keeps what it reaches', merged, { kind: 'sides', pull: reach([A], [B]), main: reach([A]) }, 'kept', [], 'reached by both sides of the merge, or by neither'],
     ['a merge where nothing runs keeps nothing', { ...merged, runs: [] }, { kind: 'sides', pull: reach([A]), main: reach([B]) }, 'kept', [], 'skips nothing more: no test file runs without it'],
-    ['a test only one side reaches is skipped', merged, { kind: 'sides', pull: reach([A, B]), main: reach([A]) }, 'narrowed', [B], `${B}: only the pull request reaches it; \`--tested\` names its tree ${TESTED.slice(0, 12)} as tested`],
+    ['a test only one side reaches is skipped', merged, { kind: 'sides', pull: reach([A, B]), main: reach([A]) }, 'narrowed', [B], `${B}: only the pull request reaches it; \`--ran-at\` names its tree ${TESTED.slice(0, 12)} as tested`],
     ['disjoint sides skip every running test', merged, { kind: 'sides', pull: reach([B]), main: reach([A]) }, 'empty', [A, B], 'the pull request and the mainline it meets reach no test in common'],
     ['an input the open state does not expect widens', selecting, { kind: 'sides', pull: reach([B]), main: reach([A]) }, 'widened', [], 'did not expect'],
     ['an input before the selection widens', asked, { kind: 'merge', answer: { is: 'known', merge } }, 'widened', [], 'did not expect'],
@@ -85,7 +85,7 @@ describe('the `--tested` reconciliation machine', () => {
     expect(transition(final, { kind: 'failed', why: 'late' })).toBe(final);
   });
 
-  it('answers an open state as without `--tested`', () => {
+  it('answers an open state as without `--ran-at`', () => {
     expect([...selectionOf(merged, FULL).skip]).toEqual([]);
     expect(selectionOf(selecting, FULL)).toBe(FULL);
   });

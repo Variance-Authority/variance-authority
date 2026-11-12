@@ -160,8 +160,8 @@ ids are the safe default after initial setup.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
-variance select  [--since <ref> [--tested <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest] [--no-git]
-variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--tested <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
+variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest] [--no-git]
+variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]
@@ -2471,17 +2471,17 @@ nothing else can still ask.
 
 #### Selecting a merge queue's group of one
 
-`--tested <commit>` names the commit whose run a pull request passed at, which
+`--ran-at <commit>` names the commit whose run a pull request passed at, which
 a merge queue merged onto `--since`, the mainline commit whose run passed too;
 nothing checks either run, so name only commits that passed. A test file only one side's change reaches is
 skipped, a file both reach runs, and a lockfile change on either side runs what
 it reaches. Each skip is named with the side that ran it. A HEAD whose clean
-tree is the tree `--tested` names skips every test file, since
+tree is the tree `--ran-at` names skips every test file, since
 that commit's run already ran them there. Otherwise, anything but a HEAD
 whose tree is the clean merge of that one pull request, by a merge commit or a
-squash, selects as without `--tested`, with a note saying why.
-`variance shards --tested` counts shards from the same selection, and the
-runner reads it from `VARIANCE_AUTHORITY_TESTED` beside
+squash, selects as without `--ran-at`, with a note saying why.
+`variance shards --ran-at` counts shards from the same selection, and the
+runner reads it from `VARIANCE_AUTHORITY_RAN_AT` beside
 `VARIANCE_AUTHORITY_SINCE`;
 [a pull request in the merge queue](https://variance-authority.dev/docs/selecting#a-pull-request-in-the-merge-queue)
 walks through it.

@@ -1009,7 +1009,7 @@ jobs:
       options: --ipc=host
     outputs:
       legs: ${{ steps.count.outputs.legs }}
-      tested: ${{ steps.count.outputs.tested }}
+      ran-at: ${{ steps.count.outputs.ran-at }}
       native-key: ${{ steps.build.outputs.native-key }}
       toolchain: ${{ steps.build.outputs.toolchain }}
 
@@ -1064,7 +1064,7 @@ jobs:
       # group adds is counted. Workers are the slice's from `vitest.config.mts`,
       # and for `unit`, which sets none, Vitest's own: one fewer than the cores.
       # `--since` is only the fallback: the record's own commit wins. A group
-      # of one also counts with `--tested` its merge commit's second parent, the
+      # of one also counts with `--ran-at` its merge commit's second parent, the
       # pull request head whose checks passed, and hands it to every leg.
       - id: count
         name: count the shards
@@ -1098,9 +1098,9 @@ jobs:
     # job, which selects from it. The group's commit is `main` with the pull
     # requests laid on it, so the selection is what they changed together
     # since the record was published. A group of one is narrowed by the pull
-    # request head its checks passed on, `plan`'s `tested`: what only that side
+    # request head its checks passed on, `plan`'s `ran-at`: what only that side
     # reaches already ran, and a group whose tree is that head's runs no test
-    # (`select --tested`). A slice whose record is not read runs
+    # (`select --ran-at`). A slice whose record is not read runs
     # whole and says why. In the CI image, for the reason written at
     # `suite`: the near wave includes chromium files.
     #
@@ -1193,10 +1193,10 @@ jobs:
           SUITE: ${{ matrix.part }}
           SHARD: ${{ matrix.shard }}
           BASE: ${{ github.event.merge_group.base_sha }}
-          TESTED: ${{ needs.plan.outputs.tested }}
+          RAN_AT: ${{ needs.plan.outputs.ran-at }}
         run: |
           yarn variance index
-          VARIANCE_AUTHORITY_SINCE="$BASE" VARIANCE_AUTHORITY_TESTED="$TESTED" VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" --shard "$SHARD"
+          VARIANCE_AUTHORITY_SINCE="$BASE" VARIANCE_AUTHORITY_RAN_AT="$RAN_AT" VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" --shard "$SHARD"
 
   # A `feat`, `fix` or `perf` pull request carries an idea that passed review
   # before its code was written: its body's first line says `Closes #<n>` or `Part of #<n>`, and the
