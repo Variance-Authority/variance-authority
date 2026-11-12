@@ -14,8 +14,16 @@
 import { readFileSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { DeclaredSuite, LastFetched } from '@variance-authority/sense/test-selection';
+import {
+  cacheRootFor,
+  lastFetchedMainline,
+  writeFetchedMainline,
+  type DeclaredSuite,
+  type FetchedMainline,
+  type LastFetched,
+} from '@variance-authority/sense/test-selection';
 import { messageOf } from '../config-values.js';
+import { OperatorError } from '../exit.js';
 import { distanceFrom, keepsByCommit, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
 import { selectMainline, type MainlineSelection } from './mainline-selected.js';
@@ -459,4 +467,15 @@ export function primaryRead(suite: string, file: string, missed: MainlineMissed 
   const why = missed === undefined ? '' : `; ${mainlineMissed(missed).slice(`record of "${suite}": `.length)}`;
   return `record of "${suite}": read from the primary checkout's, at ${file}, as the offline fallback: ` +
     `this worktree has recorded none, and no mainline record of it was fetched on this machine${why}`;
+}
+
+/**
+ * Marks the record laid in `suite`'s read root as the read this run was handed,
+ * and refuses with `refusal` when no reader here would take it: passing it over
+ * would be asking the line.
+ */
+export async function standOnHanded(root: string, suite: string, pointer: FetchedMainline, refusal: string): Promise<void> {
+  const cacheRoot = cacheRootFor(root);
+  await writeFetchedMainline(cacheRoot, suite, { ...pointer, handed: true });
+  if (lastFetchedMainline(root, suite, cacheRoot, pointer.mainline)?.commit !== pointer.commit) throw new OperatorError(refusal);
 }

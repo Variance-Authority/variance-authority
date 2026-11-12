@@ -219,6 +219,12 @@ export interface TestSelection {
   readonly leg?: { readonly from: number; readonly to?: number };
   /** The selected test files this leg skipped and another leg runs. Present exactly when `leg` is. */
   readonly left?: readonly string[];
+  /**
+   * The only test files this leg runs, present when it is a later wave of one
+   * shard (`Leg.partition`): those the record placed in its range. Absent,
+   * every file not in `skip` runs, a file the record never saw included.
+   */
+  readonly only?: readonly string[];
   /** How far the change travelled to each test it entered. Present when a leg cut a narrowed selection. */
   readonly distances?: readonly TestDistance[];
   /**

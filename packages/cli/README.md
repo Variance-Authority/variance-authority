@@ -178,7 +178,7 @@ variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
-variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
+variance carry   restore | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared
 ```
 
@@ -2374,7 +2374,9 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- vitest run
 
 A leg is still a skip list. A selection that declines to narrow skips nothing
 in any leg, and a test new since the recording is on no skip list, so it runs in
-both. A test the change entered by no import it executed has no hop count, and
+both. The passes of one `--shard` run are the exception: a later pass runs only
+what the record placed in its range, so a new file, and every file of a
+selection that declined, runs in the pass that starts at 0 hops alone. A test the change entered by no import it executed has no hop count, and
 runs in the *end leg*: the one leg that holds the furthest hop measured, so
 `0-2` is the end leg when something is placed and nothing past two hops, and
 `3-` then is not. With nothing placed, the end leg is the *open leg*, the one
@@ -3039,7 +3041,7 @@ owns its own collector, renderer, storage, or review surface:
   `imageRoot` for where the report's images are published, and `limits` when a
   caller needs smaller docket bounds. Limits merge
   over `DEFAULT_LIMITS`; the renderer still states what it omitted.
-- `suiteBase(root, { suite, cacheRoot, env, fetch })` answers which execution record a
+- `suiteBase(root, { suite, cacheRoot, env, fetch, beneath })` answers which execution record a
   runner of your own measures a change from: the checkout's own, else the
   `suite-v1/<suite>` your mainline published to the share, or the one fetched on
   this machine earlier when the remote does not answer, else, in a worktree that
@@ -3057,7 +3059,9 @@ owns its own collector, renderer, storage, or review surface:
   `undefined` for a landing that lays no coverage. `env` stands in for
   `process.env` when the line is read, `cacheRoot` for the cache, and `fetch`
   says whether the remote is asked: `'never'` makes a read that fetches nothing
-  and rewrites no record, `'always'` asks it whatever was fetched. After the shards ran,
+  and rewrites no record, `'always'` asks it whatever was fetched. `beneath`
+  passes over the checkout's own record, as one shard of a run does, so a shard
+  measures from the record it was handed, not from what it already ran. After the shards ran,
   `landSuite(cwd, shards, suite)` lands their records on `suite`'s record in the
   checkout, as `variance journeys <shards> --suite` does, and returns what the
   landing said without the reading. A CI fan-in does not compose these:
@@ -3492,7 +3496,10 @@ prints `kept=<suite> <suite>`; the lines saying why go to stderr.
 took there, in `taken.json`, so one job can take the last push and hand the
 directory to the run's other jobs as an artifact. Each of them runs
 `variance carry take <dir>` over it, and it exits 2 when it cannot take a suite
-the first job took, so no job reads another record than the rest. The bundle
+the first job took, so no job reads another record than the rest. A shard runs
+`variance carry take <dir> --as-base` after `carry receive` instead: it lays the
+last push where the received read sits, so the shard selects from the record the
+plan read, and its own record holds only what it runs. The bundle
 reads only in a clone that holds `origin/<base>` where `keep` cut it, so check
 out with `fetch-depth: 0`; elsewhere `take` says it did not read and fetches by
 name:

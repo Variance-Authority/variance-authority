@@ -23,6 +23,8 @@ const ALIKE: ReadonlySet<string> = new Set(['absent', 'unconfigured']);
 export interface TimesRequest {
   readonly root: string;
   readonly suite?: string;
+  /** Read the record under this checkout's own, as a shard's selection does (`SuiteRequest.beneath`). */
+  readonly beneath?: boolean;
 }
 
 /** Each recorded test file's milliseconds, or why there are none to read. */

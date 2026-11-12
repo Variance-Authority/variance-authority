@@ -408,7 +408,9 @@ jobs:
       # remote holds beside the records, and `carry take` reads them before it
       # fetches the rest by name. A suite whose commits cannot be had is left,
       # reads `main`'s record, and is removed from the directory, which then
-      # names what was taken; checked once here, so every job reads the same.
+      # names what was taken. A taken record is re-based on the read handed
+      # above and written back, so the directory handed on holds the bytes
+      # `plan` prices; checked once here, so every job reads the same.
       - name: check what the last push ran
         id: taken
         if: steps.plan.outputs.pushed-key != ''
@@ -445,8 +447,9 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Lay the same carried/mainline record the suite jobs will read: `share`
-      # lays every suite the root config gives to the share. Prices and
+      # Lay the record the suite jobs are handed: what the last push ran, taken
+      # above, or else the mainline's. `share` lays every suite the root config
+      # gives to the share. Prices and
       # collection are read after the merge, on the suite jobs' own tree.
       - name: keep the planning records
         shell: bash
@@ -456,7 +459,6 @@ jobs:
         id: count
         shell: bash
         env:
-          BASELINE_READ: ${{ runner.temp }}/base
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
           SETUP: '100'
@@ -473,11 +475,12 @@ jobs:
     # fonts are part of what the `cases/*` files assert, and they run here, in
     # the unit and chromium slices, and in `queue`, in no job of their own.
     #
-    # `base` compares the recorded wall time of a serial selected run with
-    # a sharded whole run. Cheap selections start one job; broad selections
-    # keep the faster whole-suite parallelism. No job installs merely to skip.
-    # Selected records still layer once; whole shards still record alone and
-    # fold over one shared baseline.
+    # `base` prices the selection from the record a leg selects from, and
+    # shards it to fit the budget. It runs whole only when nothing prices the
+    # selection, or when the selection misses the budget and a sharded whole
+    # run is faster. No job installs merely to skip. A shard reads the record
+    # `base` gave it and writes only what it ran; `record` folds the parts
+    # over that same record.
     #
     # Not `fail-fast`: a red unit shard says nothing about chromium, and a
     # cancelled job reports nothing.
@@ -567,10 +570,13 @@ jobs:
         shell: bash
         run: node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
 
-      # What this pull request's last push ran, as `base` checked it, laid as
-      # this checkout's own layer. The step below then keeps it rather than lay
-      # the mainline's, and the selection diffs each test from the commit it
-      # last ran at. A suite `base` handed on and this job cannot take stops
+      # What this pull request's last push ran, as `base` checked it. A whole
+      # slice lays it as this checkout's own layer, the step below then keeps
+      # it rather than lay the mainline's, and its run records over it. A
+      # shard lays it with `--as-base` where the read sits instead: it selects
+      # from it, as `plan` priced, and its own layer stays empty for what it
+      # runs. Either way the selection diffs each test from the commit it last
+      # ran at. A suite `base` handed on and this job cannot take stops
       # `carry take`, and the job with it.
       - uses: actions/download-artifact@v8
         if: needs.base.outputs.carried == 'true'
@@ -581,7 +587,9 @@ jobs:
       - name: take what the last push ran
         if: needs.base.outputs.carried == 'true'
         shell: bash
-        run: node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried"
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" ${SHARD:+--as-base}
 
       # The mainline's record of this slice, read by `base` from
       # `refs/variance/mainline/main` on `origin`, where the `publish` job
@@ -596,17 +604,21 @@ jobs:
       # build could be laid over it.
       #
       # `based=true` says the record laid keeps its case index, which enables
-      # selection.
+      # selection. A shard lays nothing here: it reads the record `base` gave
+      # it where `carry receive` and `carry take` put it, and a record without
+      # a case index cuts nothing.
       - name: keep the base record
         id: base
+        if: matrix.shard == null
         shell: bash
         env:
           SUITE: ${{ matrix.suite }}
         run: node packages/cli/dist/bin.js share --suite "$SUITE" --format github >> "$GITHUB_OUTPUT"
 
-      # A pull request runs its selection when its predicted wall time is no
-      # greater than a sharded whole run's. Otherwise it runs the whole suite:
-      # broad selections keep their parallelism without folding inherited rows.
+      # A pull request runs its selection, sharded when one job would take
+      # longer than the budget, unless no record prices it or the selection
+      # misses the budget where a sharded whole run is faster; `plan` says
+      # which. Otherwise it runs the whole suite.
       # `VARIANCE_AUTHORITY_SINCE` turns on the selection the slice's
       # config is wrapped in: it reads the mainline's record the step above
       # laid, diffs each test from the commit it last ran at, which for a record
@@ -620,43 +632,44 @@ jobs:
       # wave spends minutes saying less. The near wave records over the base,
       # so the far wave reads the tests it ran as run at this commit.
       #
+      # A shard runs the same waves: every wave of every leg selects and places
+      # from the record the steps above laid where the read sits, the one
+      # `plan` priced, beneath whatever this shard has already run, and Vitest
+      # cuts the selected files the same way in every leg. A run under
+      # `--shard` records alone: its own layer starts empty and keeps only what
+      # its waves ran, the far wave landing over the near one, so `record`
+      # folds the parts over that same record, and every file and case no part
+      # ran keeps the row it had. A shard killed before it lands hands nothing
+      # on, and the build fails with it.
+      #
       # A push to `main` and a dispatch run every file. That is the gate a
       # selection is a smaller claim than, and on a push it is what the record
       # `main` publishes is cut from: every file observed at `main`'s own
       # commit, so the next pull request selects from rows no older than its
-      # base. A shard of it records into a cache of its own in the runner's
-      # temporary directory, named by `VARIANCE_AUTHORITY_CACHE`, so its record
-      # holds its own run alone and `record` below can fold the shards over the
-      # base. The cache stays out of the checkout: a shard runs on the clean
-      # tree a pull request runs on, and a test that asks git what changed
-      # records the answer a pull request will read. The shard
-      # places its files by the times the mainline's record holds, read from
-      # that cache, so the read `base` handed on is taken there too: every
-      # shard then places by the same record, and none asks the line.
+      # base. Its shards record alone, as a selection's do, and every shard
+      # places its files by the times the same record holds; none asks the
+      # line.
       - name: test
         id: test
         shell: bash
         env:
-          SELECT: ${{ matrix.mode == 'selected' && steps.base.outputs.based == 'true' }}
+          SELECT: ${{ matrix.mode == 'selected' && (matrix.shard != null || steps.base.outputs.based == 'true') }}
           SUITE: ${{ matrix.suite }}
           SHARD: ${{ matrix.shard }}
         run: |
+          into=slice
+          if [ -n "$SHARD" ]; then into=shard; fi
+          echo "into=$into" >> "$GITHUB_OUTPUT"
           if [ "$SELECT" = true ]; then
-            echo "into=slice" >> "$GITHUB_OUTPUT"
             yarn variance index
-            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE"
-            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- yarn "test:$SUITE"
-          elif [ -n "$SHARD" ]; then
-            echo "into=shard" >> "$GITHUB_OUTPUT"
-            VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record" node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
-            VARIANCE_AUTHORITY_CACHE="$RUNNER_TEMP/shard-record" yarn "test:$SUITE" --shard "$SHARD"
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=0- yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=0- yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
           else
-            echo "into=slice" >> "$GITHUB_OUTPUT"
-            yarn "test:$SUITE"
+            yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
           fi
 
-      # What this job recorded, for `record` to fold: a shard's own cache, or
-      # the whole slice's record as it stands in this checkout's layer, under
+      # What this job recorded, for `record` to fold: the part a shard ran, or
+      # the whole slice's record, each as it stands in this checkout's layer, under
       # the `suites/<suite>/` that says whose record it is. A red
       # run still recorded what it ran, and the review is where a reviewer
       # reads why. A shard job that stopped before the test uploads nothing.
@@ -665,7 +678,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: variance-shard-${{ matrix.suite }}-${{ strategy.job-index }}
-          path: ${{ runner.temp }}/shard-record
+          path: node_modules/.cache/variance-authority/test-selection/*/suites/${{ matrix.suite }}
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 30

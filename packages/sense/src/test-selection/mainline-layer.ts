@@ -145,6 +145,16 @@ function fetchCaches(root: string, cacheRoot: string | undefined, suite: string)
 }
 
 /**
+ * Whether a run records the files it ran and nothing else, on no base: a shard
+ * of a whole run, or of a selected run handed its read ({@link mainlineHanded}),
+ * which the fan-in folds over that read. A selected shard handed none records
+ * over its base, so its later wave selects from what its earlier one ran.
+ */
+export function recordsAlone(sharded: boolean, selected: boolean, handed: boolean): boolean {
+  return sharded && (!selected || handed);
+}
+
+/**
  * Whether this checkout holds another job's read of `suite`, so no layer under
  * it answers: a handed miss leaves the mark alone, which names no record.
  */

@@ -59,8 +59,9 @@ import {
   type CoverageTest,
   type TestCoverage,
 } from './index.js';
-import { recordsAlone } from './record-location.js';
 import { prepareRecord } from './replaced-record.js';
+import { recordsAlone } from './mainline-layer.js';
+import { handedRecord } from './record-location.js';
 import { refuseUnreadable } from './precondition-entries.js';
 
 /**
@@ -127,7 +128,7 @@ class JestCoverageReporter {
    */
   readonly #governing = new Map<string, Set<string>>();
 
-  /** Whether this run is one shard of a run that selects nothing — see `recordsAlone`. */
+  /** Whether this run is a part of one whole run — see `recordsAlone`. */
   readonly #alone: boolean;
 
   /**
@@ -146,7 +147,8 @@ class JestCoverageReporter {
   ) {
     this.#config = config;
     this.#named = (globalConfig?.testNamePattern ?? '') !== '';
-    this.#alone = recordsAlone(globalConfig?.shard != null, 'selected' in config && config.selected === true);
+    const selected = 'selected' in config && config.selected === true;
+    this.#alone = recordsAlone(globalConfig?.shard != null, selected, 'coverageFile' in config && handedRecord(config.root, config.coverageFile));
   }
 
   onTestFileResult(test: JestTest): void {

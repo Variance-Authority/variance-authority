@@ -1,14 +1,18 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { UserConfig } from 'vitest/config';
+import { CACHE_VARIABLE } from './cache-layers.js';
+import { writeFetchedMainline } from './mainline-layer.js';
+import type { SequencerContext } from './vitest-sequencer.js';
 import { withTestSelection } from './vitest.js';
 
 describe('a Vitest configuration evaluated for a shard', () => {
   const roots: string[] = [];
   afterEach(async () => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
     await Promise.all(roots.splice(0).map(async (root) => rm(root, { recursive: true, force: true })));
   });
 
@@ -31,5 +35,41 @@ describe('a Vitest configuration evaluated for a shard', () => {
   it('keeps what the configuration says, and says nothing unsharded', async () => {
     expect((await configured(['--shard', '3/3'], { test: { passWithNoTests: false } })).test?.passWithNoTests).toBe(false);
     expect((await configured([])).test?.passWithNoTests).toBeUndefined();
+  });
+
+  // A run `startVitest` shards, with no `--shard` on the command line, is still
+  // one shard: handed a read, it records alone, so it must read that read, or
+  // its later wave selects and places from what its earlier wave landed. Handed
+  // none, it lands over its own record and reads that, as `variance shards` does.
+  it.each([
+    ['reads the record it was handed', true],
+    ['reads its own record, handed none,', false],
+  ])('%s when Vitest was given a shard the command line does not spell', async (_, handed) => {
+    const asked: [string, boolean][] = [];
+    (globalThis as { __beneath?: typeof asked }).__beneath = asked;
+    vi.stubEnv('VARIANCE_AUTHORITY_SINCE', '');
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-vitest-shard-'));
+    roots.push(root);
+    const cache = resolve(root, 'cache');
+    vi.stubEnv(CACHE_VARIABLE, cache);
+    if (handed) await writeFetchedMainline(cache, 'unit', { mainline: 'main', commit: 'a'.repeat(40), fetched: new Date().toISOString(), handed: true });
+    await writeFile(resolve(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
+    await mkdir(cli, { recursive: true });
+    await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+    await writeFile(
+      resolve(cli, 'index.js'),
+      'export async function selectSuite(request) { globalThis.__beneath.push(["selection", request.beneath ?? false]); return { whole: new Set(), skip: new Set(), notes: [] }; }\n' +
+        'export async function suiteTimes(request) { globalThis.__beneath.push(["times", request.beneath ?? false]); return { unread: "a fixture" }; }\n',
+    );
+    vi.spyOn(process, 'argv', 'get').mockReturnValue(['node', 'vitest', 'run']);
+    const config = withTestSelection({}, { root, suite: 'unit' });
+    const Sequencer = config.test!.sequence!.sequencer as unknown as new (ctx: SequencerContext) => { shard<T>(files: T[]): Promise<T[]> };
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+
+    // Vitest makes its sequencer with the resolved `shard` before it asks for anything.
+    await new Sequencer({ config: { shard: { index: 1, count: 2 } }, state: { getPaths: () => [] } }).shard([{ moduleId: resolve(root, 'a.test.ts') }]);
+
+    expect(asked).toEqual([['selection', handed], ['times', handed]]);
   });
 });

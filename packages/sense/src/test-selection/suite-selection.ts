@@ -37,6 +37,17 @@ export interface SuiteSelection {
    * run that takes them.
    */
   readonly left?: ReadonlySet<string>;
+  /**
+   * The only test files that run, when a later wave of one shard was asked: a
+   * file outside it, one the record never saw included, runs in an earlier
+   * wave. Absent, every file not in `skip` runs.
+   */
+  readonly only?: ReadonlySet<string>;
+  /**
+   * Every wave the shard runs, as one selection, when this is one of them and
+   * the run named them. Absent, a shard places the files this selection keeps.
+   */
+  readonly placing?: Pick<SuiteSelection, 'skip' | 'only'>;
   /** What a person reads after the count. Never parsed. */
   readonly notes: readonly string[];
 }
@@ -63,14 +74,35 @@ export type SuiteTimes =
  * selection skips. `name` says each file as `skip` names it, so a seam keeps
  * its runner's own handles; without it the files are those names. A file the
  * record never saw, or never held whole because it failed, is kept. A declined
- * reading skips nothing, so it keeps every file.
+ * reading skips nothing, so it keeps every file. A selection that names `only`
+ * keeps none outside it.
  */
 export function kept<File = string>(
   selection: SuiteSelection,
   discovered: readonly File[],
   name: (file: File) => string = String,
 ): readonly File[] {
-  return [...new Set(discovered)].filter((file) => !selection.skip.has(name(file)));
+  return [...new Set(discovered)].filter(
+    (file) => !selection.skip.has(name(file)) && (selection.only === undefined || selection.only.has(name(file))),
+  );
+}
+
+/**
+ * The test files a seam under `--shard` places: those it keeps, and, for a
+ * wave of a shard whose run named its waves (`placing`), those any of them
+ * runs. Each wave then keeps its own files of one placement, so the waves
+ * together take the part the plan priced, rather than the heaviest part of each.
+ */
+export function placed<File = string>(
+  selection: SuiteSelection,
+  discovered: readonly File[],
+  name: (file: File) => string = String,
+): readonly File[] {
+  const { placing } = selection;
+  if (placing === undefined) return kept(selection, discovered, name);
+  const own = new Set(kept(selection, discovered, name));
+  const waves = new Set(kept({ ...placing, whole: selection.whole, notes: [] }, discovered, name));
+  return [...new Set(discovered)].filter((file) => own.has(file) || waves.has(file));
 }
 
 /**
@@ -103,7 +135,7 @@ export function selectedLines(selection: SuiteSelection, discovered: readonly st
 
 /** Why a selection that keeps no file kept none: what it left, or what the change reached. */
 function none(selection: SuiteSelection, discovered: ReadonlySet<string>): string {
-  const left = [...discovered].filter((file) => selection.left?.has(file)).length;
+  const left = [...discovered].filter((file) => selection.left?.has(file) || selection.only?.has(file) === false).length;
   if (left === 0) return 'the change reached none of them';
   return `${count(left, 'test file')} ${left === 1 ? 'is' : 'are'} left for a later run`;
 }

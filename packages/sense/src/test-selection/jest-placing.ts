@@ -48,6 +48,19 @@ export interface PlacingOptions {
   readonly rootDir: string;
   /** The suite's recorded times, read once, and only by a run under `--shard`. */
   readonly times: () => Promise<SuiteTimes>;
+  /**
+   * Told whether Jest's resolved configuration asks for a shard, from the
+   * command line or from `runCLI`, when Jest makes the sequencer: before any
+   * filter asks for the selection or any shard for the times.
+   */
+  readonly sharded?: (asked: boolean) => void;
+  /**
+   * The files every wave of a selected shard places, by absolute path, from
+   * the filter this sequencer is installed beside: `undefined` when the shard
+   * places what it runs. Absent for a run that selects nothing, which places
+   * what Jest hands it whatever an earlier run in the process left behind.
+   */
+  readonly placing?: () => readonly string[] | undefined;
   readonly say?: (line: string) => void;
   /** The command line the configuration is evaluated under; `process.argv` unless handed. */
   readonly argv?: readonly string[];
@@ -78,6 +91,7 @@ export function placingSequencer(
   let read: Promise<SuiteTimes> | undefined;
   let told = false;
   const handed = {
+    made: (globalConfig: object) => options.sharded?.((globalConfig as { shard?: unknown }).shard != null),
     sorting: refuseUnfound,
     own: (): SequencerClass => {
       const at = path === undefined ? jestDependency(options.rootDir, JEST_SEQUENCER) : from.resolve(path, { paths: [options.rootDir] });
@@ -86,10 +100,14 @@ export function placingSequencer(
     },
     shard: async (tests: { path: string }[], shard: Shard): Promise<unknown[]> => {
       const asked = { index: shard.shardIndex, count: shard.shardCount };
-      const part = shardOf(tests.map((test) => projectPath(options.root, test.path)), asked, await (read ??= options.times()));
+      // A wave of one shard places every wave's files, and keeps its own of them.
+      const across = options.placing?.() ?? tests.map((test) => test.path);
+      const part = shardOf(across.map((path) => projectPath(options.root, path)), asked, await (read ??= options.times()));
       if (!told) say(part.line);
       told = true;
-      return part.take.map((at) => tests[at]!);
+      const handed = new Map<string, typeof tests>();
+      for (const test of tests) handed.set(test.path, [...(handed.get(test.path) ?? []), test]);
+      return [...new Set(part.take.map((at) => across[at]!))].flatMap((path) => handed.get(path) ?? []);
     },
   };
   (globalThis as { [HANDED]?: typeof handed })[HANDED] = handed;

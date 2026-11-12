@@ -38,6 +38,14 @@ export interface RecordLocationOptions {
   readonly cacheRoot?: string | undefined;
   /** The name of the mainline this reader worked out, which `lastFetchedMainline` judges a fetched record by; `null` when it could not read the selection. */
   readonly selected?: string | null | undefined;
+  /**
+   * Pass over this checkout's own layer where a read was handed here: one
+   * shard of a run reads the record it was handed, never what it or an earlier
+   * wave of it ran, so every shard and every wave select from the same record.
+   * An `own` answer then means no layer under it holds one. A checkout handed
+   * nothing reads its own record first, the one its shards were planned by.
+   */
+  readonly beneath?: boolean | undefined;
 }
 
 /**
@@ -168,8 +176,8 @@ export type Seeded =
  * says where each of its tests last ran: see {@link seedCommitRuns}.
  *
  * Does nothing at all when the caller named its own file. Returns what it laid,
- * or `undefined` when it laid nothing. A run that {@link recordsAlone} does not
- * ask.
+ * or `undefined` when it laid nothing. A shard, which records alone, does not
+ * ask: see `prepareRecord`.
  */
 export async function seedTestCoverage(
   lock: IndexLock,
@@ -250,6 +258,11 @@ export function cachedSuite(file: string): string | undefined {
   return /(?:^|\/)suites\/([^/]+)\/coverage\.bin$/u.exec(file.split(sep).join('/'))?.[1];
 }
 
+/** Whether `file` is a suite's record whose read another job handed this checkout. */
+export function handedRecord(root: string, file: string): boolean {
+  return mainlineHanded(root, cachedSuite(file));
+}
+
 /**
  * The record at `file`, as `bytes`, when a run under `instrumentation` cannot
  * be laid over it for its probes: the check `layRecord` makes first.
@@ -266,22 +279,6 @@ function passedOver(file: string, bytes: Uint8Array | undefined, instrumentation
     return undefined;
   }
   return written === instrumentation ? undefined : { file, instrumentation: written, run: instrumentation };
-}
-
-/**
- * Whether a run records the files it ran and nothing else, on no base: one
- * shard of a run that selects nothing.
- *
- * Such a shard is a part of one whole run, and the fan-in folds the parts over
- * the base, refusing a test file two parts both hold. A shard placed by
- * recorded time has read the suite's times, and that read can fetch the
- * mainline's record into the shard's cache, where {@link seedTestCoverage}
- * would lay it under the shard's run. Every part would then carry every row of
- * the base. A selected shard is not a part of a whole: it records over the
- * base its selection was cut from, and its record is not folded with another's.
- */
-export function recordsAlone(sharded: boolean, selected: boolean): boolean {
-  return sharded && !selected;
 }
 
 /**
@@ -442,13 +439,14 @@ export function nearestRecord(
 ): { readonly file: string; readonly origin: RecordOrigin } {
   const inside = recordPath(root, options.suite);
   const [own, ...under] = layeredFiles(repositoryLayers(root, options.cacheRoot), inside);
-  if (present(own!)) return { file: own!, origin: 'own' };
+  const suite = cachedSuite(inside);
+  const handed = mainlineHanded(root, suite, options.cacheRoot);
+  if (!(options.beneath === true && handed) && present(own!)) return { file: own!, origin: 'own' };
   // The fetched record is the base only when the first run here would lay it:
   // one this build does not read is passed over, as seeding passes it over.
-  const suite = cachedSuite(inside);
   const fetched = suite === undefined ? undefined : lastFetchedMainline(root, suite, options.cacheRoot, options.selected);
   if (fetched !== undefined) return { file: fetched.coverage, origin: 'mainline' };
-  if (!mainlineHanded(root, suite, options.cacheRoot)) for (const file of under) if (present(file)) return { file, origin: 'primary' };
+  if (!handed) for (const file of under) if (present(file)) return { file, origin: 'primary' };
   return { file: own!, origin: 'own' };
 }
 

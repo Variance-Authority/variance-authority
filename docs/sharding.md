@@ -247,9 +247,38 @@ and a change that skips every one of them still gets one shard, for whatever it
 adds.
 
 Keep both off the push to your mainline: that build runs the whole suite, so
-its shards' records fold into the one the next build is placed by. A selected
-shard's record does not fold with another's, so a pull request's shards record
-for themselves, not for the share.
+its shards' records fold into the one the next build is placed by. Under Vitest
+and Jest, a shard of a whole run records the files it ran and nothing else, and
+so does a selected shard handed a record, by `carry receive` or `carry take
+--as-base`: it selects from that record, lays none under its own run, and a
+shard that runs no file leaves no record. A selected shard handed none records
+over the record its checkout holds, as a run that is not sharded does, so its
+record carries every row of that one and does not fold with another shard's:
+it records for itself, not for the share. A handed shard that runs in more than
+one pass, near tests first and the far ones after, selects and places every pass
+from that same record, beneath what its earlier passes ran, and each pass lands
+over the last, so the shard's one record holds what all of them ran. A later
+pass runs only the files the record placed in its range: a test new since the
+recording, and every file of a selection that declined to narrow, run in the
+first pass alone, so no file runs twice or lands in two shards. Name the hops
+of every pass the shard runs in `VARIANCE_AUTHORITY_PLACE_AT_DISTANCE`, such as
+`0-` for a near and a far pass, and each pass places the files of all of them
+as one and runs its own of that shard's part, so the passes together take the
+one part the plan priced. Unset, each pass is placed alone, which is the part a
+plan that priced that pass alone expects. A pull
+request's handed shards then fold over the record they selected from, and a test file
+or case no shard ran keeps the row it had. A shard killed before it lands
+leaves no record and fails the build; the others' still fold. A Playwright
+shard still lands over the record it read, so keep a pull request's Playwright
+shards out of the share. Rstest takes no `--shard` placement from variance.
+
+A pull request that [carries its last push](selecting.md#a-pull-requests-next-push)
+hands that record to its shards too: after `carry receive`, each shard runs
+`variance carry take <dir> --as-base` over the directory the plan's `take`
+handed on. The plan's `take` re-based that record on any mainline published
+since the push and wrote it back, and `--as-base` lays it where the received
+read sits, so every shard selects from the bytes the plan counted, and its own
+record still starts empty.
 
 GitHub Actions can build a matrix from an earlier job's output, so the count is
 decided per build. `--format json` gives a `matrix` of `k/n` strings, empty for

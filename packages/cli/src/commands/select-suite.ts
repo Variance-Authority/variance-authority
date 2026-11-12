@@ -25,6 +25,12 @@ export interface SuiteRequest {
   readonly suite?: string;
   /** One leg of the selection, by import hops from the change. */
   readonly atDistance?: Leg;
+  /**
+   * The hops of every wave this shard runs, when `beneath`: each wave places
+   * them as one, so the waves together take the part the run's plan priced.
+   * Absent, a wave is placed alone.
+   */
+  readonly placeAtDistance?: { readonly from: number; readonly to: number };
   /** A journey file, or a snapshot by path, to read instead of the recorded one. */
   readonly execution?: string;
   /**
@@ -55,6 +61,16 @@ export interface SuiteRequest {
    * Asked by name: a gate never sets it.
    */
   readonly local?: boolean;
+  /**
+   * Read the record under this checkout's own, as one shard of a run does: it
+   * selects from the record it was handed, never from what it or an earlier
+   * wave of it ran, so every shard and wave cut the same selection.
+   */
+  readonly beneath?: boolean;
+}
+
+function placingOf(span: TestSelection): NonNullable<SuiteSelection['placing']> {
+  return { skip: new Set(span.skip), ...(span.only === undefined ? {} : { only: new Set(span.only) }) };
 }
 
 /** The selection, with the whole reading it was cut from, for a caller that prints it. */
@@ -65,7 +81,8 @@ export interface SuiteReading extends SuiteSelection {
 /** The reading, fallen to `fell` when it widened and one is given, cut to the leg asked for, as sets. */
 export function suiteOf(input: SelectInput, atDistance: Leg | undefined, fell?: LocalAnswer): SuiteReading {
   const read = skippableTests(input);
-  const reading = inLeg(fell === undefined || read.widened === undefined ? read : fellTo(read, fell), input, atDistance);
+  const base = fell === undefined || read.widened === undefined ? read : fellTo(read, fell);
+  const reading = inLeg(base, input, atDistance);
   const left = reading.fell?.left ?? reading.left ?? [];
   const whole = input.ground.kind === 'read' ? input.ground.narrowing.whole : [];
   return {
@@ -73,6 +90,9 @@ export function suiteOf(input: SelectInput, atDistance: Leg | undefined, fell?: 
     skip: new Set(reading.skip),
     ...(reading.widened === undefined ? {} : { declined: reading.widened }),
     ...(left.length === 0 ? {} : { left: new Set(left) }),
+    ...(reading.only === undefined ? {} : { only: new Set(reading.only) }),
+    // The waves the shard was told it runs read one selection, and place it as one.
+    ...(atDistance?.placing === undefined ? {} : { placing: placingOf(inLeg(base, input, { ...atDistance.placing, partition: true })) }),
     notes: reading.notes,
     reading,
   };
