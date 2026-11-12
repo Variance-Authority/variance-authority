@@ -6,8 +6,8 @@ repository's relation as objects: the reporters build one `string[]` per region
 before encoding, and laying one re-run test file over a 200,000-module snapshot
 decodes and re-encodes all of it — 3.1 s and 1,111 MB against a 600 MB ceiling
 ([journal 0051](../context/journal/0051-the-snapshot-fits-and-the-publish-does-not.md)).
-**Built on:** [0029](0029-what-a-run-remembers.md) (the rows this writes and the
-completeness rule that decides when one may be replaced),
+**Built on:** [the execution record](../execution-record.md#writing-the-record) (the rows this writes) and
+[ADR-0062](../context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md) (the completeness rule that decides when one may be trusted),
 [ADR-0061](../context/adr/0061-a-crossing-relation-is-interned-not-owned.md)
 (one pool per snapshot, both relations out of it),
 [ADR-0004](../context/adr/0004-defer-native-acceleration.md) (a rewrite is
@@ -89,7 +89,7 @@ somebody chooses — a commit hook, a CI step, a command — and never on a save
 The overlay is append-only and framed the way a journal is, so a torn tail is
 detected rather than inherited, and a reader that finds one drops the overlay
 rather than the snapshot. An overlay that cannot be read costs the run it would
-have recorded, which is the direction [0029](0029-what-a-run-remembers.md)
+have recorded, which is the direction [ADR-0040](../context/adr/0040-git-already-named-every-files-content.md)
 already requires of every cache in this system.
 
 **Overlay reads may not narrow.** The rule is one sentence in two halves, and

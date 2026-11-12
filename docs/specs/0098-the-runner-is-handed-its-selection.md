@@ -1,16 +1,11 @@
 # Spec 0098 — the runner is handed its selection
 
-**Missing:** a way for a runner to receive the selection other than through its
-command line. `variance select --format vitest` and `--format jest` print the
-selection as runner arguments, and the documented loop substitutes them into the
-runner's argv. That breaks at the scale the product is for. macOS stops a
-command line at 1 MiB, which is about seven thousand absolute `--exclude=` paths
-of this repository's length. Windows `cmd` stops at 8,191 characters, about
-sixty. A private-corpus suite has about twenty-five thousand test files, and one
-change to a hub reaches most of them. The format is also where runner knowledge
-leaked into the selector: `select.ts` writes Vitest's absolute `--exclude` paths
-and Jest's escaped ignore patterns, so how a runner matches a path is decided in
-the one place that should not know which runner is asking.
+**Missing:** the argv formats' removal, a drop point for Rstest, and the
+acceptance run. `--format vitest` and `--format jest` still print runner
+arguments, past the one minor release item 6 gave their deprecation. Rstest has
+no drop point (question 6), so it records and does not select. No run has
+handed twenty-five thousand test files to Jest and Vitest on macOS and Windows,
+which is the acceptance below.
 **Built on:** the recording seams in `@variance-authority/sense` — `./vitest`,
 `./jest`, `./rstest` and `./runner` — each a `withTestSelection` that wraps the
 project's configuration and contributes without replacing anything

@@ -2,8 +2,8 @@
  * What each story executed, recorded for the next run's selection.
  *
  * The instrument is the one `@variance-authority/sense` already uses; only the
- * transport differs, which is the rule
- * [spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states. The preview is
+ * transport differs, so this host writes the structures every host writes
+ * ([the execution record](https://variance-authority.dev/docs/execution-record#what-each-host-records)). The preview is
  * built with the package's addon, which adds the probes whichever builder runs
  * it ([`preset.ts`](./preset.ts)), the page counts block crossings, and this
  * closes one window per story and joins them at the end of the run.

@@ -13,7 +13,7 @@ its inputs held still. A handler written inline as a JSX attribute is
 the portable form of a Fiber, and its rule that a name alone is not a join),
 [ADR-0030](../context/adr/0030-two-second-passes-one-variable-each.md) (`again`
 and `alone`, which this keys by rather than replaces),
-[0028](0028-the-instrument.md) (the names this joins on), [0035](0035-a-flake-is-what-the-run-did-not-execute.md)
+[the execution record](../execution-record.md#blocks) (the names this joins on), [0035](0035-a-flake-is-what-the-run-did-not-execute.md)
 (the rung this sharpens).
 
 ## Purpose

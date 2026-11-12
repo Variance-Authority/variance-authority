@@ -1,6 +1,6 @@
 # ADR-0081 — a coverage ratio is reported with the regions that changed it, and nothing reads it back
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-09-28
 **Amends:** [spec 0035](../../specs/0035-a-flake-is-what-the-run-did-not-execute.md)
 — its *a footprint is not a coverage percentage*, which is narrowed to what

@@ -1,6 +1,6 @@
 # ADR-0084 — every base is main's record, and the primary checkout is the offline fallback
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-09-30
 **Amends:** [ADR-0077](0077-the-config-says-where-an-artifact-lives.md) (the
 config says where an artifact lives), in three places named below; ADR-0077 is
