@@ -208,9 +208,15 @@ function lone(readings: readonly Reading[], there: Read | undefined): boolean {
 function packed(readings: readonly Reading[], there: Read | undefined): StoredReading[] {
   const [newest, ...rest] = readings;
   return [
-    there === undefined ? newest! : difference(newest!, there.regions),
-    ...rest.map((reading) => difference(reading, newest!.regions)),
+    there === undefined ? newest! : against(newest!, there.regions),
+    ...rest.map((reading) => against(reading, newest!.regions)),
   ];
+}
+
+/** `reading` as its difference from `base`, or whole where the difference would not read it back in its order. */
+function against(reading: Reading, base: readonly ReadRegion[]): StoredReading {
+  const stored = difference(reading, base);
+  return alike(reading, { ...stop(reading), regions: applied(stored, base) }) ? stored : reading;
 }
 
 /** `reading` as what it read otherwise than `base`. */
