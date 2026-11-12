@@ -96,8 +96,11 @@ struct Held {
 
 /// The records at `paths` folded into one record's bytes.
 /// `cut`, a record with no tests, is the checkout's cut of the modules a fold
-/// without it named disputed.
-pub(crate) fn combine(paths: &[String], cut: Option<&[u8]>) -> Result<Combined, String> {
+/// without it named disputed. `readings` holds, by path, the readings a shard
+/// is folded with in place of its own, none where they are empty: its stored
+/// readings are differences from its own case index, which the fold does not
+/// keep.
+pub(crate) fn combine(paths: &[String], cut: Option<&[u8]>, readings: &HashMap<String, Vec<u8>>) -> Result<Combined, String> {
     let failed = |path: &str, error: std::io::Error| match error.kind() {
         std::io::ErrorKind::NotFound => format!("there is no record at {path}"),
         _ => format!("cannot read {path}: {error}"),
@@ -115,7 +118,7 @@ pub(crate) fn combine(paths: &[String], cut: Option<&[u8]>) -> Result<Combined, 
         file.take(prefix as u64).read_to_end(&mut bytes).map_err(|error| failed(path, error))?;
         Ok((Cow::Owned(bytes), length))
     };
-    combined(paths, cut, load)
+    combined(paths, cut, readings, load)
 }
 
 /// The records `named`, each `(path, bytes)`, folded into one record's bytes.
@@ -123,12 +126,12 @@ pub(crate) fn combine(paths: &[String], cut: Option<&[u8]>) -> Result<Combined, 
 pub(crate) fn combine_bytes(named: &[(String, Vec<u8>)], cut: Option<&[u8]>) -> Result<Combined, String> {
     let paths: Vec<String> = named.iter().map(|(path, _)| path.clone()).collect();
     let load = |at: usize, _: Option<usize>| Ok((Cow::Borrowed(named[at].1.as_slice()), named[at].1.len()));
-    combined(&paths, cut, load)
+    combined(&paths, cut, &HashMap::new(), load)
 }
 
 /// The records `paths` names folded, each read by `load`: whole, or its first
 /// bytes when a limit is given, with its length either way.
-fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Option<usize>) -> Result<(Cow<'a, [u8]>, usize), String>) -> Result<Combined, String> {
+fn combined<'a>(paths: &[String], cut: Option<&[u8]>, readings: &HashMap<String, Vec<u8>>, load: impl Fn(usize, Option<usize>) -> Result<(Cow<'a, [u8]>, usize), String>) -> Result<Combined, String> {
     if paths.is_empty() {
         return Err("no records were named to combine".to_owned());
     }
@@ -168,6 +171,9 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
         let (bytes, _) = load(at, None)?;
         let mut record = record_coverage::read(&bytes).map_err(|error| unreadable(path, error))?;
         drop(bytes);
+        if let Some(stated) = readings.get(path) {
+            record.parts.readings = (!stated.is_empty()).then(|| stated.clone());
+        }
         let last = record.parts.last.as_deref().map(record_parts::last_run).transpose().map_err(|error| format!("{path}: {error}"))?;
         let index = record
             .parts
@@ -382,10 +388,12 @@ fn fold_index(read: Vec<case_shard::Shard>, inventories: HashMap<String, Vec<Inv
 
 /// Fold the records at `paths` and write the one record at `output`, unless
 /// the result names modules disputed: then nothing is written, and the caller
-/// folds again with `cut`, the checkout's cut of them.
+/// folds again with `cut`, the checkout's cut of them. `readings` holds, by
+/// path, the readings a shard is folded with in place of its own.
 #[napi(catch_unwind)]
-pub fn combine_records(paths: Vec<String>, output: String, cut: Option<Buffer>) -> napi::Result<CombinedRecord> {
-    let combined = combine(&paths, cut.as_deref()).map_err(napi::Error::from_reason)?;
+pub fn combine_records(paths: Vec<String>, output: String, cut: Option<Buffer>, readings: Option<HashMap<String, Buffer>>) -> napi::Result<CombinedRecord> {
+    let readings = readings.unwrap_or_default().into_iter().map(|(path, bytes)| (path, bytes.to_vec())).collect();
+    let combined = combine(&paths, cut.as_deref(), &readings).map_err(napi::Error::from_reason)?;
     if combined.result.disputed.is_none() {
         journey_output::replace(&output, &combined.bytes).map_err(napi::Error::from_reason)?;
     }

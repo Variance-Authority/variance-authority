@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '../digest.js';
 import { lastCaseRunOf, layCases } from './case-landing.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
+import { readingsOf } from './case-readings.js';
 import { encodeRecordedEyes } from './eyes-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { encodeAsSetExecutionIndex } from './execution-set-format.js';
@@ -265,6 +266,40 @@ describe('combineRecords over shards that cut one text two ways', () => {
     const [module] = (await readTestCoverage(output)).modules;
     expect(module!.blocks.map((block) => block.digest)).toEqual(sourceCut(twice, 'src/twice.ts', 'presence')!.rows.map((row) => row.digest));
     expect(module!.blocks.every((block) => block.testFiles.join() === 'a.test.ts,b.test.ts')).toBe(true);
+  });
+
+  it('reads a case back as it ran once the combine cuts the module again under its readings', async () => {
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, 'src/twice.ts'), twice);
+    const cut = sourceCut(twice, 'src/twice.ts', 'presence')!;
+    // The carried shard's older writer placed the disputed region two lines lower, so the combine's cut holds its case otherwise.
+    const shard = async (name: string, file: string, older: boolean) => {
+      const path = join(root, name);
+      const blocks = cut.rows.map((row, at) => ({ ...row, ...(older && at === 1 ? { digest: 'older', startLine: row.startLine + 2, endLine: row.endLine + 2 } : {}), testFiles: [file] }));
+      const modules = [{ file: 'src/twice.ts', sourceDigest: cut.sourceDigest, instrumented: true, blocks }];
+      const tests = [{ id: `${file} > greets`, file, name: 'greets', stopped: false }];
+      const fresh = encodeAsSetExecutionIndex({ tests, modules: [{ file: 'src/twice.ts', blocks: blocks.map((block) => ({ ...block, crossings: [{ test: 0, distance: 0 }] })) }] });
+      const cases = layCases({}, fresh, root, { commit: 'c0ffee', tests: [{ file, complete: true }], modules });
+      // The newest reading crossed every region the index holds the case at but the second.
+      const readings = Buffer.from(JSON.stringify({ cases: { [tests[0]!.id]: [{ count: 1, stopped: false, gone: [1] }] } }));
+      await writeTestCoverage(path, {
+        version: 3, instrumentation: INSTRUMENTATION_ID, commit: 'c0ffee',
+        tests: [{ file, complete: true, preconditions: [], duration: 1 }],
+        modules,
+      }, { ...cases, readings });
+      return path;
+    };
+    const shards = [await shard('fresh.bin', 'a.test.ts', false), await shard('carried.bin', 'b.test.ts', true)];
+    const ran = async (path: string, id: string) => {
+      const sections = caseSectionsOf(await readFile(path));
+      return readingsOf(sections.readings, sections.index, id);
+    };
+    const asRan = await ran(shards[1]!, 'b.test.ts > greets');
+    const output = join(root, 'combined.bin');
+    combineRecords(shards, output, root);
+
+    expect(asRan?.[0]?.regions).toContainEqual(expect.arrayContaining(['src/twice.ts', cut.rows[1]!.startLine + 2]));
+    expect(await ran(output, 'b.test.ts > greets')).toEqual(asRan);
   });
 
   it('refuses a module the checkout no longer holds', async () => {

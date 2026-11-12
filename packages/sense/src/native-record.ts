@@ -40,8 +40,9 @@ export interface NativeRecords {
    * Shards whose records name two records their runs started from fail as unstable sharding.
    * Shards that describe a module two ways over one text write nothing and name it `disputed`;
    * `cut`, a record with no tests holding the checkout's cut of those modules, settles them.
+   * `readings` holds, by path, the readings section a shard is folded with in place of its own; an empty one folds none.
    */
-  combineRecords?(paths: string[], output: string, cut?: Buffer): NativeCombinedRecord;
+  combineRecords?(paths: string[], output: string, cut?: Buffer, readings?: Record<string, Buffer>): NativeCombinedRecord;
   /**
    * The record `current` laid over the record `previous`; `null` where `previous` measured nothing.
    * A `previous` this build cannot read, or one under other probes, throws the reason.

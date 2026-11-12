@@ -375,7 +375,7 @@ fn refuses_lines_on_a_file_two_shards_cut_differently_by_the_shard_and_the_file(
 fn a_record_that_is_not_there_is_refused_by_name() {
     let missing = std::env::temp_dir().join(format!("variance-combine-missing-{}.bin", std::process::id()));
     let path = missing.to_string_lossy().into_owned();
-    let error = combine(&[path.clone()], None).err().expect("the combine is refused");
+    let error = combine(&[path.clone()], None, &HashMap::new()).err().expect("the combine is refused");
     assert_eq!(error, format!("there is no record at {path}"));
 }
 

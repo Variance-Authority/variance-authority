@@ -1,7 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { native, nativeRefusal } from '../addon.js';
 import type { NativeCombinedRecord } from '../native-record.js';
+import { readingsOver } from './case-readings.js';
+import { caseSectionsOf, withCaseSections } from './case-record.js';
+import { encodeAsSetExecutionIndex } from './execution-set-format.js';
 import { cutRecord } from './format-layer.js';
 import { repositoryRoot } from './repository-root.js';
 
@@ -27,6 +30,10 @@ import { repositoryRoot } from './repository-root.js';
  * crossings onto that cut by address; a test whose crossings have no place in
  * it is owed a run. A module the checkout holds at another text, or not at
  * all, is refused.
+ *
+ * Each case's readings are folded whole and stored again against the combined
+ * case index, so a reading reads back as it ran however the fold cut its
+ * case.
  */
 export function combineRecords(shards: readonly string[], output: string, root: string): NativeCombinedRecord {
   const combine = native()?.combineRecords;
@@ -34,21 +41,57 @@ export function combineRecords(shards: readonly string[], output: string, root: 
     throw new Error(`combining records requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `combineRecords`'}`);
   }
   const paths = shards.map((shard) => resolve(shard));
-  const folded = combine(paths, resolve(output));
-  if (folded.disputed == null) return folded;
+  const readings = wholeReadings(paths);
+  const folded = combine(paths, resolve(output), undefined, readings);
+  if (folded.disputed == null) return storedAgainstIndex(resolve(output), folded);
   const checkout = repositoryRoot(root);
   const onDisk = new Map<string, string>();
   for (const file of folded.disputed.files) {
-    const text = checkoutText(resolve(checkout, file));
+    const text = bytesAt(resolve(checkout, file))?.toString('utf8');
     if (text !== undefined) onDisk.set(file, text);
   }
-  return combine(paths, resolve(output), cutRecord(folded.disputed.instrumentation, onDisk));
+  return storedAgainstIndex(resolve(output), combine(paths, resolve(output), cutRecord(folded.disputed.instrumentation, onDisk), readings));
 }
 
-/** The text at `file`; nothing when there is no file there. */
-function checkoutText(file: string): string | undefined {
+/** An index holding no case, against which every reading is stored whole. */
+const NO_CASES = encodeAsSetExecutionIndex({ tests: [], modules: [] });
+
+/**
+ * Each shard's readings by path, every one written whole, and empty where it
+ * keeps none: a newest reading is stored as its difference from the shard's
+ * case index, and the fold re-cuts and renumbers that index.
+ */
+function wholeReadings(paths: readonly string[]): Record<string, Buffer> {
+  const whole: Record<string, Buffer> = {};
+  for (const path of paths) {
+    // A shard that is not there is refused by name in the fold.
+    const bytes = bytesAt(path);
+    if (bytes === undefined) continue;
+    const { readings, index } = caseSectionsOf(bytes);
+    if (readings === undefined || index === undefined) continue;
+    whole[path] = readingsOver(readings, index, NO_CASES) ?? Buffer.alloc(0);
+  }
+  return whole;
+}
+
+/** `folded`, once the readings it wrote whole at `output` are stored against the case index written beside them. */
+function storedAgainstIndex(output: string, folded: NativeCombinedRecord): NativeCombinedRecord {
+  const bytes = readFileSync(output);
+  const sections = caseSectionsOf(bytes);
+  if (sections.readings === undefined || sections.index === undefined) return folded;
+  // Whole readings read back alike against any index, so a reader that opens `output` before the rename reads them right.
+  const stored = `${output}.${process.pid}.readings`;
+  const { readings: whole, ...rest } = sections;
+  const readings = readingsOver(whole, NO_CASES, sections.index);
+  writeFileSync(stored, withCaseSections(bytes, readings === undefined ? rest : { ...rest, readings }));
+  renameSync(stored, output);
+  return folded;
+}
+
+/** The bytes at `file`; nothing when there is no file there. */
+function bytesAt(file: string): Buffer | undefined {
   try {
-    return readFileSync(file, 'utf8');
+    return readFileSync(file);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw error;
