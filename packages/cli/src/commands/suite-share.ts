@@ -137,12 +137,6 @@ async function placeOf(root: string) {
   return { ...(share === undefined ? {} : { share }), cacheRoot: selection.cacheRootFor(root) };
 }
 
-/** Whether this run publishes to a mainline, the one line whose record must be the whole suite's. */
-async function onMainline(root: string, here: Here): Promise<boolean> {
-  const run = await lineOfRun(await placeOf(root), here.env ?? process.env, root);
-  return !('none' in run) && run.line.kind === 'mainline';
-}
-
 /** What `share` prints for one suite, and the code it exits with. `notes` are said beside `lines` when `lines` are a workflow's output. */
 export interface SuiteShare {
   readonly lines: readonly string[];
@@ -154,19 +148,27 @@ export interface SuiteShare {
  * What `variance share --suite <name>` prints, and the code it exits with: what
  * the publish did, or the record the reader's mainline holds, laid into this
  * checkout's own layer with `records` folded over it. A mainline publish that
- * wrote nothing exits `EXIT_OPERATOR`; the records it lands alone, `wholeRun` says.
+ * wrote nothing exits `EXIT_OPERATOR`.
  */
 export async function suiteShare(root: string, options: SuiteShareOptions, here: Here = {}): Promise<SuiteShare> {
   const selection = await import('@variance-authority/sense/test-selection');
   if (options.publish) {
-    const folded = options.records === undefined
-      ? []
-      : options.partial !== true && (await onMainline(root, here))
-        ? [await wholeRun(root, options.suite, options.records)]
-        : await foldedOver(root, options.suite, options.records, here);
-    const share = rootShare(selection.rootConfig(root));
-    const { done, mainline } = await publishOnLine(root, options.suite, here, options);
-    const lines = [...folded, ...describePublish(share === undefined ? {} : { share }, done)];
+    const { suite, records } = options;
+    const place = await placeOf(root);
+    const run = records === undefined || options.partial === true ? undefined : await lineOfRun(place, here.env ?? process.env, root);
+    // A mainline's whole run lands over nothing, so its record holds that run alone: earlier runs are git's history,
+    // pinned at their commits. A branch's or the queue's run folds over its base, where the tests it did not run stand.
+    const folded: string[] = [];
+    if (records === undefined) {
+      // nothing handed on to fold
+    } else if (run !== undefined && !('none' in run) && run.line.kind === 'mainline') {
+      folded.push(records.length === 0 ? `${suite}: nothing was handed on.` : (await laidAsLeft(root, suite, records)) ?? (await landSuite(root, records, suite, true)));
+    } else {
+      const { said, notices, landed } = await baseAndFold(root, suite, records, here);
+      folded.push(said, ...notices, ...landed);
+    }
+    const { done, mainline } = await publishOnLine(root, suite, here, options);
+    const lines = [...folded, ...describePublish(place.share === undefined ? {} : { share: place.share }, done)];
     return { lines, exit: (mainline && !('published' in done)) || unkept(done) ? EXIT_OPERATOR : EXIT_CLEAN };
   }
   const { read, said, notices, landed } = await baseAndFold(root, options.suite, options.records, here);
@@ -257,25 +259,6 @@ async function laidAsLeft(root: string, suite: string, records: readonly string[
     if (beside) await copyFile(join(dirname(record), name), join(dirname(target), `${to}${name.slice(from!.length)}`));
   }
   return `${suite}: its record, laid over a base in its job, as that job left it.`;
-}
-
-/** `records`, part of the suite, laid over the mainline's record, and what that said. */
-async function foldedOver(root: string, suite: string, records: readonly string[], here: Here): Promise<string[]> {
-  const { said, notices, landed } = await baseAndFold(root, suite, records, here);
-  return [said, ...notices, ...landed];
-}
-
-/**
- * `records`, a mainline's run of the whole suite, landed over nothing; a
- * branch's or the queue's run folds over its base (`foldedOver`). The record it
- * publishes is that run's alone, and no mainline record is read to lay it
- * over; what earlier runs read is git's history, not the record's. A slice's
- * record its job laid over a base is put in place as `laidAsLeft` says, and
- * the publish refuses it unless every test it collects ran here.
- */
-async function wholeRun(root: string, suite: string, records: readonly string[]): Promise<string> {
-  if (records.length === 0) return `${suite}: nothing was handed on.`;
-  return (await laidAsLeft(root, suite, records)) ?? (await landSuite(root, records, suite, true));
 }
 
 const noBase = (suite: string): string => `So ${suite} has no base: it runs whole, and its coverage is printed without a comparison.`;
