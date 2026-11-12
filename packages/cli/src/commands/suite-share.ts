@@ -22,7 +22,7 @@
  */
 
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, readFile, readdir, realpath, rm } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, readdir, realpath } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { publishLine } from '@variance-authority/core/share';
 import { instrumentationId } from '@variance-authority/sense/instrument';
@@ -257,17 +257,13 @@ async function laidAsLeft(root: string, suite: string, records: readonly string[
 
 /**
  * `records`, a run of the whole suite, landed over nothing: the record it
- * publishes is that run's alone. The suite's own layer is emptied first, so
- * neither the mainline's record nor one an earlier run left here is carried
- * forward; what earlier runs read is git's history and `history`'s, not the
- * record's. A slice's record its job laid over a base is put in place as
+ * publishes is that run's alone, and no mainline record is read to lay it
+ * over; what earlier runs read is git's history, not the record's. A slice's record its job laid over a base is put in place as
  * `laidAsLeft` says, and the publish refuses it unless every test it collects
  * ran here.
  */
 async function wholeRun(root: string, suite: string, records: readonly string[]): Promise<string> {
   if (records.length === 0) return `${suite}: nothing was handed on, so nothing is published.`;
-  const selection = await import('@variance-authority/sense/test-selection');
-  await rm(dirname(selection.testCoverageFile(root, { suite })), { recursive: true, force: true });
   return (await laidAsLeft(root, suite, records)) ?? (await landSuite(root, records, suite));
 }
 
