@@ -7,9 +7,10 @@ import { expect, it } from 'vitest';
 const ROOT = resolve(import.meta.dirname, '..');
 
 /** Runs `plan-suites.mjs` on `event` where `shards` answers `answer(whole)`, and returns its legs and calls. */
-function plan(event: string, answer: string) {
+function plan(event: string, answer: string, checkout: (root: string) => void = () => {}) {
   const root = mkdtempSync(join(tmpdir(), 'va-ci-planning-'));
   try {
+    checkout(root);
     for (const dir of ['tools', 'bin']) mkdirSync(join(root, dir));
     for (const file of ['plan-suites.mjs', 'ci-plan.mjs']) copyFileSync(join(ROOT, 'tools', file), join(root, 'tools', file));
     writeFileSync(join(root, 'vitest.config.mts'), 'export const SLICES = {unit:{workers:1}, integration:{workers:1}, chromium:{workers:1}};');
@@ -36,9 +37,11 @@ if (args[1]==='shards') {
       RUNNER_TEMP: root,
       VARIANCE_AUTHORITY_CACHE: join(root, 'carried'), GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: join(root, 'summary'), CALLS: calls,
     } });
+    const outputs = Object.fromEntries(readFileSync(output, 'utf8').trim().split('\n').map((line) => line.split(/=(.*)/s).slice(0, 2)));
     return {
       root,
-      legs: JSON.parse(readFileSync(output, 'utf8').trim().slice('legs='.length)),
+      outputs,
+      legs: JSON.parse(outputs.legs),
       calls: readFileSync(calls, 'utf8').trim().split('\n').map((line) => JSON.parse(line)),
     };
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -59,4 +62,26 @@ it('prices the whole suite and the selection from the one record every leg selec
 it('runs a merge group\'s near wave of one job as the shard `1/1`, as every other job runs', () => {
   const { legs } = plan('merge_group', "() => ({by:'recorded',shards:1,matrix:['1/1'],wall:30000,files:2})");
   expect(legs).toEqual([{ part: 'rules' }, ...['unit', 'integration', 'chromium'].map((part) => ({ part, shard: '1/1' }))]);
+});
+
+it('hands a group of one its pull request head as tested, which every count and leg narrows by', () => {
+  let head = '';
+  const { outputs, calls } = plan('merge_group', "() => ({by:'recorded',shards:0,matrix:[],files:0})", (root) => {
+    const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=Dev', '-c', 'user.email=dev@example.test', ...args], { cwd: root, encoding: 'utf8' }).trim();
+    git('init', '--quiet', '-b', 'main');
+    git('commit', '--quiet', '--allow-empty', '-m', 'base');
+    git('checkout', '--quiet', '-b', 'pull');
+    git('commit', '--quiet', '--allow-empty', '-m', 'pull');
+    head = git('rev-parse', 'HEAD');
+    git('checkout', '--quiet', 'main');
+    git('merge', '--quiet', '--no-ff', '--no-edit', 'pull');
+  });
+  expect(outputs.tested).toBe(head);
+  for (const call of calls.filter((call) => call.args[1] === 'shards')) expect(call.args).toEqual(expect.arrayContaining(['--tested', head]));
+});
+
+it('hands no tested commit to a group whose commit has one parent', () => {
+  const { outputs, calls } = plan('merge_group', "() => ({by:'recorded',shards:1,matrix:['1/1'],wall:30000,files:2})");
+  expect(outputs.tested).toBe('');
+  expect(calls.flatMap((call) => call.args)).not.toContain('--tested');
 });
