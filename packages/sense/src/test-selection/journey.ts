@@ -294,10 +294,14 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   const store = new AsyncLocalStorage<string>();
   const channels = new Map<string, Channel>();
   const sending = new Set<Promise<void>>();
-  let lost = 0;
+  // Counted apart: a report the watcher missed is no test's loss, nor a test's the watcher's.
+  const lost = { watcher: 0, drivers: 0 };
   const depth = new Map<string, number>();
   const previous = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
-  const { keep, since } = commonCrossings(HOMES);
+  // The watcher is told a request's own regions as that request's, so its ledger leaves them out.
+  const [all, apart] = [commonCrossings(HOMES), commonCrossings(1)];
+  const keep: typeof all.keep = (modules, of) => (all.keep(modules, of), apart.keep(modules, of));
+  const since = (home: string): ExecutedModule[] | undefined => (home === watched ? apart : all).since(home);
 
   // One bucket per journey, and the root asks the store on every probe, which
   // is what lets two concurrent requests each keep their own. See
@@ -328,16 +332,17 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   });
 
   const send = (over: Channel, account: Omit<JourneyAccount, 'version' | 'instrumentation' | 'head' | 'lost'>): void => {
+    const to = over.home === watched ? 'watcher' : 'drivers';
     const sent = over
       .deliver('journeys', {
         version: 1,
         instrumentation: INSTRUMENTATION_ID,
         head,
-        ...(lost === 0 ? {} : { lost }),
+        ...(lost[to] === 0 ? {} : { lost: lost[to] }),
         ...account,
       } satisfies JourneyAccount)
       .catch(() => {
-        lost += 1;
+        lost[to] += 1;
       })
       .finally(() => {
         sending.delete(sent);
@@ -364,13 +369,8 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     }
     keep(entered, (module) => module.shared);
     if (over === undefined) return;
-    // A request nobody drove is the process's to every driver, as it is with no
-    // watcher. The watcher is told it here, as the request's, and not again.
-    if (over.home === watched) {
-      catchUp(over);
-      keep(entered, (module) => module.hits);
-      since(over.home);
-    }
+    // A request nobody drove is the process's to every driver, as it is with no watcher.
+    if (over.home === watched) all.keep(entered, (module) => module.hits);
     // An empty account still goes when it closes a scope, because the driver
     // is waiting on that scope and cannot tell *entered nothing* from *not yet*.
     if (entered.length === 0 && settled === 0) return;
@@ -401,6 +401,8 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     // and did not return still runs as this request; see `straggle`.
     const over = channels.get(journey);
     report(journey, over, 1);
+    // A request nobody drove and still open is the process's to this driver too, so far.
+    if (watched !== undefined && over?.home !== watched) for (const [open, home] of channels) if (home.home === watched && buckets.has(open)) report(open, home);
     report(UNATTRIBUTED, over);
     // Whichever journey carries it, the driver unions it into every subject.
     if (over !== undefined) catchUp(over);
@@ -417,7 +419,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   function straggle(journey: string): void {
     const over = channels.get(journey);
     if (over === undefined) {
-      lost += 1;
+      lost.drivers += 1;
       return;
     }
     depth.set(journey, 1);

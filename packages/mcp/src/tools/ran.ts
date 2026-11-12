@@ -2,7 +2,6 @@ import { loadedUnprobed, modulePath } from '@variance-authority/sense';
 import type { HeadRan, VantageState, WatchedExecution } from '@variance-authority/vantage';
 import { cappedRows } from './capped.js';
 import { limitOf } from './limit.js';
-import { fileArg } from './run-signals.js';
 import { spellingOf } from './spelling.js';
 import type { CutModules, Tool } from './tool.js';
 import { VARIABLE } from './vantage-lines.js';
@@ -31,10 +30,6 @@ export const ran: Tool<VantageState> = {
         description:
           'Show only executions that ran a region of this name: a declaration, such as `toggle`, or one segment of `Cart/render`.',
       },
-      file: {
-        type: 'string',
-        description: 'Show only executions that ran code in this file: its path from the repository root.',
-      },
       limit: {
         type: 'integer',
         minimum: 1,
@@ -58,35 +53,25 @@ export const ran: Tool<VantageState> = {
 
     const cut = invocation?.modules;
     const name = nameArg(input);
-    const file = fileArg(input, invocation?.root);
     const matching = executions.filter(
-      (execution) =>
-        (name === undefined || execution.heads.some((head) => regionsOf(head, cut).some((region) => named(region, name)))) &&
-        (file === undefined || execution.heads.some((head) => head.modules.some((module) => modulePath(module.id) === file))),
+      (execution) => name === undefined || execution.heads.some((head) => regionsOf(head, cut).some((region) => named(region, name))),
     );
-    // What the process ran is narrowed as the executions are: asked about one file, a reader wants that file.
-    const asked = (region: Entered): boolean =>
-      (name === undefined || named(region, name)) && (file === undefined || region.file === file);
+    // What the process ran is narrowed as the executions are: asked about one name, a reader wants that name.
     const outside = common
-      .map((head) => ({ head, regions: regionsOf(head, cut).filter(asked) }))
+      .map((head) => ({ head, regions: regionsOf(head, cut).filter((region) => name === undefined || named(region, name)) }))
       .filter((one) => one.regions.length > 0);
-    if (matching.length === 0 && outside.length === 0 && (name !== undefined || file !== undefined)) {
-      const what = [
-        ...(name === undefined ? [] : [`a region named ${name}`]),
-        ...(file === undefined ? [] : [`code in the file ${file}`]),
-      ].join(' and ');
+    if (matching.length === 0 && outside.length === 0 && name !== undefined) {
       // A name is matched against named regions only, so a miss is not proof where some were not.
-      const unnamed = name === undefined ? 0 : executions.filter((execution) =>
+      const unnamed = executions.filter((execution) =>
         execution.heads.some((head) => regionsOf(head, cut).some((region) => 'unnamed' in region))).length;
       return (
-        `No execution here ran ${what}. ${executions.length} execution(s) have reported.` +
+        `No execution here ran a region named ${name}. ${executions.length} execution(s) have reported.` +
         (unnamed === 0 ? '' : ` ${unnamed} of them ran regions that could not be named, so one of those may have.`)
       );
     }
 
     const spell = spellingOf(invocation);
-    const limit = limitOf(input, 20, spell);
-    const shown = matching.slice(Math.max(0, matching.length - limit));
+    const shown = newest(matching, limitOf(input, SHOWN, spell));
     const elided = matching.length - shown.length;
     const where = state.address === undefined ? '' : ` at ${state.address}`;
     const count = matching.length === executions.length ? `${executions.length}` : `${matching.length} of ${executions.length}`;
@@ -121,17 +106,23 @@ const COMMON = 40;
 /** `cappedRows` writes its count two spaces in; a region sits under its head. */
 const indented = (row: string): string => (row.startsWith('      ') ? row : `    ${row}`);
 
+/** How many executions are listed when no `limit` is said. */
+const SHOWN = 20;
+
+/** The newest `limit` of what matched: the ones a call lists. */
+const newest = (matching: readonly WatchedExecution[], limit: number): readonly WatchedExecution[] =>
+  matching.slice(Math.max(0, matching.length - limit));
+
 /**
- * The heads a call will name regions of. Asked for neither a name nor a file,
- * it lists the newest `limit` executions, and only those are cut; a name is
- * matched against every execution, so every one is.
+ * The heads a call will name regions of. Asked for no name it lists the newest
+ * `limit` executions, and only those are cut; a name is matched against every
+ * execution, so every one is, as it is for a `limit` that `run` will refuse.
  */
 function headsOf(state: VantageState, input: Readonly<Record<string, unknown>>): readonly HeadRan[] {
   const { executions, common } = state.ran;
-  const limit = input['limit'] === undefined ? 20 : Number(input['limit']);
-  const narrowed = input['name'] === undefined && input['file'] === undefined && Number.isInteger(limit) && limit >= 1;
-  const listed = narrowed ? executions.slice(Math.max(0, executions.length - limit)) : executions;
-  return [...listed.flatMap((execution) => execution.heads), ...common];
+  const limit = input['limit'] === undefined ? SHOWN : Number(input['limit']);
+  const narrowed = input['name'] === undefined && Number.isInteger(limit) && limit >= 1;
+  return [...(narrowed ? newest(executions, limit) : executions).flatMap((execution) => execution.heads), ...common];
 }
 
 /**

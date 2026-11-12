@@ -70,13 +70,11 @@ second says where it goes. Each request no test drove is one execution.
 ```bash
 variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE"
 variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE" --name quote --limit 1
-variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE" --file src/pricing.mjs
 ```
 
 | Flag | Narrows to |
 |---|---|
 | `--name <name>` | executions that ran a region of that name: a declaration, or one segment of `Cart/render` |
-| `--file <path>` | executions that ran code in that file, as a path from the repository root |
 | `--limit <n>` | the `n` most recent; 20 by default |
 
 Executions are listed oldest first, so the request just made is the last one.

@@ -113,13 +113,79 @@ describe('a head told where a watcher listens', () => {
       const told = new Set(driven.reports.flatMap((report) => report.modules.flatMap((module) => module.hits)));
       expect(undriven!.length).toBeGreaterThan(0);
       expect(undriven!.filter((ordinal) => !told.has(ordinal))).toEqual([]);
-      // And the watcher is not told a request's own regions a second time, as the process's.
+      // And the watcher is not told what only that request ran a second time, as the process's.
       const common = watcher.reports.filter((report) => report.journey === UNATTRIBUTED);
       const again = new Set(common.flatMap((report) => report.modules.flatMap((module) => module.hits)));
-      const own = watcher.reports
-        .filter((report) => report.journey !== UNATTRIBUTED)
-        .flatMap((report) => report.modules.flatMap((module) => module.hits.filter((hit) => !module.shared.includes(hit))));
-      expect(own.filter((ordinal) => again.has(ordinal))).toEqual([]);
+      const dollars = [...entered(driven.reports).values()].flat();
+      const euros = undriven!.filter((ordinal) => !dollars.includes(ordinal));
+      expect(euros.length).toBeGreaterThan(0);
+      expect(euros.filter((ordinal) => again.has(ordinal))).toEqual([]);
+    });
+  });
+
+  it('gives a driver what a request nobody drove has entered so far, while that request is still open', async () => {
+    await inRoot(async (root) => {
+      const watcher = await driver();
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
+      const parts = await head(root);
+      let finish!: () => void;
+      const held = new Promise<void>((resolve) => (finish = resolve));
+
+      // A stream, or a health check that hangs: it took the euro branch and has not settled.
+      const open = collector.enter(undefined, async () => {
+        parts.currency('de');
+        await held;
+      });
+      await collector.enter(driven.carrying(mintJourney()), () => parts.currency('en'));
+      await until(() => driven.reports.some((report) => report.journey === UNATTRIBUTED));
+      const told = new Set(driven.reports.flatMap((report) => report.modules.flatMap((module) => module.hits)));
+
+      finish();
+      await open;
+      await collector.close();
+      const undriven = [...entered(watcher.reports).values()].flat();
+      expect(undriven.length).toBeGreaterThan(0);
+      expect(undriven.filter((ordinal) => !told.has(ordinal))).toEqual([]);
+    });
+  });
+
+  it('tells the watcher what ran outside every request, though a request ran the same', async () => {
+    await inRoot(async (root) => {
+      const watcher = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
+      const parts = await head(root);
+
+      // Before any request, as a warm-up at start does; then a request takes the same branch.
+      await parts.currency('de');
+      await collector.enter(undefined, () => parts.currency('de'));
+      await collector.close();
+
+      const outside = new Set(
+        watcher.reports
+          .filter((report) => report.journey === UNATTRIBUTED)
+          .flatMap((report) => report.modules.flatMap((module) => module.hits)),
+      );
+      const own = [...entered(watcher.reports).values()].flat();
+      expect(own.length).toBeGreaterThan(0);
+      expect(own.filter((ordinal) => !outside.has(ordinal))).toEqual([]);
+    });
+  });
+
+  it('does not count a report the watcher missed against a test', async () => {
+    await inRoot(async (root) => {
+      const driven = await driver();
+      // A watcher that was stopped: its address is still in the service's environment.
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: 'http://127.0.0.1:9' });
+      const parts = await head(root);
+
+      await collector.enter(undefined, () => parts.currency('de'));
+      await collector.flush();
+      await collector.enter(driven.carrying(mintJourney()), () => parts.currency('en'));
+      await collector.close();
+      await until(() => driven.reports.some((report) => report.settled === 1));
+
+      expect(driven.reports.filter((report) => report.lost !== undefined)).toEqual([]);
     });
   });
 

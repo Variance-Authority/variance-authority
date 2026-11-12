@@ -260,7 +260,7 @@ Three limits keep the listing honest:
 - An application started without either variable reports nothing, so the
   `enter` call stays in place in production.
 
-`--name <function>`, `--file <path>` and `--limit <n>` narrow the listing.
+`--name <function>` and `--limit <n>` narrow the listing.
 The agent skill
 [installed with the CLI](agent-workspace-api.md)
 has each of them, and what to do about a region that was not named.

@@ -108,7 +108,7 @@ export async function readVantage(at: string): Promise<VantageReading> {
   } catch (error) {
     throw new OperatorError(
       `nothing answered at \`${at}\` (${messageOf(error)}). Start a watcher with ` +
-        '`variance watch`, then start the suite with the address it prints. A watcher holds the ' +
+        '`variance watch`, then start the suite or the application with the address it prints. A watcher holds the ' +
         'run in memory, so one that has been stopped cannot be asked about the run it held.',
     );
   }

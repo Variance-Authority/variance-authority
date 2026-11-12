@@ -103,8 +103,11 @@ describe('variance_ran', () => {
   });
 
   it('narrows what the process ran as it narrows the executions, and counts past a cap', () => {
-    expect(ran.run(state(), { file: 'app/page.tsx' }, { modules: CUT })).not.toContain('Ran outside any request');
-    expect(ran.run(state(), { file: 'lib/store.ts' }, { modules: CUT })).toContain('lib/store.ts:1 module');
+    expect(ran.run(state(), { name: 'flip' }, { modules: CUT })).not.toContain('Ran outside any request');
+    const flipped = state({ common: [{ head: 'web', instrumentation: PROBES, modules: [{ id: STORE, entered: [0, 3] }] }] });
+    const [, outside] = ran.run(flipped, { name: 'flip' }, { modules: CUT }).split('Ran outside any request');
+    expect(outside).toContain('lib/store.ts:40 Store/flip entry');
+    expect(outside).not.toContain('lib/store.ts:1 module');
     const many = Array.from({ length: 45 }, (_, ordinal) => ({ ordinal, name: `f${ordinal}`, path: 'entry', startLine: ordinal + 1 }));
     const wide = ran.run(
       state({ common: [{ head: 'web', instrumentation: PROBES, modules: [{ id: STORE, entered: many.map((one) => one.ordinal) }] }] }),
@@ -153,17 +156,10 @@ describe('variance_ran', () => {
     expect(ran.run(state(), { name: 'toggle' }, { modules: CUT })).toContain('request-1');
   });
 
-  it('narrows to the executions that entered a file, spelled from the checkout', () => {
-    const text = ran.run(state(), { file: 'app/page.tsx' }, { modules: CUT });
-    expect(text).toContain('request-0');
-    expect(text).not.toContain('request-1');
-  });
-
   it('says what there is when nothing matches', () => {
     const text = ran.run(state(), { name: 'remove' }, { modules: CUT });
     expect(text).toContain('No execution here ran a region named remove. 2 execution(s) have reported.');
     expect(text).toContain('1 of them ran regions that could not be named, so one of those may have.');
-    expect(ran.run(state(), { file: 'app/none.ts' }, { modules: CUT })).not.toContain('could not be named');
   });
 
   it('shows the newest up to the limit and says how many came before', () => {
