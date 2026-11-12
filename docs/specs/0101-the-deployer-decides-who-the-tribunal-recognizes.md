@@ -1,8 +1,12 @@
 # Spec 0101 — the deployer decides who the tribunal recognizes
 
-**Missing:** no code; the table at the end names where each piece is on `main`.
-Left are the chart lines that still name `grant`, two secrets or a header
-replacement, and the ADRs that retire this file, which have their own issue.
+**Missing:** no code. Left to discharge it are the chart lines that still name
+`grant`, two secrets or a header replacement, and the ADRs that retire this file.
+Its Built on line and its *today* describe the code it was written against, and
+`main` has replaced `grant`, the `authorize` hook, the two tokens `createTribunal`
+took, Access keys never refetched on an unknown `kid`, the `() => string` that
+`declaredSecret` returned, a `by` the body chose and a `REVIEW_TOKEN` that grants
+`review`.
 **Built on:** the capability split
 ([ADR-0022](../context/adr/0022-deciding-is-not-writing.md)); the packaged
 Worker's `grant` in `packages/tribunal/src/worker-auth.ts`; the `authorize` hook
@@ -347,21 +351,7 @@ there is nothing to provision and the step disappears.
   does `github` here. Provisioning cannot make Access applications with a
   `wrangler login` token, so Access stays an option a deployer declares.
 
-## What exists, and what does not
-
-| Area | Today | Missing |
-|---|---|---|
-| Handler seam | `createTribunal` asks `TribunalOptions.policy` for a principal: a capability and a name. | Nothing. |
-| GitHub Actions | `githubActions` on `createIssuer`: discovery, the five checks, a logged refusal. | Nothing. |
-| Client | A string, `{ "env": … }` or `{ "github-actions": { "audience": … } }` on every token field, the last fetched when sent and again near expiry. | Nothing. |
-| Decision name | `attributed` writes `by` from the principal and refuses another name. | Nothing. |
-| Review token | Logged when set, and never read. | Nothing. |
-| Loopback | Declared as `loopback`, only on a loopback bind; the reviewer is `VARIANCE_TRIBUNAL_REVIEWER` or the OS user. | Nothing. |
-| Provisioning | `provision` registers the App, declares `github-actions` and `github`, and deploys; a declared `token` is minted into the Worker and the repository's secrets. | Nothing. |
-
 ## What would discharge it
-
-Everything in the table above is on `main`. What remains:
 
 1. **Update the charts.** `grant` and `refuseWeakTokens`, which `main` no longer
    has, are still named by the capability chart, the review-router diagram and
