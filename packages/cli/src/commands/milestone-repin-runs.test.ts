@@ -86,6 +86,26 @@ describe('the runs record under a repinned checkout', () => {
     expect((await readCommitRuns(own))!.standing!.map((stand) => [stand.commit, stand.files])).toEqual([[next, ['test/total.test.ts']], [first, ['test/other.test.ts']]]);
   });
 
+  it('keeps a run the published record ran in part beside its stand, and stands a test it places nowhere at the milestone', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    // `other` ran in part at the older commit, and neither of the record's stands names it whole; `gone` the milestone no longer records.
+    const read = join(home, 'laptop-cache');
+    const fetched = (await readdir(read, { recursive: true })).filter((path) => path.includes(next) && path.endsWith('.runs.json'));
+    const at = '2026-01-01T00:00:00.000Z';
+    const partial = { commit: next, latest: at, runs: 1, landings: [{ files: ['test/total.test.ts'], first: at, latest: at, runs: 1 }], standing: [{ commit: first, files: [], partly: ['test/gone.test.ts', 'test/other.test.ts'], first: at, latest: at, runs: 1 }] };
+    await writeFile(join(read, fetched[0]!), JSON.stringify(partial));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    const standing = (await readCommitRuns(own))!.standing!;
+    expect(standing.filter((stand) => stand.files.includes('test/other.test.ts')).map((stand) => stand.commit)).toEqual([next]);
+    expect(standing.filter((stand) => stand.partly !== undefined).map((stand) => [stand.commit, stand.partly])).toEqual([[first, ['test/other.test.ts']]]);
+  });
+
   it('writes no runs record for a record that holds none, which does not say where its tests stand', async () => {
     const { ci, worktree, own } = await laidWorktree(home);
     const next = await publishedNext(home, ci);

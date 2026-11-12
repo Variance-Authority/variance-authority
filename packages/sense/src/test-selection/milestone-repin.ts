@@ -269,9 +269,9 @@ function repinnedEyes(
  * runs that ran it in part since, and every other test where the run that
  * published the record left it (`published`, which a fetch keeps beside the
  * snapshot): landed at the milestone, or standing where that record says, and
- * at the milestone where it says nothing. A kept test the record places nowhere stands where its
- * runs started, assumed, and with no start either the record says nothing of
- * where its tests stand.
+ * at the milestone where it says nothing. A kept test the record places
+ * nowhere stands where its runs started, assumed, and with no start either the
+ * record says nothing of where its tests stand.
  */
 function repinnedRuns(
   held: CommitRuns | undefined,
@@ -319,14 +319,15 @@ function repinnedRuns(
       return files;
     });
   const placed = new Set(carry(held.standing, (file) => kept.has(file), (file) => kept.has(file)));
-  const milestone = new Set(recorded.filter((file) => !kept.has(file)));
+  const others = new Set(recorded.filter((file) => !kept.has(file)));
+  const milestone = new Set(others);
   for (const landing of published?.landings ?? []) {
     standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files.filter((one) => milestone.delete(one)));
   }
   // A record that did not run every test says where the others stand, and
   // they keep that stand: moved to its commit, the change since would be
   // charged to nobody.
-  carry(published?.standing, (one) => milestone.delete(one), (one) => !kept.has(one));
+  carry(published?.standing, (one) => milestone.delete(one), (one) => others.has(one));
   standAt({ commit: record.commit, files: [] }, [...milestone]);
   // Where the record cannot place a kept test, it stands where the runs started,
   // assumed, and with no start the record does not say (`commit-runs.ts`).
