@@ -275,10 +275,10 @@ jobs:
             ${{ steps.variance.outputs.images }}
   merge:
     needs: shard
-    if: ${{ always() && github.event_name != 'push' }}
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
-      contents: read # this job runs the pull request's code
+      contents: write # the published suite index and costs
       pull-requests: write # the comment
     steps:
       - uses: actions/checkout@v7
@@ -292,33 +292,7 @@ jobs:
           config: variance.config.json
           reports: shards/*/report.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
-  publish:
-    needs: shard
-    if: ${{ always() && github.event_name == 'push' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # the published suite index and costs
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - run: npm ci
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: variance-shard-*
-          path: shards
-      - uses: Variance-Authority/action@v1
-        with:
-          config: variance.config.json
-          reports: shards/*/report.json
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 ```
-
-The last job is two with the same steps, because a job's permissions cannot
-depend on the event. On a pull request, `merge` runs the pull request's code
-with a token that can write the comment but not the repository: it posts the
-docket, and its publish is refused, which the step prints without failing. On a
-push, `publish` runs the mainline's code and publishes.
 
 `reports` takes one path or glob per line. Given it, the action runs nothing:
 it merges the reports with `variance report`, posts one docket, publishes the
@@ -328,8 +302,9 @@ suite index and the costs the next build splits by with `variance share
 publishes, and nothing writes the token to the clone. The count is written once,
 in the matrix. Every report names its shard as `k/n`, so a shard that never
 uploaded, a shard given twice, or shards cut two ways exit 2 naming which.
-`always()` keeps the last job running when a shard found a change and failed
-its own job.
+`if: always()` keeps the merge running when a shard found a change and failed
+its own job. The merge job's install runs a pull request's own code with that
+`contents: write`; a pull request from a fork gets a read-only token.
 
 How the suite is split is in
 [sharding](https://variance-authority.dev/docs/sharding#split-stories-and-routes-the-same-way).

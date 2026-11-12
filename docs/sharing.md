@@ -1002,11 +1002,8 @@ says what its route file exports for a share.
 
 ## GitHub Actions
 
-With `kind: "git"`, the publish needs write access to its own repository. Two
-jobs keep that token away from the code under test. The `variance` job builds
-and runs on every event and, on a push, passes its run report and images on as
-an artifact. The `publish` job runs only on a push, and it is the only job with
-`contents: write`:
+With `kind: "git"`, a workflow needs write access to its own repository and one
+more step:
 
 ```yaml
 on:
@@ -1015,7 +1012,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   variance:
@@ -1029,63 +1026,28 @@ jobs:
       - run: npm ci
       - run: npx storybook build
       - run: npx playwright install --with-deps chromium
-      - id: carry
-        run: npx --no-install variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
       - run: npx --no-install variance run
-      - uses: actions/upload-artifact@v7
-        if: ${{ !cancelled() && github.event_name == 'push' }}
-        with:
-          name: variance-report
-          path: |
-            ${{ steps.carry.outputs.report }}
-            ${{ steps.carry.outputs.images }}
-          include-hidden-files: true
-          retention-days: 1
-
-  publish:
-    needs: variance
-    if: ${{ !cancelled() && github.event_name == 'push' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - uses: actions/download-artifact@v8
-        with:
-          name: variance-report
-          path: ${{ runner.temp }}/variance-report
-      - name: publish the run
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: npx --no-install variance share --publish "$RUNNER_TEMP/variance-report/report.json"
+      - run: npx --no-install variance share --publish
+        if: always()
 ```
 
 - **`variance run` needs no `--run` or `--commit` here.** It reads
   `GITHUB_RUN_ID` and `GITHUB_SHA`.
-- **`!cancelled()` publishes a run that exits 1** because it found changes, and
+- **`if: always()` publishes a run that exits 1** because it found changes, and
   that is the run your checkout most needs to read. A run that exits 2 without
-  writing a run report uploads no artifact, and the publish job fails.
-- **A pull request publishes nothing.** Its code runs only in the `variance`
-  job, whose token cannot write, so this workflow writes no branch line.
-- **The artifact is the run report and the images it names**, at the paths
-  [`variance carry`](../packages/cli/README.md#what-the-next-job-reads) prints
-  from the config. The artifact keeps each file's path from the directory the
-  two share, so the report is at its top, under its own file name, when the
-  images are beside it, as they are by default. The publish job builds nothing:
-  `share --publish` reads the report it is given, the images it names, and the
-  config.
-- **`persist-credentials: false` keeps the token out of the clone.** The
-  publish step alone has it, as `GITHUB_TOKEN` in its `env:`.
-- **`suite-v1/stories` is not published here.** A suite's execution record is
-  kept in the cache of the job that ran it, and a mainline takes it only from
-  [`share --publish`](#a-suite-with-no-run-report) given `--collected`.
+  writing a run report makes the publish step exit 2 too.
+- **A pull request from a branch of this repository publishes to its branch
+  line. A pull request from a fork and a merge-queue run publish nothing**, and
+  the step prints that and exits 0.
+- **`contents: write` reaches every step of the job**, the tests included: a
+  pull request from a branch of this repository runs its own code with it,
+  while a fork's pull request gets a read-only token.
+- **`suite-v1/stories` is published only when an earlier step ran the `stories`
+  suite** under its [runner
+  integration](execution-record.md#one-record-for-each-suite), and only to a
+  branch line. This step cannot determine which test files the runner collects,
+  so a push to a mainline leaves the suite out and prints that you need to pass
+  `--collected`, which [`share --publish`](#a-suite-with-no-run-report) takes.
 - **Jobs that run different suites on one line** each keep their own
   `suite-v1/<name>`, while `report-v1` and `suite-index-v2` are one per line,
   from the job that published last.

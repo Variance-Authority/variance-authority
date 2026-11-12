@@ -38,9 +38,9 @@ the second command is for.
 is the other shipped adapter, for served routes, a sitemap or a static build.
 Anything else is a module you write, and step 1 has its shape.
 
-Run `variance` through your package manager (`yarn variance`, `pnpm exec
-variance`, or a `package.json` script), which finds the installed copy and never
-fetches another.
+An installed `variance` is not on your `PATH`. Run it as `npx --no-install
+variance`, as the workflow steps on this page do: it finds the installed copy
+and never fetches another. `yarn variance` and `pnpm exec variance` do the same.
 
 ## Integrate the CLI
 
@@ -1220,23 +1220,14 @@ its own denominator and baseline; a missing record or baseline is named rather t
 The coverage readings travel in `review.json`, so `--from-run` prints the same
 evidence without reading the laptop’s recordings.
 
-In CI, restore the recording directory your base branch saved to the runner
-cache (the directory [the cache](https://variance-authority.dev/docs/cache) describes), run the
-suite, and review after it:
-
-```yaml
-- run: yarn test
-- if: ${{ !cancelled() }}
-  run: |
-    yarn variance index
-    yarn variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
-```
-
-On GitHub, `Variance-Authority/action/review` replaces the cache steps, the
-tests and the review: it runs your command between the carry that restores the
-mainline's record and the carry that saves what it ran, runs the same two
-commands with `--coverage`, puts the review on the pull request as one comment
-updated in place, and marks each changed function no case covered on the diff.
+In CI the review runs after the suite, over the recording your base branch saved
+to the runner cache (the directory [the cache](https://variance-authority.dev/docs/cache)
+describes). On GitHub, `Variance-Authority/action/review` is that job: it runs
+your command between the carry that restores the mainline's record and the carry
+that saves what it ran, runs `variance index` and `variance review --coverage`
+after it, writes the review to the step summary and to the pull request as one
+comment updated in place, and marks each changed function no case covered on the
+diff.
 [Review coverage on every pull request](https://variance-authority.dev/docs/review-coverage)
 has the whole job:
 
@@ -3357,19 +3348,15 @@ each with its own `carry`:
 
 `variance carry restore` and `variance carry save` print what `actions/cache`
 takes: each file's paths, its key and, on a restore, the keys to fall back
-to. With `--format github` the lines are step outputs, so the workflow names
-no path the config already names:
+to. With `--format github` the lines are step outputs, such as `baselines-path`,
+`baselines-key` and `baselines-restore-keys`. `Variance-Authority/action` reads
+them itself: it restores the baselines before its run and saves the ones an
+accept wrote, so the workflow names no path and no key:
 
 ```yaml
-- id: carry
-  run: npx --no-install variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
-- if: steps.carry.outputs.baselines-key != ''
-  uses: actions/cache/restore@v6
+- uses: Variance-Authority/action@v1
   with:
-    path: ${{ steps.carry.outputs.baselines-path }}
-    key: ${{ steps.carry.outputs.baselines-key }}
-    restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
-- run: npx --no-install variance run --config variance.config.json
+    config: variance.config.json
 ```
 
 A suite with `"carry": "share"` gets no key: its record travels through
