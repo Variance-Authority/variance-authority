@@ -58,8 +58,8 @@ export interface SuiteShareOptions {
   /**
    * Records this suite's jobs handed on: a sharded or sliced run made one
    * again, folded over the base before the read is told, or before a
-   * `partial` publish writes. A publish of the whole suite lands them over
-   * nothing.
+   * branch's or a `partial` publish writes. A mainline publish of the whole
+   * suite lands them over nothing.
    */
   readonly records?: readonly string[];
 }
@@ -95,8 +95,7 @@ async function publishOnLine(
   if (declared.carry !== 'share') {
     return off({ none: `the suite "${suite}" is not given to the share; its "carry" in the root config is not "share"` });
   }
-  const share = rootShare(selection.rootConfig(root));
-  const place = { ...(share === undefined ? {} : { share }), cacheRoot: selection.cacheRootFor(root) };
+  const place = await placeOf(root);
   const cell = await lineCellOf(place, { cwd: root });
   if (cell === undefined) return off({ none: 'no share is configured' });
   const run = await lineOfRun(place, env, root);
@@ -131,6 +130,19 @@ async function publishOnLine(
   return on({ line: run.line, published, ...eyes, ...gone, ...noMainline });
 }
 
+/** Where `root` shares its records: the share in its root config, and the cache it reads them into. */
+async function placeOf(root: string) {
+  const selection = await import('@variance-authority/sense/test-selection');
+  const share = rootShare(selection.rootConfig(root));
+  return { ...(share === undefined ? {} : { share }), cacheRoot: selection.cacheRootFor(root) };
+}
+
+/** Whether this run publishes to a mainline, the one line whose record must be the whole suite's. */
+async function onMainline(root: string, here: Here): Promise<boolean> {
+  const run = await lineOfRun(await placeOf(root), here.env ?? process.env, root);
+  return !('none' in run) && run.line.kind === 'mainline';
+}
+
 /** What `share` prints for one suite, and the code it exits with. `notes` are said beside `lines` when `lines` are a workflow's output. */
 export interface SuiteShare {
   readonly lines: readonly string[];
@@ -139,26 +151,19 @@ export interface SuiteShare {
 }
 
 /**
- * What `variance share --suite <name>` prints, and the code it exits with:
- * what the publish did, or the record the reader's mainline holds and where it
- * is kept. A mainline publish that wrote nothing exits `EXIT_OPERATOR`.
- *
- * The read lays the mainline's record into this checkout's own layer, where
- * the run it makes next lands on it, and says when the suite has no base to
- * run from. `records`, when given, are folded over that base, as `variance
- * journeys --suite` lands shards, before the read is told. A publish given
- * `records` of the whole suite lands them over nothing (`wholeRun`), and one
- * of part of it (`partial`) folds them over the base; a publish given none
- * publishes the record this checkout holds.
+ * What `variance share --suite <name>` prints, and the code it exits with: what
+ * the publish did, or the record the reader's mainline holds, laid into this
+ * checkout's own layer with `records` folded over it. A mainline publish that
+ * wrote nothing exits `EXIT_OPERATOR`; the records it lands alone, `wholeRun` says.
  */
 export async function suiteShare(root: string, options: SuiteShareOptions, here: Here = {}): Promise<SuiteShare> {
   const selection = await import('@variance-authority/sense/test-selection');
   if (options.publish) {
     const folded = options.records === undefined
       ? []
-      : options.partial === true
-        ? await foldedOver(root, options.suite, options.records, here)
-        : [await wholeRun(root, options.suite, options.records)];
+      : options.partial !== true && (await onMainline(root, here))
+        ? [await wholeRun(root, options.suite, options.records)]
+        : await foldedOver(root, options.suite, options.records, here);
     const share = rootShare(selection.rootConfig(root));
     const { done, mainline } = await publishOnLine(root, options.suite, here, options);
     const lines = [...folded, ...describePublish(share === undefined ? {} : { share }, done)];
@@ -261,7 +266,8 @@ async function foldedOver(root: string, suite: string, records: readonly string[
 }
 
 /**
- * `records`, a run of the whole suite, landed over nothing: the record it
+ * `records`, a mainline's run of the whole suite, landed over nothing; a
+ * branch's or the queue's run folds over its base (`foldedOver`). The record it
  * publishes is that run's alone, and no mainline record is read to lay it
  * over; what earlier runs read is git's history, not the record's. A slice's
  * record its job laid over a base is put in place as `laidAsLeft` says, and

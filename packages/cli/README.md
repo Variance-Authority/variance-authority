@@ -3070,7 +3070,8 @@ owns its own collector, renderer, storage, or review surface:
   the landing said without the reading; `alone` lands them over nothing, reading
   no record already there. A CI fan-in does not compose these:
   `variance share <record>...` lays the mainline's record and lands the records
-  over it, and `share --publish <record>...` publishes the run they make alone.
+  over it, and `share --publish <record>...` publishes the run they make: alone
+  to a mainline, over the mainline's record to a branch.
 - `recordedExecutionFile(root, suite)` names the record `distill` and `review`
   read for a suite, and refuses as `unrecorded` when no run kept
   its cases. A script that reads a record with the sense readers starts here,

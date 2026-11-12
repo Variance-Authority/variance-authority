@@ -131,6 +131,18 @@ describe('`variance share --publish <records>`', () => {
     expect((await readCommitRuns(record))?.over).toBeUndefined();
   });
 
+  it("folds a branch's run over the record it was seeded from, keeping the tests it did not run", async () => {
+    const { ci, second } = await nextPush();
+    await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
+    const branch = { ...PUSH, GITHUB_REF_NAME: 'feat/x' };
+
+    const done = await suitesShare(ci, { suite: 'unit', publish: true, records: [join(home, 'ran')] }, { env: branch });
+
+    expect(done.lines.join('\n')).toMatch(/read from mainline main/u);
+    const record = testCoverageFile(ci, { suite: 'unit' });
+    expect((await readTestCoverage(record)).tests.map((test) => test.file)).toEqual(['test/other.test.ts', 'test/total.test.ts']);
+  });
+
   it("lays a slice's record, already laid over the base in its job, as that job left it, and refuses it when the slice ran part of the suite", async () => {
     const { ci, second } = await nextPush();
     const slice = join(home, 'ran', 'variance-slice-unit');
