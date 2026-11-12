@@ -769,13 +769,13 @@ flowchart TB
   `packages/tribunal/src/review-ingest.ts` writes objects before rows and clears
   the build's rows before rewriting them — except `decisions`, which a person
   put their name on.
-- Session to capability. `TribunalRouteOptions.authorize` in
-  `packages/tribunal/src/next.ts` is the operator's own function, with no
-  default, and `createTribunalRoutes` **replaces** the `authorization` header
-  with the token that answer implies rather than adding it — a caller may not
-  choose its own capability, and the policy is binding rather than advisory. The
-  one shipped policy is `declaredPolicy` in `packages/tribunal/src/policy.ts`:
-  every host reads the same `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS`, and a
+- Session to capability. `TribunalOptions.policy` in
+  `packages/tribunal/src/worker.ts` has no default, and `createTribunal` asks it
+  who a request is before routing — a caller may not choose its own capability.
+  `createTribunalRoutes` in `packages/tribunal/src/next.ts` only strips
+  `basePath`: a host's own session counts through a `Policy` it writes. The one
+  shipped policy is `declaredPolicy` in `packages/tribunal/src/policy.ts`: every
+  host reads the same `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS`, and a
   host's only say is its defaults.
 - Assertion to name. The `access` mechanism in
   `packages/tribunal/src/policy.ts` takes a signed token — from the
