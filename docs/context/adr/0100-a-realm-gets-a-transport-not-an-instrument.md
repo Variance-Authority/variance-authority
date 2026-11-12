@@ -31,20 +31,24 @@ that open.
 
 ## Decision
 
-**There is one instrument, and a realm is given a way to report what it ran,
-never a second way to observe it.**
+**There is one instrument for JavaScript, and a realm that runs JavaScript is
+given a way to report what it ran, never a second way to observe it.**
 
 - The code the instrumenter emits asks its realm for one global,
   `globalThis.__VA__`, and imports nothing: no Node built-in, no module, no
-  bundler helper. `header.rs` is its one author.
+  bundler helper.
 - A realm records by installing that root. A Vitest, Jest or Rstest worker
   gets it from the seam's setup file, a page from the collector
-  `testSelectionProbes` hoists, and a service from the getter
+  `testSelectionProbes` hoists, and a Node service from the getter
   `collectJourneys` installs.
 - Each realm differs only in how its ordinals leave it: a worker journal per
   test file, a page journal drained after each subject, and a journey account
   sent over the journey wire. All three carry module ids and ordinals of the
   same recipe, so the writer folds them into one record.
+- The [JVM agent](../../jvm.md) is outside this rule. It observes the classes
+  a JVM loads, which this instrumenter does not read, and cuts each method into
+  one region by its own rule. No file is cut by both, so no block has two
+  identities.
 
 ## Alternatives
 

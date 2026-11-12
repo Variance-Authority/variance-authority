@@ -52,11 +52,7 @@ so a built and an unbuilt checkout of one commit, and two machines with
 different builds, write the same sentence. The wording exists once, and the
 native and JavaScript scans write it alike. It joins the record's other reasons.
 
-The sentence changes no edge. It changes what a reader of `unknown` concludes:
-`variance select --tested` runs the whole suite when a change reaches a file whose
-imports the graph could not all read, and an importer of an unmapped workspace
-package is such a file. That is the correct reading of a file whose edge list
-has a named hole.
+The sentence changes no edge.
 
 ## 3. A package built by something other than `tsc`
 
