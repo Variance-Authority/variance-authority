@@ -2,11 +2,13 @@
 
 **Missing:** an editor that runs tests as you work. Wallaby's defining trait is
 that the marks are never older than the last edit. Here, the record is as old as
-the last `yarn test`. `test:since` already selects the tests an edit reaches,
-nearest first. Nothing starts it from an editor, streams its outcomes back, or
-folds the run into the record the editor is painting from.
-**Built on:** the selection behind tools/test-since.mjs and
-`variance select --at-distance <hops> --format vitest|jest`, the distance grouping in
+the last `yarn test`. `verify:near` and `verify:far` already run the tests an
+edit reaches, nearest first. Nothing starts them from an editor, streams their
+outcomes back, or folds the run into the record the editor is painting from.
+**Built on:** the runner seams that drop what `selectSuite` skips when
+`VARIANCE_AUTHORITY_SINCE` is set, cut to a leg by
+`VARIANCE_AUTHORITY_AT_DISTANCE` ([0098](0098-the-runner-is-handed-its-selection.md)),
+`variance select --at-distance <hops>`, the distance grouping in
 `packages/sense/src/test-selection/at-distance.ts`,
 [0063](0063-an-editor-asks-about-the-text-it-holds.md) (the reader and its
 `changed` signal), [0067](0067-a-case-carries-its-outcome.md) (outcomes in the
@@ -31,18 +33,18 @@ the editor as the one pressing the key. `--at-distance` is a setting, and it
 defaults to the whole selection in two legs.
 
 **2. The run is the project's run.** The command is the project's own test
-script with the selection passed as the runner's file filter
-(`--format vitest` and `--format jest` already print it). The run's recording
-layers over the snapshot the way every `yarn test` does, so after it the reader
+script with `VARIANCE_AUTHORITY_SINCE` set, so the runner's seam drops what
+the selection skips. The run's recording layers over the snapshot the way
+every `yarn test` does, so after it the reader
 answers from the new record and sends `changed`. Nothing writes a record the
 project's own run would not have written.
 
-Each leg is its own `variance select`. `--at-distance 0-2 --format vitest`
-prints the exclusions that cut the run down to that leg, which is the cut
-`test:since --at-distance 0-2` makes. `--format json` carries the leg and the
+Each leg is its own `variance select`. `--at-distance 0-2` prints the
+selection cut down to that leg, which is the cut a seam makes under
+`VARIANCE_AUTHORITY_AT_DISTANCE=0-2`. `--format json` carries the leg and the
 selected files it `left`, which is the count and the command item 5 shows. A
 selection that declines to narrow skips nothing in any leg. This amends item 2,
-which handed the runner the whole selection and left the legs to `test:since`.
+which handed the runner the whole selection and left the legs to the shell.
 
 **3. Outcomes stream while it runs.** The seam's reporter writes each case's
 outcome (0067) as it finishes. The reader forwards those as

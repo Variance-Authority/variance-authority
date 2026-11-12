@@ -2,8 +2,8 @@
  * What a Playwright run executed, recorded for the next run's selection.
  *
  * The instrument is the one `@variance-authority/sense` already uses; only the
- * transport differs, which is the rule
- * [spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states. The adopter's
+ * transport differs, so this host writes the structures every host writes
+ * ([the execution record](https://variance-authority.dev/docs/execution-record#what-each-host-records)). The adopter's
  * application build carries `testSelectionProbes()`, the page counts block
  * crossings, and this drains those counters around each observation.
  *

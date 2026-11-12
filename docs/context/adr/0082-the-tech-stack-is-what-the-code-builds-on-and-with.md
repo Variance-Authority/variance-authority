@@ -1,6 +1,6 @@
 # ADR-0082 — the tech stack is what the code builds on and builds with, read from the code
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-09-28
 **Relates to:** ADR-0002 (absent is not empty),
 [ADR-0057](0057-the-run-writes-every-name-it-saw.md) (order is orientation,

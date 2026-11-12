@@ -1,10 +1,19 @@
 # Spec 0029 — the index is a cache that can only widen
 
-**Missing:** the generation and completeness state that decides when a recorded
-row may be *trusted* rather than merely read. Vitest writes crossings and merges
-them into a queryable index; that index cannot yet prove that it represents a
-complete current suite.
-**Built on:** [0028](0028-the-instrument.md) (which emits what this stores),
+**Missing:** the `volatile` rule. A block whose observed test set differs
+between two runs at the same revision is not marked, so a change that reaches
+it is answered from whichever run wrote last. The rest of what this spec asked
+for shipped: a block is kept across an edit by its address
+([identity under an edit](../execution-record.md#identity-under-an-edit)), a
+row is replaced only by a run in which the test completed and a partial run
+unions ([ADR-0062](../context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md)),
+and crossings travel in per-worker journals folded into one snapshot
+([journals](../execution-record.md#journals)). The generation the completeness
+rule is scoped to is [0044](0044-many-writers-one-record.md)'s.
+**Built on:** [the execution record](../execution-record.md#blocks) (the blocks
+this marks),
+[ADR-0062](../context/adr/0062-a-skip-list-is-bounded-by-what-the-record-witnessed.md)
+(when a row may be trusted rather than merely read),
 [ADR-0040](../context/adr/0040-git-already-named-every-files-content.md) (a
 cache keyed by what git already named, and the claim that no cache can change an
 answer), [ADR-0039](../context/adr/0039-the-digest-is-the-proof-the-trail-is-the-explanation.md)
@@ -28,96 +37,29 @@ Everything below is that asymmetry made structural rather than remembered.
 
 ## What would discharge it
 
-**1. A block's identity is structural, and ambiguity mints.** The key is
-`<file path> ‖ <declaration name path> ‖ <structural path>` — `priceOf/if#0/else`
-— and never a line, never a byte offset, never an opaque counter.
-Reconciliation is exact match on that key and nothing else. A block whose
-address the previous table holds keeps the tests recorded against it; a block at
-an address that table does not hold is minted empty. There is no similarity
-threshold anywhere: a threshold is a knob whose two settings are *false matches*
-and *missed matches*, and the choice between those is already made.
-
-**A block's own bytes are deliberately not part of its identity either.**
-Reconciling on the digest looks like the careful choice and is the expensive
-one. Every region's digest covers its whole subtree, so the module root's digest
-moves whenever anything in the file moves; make the digest reconcile and adding
-one function at the top level retires every crossing in that module, which is
-the file's entire audience demoted over a function nobody calls yet. Keeping the
-record costs nothing in safety, because the record is only ever consulted to
-*select*: what the edit touched is charged from the diff by
-[0030](0030-a-diff-lands-on-blocks.md), not inferred from bytes that did not
-move.
-
-**The condition's text is deliberately not part of a block's identity.** This is
-the decision most likely to be got wrong, because hashing the condition into the
-name looks like it buys reorder-safety. It does not: any edit to a condition
-would mint new ids for the decision *and both its outcomes*, so the tests
-recorded against them would be unreachable, and a condition edit would select
-nothing. That is the unsafe direction, reached by a construction that reads as
-rigour.
-
-**2. A test file's identity needs no reconciliation at all.** The key is its
-origin path. The selector runs that file whole; nested `describe`, `test`, and
-`.each` cases are not selection units. Storybook is the exception: its identity
-is the story file plus export name because the tool owns that execution surface.
-A renamed or moved test file has no row, and no row means *run it* — the fallback
-is already the safe direction.
-
-**3. The completeness rule, and it is the one that is easy to get wrong.**
-
-> **A row is replaced only by a run in which the test completed. Otherwise it is
-> unioned.**
-
-A test that fails at its third assertion never executes the rest of its body, so
-what it flushes is a *prefix* of its real reach. Replacing wholesale on that
-flush shrinks the recorded reach permanently and silently. Union-within-a-
-generation is monotone by construction, and monotone is the property being
-bought.
-
-The same rule covers the rest of the incomplete cases, each of which resolves to
-*run it*: a skipped test, a crashed worker, a timeout, and a run that executed
-only a shard or a selection. **A partial run contributes crossings and never
-writes completeness** — or the second selected run believes the whole suite is
-observed on the strength of one narrow one.
-
-**4. A block whose observed test set differs between two runs at the same
+**A block whose observed test set differs between two runs at the same
 revision is `volatile`**, and a volatile block always widens. This is
 [`merkle.ts`](../../packages/core/src/relate/merkle.ts)'s existing rule one
 structure over, with the same justification: a record that cannot prove sameness
 says so rather than being quietly trusted. The residue is honest and stated — a
 non-deterministic block seen once cannot be known volatile until it has
-disagreed once — and it is measurable before anything else is built, by running
-one revision twenty times and counting the blocks that disagree.
+disagreed once — and it is measurable, by running one revision twenty times and
+counting the blocks that disagree. That count is the volatility floor
+[0027](0027-a-test-is-selected-by-what-it-executed.md#what-decides-whether-this-ships)
+pre-registers.
 
-**5. Three layers, and no collector process.** A per-worker typed array during
-execution; an append-only per-worker journal, framed and checksummed so a torn
-tail is detected rather than inherited; a merged index keyed by the blob oid of
-the file each block came from.
-
-The merged index uses the storage shape already measured for `sense` in
-[journal 0026](../context/journal/0026-what-a-graph-costs-to-keep.md): one interned
-UTF-8 string blob, aligned typed-array columns, and CSR offsets over the sparse
-block-to-test relation. The dominant term is exact: **four bytes per recorded
-crossing**. Block metadata is stored once in dense columns; paths are stored once;
-opening the snapshot parses only its small versioned section index, and a query
-decodes only module paths and selected test paths. JSON objects are not the
-persistence model.
-
-The brief floats a bundled Rust collector process. It is refused for v1 on the
-same gate as
-[ADR-0004](../context/adr/0004-defer-native-acceleration.md): the design spikes
-put per-test transport cost far below a millisecond either way, which is
-invisible against a 38.29 s suite, and a socket costs a child process, a drop
-policy, a hang timeout, a Windows pipe path and a durability story that files
-get for free. A collector is justified by a measurement showing files are the
-bottleneck.
-
-**Acceptance:** a suite run twice with an unrelated failure injected on the
-second run, where the failing test's recorded reach does not shrink. Then the
-same suite run as two shards, where neither shard marks the other's tests
-observed.
+**Acceptance:** one revision run twenty times, with the count of blocks whose
+test set differs published; then a change to a block that disagreed, which
+selects every test any of those runs recorded against it.
 
 ## What it forecloses
+
+**The condition's text is not part of a block's identity.** Hashing the
+condition into the name looks like it buys reorder-safety. It does not: any edit
+to a condition would mint new ids for the decision *and both its outcomes*, so
+the tests recorded against them would be unreachable, and a condition edit would
+select nothing. That is the unsafe direction, reached by a construction that
+reads as rigour.
 
 **Compaction may only widen.** Anything the record holds beside presence may
 be dropped. A `(block, test)` presence bit may not. Dropping a whole row is permitted and
@@ -131,6 +73,6 @@ for the scan caches, and holding it here is what makes where this index lives a
 cost decision rather than a correctness one.
 
 **An index built under one instrumentation mode cannot validate another.** The
-probe set is part of the toolchain identity, so turning ternaries on
-([0028](0028-the-instrument.md)) discards the index rather than silently mixing
-two block universes.
+probe set is part of the toolchain identity, so a run under another recipe
+([journals](../execution-record.md#journals)) refuses to fold into the index
+rather than silently mixing two block universes.

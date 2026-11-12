@@ -1,6 +1,6 @@
 # ADR-0070 — a journey travels as trace context, carried by the system itself
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-09-23
 **Extends:** [ADR-0056](0056-a-journey-is-the-places-visited.md) (a journey is
 the places visited), [ADR-0069](0069-every-answer-has-an-owner.md) (every answer

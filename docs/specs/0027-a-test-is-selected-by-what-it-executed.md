@@ -1,10 +1,15 @@
 # Spec 0027 — a test is selected by what it executed
 
-**Missing:** the completeness and fallback rules that make selection safe when
-coverage is stale, absent, or partial. The Vitest path instruments source,
-attributes regions to test files, merges runs, and maps a unified diff to those
-files. The remaining vacancies are [0029](0029-what-a-run-remembers.md) and
-[0030](0030-a-diff-lands-on-blocks.md).
+**Missing:** the readings that decide whether it ships. Of the bars in
+[What decides whether this ships](#what-decides-whether-this-ships), none has a
+reading that settles it. [0047](0047-a-skip-list-is-worth-what-it-skips.md)
+produces three: `f`, the failures missed on a mutation plan; `s`, the share of
+the suite selected; and a published reading of `o`, the overhead, which has one
+reading today that
+[journal 0027](../context/journal/0027-what-instrumentation-costs.md) calls a
+weak bound. The twenty-run volatility floor is the measurement
+[0029](0029-what-a-run-remembers.md) asks for. `w`, the wall clock against a
+full run at the median commit, has no spec that produces it but this one.
 
 **Built on:** [`selecting.md`](../selecting.md) (the static selector this
 narrows, and the forks it cannot see the outcome of),
@@ -234,7 +239,10 @@ selection names the probes and the regions they leave unanswered.
 **A module-scope edit degrades to the module.** A four-hundred-line file of
 top-level constants has one initialization block, so editing any of them selects
 every test that loaded the file. That stratum should be reported as a near-tie
-with the static selector, not folded into a headline.
+with the static selector, not folded into a headline. A moved top-level value
+is narrower:
+[ADR-0072](../context/adr/0072-a-change-is-read-before-it-is-charged.md)
+charges it to its lexical readers one file deep.
 
 **The index is a cache and never an input to correctness.** Missing, stale,
 foreign or corrupt, it costs a full run and can never cost a skipped test. This
