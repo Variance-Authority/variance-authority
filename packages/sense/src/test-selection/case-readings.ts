@@ -59,6 +59,14 @@ interface StoredReading {
  * index, and keeps its regions only where the index does not hold the case.
  */
 interface Section {
+  /**
+   * Not `cases`, where a build before the difference kept them: it read every
+   * newest reading with no regions as the index's, so it would read a difference
+   * as the index and drop it. Under this key it finds no readings, and loses one
+   * history rather than keeping a wrong one.
+   */
+  readonly againstIndex?: Readonly<Record<string, readonly StoredReading[]>>;
+  /** What a build before the difference wrote: a newest reading is whole, or the index's where it holds no regions. */
   readonly cases?: Readonly<Record<string, readonly StoredReading[]>>;
   /** By test file, the digest {@link inputsOf} names: a region a module crossed only while it evaluated is no case's, so the regions alone do not say what a file loaded. */
   readonly inputs?: Readonly<Record<string, string>>;
@@ -193,7 +201,7 @@ function written(laid: ReadonlyMap<string, readonly Reading[]>, there: ReadonlyM
   if (laid.size === 0 && inputs.size === 0) return undefined;
   const ids = [...laid.keys()].sort(codeUnitOrder);
   const section: Section = {
-    ...(laid.size === 0 ? {} : { cases: Object.fromEntries(ids.map((id) => [id, packed(laid.get(id)!, there.get(id))])) }),
+    ...(laid.size === 0 ? {} : { againstIndex: Object.fromEntries(ids.map((id) => [id, packed(laid.get(id)!, there.get(id))])) }),
     ...(inputs.size === 0 ? {} : { inputs: Object.fromEntries([...inputs].sort(([left], [right]) => codeUnitOrder(left, right))) }),
   };
   return Buffer.from(JSON.stringify(section), 'utf8');
@@ -332,6 +340,6 @@ function parsed(section: Uint8Array | undefined): { readonly cases: Map<string, 
     throw new Error('the record\'s readings section is not JSON', { cause: error });
   }
   if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('the record\'s readings section is not an object');
-  const { cases, inputs } = value as Section;
-  return { cases: new Map(Object.entries(cases ?? {})), inputs: new Map(Object.entries(inputs ?? {})) };
+  const { againstIndex, cases, inputs } = value as Section;
+  return { cases: new Map(Object.entries(againstIndex ?? cases ?? {})), inputs: new Map(Object.entries(inputs ?? {})) };
 }

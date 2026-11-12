@@ -157,7 +157,7 @@ describe('combineRecords against the TypeScript writers', () => {
 
   it('carries the readings each shard kept of its cases into the combined record', async () => {
     const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
-    const kept = (file: string) => ({ cases: { [`${file} > greets`]: [{ count: 1, stopped: false }, { count: 2, stopped: true, gone: [0] }] } });
+    const kept = (file: string) => ({ againstIndex: { [`${file} > greets`]: [{ count: 1, stopped: false }, { count: 2, stopped: true, gone: [0] }] } });
     for (const [shard, file] of [[shards[0]!, 'a.test.ts'], [shards[1]!, 'b.test.ts']] as const) {
       const bytes = await readFile(shard);
       await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: Buffer.from(JSON.stringify(kept(file))) }));
@@ -165,13 +165,13 @@ describe('combineRecords against the TypeScript writers', () => {
     const into = join(root, 'combined.bin');
     combineRecords(shards, into, root);
 
-    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: { ...kept('a.test.ts').cases, ...kept('b.test.ts').cases } });
+    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ againstIndex: { ...kept('a.test.ts').againstIndex, ...kept('b.test.ts').againstIndex } });
   });
 
   it('takes a case its readings and its file its inputs from the shard that ran it, over what another carried from its seed', async () => {
     const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
-    const ran = { cases: { 'a.test.ts > greets': [{ count: 1, stopped: true }, { count: 1, stopped: false }] }, inputs: { 'a.test.ts': 'two' } };
-    const carried = { cases: { 'a.test.ts > greets': [{ count: 1, stopped: false }] }, inputs: { 'a.test.ts': 'one', 'b.test.ts': 'one' } };
+    const ran = { againstIndex: { 'a.test.ts > greets': [{ count: 1, stopped: true }, { count: 1, stopped: false }] }, inputs: { 'a.test.ts': 'two' } };
+    const carried = { againstIndex: { 'a.test.ts > greets': [{ count: 1, stopped: false }] }, inputs: { 'a.test.ts': 'one', 'b.test.ts': 'one' } };
     for (const [shard, section] of [[shards[0]!, ran], [shards[1]!, carried]] as const) {
       const bytes = await readFile(shard);
       await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: Buffer.from(JSON.stringify(section)) }));
@@ -179,7 +179,7 @@ describe('combineRecords against the TypeScript writers', () => {
     const into = join(root, 'combined.bin');
     combineRecords(shards, into, root);
 
-    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: ran.cases, inputs: { 'a.test.ts': 'two', 'b.test.ts': 'one' } });
+    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ againstIndex: ran.againstIndex, inputs: { 'a.test.ts': 'two', 'b.test.ts': 'one' } });
   });
 
   // Each shard restores the cached record and runs over it; a shard's record
@@ -281,7 +281,7 @@ describe('combineRecords over shards that cut one text two ways', () => {
       const fresh = encodeAsSetExecutionIndex({ tests, modules: [{ file: 'src/twice.ts', blocks: blocks.map((block) => ({ ...block, crossings: [{ test: 0, distance: 0 }] })) }] });
       const cases = layCases({}, fresh, root, { commit: 'c0ffee', tests: [{ file, complete: true }], modules });
       // The newest reading crossed every region the index holds the case at but the second.
-      const readings = Buffer.from(JSON.stringify({ cases: { [tests[0]!.id]: [{ count: 1, stopped: false, gone: [1] }] } }));
+      const readings = Buffer.from(JSON.stringify({ againstIndex: { [tests[0]!.id]: [{ count: 1, stopped: false, gone: [1] }] } }));
       await writeTestCoverage(path, {
         version: 3, instrumentation: INSTRUMENTATION_ID, commit: 'c0ffee',
         tests: [{ file, complete: true, preconditions: [], duration: 1 }],

@@ -93,7 +93,7 @@ describe('layReadings', () => {
     expect(laid([run(false, { wire: 2 })]).section).toBeUndefined();
     const { section } = laid([run(false, { wire: 2 }), run(false, { wire: 2 }), run(false, { wire: 2 })]);
 
-    expect(JSON.parse(section!.toString('utf8'))).toEqual({ cases: { [ID]: [{ count: 3, stopped: false }] } });
+    expect(JSON.parse(section!.toString('utf8'))).toEqual({ againstIndex: { [ID]: [{ count: 3, stopped: false }] } });
   });
 
   it('keeps the count of runs read alike once a run reads otherwise', () => {
@@ -133,7 +133,7 @@ describe('layReadings', () => {
     const { section, index } = laid([run(true, { handle: 3 }), run(true, { wire: 1, handle: 3 }), run(false, { wire: 2, handle: 4 })]);
 
     expect(JSON.parse(section!.toString('utf8'))).toEqual({
-      cases: { [ID]: [{ count: 1, stopped: false }, { count: 1, stopped: true, values: [[0, lineValue(1, false)], [1, lineValue(3, false)]] }, { count: 1, stopped: true, gone: [0], values: [[1, lineValue(3, false)]] }] },
+      againstIndex: { [ID]: [{ count: 1, stopped: false }, { count: 1, stopped: true, values: [[0, lineValue(1, false)], [1, lineValue(3, false)]] }, { count: 1, stopped: true, gone: [0], values: [[1, lineValue(3, false)]] }] },
     });
     expect(readingsOf(section, index, ID)!.map(({ regions }) => regions.map(([, name, , , , value]) => [name, value]))).toEqual([
       [['wire', lineValue(2, false)], ['handle', lineValue(4, false)]],
@@ -147,6 +147,17 @@ describe('layReadings', () => {
 
     expect(() => readingsOf(Buffer.from('{"cases":'), index, ID)).toThrow(/readings section/);
     expect(() => readingsOf(Buffer.from('[]'), index, ID)).toThrow(/readings section/);
+  });
+
+  it('reads a section a build before the difference wrote, its newest reading the index\'s where it holds no regions', () => {
+    const index = run(true, { wire: 2, handle: 3 });
+    const earlier = { count: 1, stopped: false, regions: [['src/page.ts', 'wire', 'wire', 1, 1, lineValue(2, false)]] };
+    const section = Buffer.from(JSON.stringify({ cases: { [ID]: [{ count: 1, stopped: true }, earlier] } }));
+
+    expect(readingsOf(section, index, ID)).toEqual([
+      { count: 1, stopped: true, regions: [['src/page.ts', 'wire', 'wire', 1, 1, lineValue(2, false)], ['src/page.ts', 'handle', 'handle', 2, 2, lineValue(3, false)]] },
+      earlier,
+    ]);
   });
 
   it('reads a case the section names with no reading as keeping none', () => {
@@ -200,7 +211,7 @@ describe('layReadings', () => {
     const landed = run(true, { wire: 2, handle: 3 });
     const section = layReadings(undefined, undefined, landed, cases, over(run(true, { handle: 3 })));
 
-    expect(JSON.parse(section!.toString('utf8'))).toEqual({ cases: { [ID]: [{ count: 1, stopped: true, gone: [0] }] } });
+    expect(JSON.parse(section!.toString('utf8'))).toEqual({ againstIndex: { [ID]: [{ count: 1, stopped: true, gone: [0] }] } });
   });
 
   it('reads the newest reading back as it ran once the index it was laid into is re-cut', () => {

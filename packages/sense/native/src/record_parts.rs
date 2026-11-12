@@ -231,10 +231,11 @@ pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)], case
 }
 
 /// A `cases.readings` section as `case-readings.ts` writes it: each case's
-/// readings, kept as written, and what each test file ran over.
+/// readings, kept as written, and what each test file ran over. A build before
+/// the newest reading was a difference wrote the readings under `cases`.
 #[derive(Deserialize)]
 struct ReadingsIn<'a> {
-    #[serde(borrow, default)]
+    #[serde(borrow, default, rename = "againstIndex", alias = "cases")]
     cases: HashMap<String, &'a RawValue>,
     #[serde(default)]
     inputs: HashMap<String, String>,
@@ -328,7 +329,7 @@ pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], 
     files.sort_by(|left, right| order::code_unit(left, right));
     let mut bytes = b"{".to_vec();
     if !ids.is_empty() {
-        bytes.extend(b"\"cases\":{");
+        bytes.extend(b"\"againstIndex\":{");
         for (at, id) in ids.into_iter().enumerate() {
             if at > 0 {
                 bytes.push(b',');
