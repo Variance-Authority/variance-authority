@@ -287,8 +287,15 @@ describe('the committed store', () => {
     const steps = (await jobs())['variance']!.steps;
     const from = steps.findIndex((step) => step['id'] === 'pointers');
 
-    expect(from).toBeGreaterThan(steps.findIndex((step) => isAction(step)));
-    for (const step of steps.slice(from)) expect(String(step['if'])).toMatch(/^\$\{\{ (!cancelled\(\)|always\(\)) && /);
+    const first = steps.findIndex((step) => isAction(step));
+    const cached = steps.slice(first, from).flatMap((step) => (typeof step['id'] === 'string' ? [step['id']] : []));
+
+    expect(from).toBeGreaterThan(first);
+    expect(cached).not.toEqual([]);
+    for (const step of steps.slice(from)) {
+      expect(String(step['if'])).toMatch(/!cancelled\(\)|always\(\)/);
+      for (const id of cached) expect(String(step['if'])).not.toContain(`steps.${id}.`);
+    }
   });
 
   it('commits the images on a dispatch with accept, and on no other run', async () => {
