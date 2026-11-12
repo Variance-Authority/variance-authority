@@ -277,30 +277,30 @@ describe('the review is posted by a job that runs nothing of the pull request', 
 // carries it, and the todo goes green when its page prints the one step.
 describe('every printed workflow is the adopter’s steps and ours, with no recipe', () => {
   it.todo(
-    'sharing.md’s GitHub Actions job publishes the mainline’s record with no `share --publish` step behind `if: always()` — needs an action input that publishes from a single mainline run ({{GAP:a}})',
+    'sharing.md’s GitHub Actions job publishes the mainline’s record with no `share --publish` step behind `if: always()` — needs an action input that publishes from a single mainline run (#1274)',
   );
   it.todo(
-    'the visual shards on sharding.md and the action README hand their reports to the merge with no artifact steps — needs each shard’s report to reach the merge’s `reports` input without an artifact ({{GAP:g}})',
+    'the visual shards on sharding.md and the action README hand their reports to the merge with no artifact steps — needs each shard’s report to reach the merge’s `reports` input without an artifact (#1140 lists it, no issue of its own yet)',
   );
   it.todo(
-    'sharing.md’s test-selection hand-off and the skill’s selection wiring publish the suite record with no `vitest list` step and no artifact steps — needs the suite-record publish to know the collected files (#1155), and the test jobs’ records to reach it without an artifact ({{GAP:g}})',
+    'sharing.md’s test-selection hand-off and the skill’s selection wiring publish the suite record with no `vitest list` step and no artifact steps — needs the suite-record publish to know the collected files (#1155), and the test jobs’ records to reach it without an artifact (#1140 lists it, no issue of its own yet)',
   );
   it.todo(
     'cache.md’s In CI, the CLI README’s pushed-record jobs, and the carry keep and take that the skill, selecting.md and path-faster-ci.md tell the reader to run, select with no event branch and no cache step — needs action/review to select on a pull request (#1181)',
   );
   it.todo(
-    'sharding.md’s hand and receive jobs, its plan and test jobs, and the CLI README’s sharded jobs are one `uses:` each, with no `jq` — needs the plan and shard jobs as action steps, which waits on the matrix line (#1143) and on the test job selecting with no event branch (#1268), and on the record reaching each shard without an artifact ({{GAP:g}})',
+    'sharding.md’s hand and receive jobs, its plan and test jobs, and the CLI README’s sharded jobs are one `uses:` each, with no `jq` — needs the plan and shard jobs as action steps, which waits on the matrix line (#1143) and on the test job selecting with no event branch (#1268), and on the record reaching each shard without an artifact (#1276)',
   );
   it.todo(
-    'the carry merge on sharing.md, the action README, the CLI README and the skill runs with no `if:` on the event — needs one input to make the carry merge ({{GAP:f}})',
+    'the carry merge on sharing.md, the action README, the CLI README and the skill runs with no `if:` on the event — needs one input to make the carry merge (#1275)',
   );
   it.todo(
-    'the CLI README’s `variance-carried` hand-off reaches the run’s other jobs with no artifact steps — needs the record `carry take` took to reach those jobs without an artifact ({{GAP:g}})',
+    'the CLI README’s `variance-carried` hand-off reaches the run’s other jobs with no artifact steps — needs the record `carry take` took to reach those jobs without an artifact (#1276)',
   );
   it.todo(
-    'the CLI README’s Bitbucket pipeline posts its comment with no script the adopter writes — needs a shipped Bitbucket poster, or the README printing none ({{GAP:h}})',
+    'the CLI README’s Bitbucket pipeline posts its comment with no script the adopter writes — needs a shipped Bitbucket poster, or the README printing none (#1140 lists it, no issue of its own yet)',
   );
   it.todo(
-    'source-index.md and cache.md keep the source index across runs with no `actions/cache` key — needs action/review to restore and save the source index ({{GAP:i}})',
+    'source-index.md and cache.md keep the source index across runs with no `actions/cache` key — needs action/review to restore and save the source index (#1140 lists it, no issue of its own yet)',
   );
 });
