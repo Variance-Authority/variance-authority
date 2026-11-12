@@ -1,7 +1,7 @@
 # Spec 0016 — CI that has run
 
 **Missing:** a check red because stories changed, the commit-back's three
-refusals, and the Bitbucket recipe.
+refusals, and a comment on Bitbucket from a step we ship.
 **Built on:** [ADR-0019](../context/adr/0019-one-comment-that-leads-with-causes.md),
 `variance comment` and its marker, `--exit-zero-on-changes`, and the commit-back
 that is built and off by default.
