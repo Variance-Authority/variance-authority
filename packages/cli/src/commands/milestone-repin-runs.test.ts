@@ -106,6 +106,28 @@ describe('the runs record under a repinned checkout', () => {
     expect(standing.filter((stand) => stand.partly !== undefined).map((stand) => [stand.commit, stand.partly])).toEqual([[first, ['test/other.test.ts']]]);
   });
 
+  it('keeps the part a published stand ran when this checkout holds a stand of the same run', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    // Both records inherit one earlier run at the older commit, which ran `other` in part.
+    const at = '2026-01-01T00:00:00.000Z';
+    const earlier = { commit: first, files: [], partly: ['test/other.test.ts'], first: at, latest: at, runs: 1 };
+    const held = (await readCommitRuns(own))!;
+    await writeFile(commitRunsFile(own), JSON.stringify({ ...held, standing: [...(held.standing ?? []), earlier] }));
+    const read = join(home, 'laptop-cache');
+    const fetched = (await readdir(read, { recursive: true })).filter((path) => path.includes(next) && path.endsWith('.runs.json'));
+    const partial = { commit: next, latest: at, runs: 1, landings: [{ files: ['test/total.test.ts'], first: at, latest: at, runs: 1 }], standing: [earlier] };
+    await writeFile(join(read, fetched[0]!), JSON.stringify(partial));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    const standing = (await readCommitRuns(own))!.standing!;
+    expect(standing.filter((stand) => stand.partly !== undefined).map((stand) => [stand.commit, stand.partly])).toEqual([[first, ['test/other.test.ts']]]);
+  });
+
   it('writes no runs record for a record that holds none, which does not say where its tests stand', async () => {
     const { ci, worktree, own } = await laidWorktree(home);
     const next = await publishedNext(home, ci);

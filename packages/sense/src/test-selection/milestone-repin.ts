@@ -38,7 +38,7 @@ import { openTestCoverage, wholeCoverage } from './format-view.js';
 import { editsBetween, type EditOf } from './region-edit.js';
 import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
-import { partlyIn, whatLanded, type Landing } from './landings.js';
+import { partlyIn, partOf, whatLanded, type Landing } from './landings.js';
 import { landedOf, ranOn, standKey } from './standing-after.js';
 import { opensFetched, type LastFetched } from './mainline-layer.js';
 import { readOwnLayer, writeOwnLayer, type OwnLayer } from './own-layer.js';
@@ -302,10 +302,13 @@ function repinnedRuns(
   });
   const here = new Set(whatLanded(landings).files);
   // One entry per stand; a stand's time is the one run's that put it there.
-  const groups = new Map<string, { readonly stand: StandingEntry; readonly files: string[] }>();
-  const standAt = (stand: StandingEntry, files: readonly string[]): void => {
-    const group = groups.get(standKey(stand)) ?? { stand, files: [] };
+  // Two records may hold a stand of one run: its files and what it ran in part are both kept.
+  type Group = { readonly stand: StandingEntry; readonly files: string[]; readonly partly: Map<string, readonly string[] | undefined> };
+  const groups = new Map<string, Group>();
+  const standAt = ({ partly, cases, ...stand }: StandingEntry, files: readonly string[]): void => {
+    const group: Group = groups.get(standKey(stand)) ?? { stand, files: [], partly: new Map() };
     group.files.push(...files);
+    for (const file of partly ?? []) group.partly.set(file, cases?.[file]);
     groups.set(standKey(stand), group);
   };
   // The ledger says which tests are this checkout's, and the runs record where
@@ -335,8 +338,8 @@ function repinnedRuns(
   if (held.over !== undefined) standAt({ commit: held.over, files: [], assumed: true }, unplaced);
   const known = unplaced.length === 0 || held.over !== undefined;
   const standing = [...groups.values()]
-    .filter(({ stand, files: its }) => its.length > 0 || stand.partly !== undefined)
-    .map(({ stand, files: its }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder) }));
+    .filter(({ files: its, partly }) => its.length > 0 || partly.size > 0)
+    .map(({ stand, files: its, partly }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder), ...partOf(partly) }));
   const at = commit ?? held.commit;
   return {
     ...(at === undefined ? {} : { commit: at }),
