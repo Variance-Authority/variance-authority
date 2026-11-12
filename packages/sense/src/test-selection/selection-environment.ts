@@ -2,9 +2,10 @@
  * The selection a run asks for through its environment.
  *
  * `VARIANCE_AUTHORITY_SINCE` turns selection on and is `--since`; set and
- * empty, it has no fallback base. Beside it, `_AT_DISTANCE`, `_GRAIN=case`,
- * `_LOCAL=1` and `_TESTED` are `--at-distance`, `--grain case`, `--local` and
- * `--tested`, the last only beside a base that is not empty.
+ * empty, it has no fallback base. Beside it, `_AT_DISTANCE`, `_LOCAL=1` and
+ * `_TESTED` are `--at-distance`, `--local` and `--tested`, the last only beside
+ * a base that is not empty, and `_GRAIN=case` also skips the cases of a kept
+ * file that ran none of the change.
  *
  * The reading is `selectSuite` from `@variance-authority/cli`, the function
  * `variance select` prints. It parses the execution journal through
