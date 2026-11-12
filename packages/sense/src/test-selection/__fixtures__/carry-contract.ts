@@ -195,8 +195,12 @@ export function labelOf(regions: readonly Region[], at: number): string | undefi
 }
 
 /** Whether `test` enters `region`: a label it hits stands in the region's lines. */
-function enters(walk: Walk, test: string, region: Region): boolean {
-  return region.block.kind === 'module' || region.labels.some((label) => walk.hits[test]!.includes(label));
+function enters(walk: Walk, test: string, region: Region, stops?: RunOptions['stops']): boolean {
+  return region.block.kind === 'module' || region.labels.some((label) => (stops?.[test] ?? walk.hits[test]!).includes(label));
+}
+
+function stoppedOf({ stops }: RunOptions, file: string): { readonly stopped?: boolean } {
+  return stops === undefined ? {} : { stopped: stops[file] !== undefined };
 }
 
 export interface RunOptions {
@@ -212,6 +216,8 @@ export interface RunOptions {
    * back to HEAD's text after.
    */
   readonly over?: string;
+  /** Tests that stopped, each with the labels it reached first; the rest passed. Absent says nothing of how they ended. */
+  readonly stops?: Readonly<Record<string, readonly string[]>>;
 }
 
 /** A run of `tests` over the subject at HEAD, landed into the walk's record. */
@@ -232,8 +238,8 @@ export async function runTests(walk: Walk, tests: readonly string[], options: Ru
     return owner;
   };
   const entering = (region: Region): string[] => tests.filter((test) =>
-    enters(walk, test, region)
-      || all.some((inner) => lacked.has(inner.block.ordinal) && keptOwner(inner) === region.block.ordinal && enters(walk, test, inner)));
+    enters(walk, test, region, options.stops)
+      || all.some((inner) => lacked.has(inner.block.ordinal) && keptOwner(inner) === region.block.ordinal && enters(walk, test, inner, options.stops)));
   const instrumented = instrument(text, SUBJECT, SUBJECT)!;
   const coverage: TestCoverage = {
     version: 3,
@@ -259,7 +265,7 @@ export async function runTests(walk: Walk, tests: readonly string[], options: Ru
   const sets = new CrossingSets(tests.length);
   sets.intern([]);
   const fresh = encodeSetExecutionIndex({
-    tests: tests.map((file) => ({ id: caseOf(file), file, name: 'runs' })),
+    tests: tests.map((file) => ({ id: caseOf(file), file, name: 'runs', ...stoppedOf(options, file) })),
     modules: [{
       file: SUBJECT,
       blocks: kept.map(({ block }) => ({
@@ -275,7 +281,8 @@ export async function runTests(walk: Walk, tests: readonly string[], options: Ru
     sets: sets.pool(),
   });
   if (options.over !== undefined) walk.texts.push(options.over);
-  walk.actions.push({ action: 'run', tests, ...(options.lacks === undefined ? {} : { lacks: options.lacks }), text: walk.texts.length - 1 });
+  const { lacks, stops } = options;
+  walk.actions.push({ action: 'run', tests, ...(lacks === undefined ? {} : { lacks }), ...(stops === undefined ? {} : { stops }), text: walk.texts.length - 1 });
   await writeFile(resolve(walk.root, SUBJECT), text, 'utf8');
   try {
     await landRun(walk.coverageFile, coverage, walk.root, walk.cacheRoot, {
@@ -479,20 +486,4 @@ function testsOf(output: unknown): readonly string[] {
 export function touching(text: string, label: string): string {
   const call = `hit('${label}');`;
   return text.replace(call, `${call} again();`);
-}
-
-/** The exact cases the record names as its last run. */
-export async function lastCases(walk: Walk): Promise<readonly string[]> {
-  // Defer the reader so the fault-injection harness installs its edit-reading mock before the landing loads.
-  const { lastCaseRunOf } = await import('../case-landing.js');
-  return lastCaseRunOf(caseSectionsAt(walk.coverageFile))!.cases;
-}
-
-/** The same scope read by a fresh CLI process, including its before comparison. */
-export async function lastCasesByCli(walk: Walk): Promise<readonly string[]> {
-  await indexedByCli(walk);
-  const { stdout } = await run(process.execPath, [BIN, 'covering', '--file', SUBJECT, '--execution', walk.coverageFile, '--cases', 'last', '--format', 'json'], {
-    cwd: walk.root, env: cliEnv(walk), maxBuffer: 64 * 1024 * 1024,
-  });
-  return (JSON.parse(stdout) as { readonly scope: { readonly tests: readonly string[] } }).scope.tests;
 }

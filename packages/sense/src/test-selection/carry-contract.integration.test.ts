@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
+import { lastCasesByCli, outcomesByCli } from './__fixtures__/carry-cases.js';
 import { comparedByCli } from './__fixtures__/carry-comparison.js';
-import { lastCasesByCli, selectedByCli } from './__fixtures__/carry-contract.js';
+import { selectedByCli } from './__fixtures__/carry-contract.js';
 import { CONTRACT_SEED, generated, seedsOr } from './__fixtures__/carry-histories.js';
 import { ranByCli } from './__fixtures__/carry-ran.js';
 import { sinceByCli } from './__fixtures__/carry-since.js';
@@ -17,6 +18,7 @@ import {
   ranOverAnotherTestsRegion,
   ranOverThenCommittedElsewhere,
   ranOverThenKeptForgotten,
+  readingsThenBranchDeletedElsewhere,
   renamedThenEdited,
   typeWrittenThenRunElsewhere,
 } from './__fixtures__/carry-stories.js';
@@ -27,6 +29,10 @@ import { forgetKept } from './__fixtures__/carry-tree.js';
 describe('a record carried through a history, asked by the CLI after a restart', () => {
   it('keeps compact last-run membership through a carry and a later partial run', async () => {
     await lastRunAfterCarry(selectedByCli, lastCasesByCli);
+  });
+
+  it('reads back each reading of a case as it ran once a run of other tests re-cuts the region one of them crossed', async () => {
+    await readingsThenBranchDeletedElsewhere(outcomesByCli);
   });
 
   it('selects an edit in each effect by the test that ran it after a comment and a run of other tests', async () => {

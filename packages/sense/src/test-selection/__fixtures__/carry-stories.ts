@@ -12,8 +12,9 @@ import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect } from 'vitest';
 import { caseSectionsAt } from '../case-record.js';
+import type { Outcomes } from './carry-cases.js';
 import { keepRecord, type Compare } from './carry-comparison.js';
-import { caseOf, commit, flagged, held, noted, owed, runElsewhere, runTests, selected, touching, walking, type Walk } from './carry-contract.js';
+import { caseOf, commit, flagged, held, noted, owed, regionsOf, runElsewhere, runTests, selected, SUBJECT, touching, walking, type Walk } from './carry-contract.js';
 import type { Ran, Stood } from './carry-ran.js';
 import { renamedSubject, type Since } from './carry-since.js';
 
@@ -434,5 +435,34 @@ export async function renamedThenEdited(ask: Since): Promise<void> {
     await writeFile(join(walk.root, moved), touching(walk.text, 'first'));
 
     check(walk, 'an edit under the name the mainline gave it', await ask(walk, mainline), []);
+  });
+}
+
+/**
+ * A case that passed once through the first branch and stopped once through
+ * the second, then the first branch deleted under a run of other tests, which
+ * re-cuts the region the case crossed out of the index its readings were laid
+ * against. Each reading is read back as it ran: the passing one reached the
+ * deleted branch, at the lines it stood at, and the stopping one the other.
+ */
+export async function readingsThenBranchDeletedElsewhere(read: Outcomes): Promise<void> {
+  const reached = (labels: readonly string[]) => regionsOf(branches()).filter(({ block, labels: within }) =>
+    block.kind === 'module' || within.some((label) => labels.includes(label)));
+  const only = (one: readonly string[], other: readonly string[]) => {
+    const others = new Set(reached(other).map(({ block }) => block.ordinal));
+    return reached(one).filter(({ block }) => !others.has(block.ordinal))
+      .map(({ block }) => ({ file: SUBJECT, name: block.name, path: block.path, startLine: block.startLine!, endLine: block.endLine! }));
+  };
+  const passed = ['top', 'body', 'one'];
+  const threw = ['top', 'body', 'two'];
+  const ran = { file: A, name: 'runs', passed: 1, threw: 1, onlyPassed: only(passed, threw), onlyThrew: only(threw, passed), moved: [], unsteady: 0, single: true };
+  await walking(branches(), { [A]: passed }, async (walk) => {
+    await runTests(walk, [A], { stops: {} });
+    await runTests(walk, [A], { stops: { [A]: threw } });
+    check(walk, 'as they ran', await read(walk, A), ran);
+
+    await commit(walk, branches({ one: false }), 'the first branch deleted');
+    await runElsewhere(walk);
+    check(walk, 'carried', await read(walk, A), ran);
   });
 }
