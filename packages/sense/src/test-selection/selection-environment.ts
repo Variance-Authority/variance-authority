@@ -1,16 +1,10 @@
 /**
  * The selection a run asks for through its environment.
  *
- * `VARIANCE_AUTHORITY_SINCE` turns selection on and means what `--since` means:
- * the base to measure from when the record names no commit of its own. Set and
- * empty, it turns selection on with no fallback base. `VARIANCE_AUTHORITY_AT_DISTANCE`
- * cuts the selection to one leg by import hops, as `--at-distance` does, and is
- * read only beside it. `VARIANCE_AUTHORITY_GRAIN=case` also skips, inside each
- * file that runs, the cases that ran none of the change; the file is the grain
- * otherwise. `VARIANCE_AUTHORITY_LOCAL=1` is `--local`: a record that cannot
- * narrow falls to the changed files' importers or packages instead of every file.
- * `VARIANCE_AUTHORITY_TESTED` is `--tested`: the pull request a merge queue
- * merged onto the base, read only beside a base that is not empty.
+ * `VARIANCE_AUTHORITY_SINCE` turns selection on and is `--since`; set and
+ * empty, it has no fallback base. Beside it, `_AT_DISTANCE`, `_GRAIN=case`,
+ * `_LOCAL=1` and `_TESTED` are `--at-distance`, `--grain case`, `--local` and
+ * `--tested`, the last only beside a base that is not empty.
  *
  * The reading is `selectSuite` from `@variance-authority/cli`, the function
  * `variance select` prints. It parses the execution journal through
