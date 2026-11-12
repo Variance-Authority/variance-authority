@@ -187,7 +187,8 @@ export async function suiteEntryOf(
   // The cases travel in the record; what names this checkout's last run does not.
   let shared = sharedRecord(record);
   let retired: readonly string[] = [];
-  let partial = false;
+  // A part of the suite stays partial without coverage, so a whole run replaces it.
+  let partial = uncovered && options.partial === true;
   // A record whose run instrumented no module narrows no reader, so it has no
   // whole run to show and is published under the commit of its cases.
   if (options.whole === true && !uncovered) {

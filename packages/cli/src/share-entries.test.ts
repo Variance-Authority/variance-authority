@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { caseSectionsOf, commitRunsFile, decodeTestCoverage, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseSectionsOf, commitRunsFile, decodeTestCoverage, recordOfCases, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { report } from './commands/push-fixture.js';
 import {
   REPORT_ENTRY,
@@ -282,6 +282,20 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
     expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/kept.test.ts', 'test/new.test.ts']) })).toMatchObject({
       name: 'suite-v1/unit',
     });
+  });
+
+  it('marks a run of part of the suite that instrumented no module partial, so a whole one replaces it', async () => {
+    const root = join(dir, 'caseless-queue');
+    await mkdir(root, { recursive: true });
+    execFileSync('git', ['init', '--quiet', root]);
+    await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    const coverage = testCoverageFile(root, { suite: 'unit' });
+    await mkdir(dirname(coverage), { recursive: true });
+    const last = { commit: AT.commit, at: '2026-01-01T00:00:00.000Z', files: ['test/total.test.ts'], began: true, cases: [] };
+    await writeFile(coverage, recordOfCases({ index: Buffer.from('cases'), last: Buffer.from(JSON.stringify(last)) }));
+
+    expect(await suiteEntryOf(root, 'unit', { commit: AT.commit }, { whole: true, partial: true })).toMatchObject({ commit: AT.commit, partial: true });
+    expect(await suiteEntryOf(root, 'unit', { commit: AT.commit }, { whole: true })).not.toHaveProperty('partial');
   });
 
   it('is not published for a mainline when nothing says the whole suite ran, and says what was missing', async () => {
