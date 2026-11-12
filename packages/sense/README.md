@@ -1390,7 +1390,10 @@ handles where the account goes from there. Nothing in the head writes a file. A
 request carrying no journey is one the run did not drive; its crossings join the
 process's rather than the nearest subject's. With a watcher named, that request
 is reported to the watcher as an execution of its own, which `variance ask ran`
-lists.
+lists. Handed `trace` as well, the head reports a request nothing wrapped in
+`enter` under its trace id: one execution per trace, which is one per page view
+where a browser SDK propagates its trace. A `trace` with neither a watcher nor
+`parts` is refused when the head starts.
 
 A journey's scope ends when what the body returned *settles*, not when the body
 returns, which is the only arrangement under which the code after an `await` is

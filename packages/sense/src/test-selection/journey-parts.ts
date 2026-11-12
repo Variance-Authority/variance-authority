@@ -18,6 +18,29 @@ import type { JourneyCollector, JourneyTrace } from './journey.js';
 import { UNATTRIBUTED } from './stitch.js';
 
 /**
+ * Which bucket a probe logs into, for either head: the journey `running` names,
+ * else the process's. What `enter` named comes first in `running` and the trace
+ * after it, so a test's request stays the test's. The last answer is kept:
+ * consecutive probes almost always share a journey, and a string compare is
+ * cheaper than a `Map.get`.
+ */
+export function journeyScope<Bucket extends { readonly closed: boolean }>(
+  running: () => string | undefined,
+  bucketFor: (journey: string) => Bucket,
+): () => Bucket {
+  let lastJourney = UNATTRIBUTED;
+  let lastBucket = bucketFor(UNATTRIBUTED);
+  return () => {
+    const journey = running() ?? UNATTRIBUTED;
+    if (journey !== lastJourney || lastBucket.closed) {
+      lastJourney = journey;
+      lastBucket = bucketFor(journey);
+    }
+    return lastBucket;
+  };
+}
+
+/**
  * How a collector a build installed learns the trace afterwards: the build runs
  * before the application's tracing exists, and the application's own
  * `collectJourneys({ trace })` is the first place that can name it.
@@ -82,16 +105,7 @@ export function writeParts(
     }
     return bucket;
   };
-  let lastJourney = UNATTRIBUTED;
-  let lastBucket = bucketFor(UNATTRIBUTED);
-  engine.scope((): Bucket => {
-    const journey = store.getStore() ?? trace?.current() ?? UNATTRIBUTED;
-    if (journey !== lastJourney || lastBucket.closed) {
-      lastJourney = journey;
-      lastBucket = bucketFor(journey);
-    }
-    return lastBucket;
-  });
+  engine.scope(journeyScope(() => store.getStore() ?? trace?.current(), bucketFor));
 
   const common = new Map<ModuleId, Set<number>>();
   const keep = (id: ModuleId, ordinal: number): void => {

@@ -80,8 +80,15 @@ import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
-import { isThenable, TOLD, writeParts } from './journey-parts.js';
+import { isThenable, journeyScope, TOLD, writeParts } from './journey-parts.js';
 import { journeyOf, type JourneyTrace } from './journey-carrier.js';
+import {
+  JOURNEY_HEAD_VARIABLE,
+  JOURNEY_PARTS_VARIABLE,
+  JOURNEY_VARIABLE,
+  type JourneyCollector,
+  type JourneyCollectorOptions,
+} from './journey-options.js';
 
 /**
  * The join, re-exported so one import serves a driver: a participant that
@@ -120,23 +127,14 @@ export {
 /** Where a service with no host filesystem sends its parts. */
 export { receiveParts, type PartsReceiver } from './parts-receiver.js';
 
-/**
- * Whether this process reports at all. Absent, a head installs nothing.
- *
- * Any value will do — where to report is a fact about the request, carried in by
- * whoever drove it, and not something an environment can know in advance.
- */
-export const JOURNEY_VARIABLE = 'VARIANCE_AUTHORITY_JOURNEYS';
-
-/** What a head calls itself, when the process is started rather than configured. */
-export const JOURNEY_HEAD_VARIABLE = 'VARIANCE_AUTHORITY_HEAD';
-
-/**
- * The directory a head writes its parts to, when the process is started rather
- * than configured. Set, the head writes what each journey ran there and says
- * nothing over the wire.
- */
-export const JOURNEY_PARTS_VARIABLE = 'VARIANCE_AUTHORITY_PARTS';
+/** What a head is told and what it hands back. */
+export {
+  JOURNEY_HEAD_VARIABLE,
+  JOURNEY_PARTS_VARIABLE,
+  JOURNEY_VARIABLE,
+  type JourneyCollector,
+  type JourneyCollectorOptions,
+} from './journey-options.js';
 
 /**
  * How many journeys a head remembers the way home for after their scopes
@@ -150,81 +148,18 @@ export function mintJourney(): string {
   return randomUUID();
 }
 
-export interface JourneyCollectorOptions {
-  /**
-   * What this head calls itself. Defaults to {@link JOURNEY_HEAD_VARIABLE}, then
-   * `head`. It is the `label` its build gave `testSelectionProbes()`.
-   */
-  readonly head?: string;
-  /**
-   * Whether to install the engine at all. Defaults to whether
-   * {@link JOURNEY_VARIABLE} is set. False installs nothing and makes
-   * {@link JourneyCollector.enter} the identity — which is how this call
-   * survives being left in a production build.
-   */
-  readonly enabled?: boolean;
-  /**
-   * A directory to write this head's parts to, or the `http(s)://` address of
-   * a {@link receiveParts} that writes them for a runtime with no host
-   * filesystem. Defaults to
-   * {@link JOURNEY_PARTS_VARIABLE}. A part is what one journey ran here, as a
-   * case frame owned by the journey id alone; the case that handed the id out
-   * is joined to it when its run is finalized. Set, it enables the head.
-   */
-  readonly parts?: string;
-  /**
-   * The application's own tracing, which carries the journey as its trace id:
-   * `sentry(Sentry)` or `openTelemetry(api)`, handed the SDK the application
-   * initialized. Set, the head asks it which journey is running wherever
-   * {@link JourneyCollector.enter} did not say, so a service whose tracing
-   * continues the incoming trace needs no `enter` when its parts go to a
-   * directory. Over HTTP, `enter(undefined, ...)` holds each request open until
-   * its frame is sent. Each case runs inside that trace: the same SDK named as
-   * `trace` to `withJourneyCoverage`, as `sense/case-journey` shows.
-   *
-   * A trace carries an id and no way home, so this writes {@link parts}.
-   */
-  readonly trace?: JourneyTrace;
-  /**
-   * Where a watcher listens: the address `variance watch` prints. Defaults to
-   * {@link WATCHER_VARIABLE}, and is read only by an enabled head. A request
-   * that carries no way home is reported there as an execution of its own, so
-   * an application used by hand says what each request entered. A request a
-   * case drove still answers that case, and a watcher hears nothing of it.
-   */
-  readonly watcher?: string;
-}
-
-/** A head's participation in a run, or its cheap absence. */
-export interface JourneyCollector {
-  /** False when nothing said this process reports: nothing installed, nothing held. */
-  readonly collecting: boolean;
-  readonly head: string;
-  /**
-   * Run `body` as part of the execution the request belongs to, so everything it
-   * enters — including whatever it awaits — is attributed to that subject and to
-   * no other.
-   *
-   * `carried` is the request's `Cookie` header; a head with a request-scoped
-   * cookie accessor of its own may pass the pairs it holds joined the same way.
-   * A request carrying neither an execution nor a way home is honest and is not
-   * an error: it is something the run did not drive, and its crossings go to the
-   * unattributed bucket rather than to whichever subject happened to be nearby.
-   */
-  readonly enter: <Result>(carried: string | undefined, body: () => Result) => Result;
-  /** Report everything held so far, including crossings still inside open scopes. */
-  readonly flush: () => Promise<void>;
-  /** Stop collecting and restore what was on the global before. */
-  readonly close: () => Promise<void>;
-}
-
 const INSTALLED: unique symbol = Symbol.for('variance-authority.journeys');
 
 type Told = JourneyCollector & { readonly [TOLD]?: (trace: JourneyTrace) => void };
 
 const untraceable = (trace: JourneyTrace): string =>
-  `a ${trace.name} trace carries the journey and no way home, so a head it feeds writes parts: ` +
-  `set \`parts\` or ${JOURNEY_PARTS_VARIABLE}`;
+  `a ${trace.name} trace carries the journey and no way home, so a head it feeds writes parts or reports to a watcher: ` +
+  `set \`parts\` or ${JOURNEY_PARTS_VARIABLE}, or \`watcher\` or ${WATCHER_VARIABLE}`;
+
+const sameTrace = (held: JourneyTrace, by: JourneyTrace): void => {
+  if (by.name === held.name) return;
+  throw new Error(`a ${by.name} trace reached a reporting head that reads a ${held.name} trace, and a head reads one trace: close it before another starts`);
+};
 
 /**
  * Install the journey-keyed collector in this process.
@@ -251,15 +186,21 @@ export function collectJourneys(options: JourneyCollectorOptions = {}): JourneyC
   if (installed !== undefined) {
     if (options.trace !== undefined) {
       const tell = installed[TOLD];
-      if (tell === undefined) throw new Error(untraceable(options.trace));
+      if (tell === undefined) {
+        throw new Error(`a ${options.trace.name} trace reached a reporting head installed without it, and such a head takes its trace only as it starts: hand \`trace\` to the call that installs it`);
+      }
       tell(options.trace);
     }
     return installed;
   }
   const collector = installJourneys(options);
   if (!collector.collecting) return collector;
+  const trace = options.trace;
   const held: Told = {
     ...collector,
+    // A reporting head keeps the trace it started with: an adapter is made anew by each
+    // bootstrap, so the name says it is the same one, and any other is refused.
+    ...(trace !== undefined && !(TOLD in collector) ? { [TOLD]: (by: JourneyTrace) => sameTrace(trace, by) } : {}),
     close: async () => {
       if (realm[INSTALLED] === held) delete realm[INSTALLED];
       await collector.close();
@@ -274,7 +215,10 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   const parts = options.parts ?? process.env[JOURNEY_PARTS_VARIABLE];
   if (parts !== undefined && options.enabled !== false) return writeParts(head, parts, journeyOf, options.trace);
   const enabled = options.enabled ?? process.env[JOURNEY_VARIABLE] !== undefined;
-  if (enabled && options.trace !== undefined) throw new Error(untraceable(options.trace));
+  // Empty is unset, as a run reads it: an unset variable interpolated into an environment arrives empty.
+  const watcher = (options.watcher ?? process.env[WATCHER_VARIABLE]) || undefined;
+  // A watcher's address is the way home a trace lacks; with neither, a traced head would hold what nobody reads.
+  if (enabled && options.trace !== undefined && watcher === undefined) throw new Error(untraceable(options.trace));
   if (!enabled) {
     return {
       collecting: false,
@@ -285,8 +229,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     };
   }
 
-  // Empty is unset, as a run reads it: an unset variable interpolated into an environment arrives empty.
-  const watcher = (options.watcher ?? process.env[WATCHER_VARIABLE]) || undefined;
+  const trace = options.trace;
   // Said now: a head that tells an address nothing looks like a quiet application.
   const watching = watcher === undefined ? undefined : channelTo(watcher, UNATTRIBUTED);
   const watched = watching?.home;
@@ -295,6 +238,12 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   }
   const store = new AsyncLocalStorage<string>();
   const channels = new Map<string, Channel>();
+  // Most recent last, so the way home forgotten first is the one released longest ago.
+  const remember = (journey: string, home: Channel): void => {
+    channels.delete(journey);
+    channels.set(journey, home);
+    if (channels.size > HOMES) channels.delete(channels.keys().next().value!);
+  };
   const sending = new Set<Promise<void>>();
   // Counted apart: a report the watcher missed is no test's loss, nor a test's the watcher's.
   const lost = { watcher: 0, drivers: 0 };
@@ -320,18 +269,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     }
     return bucket;
   };
-  // The last answer, kept: consecutive probes almost always share a journey,
-  // and a string compare is cheaper than a `Map.get`.
-  let lastJourney = UNATTRIBUTED;
-  let lastBucket = bucketFor(UNATTRIBUTED);
-  engine.scope((): Bucket => {
-    const journey = store.getStore() ?? UNATTRIBUTED;
-    if (journey !== lastJourney || lastBucket.closed) {
-      lastJourney = journey;
-      lastBucket = bucketFor(journey);
-    }
-    return lastBucket;
-  });
+  engine.scope(journeyScope(() => store.getStore() ?? trace?.current(), bucketFor));
 
   const send = (over: Channel, account: Omit<JourneyAccount, 'version' | 'instrumentation' | 'head' | 'lost'>): void => {
     const to = over.home === watched ? 'watcher' : 'drivers';
@@ -414,19 +352,25 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
    * A crossing for a journey whose scope already released: a promise the
    * handler started and did not return, still running in the request's context.
    * It belongs to that request, so it goes home as a scope of its own, opened
-   * now and settled on the next turn of the loop. One whose way home was
-   * forgotten counts as lost, which the driver reads as an account that never
-   * arrived.
+   * now and settled on the next turn of the loop. One the trace named, where no
+   * `enter` ran, goes to the watcher as an execution of that name. Any other
+   * whose way home was forgotten counts as lost, which the driver reads as an
+   * account that never arrived.
    */
   function straggle(journey: string): void {
-    const over = channels.get(journey);
+    let over = channels.get(journey);
+    if (over === undefined && watcher !== undefined && store.getStore() === undefined) {
+      over = channelTo(watcher, journey)!;
+      remember(journey, over);
+    }
     if (over === undefined) {
       lost.drivers += 1;
       return;
     }
     depth.set(journey, 1);
     // Off the probe's own stack: this runs inside an instrumented call.
-    queueMicrotask(() => send(over, { scope: 'journey', opened: 1, modules: [] }));
+    const home = over;
+    queueMicrotask(() => send(home, { scope: 'journey', opened: 1, modules: [] }));
     setImmediate(() => release(journey));
   }
 
@@ -463,10 +407,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
           : channelTo(watcher, mintJourney());
       const journey = channel?.journey;
       if (channel === undefined || journey === undefined) return body();
-      // Most recent last, so the one forgotten first is the one released longest ago.
-      channels.delete(journey);
-      channels.set(journey, channel);
-      if (channels.size > HOMES) channels.delete(channels.keys().next().value!);
+      remember(journey, channel);
       const opening = !depth.has(journey);
       depth.set(journey, (depth.get(journey) ?? 0) + 1);
       // Said before the body runs, so the driver knows to wait for this scope

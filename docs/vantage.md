@@ -246,6 +246,24 @@ createServer((request, response) => {
 VARIANCE_AUTHORITY_JOURNEYS=1 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 node dist/server.js
 ```
 
+A framework that owns the request leaves no handler to wrap. Where the
+application already runs Sentry or OpenTelemetry, hand that SDK to the head as
+`trace` and leave `enter` out. `openTelemetry(api)` takes the place of
+`sentry(Sentry)` for an OpenTelemetry provider:
+
+```ts
+import * as Sentry from '@sentry/node';
+import { collectJourneys, sentry } from '@variance-authority/sense/journey';
+
+collectJourneys({ head: 'pricing', trace: sentry(Sentry) });
+```
+
+The listing is then one execution per trace, named by the trace id, and not
+one per request. A browser SDK that propagates its trace to the server makes
+that one execution per page view: every request the page made is listed
+together. A head handed a `trace` refuses to start without the watcher's
+address, unless it [writes parts](across-dimensions.md) for a test run.
+
 Use the application, then run `variance ask ran` from the repository it was
 built from. It needs no `variance.config.json`. Rebuild after you edit a file:
 a file changed since the build is listed with a count of its regions and no
