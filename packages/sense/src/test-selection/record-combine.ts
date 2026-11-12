@@ -10,30 +10,13 @@ import { repositoryRoot } from './repository-root.js';
 
 /**
  * The shard records at `shards` folded into the one record at `output`, as one
- * unsharded run of them would have written it: coverage, case index, before
- * layer, last-run layer and Eyes. The bytes do not depend on the order the
- * shards are named in.
+ * unsharded run of them would have written it, whatever order they are named
+ * in. Every fold of shards in the product is this one, in the native addon.
  *
- * Shards that are not of one run are refused by name: two instrumentations,
- * one test file in two shards, or one module at two texts. So is a record this
- * build cannot read whole. Shards that started from different records — two
- * commits, two before layers, two texts of one module before them, or two
- * records their runs were laid over and split the suite by — fail the build as
- * unstable sharding, naming both records: the shards restored two cached
- * records, and a test may have run in no shard. Each record names the one its
- * run was laid over (`record-base.ts`), and one with no `run.base` part is
- * refused. Every fold of shards in the product is this one, in the native addon.
- *
- * A module the shards describe two ways over one text is one a shard cut and
- * another carried from a record an older writer cut. Those alone are read from
- * the checkout `root` sits in and cut again, and the fold carries every shard's
- * crossings onto that cut by address; a test whose crossings have no place in
- * it is owed a run. A module the checkout holds at another text, or not at
- * all, is refused.
- *
- * Each case's readings are folded whole and stored again against the combined
- * case index, so a reading reads back as it ran however the fold cut its
- * case.
+ * Shards that are not of one run, or a record this build cannot read whole,
+ * are refused by name. Shards that started from different records fail as
+ * unstable sharding, naming both, since a test may have run in no shard. Each
+ * record names the one its run was laid over (`record-base.ts`).
  */
 export function combineRecords(shards: readonly string[], output: string, root: string): NativeCombinedRecord {
   const combine = native()?.combineRecords;
@@ -44,6 +27,10 @@ export function combineRecords(shards: readonly string[], output: string, root: 
   const readings = wholeReadings(paths);
   const folded = combine(paths, resolve(output), undefined, readings);
   if (folded.disputed == null) return storedAgainstIndex(resolve(output), folded);
+  // A module the shards describe two ways over one text is one a shard cut and another carried
+  // from a record an older writer cut. Those alone are cut again from the checkout `root` sits
+  // in, and the fold carries every shard's crossings onto that cut by address; a module the
+  // checkout holds at another text, or not at all, is refused.
   const checkout = repositoryRoot(root);
   const onDisk = new Map<string, string>();
   for (const file of folded.disputed.files) {
@@ -80,6 +67,7 @@ function storedAgainstIndex(output: string, folded: NativeCombinedRecord): Nativ
   const sections = caseSectionsOf(bytes);
   if (sections.readings === undefined || sections.index === undefined) return folded;
   // Whole readings read back alike against any index, so a reader that opens `output` before the rename reads them right.
+  // Not `writeCoverageBytes`: it is async, and `combineRecords` is a synchronous published export.
   const stored = `${output}.${process.pid}.readings`;
   const { readings: whole, ...rest } = sections;
   const readings = readingsOver(whole, NO_CASES, sections.index);
