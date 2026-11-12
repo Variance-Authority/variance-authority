@@ -2748,6 +2748,7 @@ same under every host:
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/journal` | instrumenting your own build and recording what a driven page executed | a Vite-compatible build, and a driver that can evaluate in the page |
 | `@variance-authority/sense/journey` | carrying one execution across processes, so a service's crossings join the subject that caused them | a service running Node, its own instrumented build, and a driver that sets a cookie |
+| `@variance-authority/sense/page` | `reportPage(address)`, a page used by hand reporting what it ran to a watcher, one execution per load, click and submit | a browser, a build that placed the probes, and the address `variance watch` printed; without one it installs nothing |
 
 ## Related contracts
 

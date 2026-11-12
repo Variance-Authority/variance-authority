@@ -5,7 +5,8 @@
  * half runs against a page and that half against the disk.
  */
 
-import { EXECUTION_GLOBAL, type ExecutionCollector, type ExecutionJournal } from './probes.js';
+import { EXECUTION_GLOBAL } from './execution-global.js';
+import type { ExecutionCollector, ExecutionJournal } from './probes.js';
 
 /** The one thing a driver has to be able to do, so nothing here imports a driver. */
 export interface EvaluatingPage {

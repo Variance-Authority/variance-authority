@@ -76,8 +76,8 @@ import {
   type TestCoverage,
 } from './index.js';
 
+export { EXECUTION_GLOBAL } from './execution-global.js';
 export {
-  EXECUTION_GLOBAL,
   executionCollectorSource,
   testSelectionProbes,
   type ExecutedModule,

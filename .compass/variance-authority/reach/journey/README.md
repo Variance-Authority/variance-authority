@@ -70,6 +70,9 @@ first.
 
 - `packages/sense/src/test-selection/journey.ts` — `collectJourneys`,
   `mintJourney`, and the per-execution factory behind the probe's global
+- `packages/sense/src/test-selection/page.ts` — `reportPage`, a page used by
+  hand as its own driver: it names an execution per load and per click or
+  submit, leaves the two cookies, and reports itself as a head
 - `packages/sense/src/test-selection/stitch.ts` — `stitchJourneys`, the driver's
   join, and the name unattributed regions report under
 - `packages/sense/src/test-selection/journey-driver.ts` — `driveJourneys`, the

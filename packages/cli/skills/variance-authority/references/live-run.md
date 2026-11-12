@@ -67,6 +67,16 @@ it was started with `VARIANCE_AUTHORITY_JOURNEYS=1` and the same
 `VARIANCE_AUTHORITY_VANTAGE` assignment: the first turns the reporting on, the
 second says where it goes. Each request no test drove is one execution.
 
+A page reports too when its build placed the probes and it calls
+`reportPage(address)` from `@variance-authority/sense/page`, with the address
+`variance watch` printed. Each load is then one execution with a `head page`,
+and so is each click or submit; a click and the submit it causes are one. A
+server the click reached is a second head under the same id. A request sent
+after the next click is listed under that later click, and the request for a
+document under the last execution of the page it replaces.
+Without the call, nothing the browser ran is listed. The call installs nothing
+for an address that is absent or not `http` on this machine.
+
 ```bash
 variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE"
 variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE" --name quote --limit 1

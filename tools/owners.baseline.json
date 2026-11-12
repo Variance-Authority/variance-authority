@@ -485,6 +485,11 @@
     "count": 2
   },
   {
+    "idiom": "timer",
+    "at": "packages/sense/src/test-selection/page.ts",
+    "count": 2
+  },
+  {
     "idiom": "digest",
     "at": "packages/sense/src/test-selection/record-base.ts",
     "count": 1
@@ -713,6 +718,11 @@
     "idiom": "timer",
     "at": "packages/cli/src/commands/index-command.integration.test.ts",
     "count": 2
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "packages/cli/src/commands/ran-page.chromium.test.ts",
+    "count": 3
   },
   {
     "idiom": "fresh-page",

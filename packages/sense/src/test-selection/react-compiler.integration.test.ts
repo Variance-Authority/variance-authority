@@ -6,7 +6,8 @@ import { transformAsync } from '@babel/core';
 import { build, type Plugin } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deriveModules } from './captured-modules.js';
-import { EXECUTION_GLOBAL, type ExecutionJournal, testSelectionProbes } from './probes.js';
+import { EXECUTION_GLOBAL } from './execution-global.js';
+import { type ExecutionJournal, testSelectionProbes } from './probes.js';
 
 /**
  * React Compiler, run through Babel ahead of Vite's own transforms the way
