@@ -1379,8 +1379,9 @@ export function handled<Result>(cookie: string | undefined, run: () => Result): 
 `heads`, and defaults to `VARIANCE_AUTHORITY_HEAD`; `enabled` defaults to whether
 `VARIANCE_AUTHORITY_JOURNEYS` is set, so one `env` block configures a service
 that names neither. `watcher` is the address of a watcher, defaults to
-`VARIANCE_AUTHORITY_VANTAGE`, and enables the head by being set. Told none of
-them, `collectJourneys` installs nothing and `enter`
+`VARIANCE_AUTHORITY_VANTAGE`, and is read only by an enabled head; an address
+the head cannot report to is refused when it starts. Not enabled,
+`collectJourneys` installs nothing and `enter`
 is the identity, so the call above ships to production unconditionally.
 
 `enter` takes the request's `Cookie` header;

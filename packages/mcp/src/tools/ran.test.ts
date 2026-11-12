@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { JOURNEY_VARIABLE } from '@variance-authority/sense/journey';
 import type { VantageState, WatchedExecution } from '@variance-authority/vantage';
 import { handle, VANTAGE } from '../protocol.js';
-import { ran } from './ran.js';
+import { JOURNEYS, ran } from './ran.js';
 import type { CutModules } from './tool.js';
 
 const ADDRESS = 'http://127.0.0.1:53411';
@@ -50,16 +51,16 @@ const CUT: CutModules = new Map([
       [ACTIONS, {
         instrumented: true,
         blocks: [
-          { ordinal: 0, name: '', path: '', startLine: 1 },
-          { ordinal: 1, name: 'toggle', path: '', startLine: 15 },
+          { ordinal: 0, name: '', path: 'module', startLine: 1 },
+          { ordinal: 1, name: 'toggle', path: 'entry', startLine: 15 },
           { ordinal: 2, name: 'toggle', path: 'if#0/else', startLine: 18 },
         ],
       }],
       [STORE, {
         instrumented: true,
         blocks: [
-          { ordinal: 0, name: '', path: '', startLine: 1 },
-          { ordinal: 3, name: 'Store/flip', path: '', startLine: 40 },
+          { ordinal: 0, name: '', path: 'module', startLine: 1 },
+          { ordinal: 3, name: 'Store/flip', path: 'entry', startLine: 40 },
         ],
       }],
       // Its text moved on since the application was built.
@@ -80,20 +81,51 @@ describe('variance_ran', () => {
     expect(ran.cuts?.(state(), {})).toEqual(new Map([[PROBES, [PAGE, ACTIONS, STORE]]]));
   });
 
+  it('asks for the modules of the executions it will list, and of every one when a name is matched', () => {
+    expect(ran.cuts?.(state(), { limit: 1 })).toEqual(new Map([[PROBES, [ACTIONS, STORE]]]));
+    expect(ran.cuts?.(state(), { limit: 1, name: 'flip' })).toEqual(new Map([[PROBES, [PAGE, ACTIONS, STORE]]]));
+  });
+
   it('lists one execution per request, oldest first, each region as file:line name', () => {
     const text = ran.run(state(), {}, { modules: CUT });
     expect(text).toContain(`2 execution(s) at ${ADDRESS}`);
     expect(text.indexOf('request-0')).toBeLessThan(text.indexOf('request-1'));
-    expect(text).toContain('app/actions.ts:15 toggle');
+    expect(text).toContain('app/actions.ts:15 toggle entry');
     expect(text).toContain('app/actions.ts:18 toggle if#0/else');
-    expect(text).toContain('lib/store.ts:40 Store/flip');
+    expect(text).toContain('lib/store.ts:40 Store/flip entry');
   });
 
   it('lists what the process entered outside any request apart from every request', () => {
     const text = ran.run(state(), {}, { modules: CUT });
     const [requests, common] = text.split('Ran outside any request');
     expect(requests).not.toContain('lib/store.ts:1');
-    expect(common).toContain('lib/store.ts:1 (module)');
+    expect(common).toContain('lib/store.ts:1 module');
+  });
+
+  it('narrows what the process ran as it narrows the executions, and counts past a cap', () => {
+    expect(ran.run(state(), { file: 'app/page.tsx' }, { modules: CUT })).not.toContain('Ran outside any request');
+    expect(ran.run(state(), { file: 'lib/store.ts' }, { modules: CUT })).toContain('lib/store.ts:1 module');
+    const many = Array.from({ length: 45 }, (_, ordinal) => ({ ordinal, name: `f${ordinal}`, path: 'entry', startLine: ordinal + 1 }));
+    const wide = ran.run(
+      state({ common: [{ head: 'web', instrumentation: PROBES, modules: [{ id: STORE, entered: many.map((one) => one.ordinal) }] }] }),
+      {},
+      { modules: new Map([[PROBES, new Map([[STORE, { instrumented: true, blocks: many }]])]]) },
+    );
+    expect(wide).toContain('lib/store.ts:40 f39 entry');
+    expect(wide).not.toContain('f40 entry');
+    expect(wide).toMatch(/and 5 more/);
+  });
+
+  it('says a request reached a head and none of its probed code', () => {
+    const quiet = { id: 'request-9', ordinal: 9, open: false, heads: [{ head: 'web', instrumentation: PROBES, modules: [] }] };
+    const text = ran.run(state({ executions: [quiet] }), {}, { modules: CUT });
+    expect(text).toContain('request-9');
+    expect(text).toContain('ran no code the build placed a probe in');
+  });
+
+  it('reads a module its build marked as loaded as loaded, and never as changed', () => {
+    const text = ran.run(state({ executions: [execution(0, { 'lib/big.ts@~dd44': [] })] }), {}, { modules: CUT });
+    expect(text).toContain('lib/big.ts — 0 region(s), not named: its build placed no probe in it');
   });
 
   it('says a file changed since the build, and never names its regions from the new text', () => {
@@ -130,6 +162,8 @@ describe('variance_ran', () => {
   it('says what there is when nothing matches', () => {
     const text = ran.run(state(), { name: 'remove' }, { modules: CUT });
     expect(text).toContain('No execution here ran a region named remove. 2 execution(s) have reported.');
+    expect(text).toContain('1 of them ran regions that could not be named, so one of those may have.');
+    expect(ran.run(state(), { file: 'app/none.ts' }, { modules: CUT })).not.toContain('could not be named');
   });
 
   it('shows the newest up to the limit and says how many came before', () => {
@@ -153,7 +187,8 @@ describe('variance_ran', () => {
   it('says how to start the application when nothing has reported, with the address itself', () => {
     const text = ran.run(state({ executions: [], common: [] }), {});
     expect(text).toContain('No request has reported to this watcher yet.');
-    expect(text).toContain(`VARIANCE_AUTHORITY_VANTAGE=${ADDRESS}`);
+    expect(text).toContain(`VARIANCE_AUTHORITY_JOURNEYS=1 VARIANCE_AUTHORITY_VANTAGE=${ADDRESS}`);
+    expect(JOURNEYS).toBe(JOURNEY_VARIABLE);
     expect(text).toContain('collectJourneys');
   });
 });

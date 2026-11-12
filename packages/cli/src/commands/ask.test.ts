@@ -449,7 +449,7 @@ describe('a question about a suite that is still running', () => {
     const path = join(await directory(), 'report.json');
 
     await expect(ask(asking(path, 'run-signals'))).rejects.toThrow(
-      'is about a suite that is still running, and needs a watcher to ask',
+      'is about a suite or an application that is still running, and needs a watcher to ask',
     );
   });
 

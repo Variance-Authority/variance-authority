@@ -30,7 +30,7 @@ export const self: Tool<VantageState> = {
     const used =
       executions === 0
         ? []
-        : [`${executions} execution(s) of an application used by hand have reported: ask ${spellingOf(invocation).tool(ran)}.`];
+        : [`${executions} execution(s) of an application used by hand have reported: ${spellingOf(invocation).tool(ran)} lists them.`];
     if (state.tests.length === 0) return used.length === 0 ? unattached(state) : [...used, '', attaching(state)].join('\n');
 
     return [

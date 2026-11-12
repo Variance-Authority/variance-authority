@@ -187,10 +187,10 @@ export interface JourneyCollectorOptions {
   readonly trace?: JourneyTrace;
   /**
    * Where a watcher listens: the address `variance watch` prints. Defaults to
-   * {@link WATCHER_VARIABLE}. Set, it enables the head, and a request that
-   * carries no way home is reported there as an execution of its own, so an
-   * application used by hand says what each request entered. A request a case
-   * drove still answers that case, and a watcher hears nothing of it.
+   * {@link WATCHER_VARIABLE}, and is read only by an enabled head. A request
+   * that carries no way home is reported there as an execution of its own, so
+   * an application used by hand says what each request entered. A request a
+   * case drove still answers that case, and a watcher hears nothing of it.
    */
   readonly watcher?: string;
 }
@@ -273,8 +273,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   const head = options.head ?? process.env[JOURNEY_HEAD_VARIABLE] ?? 'head';
   const parts = options.parts ?? process.env[JOURNEY_PARTS_VARIABLE];
   if (parts !== undefined && options.enabled !== false) return writeParts(head, parts, journeyOf, options.trace);
-  const watcher = options.watcher ?? process.env[WATCHER_VARIABLE];
-  const enabled = options.enabled ?? (watcher !== undefined || process.env[JOURNEY_VARIABLE] !== undefined);
+  const enabled = options.enabled ?? process.env[JOURNEY_VARIABLE] !== undefined;
   if (enabled && options.trace !== undefined) throw new Error(untraceable(options.trace));
   if (!enabled) {
     return {
@@ -286,6 +285,12 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     };
   }
 
+  const watcher = options.watcher ?? process.env[WATCHER_VARIABLE];
+  // Said now: a head that tells an address nothing looks like a quiet application.
+  const watched = watcher === undefined ? undefined : channelTo(watcher, UNATTRIBUTED)?.home;
+  if (watcher !== undefined && watched === undefined) {
+    throw new Error(`collectJourneys cannot report to the watcher address ${JSON.stringify(watcher)}: it must be an http address on this machine, as \`variance watch\` prints it.`);
+  }
   const store = new AsyncLocalStorage<string>();
   const channels = new Map<string, Channel>();
   const sending = new Set<Promise<void>>();
@@ -359,6 +364,13 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     }
     keep(entered, (module) => module.shared);
     if (over === undefined) return;
+    // A request nobody drove is the process's to every driver, as it is with no
+    // watcher. The watcher is told it here, as the request's, and not again.
+    if (over.home === watched) {
+      catchUp(over);
+      keep(entered, (module) => module.hits);
+      since(over.home);
+    }
     // An empty account still goes when it closes a scope, because the driver
     // is waiting on that scope and cannot tell *entered nothing* from *not yet*.
     if (entered.length === 0 && settled === 0) return;

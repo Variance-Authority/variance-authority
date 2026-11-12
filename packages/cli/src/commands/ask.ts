@@ -448,8 +448,8 @@ async function sourceTree(): Promise<Tree | undefined> {
  */
 function noWatcher(question: Question): OperatorError {
   return new OperatorError(
-    `\`${verbOf(question.tool)}\` is about a suite that is still running, and needs a ` +
-      'watcher to ask. Start one with `variance watch`, start the suite with the ' +
+    `\`${verbOf(question.tool)}\` is about a suite or an application that is still running, and needs a ` +
+      'watcher to ask. Start one with `variance watch`, start what it watches with the ' +
       `\`${VANTAGE_VARIABLE}\` line it prints, then ask again — with \`--at <address>\`, or ` +
       `with \`${VANTAGE_VARIABLE}\` set in this shell too.`,
   );

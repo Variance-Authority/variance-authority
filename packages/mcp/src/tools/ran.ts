@@ -1,11 +1,13 @@
+import { loadedUnprobed, modulePath } from '@variance-authority/sense';
 import type { HeadRan, VantageState, WatchedExecution } from '@variance-authority/vantage';
+import { cappedRows } from './capped.js';
 import { limitOf } from './limit.js';
 import { fileArg } from './run-signals.js';
 import { spellingOf } from './spelling.js';
 import type { CutModules, Tool } from './tool.js';
 import { VARIABLE } from './vantage-lines.js';
 
-// compass: variance-authority.runtime.watched-run
+// compass: variance-authority.report.agent-surface
 
 /**
  * What an application used by hand ran, one execution per request.
@@ -41,9 +43,9 @@ export const ran: Tool<VantageState> = {
     },
     additionalProperties: false,
   },
-  cuts(state) {
+  cuts(state, input) {
     const asked = new Map<string, Set<string>>();
-    for (const head of headsOf(state)) {
+    for (const head of headsOf(state, input)) {
       let ids = asked.get(head.instrumentation);
       if (ids === undefined) asked.set(head.instrumentation, (ids = new Set()));
       for (const module of head.modules) ids.add(module.id);
@@ -60,14 +62,26 @@ export const ran: Tool<VantageState> = {
     const matching = executions.filter(
       (execution) =>
         (name === undefined || execution.heads.some((head) => regionsOf(head, cut).some((region) => named(region, name)))) &&
-        (file === undefined || execution.heads.some((head) => head.modules.some((module) => fileOf(module.id) === file))),
+        (file === undefined || execution.heads.some((head) => head.modules.some((module) => modulePath(module.id) === file))),
     );
-    if (matching.length === 0 && (name !== undefined || file !== undefined)) {
-      const asked = [
+    // What the process ran is narrowed as the executions are: asked about one file, a reader wants that file.
+    const asked = (region: Entered): boolean =>
+      (name === undefined || named(region, name)) && (file === undefined || region.file === file);
+    const outside = common
+      .map((head) => ({ head, regions: regionsOf(head, cut).filter(asked) }))
+      .filter((one) => one.regions.length > 0);
+    if (matching.length === 0 && outside.length === 0 && (name !== undefined || file !== undefined)) {
+      const what = [
         ...(name === undefined ? [] : [`a region named ${name}`]),
         ...(file === undefined ? [] : [`code in the file ${file}`]),
       ].join(' and ');
-      return `No execution here ran ${asked}. ${executions.length} execution(s) have reported.`;
+      // A name is matched against named regions only, so a miss is not proof where some were not.
+      const unnamed = name === undefined ? 0 : executions.filter((execution) =>
+        execution.heads.some((head) => regionsOf(head, cut).some((region) => 'unnamed' in region))).length;
+      return (
+        `No execution here ran ${what}. ${executions.length} execution(s) have reported.` +
+        (unnamed === 0 ? '' : ` ${unnamed} of them ran regions that could not be named, so one of those may have.`)
+      );
     }
 
     const spell = spellingOf(invocation);
@@ -85,12 +99,12 @@ export const ran: Tool<VantageState> = {
       ...(lost === 0
         ? []
         : ['', `${lost} report(s) never arrived at this watcher, so an execution above may list less than it ran.`]),
-      ...(common.length === 0
+      ...(outside.length === 0
         ? []
         : [
             '',
             'Ran outside any request, or while a module loaded, and so listed under none of them:',
-            ...common.flatMap((head) => [`  head ${head.head}`, ...entered(head, cut)]),
+            ...outside.flatMap((one) => [`  head ${one.head.head}`, ...cappedRows(one.regions, line, COMMON).map(indented)]),
           ]),
     ].join('\n');
   },
@@ -101,14 +115,23 @@ type Entered =
   | { readonly file: string; readonly name: string; readonly path: string; readonly line?: number }
   | { readonly file: string; readonly count: number; readonly unnamed: string };
 
-function headsOf(state: VantageState): readonly HeadRan[] {
-  return [...state.ran.executions.flatMap((execution) => execution.heads), ...state.ran.common];
-}
+/** How many regions of what one process ran outside every request are listed before the rest are counted. */
+const COMMON = 40;
 
-/** The file an id names: `path@digest`, and a digest has no `@` in it. */
-function fileOf(id: string): string {
-  const at = id.lastIndexOf('@');
-  return at < 0 ? id : id.slice(0, at);
+/** `cappedRows` writes its count two spaces in; a region sits under its head. */
+const indented = (row: string): string => (row.startsWith('      ') ? row : `    ${row}`);
+
+/**
+ * The heads a call will name regions of. Asked for neither a name nor a file,
+ * it lists the newest `limit` executions, and only those are cut; a name is
+ * matched against every execution, so every one is.
+ */
+function headsOf(state: VantageState, input: Readonly<Record<string, unknown>>): readonly HeadRan[] {
+  const { executions, common } = state.ran;
+  const limit = input['limit'] === undefined ? 20 : Number(input['limit']);
+  const narrowed = input['name'] === undefined && input['file'] === undefined && Number.isInteger(limit) && limit >= 1;
+  const listed = narrowed ? executions.slice(Math.max(0, executions.length - limit)) : executions;
+  return [...listed.flatMap((execution) => execution.heads), ...common];
 }
 
 /**
@@ -119,10 +142,9 @@ function fileOf(id: string): string {
  */
 function regionsOf(head: HeadRan, cut: CutModules | undefined): readonly Entered[] {
   return head.modules.flatMap((module): readonly Entered[] => {
-    const file = fileOf(module.id);
+    const file = modulePath(module.id);
     const unnamed = (why: string): readonly Entered[] => [{ file, count: module.entered.length, unnamed: why }];
-    // A module its build marked as loaded and placed no probe in: `path@~digest`.
-    if (module.id.startsWith('~', file.length + 1)) return unnamed('its build placed no probe in it, so it is known only to have loaded');
+    if (loadedUnprobed(module.id)) return unnamed('its build placed no probe in it, so it is known only to have loaded');
     if (cut === undefined) return unnamed('no checkout was read');
     const modules = cut.get(head.instrumentation);
     if (modules === undefined) return unnamed(`numbered by \`${head.instrumentation}\`, which this build does not read`);
@@ -144,22 +166,24 @@ function named(region: Entered, name: string): boolean {
   return !('unnamed' in region) && (region.name === name || region.name.split('/').includes(name));
 }
 
-function entered(head: HeadRan, cut: CutModules | undefined): string[] {
-  return regionsOf(head, cut).map((region) => {
-    if ('unnamed' in region) return `      ${region.file} — ${region.count} region(s), not named: ${region.unnamed}`;
-    const at = region.line === undefined ? region.file : `${region.file}:${region.line}`;
-    const called = [region.name, region.path].filter((part) => part !== '').join(' ');
-    return `      ${at} ${called === '' ? '(module)' : called}`;
-  });
+function line(region: Entered): string {
+  if ('unnamed' in region) return `      ${region.file} — ${region.count} region(s), not named: ${region.unnamed}`;
+  const at = region.line === undefined ? region.file : `${region.file}:${region.line}`;
+  return `      ${[at, region.name, region.path].filter((part) => part !== '').join(' ')}`;
 }
 
 function listed(execution: WatchedExecution, cut: CutModules | undefined): string[] {
   const mark = execution.open ? '▸' : ' ';
   return [
     `${mark} ${execution.id}`,
-    ...execution.heads.flatMap((head) => [`  head ${head.head}`, ...entered(head, cut)]),
+    ...execution.heads.flatMap((head) => [`  head ${head.head}`, ...regionsOf(head, cut).map(line)]),
+    // A request that reached a head and none of its probed code: a route the build left out.
+    ...(execution.heads.some((head) => head.modules.length > 0) ? [] : ['  ran no code the build placed a probe in']),
   ];
 }
+
+/** The variable that turns a head on, as `@variance-authority/sense/journey` reads it; a test holds the two together. */
+export const JOURNEYS = 'VARIANCE_AUTHORITY_JOURNEYS';
 
 function nameArg(input: Readonly<Record<string, unknown>>): string | undefined {
   const value = input['name'];
@@ -181,11 +205,12 @@ function unreported(state: VantageState): string {
     '',
     'An application reports here when it is built with the probes on, runs its request ' +
       'handler inside `collectJourneys().enter` from `@variance-authority/sense/journey`, ' +
-      'and is started with this in its environment:',
+      'and is started with both of these in its environment:',
     '',
-    `  ${VARIABLE}=${address}`,
+    `  ${JOURNEYS}=1 ${VARIABLE}=${address}`,
     '',
-    'Each request no test drove is then one execution here. A request a test drove ' +
-      'answers that test, and an application started without the variable reports nothing.',
+    'The first turns the reporting on and the second says where to. Each request no test ' +
+      'drove is then one execution here. A request a test drove answers that test, and an ' +
+      'application started without either reports nothing here.',
   ].join('\n');
 }

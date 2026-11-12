@@ -31,6 +31,8 @@ per **subject** covering every process it reached.
 
 - [`crossings`](../crossings/README.md) — one row per **subject**, folded
   together with what the driven realm itself reported
+- [`watched run`](../../runtime/watched-run/README.md) — a request no test
+  drove, reported as an execution of its own to a watcher the head was told of
 
 ## Boundary
 

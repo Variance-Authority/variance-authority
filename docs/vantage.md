@@ -224,8 +224,9 @@ export default {
 };
 ```
 
-Run the request handler inside `enter`, and start the process with the address
-the watcher printed. `enter` is what makes one request one execution. It reads
+Run the request handler inside `enter`, and start the process with two
+variables: `VARIANCE_AUTHORITY_JOURNEYS=1` turns the reporting on, and the
+address the watcher printed says where it goes. `enter` is what makes one request one execution. It reads
 the request's cookie only to recognise a request a test drove; you set no
 cookie, and a request without one is yours. `head` is the name this process is
 listed under:
@@ -242,7 +243,7 @@ createServer((request, response) => {
 ```
 
 ```bash
-VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 node dist/server.js
+VARIANCE_AUTHORITY_JOURNEYS=1 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 node dist/server.js
 ```
 
 Use the application, then run `variance ask ran` from the repository it was
@@ -256,8 +257,8 @@ Three limits keep the listing honest:
 - A request a test drove is reported to that test's run, and is not listed here.
 - Code that runs in the browser is not listed. Only a process that calls
   `collectJourneys` reports.
-- An application started without the variable reports nothing, so the `enter`
-  call stays in place in production.
+- An application started without either variable reports nothing, so the
+  `enter` call stays in place in production.
 
 `--name <function>`, `--file <path>` and `--limit <n>` narrow the listing.
 The agent skill

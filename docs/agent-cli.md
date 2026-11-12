@@ -302,8 +302,8 @@ variance ask ran --at http://127.0.0.1:54321
 it for the suite needs nothing extra. Ask `self` first: it reports where the
 watcher is listening and what it has received, which is what separates a suite
 that reported to a different address from one that has not started.
-`ask ran --at` lists what an application started with the same assignment ran
-for each request made by hand; [watch an application you use by
+`ask ran --at` lists what an application reporting to the same address ran for
+each request made by hand; [watch an application you use by
 hand](vantage.md#watch-an-application-you-use-by-hand) covers what it needs.
 `ask diff --at` compares against the reading the watcher handed out last — that
 state lives in the watcher rather than in a file, because these questions write

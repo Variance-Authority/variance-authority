@@ -63,8 +63,9 @@ not permission to reconstruct a trace from source.
 `ran` is about an application somebody uses by hand, not a suite. The
 application reports when its build placed the probes, its request handler runs
 inside `collectJourneys().enter` from `@variance-authority/sense/journey`, and
-it was started with the same `VARIANCE_AUTHORITY_VANTAGE` assignment. Each
-request no test drove is one execution.
+it was started with `VARIANCE_AUTHORITY_JOURNEYS=1` and the same
+`VARIANCE_AUTHORITY_VANTAGE` assignment: the first turns the reporting on, the
+second says where it goes. Each request no test drove is one execution.
 
 ```bash
 variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE"
@@ -81,7 +82,9 @@ variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE" --file src/pricing.mjs
 Executions are listed oldest first, so the request just made is the last one.
 `▸` marks one a process still holds open. Each region is `file:line name`,
 followed by its branch. What a process ran outside every request, or while a
-module loaded, is listed once after them.
+module loaded, is listed once after them, narrowed by the same flags, with the
+regions past the fortieth counted. `--limit` does not narrow a `--name` search:
+every execution is read for the name.
 
 A region arrives as a number and is named from the checkout `ask` runs in, so
 ask from the repository the application was built from. A module whose regions
