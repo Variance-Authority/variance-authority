@@ -19,11 +19,13 @@
 
 import { readdir, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { rm } from 'node:fs/promises';
 import type { ParsedShare } from '../share-args.js';
 import { loadRenderless } from '../config-load.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
 import { namedSuite } from './suite-record.js';
-import { suiteShare, type SuiteShare } from './suite-share.js';
+import { recordsFromQueue, type QueueRequest } from './from-queue.js';
+import { headOf, suiteShare, type SuiteShare } from './suite-share.js';
 import type { Here } from './share.js';
 
 /** What `share` was asked in the root config's form. */
@@ -35,6 +37,8 @@ export interface SuitesShareOptions {
   readonly records: readonly string[];
   /** A file listing what the runner collects, or a directory holding one `<suite>.txt` per suite. */
   readonly collected?: string;
+  /** The artifact names the merge queue's shards uploaded: their records are folded in place of `records`, as a run of part of the suite. */
+  readonly fromQueue?: string;
   readonly format?: 'text' | 'github';
 }
 
@@ -56,6 +60,7 @@ export async function runRootShare(
     publish: parsed.publish,
     records: parsed.reports,
     ...(parsed.collected === undefined ? {} : { collected: parsed.collected }),
+    ...(parsed.fromQueue === undefined ? {} : { fromQueue: parsed.fromQueue }),
     ...(parsed.format === undefined ? {} : { format: parsed.format }),
   }, here);
   if (done.lines.length > 0) streams.out(`${done.lines.join('\n')}\n`);
@@ -68,14 +73,34 @@ export async function runRootShare(
  * refused named last. Under `--format github` without `--suite`, a suite's
  * outputs are keyed by it, `commit-<suite>=`, as `carry` keys `against-<suite>=`.
  */
-export async function suitesShare(root: string, options: SuitesShareOptions, here: Here = {}): Promise<SuiteShare> {
+export async function suitesShare(
+  root: string,
+  options: SuitesShareOptions,
+  here: Here = {},
+  queue: (request: QueueRequest) => Promise<{ readonly dir: string } | { readonly none: string }> = recordsFromQueue,
+): Promise<SuiteShare> {
+  if (options.fromQueue === undefined) return sharedSuites(root, options, here);
+  const commit = await headOf(root);
+  const found = commit === undefined
+    ? { none: 'this checkout has no commit' }
+    : await queue({ root, pattern: options.fromQueue, commit, env: here.env ?? process.env });
+  // The queue's record only comes ahead of the whole run's, so finding none leaves the mainline to that run.
+  if ('none' in found) return { lines: [`nothing published from the merge queue: ${found.none}; the whole run at this commit publishes its record.`], exit: EXIT_CLEAN };
+  try {
+    return await sharedSuites(root, { ...options, records: [found.dir] }, here, true);
+  } finally {
+    await rm(found.dir, { recursive: true, force: true });
+  }
+}
+
+async function sharedSuites(root: string, options: SuitesShareOptions, here: Here, partial = false): Promise<SuiteShare> {
   const selection = await import('@variance-authority/sense/test-selection');
   const shared = (selection.declaredSuites(root) ?? []).filter(({ carry }) => carry === 'share').map(({ name }) => name).sort();
   const suites = options.suite !== undefined ? [options.suite] : shared;
   if (suites.length === 0) throw new OperatorError('the root variance.config.json gives no suite to the share: name one with `"carry": "share"`');
   const records = options.records.length === 0 ? undefined : await recordsOf(root, options.records, options.suite, shared, selection.cachedSuite);
   const collected = options.collected === undefined ? undefined : await collectedOf(root, options.collected, suites);
-  if (options.suite !== undefined) return suiteShare(root, suiteOptions(options.suite, options, records, collected), here);
+  if (options.suite !== undefined) return suiteShare(root, suiteOptions(options.suite, options, records, collected, partial), here);
 
   const lines: string[] = [];
   const notes: string[] = [];
@@ -83,7 +108,7 @@ export async function suitesShare(root: string, options: SuitesShareOptions, her
   const keyed = options.format === 'github';
   for (const suite of suites) {
     try {
-      const done = await suiteShare(root, suiteOptions(suite, options, records, collected), here);
+      const done = await suiteShare(root, suiteOptions(suite, options, records, collected, partial), here);
       lines.push(...(keyed ? done.lines.map((line) => line.replace(/^([\w-]+)=/u, `$1-${suite}=`)) : done.lines));
       notes.push(...(done.notes ?? []));
       if (done.exit !== EXIT_CLEAN) refused.push(suite);
@@ -102,11 +127,13 @@ function suiteOptions(
   options: SuitesShareOptions,
   records: ReadonlyMap<string, readonly string[]> | undefined,
   collected: ReadonlyMap<string, string> | undefined,
+  partial: boolean,
 ) {
   const listed = collected?.get(suite);
   return {
     suite,
     publish: options.publish,
+    ...(partial ? { partial } : {}),
     ...(records === undefined ? {} : { records: records.get(suite) ?? [] }),
     ...(listed === undefined ? {} : { collected: listed }),
     ...(options.format === undefined ? {} : { format: options.format }),

@@ -166,12 +166,18 @@ export interface SuiteEntry extends ShareEntry {
  * in the record last ran, and once the record leaves this machine nothing else
  * can. `whole` is set for a mainline, whose record every checkout measures from:
  * then the record is published only when its runs record shows a run of the
- * whole suite at this commit, which {@link wholeRunAt} tells from the runs record
+ * whole suite at this commit, which {@link standingAt} tells from the runs record
  * and from what the runner collects (`collected`), never from the caller's
  * word. Without `collected` it cannot be told, and the record is left out.
  * With it, the published record holds only the test files the suite collects:
  * a row for any other is retired, with its crossings and cases, and named in
  * `retired`.
+ *
+ * `partial` lets a mainline take a run of part of the suite, such as the merge
+ * queue's: every test file the runner collects must still be listed, as run or
+ * standing where it last ran, and the entry is marked partial when any of them
+ * last ran before this commit, so the line keeps a whole run at the same
+ * commit over it.
  *
  * A record whose run instrumented no module holds its cases and no coverage.
  * It names its commit through the run that kept those cases, and is published
@@ -183,7 +189,7 @@ export async function suiteEntryOf(
   root: string,
   suite: string,
   at: Derived,
-  options: { readonly whole?: boolean; readonly collected?: ReadonlySet<string> } = {},
+  options: { readonly whole?: boolean; readonly collected?: ReadonlySet<string>; readonly partial?: boolean } = {},
 ): Promise<SuiteEntry | { readonly unpublished: string } | undefined> {
   const coverage = testCoverageFile(root, { suite });
   const record = await held(coverage);
@@ -201,9 +207,12 @@ export async function suiteEntryOf(
   // The cases travel in the record; what names this checkout's last run does not.
   let shared = sharedRecord(record);
   let retired: readonly string[] = [];
+  let partial = false;
   if (options.whole === true && !uncovered) {
-    const partial = wholeRunAt(runs, at.commit, options.collected);
-    if (partial !== undefined) return { unpublished: `its record at ${coverage} is not a whole run: ${partial}` };
+    const stood = standingAt(runs, at.commit, options.collected);
+    const lacks = typeof stood === 'string' ? stood : options.partial === true ? undefined : beforeIt(stood, at.commit);
+    if (lacks !== undefined) return { unpublished: `its record at ${coverage} is not a whole run: ${lacks}` };
+    partial = typeof stood !== 'string' && stood.length > 0;
     // A whole run is counted against what the runner collects, so that list is
     // here, and a row it does not name is no longer the suite's.
     try {
@@ -221,6 +230,7 @@ export async function suiteEntryOf(
       ...(runs === undefined ? [] : [[RUNS_PART, runs] as const]),
     ]),
     ...(retired.length === 0 ? {} : { retired }),
+    ...(partial ? { partial: true as const } : {}),
   };
 }
 
@@ -243,8 +253,9 @@ export function entryCarriesEyes(entry: ShareEntry): boolean {
 const RUNS_PART = 'coverage.runs.json';
 
 /**
- * Why the runs record `runs` does not show a run of the whole suite at
- * `commit`, or `undefined` when it does.
+ * The collected test files the runs record `runs` says last ran before
+ * `commit`, none when the run was whole, or why it cannot say where every
+ * collected test file last ran.
  *
  * Whole means every test the record holds either ran at `commit` or is a test
  * file the suite no longer collects there. The runs record lists the tests that
@@ -261,11 +272,7 @@ const RUNS_PART = 'coverage.runs.json';
  * tests and every other file alike, so an unknown collection is not whole, and
  * the refusal says to pass it.
  */
-export function wholeRunAt(
-  runs: Uint8Array | undefined,
-  commit: string,
-  collected?: ReadonlySet<string>,
-): string | undefined {
+function standingAt(runs: Uint8Array | undefined, commit: string, collected?: ReadonlySet<string>): readonly string[] | string {
   if (runs === undefined) return 'no runs record lies beside it, so nothing says which tests ran at this commit';
   let parsed: CommitRuns;
   try {
@@ -285,10 +292,13 @@ export function wholeRunAt(
     return `${unlisted.length} test file(s) the suite collects are listed nowhere in the runs record: ${named}`;
   }
   // A test standing at this commit ran at it, in a run before the latest.
-  const kept = parsed.standing
+  return parsed.standing
     .filter((entry) => entry.commit !== commit)
     .flatMap((entry) => entry.files)
     .filter((path) => collected.has(path));
+}
+
+function beforeIt(kept: readonly string[], commit: string): string | undefined {
   if (kept.length === 0) return undefined;
   return `${kept.length} test file(s) the suite collects last ran before ${commit}, ${kept[0]} among them`;
 }

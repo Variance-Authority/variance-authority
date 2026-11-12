@@ -33,6 +33,13 @@ export interface ParsedShare {
    */
   readonly collected?: string;
   /**
+   * The names of the artifacts the merge queue's shards uploaded their
+   * records as, `gh run download --pattern`'s: a push to the mainline
+   * publishes the record the queue's green run kept for the commit it landed,
+   * a run of part of the suite, before the whole run there ends.
+   */
+  readonly fromQueue?: string;
+  /**
    * `github` prints `commit=<sha>`, the commit of the record `--suite` reads,
    * for `$GITHUB_OUTPUT`: what a workflow merges a pull request with before it
    * selects, empty when the mainline holds none; and `based=true` when the
@@ -74,6 +81,11 @@ export function parseShareArgs(flags: Flags, config: string): ParsedShare {
     // The list is what a whole run is counted against, and only a publish counts one.
     throw new OperatorError('`--collected` is for `share --publish`, which counts a whole run against it');
   }
+  const fromQueue = flags.values.get('--from-queue');
+  if (fromQueue !== undefined && (!publish || flags.positionals.length > 0)) {
+    // The queue's shards are the records, so a record named beside them would be a second answer.
+    throw new OperatorError("`--from-queue` publishes the merge queue's records, so it is for `share --publish`, beside no record");
+  }
   const format = flags.values.get('--format');
   if (format !== undefined && format !== 'text' && format !== 'github') {
     throw new OperatorError(`--format must be text or github, not \`${format}\``);
@@ -99,6 +111,7 @@ export function parseShareArgs(flags: Flags, config: string): ParsedShare {
     reports: flags.positionals,
     ...(suite !== undefined ? { suite } : {}),
     ...(collected !== undefined ? { collected } : {}),
+    ...(fromQueue !== undefined ? { fromQueue } : {}),
     ...(format !== undefined ? { format } : {}),
   };
 }

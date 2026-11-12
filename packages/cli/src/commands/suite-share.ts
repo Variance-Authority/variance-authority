@@ -46,6 +46,8 @@ export interface SuiteShareOptions {
    * against. A line naming no test in the record changes nothing.
    */
   readonly collected?: string;
+  /** The records are a run of part of the suite, such as the merge queue's: a mainline publishes them marked so. */
+  readonly partial?: boolean;
   /**
    * `github` prints the read as `commit=<sha>` for `$GITHUB_OUTPUT`, empty when
    * the mainline holds no record, and says the read beside it: the commit a
@@ -72,7 +74,7 @@ export async function publishSuite(
   root: string,
   suite: string,
   here: Here = {},
-  options: Pick<SuiteShareOptions, 'collected'> = {},
+  options: Pick<SuiteShareOptions, 'collected' | 'partial'> = {},
 ): Promise<RunPublish> {
   return (await publishOnLine(root, suite, here, options)).done;
 }
@@ -82,7 +84,7 @@ async function publishOnLine(
   root: string,
   suite: string,
   here: Here,
-  options: Pick<SuiteShareOptions, 'collected'>,
+  options: Pick<SuiteShareOptions, 'collected' | 'partial'>,
 ): Promise<{ readonly done: RunPublish; readonly mainline: boolean }> {
   const env = here.env ?? process.env;
   const selection = await import('@variance-authority/sense/test-selection');
@@ -108,6 +110,7 @@ async function publishOnLine(
   const entry = await suiteEntryOf(root, suite, at, {
     whole: run.line.kind === 'mainline',
     ...(collected === undefined ? {} : { collected }),
+    ...(options.partial === true ? { partial: true } : {}),
   });
   if (entry === undefined) return on({ none: `this checkout holds no record of "${suite}"` });
   if ('unpublished' in entry) return on({ none: `${suiteEntry(suite)} is left out: ${entry.unpublished}` });

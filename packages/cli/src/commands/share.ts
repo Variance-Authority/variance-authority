@@ -364,7 +364,9 @@ export function describePublish(config: Pick<Config, 'share'>, done: RunPublish)
     ...kept.map((held) =>
       held.because === 'newer-commit'
         ? `kept ${held.name}: the line holds it at ${held.commit}, which descends from this run's commit.`
-        : `kept ${held.name}: the line holds it in a newer format, at ${held.commit}.`,
+        : held.because === 'whole'
+          ? `kept ${held.name}: the line holds the whole run at ${held.commit}, and this run ran part of it.`
+          : `kept ${held.name}: the line holds it in a newer format, at ${held.commit}.`,
     ),
     ...(unanswered.length === 0
       ? []

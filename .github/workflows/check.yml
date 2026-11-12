@@ -908,28 +908,11 @@ jobs:
           name: variance-records
           path: ${{ runner.temp }}/records
 
-      # The test files the runner collects at this commit, asked of the runner:
-      # a test file the suite stopped collecting is carried in the record from
-      # before this commit, and only the runner can say it no longer counts
-      # against a whole run. The publish retires its rows on the same answer.
-      # Each shared suite is asked under its own slice's config, the one its
-      # `test:<suite>` script runs: `unit` under `vitest.config.mts`, every other
-      # under `vitest.<suite>.config.mts`, into `<suite>.txt`. A suite whose
-      # files cannot be listed is left without a list and the others are still
-      # listed: the publish below refuses that suite alone.
-      - name: what the suite collects
-        shell: bash
-        env:
-          SHARED: ${{ needs.record.outputs.shared }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/collected"
-          for suite in $SHARED; do
-            if [ "$suite" = unit ]; then config=vitest.config.mts; else config="vitest.$suite.config.mts"; fi
-            if [ ! -f "$config" ] || ! yarn vitest list --filesOnly --config "$config" > "$RUNNER_TEMP/collected/$suite.txt"; then
-              rm -f "$RUNNER_TEMP/collected/$suite.txt"
-              echo "::error::The files the $suite suite collects were not listed, so its record is not published."
-            fi
-          done
+      # The test files the runner collects at this commit, for the reasons
+      # written in the action.
+      - uses: ./.github/actions/collected
+        with:
+          suites: ${{ needs.record.outputs.shared }}
 
       # `share --publish`, handed the records the suite jobs handed on, folds
       # each suite's over the mainline's record, as `record` folded them, and
@@ -952,6 +935,60 @@ jobs:
         run: |
           set -o pipefail
           node packages/cli/dist/bin.js share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  publish-queue:
+    # The merge queue's record of the commit a push to `main` landed, published
+    # as soon as the commit lands, rather than when the whole run below
+    # finishes, a median fourteen minutes later and never when it fails. The
+    # queue tested this exact tree, so what it ran stands at this commit; what
+    # it did not run keeps the stand the mainline's record gave it. The record
+    # is published partial, and the whole run's publish at the same commit
+    # replaces it (`share --publish --from-queue`).
+    #
+    # No `needs`: the group's run finished before the push that landed it.
+    # `actions: read` lets `share` find that run and download its shards.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      # Every commit, for the reasons written at the checkout in `publish`.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: install
+        shell: bash
+        run: corepack enable && yarn install --immutable
+
+      - uses: ./.github/actions/build
+
+      - name: what to carry
+        id: carry
+        shell: bash
+        run: node packages/cli/dist/bin.js carry restore --format github >> "$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/collected
+        with:
+          suites: ${{ steps.carry.outputs.shared-suites }}
+
+      # The token is this step's alone, for the reason written in `publish`;
+      # `gh` reads it as `GH_TOKEN` to find and download the group's run.
+      - name: publish the merge queue's records
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          node packages/cli/dist/bin.js share --publish --from-queue 'variance-shard-*' --collected "$RUNNER_TEMP/collected" | tee -a "$GITHUB_STEP_SUMMARY"
 
   shared:
     # The unit slice with each worker keeping its modules across files and the
@@ -1108,7 +1145,8 @@ jobs:
     # twelve and a half minutes when the mainline record was a week old and it
     # selected every file. The selection drops what it skips before Vitest cuts
     # the shard, so the shards split what runs, by the record `plan` counted
-    # from. A group records nothing, so no shard's record is folded.
+    # from. Each shard hands on what it ran, which `publish-queue` publishes
+    # once the group's commit lands.
     #
     # Not `fail-fast`, for the reason written at `suite`.
     needs: plan
@@ -1187,6 +1225,7 @@ jobs:
         run: node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
 
       - name: near tests
+        id: near
         if: matrix.part != 'rules'
         shell: bash
         env:
@@ -1197,6 +1236,20 @@ jobs:
         run: |
           yarn variance index
           VARIANCE_AUTHORITY_SINCE="$BASE" VARIANCE_AUTHORITY_TESTED="$TESTED" VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" --shard "$SHARD"
+
+      # What this shard ran, for `publish-queue` to publish once the group's
+      # commit lands on `main`: the part the near wave ran, as `suite` hands its
+      # shard on, under the same name, so the share reads both alike. A shard
+      # that selected nothing has nothing to hand on.
+      - name: hand the shard on
+        if: ${{ !cancelled() && matrix.part != 'rules' && steps.near.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: variance-shard-${{ matrix.part }}-${{ strategy.job-index }}
+          path: node_modules/.cache/variance-authority/test-selection/*/suites/${{ matrix.part }}
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 30
 
   # A `feat`, `fix` or `perf` pull request carries an idea that passed review
   # before its code was written: its body's first line says `Closes #<n>` or `Part of #<n>`, and the

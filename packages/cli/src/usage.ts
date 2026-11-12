@@ -149,7 +149,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   doctor: ['--baselines'],
   prune: [],
   job: ['--suite', '--complete-on'],
-  share: ['--mainline', '--publish', '--suite', '--collected', '--format', '--purge-older-than'],
+  share: ['--mainline', '--publish', '--suite', '--collected', '--from-queue', '--format', '--purge-older-than'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
   carry: ['--config', '--format', '--head', '--on-conflict', '--expect', '--as-base'],
@@ -181,7 +181,7 @@ export const USAGE = [
   'variance doctor  [--config <path>] [--baselines]',
   'variance prune',
   'variance job     --suite <name> [--complete-on <exit>] -- <command>...',
-  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]',
+  'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
   'variance carry   restore | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]',
   'variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared',

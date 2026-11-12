@@ -321,7 +321,7 @@ run report that names no commit publishes nothing, prints
 | a push, or any other event, on a branch that is not a mainline | `branch/<name>` |
 | a `pull_request` or `pull_request_target` from this repository | `branch/<head branch>` at `GITHUB_SHA`, the merge commit under `pull_request` and the base branch's tip under `pull_request_target`, with the head commit beside it |
 | a pull request from a fork, under either event | nothing, whatever its token may write |
-| a merge queue: a `merge_group` event, or a `gh-readonly-queue/` branch | nothing: *a merge-queue run publishes nothing; its branch is temporary* |
+| a merge queue: a `merge_group` event, or a `gh-readonly-queue/` branch | nothing: *a merge-queue run publishes nothing; its branch is temporary*. The push that lands its commit can publish it with [`--from-queue`](#the-merge-queues-record-as-soon-as-the-commit-lands) |
 | any other event on a mainline, such as `schedule` | nothing: *only a push to main publishes its record, and this run is a schedule* |
 | a tag, or any other ref that is not a branch | nothing: *this run is not on a branch* |
 
@@ -1189,6 +1189,48 @@ nothing published: suite-v1/unit is left out: its record at <path> is not a whol
 
 A branch line takes the record whatever ran, because nothing measures from it
 but that branch.
+
+#### The merge queue's record, as soon as the commit lands
+
+A merge queue tests the exact commit that lands on the mainline, so its run's
+record of that commit can be read before the push's whole run publishes. On a
+push to a mainline, `--from-queue` publishes it:
+
+```yaml
+  publish-queue:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      # checkout with fetch-depth: 0 and persist-credentials: false, setup, install
+      - run: npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
+      - name: publish the merge queue's records
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+        run: npx --no-install variance share --publish --from-queue 'variance-records-*' --collected "$RUNNER_TEMP/collected.txt"
+```
+
+- **The `merge_group` run uploads its records** under names the pattern
+  matches, as the push run's test job does above.
+- **The run is the latest green `merge_group` run of the same workflow** whose
+  head is `HEAD`, found and downloaded with `gh`, which reads `GH_TOKEN`.
+- **The entry is marked partial.** What the queue ran stands at this commit,
+  and every other test keeps the stand the mainline's record gave it. The whole
+  run's publish at the same commit replaces it; a partial publish never
+  replaces a whole entry, and says so:
+
+```text
+kept suite-v1/unit: the line holds the whole run at 3f1c…, and this run ran part of it.
+```
+
+A push with no such run publishes nothing, exits 0, and says why:
+
+```text
+nothing published from the merge queue: no green merge-queue run of .github/workflows/check.yml tested 3f1c…; the whole run at this commit publishes its record.
+```
 
 Without `--publish` it reads the mainline's record the way `select` does, and
 prints the [`record of "unit":` line](#a-suite-your-checkout-has-not-recorded).
