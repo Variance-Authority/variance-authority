@@ -12,7 +12,7 @@
  * or `dist`, which is where an application finds this module.
  */
 import { JOURNEY_COOKIE, RETURN_COOKIE, channelFrom, channelTo } from '@variance-authority/wire';
-import { EXECUTION_GLOBAL } from './execution-global.js';
+import { DRIVEN_GLOBAL, EXECUTION_GLOBAL } from './execution-global.js';
 import type { ExecutedModule, ExecutionCollector } from './probes.js';
 import type { JourneyAccount } from './stitch.js';
 
@@ -50,14 +50,22 @@ const mint = (): string => Array.from(crypto.getRandomValues(new Uint8Array(16))
  * execution before it, by any server whose handler runs inside
  * `collectJourneys().enter`. Given no address, an empty one, or one that is
  * not http on this machine, it installs nothing and sends nothing. Nor does
- * it on a page a test drives, or one that reports already.
+ * it on a page a test drives, or one that reports already; and it stops for
+ * good when a test starts to drive the page.
  */
 export function reportPage(watcher: string | undefined): void {
   const home = watcher === undefined || watcher === '' ? undefined : channelTo(watcher, HEAD)?.home;
   if (home === undefined) return;
 
-  const browser = globalThis as unknown as Browser & Record<string, ExecutionCollector | undefined>;
+  const browser = globalThis as unknown as Browser & Record<string, ExecutionCollector | true | undefined>;
   let journey = '';
+  let yielded = false;
+  // A driver owns the page and what its collector holds. It says so itself, or its cookies, which answer somewhere else, do.
+  const driven = (): boolean => {
+    if (browser[DRIVEN_GLOBAL] === true) return true;
+    const led = channelFrom(browser.document.cookie);
+    return led !== undefined && led.home !== home;
+  };
   const leave = (name: string, value: string, kept = ''): void => {
     browser.document.cookie = `${name}=${value}; Path=/; SameSite=Lax${kept}`;
   };
@@ -67,8 +75,24 @@ export function reportPage(watcher: string | undefined): void {
     leave(RETURN_COOKIE, encodeURIComponent(`${home}/${journey}`));
   };
 
+  const forget = (): void => {
+    if (!browser.document.cookie.includes(`${JOURNEY_COOKIE}=${journey}`)) return;
+    leave(JOURNEY_COOKIE, '', '; Max-Age=0');
+    leave(RETURN_COOKIE, '', '; Max-Age=0');
+  };
+  // Asked before anything is drained or named, since a driver may come to a page already running: from then on
+  // what the collector holds is the driver's, and a server told this page's execution would report for no page.
+  const mine = (): boolean => {
+    if (yielded) return false;
+    if (!driven()) return true;
+    yielded = true;
+    forget();
+    return false;
+  };
+
   const flush = (): void => {
-    const journal = browser[EXECUTION_GLOBAL]?.drain();
+    if (!mine()) return;
+    const journal = (browser[EXECUTION_GLOBAL] as ExecutionCollector | undefined)?.drain();
     if (journal === undefined || journal.modules.length === 0) return;
     // A beacon and not the wire's `report`: a JSON `fetch` to another origin is
     // preflighted, which the watcher does not answer, and it dies with the page.
@@ -96,15 +120,13 @@ export function reportPage(watcher: string | undefined): void {
       turned = false;
     });
     flush();
-    name();
+    if (mine()) name();
   };
   // The request that replaces this document has left with the cookies by now, so they go with the document: kept, every
   // page on this machine would send a dead execution. Not when the next document has already named its own.
   const depart = (): void => {
     flush();
-    if (!browser.document.cookie.includes(`${JOURNEY_COOKIE}=${journey}`)) return;
-    leave(JOURNEY_COOKIE, '', '; Max-Age=0');
-    leave(RETURN_COOKIE, '', '; Max-Age=0');
+    forget();
   };
   // An observer does not break its subject: where a cookie cannot be left or nothing can be sent, the page runs on unreported.
   const quietly = (act: () => void) => (): void => {
@@ -117,9 +139,7 @@ export function reportPage(watcher: string | undefined): void {
 
   try {
     if (reporting.has(browser.document)) return;
-    // Cookies that answer somewhere else are a driver's, and so are the page and what its collector holds.
-    const led = channelFrom(browser.document.cookie);
-    if (led !== undefined && led.home !== home) return;
+    if (driven()) return;
     name();
   } catch {
     return;

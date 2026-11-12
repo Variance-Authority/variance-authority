@@ -1,6 +1,6 @@
 import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EXECUTION_GLOBAL } from './execution-global.js';
+import { DRIVEN_GLOBAL, EXECUTION_GLOBAL } from './execution-global.js';
 import { reportPage } from './page.js';
 
 const WATCHER = 'http://127.0.0.1:4000';
@@ -111,6 +111,48 @@ describe('a page somebody else reports', () => {
     expect(page.put).toEqual([]);
     expect(page.cookies).toEqual([]);
     expect(drain).not.toHaveBeenCalled();
+  });
+
+  it('installs nothing on a page a driver claimed, whose run names no head and so leaves no cookie', () => {
+    const drain = vi.fn();
+    const page = standIn();
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain });
+    vi.stubGlobal(DRIVEN_GLOBAL, true);
+    reportPage(WATCHER);
+    vi.advanceTimersByTime(1000);
+    expect(page.put).toEqual([]);
+    expect(page.cookies).toEqual([]);
+    expect(drain).not.toHaveBeenCalled();
+  });
+
+  it('stops for good once a driver claims the page: nothing more is drained, named or sent', () => {
+    const drain = vi.fn(() => ({ instrumentation: 'regions', modules: [RAN] }));
+    const page = standIn({ beacon: () => true });
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain });
+    reportPage(WATCHER);
+    vi.stubGlobal(DRIVEN_GLOBAL, true);
+    page.on.get('click')!();
+    vi.advanceTimersByTime(1000);
+    page.on.get('beforeunload')!();
+    expect(drain).not.toHaveBeenCalled();
+    expect(page.named()).toBe(1);
+    // Its own cookies would send a server's half to the watcher under an execution no page reports.
+    expect(page.jar.size).toBe(0);
+  });
+
+  it("leaves a driver's cookies that arrive after it started, and what the collector holds", () => {
+    const drain = vi.fn(() => ({ instrumentation: 'regions', modules: [RAN] }));
+    const page = standIn({ beacon: () => true });
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain });
+    reportPage(WATCHER);
+    page.jar.set(JOURNEY_COOKIE, 'driven');
+    page.jar.set(RETURN_COOKIE, encodeURIComponent('http://127.0.0.1:5000/driven'));
+    page.on.get('click')!();
+    vi.advanceTimersByTime(1000);
+    page.on.get('pagehide')!();
+    expect(drain).not.toHaveBeenCalled();
+    expect(page.jar.get(JOURNEY_COOKIE)).toBe('driven');
+    expect(page.jar.get(RETURN_COOKIE)).toBe(encodeURIComponent('http://127.0.0.1:5000/driven'));
   });
 
   it('reports a page whose cookies another page left for this watcher', () => {

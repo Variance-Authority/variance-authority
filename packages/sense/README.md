@@ -1323,7 +1323,9 @@ half alone: it listens for the heads' reports, mints, and waits for every
 request a subject started to settle.
 
 To drive it yourself: evaluate `executionCollectorSource()` in the page if the
-build does not hoist it, call `drainExecution(page)` to close one **subject**'s
+build does not hoist it, install `claimPageSource()` to run before the page
+where the application may call `reportPage`, which would otherwise drain what
+you read, call `drainExecution(page)` to close one **subject**'s
 window — one named UI state you asked for and can ask for again, such as
 `cart/empty` — and hand the journals to `recordExecution`. It takes the same
 `root`, plus `cacheRoot`, `suite`, `coverageFile` and `subjects`: one entry

@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import { executionCollectorSource, testSelectionProbes } from '@variance-authority/sense/journal';
+import { claimPageSource, drainExecution, executionCollectorSource, testSelectionProbes } from '@variance-authority/sense/journal';
 import { collectJourneys } from '@variance-authority/sense/journey';
 import { attachVantage, type AttachedVantage } from '@variance-authority/vantage/attach';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -90,6 +90,7 @@ let head: ReturnType<typeof collectJourneys> | undefined;
 let server: Server | undefined;
 let browser: Browser | undefined;
 let page: Page | undefined;
+let port = 0;
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'variance-ran-page-'));
@@ -169,7 +170,7 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
         response.writeHead(404).end('not found');
       }
     });
-    const port = await new Promise<number>((settle) => {
+    port = await new Promise<number>((settle) => {
       server!.listen(0, '127.0.0.1', () => {
         const address = server!.address();
         settle(address === null || typeof address === 'string' ? 0 : address.port);
@@ -262,4 +263,35 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
     await page.waitForURL('**/plain');
     expect(await journeyOf()).toBe('');
   }, 120_000);
+
+  it('yields the page and all its collector holds to a test that drives it, come late or before the page', async () => {
+    const journeyOf = async (): Promise<string> =>
+      /variance-authority-journey=([^;]+)/.exec(await page!.evaluate(() => document.cookie))?.[1] ?? '';
+    /** What the page told the watcher, as how many accounts under how many executions. */
+    const told = (): number =>
+      vantage!.observatory.snapshot().ran.executions.flatMap((one) => one.heads).filter((one) => one.head === 'page').length;
+    const drained = async (): Promise<string[]> => ((await drainExecution(page!))?.modules ?? []).map((module) => module.id);
+
+    // A driver that comes to a page already reporting, as a helper attached after the suite navigated: its first drain claims it.
+    await page!.goto(`http://127.0.0.1:${port}/`);
+    await expect.poll(journeyOf).not.toBe('');
+    await drainExecution(page!);
+    const before = told();
+    await page!.click('#ask');
+    await expect.poll(() => page!.textContent('#out')).toBe('quote: 42');
+    // Longer than the page waits between sends: what the click ran is still the driver's to take.
+    await page!.waitForTimeout(1200);
+    expect(await drained()).toEqual([expect.stringContaining('shop.js')]);
+    expect(told()).toBe(before);
+    expect(await journeyOf()).toBe('');
+
+    // A driver there before the page, in a run that names no head and so leaves no cookie.
+    await page!.context().addInitScript(claimPageSource());
+    await page!.reload();
+    await expect.poll(() => page!.textContent('#out')).toBe('ready');
+    await page!.waitForTimeout(1200);
+    expect(await journeyOf()).toBe('');
+    expect(await drained()).toEqual([expect.stringContaining('shop.js')]);
+    expect(told()).toBe(before);
+  }, 60_000);
 });

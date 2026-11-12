@@ -130,7 +130,7 @@ export {
   stagingDirectory,
   type StagedExecution,
 } from './stage.js';
-export { drainExecution, type EvaluatingPage } from './drain.js';
+export { claimPageSource, drainExecution, type EvaluatingPage } from './drain.js';
 // The driver's half of a journey. It opens a socket, so it is here, beside the
 // recorders, and not on the bundle-safe `journey` entry a Worker imports.
 export {

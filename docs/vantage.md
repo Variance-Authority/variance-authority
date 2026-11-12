@@ -356,8 +356,11 @@ These limits keep the listing honest:
   of their own. A browser keeps cookies per host and not per port, so every
   application on `127.0.0.1` shares them, as two tabs of one application do: a
   request from one can be listed under a click in another.
-- A page a test drives is that test's: `reportPage` installs nothing on a page
-  whose cookies answer somewhere other than this watcher.
+- A page a test drives is that test's, with everything its collector holds.
+  The Playwright recording claims each page before it loads, so `reportPage`
+  installs nothing there; a helper that attaches to a page already reporting
+  claims it at its first drain, and `reportPage` stops from then on. What the
+  page sent before that drain is the watcher's and not the test's.
 - The request for a document is listed apart from the load it starts: under
   the last execution of the page it replaces, whether a click led to it or a
   reload or a typed address did. A page the back button restores sends its
