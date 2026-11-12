@@ -3490,7 +3490,6 @@
         "rankDistillCauses": "function",
         "reachOf": "function",
         "readBlobsAt": "function",
-        "readByInstall": "function",
         "readCommitRuns": "function",
         "readDistillRecords": "function",
         "readFetchedMainline": "function",

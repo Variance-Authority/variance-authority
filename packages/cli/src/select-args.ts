@@ -7,8 +7,6 @@ export interface ParsedSelect {
   readonly command: 'select';
   /** `--since <ref>`: the base to measure from when the journal names no commit. */
   readonly since?: string;
-  /** `--tested <commit>`: the pull request's tested tree, which a merge queue merged onto `--since`. */
-  readonly tested?: string;
   readonly format: SelectFormat;
   readonly noGit?: boolean;
   /** `--execution <path>`: a journey file to read instead of this checkout's snapshot. */
@@ -48,17 +46,10 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
   const diff = flags.values.get('--diff');
   const suite = flags.values.get('--suite');
   const atDistance = flags.values.get('--at-distance');
-  const tested = flags.values.get('--tested');
   if (diff !== undefined && execution === undefined) {
     throw new OperatorError(
       '`--diff` is read against a journey file, and none was named: pass `--execution <path>`',
     );
-  }
-  if (tested !== undefined && since === undefined) {
-    throw new OperatorError('`--tested` names the pull request a merge queue merged onto `--since`, and no `--since` was passed');
-  }
-  if (tested !== undefined && execution !== undefined) {
-    throw new OperatorError('`--tested` reads both sides of a merge from git, and `--execution` names a record git does not hold; pass one');
   }
   if (diff !== undefined && since !== undefined) {
     throw new OperatorError('`--diff` and `--since` both name the change; pass one');
@@ -67,7 +58,6 @@ export function parseSelectArgs(flags: Flags): ParsedSelect {
   return {
     command: 'select',
     ...(since === undefined ? {} : { since }),
-    ...(tested === undefined ? {} : { tested }),
     format,
     ...(flags.present.has('--no-git') ? { noGit: true } : {}),
     ...(execution === undefined ? {} : { execution: resolve(execution) }),

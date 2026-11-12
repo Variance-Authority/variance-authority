@@ -136,12 +136,7 @@ variance reach --since origin/main              # files a diff reaches over impo
   the root config declares more than one suite. `--since <ref>` is the base when
   the recording names no commit. `--execution <journey file>` reads that file
   instead of the record, and `--diff <patch>|-` hands it the change; `--diff`
-  needs `--execution` and is refused beside `--since`. `--tested <commit>`,
-  beside `--since`, names the commit a merge queue's one pull request passed
-  at, and `--since` must name the mainline commit that passed, not a stacked
-  queue base; nothing checks either. A test file only one side of the merge reaches is skipped and named with
-  that side, and anything but a HEAD whose tree is that clean merge selects as
-  without it, with a note why. `--no-git` reads file
+  needs `--execution` and is refused beside `--since`. `--no-git` reads file
   contents from the working tree, not git's object store. `--at-distance <hops>`
   cuts the run to one leg of the selection and skips the selected files outside
   it; `0-2` then `3-` runs every selected file in one of the two. An edited test
