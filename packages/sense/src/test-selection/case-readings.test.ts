@@ -6,10 +6,13 @@ import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule
 
 const ID = 'a.test.ts > clicks';
 
-/** One case over `src/page.ts`'s regions `wire` and `handle`, each crossed at the spec line given, or not crossed, beside the cases `also` names, which cross nothing. */
-function run(stopped: boolean, lines: { readonly wire?: number; readonly handle?: number }, also: readonly string[] = []): Buffer {
+/**
+ * One case over `src/page.ts`'s regions `wire` and `handle`, each crossed at the spec line given, or not crossed, beside the cases `also` names, which cross nothing.
+ * `emptyFirst` lays the empty set first, as `Translation` does; a native fold lays the sets in the order it meets them.
+ */
+function run(stopped: boolean, lines: { readonly wire?: number; readonly handle?: number }, also: readonly string[] = [], emptyFirst = true): Buffer {
   const sets = new CrossingSets(1);
-  sets.intern([]);
+  if (emptyFirst) sets.intern([]);
   const regions = (['wire', 'handle'] as const);
   const builder = new CaseLinesBuilder();
   regions.forEach((name, block) => {
@@ -65,6 +68,16 @@ describe('layReadings', () => {
     const { section } = laid([run(true, { handle: 3 }), run(false, { wire: 2, handle: 4 })]);
 
     expect(layReadings(section, run(false, { wire: 2, handle: 4 }), run(true, { handle: 3 }), cases, over(run(true, { handle: 3 }), () => false))).toBeUndefined();
+  });
+
+  it('reads a region its index names by the first set in its pool', () => {
+    const { section, index } = laid([run(true, { wire: 2, handle: 3 }, [], false), run(false, { wire: 2, handle: 3 }, [], false)]);
+    const regions = [['src/page.ts', 'wire', 'wire', 1, 1, lineValue(2, false)], ['src/page.ts', 'handle', 'handle', 2, 2, lineValue(3, false)]];
+
+    expect(readingsOf(section, index, ID)).toEqual([
+      { count: 1, stopped: false, regions },
+      { count: 1, stopped: true, regions },
+    ]);
   });
 
   it('counts a reading it already holds rather than storing it again', () => {
