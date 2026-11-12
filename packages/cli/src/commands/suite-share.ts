@@ -268,7 +268,7 @@ async function foldedOver(root: string, suite: string, records: readonly string[
  * the publish refuses it unless every test it collects ran here.
  */
 async function wholeRun(root: string, suite: string, records: readonly string[]): Promise<string> {
-  if (records.length === 0) return `${suite}: nothing was handed on, so nothing is published.`;
+  if (records.length === 0) return `${suite}: nothing was handed on.`;
   return (await laidAsLeft(root, suite, records)) ?? (await landSuite(root, records, suite, true));
 }
 

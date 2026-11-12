@@ -914,8 +914,9 @@ jobs:
       # `share --publish`, handed the records the suite jobs handed on, lands
       # each suite's as `record` folded them, over nothing: the mainline's
       # record is replaced, not carried forward. It then publishes every suite
-      # the root config gives to the share, on the line of this run (`main`, on a push to it). It refuses a record that was not
-      # recorded at this commit, or whose runs record does not show that every
+      # the root config gives to the share, on the line of this run (`main`, on
+      # a push to it). It refuses a record that was not recorded at this
+      # commit, or whose runs record does not show that every
       # test file the runner collects ran here. The runs record travels with
       # it, so a reader knows where each test last ran. What it did goes to the
       # job summary. A refusal of one suite does not keep the rest from being

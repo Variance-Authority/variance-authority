@@ -577,9 +577,6 @@
     12,
     8
   ],
-  "packages/cli/src/commands/land.ts docblock": [
-    35
-  ],
   "packages/cli/src/commands/layers-command.ts overview": [
     16
   ],

@@ -1,8 +1,9 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  caseSectionsOf,
   encodeAsSetExecutionIndex,
   testCoverageFile,
   writeTestCoverage,
@@ -60,6 +61,7 @@ async function recordOf(
   ran: string,
   cases: readonly ExecutionTest[],
   entered: readonly Region[],
+  readings?: Uint8Array,
 ): Promise<void> {
   const blocks = regions.map((region, ordinal): CoverageBlock => ({
     ...region,
@@ -85,6 +87,7 @@ async function recordOf(
         })),
       }],
     }),
+    ...(readings === undefined ? {} : { readings }),
   });
 }
 
@@ -114,5 +117,25 @@ describe('landJourneys and a shard that cut the same text into one region more',
       'await#1': [STANDS.id],
       'await#2': [DISCOUNTS.id],
     });
+  });
+});
+
+describe('landJourneys alone', () => {
+  it('keeps no reading the record at the target held of a case the shards ran again', async () => {
+    const { dir, first } = await published(home, { publish: false });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    // An earlier run read `discounts` once passing and once throwing, over this text.
+    const earlier = { cases: { [DISCOUNTS.id]: [{ count: 1, stopped: false }, { count: 1, stopped: true }] } };
+    await recordOf(record, first, [MODULE, FIRST, THIRD], TOTAL, [DISCOUNTS], [FIRST, THIRD], Buffer.from(JSON.stringify(earlier)));
+    const shard = join(home, 'shard-1.bin');
+    await recordOf(shard, first, [MODULE, FIRST, THIRD], TOTAL, [DISCOUNTS], [FIRST]);
+
+    await landJourneys(dir, [shard], record, undefined, true);
+
+    const { index, readings } = caseSectionsOf(await readFile(record));
+    // The section keeps a case's earlier readings; the newest is its index's.
+    expect(readings === undefined ? {} : JSON.parse(Buffer.from(readings).toString()).cases).toEqual({});
+    expect(index).toBeDefined();
+    expect(await casesByRegion(record)).toEqual({ 'await#0': [DISCOUNTS.id], 'await#2': [] });
   });
 });

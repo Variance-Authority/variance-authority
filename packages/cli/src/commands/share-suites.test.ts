@@ -272,7 +272,7 @@ describe('`variance share --publish <records>`', () => {
     const done = await suitesShare(ci, { publish: true, records: [join(home, 'ran')], collected: await collectedEach() }, { env: PUSH });
 
     expect(done.exit).toBe(EXIT_OPERATOR);
-    expect(done.lines).toContain('integration: nothing was handed on, so nothing is published.');
+    expect(done.lines).toContain('integration: nothing was handed on.');
     expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
     expect(done.lines.at(-1)).toBe('not published: integration.');
   });
