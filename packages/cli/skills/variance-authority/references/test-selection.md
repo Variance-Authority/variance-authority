@@ -140,8 +140,8 @@ variance reach --since origin/main              # files a diff reaches over impo
   beside `--since`, names the commit a merge queue's one pull request passed
   at, and `--since` must name the mainline commit that passed, not a stacked
   queue base; nothing checks either. A test file only one side of the merge reaches is skipped and named with
-  that side; a HEAD whose clean tree is the tested or the `--since` commit's
-  tree skips every test file; otherwise anything but a HEAD whose tree is that
+  that side; a HEAD whose clean tree is the tested commit's tree
+  skips every test file; otherwise anything but a HEAD whose tree is that
   clean merge selects as without it, with a note why. `shards --tested` counts
   from the same selection, and the runner reads `VARIANCE_AUTHORITY_TESTED`
   beside `VARIANCE_AUTHORITY_SINCE`. `--no-git` reads file

@@ -216,6 +216,22 @@ describe('`variance select --tested` in a merge queue', () => {
     expect(here.err).toContain(`\`--tested ${head}\` skips every test file: HEAD's tree is the tree ${head.slice(0, 12)} ran its selection on`);
   });
 
+  it('selects as without `--tested` when HEAD holds the tree of `--since`, which no check named as passed', async () => {
+    const queue = await queued(home(), {
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+    await git(queue.dir, 'checkout', '--quiet', queue.base);
+
+    const whole = await selected(queue.dir, queue.base);
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // A stacked queue's base is the group before it, whose run has not passed.
+    expect(here.out).toBe(whole.out);
+    expect(here.err).not.toContain('skips every test file');
+  });
+
   it('asks for no shard when HEAD holds the tree the tested commit ran on', async () => {
     const queue = await queued(home(), {
       base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },

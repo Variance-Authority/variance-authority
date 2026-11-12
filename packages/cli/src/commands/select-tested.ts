@@ -73,8 +73,8 @@ async function observe(
 }
 
 /**
- * What HEAD is against `since` and `tested`: ran when its tree is either
- * one's tree, known only when its tree is exactly the clean merge of `tested`
+ * What HEAD is against `since` and `tested`: ran when its tree is the
+ * tested commit's tree, known only when its tree is exactly the clean merge of `tested`
  * onto `since`, by a merge commit or a squash, from one fork; either only when
  * the working tree holds nothing beyond HEAD.
  */
@@ -87,11 +87,10 @@ function mergeOf(git: Git, asked: TestedRequest): MergeAnswer {
     // Named, so `status.showUntrackedFiles=no` cannot hide a file the tests may load.
     const dirty = () => git('status', '--porcelain', '--untracked-files=all').trim() !== '';
     // A pull request up to date with the mainline merges to its own tree, whose selection already ran.
-    const ran = [tested, mainline].find((end) => git('rev-parse', `${end}^{tree}`).trim() === head);
-    if (ran !== undefined) return dirty() ? { is: 'dirty' } : { is: 'ran', at: ran };
+    if (git('rev-parse', `${tested}^{tree}`).trim() === head) return dirty() ? { is: 'dirty' } : { is: 'ran', at: tested };
     const forks = git('merge-base', '--all', mainline, tested).split('\n').filter(Boolean);
     if (forks.length > 1) return { is: 'apart', why: `${m12} and ${t12} have more than one merge base` };
-    // One holding the other, with a tree neither ran on, holds commits nobody named as tested.
+    // One holding the other, with a tree the tested commit did not run on, holds commits nobody named as tested.
     if (forks[0] === mainline || forks[0] === tested) return { is: 'apart', why: `${m12} and ${t12} are one line of history, so no merge joined them` };
     // A merge HEAD resolved by hand holds lines neither side wrote.
     const clean = git('merge-tree', '--write-tree', mainline, tested).split('\n')[0];

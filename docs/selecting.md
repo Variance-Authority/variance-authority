@@ -241,7 +241,7 @@ and the report says so.
 
 A pull request already up to date with the mainline merges nothing new: the
 merge's tree is the tested commit's tree. When HEAD's clean tree is the tree
-`--tested` or `--since` names, every test file is skipped, and the note names
+`--tested` names, every test file is skipped, and the note names
 the commit that ran them:
 
 ```text

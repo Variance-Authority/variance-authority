@@ -2476,7 +2476,7 @@ a merge queue merged onto `--since`, the mainline commit whose run passed too;
 nothing checks either run, so name only commits that passed. A test file only one side's change reaches is
 skipped, a file both reach runs, and a lockfile change on either side runs what
 it reaches. Each skip is named with the side that ran it. A HEAD whose clean
-tree is the tree `--tested` or `--since` names skips every test file, since
+tree is the tree `--tested` names skips every test file, since
 that commit's run already ran them there. Otherwise, anything but a HEAD
 whose tree is the clean merge of that one pull request, by a merge commit or a
 squash, selects as without `--tested`, with a note saying why.
