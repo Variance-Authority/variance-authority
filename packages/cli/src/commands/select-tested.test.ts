@@ -74,6 +74,7 @@ describe('`variance select --tested` in a merge queue', () => {
       recordAt: 'fork',
     });
 
+    await indexOutput({ cwd: queue.dir });
     // The seam and `shards` ask `selectSuite`, never the command's printer.
     const asked = await selectSuite({ root: queue.dir, since: queue.base, tested: queue.tested });
 
@@ -241,6 +242,7 @@ describe('`variance select --tested` in a merge queue', () => {
     const head = await git(queue.dir, 'rev-parse', 'HEAD');
     const collected = join(home(), 'collected.txt');
     await writeFile(collected, 'test/other.test.ts\ntest/total.test.ts\n');
+    await indexOutput({ cwd: queue.dir });
 
     const answer = JSON.parse(await shardsOutput({ cwd: queue.dir, since: queue.base, tested: head, collected, format: 'json' }));
 
