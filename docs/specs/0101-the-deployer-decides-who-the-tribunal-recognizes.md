@@ -1,12 +1,7 @@
 # Spec 0101 — the deployer decides who the tribunal recognizes
 
 **Missing:** a way for a deployment to say who it recognizes, and a way to
-recognize a machine without a shared secret. Today each deployment hard-codes
-whom it recognizes: whoever holds `INGEST_TOKEN`, `REVIEW_TOKEN` or
-`SHARE_TOKEN`; and on a loopback Node process, whoever sends no token at
-all. So every consumer mints a
-token, a person carries it into a CI secret store, and a pull
-request that needs the tribunal waits until that person has done it.
+recognize a machine without a shared secret.
 **Built on:** the capability split
 ([ADR-0022](../context/adr/0022-deciding-is-not-writing.md)); the packaged
 Worker's `grant` in `packages/tribunal/src/worker-auth.ts`; the `authorize` hook
@@ -126,17 +121,16 @@ deployment routes by shape and never tries every verifier in turn:
 - A value that parses as a JWT goes to the one declared mechanism whose issuer
   matches its unverified `iss`. No match is refusal.
 - Anything else is a token, compared in constant time against `INGEST_TOKEN`
-  only if `token` is declared. Today only the packaged Worker compares in
-  constant time; Node uses `===`.
+  only if `token` is declared.
 
 Routing on an unverified `iss` is safe because it only picks which key set the
 signature is checked against. It never grants anything by itself.
 
 ### What the policy hands the handler
 
-Today the Node mount answers `authorize`, then replaces the request's
-`Authorization` header with `INGEST_TOKEN` or `REVIEW_TOKEN`, and the handler
-checks that token again. That seam carries a capability and nothing else, so it
+A mount that answers `authorize`, then replaces the request's `Authorization`
+header with `INGEST_TOKEN` or `REVIEW_TOKEN`, leaves the handler to check that
+token again. That seam carries a capability and nothing else, so it
 cannot carry a name, and it needs both tokens in every deployment's secret store
 whatever the deployment declared.
 
@@ -307,8 +301,7 @@ work this way, and the split holds once machines are recognized without secrets:
 Two things today let a caller with no proven name decide, and both go:
 
 - **`REVIEW_TOKEN` as an outside bearer.** Every deployment grants it `review`.
-  The packaged Worker documents it as held by people; Node accepts it on any
-  bind. Each is a decision with no reviewer behind it, and the
+  Each is a decision with no reviewer behind it, and the
   scripted approval is removed on purpose. `review` is not a value of
   `INGEST_CREDENTIALS` or `REVIEW_CREDENTIALS`, and with the policy handing the
   handler a principal, nothing substitutes the token either: it stops existing.
@@ -357,9 +350,7 @@ there is nothing to provision and the step disappears.
 
 | Area | Today | Missing |
 |---|---|---|
-| Policy | `declaredPolicy` in `packages/tribunal/src/policy.ts`, built from `INGEST_CREDENTIALS` and `REVIEW_CREDENTIALS` and read by both deployments: the packaged Worker's `worker-entry.ts` and Node's `bin.ts`. | Nothing. |
 | Handler seam | The mount substitutes `INGEST_TOKEN` or `REVIEW_TOKEN`, and `createTribunal` requires both. | The handler takes the policy's principal: a capability and a name. |
-| Access | `createIssuer` in `packages/tribunal/src/issuer.ts`, with the refetch on an unknown `kid`, behind the `access` mechanism `declaredPolicy` builds, so either deployment can declare it. A declared `access` without `ACCESS_TEAM_DOMAIN` or `ACCESS_AUD` is refused by name. | Nothing. |
 | GitHub Actions | Nothing. | An instance of that verifier: discovery, the five checks, the log line on refusal. |
 | Client | A string, or `{ "env": … }`, read when the request is made for `review` and `share` and at parse time for `history` and `baselines`; synchronous either way. | `{ "github-actions": { "audience": … } }`, fetched asynchronously and refreshed near expiry. |
 | Decision name | `by` is whatever the decision or concern body says. | `by` written from the verified identity. |
