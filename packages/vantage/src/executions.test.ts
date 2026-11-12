@@ -112,6 +112,17 @@ describe('a watcher a head reports to', () => {
     expect(held.forgotten).toBe(1);
   });
 
+  it('does not open a dropped execution again for an account that arrives late', async () => {
+    const one = await watcher({ executions: 2 });
+    for (const journey of ['j-1', 'j-2', 'j-3']) await says(one, journey, { opened: 1 });
+    // A long request settles after newer ones pushed it out.
+    await says(one, 'j-1', { settled: 1, modules: [{ id: 'src/cart.ts@abc', hits: [0], shared: [] }] });
+
+    const held = await ran(one);
+    expect(held.executions.map((execution) => execution.id)).toEqual(['j-2', 'j-3']);
+    expect(held.forgotten).toBe(1);
+  });
+
   it('carries how many accounts each head said it lost', async () => {
     const one = await watcher();
     await says(one, 'j-1', { lost: 2 });

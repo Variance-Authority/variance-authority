@@ -160,8 +160,17 @@ export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Su
       const answer = async (subject: Subject, unseen?: string) => {
         const tree = wantsTree(request, options.served) ? await options.tree?.() : undefined;
         const tool = options.served.tools.find((one) => one.name === asked);
-        const modules = await cutFor(tool, subject, askedInput(request) ?? {}, options.root);
-        return answering(request, () => subject, options.served, {
+        // A checkout that cannot be read costs this call its answer, and never the queue the next call waits on.
+        let unread: { readonly error: unknown } | undefined;
+        const modules = await cutFor(tool, subject, askedInput(request) ?? {}, options.root).catch((error: unknown) => {
+          unread = { error };
+          return undefined;
+        });
+        const read = (): Subject => {
+          if (unread !== undefined) throw unread.error;
+          return subject;
+        };
+        return answering(request, read, options.served, {
           ...(previous === undefined ? {} : { previous }),
           ...(tree === undefined ? {} : { tree }),
           ...(modules === undefined ? {} : { modules }),

@@ -84,12 +84,15 @@ export function createExecutions(kept: number): Executions {
   const held = new Map<string, Held>();
   const common: Entered = new Map();
   const lost = new Map<string, number>();
+  const dropped = new Set<string>();
   let arrived = 0;
   let forgotten = 0;
 
-  const entry = (journey: string): Held => {
+  const entry = (journey: string): Held | undefined => {
     const found = held.get(journey);
     if (found !== undefined) return found;
+    // A long request that settles after it was dropped stays dropped: opened again it would push a newer one out.
+    if (dropped.has(journey)) return undefined;
     const made: Held = { ordinal: arrived, open: 0, heads: new Map() };
     arrived += 1;
     held.set(journey, made);
@@ -98,6 +101,8 @@ export function createExecutions(kept: number): Executions {
       if (oldest.done === true) break;
       held.delete(oldest.value);
       forgotten += 1;
+      dropped.add(oldest.value);
+      if (dropped.size > DROPPED) dropped.delete(dropped.values().next().value!);
     }
     return made;
   };
@@ -111,6 +116,7 @@ export function createExecutions(kept: number): Executions {
         return;
       }
       const one = entry(journey);
+      if (one === undefined) return;
       one.open += (account.opened ?? 0) - (account.settled ?? 0);
       for (const module of account.modules) {
         // What it entered while a module evaluated is every execution's, and
@@ -131,6 +137,9 @@ export function createExecutions(kept: number): Executions {
     }),
   };
 }
+
+/** How many dropped executions a watcher remembers dropping, so that a late account for one opens nothing. */
+const DROPPED = 4096;
 
 function enter(into: Entered, account: HeadAccount, id: string, entered: readonly number[]): void {
   if (entered.length === 0) return;
