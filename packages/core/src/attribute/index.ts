@@ -39,7 +39,7 @@ export {
 export type { SourceIndex, SourceRef, Resolution } from './source.js';
 
 export { parseStackFrames, isVendorPath, writerLocationOf } from './stack.js';
-export type { StackFrame } from '../format/provenance.js';
+export type { StackFrame } from './stack.js';
 
 export {
   parseSourceMap,
@@ -52,10 +52,15 @@ export type { SourceMap, OriginalPosition } from './source-map.js';
 export { createCallSiteResolver, locateProvenance, locateSites } from './call-site.js';
 export type { CallSiteResolver, CallSiteStats, FetchModule, LocatableSite } from './call-site.js';
 
-export { hashComponents, causesBetween, movedBands, movedBandsBetween, bandsBetween } from './component-hash.js';
-export { UNATTRIBUTED } from './boundary.js';
-export type { BandDigests, ComponentBands, ValueChange } from './component-hash.js';
-export type { ComponentHash } from '../format/snapshot.js';
+export {
+  hashComponents,
+  causesBetween,
+  movedBands,
+  movedBandsBetween,
+  bandsBetween,
+  UNATTRIBUTED,
+} from './component-hash.js';
+export type { BandDigests, ComponentBands, ComponentHash, ValueChange } from './component-hash.js';
 
 export { componentInstances, attributed } from './instances.js';
 export type { ComponentInstance } from './instances.js';

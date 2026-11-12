@@ -1,8 +1,11 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import type { RunReport } from './format.js';
-import type { NotObserved } from './not-observed.js';
-import type { PresentationEffectRecord, PresentationSignalRecord } from './presentation-record.js';
+import type {
+  NotObserved,
+  PresentationEffectRecord,
+  PresentationSignalRecord,
+  RunReport,
+} from './format.js';
 import { decodeSuiteIndex, encodeSuiteIndex, type SuiteIndex } from './suite-index.js';
 
 /**

@@ -2,8 +2,7 @@ import { widenedFrom } from '@variance-authority/core/format';
 import { longestFirst, place } from '@variance-authority/core/shard';
 import { matchesGlob, type PlannedSubject } from './collector.js';
 import type { Shard } from '../shard-args.js';
-import { shardFilterBecause, shardOwnedBecause } from './run-report.js';
-import type { NotObserved } from '@variance-authority/report';
+import { shardFilterBecause, shardOwnedBecause, type NotObserved } from './run-report.js';
 
 /**
  * Which subjects this shard owns, and in what order its workers take them.

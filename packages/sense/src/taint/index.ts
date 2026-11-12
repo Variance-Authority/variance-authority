@@ -87,7 +87,7 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { parseSync, rawTransferSupported, type ParserOptions } from 'oxc-parser';
 import type { ParseCache, Parsed } from '../cache.js';
-import type { Digest } from '@variance-authority/core/format';
+import type { Digest } from '../digest.js';
 import { keyFor, parseWay } from '../files.js';
 import { MODULE_EXTENSIONS } from '../read.js';
 import { parsedOnce } from '../record.js';

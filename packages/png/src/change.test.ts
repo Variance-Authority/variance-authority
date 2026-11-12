@@ -1,8 +1,7 @@
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
 import { isolateRegions } from '@variance-authority/core/attribute';
-import { changeImages } from './change.js';
-import { CHANGE_COLOURS, changeLayout } from './change-draw.js';
+import { CHANGE_COLOURS, changeImages, changeLayout } from './change.js';
 import { comparePngs } from './compare.js';
 
 /**

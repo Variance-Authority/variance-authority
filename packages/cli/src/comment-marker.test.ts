@@ -2,8 +2,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import './bin.fixture.js';
-import { main } from './bin.js';
+import { main } from './bin.fixture.js';
 import { commentMarker } from './commands/comment-marker.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from './exit.js';
 

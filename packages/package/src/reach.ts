@@ -11,7 +11,7 @@ import {
   parseFile,
 } from './declare.js';
 import { headOf } from './doc.js';
-import { requested } from './exports.js';
+import { requested } from './manifest.js';
 import { boundDeclaration } from './use.js';
 
 /**

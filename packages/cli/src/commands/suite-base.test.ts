@@ -17,7 +17,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { instrumentationId } from '@variance-authority/sense/instrument';
 import { variancePrecondition } from '@variance-authority/sense/precondition';
-import { parseArgs } from '../parse.js';
+import { parseArgs } from '../bin.js';
 import type { Config } from '../config.js';
 import { frame, suiteEntry } from '../share-entries.js';
 import { lineCellOf, type Env } from '../share-lines.js';

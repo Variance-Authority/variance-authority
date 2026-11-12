@@ -50,6 +50,9 @@ import {
  * accusation is in `findings.ts`.
  */
 
+export type { SubjectRun } from './ledger.js';
+export type { Finding } from './findings.js';
+
 export interface SessionOptions {
   readonly document: Document;
   readonly viewport: Viewport;

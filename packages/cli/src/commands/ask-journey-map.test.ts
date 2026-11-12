@@ -4,8 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { encodeExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import '../bin.fixture.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 /** `variance ask journey-map`, through the command a person types: it refuses by naming what is missing. */

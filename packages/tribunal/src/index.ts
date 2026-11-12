@@ -21,6 +21,4 @@ export type {
   TribunalBindings,
 } from './bindings.js';
 export { base64Of, bytesOf } from './bindings.js';
-export { SCHEMA, SCHEMA_VERSION, applySchema } from './schema.js';
-export { INITIAL_VERSION } from './migrations.js';
-export { MIGRATIONS } from './migration-steps.js';
+export { INITIAL_VERSION, MIGRATIONS, SCHEMA, SCHEMA_VERSION, applySchema } from './schema.js';

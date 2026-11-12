@@ -5,8 +5,7 @@ import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileNameFor } from '@variance-authority/core/format';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import '../bin.fixture.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 
 /**
  * `variance report --format html --embed-images` on a run whose pictures are

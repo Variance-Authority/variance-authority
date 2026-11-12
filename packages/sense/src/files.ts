@@ -17,10 +17,13 @@
  */
 
 import { basename, extname, isAbsolute, join } from 'node:path';
-import type { Digest } from '@variance-authority/core/format';
+import type { Digest } from './digest.js';
 import type { ParseKey } from './cache.js';
 import { languageOf, READABLE, type LanguageId } from './language.js';
 import { excludedWhenListed, toRepoPath } from './repo-path.js';
+
+/** The extensions a scan opens: every language some reader claims. */
+export { READABLE } from './language.js';
 
 /** Every Git-visible readable path below the configured roots. */
 export function seedPaths(

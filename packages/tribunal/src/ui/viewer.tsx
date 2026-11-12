@@ -448,3 +448,5 @@ export function modesFor(subject: SubjectView): readonly ViewerMode[] {
   if (modes.length === 0 && subject.has.after) modes.push('regions');
   return modes;
 }
+
+export { RegionOverlay, RegionTable } from './regions.js';

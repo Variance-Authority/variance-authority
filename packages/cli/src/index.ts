@@ -36,20 +36,21 @@
  *   it, and states the limit of its own font probe.
  */
 
-export { parseConfig } from './config.js';
-export { DEFAULT_REPORT_PATH } from './config-placement.js';
-export { ConfigError } from './config-values.js';
+export { DEFAULT_REPORT_PATH, ConfigError, parseConfig } from './config.js';
 export { loadConfig } from './config-load.js';
-export type { Config } from './config.js';
-export type { BaselinesConfig, DirectoryBaselines, LfsBaselines, RemoteBaselines } from './config-baselines.js';
 export type {
+  BaselinesConfig,
+  Config,
+  DirectoryBaselines,
   HistoryConfig,
+  LfsBaselines,
   ListSubjects,
+  ParseOptions,
+  RemoteBaselines,
   ReviewConfig,
   StorybookSubjects,
   SubjectsConfig,
-} from './config-sections.js';
-export type { ParseOptions } from './config-values.js';
+} from './config.js';
 
 export {
   EXIT_CLEAN,
@@ -62,31 +63,39 @@ export {
 } from './exit.js';
 export type { ExitCode, ReviewableReport } from './exit.js';
 
-export { run } from './commands/run.js';
-export { collectorPath, loadCollector, matchesGlob, planList, planStorybook } from './commands/collector.js';
-export { readCliRunReport, writeCliRunReport } from './commands/run-report.js';
-export { recordOf } from './commands/record.js';
-export { settle } from '@variance-authority/raster';
-export { storeFor, writeArtifactToDisk } from './commands/resources.js';
-export type { CliRunReport } from './commands/run-report.js';
+export {
+  collectorPath,
+  loadCollector,
+  matchesGlob,
+  planList,
+  planStorybook,
+  readCliRunReport,
+  recordOf,
+  run,
+  settle,
+  storeFor,
+  writeArtifactToDisk,
+  writeCliRunReport,
+} from './commands/run.js';
 export type {
+  CliRunReport,
   Collected,
   Collector,
   CollectorContext,
+  NotObserved,
+  NotObservedKind,
   Plan,
   PlannedSubject,
+  RunDeps,
+  RunOptions,
+  Settlement,
   SubjectSource,
-} from './commands/collector.js';
-export type { NotObserved, NotObservedKind } from '@variance-authority/report';
-export type { RunDeps, RunOptions } from './commands/run-context.js';
-export type { Settlement } from '@variance-authority/raster';
+} from './commands/run.js';
 
 export { formatReport } from './commands/report.js';
 export type { ReportFormat, ReportOptions } from './commands/report.js';
 
-export { ask } from './commands/ask.js';
-export { ASKED } from './commands/ask-previous.js';
-export { questions } from './commands/ask-questions.js';
+export { ASKED, ask, questions } from './commands/ask.js';
 export { QUESTIONS, argumentsOf, questionFor, takes } from './commands/asking.js';
 export type { Argument, Question } from './commands/asking.js';
 export { readVantage, watch, watching } from './commands/watch.js';
@@ -116,12 +125,17 @@ export { DEFAULT_LIMITS, renderComment } from './commands/comment.js';
 export { commentMarker } from './commands/comment-marker.js';
 export type { CommentLimits, CommentOptions } from './commands/comment.js';
 
-export { doctor, fontProbeDocument } from './commands/doctor.js';
-export { machineProbes } from './commands/doctor-probes.js';
+export { doctor, fontProbeDocument, machineProbes } from './commands/doctor.js';
 export { exitForDiagnosis, formatDiagnosis } from './commands/doctor-report.js';
-export type { Diagnosis, FontFinding, HistoryFinding, RendererFinding } from './commands/doctor.js';
-export type { BaselineFinding, Partition } from './commands/doctor-baselines.js';
-export type { DoctorProbes } from './commands/doctor-probes.js';
+export type {
+  BaselineFinding,
+  Diagnosis,
+  DoctorProbes,
+  FontFinding,
+  HistoryFinding,
+  Partition,
+  RendererFinding,
+} from './commands/doctor.js';
 
 /**
  * The record a checkout measures a change from — its own, else its mainline's

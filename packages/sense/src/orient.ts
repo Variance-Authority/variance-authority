@@ -16,10 +16,20 @@
 
 // compass: variance-authority.reach.relations
 
-import { native, nativeRefusal } from './addon.js';
+import { native, nativeRefusal } from './native.js';
 import type { NativeCasesEntered, NativeExternalOrientation, NativeOrientation } from './native-orient.js';
 import { sourceIndexPath } from './source-index.js';
 import { eachSuiteCases } from './suite-cases.js';
+
+export type {
+  NativeCasesEntered as CasesEntered,
+  NativeOrientation as Orientation,
+  NativeExternalOrientation as ExternalOrientation,
+  NativeOrientFlow as OrientFlow,
+  NativeOrientFlows as OrientFlows,
+  NativeOrientPackage as OrientPackage,
+  NativeOrientShare as OrientShare,
+} from './native-orient.js';
 
 /** How many rows and names per row one side of a package shows; the rest are counted. */
 export interface OrientLimits {

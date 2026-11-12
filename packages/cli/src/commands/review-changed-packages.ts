@@ -24,6 +24,8 @@ import { functionOf, located, overwritten, uncovered } from './review-scope.js';
 import { REACHES, type Reach, type ChangedPackage, type ReviewFile } from './review.js';
 import { notKnown } from './review-words.js';
 
+export type { ChangedPackage } from './review.js';
+
 /** Packages given a row before the rest are folded. */
 const ROWS = 10;
 /** Packages named in a row's tests before the rest are counted. */

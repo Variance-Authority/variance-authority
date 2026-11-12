@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { native, nativeAvailable } from '../addon.js';
+import { native, nativeAvailable } from '../native.js';
 
 /**
  * The verdict the addon gives one file from its two texts, asked directly.

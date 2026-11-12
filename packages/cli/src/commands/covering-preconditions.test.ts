@@ -4,8 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { readFlags } from '../args.js';
-import '../bin.fixture.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { parseCoveringArgs, type ParsedCovering } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import {
@@ -14,8 +13,7 @@ import {
   type ExecutionIndex,
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
-import { covering, type Covering } from './covering.js';
-import { formatCovering } from './covering-text.js';
+import { covering, formatCovering, type Covering } from './covering.js';
 import { coveringAnswer } from './covering-suites.js';
 
 /**

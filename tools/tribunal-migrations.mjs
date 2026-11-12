@@ -1,9 +1,7 @@
 import { mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MIGRATIONS } from '../packages/tribunal/dist/migration-steps.js';
-import { INITIAL } from '../packages/tribunal/dist/migrations.js';
-import { SCHEMA_VERSION } from '../packages/tribunal/dist/schema.js';
+import { INITIAL, MIGRATIONS, SCHEMA_VERSION } from '../packages/tribunal/dist/schema.js';
 
 /**
  * The D1 migrations, written from the schema rather than beside it.

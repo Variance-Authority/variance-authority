@@ -1,8 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishing } from './__fixtures__/published-then-written.js';
 import { outlived } from './caught-up.js';
-import { readWorkspace } from './read.js';
-import { workspaceGeneration } from './snapshot.js';
+import { readWorkspace, workspaceGeneration } from './read.js';
 import { search } from './tools/search.js';
 import { symbol } from './tools/symbol.js';
 import { uses } from './tools/uses.js';

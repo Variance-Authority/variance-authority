@@ -22,18 +22,15 @@ export {
   diffImage,
   pngjsDecoder,
 } from './compare.js';
-export type { PngDecoder } from './compare.js';
-export type { DecodedImage } from './mask.js';
+export type { DecodedImage, PngDecoder } from './compare.js';
 
 export { changeImages } from './change.js';
-export type { ChangeImages } from './change.js';
-export type { ChangeLabels } from './change-draw.js';
+export type { ChangeImages, ChangeLabels } from './change.js';
 
 export { declaredIdentity, foreignDigest, foreignRaster } from './foreign.js';
 export type { DeclaredPainter } from './foreign.js';
 
-export { decodePortable } from './format.js';
-export { imageFormat } from './header.js';
-export type { ImageFormat } from './header.js';
+export { decodePortable, imageFormat } from './format.js';
+export type { ImageFormat } from './format.js';
 
 export { imageSize, isLosslessWebp, KEEP_LIMIT, refuseOversize, refuseUnkept } from './header.js';

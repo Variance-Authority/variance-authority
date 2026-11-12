@@ -1,6 +1,6 @@
 // compass: variance-authority.reach.source-index
 
-import { native } from './addon.js';
+import { native } from './native.js';
 
 /**
  * Fold the working layer of the index at `index` into its base, once it has

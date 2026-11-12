@@ -16,8 +16,7 @@ import type {
 } from '@playwright/test';
 import { enterCase } from './case-scope.js';
 import { enterDescribes } from './preconditions.js';
-import type { ExecutionRecorder } from './execution.js';
-import { testOf } from './test-coordinate.js';
+import { testOf, type ExecutionRecorder } from './execution.js';
 
 /** The worker fixture the recorder lives on, for the halves that report to it. */
 export interface RecorderFixture {

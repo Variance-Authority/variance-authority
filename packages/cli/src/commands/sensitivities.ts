@@ -1,4 +1,4 @@
-import type { SensitivityConfig } from '../config-sensitivity.js';
+import type { SensitivityConfig } from '../config.js';
 import {
   sensitivityShare,
   sensitivityState,
@@ -24,6 +24,8 @@ import type { PlannedSubject } from './collector.js';
  * that applied on one path and not the other would be a hole shaped exactly like
  * the config — and everything else here is about a different sentence.
  */
+
+export type { SensitivityLedger, SensitivityUsage };
 
 export function sensitivityLedgerOf(
   rules: readonly SensitivityConfig[],

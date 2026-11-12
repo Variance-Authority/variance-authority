@@ -5,8 +5,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { updateSourceIndex } from '@variance-authority/sense';
-import '../bin.fixture.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { formatCoveringAnswer } from './covering-suites.js';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 

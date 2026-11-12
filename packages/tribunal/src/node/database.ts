@@ -1,9 +1,7 @@
 import { createRequire } from 'node:module';
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import type { D1Like, D1PreparedLike, D1ResultLike, D1Value } from '../bindings.js';
-import { SCHEMA_VERSION, applySchema } from '../schema.js';
-import { INITIAL_VERSION } from '../migrations.js';
-import { MIGRATIONS } from '../migration-steps.js';
+import { INITIAL_VERSION, MIGRATIONS, SCHEMA_VERSION, applySchema } from '../schema.js';
 
 /**
  * D1, as a file on a disk somebody owns.

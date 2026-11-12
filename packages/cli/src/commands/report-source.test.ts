@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Config } from '../config.js';
 import { openImages, reportSource, type SharedReport } from './report-source.js';
-import type { CliRunReport } from './run-report.js';
+import type { CliRunReport } from './run.js';
 
 /**
  * What a reader does with a report it did not write: the configured one wins

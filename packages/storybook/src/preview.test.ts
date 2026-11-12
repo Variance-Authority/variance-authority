@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { collectStories, collectStory, harnessPage, type StoryOutcome } from './preview.js';
-import { STORYBOOK_ERROR_OVERLAY, STORYBOOK_EVENTS, type ShowRequest } from './preview-protocol.js';
-import { showStory } from './show-story.js';
+import {
+  STORYBOOK_ERROR_OVERLAY,
+  STORYBOOK_EVENTS,
+  collectStories,
+  collectStory,
+  harnessPage,
+  showStory,
+  type ShowRequest,
+  type StoryOutcome,
+} from './preview.js';
 import {
   BASE,
   TIMING,

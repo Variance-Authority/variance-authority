@@ -21,8 +21,7 @@
 import { open, type FileHandle } from 'node:fs/promises';
 import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { native } from '../addon.js';
-import type { NativeJourneyChange, NativeJourneyGraph } from '../native-journey.js';
+import { native, type NativeJourneyChange, type NativeJourneyGraph } from '../native.js';
 import { declaredBehindFiles } from './declared.js';
 import type { LineRange } from './diff-lines.js';
 import { declaredReach, dependsReaders, type JourneySelectionOptions } from './execution-select.js';

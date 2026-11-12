@@ -28,10 +28,8 @@
  * that reader.
  */
 
-export { locateSubjects, FIELD_WEIGHTS } from './tools/locate.js';
-export { tokensOf } from './tools/locate-index.js';
-export type { Located, LocateHit, LocateMatch } from './tools/locate.js';
-export type { LocateField } from './tools/locate-index.js';
+export { locateSubjects, tokensOf, FIELD_WEIGHTS } from './tools/locate.js';
+export type { Located, LocateHit, LocateMatch, LocateField } from './tools/locate.js';
 
 export type { ObservabilitySubject } from './observability-subject.js';
 

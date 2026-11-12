@@ -12,7 +12,7 @@ import type { Renderer } from '@variance-authority/raster';
 import { messageOf } from './config-values.js';
 import type { Config } from './config.js';
 import { OperatorError } from './exit.js';
-import { rendererOptionsFor } from './commands/doctor-probes.js';
+import { rendererOptionsFor } from './commands/doctor.js';
 
 /**
  * The renderer the config asks for, imported lazily.

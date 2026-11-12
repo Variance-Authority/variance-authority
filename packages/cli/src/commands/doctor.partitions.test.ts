@@ -9,8 +9,7 @@ import type {
 import type { Renderer } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import type { Config } from '../config.js';
-import { doctor } from './doctor.js';
-import type { DoctorProbes } from './doctor-probes.js';
+import { doctor, type DoctorProbes } from './doctor.js';
 import { exitForDiagnosis, formatDiagnosis } from './doctor-report.js';
 
 /**

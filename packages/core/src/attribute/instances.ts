@@ -3,8 +3,14 @@ import { digestValue } from '../format/hash.js';
 import type { Digest } from '../format/hash.js';
 import type { NodePath, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import { ID_REFERENCE_ATTRIBUTES, ID_REFERENCE_LIST_ATTRIBUTES } from '../rules/ruleset.js';
-import { boundaries, holds, shapeOf, UNATTRIBUTED, type Boundary } from './boundary.js';
-import type { Rename } from './rename.js';
+import {
+  boundaries,
+  holds,
+  shapeOf,
+  UNATTRIBUTED,
+  type Boundary,
+  type Rename,
+} from './boundary.js';
 
 /**
  * One digest per component *boundary*, comparable across subjects.

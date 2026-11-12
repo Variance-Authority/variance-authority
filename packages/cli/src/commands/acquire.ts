@@ -5,8 +5,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Config } from '../config.js';
 import { matchesGlob, visited, type Collected, type Collector, type Plan, type PlannedSubject } from './collector.js';
 import { closeLanes, openLanes, steal, type Lane } from './lanes.js';
-import { shardFilterBecause } from './run-report.js';
-import type { NotObserved } from '@variance-authority/report';
+import { shardFilterBecause, type NotObserved } from './run-report.js';
 import { declinedBy } from './shard.js';
 
 /**

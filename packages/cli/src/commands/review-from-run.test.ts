@@ -3,9 +3,9 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { readFlags } from '../args.js';
 import { OperatorError } from '../exit.js';
-import { REVIEW_ARTIFACT, parseReviewArgs } from '../review-args.js';
+import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { reviewFromRun, runOf } from './review-from-run.js';
+import { REVIEW_ARTIFACT, reviewFromRun, runOf } from './review-from-run.js';
 import { reviewPieces } from './review-text.js';
 import type { Review } from './review.js';
 

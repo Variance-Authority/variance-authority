@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { previewUrl } from './preview-url.js';
+import { previewUrl } from './preview.js';
 
 /**
  * Every base URL a project might hand this, including the wrong ones.

@@ -6,9 +6,9 @@ import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@vari
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
 import { caughtUp, foundNothingAnswer, foundNothingFooter, outlived, refusalFooter, snapshotLine } from './caught-up.js';
-import { readWorkspace, readWorkspaceForAnswer } from './read.js';
-import { workspaceGeneration, workspaceReadStarted } from './snapshot.js';
+import { readWorkspace, readWorkspaceForAnswer, workspaceGeneration } from './read.js';
 import { serveWorkspace, type WorkspaceOptions } from './server.js';
+import { workspaceReadStarted } from './snapshot.js';
 import { FoundNothing } from './tools/find.js';
 import { search } from './tools/search.js';
 import { uses } from './tools/uses.js';

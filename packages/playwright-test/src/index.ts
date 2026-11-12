@@ -19,17 +19,14 @@ export type { UnchangedOptions } from './matcher.js';
 export { AGENT, AGENT_VERSION, acquire } from './page-agent.js';
 export type { Acquired, AcquireRequest, InstalledAgent } from './page-agent.js';
 export { bundlePageAgent } from './bundle.js';
-export { createExecutionRecorder } from './execution.js';
-export { ownerOf, testOf } from './test-coordinate.js';
+export { createExecutionRecorder, ownerOf, testOf } from './execution.js';
 export type {
   EventDesk,
   VarianceEventFixtures,
   VarianceEventsOptions,
   VarianceEventWorkerFixtures,
 } from './events.js';
-export type { ExecutionRecorder } from './execution.js';
-export type { ExecutionRecording } from './execution-recording.js';
-export type { ObservedTest } from './test-coordinate.js';
+export type { ExecutionRecorder, ExecutionRecording, ObservedTest } from './execution.js';
 export { SELECTION_REPORTER, withTestSelection } from './with-test-selection.js';
 export type { PlaywrightSelectionConfig, TestSelection } from './with-test-selection.js';
 export { runnerReprieve, varianceDesk, varianceVantageFixtures } from './vantage.js';

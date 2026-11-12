@@ -2,7 +2,7 @@ import type { Served, Tool } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { snapshotLine } from './caught-up.js';
 import { operatorError } from './operator.js';
-import { workspaceGeneration } from './snapshot.js';
+import { workspaceGeneration } from './read.js';
 import { containment } from './tools/containment.js';
 import { discover } from './tools/discover.js';
 import { entrypoint } from './tools/entrypoint.js';

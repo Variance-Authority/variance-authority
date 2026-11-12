@@ -28,7 +28,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { gitDigests, treeOf } from '../dist/tree.js';
-import { native } from '../dist/addon.js';
+import { native } from '../dist/native.js';
 
 const run = promisify(execFile);
 const LAYOUT = ['package.json', 'jsconfig.json', 'yarn.lock'];

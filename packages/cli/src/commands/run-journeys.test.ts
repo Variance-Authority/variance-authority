@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Collector, Plan } from './collector.js';
+import type { Collector, Plan } from './run.js';
 import { collectorOf, configOf, documentFor, runWith, storeAnswering } from './run-fixture.js';
 
 /**

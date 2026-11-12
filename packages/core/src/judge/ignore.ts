@@ -8,6 +8,8 @@ import { fingerprintOfRoot } from './fingerprint.js';
 import type { IgnoreSite } from '../format/snapshot.js';
 import { appliesToSubject, isExpired, isUnder } from './scope.js';
 
+export type { IgnoreSite } from '../format/snapshot.js';
+
 /**
  * Ignores, and the accounting that stops one becoming a blind spot (spec 0024).
  *
@@ -57,7 +59,6 @@ import { appliesToSubject, isExpired, isUnder } from './scope.js';
  * different question with a different answer — `Policy.blocking` in `intent.ts`.
  */
 
-/** One ignore: a place or a shape that is not the subject, and why. */
 export interface IgnoreRule {
   /** Stable name, used in the config, in the report, and by `IgnoreSite.rule`. */
   readonly id: string;

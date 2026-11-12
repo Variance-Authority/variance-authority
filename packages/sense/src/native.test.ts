@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
-import { nativeAvailable, nativeRefusal, refusal } from './addon.js';
+import { nativeAvailable, nativeRefusal, refusal } from './native.js';
 import { seedPaths } from './files.js';
 import { scanRelations } from './scan.js';
 import { gitDigests, gitTreeOf, treeOf, type Tree } from './tree.js';

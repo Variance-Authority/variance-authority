@@ -4,8 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { describe, expect, it } from 'vitest';
-import '../bin.fixture.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { RENDER_SETTINGS } from '../config-settings.js';
 
 /**

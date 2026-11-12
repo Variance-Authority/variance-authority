@@ -49,6 +49,8 @@ import {
 import { OperatorError } from '../exit.js';
 import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
 
+export type { Detach } from './index-follow-ups.js';
+
 export interface IndexRequest {
   readonly cwd: string;
   /** Read each file's bytes from the working tree rather than Git's object store. */

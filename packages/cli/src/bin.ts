@@ -7,8 +7,8 @@ import { messageOf } from './config-values.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, isOperatorError, type ExitCode } from './exit.js';
 import { directCallLine } from './direct-call.js';
 import { CLI_VERSION } from './version.js';
-import { parseArgs, type Parsed } from './parse.js';
-import { USAGE, helpFor } from './usage.js';
+import { USAGE, parseArgs, type Parsed } from './parse.js';
+import { helpFor } from './usage.js';
 import { readerOf } from './reader.js';
 import { skillLine } from './skill.js';
 import { unbuiltOf } from './unbuilt.js';
@@ -24,6 +24,8 @@ import type { Streams } from './commands/configless.js';
  * They change for different reasons, and only one of them is a statement about
  * the product.
  */
+
+export { USAGE, parseArgs, type Parsed } from './parse.js';
 
 /**
  * Run one command and answer with an exit code.

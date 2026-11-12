@@ -8,7 +8,7 @@ import { OperatorError } from '../exit.js';
 import type { Config } from '../config.js';
 import { changelogStoreFor, formatChangelog } from './changelog.js';
 import { writeAcceptMessage } from './accept-message.js';
-import type { CliRunReport } from './run-report.js';
+import type { CliRunReport } from './run.js';
 
 /**
  * The two ends of the git-LFS half: writing an explanation somebody can commit,

@@ -17,6 +17,8 @@ import { useReading } from './reading.js';
 import { messageOf } from './shell.js';
 import { when } from './text.js';
 
+export { evidenceFor } from './concern-form.js';
+
 /**
  * A request from outside the card to open its form, in a state. `seq` counts the
  * requests, so asking twice for the same state is still two requests.

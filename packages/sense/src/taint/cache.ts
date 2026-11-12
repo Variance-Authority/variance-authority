@@ -40,8 +40,7 @@
 import type { EdgeKind } from '@variance-authority/core/relate';
 import type { ParseCache, Parsed } from '../cache.js';
 import manifest from '../../package.json' with { type: 'json' };
-import { digestString } from '../digest.js';
-import type { Digest } from '@variance-authority/core/format';
+import { digestString, type Digest } from '../digest.js';
 import type { ImportDiff } from './index.js';
 
 /** The reader's answer for these bytes, or nothing when it was never asked. */

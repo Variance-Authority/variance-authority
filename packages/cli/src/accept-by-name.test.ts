@@ -4,8 +4,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import './bin.fixture.js';
-import { main } from './bin.js';
+import { main } from './bin.fixture.js';
 
 /**
  * `--by` from the command line to the history row.

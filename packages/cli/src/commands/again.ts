@@ -14,7 +14,7 @@ import {
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
 import { absorbsEntirely, type Level } from '@variance-authority/core/judge';
-import { DEFAULT_ALONE_LIMIT } from '../config-sections.js';
+import { DEFAULT_ALONE_LIMIT } from '../config.js';
 import { visited, type Collected, type PlannedSubject, type Visit } from './collector.js';
 import type { ObserveContext } from './run-context.js';
 import type { CliObservationRecord } from './run-report.js';

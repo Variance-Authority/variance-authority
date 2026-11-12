@@ -10,10 +10,10 @@ import type { RunReport } from '@variance-authority/report';
 import { caseSectionsOf, commitRunsFile, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import type { Config } from '../config.js';
 import { parseShare } from '../config-share.js';
-import { type Env, mainlinesOf } from '../share-lines.js';
+import type { Env } from '../share-lines.js';
 import { ask, type AskRequest } from './ask.js';
 import { reportsFor } from './report-read.js';
-import { mainlineIndex, mainlineSuite, publishedLine, publishRun, shareLines } from './share.js';
+import { mainlineIndex, mainlineSuite, mainlinesOf, publishedLine, publishRun, shareLines } from './share.js';
 import { publishSuite } from './suite-share.js';
 
 /**

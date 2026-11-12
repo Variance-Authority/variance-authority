@@ -41,7 +41,6 @@ export type {
   TestWaiting,
   VantageReport,
 } from './report.js';
-export type { Note, TestState, VantageState, WatchedTest } from './state.js';
-export type { RecordedEvent } from '@variance-authority/event/collect';
+export type { Note, RecordedEvent, TestState, VantageState, WatchedTest } from './state.js';
 export { VANTAGE_VARIABLE, VANTAGE_WAITING, openVantage, waitingPath } from './watch.js';
 export type { Vantage, Waited, WaitOptions, WatchedTestIdentity } from './watch.js';

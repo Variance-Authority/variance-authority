@@ -15,6 +15,10 @@ import { attribute } from './attribution.js';
 import { componentsOf } from './components.js';
 import { locate } from '../../attribute/locate.js';
 
+export type { ChangedComponent, Delta, Root, RootKind } from './delta.js';
+export { matchTrees } from './match.js';
+export type { Matching } from './match.js';
+
 export interface SemanticDiff {
   readonly subjectId: string;
   /** `true` when both render hashes agree — nothing below need be consulted. */

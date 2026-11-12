@@ -21,6 +21,8 @@ import { RecordWithoutCoverage } from './format-validation.js';
 import { flatten } from './journey-native.js';
 import type { ExecutionTest } from './reverse.js';
 
+export type { NativeDistillCause, NativeDistillFile, NativeDistillRegion, NativeDistillScope } from '../native-distill.js';
+
 /** Records read for distillation; each question is answered without reading them again. */
 export interface DistillRecords {
   /**

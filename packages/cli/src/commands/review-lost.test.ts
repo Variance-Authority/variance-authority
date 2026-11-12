@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import '../bin.fixture.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { EXIT_CLEAN, EXIT_REVIEW } from '../exit.js';
 import type { Coverage } from './coverage.js';
 import { lostVerdict } from './review-coverage.js';

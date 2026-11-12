@@ -8,9 +8,7 @@ import type { Renderer } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import type { Config } from '../config.js';
 import { parseArgs } from '../parse.js';
-import { doctor } from './doctor.js';
-import { baselineFinding } from './doctor-baselines.js';
-import { machineProbes, type DoctorProbes } from './doctor-probes.js';
+import { baselineFinding, doctor, machineProbes, type DoctorProbes } from './doctor.js';
 import { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis } from './doctor-report.js';
 
 /**

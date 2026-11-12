@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { native, nativeAvailable } from './addon.js';
+import { native, nativeAvailable } from './native.js';
 
 it.runIf(nativeAvailable())('reads local blobs and worktree fallbacks without fetching missing objects', () => {
   const root = mkdtempSync(join(tmpdir(), 'sense-local-blobs-'));

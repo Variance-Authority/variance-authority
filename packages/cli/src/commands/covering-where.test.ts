@@ -12,8 +12,7 @@ import {
   type ExecutionIndex,
   type ExecutionTest,
 } from '@variance-authority/sense/test-selection';
-import { covering } from './covering.js';
-import { formatCovering } from './covering-text.js';
+import { covering, formatCovering } from './covering.js';
 
 const SPEC = 'checkout.test.ts';
 

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalize } from './index.js';
-import { capture, node } from './fixture.js';
-import { CHROMIUM_PROFILE } from '../../format/profile.js';
+import { CHROMIUM_PROFILE, capture, node } from './fixture.js';
 
 /**
  * ADR-0003's claims about turning declarations into computed style.

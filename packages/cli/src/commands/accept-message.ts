@@ -7,7 +7,7 @@ import {
   type ChangelogSelection,
 } from '@variance-authority/report';
 import type { AcceptResult } from './accept.js';
-import type { CliRunReport } from './run-report.js';
+import type { CliRunReport } from './run.js';
 
 /**
  * The commit message a baseline update carries, written to a file.

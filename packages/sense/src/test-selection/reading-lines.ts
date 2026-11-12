@@ -16,6 +16,8 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { isUnasked, type ExecutionNarrowing, type Unasked } from './narrowing.js';
 import type { FileReading } from './reading.js';
 
+export type { FileReading };
+
 /** The lists a narrowing names its unread files in, and its readings. */
 type Listed = Pick<ExecutionNarrowing, 'unread' | 'declined' | 'stale' | 'ignored' | 'readings'>;
 

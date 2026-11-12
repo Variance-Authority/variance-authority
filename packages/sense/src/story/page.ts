@@ -21,6 +21,8 @@ import format from './format.cjs';
 import type { ModuleId } from '../instrument/index.js';
 import { PAGE_STORY, type PageStory } from './page-story.js';
 
+export { PAGE_STORY, type PageStory } from './page-story.js';
+
 /**
  * The script that makes a page tape: installed before any document loads, so
  * the collector a bundle evaluates finds the maker and every console line a

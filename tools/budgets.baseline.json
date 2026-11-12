@@ -718,7 +718,7 @@
     6
   ],
   "packages/cli/src/commands/run.ts overview": [
-    29
+    30
   ],
   "packages/cli/src/commands/runs-base.ts overview": [
     19
@@ -818,7 +818,7 @@
     11
   ],
   "packages/cli/src/config.ts overview": [
-    31
+    32
   ],
   "packages/cli/src/covering-args.ts docblock": [
     19

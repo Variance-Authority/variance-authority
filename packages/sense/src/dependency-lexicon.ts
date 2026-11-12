@@ -1,6 +1,6 @@
 /** The native lexicon writer; only its aggregate result crosses the boundary. */
 import { join, dirname } from 'node:path';
-import { native, nativeRefusal } from './addon.js';
+import { native, nativeRefusal } from './native.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
 

@@ -1,8 +1,7 @@
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { jestCacheKey, loadTransformer, type JestTransformOptions } from './jest-transformer.js';
-import { globMatcher, isTestFile, slashed } from './jest-test-files.js';
+import { globMatcher, isTestFile, jestCacheKey, loadTransformer, slashed, type JestTransformOptions } from './jest-transformer.js';
 
 const fixtures = resolve(dirname(fileURLToPath(import.meta.url)), '../../test/fixtures/jest-transformer');
 const given: JestTransformOptions = { config: {}, configString: '{}', instrument: false, transformerConfig: { wrapper: true } };

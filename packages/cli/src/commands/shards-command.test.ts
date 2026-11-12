@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
-import { parseArgs } from '../parse.js';
+import { parseArgs } from '../bin.js';
 import { shardsOutput } from './shards-command.js';
 
 describe('variance shards', () => {

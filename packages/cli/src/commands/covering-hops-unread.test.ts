@@ -11,8 +11,7 @@ import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { covering } from './covering.js';
-import { formatCovering } from './covering-text.js';
+import { covering, formatCovering } from './covering.js';
 
 /**
  * A per-case index that holds the file beside a snapshot that holds no

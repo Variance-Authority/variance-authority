@@ -12,7 +12,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { native, nativeRefusal } from './addon.js';
+import { native, nativeRefusal } from './native.js';
 import type { NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import type { SourceSymbolReach } from './harvest.js';
 import { sourceIndexPath } from './source-index.js';

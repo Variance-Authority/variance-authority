@@ -3,7 +3,7 @@ import { writePieces } from '../json-pieces.js';
 import { htmlPage } from './report.js';
 import { carrying } from './report-html-pictures.js';
 import { reportWithPictures, reportsFor } from './report-read.js';
-import type { CliRunReport } from './run-report.js';
+import type { CliRunReport } from './run.js';
 
 /**
  * `variance report --format html`: the page, written as it is made.

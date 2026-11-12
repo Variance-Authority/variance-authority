@@ -1,14 +1,13 @@
 import {
-  type NotObserved,
-  type ObservationRecord,
-  type RegionRecord,
-  type UnstableSubject,
   byReason,
   isUnstable,
   promotionOf,
   unstableOf,
+  type ObservationRecord,
+  type RegionRecord,
+  type UnstableSubject,
 } from '@variance-authority/report';
-import type { CliRunReport } from './run-report.js';
+import type { CliRunReport, NotObserved } from './run.js';
 
 /**
  * The docket: a run report folded into the review items a person can act on.

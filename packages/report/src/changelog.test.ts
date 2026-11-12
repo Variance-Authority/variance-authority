@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { changelogOf, isRecorded } from './changelog.js';
 import { parseCommitMessage, renderCommitMessage } from './changelog-message.js';
-import type { ObservationRecord, RunReport } from './format.js';
-import type { RegionRecord } from './region-record.js';
+import type { ObservationRecord, RegionRecord, RunReport } from './format.js';
 
 /**
  * What a baseline update says about itself, a month later.

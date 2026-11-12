@@ -13,8 +13,7 @@ import type {
 } from '@variance-authority/core/format';
 import { ariaOf } from './aria.js';
 import { resolveIgnores, type IgnoreSelector } from './ignore.js';
-import { conditionKey, indexStyleSheets, type StyleIndex } from './css-index.js';
-import { matchRulesFor } from './css-match.js';
+import { conditionKey, indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
 import { inheritedSeed } from './inherit.js';
 import { deviceProbe, type ConditionEnvironment } from './media.js';
 import { attributesOf, childNodesOf, elements, propertyNames } from './dom-list.js';
@@ -22,6 +21,7 @@ import { detectProfile } from './profile.js';
 import { editedAttributes, formState, type FormState } from './form-state.js';
 import { hostChosenFonts } from './typeface.js';
 import { GENERATED_BOXES, computedStyleOf, generatedBox, textNode } from './generated-box.js';
+export { detectProfile } from './profile.js';
 
 /**
  * Extract a `RawCapture` from a live DOM.
@@ -457,3 +457,4 @@ function supportsProbe(view: Window | null): ((condition: string) => boolean | n
     }
   };
 }
+

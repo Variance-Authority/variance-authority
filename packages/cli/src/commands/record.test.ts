@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Observation } from '@variance-authority/observe';
 import type { Described } from '@variance-authority/raster';
 import type { FindingRecord } from '@variance-authority/report';
-import { dated, diagnosticsOf, inherited, marksOf, qualification, recordOf } from './record.js';
+import { dated, diagnosticsOf, inherited, marksOf, qualification } from './record.js';
+import { recordOf } from './run.js';
 import { UNREADABLE } from './run-fixture.js';
 
 /**

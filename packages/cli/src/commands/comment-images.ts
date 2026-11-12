@@ -1,4 +1,4 @@
-import type { CliRunReport } from './run-report.js';
+import type { CliRunReport } from './run.js';
 import { urlOfPath } from './url-of-path.js';
 
 /**

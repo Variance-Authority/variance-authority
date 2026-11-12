@@ -29,6 +29,8 @@ import { messageOf } from './shell.js';
 import { count, number } from './text.js';
 import { Viewer } from './viewer.js';
 
+export type { Place } from './action-bar.js';
+
 /**
  * One subject: its name, state and verdict across the top, the render on the
  * left, what else is known on the right, and the way along underneath.

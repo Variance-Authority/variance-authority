@@ -5,7 +5,8 @@ import type { HistoryStore } from '@variance-authority/history';
 import type { RasterStore } from '@variance-authority/raster';
 import { promotionOf, selectByShape, whyNotWhole } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
-import { type CliObservationRecord, type CliRunReport, readCliRunReport } from './run-report.js';
+import type { CliObservationRecord, CliRunReport } from './run.js';
+import { readCliRunReport } from './run-report.js';
 import { keptRaster } from '@variance-authority/store/keep';
 
 /**

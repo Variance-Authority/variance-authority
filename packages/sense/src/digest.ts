@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
 import { digestOfSha256, type Digest } from '@variance-authority/core/format';
 
+export type { Digest } from '@variance-authority/core/format';
+
 /**
  * The digests this package takes, from the platform's SHA-256 rather than the
  * portable one.

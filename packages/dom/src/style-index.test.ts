@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import type { RawCapture, RawNode, Viewport } from '@variance-authority/core/format';
 import { normalize } from '@variance-authority/core/rules';
 import { collect, conditionsFor } from './collect.js';
-import { indexStyleSheets } from './css-index.js';
+import { indexStyleSheets } from './css.js';
 import { STABILIZE_ATTRIBUTE } from './stabilize.js';
 
 /**

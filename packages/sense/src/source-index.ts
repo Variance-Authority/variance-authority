@@ -15,8 +15,13 @@ import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { cacheLayers } from './test-selection/cache-layers.js';
 import { realPath } from './resolve.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
-import { openSourceIndexFile, type EncodedParseLayer, type SourceIndexState } from './source-index-file.js';
-import { type IndexedRecord, decodeSourceIndex } from './source-index-format.js';
+import {
+  openSourceIndexFile,
+  type EncodedParseLayer,
+  type IndexedRecord,
+  type SourceIndexState,
+} from './source-index-file.js';
+import { decodeSourceIndex } from './source-index-format.js';
 import type { NativeIndexGraph } from './native-index-graph.js';
 
 const nativeParses = new WeakMap<ParseCache, EncodedParseLayer>();

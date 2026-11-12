@@ -3,9 +3,9 @@ import {
   ignoreShare,
   ignoreState,
   type IgnoreLedger,
+  type IgnoreUsage,
 } from '@variance-authority/report';
-import type { Config } from '../config.js';
-import type { IgnoreConfig } from '../config-ignore.js';
+import type { Config, IgnoreConfig } from '../config.js';
 import type { CliObservationRecord } from './run-report.js';
 
 /**
@@ -25,6 +25,8 @@ import type { CliObservationRecord } from './run-report.js';
  * The clock is the caller's. `until` is compared against a date passed in, so the
  * behaviour on the day a rule expires is a test rather than a wait.
  */
+
+export type { IgnoreLedger, IgnoreUsage };
 
 /**
  * The rules that still absorb, for the collector to resolve.

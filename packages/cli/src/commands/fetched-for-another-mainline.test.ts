@@ -18,8 +18,7 @@ import {
   writeFetchedMainline,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import '../bin.fixture.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { readerMainline } from '../share-lines.js';
 import { landSuite } from './journeys-command.js';
 import { landJourneys } from './land.js';

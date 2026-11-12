@@ -3,7 +3,7 @@ import type { Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { verbOf } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { snapshotLine } from './caught-up.js';
-import { workspaceGeneration } from './snapshot.js';
+import { workspaceGeneration } from './read.js';
 import type { SearchIndex } from './search-index.js';
 import { type SearchReading, unopenedLine, type Unopened } from './search-read.js';
 import { searchNames } from './tools/search-answer.js';

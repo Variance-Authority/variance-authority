@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { hashComponents, movedBandsBetween } from './component-hash.js';
-import type { ComponentHash, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
+import { hashComponents, movedBandsBetween, type ComponentHash } from './component-hash.js';
 import { CHROMIUM_PROFILE } from '../format/profile.js';
+import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 
 /**
  * The declared values a component hash carries beside its digests.

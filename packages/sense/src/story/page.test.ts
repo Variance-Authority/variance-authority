@@ -2,7 +2,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { PageStory } from './page-story.js';
+import type { PageStory } from './page.js';
 
 /** Built, as `format.test.ts` reads it: the format `require`s its neighbours by the names the build gives them. */
 const { pageStories } = (await import('../../dist/story/page.js')) as typeof import('./page.js');

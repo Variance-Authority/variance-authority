@@ -28,10 +28,16 @@
  * on — into a list of the names that are silent in front of an audience.
  */
 
-export { readWorkspace, readWorkspaceForAnswer, refreshWorkspace } from './read.js';
-export { publishedGeneration, readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
-export type { AnsweringOptions, ReadingOptions } from './read.js';
-export type { SnapshotOptions } from './snapshot.js';
+export {
+  publishedGeneration,
+  readWorkspace,
+  readWorkspaceForAnswer,
+  readWorkspaceSnapshot,
+  refreshWorkspace,
+  workspaceGeneration,
+  workspaceSnapshotPath,
+} from './read.js';
+export type { AnsweringOptions, ReadingOptions, SnapshotOptions } from './read.js';
 export { publishWorkspaceFromIndex, type FromIndexOptions } from './refresh-native.js';
 export { readNamedTree, type NamedTree } from './names-read.js';
 export { countingShown, type ShownCounting } from './ask.js';

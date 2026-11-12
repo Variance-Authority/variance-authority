@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDurableStore } from '@variance-authority/store/durable';
 import { describe, expect, it } from 'vitest';
-import { type Collected, type Plan, type PlannedSubject, type Visit, keyFor } from './collector.js';
+import { keyFor, type Collected, type PlannedSubject, type Visit } from './collector.js';
 import {
   collectorOf,
   configOf,
@@ -14,6 +14,7 @@ import {
   storeAnswering,
   VIEWPORT,
 } from './run-fixture.js';
+import type { Plan } from './run.js';
 import { keptRaster } from '@variance-authority/store/keep';
 
 /**

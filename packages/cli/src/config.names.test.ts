@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfig } from './config.js';
-import { ConfigError } from './config-values.js';
+import { ConfigError, parseConfig } from './config.js';
 
 /**
  * The section that says what a subject id is made of.

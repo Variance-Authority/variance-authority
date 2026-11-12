@@ -2,9 +2,9 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { changedPackagesMarkdown, changedPackagesOf } from './review-changed-packages.js';
-import type { ChangedPackage, Reach, Review, ReviewFile, ReviewRegion } from './review.js';
+import { changedPackagesMarkdown, changedPackagesOf, type ChangedPackage } from './review-changed-packages.js';
 import { formatReview } from './review-text.js';
+import type { Reach, Review, ReviewFile, ReviewRegion } from './review.js';
 
 const region = (kind: string, name: string, startLine: number, endLine: number, reach: Reach, tests: readonly string[] = []): ReviewRegion => ({
   kind,

@@ -1,8 +1,7 @@
 import type { DurationScope, RecordedCaseDurations, RecordedDurations } from '@variance-authority/sense';
 import { describe, expect, it } from 'vitest';
 import { spellingOf } from '@variance-authority/mcp/tools';
-import { overOf, scopeOf, slowestTests } from './slowest-tests.js';
-import { formatSlowest, spent } from './slowest-format.js';
+import { formatSlowest, overOf, scopeOf, slowestTests, spent } from './slowest-tests.js';
 
 const ANYWHERE = { unrecorded: [] };
 const NO_CASES = { recording: '/cache/coverage.bin', unread: 'nothing is recorded there' };

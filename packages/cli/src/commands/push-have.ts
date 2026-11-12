@@ -1,4 +1,4 @@
-import type { ReviewConfig } from '../config-sections.js';
+import type { ReviewConfig } from '../config.js';
 
 /**
  * The question a push asks before it sends, and the address it asks at.

@@ -2,16 +2,9 @@ import { resolve } from 'node:path';
 import type { Help } from '@variance-authority/package/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { operatorError } from './operator.js';
-import { UnsavedRead, readWorkspace, readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
-import {
-  readSearchSnapshot,
-  readSearchTree,
-  readWorkspaceSnapshot,
-  searchOf,
-  workspaceSearchPath,
-  workspaceSnapshotPath,
-} from './snapshot.js';
+import { UnsavedRead, readWorkspace, readWorkspaceForAnswer, workspaceSnapshotPath, type AnsweringOptions } from './read.js';
 import type { SearchIndex } from './search-index.js';
+import { readSearchSnapshot, readSearchTree, readWorkspaceSnapshot, searchOf, workspaceSearchPath } from './snapshot.js';
 
 /** A search, and whether it was read from the checkout as it is now. */
 export interface SearchReading {

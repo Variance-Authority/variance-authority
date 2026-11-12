@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseConfig } from './config.js';
-import { ConfigError } from './config-values.js';
+import { ConfigError, parseConfig } from './config.js';
 
 const OPTIONS = { source: 'variance.config.json', baseDir: '/repo' } as const;
 

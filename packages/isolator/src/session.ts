@@ -19,6 +19,8 @@
 import { driverInstalled, registerTestScope } from '@variance-authority/ioc/reset';
 import { realm, switchTo, testSession, type SessionSource } from './realm.js';
 
+export type { SessionSource } from './realm.js';
+
 /**
  * Add a source of sessions, asked before every source added after it.
  *

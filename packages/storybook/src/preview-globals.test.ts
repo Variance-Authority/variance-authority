@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { collectStories, collectStory } from './preview.js';
-import { DEFAULT_PREVIEW_GLOBALS } from './preview-protocol.js';
+import { DEFAULT_PREVIEW_GLOBALS, collectStories, collectStory } from './preview.js';
 import { BASE, TIMING, fakePage, fakePreview, type FakePreview } from './preview-fake.js';
 
 /**

@@ -481,3 +481,18 @@ export interface ObservationRecord {
     readonly record?: string;
   };
 }
+
+// Re-exported so a reader importing the report's shape gets the shapes its
+// fields are made of, without having to know which file each one was argued in.
+export type { FindingRecord } from './finding-record.js';
+export type { NotObserved, NotObservedKind } from './not-observed.js';
+export type {
+  PresentationEffectEvidence,
+  PresentationEffectRecord,
+  PresentationEffectTransition,
+  PresentationInformationRecord,
+  PresentationSignalRecord,
+} from './presentation-record.js';
+export type { ChurnRecord, DriftRecord, FlakinessRecord } from './history-records.js';
+export type { RegionRecord } from './region-record.js';
+export type { VariationRecord, VariationStep } from './variation.js';

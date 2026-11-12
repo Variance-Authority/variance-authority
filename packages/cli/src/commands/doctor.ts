@@ -141,6 +141,14 @@ export interface HistoryFinding {
   readonly because: string;
 }
 
+// The machine half lives next door; `./doctor` remains the one import for both,
+// because a caller needs the probes and the reasoning together or neither.
+export { machineProbes, rendererOptionsFor } from './doctor-probes.js';
+export type { DoctorProbes, RenderCacheReading } from './doctor-probes.js';
+export type { CacheFinding, CacheReading } from './doctor-cache.js';
+export { baselineFinding } from './doctor-baselines.js';
+export type { BaselineFinding, Partition } from './doctor-baselines.js';
+
 /**
  * `root` is the repository the config is in, whose declared suites are read;
  * a caller that names none asks nothing of them.

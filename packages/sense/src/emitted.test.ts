@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { emittedFrom } from './emitted.js';
-import { native, nativeAvailable } from './addon.js';
+import { native, nativeAvailable } from './native.js';
 import { realPath, resolveTo, resolversFor } from './resolve.js';
 
 /**

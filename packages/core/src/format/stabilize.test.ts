@@ -15,9 +15,10 @@ import {
   recipeDigest,
   recipeScreenshot,
   settleRecipe,
+  waitForFonts,
+  waitForImages,
+  type Intervention,
 } from './stabilize.js';
-import { waitForFonts, waitForImages } from './waits.js';
-import type { Intervention } from './intervention.js';
 
 /**
  * Interventions as composable tricks.

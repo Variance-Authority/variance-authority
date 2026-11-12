@@ -1,9 +1,8 @@
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseArgs } from './parse.js';
+import { parseArgs } from './bin.js';
 import { shareOutput } from './commands/share-output.js';
-import { parseConfig, type Config } from './config.js';
-import { ConfigError } from './config-values.js';
+import { ConfigError, parseConfig, type Config } from './config.js';
 
 /**
  * The three places a sharded build is spelled: `--shard` on a run, `workers` in

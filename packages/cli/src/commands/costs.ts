@@ -1,9 +1,10 @@
 import type { Config } from '../config.js';
 import { costsPath, decodeCosts, keepCostBytes, keepCosts, keptCosts, SUBJECT_COSTS_ENTRY } from './costs-entry.js';
 import type { CliRunReport } from './run-report.js';
-import type { Here } from './share.js';
-import { mainlineEntry } from './mainline-entry.js';
+import { mainlineEntry, type Here } from './share.js';
 import type { Costs } from './shard.js';
+
+export { costsOf, costsPath } from './costs-entry.js';
 
 /**
  * What each subject cost the last mainline run, and where the next run finds it.

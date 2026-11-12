@@ -15,6 +15,8 @@ import {
 import type { NativeIndexGraph } from './native-index-graph.js';
 import type { NativeScanner } from './native.js';
 
+export type { IndexedRecord, StoredSourceIndex } from './source-index-format.js';
+
 const EMPTY: StoredSourceIndex = { parses: new Map(), records: new Map(), directories: new Map() };
 
 /**

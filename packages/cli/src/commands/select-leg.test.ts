@@ -10,8 +10,7 @@ import {
   placed,
   type TestDistance,
 } from '@variance-authority/sense/test-selection';
-import '../bin.fixture.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { parseArgs } from '../parse.js';
 import { followUpsLogPath, holdFollowUps, releaseFollowUps } from './index-follow-ups.js';
 import { inLeg, parseAtDistance } from './select-leg.js';

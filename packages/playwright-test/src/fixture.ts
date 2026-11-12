@@ -32,8 +32,11 @@ import { varianceDocumentFixtures, type VarianceDocumentFixtures } from './docum
 import { arrangedText, snapshotCaseOf, type SnapshotCase } from './arranged.js';
 import { withEvidence, type Observed } from './evidence.js';
 import { engineOf, promote } from './promote.js';
-import { createExecutionRecorder, type ExecutionRecorder } from './execution.js';
-import type { ExecutionRecording } from './execution-recording.js';
+import {
+  createExecutionRecorder,
+  type ExecutionRecorder,
+  type ExecutionRecording,
+} from './execution.js';
 import {
   varianceEventFixtures,
   type VarianceEventFixtures,

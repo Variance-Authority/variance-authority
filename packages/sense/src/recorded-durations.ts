@@ -33,6 +33,9 @@ import {
   type ScopeCounts,
 } from './recorded-scope.js';
 
+export type { DurationScope, ScopeCounts } from './recorded-scope.js';
+export type { RecordOrigin } from './test-selection/record-location.js';
+
 /** One test file and the milliseconds running it cost, as `fileCost` reads them. */
 export interface TimedTestFile {
   readonly file: string;

@@ -7,8 +7,7 @@ import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@vari
 import { updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { digestString } from '@variance-authority/core/format';
-import '../bin.fixture.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 
 /**
  * The gap a record older than the asked file leaves: a new file is run by

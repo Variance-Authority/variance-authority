@@ -22,6 +22,14 @@ import type { OriginalPosition } from './source-map.js';
  */
 
 /**
+ * A frame is a wire value, not a local one: the page reads it, the collector
+ * resolves it, and it travels between them on `Provenance`. It is declared where
+ * the rest of provenance is declared, and re-exported here because this is the
+ * group that does something with it.
+ */
+export type { StackFrame };
+
+/**
  * V8: `    at App (http://host/src/probe.jsx:23:26)` — and the same without a
  * name for top-level code, which is why the parenthesised half is optional.
  *

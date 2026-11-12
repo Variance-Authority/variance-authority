@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { native, nativeRefusal } from '../addon.js';
+import { native, nativeRefusal } from '../native.js';
 import type { NativeCombinedRecord } from '../native-record.js';
 import { cutRecord } from './format-layer.js';
 import { repositoryRoot } from './repository-root.js';
+
+export type { NativeCombinedRecord as CombinedRecord, NativeCombinedShard as CombinedShard } from '../native-record.js';
 
 /**
  * The shard records at `shards` folded into the one record at `output`, as one

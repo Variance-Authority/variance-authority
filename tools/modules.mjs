@@ -22,7 +22,4 @@ export const tracked = (...patterns) =>
     // Tracked but removed from the working tree: a deletion not yet committed.
     .filter((file) => file !== '' && existsSync(join(ROOT, file)));
 
-/** A path under a directory of fixtures: input data a test reads, not source a rule holds. */
-export const FIXTURE = /(^|\/)(__fixtures__|fixtures)\//;
-
 export const MODULES = tracked('*.ts', '*.tsx', '*.mts', '*.cts', '*.js', '*.jsx', '*.mjs', '*.cjs');

@@ -8,6 +8,8 @@ import {
 import type { Config } from '../config.js';
 import { cacheOf } from './cache-of.js';
 
+export type { RenderCacheSwept };
+
 /**
  * Where the render cache goes: in the cache, never beside the baselines.
  *

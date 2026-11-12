@@ -13,14 +13,12 @@ import {
   writeFetchedMainline,
   writeTestCoverage,
 } from '@variance-authority/sense/test-selection';
-import '../bin.fixture.js';
-import { main } from '../bin.js';
+import { main } from '../bin.fixture.js';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { covering } from './covering.js';
-import { formatCovering } from './covering-text.js';
+import { covering, formatCovering } from './covering.js';
 import { changed } from './review-fixture.js';
 import { cutGap } from './probes-gap.js';
 import { indexPosition } from './since.js';

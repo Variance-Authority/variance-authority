@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { selection } from '../vitest.config.mjs';
-import { NATIVE } from '../packages/sense/native/build-inputs.mjs';
+import { NATIVE } from './native-sources.mjs';
 import { ROOT } from './workspaces.js';
 
 /**

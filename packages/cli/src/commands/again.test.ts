@@ -4,7 +4,7 @@ import type { RenderDocument } from '@variance-authority/core/format';
 import { packSnapshot } from '@variance-authority/observe';
 import type { Found } from '@variance-authority/raster';
 import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
-import type { Collected, Collector, Plan } from './collector.js';
+import type { Collected, Collector, Plan } from './run.js';
 import {
   collectorOf,
   configOf,

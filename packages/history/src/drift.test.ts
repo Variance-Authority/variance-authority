@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { ProfileId } from '@variance-authority/core/format';
 import type { Band, Observation, RunRecord, TokenValue } from './observation.js';
 import type { Churn, Journey, Reach } from './store.js';
-import { accumulateChurn } from './churn.js';
-import { describeChurn, describeDrift, describeLastChanged, describeReach } from './sentences.js';
-import { detectDrift } from './token-drift.js';
+import {
+  accumulateChurn,
+  describeChurn,
+  describeDrift,
+  describeLastChanged,
+  describeReach,
+  detectDrift,
+} from './drift.js';
 
 /**
  * The arithmetic, on hand-written histories.

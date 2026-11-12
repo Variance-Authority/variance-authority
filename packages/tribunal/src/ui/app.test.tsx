@@ -6,8 +6,7 @@ import type { RenderIdentity } from '@variance-authority/core/format';
 import type { Flakiness } from '@variance-authority/history';
 import type { BuildSummary, SubjectView } from '../review.js';
 import type { ReviewClient } from './client.js';
-import { ReviewApp } from './review.js';
-import { SubjectHistory } from './history.js';
+import { ReviewApp, SubjectHistory } from './review.js';
 import type { Route } from './route.js';
 
 /**

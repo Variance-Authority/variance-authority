@@ -360,8 +360,7 @@ export type {
   Use,
   UseKind,
 } from './use.js';
-export { ownership, readImportTargets, readOfferings, readWorkspaceManifests } from './manifest.js';
-export { requested } from './exports.js';
+export { ownership, readImportTargets, readOfferings, readWorkspaceManifests, requested } from './manifest.js';
 export { landing, type ImportTargets } from './entry.js';
 export type { Entrypoint, Offering, OfferingOptions, WorkspaceManifests } from './manifest.js';
 export { readMention, readmes } from './mention.js';

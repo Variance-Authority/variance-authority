@@ -1,7 +1,6 @@
 import type { Change, Clustering } from './cluster.js';
 import { clusterChanges } from './cluster.js';
-import type { RunReport } from './format.js';
-import type { NotObserved } from './not-observed.js';
+import type { NotObserved, RunReport } from './format.js';
 
 /**
  * A claim, and what the run did with it.

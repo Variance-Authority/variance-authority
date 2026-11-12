@@ -3,7 +3,7 @@ import { beforeReach, relationsOfFiles } from '@variance-authority/core/relate';
 import { affectedSubjects, indexOf } from './affected.js';
 import { reachOf } from './reach-subjects.js';
 import { collectorOf, configOf, documentFor, runWith, storeAnswering, whiteBaselineOf } from './run-fixture.js';
-import type { Collected, Plan } from './collector.js';
+import type { Collected, Plan } from './run.js';
 
 const SOURCE = indexOf(
   new Map([

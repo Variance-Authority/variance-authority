@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capture, node } from '../rules/normalize/fixture.js';
-import { CHROMIUM_PROFILE, JSDOM_PROFILE } from '../format/profile.js';
+import { CHROMIUM_PROFILE, JSDOM_PROFILE, capture, node } from '../rules/normalize/fixture.js';
 import { normalize } from '../rules/normalize/index.js';
 import type { SubjectComposition } from './composition.js';
 import { instance } from './composition-fixture.js';

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { grainOf } from './language.js';
-import { native } from './addon.js';
+import { native } from './native.js';
 import type { Read } from './read.js';
 import { resolveSwift } from './swift.js';
 import { worldOn, type TreeWorld } from './world.js';

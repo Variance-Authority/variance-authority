@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { PushResult } from './push.js';
-import { formatPush, pushTicker } from './push-progress.js';
-import type { TickerClock } from './ticker-clock.js';
+import { formatPush, pushTicker, type TickerClock } from './push-progress.js';
 
 /**
  * What a push says while it is still going, and what it says about how long.

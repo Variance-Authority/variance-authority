@@ -22,7 +22,7 @@ export async function dispatch(
   if (parsed.command === 'journeys' && parsed.operation !== undefined)
     return (await import('./commands/journey-artifact-command.js')).runJourneyArtifactCommand(parsed, streams);
   if (parsed.command === 'carry') {
-    const [{ runCarry }, { mainlinesOf }] = await Promise.all([import('./commands/carry.js'), import('./share-lines.js')]);
+    const [{ runCarry }, { mainlinesOf }] = await Promise.all([import('./commands/carry.js'), import('./commands/share.js')]);
     return runCarry(parsed, streams, mainlinesOf);
   }
   // The parts say how they were collected; a merge reads no project.
@@ -77,10 +77,9 @@ export async function dispatch(
     }
 
     case 'ask': {
-      const [{ VANTAGE_VARIABLE }, { ask }, { costsSubject }, { reviewSubject }, { reportsFor }] = await Promise.all([
+      const [{ VANTAGE_VARIABLE }, { ask, costsSubject }, { reviewSubject }, { reportsFor }] = await Promise.all([
         import('@variance-authority/vantage'),
         import('./commands/ask.js'),
-        import('./commands/ask-costs.js'),
         import('./commands/ask-review.js'),
         import('./commands/report-read.js'),
       ]);
@@ -122,7 +121,7 @@ export async function dispatch(
     case 'accept': {
       const [{ accept, formatAcceptance, readCandidate, reportToPromoteFrom }, { historyFor, storeFor }] = await Promise.all([
         import('./commands/accept.js'),
-        import('./commands/resources.js'),
+        import('./commands/run.js'),
       ]);
       const report = await reportToPromoteFrom(config.report);
       const acceptHistory = await historyFor(config);
@@ -209,10 +208,9 @@ export async function dispatch(
         );
       }
 
-      const [{ identityOf }, { push }, { formatPush, pushTicker }, { reportsFor }] = await Promise.all([
-        import('./commands/history.js'),
+      const [{ identityOf }, { formatPush, push, pushTicker }, { reportsFor }] = await Promise.all([
+        import('./commands/run.js'),
         import('./commands/push.js'),
-        import('./commands/push-progress.js'),
         import('./commands/report-read.js'),
       ]);
 
@@ -269,10 +267,8 @@ export async function dispatch(
       return EXIT_CLEAN;
 
     case 'doctor': {
-      const [{ doctor }, { baselineFinding }, { machineProbes }, { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis }] = await Promise.all([
+      const [{ baselineFinding, doctor, machineProbes }, { exitForBaselines, exitForDiagnosis, formatBaselines, formatDiagnosis }] = await Promise.all([
         import('./commands/doctor.js'),
-        import('./commands/doctor-baselines.js'),
-        import('./commands/doctor-probes.js'),
         import('./commands/doctor-report.js'),
       ]);
       // The store alone: no browser launched, no font measured, so the action

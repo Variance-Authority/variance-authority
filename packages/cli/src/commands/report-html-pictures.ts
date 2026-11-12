@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
-import type { CliRunReport } from './run-report.js';
+import type { CliRunReport } from './run.js';
 import { text } from './report-html-elements.js';
 import { needsReview } from './report-html-subjects.js';
 import { urlOfPath } from './url-of-path.js';

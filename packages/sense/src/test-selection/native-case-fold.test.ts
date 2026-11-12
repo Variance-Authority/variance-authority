@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { EVALUATING, type ModuleId } from '../instrument/index.js';
-import { native, nativeAvailable } from '../addon.js';
+import { native, nativeAvailable } from '../native.js';
 import { foldCaseRun, inspectCaseRun } from './case-fold.js';
 import { packCase, packFrames } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';

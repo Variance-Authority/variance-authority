@@ -1,14 +1,8 @@
 import { identityDigest, totalsOf, widenedFrom } from '@variance-authority/core/format';
-import type {
-  IgnoreLedger,
-  LexiconField,
-  LexiconReport,
-  NotObserved,
-  SubjectLexicon,
-} from '@variance-authority/report';
+import type { LexiconField, LexiconReport, SubjectLexicon } from '@variance-authority/report';
 import { OperatorError } from '../exit.js';
-import { isShardFilter, type CliRunReport } from './run-report.js';
-import { ledgerOf } from './ignores.js';
+import { isShardFilter, type CliRunReport, type NotObserved } from './run-report.js';
+import { ledgerOf, type IgnoreLedger } from './ignores.js';
 
 /**
  * N shard reports into one, or a refusal naming which two disagreed.

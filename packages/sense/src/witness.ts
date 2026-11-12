@@ -55,8 +55,7 @@
 
 import { dirname, join, normalize } from 'node:path/posix';
 import { native, nativeRefusal } from './addon.js';
-import { digestString } from './digest.js';
-import type { Digest } from '@variance-authority/core/format';
+import { digestString, type Digest } from './digest.js';
 import { isRelative, requestOf } from './specifier.js';
 
 /** Where a non-relative specifier could land, lexically. */

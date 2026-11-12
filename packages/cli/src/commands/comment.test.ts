@@ -5,7 +5,7 @@ import { DEFAULT_LIMITS as PUBLIC_DEFAULT_LIMITS } from '@variance-authority/cli
 import { commentMarker } from './comment-marker.js';
 import { renderComment, type CommentOptions } from './comment.js';
 import { EXIT_CLEAN, EXIT_REVIEW, exitFor } from '../exit.js';
-import type { CliRunReport } from './run-report.js';
+import type { CliRunReport } from './run.js';
 
 /** The config's `project`, which names the comment a body belongs to. */
 const PROJECT = 'storybook-case';

@@ -55,6 +55,37 @@ import { takeStoryTiming } from './story-timing-read.js';
  */
 
 /**
+ * Everything the modules above export, exported from here as well.
+ *
+ * Not tidiness: `./preview.js` is a path other packages already import, and a
+ * file that grew too long is this package's problem rather than theirs. The
+ * split moves code and moves nothing else.
+ */
+export { PREVIEW_PATH, previewUrl } from './preview-url.js';
+export { showStory } from './show-story.js';
+export { beginFinishWatch, markFinishAbsent, readFinishRecord } from './story-finished.js';
+export { applyGlobals } from './preview-globals.js';
+export {
+  DEFAULT_PREVIEW_GLOBALS,
+  FINISHED_RECORD_KEY,
+  STORYBOOK_ERROR_OVERLAY,
+  STORYBOOK_EVENTS,
+  STORY_ROOT_SELECTORS,
+} from './preview-protocol.js';
+export type {
+  ErrorOverlay,
+  FinishRecord,
+  FinishRequest,
+  GlobalsRequest,
+  PreviewGlobals,
+  Readiness,
+  ShowEvents,
+  ShowRequest,
+  ShowResult,
+  ShowStatus,
+} from './preview-protocol.js';
+
+/**
  * The slice of a browser page this adapter drives.
  *
  * Three methods, so a caller can implement this with a dozen lines and the

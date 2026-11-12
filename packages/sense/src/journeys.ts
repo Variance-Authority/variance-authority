@@ -17,7 +17,7 @@
 import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
-import { native, nativeRefusal } from './addon.js';
+import { native, nativeRefusal } from './native.js';
 import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
@@ -27,6 +27,36 @@ import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { defaultInclude, insideRoot } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
+
+export type {
+  NativeForksBetween as ForksBetween,
+  NativeJourneyBlock as JourneyBlock,
+  NativeJourneyCase as JourneyCase,
+  NativeJourneyEnd as JourneyEnd,
+  NativeJourneyFork as JourneyFork,
+  NativeJourneyFunction as JourneyFunction,
+  NativeJourneyMap as JourneyMap,
+  NativeJourneyMapBranch as JourneyMapBranch,
+  NativeJourneyMapFunction as JourneyMapFunction,
+  NativeJourneyMapPlace as JourneyMapPlace,
+  NativeJourneyPath as JourneyPath,
+  NativeJourneyPiece as JourneyPiece,
+  NativeJourneySide as JourneySide,
+  NativePathsThrough as PathsThrough,
+  NativeJourneysAmong as JourneysAmong,
+  NativeJourneysAnswer as JourneysAnswer,
+  NativeJourneysAsk as JourneysAsk,
+  NativeJourneysBlock as JourneysBlock,
+  NativeJourneysCall as JourneysCall,
+  NativeJourneysFile as JourneysFile,
+  NativeJourneysFlow as JourneysFlow,
+  NativeJourneysFlows as JourneysFlows,
+  NativeJourneysPlace as JourneysPlace,
+  NativeJourneysPlaced as JourneysPlaced,
+  NativeJourneysPrepared as JourneysPrepared,
+  NativeJourneysRegion as JourneysRegion,
+  NativeTestComposition as TestComposition,
+} from './native-journeys.js';
 
 function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition'>(name: Name) {
   const scanner = native();

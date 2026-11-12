@@ -1,6 +1,6 @@
 import { statSync } from 'node:fs';
 import { native, nativeRefusal } from './addon.js';
-import type { Digest } from '@variance-authority/core/format';
+import type { Digest } from './digest.js';
 
 /** There is no addon to digest with: an answer about the install, not about any file. */
 export class NoDigester extends Error {}

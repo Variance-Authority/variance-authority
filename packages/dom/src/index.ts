@@ -25,9 +25,8 @@ export type { Stabilized, StabilizeOptions, StabilizeRequest } from './stabilize
 export { resolveIgnores, IGNORE_ATTRIBUTE, MARKED_RULE } from './ignore.js';
 export type { IgnoreSelector, ResolveIgnoresOptions, ResolvedIgnores } from './ignore.js';
 
-export { conditionKey, indexStyleSheets } from './css-index.js';
-export { matchRulesFor } from './css-match.js';
-export type { StyleIndex, IndexedRule } from './css-index.js';
+export { conditionKey, indexStyleSheets, matchRulesFor } from './css.js';
+export type { StyleIndex, IndexedRule } from './css.js';
 
 export { evaluateMedia, evaluateSupports } from './media.js';
 export type { ConditionEnvironment, ConditionResult } from './media.js';

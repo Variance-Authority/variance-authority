@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { workersOf } from './lanes.js';
 import { mergeReports } from './merge.js';
-import type { Collector, Plan, Visit } from './collector.js';
+import type { Collector, Plan } from './run.js';
+import type { Visit } from './collector.js';
 import { collecting, planOf as storiesOf, rendered } from './evidence-fixture.js';
 import { collectorOf, configOf, documentFor, painter, runWith, storeAnswering, whiteBaselineOf } from './run-fixture.js';
 

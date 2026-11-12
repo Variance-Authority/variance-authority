@@ -10,8 +10,7 @@ import { cacheRootFor, declaredSuites, mainlineReadRoot, testCoverageFile } from
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { covering } from './covering.js';
-import { formatCovering } from './covering-text.js';
+import { covering, formatCovering } from './covering.js';
 import { writeMissedMainline } from './mainline-base.js';
 
 // A suite recorded through the real Vitest seam, into a cache of its own, so

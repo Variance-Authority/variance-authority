@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { settleRecipe } from './stabilize.js';
-import type { Intervention } from './intervention.js';
+import { settleRecipe, type Intervention } from './stabilize.js';
 import { stepClock, totalsOf } from './steps.js';
 
 /** A clock that moves by the given amounts, one per reading. */

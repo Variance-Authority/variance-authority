@@ -14,10 +14,10 @@ import {
 import { storySubjectId, toSubjects } from '@variance-authority/storybook';
 import { readStoryIndex } from '@variance-authority/storybook/read';
 import type { BaselineKey } from '@variance-authority/raster';
-import type { NotObserved, PresentationSignalRecord } from '@variance-authority/report';
-import type { Config } from '../config.js';
-import type { SubjectsConfig } from '../config-sections.js';
+import type { PresentationSignalRecord } from '@variance-authority/report';
+import type { Config, SubjectsConfig } from '../config.js';
 import { OperatorError } from '../exit.js';
+import type { NotObserved } from './run-report.js';
 
 /**
  * What a run is asked to observe, and where the documents come from.

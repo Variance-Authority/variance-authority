@@ -15,8 +15,7 @@ import {
   type OpenSegment,
 } from '@variance-authority/core/segment';
 import type { ComponentRecord } from './composition.js';
-import type { RunReport } from './format.js';
-import type { NotObservedKind } from './not-observed.js';
+import type { NotObservedKind, RunReport } from './format.js';
 import type { LexiconField, LexiconReport, SubjectLexicon } from './lexicon.js';
 import { decodeFacts, encodeFacts, factVocabulary, listColumns, listReader } from './suite-index-facts.js';
 

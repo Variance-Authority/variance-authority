@@ -21,6 +21,9 @@ import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
 
+export { questions };
+export { costsSubject } from './ask-costs.js';
+
 /**
  * `variance ask` — every answer `variance serve` gives an agent, with no agent
  * protocol in the way.
@@ -79,6 +82,8 @@ import { readVantage } from './watch.js';
  * an agent asking a dozen questions in a row would read a dozen failures. Every
  * answer here exits `0`; the run's verdict stays where it was decided.
  */
+
+export { ASKED } from './ask-previous.js';
 
 export interface AskRequest extends Crossing {
   /** The question. Absent asks for the list of them, which is the MCP handshake. */

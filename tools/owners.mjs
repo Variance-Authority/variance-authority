@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseSync } from 'oxc-parser';
-import { FIXTURE, tracked } from './modules.mjs';
+import { tracked } from './modules.mjs';
 
 /**
  * Answers this repository already owns, computed again somewhere else.
@@ -139,6 +139,7 @@ const IN_SCRIPTS = ['commonjs-load'];
 // `COLLECTED` is wider than any one runner's configuration on purpose: a wait
 // in a file no runner collects yet is still a wait.
 const COLLECTED_NAME = /\.(test|spec|check|measure)\.[cm]?[jt]sx?$/;
+const FIXTURE = /(^|\/)(__fixtures__|fixtures)\//;
 const isTest = (file) => COLLECTED_NAME.test(file) || FIXTURE.test(file) || /(^|\/)(__tests__|test)\//.test(file);
 
 /**

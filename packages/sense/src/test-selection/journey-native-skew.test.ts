@@ -9,7 +9,7 @@ import { selectJourneyFile } from './journey-native.js';
 // An addon built before suites could decline relations: it walks the graph and
 // answers without `declined`, whatever it was asked.
 const walked = { whole: [], entered: ['test/other.test.ts'], unread: [], because: [] };
-vi.mock('../addon.js', () => ({ native: () => ({ selectJourneys: () => walked }) }));
+vi.mock('../native.js', () => ({ native: () => ({ selectJourneys: () => walked }) }));
 
 function journeyFile(): string {
   const sets = new CrossingSets(1);

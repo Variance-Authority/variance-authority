@@ -20,12 +20,14 @@ import {
   type Use,
   type WorkspaceManifests,
 } from '@variance-authority/package/help';
-import { joinUsage, readWorkspaceOver, sameExportedSurface, samePackages } from './read.js';
+import { joinUsage, readWorkspaceOver, readWorkspaceSnapshot, sameExportedSurface, samePackages } from './read.js';
+import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
+import { publishedRows } from './search-index.js';
+import { type NativeUsage, useOf } from './native-use.js';
 import {
   SNAPSHOT_FORMAT,
   SNAPSHOT_VERSION,
   indexManifestDigest,
-  readWorkspaceSnapshot,
   workspaceExportedDigest,
   workspaceForwardsDigest,
   workspaceGeneration,
@@ -34,9 +36,6 @@ import {
   workspaceSnapshotPath,
   workspaceTreePrefix,
 } from './snapshot.js';
-import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
-import { publishedRows } from './search-index.js';
-import { type NativeUsage, useOf } from './native-use.js';
 
 // compass: variance-authority.report.agent-surface
 
