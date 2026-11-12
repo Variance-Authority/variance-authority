@@ -28,8 +28,10 @@ Four other files here, [`check.yml`](check.yml),
 test and the image its containerized jobs run in.
 `outer-loop.yml` has [its own section](#the-outer-loop). On a pull request,
 `check.yml` uses the recording `main` saved to select the tests the change
-reached. It compares the predicted time of that selection in one job with a
-sharded full suite and runs the cheaper option.
+reached, in as many shards as `variance shards` counts, one when one job fits,
+each reading the recording `plan` priced it by. It runs the full suite instead
+when no recording prices the selection, or when the selection misses the budget
+and the full suite is predicted faster.
 A push to `main` runs the whole suite. It then posts two comments on the pull request, each under its own
 marker so neither overwrites the gate's: `variance review` over the suite's
 recording, and `variance coverage` against the record `main` saved. A merge

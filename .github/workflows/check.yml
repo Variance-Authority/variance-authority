@@ -25,8 +25,8 @@ on:
   # required on `main`, the queue merges a group only when it is green, so two
   # pull requests green on their own bases cannot break what `check` tests
   # together through the queue. A group runs `plan` and the `queue` jobs
-  # alone: lint and the repository's rules in one, and in the others, a slice
-  # or a shard each, as many as `plan` counts the group's change is worth, the
+  # alone: lint and the repository's rules in one, and in the others, a shard
+  # each, as many as `plan` counts the group's change is worth, the
   # tests within two imports of what it changes, `verify:near`'s wave. Every
   # pull request in it already ran its own whole selection, and the push to
   # `main` after it runs every file, so the queue asks only whether the group's
@@ -466,7 +466,7 @@ jobs:
         run: node tools/plan-suites.mjs
 
   suite:
-    # One slice, or one shard of one, per job, in the CI image `variance.yml`
+    # One shard of one slice per job, `1/1` when one job fits, in the CI image `variance.yml`
     # runs in: the pinned Playwright image with this repository's tools, built
     # from `docker/ci.Dockerfile`. The image carries the browser, so the
     # chromium slice runs here like the other two and its record is shared like
@@ -485,7 +485,7 @@ jobs:
     # Not `fail-fast`: a red unit shard says nothing about chromium, and a
     # cancelled job reports nothing.
     needs: base
-    name: suite (${{ matrix.suite }}${{ matrix.shard && format(' {0}', matrix.shard) || '' }})
+    name: suite (${{ matrix.suite }} ${{ matrix.shard }})
     strategy:
       fail-fast: false
       matrix:
@@ -570,14 +570,11 @@ jobs:
         shell: bash
         run: node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
 
-      # What this pull request's last push ran, as `base` checked it. A whole
-      # slice lays it as this checkout's own layer, the step below then keeps
-      # it rather than lay the mainline's, and its run records over it. A
-      # shard lays it with `--as-base` where the read sits instead: it selects
-      # from it, as `plan` priced, and its own layer stays empty for what it
-      # runs. Either way the selection diffs each test from the commit it last
-      # ran at. A suite `base` handed on and this job cannot take stops
-      # `carry take`, and the job with it.
+      # What this pull request's last push ran, as `base` checked it, laid with
+      # `--as-base` where the read sits: the shard selects from it, as `plan`
+      # priced, and its own layer stays empty for what it runs. The selection
+      # diffs each test from the commit it last ran at. A suite `base` handed
+      # on and this job cannot take stops `carry take`, and the job with it.
       - uses: actions/download-artifact@v8
         if: needs.base.outputs.carried == 'true'
         with:
@@ -587,55 +584,28 @@ jobs:
       - name: take what the last push ran
         if: needs.base.outputs.carried == 'true'
         shell: bash
-        env:
-          SHARD: ${{ matrix.shard }}
-        run: node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" ${SHARD:+--as-base}
+        run: node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --as-base
 
-      # The mainline's record of this slice, read by `base` from
-      # `refs/variance/mainline/main` on `origin`, where the `publish` job
-      # leaves it after every push to `main`. `share --suite` reads it and lays
-      # it, with the runs record its publishing run carried as a seed, into
-      # this checkout's own layer: the restore a cache-carried suite gets from
-      # the Actions cache, and nothing a developer's checkout does. When the ref is missing or does not read, the line says why and
-      # the slice has no base; nothing older is put in its place. A record
-      # written under other probes than this build records under, as a pull
-      # request that changes the instrumentation sees it, is passed over with a
-      # notice naming both, and the slice has no base either: no run of this
-      # build could be laid over it.
-      #
-      # `based=true` says the record laid keeps its case index, which enables
-      # selection. A shard lays nothing here: it reads the record `base` gave
-      # it where `carry receive` and `carry take` put it, and a record without
-      # a case index cuts nothing.
-      - name: keep the base record
-        id: base
-        if: matrix.shard == null
-        shell: bash
-        env:
-          SUITE: ${{ matrix.suite }}
-        run: node packages/cli/dist/bin.js share --suite "$SUITE" --format github >> "$GITHUB_OUTPUT"
-
-      # A pull request runs its selection, sharded when one job would take
-      # longer than the budget, unless no record prices it or the selection
-      # misses the budget where a sharded whole run is faster; `plan` says
-      # which. Otherwise it runs the whole suite.
-      # `VARIANCE_AUTHORITY_SINCE` turns on the selection the slice's
-      # config is wrapped in: it reads the mainline's record the step above
-      # laid, diffs each test from the commit it last ran at, which for a record
-      # the mainline made whole is the commit it was published at, and Vitest
-      # runs the files whose recorded regions the change entered. When the
-      # reading cannot be made, the slice runs whole and the run says why.
+      # A pull request runs its selection, in as many shards as `plan` counts
+      # and one, `1/1`, when one job fits, unless no record prices it or the
+      # selection misses the budget where a sharded whole run is faster; `plan`
+      # says which. Otherwise it runs the whole suite.
+      # `VARIANCE_AUTHORITY_SINCE` turns on the selection the slice's config is
+      # wrapped in: it diffs each test from the commit it last ran at, which for
+      # a record the mainline made whole is the commit it was published at, and
+      # Vitest runs the files whose recorded regions the change entered. When
+      # the reading cannot be made, the shard runs whole and the run says why.
       #
       # The selection runs in two waves, the legs `verify:near` and
       # `verify:far` run on a laptop: the tests within two imports of the
       # change, then the rest. A red near wave ends the step before the far
-      # wave spends minutes saying less. The near wave records over the base,
-      # so the far wave reads the tests it ran as run at this commit.
-      #
-      # A shard runs the same waves: every wave of every leg selects and places
-      # from the record the steps above laid where the read sits, the one
-      # `plan` priced, beneath whatever this shard has already run, and Vitest
-      # cuts the selected files the same way in every leg. A run under
+      # wave spends minutes saying less. Every wave selects and places from the
+      # record the steps above laid where the read sits, the one `plan` priced,
+      # beneath whatever this shard has already run, and Vitest cuts the
+      # selected files the same way in every leg. A job of one shard is no
+      # exception: were it to select from its own layer, its far wave would
+      # read what the near wave landed at HEAD, and run again every file the
+      # near wave did not. A run under
       # `--shard` records alone: its own layer starts empty and keeps only what
       # its waves ran, the far wave landing over the near one, so `record`
       # folds the parts over that same record, and every file and case no part
@@ -653,28 +623,25 @@ jobs:
         id: test
         shell: bash
         env:
-          SELECT: ${{ matrix.mode == 'selected' && (matrix.shard != null || steps.base.outputs.based == 'true') }}
+          SELECT: ${{ matrix.mode == 'selected' }}
           SUITE: ${{ matrix.suite }}
           SHARD: ${{ matrix.shard }}
         run: |
-          into=slice
-          if [ -n "$SHARD" ]; then into=shard; fi
-          echo "into=$into" >> "$GITHUB_OUTPUT"
           if [ "$SELECT" = true ]; then
             yarn variance index
-            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=0- yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
-            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=0- yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=0- yarn "test:$SUITE" --shard "$SHARD"
+            VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=3- VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=0- yarn "test:$SUITE" --shard "$SHARD"
           else
-            yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
+            yarn "test:$SUITE" --shard "$SHARD"
           fi
 
-      # What this job recorded, for `record` to fold: the part a shard ran, or
-      # the whole slice's record, each as it stands in this checkout's layer, under
-      # the `suites/<suite>/` that says whose record it is. A red
-      # run still recorded what it ran, and the review is where a reviewer
-      # reads why. A shard job that stopped before the test uploads nothing.
+      # What this job recorded, for `record` to fold: the part the shard ran, as
+      # it stands in this checkout's layer, under the `suites/<suite>/` that
+      # says whose record it is. A red run still recorded what it ran, and the
+      # review is where a reviewer reads why. A job that stopped before the
+      # test uploads nothing, and a shard that selected nothing has nothing to.
       - name: hand the shard on
-        if: ${{ !cancelled() && steps.test.outcome != 'skipped' && steps.test.outputs.into == 'shard' }}
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
         uses: actions/upload-artifact@v7
         with:
           name: variance-shard-${{ matrix.suite }}-${{ strategy.job-index }}
@@ -683,18 +650,9 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
-      - name: hand the slice on
-        if: ${{ !cancelled() && steps.test.outcome != 'skipped' && steps.test.outputs.into == 'slice' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: variance-slice-${{ matrix.suite }}
-          path: node_modules/.cache/variance-authority/test-selection/*/suites/${{ matrix.suite }}
-          include-hidden-files: true
-          retention-days: 30
-
   record:
     # The suite's record of this change, made whole again from the jobs that
-    # ran it, and read: every slice's record laid over the mainline's, the
+    # ran it, and read: every shard's record laid over the mainline's, the
     # review of the change, and on a push to `main` the records handed to
     # `publish`. It runs when a suite job failed too, for the reason written
     # at the upload steps above.
@@ -780,7 +738,7 @@ jobs:
       # Each artifact in a directory named after it.
       - uses: actions/download-artifact@v8
         with:
-          pattern: variance-s*-*
+          pattern: variance-shard-*
           path: ${{ runner.temp }}/ran
 
       # The mainline's records as `base` read them, for the reason written at
@@ -794,7 +752,7 @@ jobs:
         shell: bash
         run: node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
 
-      # What the last push ran, taken as the suite jobs took it, so the slices
+      # What the last push ran, taken as the suite jobs took it, so the shards
       # fold over the record they ran from. The review still compares with
       # `main`: the cases the fold replaces are the last push's, so the
       # mainline's cases `take` names, the record it set aside or the share's,
@@ -811,19 +769,22 @@ jobs:
         shell: bash
         run: node packages/cli/dist/bin.js carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"
 
-      # Each slice's record, as the suite job that ran it would have left it in
-      # this checkout. `share`, handed every record the suite jobs handed on,
-      # lays the mainline's record of each suite the root config gives to the
-      # share, the one the suite jobs laid, passed over as they passed it over,
-      # and lands the records of that suite over it as `variance journeys
-      # --suite` lands shards, printing only the landing: nobody reads a whole
-      # journal in a log. A slice, laid over a base in its job, is put in
-      # place as the job left it. A slice nothing handed on keeps the base, and on a
-      # push the publish refuses it as recorded at another commit.
-      - name: fold the slices
+      # Each suite's record, made whole from the parts its shards handed on.
+      # `share`, handed every part, lays the mainline's record of each suite
+      # the root config gives to the share, the one the suite jobs read,
+      # passed over as they passed it over, and lands the parts of that suite
+      # over it as `variance journeys --suite` lands shards, printing only the
+      # landing: nobody reads a whole journal in a log. A suite nothing handed
+      # on keeps the base, and on a push the publish refuses it as recorded at
+      # another commit. A shard that selected nothing hands nothing on, and
+      # when none handed anything the download makes no directory, so it is
+      # made here, empty.
+      - name: fold the shards
         id: records
         shell: bash
-        run: node packages/cli/dist/bin.js share "$RUNNER_TEMP/ran"
+        run: |
+          mkdir -p "$RUNNER_TEMP/ran"
+          node packages/cli/dist/bin.js share "$RUNNER_TEMP/ran"
 
       # What the change did, read from what the suite just recorded: the edits,
       # the changed regions no case covered or only a distant test covered, the
@@ -1072,6 +1033,9 @@ jobs:
       # `queue` job, as `base` hands its read to `suite`: the line can move
       # while the legs start, and two shards of one slice that read two
       # records cut two different selections, so a file can fall between them.
+      # A miss is handed as the read, for the reasons written at `read the
+      # mainline once` in `base`, and each shard selects from what `take the
+      # base` lays.
       - name: keep the base records
         id: read
         shell: bash
@@ -1211,14 +1175,6 @@ jobs:
         shell: bash
         run: node packages/cli/dist/bin.js carry receive "$RUNNER_TEMP/base"
 
-      # The slice's mainline record, laid as `suite` lays it.
-      - name: keep the base record
-        if: matrix.part != 'rules'
-        shell: bash
-        env:
-          SUITE: ${{ matrix.part }}
-        run: node packages/cli/dist/bin.js share --suite "$SUITE"
-
       - name: near tests
         if: matrix.part != 'rules'
         shell: bash
@@ -1227,7 +1183,7 @@ jobs:
           SHARD: ${{ matrix.shard }}
         run: |
           yarn variance index
-          VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" ${SHARD:+--shard "$SHARD"}
+          VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0-2 yarn "test:$SUITE" --shard "$SHARD"
 
   # A `feat`, `fix` or `perf` pull request carries an idea that passed review
   # before its code was written: its body's first line says `Closes #<n>` or `Part of #<n>`, and the
