@@ -35,6 +35,8 @@ export interface Queue {
   readonly entered?: Readonly<Record<string, string>>;
   /** What the mainline lands past the fork, which the queue merges onto. */
   readonly base: Files;
+  /** What the mainline lands past the fork and then reverts, before `base`: a pull request's check may have run with it. */
+  readonly reverted?: Files;
   /** What each pull request changes from the fork; the last is the one tested. */
   readonly prs: readonly Files[];
   /** Where the mainline published its record: at the fork, or at the base. */
@@ -103,6 +105,12 @@ export async function queued(home: string, queue: Queue): Promise<Queued> {
   await git(ci, 'checkout', '--quiet', 'main');
 
   if (queue.recordAt === 'fork') await recorded(home, ci, queue.entered ?? {});
+  if (queue.reverted !== undefined) {
+    await written(ci, queue.reverted);
+    await git(ci, 'add', '-A');
+    await git(ci, 'commit', '--quiet', '-m', 'lands');
+    await git(ci, 'revert', '--no-edit', 'HEAD');
+  }
   await written(ci, queue.base);
   await git(ci, 'add', '-A');
   await git(ci, 'commit', '--quiet', '-m', 'base');

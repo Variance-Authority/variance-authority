@@ -143,6 +143,26 @@ describe('`variance select --ran-at` in a merge queue', () => {
     expect(here.out).toBe('test/total.test.ts\n');
   });
 
+  it('runs a test the pull request reaches that a change the mainline landed and reverted after the fork reaches too', async () => {
+    // The pull request's check ran on its head merged with the mainline of its day, which may have held the rate the
+    // mainline later reverted: the net diff from the fork to the base shows neither commit.
+    const RATE = 'export const rate = 1;\n';
+    const OTHER_RATED = "import { rate } from './rate';\nexport function other(price: number): number {\n  return price + rate;\n}\n";
+    const queue = await queued(home(), {
+      start: { 'src/rate.ts': RATE, 'src/other.ts': OTHER_RATED },
+      entered: { 'src/rate.ts': 'test/other.test.ts' },
+      reverted: { 'src/rate.ts': 'export const rate = 2;\n' },
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER_RATED.replace('price + rate', 'price + rate + 1') }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // `other` ran beside a rate HEAD no longer holds: its earlier pass says nothing of HEAD, so it runs.
+    expect(here.out).not.toContain('test/other.test.ts');
+  });
+
   it('selects as without `--ran-at` when a side changes a file the record cannot place', async () => {
     const READS = "import { readFileSync } from 'node:fs';\nexport function other(price: number): number {\n  return price + Number(readFileSync('src/rate.txt', 'utf8'));\n}\n";
     const queue = await queued(home(), {
