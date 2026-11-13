@@ -156,6 +156,39 @@ export function layAttempts(
   ]);
 }
 
+/** What one shard of a landing says of attempts. */
+export interface ShardAttempts {
+  /** The attempts its seam kept; absent, it kept none. */
+  readonly kept: readonly RecordedAttempt[] | undefined;
+  /** The cases its index holds: the ones it ran, and any its seed carried. */
+  readonly cases: readonly { readonly id: string; readonly file: string }[];
+  /** The test files it was handed, whose cases are the ones it ran. */
+  readonly files: readonly { readonly file: string }[];
+}
+
+/**
+ * The attempts section once a landing's shards are laid over the record's:
+ * {@link layAttempts} of the shards as the one run they are, so the record's
+ * cases are carried only when no shard ran them. `cases` are the ones the
+ * landed index holds. A later shard's attempts of a case replace an earlier
+ * one's. A shard that ran cases and kept no attempts leaves the whole landing
+ * with none; one that ran no case had none to keep.
+ */
+export function landAttempts(previous: Uint8Array | undefined, shards: readonly ShardAttempts[], cases: readonly string[]): Uint8Array | undefined {
+  const held = new Set(cases);
+  const ran = new Set<string>();
+  let rows: readonly RecordedAttempt[] | undefined = [];
+  for (const shard of shards) {
+    const files = new Set(shard.files.map((test) => test.file));
+    const own = new Set(shard.cases.flatMap((test) => (files.has(test.file) ? [test.id] : [])));
+    if (own.size === 0) continue;
+    for (const id of own) ran.add(id);
+    const kept = shard.kept?.filter((row) => own.has(row.case) && held.has(row.case));
+    rows = rows === undefined || kept === undefined ? undefined : [...rows.filter((row) => !own.has(row.case)), ...kept];
+  }
+  return layAttempts(previous, rows, () => cases, [...ran]);
+}
+
 /**
  * The rows of every case with an attempt past its first, in case and attempt
  * order. An attempt that never settled has no row, so a case whose only row is

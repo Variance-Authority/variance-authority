@@ -618,7 +618,8 @@ section only when the run kept attempts and every case it carries from that
 record had its attempts kept there: a run that kept none drops the section,
 and a run that carries cases from a record without the section writes none.
 The carried cases keep their rows, and the cases that ran again take the
-run's. A record with the section speaks of the cases it
+run's. Shards landed together are one run here: a case any of them ran is not
+carried. A record with the section speaks of the cases it
 holds and the runner could name. A case the index lacks, as every case of a file
 recorded as a whole is, has no rows, and neither has a Jest or Rstest case
 whose name its file declares twice. An attempt whose worker died before the

@@ -12,7 +12,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
-import { layAttempts, readableAttempts, type RecordedAttempt } from './attempts-record.js';
+import { landAttempts, layAttempts, readableAttempts, type RecordedAttempt, type ShardAttempts } from './attempts-record.js';
 import { inputsIn, layReadings } from './case-readings.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
@@ -367,8 +367,8 @@ export function unansweredOver(
 /**
  * The case sections of `record` once a landing lays its shards' cases into it,
  * and what that did. Each shard is laid over `previous`, the sections the record
- * held, as the run it was, in the order the shards were named. Nothing is
- * written here: the landing writes the sections under the record's lock.
+ * held, as the run it was, in the order the shards were named; their attempts
+ * are laid once, as one run's ({@link landAttempts}). Nothing is written here: the landing writes the sections under the record's lock.
  */
 export function landCases(
   record: string,
@@ -391,6 +391,7 @@ export function landCases(
   let laid = 0;
   const ran = new Set<string>();
   const tests: Pick<CoverageTest, 'file' | 'complete'>[] = [];
+  const tried: ShardAttempts[] = [];
   for (const shard of shards) {
     // A shard's seam kept its cases in the shard's own record. One whose run
     // instrumented nothing is laid as the run its last-run section names, or
@@ -401,8 +402,7 @@ export function landCases(
     if (named === undefined) continue;
     // The shard's own landing named what each of its files ran over, off the coverage it measured.
     const inputs = named.modules === undefined ? undefined : inputsIn(kept.readings);
-    const tried = readableAttempts(kept.attempts);
-    const run = { ...named, ...(inputs === undefined || named.inputs !== undefined ? {} : { inputs }), ...(tried === undefined ? {} : { attempts: tried }) };
+    const run = { ...named, ...(inputs === undefined || named.inputs !== undefined ? {} : { inputs }) };
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
       // `stands`, the commit the snapshot stands at, names the before layer when
@@ -414,6 +414,7 @@ export function landCases(
       }
       for (const id of lastCaseRunOf(sections)?.cases ?? []) ran.add(id);
       tests.push(...run.tests);
+      tried.push({ kept: readableAttempts(kept.attempts), cases: fresh.tests, files: run.tests });
       laid += 1;
     } else if (dropsCasesWithoutAny(run)) {
       // It finished a file and kept no cases, as a seam not asked for them does.
@@ -426,7 +427,9 @@ export function landCases(
   // of `snapshot`, the record's snapshot; otherwise the landing names the rest.
   const unfinished = laid === 0 ? [] : unansweredOver(previous, snapshot, tests, root);
   if (unfinished.length > 0) return { landing: { unlaid: record, shards: laid, unfinished }, sections: previous };
-  return { landing: { laid: record, shards: laid }, sections: laid > 1 ? lastOfEveryShard(sections, ran) : sections };
+  const whole = laid > 1 ? lastOfEveryShard(sections, ran) : sections;
+  const attempts = laid === 0 ? undefined : landAttempts(previous.attempts, tried, decodeExecutionTests(whole.index!).map((test) => test.id));
+  return { landing: { laid: record, shards: laid }, sections: attempts === undefined ? whole : { ...whole, attempts } };
 }
 
 /**
