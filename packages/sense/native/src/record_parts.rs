@@ -319,7 +319,8 @@ pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], 
     let mut readings: Settled<&[u8]> = Settled::new();
     let mut inputs: Settled<String> = Settled::new();
     for (name, bytes, renames) in shards {
-        let section = read_readings(bytes).map_err(|_| format!("{name}: its readings section is not one this build reads"))?;
+        // A section this build did not write, such as an earlier build's JSON, holds no readings: they are only what earlier runs saw.
+        let section = read_readings(bytes).unwrap_or(ReadingsIn { cases: Vec::new(), inputs: Vec::new() });
         let own = ran.get(*name).unwrap_or(&nothing);
         for (file, digest) in section.inputs {
             let by = own.files.contains(&file);

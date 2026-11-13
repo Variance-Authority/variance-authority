@@ -210,11 +210,12 @@ fn refuses_readings_of_a_case_the_index_does_not_record() {
 }
 
 #[test]
-fn refuses_a_readings_section_written_as_json() {
-    let one = br#"{"cases":{"a":[{"count":1}]}}"#.to_vec();
-    let message = fold_readings(&[("one", &one, &none())], &cases(&["a"]), &HashMap::new()).err().unwrap();
+fn reads_a_readings_section_this_build_did_not_write_as_none() {
+    let json = br#"{"cases":{"a":[{"count":1}]}}"#.to_vec();
+    let two = section(&[("b", "second")], &[]);
+    let folded = fold_readings(&[("one", &json, &none()), ("two", &two, &none())], &cases(&["a", "b"]), &HashMap::new()).unwrap();
 
-    assert_eq!(message, "one: its readings section is not one this build reads");
+    assert_eq!(folded, section(&[("b", "second")], &[]));
 }
 
 #[test]

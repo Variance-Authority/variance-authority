@@ -87,7 +87,7 @@ export function layReadings(
   run?: ReadingsRun,
 ): Buffer | undefined {
   const before = previous === undefined ? undefined : openSetExecutionIndex(previous);
-  const { cases: stored, inputs: held } = kept === undefined ? { cases: new Map<string, Uint8Array>(), inputs: new Map<string, string>() } : decodeReadings(kept);
+  const { cases: stored, inputs: held } = decodeReadings(kept);
   const fresh = run === undefined ? undefined : openSetExecutionIndex(run.fresh);
   if (run !== undefined && fresh === undefined) throw new Error('a case fold wrote an index it cannot open');
   const recorded = fresh?.modules.map((module) => module.file) ?? [];
@@ -202,8 +202,8 @@ function expanded(stored: readonly StoredReading[], base: readonly ReadRegion[] 
 
 /** What each test file ran over when its cases were last read, as `section` names it; absent when it names none. */
 export function inputsIn(section: Uint8Array | undefined): ReadonlyMap<string, string> | undefined {
-  const inputs = section === undefined ? undefined : decodeReadings(section).inputs;
-  return inputs === undefined || inputs.size === 0 ? undefined : inputs;
+  const { inputs } = decodeReadings(section);
+  return inputs.size === 0 ? undefined : inputs;
 }
 
 /**
@@ -212,7 +212,7 @@ export function inputsIn(section: Uint8Array | undefined): ReadonlyMap<string, s
  */
 export function readingsOf(section: Uint8Array | undefined, index: Uint8Array | undefined, id: string): readonly Reading[] | undefined {
   const opened = index === undefined ? undefined : openSetExecutionIndex(index);
-  const bytes = section === undefined ? undefined : decodeReadings(section).cases.get(id);
+  const bytes = decodeReadings(section).cases.get(id);
   if (bytes === undefined) return undefined;
   const stored = decodeCase(bytes);
   const newest = opened === undefined || stored[0]?.regions !== undefined ? undefined : readsOf(opened, new Set([id])).get(id)?.regions;

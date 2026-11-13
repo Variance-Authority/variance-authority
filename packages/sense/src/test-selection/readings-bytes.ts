@@ -51,18 +51,28 @@ export function encodeReadings(cases: readonly (readonly [string, readonly Store
   return Buffer.from(out);
 }
 
-/** The section's cases, each its bytes for {@link decodeCase}, and its inputs; bytes `encodeReadings` did not write are refused. */
-export function decodeReadings(bytes: Uint8Array): { readonly cases: Map<string, Uint8Array>; readonly inputs: Map<string, string> } {
-  const read = reader(bytes);
+/**
+ * The section's cases, each its bytes for {@link decodeCase}, and its inputs.
+ * A section `encodeReadings` did not write, such as one an earlier build wrote
+ * as JSON, holds none: the readings are only what earlier runs saw, and the
+ * next record writes them again.
+ */
+export function decodeReadings(bytes: Uint8Array | undefined): { readonly cases: Map<string, Uint8Array>; readonly inputs: Map<string, string> } {
   const cases = new Map<string, Uint8Array>();
-  for (let count = read.take(); cases.size < count;) {
-    const id = read.text();
-    cases.set(id, read.bytes(read.take()));
-  }
   const inputs = new Map<string, string>();
-  for (let count = read.take(); inputs.size < count;) inputs.set(read.text(), read.text());
-  read.end();
-  return { cases, inputs };
+  if (bytes === undefined) return { cases, inputs };
+  try {
+    const read = reader(bytes);
+    for (let count = read.take(); cases.size < count;) {
+      const id = read.text();
+      cases.set(id, read.bytes(read.take()));
+    }
+    for (let count = read.take(); inputs.size < count;) inputs.set(read.text(), read.text());
+    read.end();
+    return { cases, inputs };
+  } catch {
+    return { cases: new Map(), inputs: new Map() };
+  }
 }
 
 /** One case's stored readings off its bytes. */

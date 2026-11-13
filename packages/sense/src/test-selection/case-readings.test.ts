@@ -151,11 +151,14 @@ describe('layReadings', () => {
     ]);
   });
 
-  it('refuses a section that is not the readings it writes', () => {
+  it('reads a section it did not write as holding no readings, and lays a run over it as over none', () => {
     const index = run(false, { wire: 2 });
+    const fresh = run(true, { wire: 2 });
 
-    expect(() => readingsOf(Buffer.from('{"cases":{}}'), index, ID)).toThrow(/readings section/);
-    expect(() => readingsOf(Buffer.from([1, 9]), index, ID)).toThrow(/readings section/);
+    for (const kept of [Buffer.from('{"cases":{"a.test.ts > clicks":[{"count":1}]}}'), Buffer.from([1, 9])]) {
+      expect(readingsOf(kept, index, ID)).toBeUndefined();
+      expect(layReadings(kept, index, fresh, cases, over(fresh))).toEqual(layReadings(undefined, index, fresh, cases, over(fresh)));
+    }
   });
 
   it('drops the oldest distinct reading past the bound', () => {
