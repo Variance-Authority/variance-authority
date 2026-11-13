@@ -14,7 +14,7 @@
  * widened by HEAD's import graph, which holds edges the record predates.
  */
 
-import { affectedBy, idOf, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
+import { affectedBy, EDGE_KINDS, idOf, nodeAt, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import { gitIn, topLevel } from './since.js';
 import type { SuiteReading, SuiteRequest } from './select-suite.js';
 import { initial, isOpen, selectionOf, transition, type MergeAnswer, type SideAnswer, type TestedInput, type TestedState } from './select-tested-state.js';
@@ -147,7 +147,7 @@ async function reachOf(
   const names = (from: string, to: string) => git('diff', '--name-only', '-z', '--no-renames', from, to).split('\0').filter(Boolean);
   const own = new Set([...names(fork, end), ...(again?.files ?? [])]);
   const ownCode = [...own].filter((file) => !selection.readByInstall(file));
-  const walk = (files: readonly string[]) => affectedBy(asked.relations, files, { through: RUNTIME_EDGES }).files;
+  const walk = (files: Parameters<typeof affectedBy>[1]) => affectedBy(asked.relations, files, { through: RUNTIME_EDGES }).files;
   const walked = walk(ownCode);
   // An import HEAD's graph could not read — a name built at run time, a file gone — may load what the other side changed.
   // A clean merge follows renames: a path this side changed that HEAD lacks holds its change under another path.
@@ -161,7 +161,8 @@ async function reachOf(
   // each module the side reaches past its own files is read as changed whole, so the tests that executed it join.
   // Between the mainline's fork and tip a changed file may have stood unchanged while another it reaches had changed,
   // so it is read whole, as a module the change reaches.
-  const reached = again === undefined ? new Set<string>() : new Set(ownCode.filter((file) => walk(ownCode.filter((other) => other !== file)).includes(file)));
+  // One walk from every changed file's importers: a file reached only from itself through a cycle counts too, wide by one bound.
+  const reached = again === undefined ? new Set<string>() : new Set(walk(importersOf(asked.relations, ownCode)).filter((file) => own.has(file)));
   const outside = (file: string) => !own.has(file) || reached.has(file);
   const past = walked.filter((file) => outside(file) && !asked.recorded.has(file) && !selection.readByInstall(file));
   if (past.length > 0) {
@@ -216,4 +217,14 @@ function readOf(asked: TestedRequest & { readonly at: string; readonly relations
     relations: asked.relations,
     change,
   };
+}
+
+/** The nodes one runtime import away from these files, against the arrows: what loads them directly. */
+function importersOf(relations: Relations, files: readonly string[]): NonNullable<ReturnType<typeof nodeAt>>[] {
+  const { offset, target, kind } = relations.dependents;
+  const found = new Set<number>();
+  for (const id of files.map((file) => idOf(relations, 'file', file)).filter((id) => id !== undefined)) {
+    for (let edge = offset[id]!; edge < offset[id + 1]!; edge++) if (RUNTIME_EDGES.includes(EDGE_KINDS[kind[edge]!]!)) found.add(target[edge]!);
+  }
+  return [...found].map((id) => nodeAt(relations, id)).filter((node) => node !== undefined);
 }
