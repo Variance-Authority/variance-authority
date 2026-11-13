@@ -16,6 +16,8 @@
  * of the two it is, so neither is timed: fall back, never fake.
  */
 
+import type { ObservedAttempt } from './attempts-record.js';
+import { vitestAttempts } from './case-attempts.js';
 import { limitAcross } from './execution-set-columns.js';
 import type { ReportedModule, RunnerTask } from './finished-files.js';
 import { projectPath } from './instrumented-modules.js';
@@ -30,6 +32,8 @@ export interface FinishedCase {
   readonly duration?: number;
   /** Milliseconds the runner held the case to, for a runner that says so only outside the case. */
   readonly limit?: number;
+  /** How each attempt of the case ended, as `case-attempts.ts` reads the runner's report; absent when it counts none. */
+  readonly attempts?: readonly ObservedAttempt[];
 }
 
 /** The runner's duration for one recorded case, or `undefined` when no runner timed it. */
@@ -49,21 +53,23 @@ export const UNLIMITED: CaseLimits = () => undefined;
  * path. Two projects' copies of a case keep the longer limit, as the record's
  * join does, and a name one file declares twice says neither.
  */
-export function caseLimits(
-  files: readonly { readonly filepath: string; readonly cases?: readonly FinishedCase[] }[],
-  root: string,
-): CaseLimits {
+export function caseLimits(files: readonly FinishedFile[], root: string): CaseLimits {
   const limits = new Map<string, number>();
   for (const file of files) {
-    const path = projectPath(root, file.filepath);
-    const declared = new Map<string, number>();
-    for (const held of file.cases ?? []) declared.set(held.name, (declared.get(held.name) ?? 0) + 1);
+    const once = declaredOnce(file.cases);
     for (const held of file.cases ?? []) {
-      const key = `${path}\0${held.name}`;
-      if (held.limit !== undefined && declared.get(held.name) === 1) limits.set(key, limitAcross(held.limit, limits.get(key)).limit!);
+      const key = `${projectPath(root, file.filepath)}\0${held.name}`;
+      if (held.limit !== undefined && once(held.name)) limits.set(key, limitAcross(held.limit, limits.get(key)).limit!);
     }
   }
   return (file, name) => limits.get(`${file}\0${name}`);
+}
+
+/** Whether one announcement declares a name once, so the name alone says which case is meant. */
+function declaredOnce(cases: readonly FinishedCase[] = []): (name: string) => boolean {
+  const declared = new Map<string, number>();
+  for (const held of cases) declared.set(held.name, (declared.get(held.name) ?? 0) + 1);
+  return (name) => declared.get(name) === 1;
 }
 
 /**
@@ -75,37 +81,48 @@ export function caseLimits(
  * not time the case — or announced the file with no cases at all — leaves the
  * sum unknown rather than short.
  */
-export function caseDurations(
-  files: readonly { readonly filepath: string; readonly cases?: readonly FinishedCase[] }[],
-  root: string,
-): CaseDurations {
+export function caseDurations(files: readonly FinishedFile[], root: string): CaseDurations {
+  const untimed = new Set(files.filter((file) => file.cases === undefined).map((file) => projectPath(root, file.filepath)));
   // `null` is a case somebody ran and nobody timed, which no later sum repairs.
-  const byId = new Map<string, number | null>();
-  const byName = new Map<string, number | null>();
-  const untimed = new Set<string>();
-  const add = (map: Map<string, number | null>, key: string, duration: number | null): void => {
-    const seen = map.get(key);
-    map.set(key, seen === undefined ? duration : seen === null || duration === null ? null : seen + duration);
-  };
+  const spent = reportedByCase(files, root, (held) => timed(held.duration), (seen, next) => (seen === null || next === null ? null : seen + next));
+  return (file, name, id) => (untimed.has(file) ? undefined : spent(file, name, id));
+}
+
+/** One announcement of a finished file: its path and the cases it reported, if it reported any. */
+export interface FinishedFile {
+  readonly filepath: string;
+  readonly cases?: readonly FinishedCase[];
+}
+
+/**
+ * What every announced case `said`, found the way a recorded case is named:
+ * by the runner's id, else by a name its file declares once. `null` is a case
+ * nobody can answer for, as a name declared twice is; `undefined` from `said`
+ * leaves the case out; `both` folds two announcements of one case.
+ */
+export function reportedByCase<T>(
+  files: readonly FinishedFile[],
+  root: string,
+  said: (held: FinishedCase) => T | null | undefined,
+  both: (seen: T | null, next: T | null) => T | null,
+): (file: string, name: string, id: string) => T | undefined {
+  const byId = new Map<string, T | null>();
+  const byName = new Map<string, T | null>();
+  const add = (map: Map<string, T | null>, key: string, value: T | null): void =>
+    void map.set(key, map.has(key) ? both(map.get(key)!, value) : value);
   for (const file of files) {
     const path = projectPath(root, file.filepath);
-    if (file.cases === undefined) {
-      untimed.add(path);
-      continue;
-    }
-    const declared = new Map<string, number>();
-    for (const held of file.cases) declared.set(held.name, (declared.get(held.name) ?? 0) + 1);
-    for (const held of file.cases) {
-      const duration = timed(held.duration);
-      if (held.id !== undefined) add(byId, `${path}\0${held.id}`, duration);
-      add(byName, `${path}\0${held.name}`, declared.get(held.name) === 1 ? duration : null);
+    const once = declaredOnce(file.cases);
+    for (const held of file.cases ?? []) {
+      const value = said(held);
+      if (value === undefined) continue;
+      if (held.id !== undefined) add(byId, `${path}\0${held.id}`, value);
+      add(byName, `${path}\0${held.name}`, once(held.name) ? value : null);
     }
   }
   return (file, name, id) => {
-    if (untimed.has(file)) return undefined;
     const key = `${file}\0${id}`;
-    const found = byId.has(key) ? byId.get(key) : byName.get(`${file}\0${name}`);
-    return found ?? undefined;
+    return (byId.has(key) ? byId.get(key) : byName.get(`${file}\0${name}`)) ?? undefined;
   };
 }
 
@@ -139,15 +156,22 @@ export function namedTasks(file: RunnerTask): { readonly task: RunnerTask; reado
 export function reportedCases(module: ReportedModule): Pick<{ cases?: readonly FinishedCase[] }, 'cases'> {
   return {
     cases: [...module.children.allTests()].map((test) =>
-      finishedCase(test.fullName ?? '', test.id, test.diagnostic?.()?.duration)),
+      finishedCase(test.fullName ?? '', test.id, test.diagnostic?.()?.duration, undefined, vitestAttempts(test.attempts?.()))),
   };
 }
 
-export function finishedCase(name: string, id: string | undefined, duration: unknown, limit?: number): FinishedCase {
+export function finishedCase(
+  name: string,
+  id: string | undefined,
+  duration: unknown,
+  limit?: number,
+  attempts?: readonly ObservedAttempt[],
+): FinishedCase {
   return {
     name,
     ...(id === undefined ? {} : { id }),
     ...(typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? { duration } : {}),
     ...(limit === undefined ? {} : { limit }),
+    ...(attempts === undefined ? {} : { attempts }),
   };
 }

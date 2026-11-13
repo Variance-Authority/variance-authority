@@ -82,10 +82,10 @@ describe('variance ask retried-tests', () => {
     });
   });
 
-  it('tells a record written before attempts were kept from a run that retried no case', async () => {
+  it('tells a record whose run kept no attempts from a run that retried no case', async () => {
     const old = await recorded(undefined);
     expect((await run(['ask', 'retried-tests'])).out).toContain(
-      `Ended differently across attempts: attempts were not kept in ${old}, which a run older than them wrote`,
+      `Ended differently across attempts: attempts were not kept in ${old}, so it does not say whether a case was retried.`,
     );
 
     await recorded([]);

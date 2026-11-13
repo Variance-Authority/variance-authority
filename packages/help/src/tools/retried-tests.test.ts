@@ -60,11 +60,20 @@ describe('the recorded cases whose attempts ended differently, as printed', () =
       .toBe(`${RECORD}\n\nEnded differently across attempts: none; the 2 retried case(s) ended the same way every attempt.`);
   });
 
-  it('says attempts were not kept of a record older than them, never that no case was retried', () => {
+  it('says attempts were not kept, never that no case was retried, and promises nothing of the next run', () => {
     expect(printed([{ ...READ, unkept: true }])).toBe(
-      `${RECORD}\n\nEnded differently across attempts: attempts were not kept in /cache/coverage.bin, which a run older than them wrote, ` +
-        'so it does not say whether a case was retried. The next recorded run keeps them.',
+      `${RECORD}\n\nEnded differently across attempts: attempts were not kept in /cache/coverage.bin, so it does not say whether a case was retried. ` +
+        'A run keeps them when its runner reports each attempt and every shard of it kept them.',
     );
+  });
+
+  it('prints an attempt the record has no row of as unreported, in its place', () => {
+    const differed = [{ file: 'e2e/pay.spec.ts', name: 'pays', attempts: [{ attempt: 2, ended: 'passed', duration: 3 }] }];
+    expect(printed([{ ...READ, differed, differing: 1, retried: 1, cases: 4 }]).split('\n').slice(3, 6)).toEqual([
+      '  e2e/pay.spec.ts  pays',
+      '    attempt 1  ended unreported',
+      '    attempt 2  passed  3 ms',
+    ]);
   });
 
   it('says why a record was not read, each suite under its own name', () => {

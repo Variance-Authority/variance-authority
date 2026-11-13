@@ -1,13 +1,16 @@
 /**
  * How each attempt of a retried case ended: what the case index's fold of
  * them — `stopped`, `duration`, `limit` — loses. One row per attempt of a case
- * entered more than once, joined to its case by the index's id, as an Eyes
- * journal is. Absent, attempts were not kept; empty, no case was retried.
+ * its runner reported more than one attempt of, joined to its case by the
+ * index's id, as an Eyes journal is. Absent, attempts were not kept; empty, no
+ * case was retried. Two rows for one attempt of one case, as two shards or two
+ * repeats hand over, are one: the row whose JSON text sorts first by code unit.
  *
  * No selection reads it and no digest a selection compares takes it in; the
  * digest of the whole record file covers it as it covers every section.
  */
 
+import { isVendorPath, parseStackFrames } from '@variance-authority/core/attribute';
 import { AMBIENT, caseIds, caseKey, type CaseCoordinate } from './cases.js';
 import { orderedByAttempt } from './eyes-record.js';
 
@@ -18,8 +21,9 @@ export interface RecordedAttempt {
   /** Which run of the case this is, counted from 1. A retry is attempt 2. */
   readonly attempt: number;
   /**
-   * How it ended, as its producer spells it. A unit collector says `passed` or
-   * `failed` of the case's body; Playwright says the attempt's own status.
+   * How it ended, in the word of the runner that ran it: its own report of
+   * the attempt, never what the case's body did. A limit that stopped an
+   * attempt is `timedOut` only from a runner that tells it from a failure.
    */
   readonly ended: string;
   /** How long the attempt ran, in milliseconds; absent, nobody timed it. */
@@ -113,7 +117,7 @@ export function layAttempts(
 }
 
 /**
- * The rows of every case that was entered more than once, in case and attempt
+ * The rows of every case with an attempt past its first, in case and attempt
  * order. An attempt that never settled has no row, so a case whose only row is
  * attempt 2 is kept: its first attempt ended without a word.
  */
@@ -124,20 +128,19 @@ export function retriedAttempts(attempts: readonly RecordedAttempt[]): readonly 
 }
 
 /**
- * The first frame of `stack` inside the checkout at `root` and outside
- * `node_modules`, as `path:line` from the root — the line a reader opens.
- * `undefined` when the stack names no such frame.
+ * The first frame of `stack` inside the checkout at `root` that is neither a
+ * dependency's nor the seam's own, as `path:line` from the root — the line a
+ * reader opens. `undefined` when the stack names no such frame.
  */
 export function frameIn(stack: string | undefined, root: string | undefined): string | undefined {
   if (stack === undefined || root === undefined) return undefined;
   const prefix = `${root.replaceAll('\\', '/').replace(/\/$/u, '')}/`;
-  for (const line of stack.split('\n')) {
-    const text = line.replaceAll('\\', '/');
-    const at = text.indexOf(prefix);
-    if (at < 0 || !/^\s+at\s/u.test(text)) continue;
-    const found = /^([^():]+):(\d+)(?::\d+)?\)?$/u.exec(text.slice(at + prefix.length).trimEnd());
-    if (found === null || found[1]!.split('/').includes('node_modules')) continue;
-    return `${found[1]!}:${found[2]!}`;
+  for (const frame of parseStackFrames(stack)) {
+    const path = frame.url.replaceAll('\\', '/').replace(/^file:\/\/(?=\/)/u, '');
+    const inside = path.startsWith(prefix) ? path.slice(prefix.length) : undefined;
+    // The seam's own wrapper around a case is written under `.variance-authority/`: nobody opens it.
+    if (inside === undefined || isVendorPath(`/${inside}`) || inside.split('/').includes('.variance-authority')) continue;
+    return `${inside}:${frame.line}`;
   }
   return undefined;
 }

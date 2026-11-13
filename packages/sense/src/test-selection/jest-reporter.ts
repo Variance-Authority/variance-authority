@@ -26,6 +26,7 @@ import { probesRegions } from '../instrument/identity.js';
 import { askedForStories } from '../story/directory.js';
 import { CUT_VARIABLE, cutFiles, removeCut } from './case-cut.js';
 import { freshCases } from './case-fold.js';
+import { caseAttempts, jestAttempts, type JestAttempts } from './case-attempts.js';
 import { caseDurations, finishedCase } from './case-durations.js';
 import { stageJestJourneys } from './jest-journey-artifact.js';
 import { commitOf } from './commit.js';
@@ -80,8 +81,7 @@ export interface JestRunResults {
     /** The project that ran the file, as its configuration names it: a string or `{ name, color }`. */
     readonly displayName?: unknown;
     /** Each case as Jest reported it: `fullName` is the `currentTestName` the case scope records it by. */
-    readonly testResults: ReadonlyArray<{
-      readonly status: string;
+    readonly testResults: ReadonlyArray<JestAttempts & {
       readonly fullName?: string;
       readonly duration?: number | null;
     }>;
@@ -277,15 +277,17 @@ class JestCoverageReporter {
     // In the record, with the coverage, in one write. A run that recorded no
     // case and finished no file has none to lay, and the record's cases stay
     // as they were.
+    const reported = results.testResults.map((result) => ({
+      filepath: result.testFilePath,
+      cases: result.testResults.map((test) => finishedCase(test.fullName ?? '', undefined, test.duration, undefined, jestAttempts(test))),
+    }));
     const cases = caseDirectory === undefined
       ? undefined
       : await freshCases(caseDirectory, root, modules, {
           tests,
           ...(commit === undefined ? {} : { commit }),
-          durations: caseDurations(results.testResults.map((result) => ({
-            filepath: result.testFilePath,
-            cases: result.testResults.map((test) => finishedCase(test.fullName ?? '', undefined, test.duration)),
-          })), root),
+          durations: caseDurations(reported, root),
+          tried: caseAttempts(reported, root),
         });
     const merged = await withIndexLock(coverageFile, async (lock) => {
       // The repository's snapshot becomes this checkout's before the first run

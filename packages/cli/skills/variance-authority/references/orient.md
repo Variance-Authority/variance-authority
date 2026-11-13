@@ -154,10 +154,15 @@ in the recorded run. It opens with the record it read: whose it is, at which
 commit, and how long ago its latest run landed.
 
 Each case comes with its limit and every attempt: how it ended as the runner
-says it, how long it ran, and for an attempt that did not pass the frame inside
-the checkout and the message. Start from that frame. The retried cases whose
-attempts all ended the same way are counted and not listed.
+says it and, where the runner says them, how long it ran, the frame inside the
+checkout and the message. Start from that frame. Jest and Rstest time no single
+attempt, and a limit reads `timedOut` only under Playwright: elsewhere it is
+`failed` with the limit in its message. `ended unreported` is an attempt whose
+worker died first. The retried cases whose attempts all ended the same way are
+counted and not listed.
 
-The answer is about one run. It does not say how often the case fails, and a
-case absent from it was not retried in that run. A record that kept no attempts
-says so: read that as unknown, not as no retries. `--limit` lists more cases.
+The answer is about one run. It does not say how often the case fails. A case
+the record holds that the answer lacks was not reported as retried in that run;
+a case the record does not hold, as every case of a file recorded as a whole,
+is unknown. A record that kept no attempts says so: read that as unknown, not
+as no retries. `--limit` lists more cases.

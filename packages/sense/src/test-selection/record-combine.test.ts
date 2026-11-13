@@ -125,6 +125,13 @@ describe('combineRecords against the TypeScript writers', () => {
     expect(caseSectionsOf(await readFile(into)).attempts).toBeUndefined();
   });
 
+  it('keeps the attempts of a run one of whose shards ran no case, and so had none to keep', async () => {
+    const shards = [await recordOf('idle.bin', []), await recordOf('b.bin', ['b.test.ts'], [], ['b.test.ts'])];
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    expect(readable(await readFile(into))['attempts']).toContain('"ended":"failed"');
+  });
+
   it('carries a case a shard ran over another text of a region as overwritten, never as absent', async () => {
     const shards = [await recordOf('a.bin', ['a.test.ts'], ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
     const into = join(root, 'combined.bin');

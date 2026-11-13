@@ -180,13 +180,20 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
   it('keeps how each attempt of a retried case ended, beside the one outcome its runner reported', () => {
     const retried = row('retries');
     // The fixture retries one case, which fails once and then passes: every other case ran once and has no row.
-    expect(attempts?.map(({ duration: _duration, message: _message, ...rest }) => rest)).toEqual([
-      { case: retried.id, attempt: 1, ended: 'failed', frame: `${tests}/${runner.retries}:${line('first attempt fails', runner.retries)}` },
+    expect(attempts?.map(({ attempt, ended, ...rest }) => ({ attempt, ended, case: rest.case }))).toEqual([
+      { case: retried.id, attempt: 1, ended: 'failed' },
       { case: retried.id, attempt: 2, ended: 'passed' },
     ]);
-    expect(attempts![0]!.message).toMatch(/expected.*\b1\b[^]*\b2\b|\b2\b[^]*\b1\b/iu);
-    expect(attempts![1]!.message).toBeUndefined();
-    for (const attempt of attempts!) expect(Number.isInteger(attempt.duration) && attempt.duration! >= 0, `${attempt.attempt}: ${attempt.duration}`).toBe(true);
+    const [first, second] = attempts!;
+    // Jest names what an earlier attempt failed with only under `logErrorsBeforeRetry`, which this fixture leaves off.
+    if (runnerName === 'jest') expect([first!.message, first!.frame]).toEqual([undefined, undefined]);
+    else {
+      expect(first!.message).toMatch(/expected.*\b1\b[^]*\b2\b|\b2\b[^]*\b1\b/iu);
+      expect(first!.frame).toBe(`${tests}/${runner.retries}:${line('first attempt fails', runner.retries)}`);
+    }
+    expect(second!.message).toBeUndefined();
+    // Only Vitest times an attempt apart from the case.
+    expect(attempts!.map((one) => typeof one.duration)).toEqual(runnerName === 'vitest' ? ['number', 'number'] : ['undefined', 'undefined']);
     // What the runner said of the case is what it was: it finished, in a time, under the runner's limit.
     expect(retried.stopped).toBe(false);
     expect(retried.duration).toBeGreaterThanOrEqual(0);

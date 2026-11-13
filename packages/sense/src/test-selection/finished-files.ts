@@ -28,6 +28,7 @@ import { reportedDuration, reportedPhases, summedPhases } from './reported-time.
 import type { ExecutedModule } from './probes.js';
 import { BROWSER_JOURNAL } from './worker-source.js';
 import type { RunnerContext, RunnerProject } from './governing-config.js';
+import type { VitestAttempt } from './case-attempts.js';
 import { taskCases, type FinishedCase } from './case-durations.js';
 
 export interface RunnerTask {
@@ -59,6 +60,8 @@ export interface ReportedModule {
       readonly id?: string;
       readonly fullName?: string;
       diagnostic?: () => { readonly duration?: number } | undefined;
+      /** Vitest 4.1 and later: every attempt of the case, as `case-attempts.ts` reads them. */
+      attempts?: () => Iterable<VitestAttempt>;
       meta?: () => object;
     }>;
     /** Vitest 3 and 4 only; a suite holds the errors its own hooks threw. */

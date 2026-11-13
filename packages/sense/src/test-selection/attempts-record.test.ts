@@ -80,6 +80,21 @@ describe('the frame a failure names', () => {
     expect(frameIn('Error: x\n    at run (/elsewhere/a.js:1:1)', '/repo')).toBeUndefined();
     expect(frameIn(undefined, '/repo')).toBeUndefined();
   });
+
+  it('is never the module the seam wrote into the checkout to wrap the case', () => {
+    const wrapped = 'Error: timed out\n    at wrap (/repo/.variance-authority/test-selection-setup-1.mjs:50:3)';
+    expect(frameIn(wrapped, '/repo')).toBeUndefined();
+    expect(frameIn(`${wrapped}\n    at /repo/test/a.test.ts:7:22`, '/repo')).toBe('test/a.test.ts:7');
+  });
+});
+
+describe('one attempt two shards both handed over', () => {
+  it('is kept once, as the row whose JSON text sorts first by code unit, whichever shard came first', () => {
+    const failed = { case: 'a.test.ts > flaky', attempt: 1, ended: 'failed', message: 'boom' };
+    const passed = { case: 'a.test.ts > flaky', attempt: 1, ended: 'passed' };
+    expect(decodeRecordedAttempts(encodeRecordedAttempts([passed, failed]))).toEqual([failed]);
+    expect(decodeRecordedAttempts(encodeRecordedAttempts([failed, passed]))).toEqual([failed]);
+  });
 });
 
 describe('the attempts of a run\'s cases, as a driver observed them', () => {

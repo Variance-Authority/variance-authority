@@ -31,33 +31,8 @@ interface EyesFrame {
   readonly case: string;
   /** Counted from 1, per case, in the worker that ran it. */
   readonly attempt: number;
-  /** The journal as Eyes handed it over; absent on a frame with no `ended`, the case opened one. */
+  /** The journal as Eyes handed it over; absent, the case opened one. */
   readonly journal?: Readonly<Record<string, unknown>>;
-  /** How the attempt's body settled; the frame is then no word from Eyes. Written only for a case entered more than once. */
-  readonly ended?: 'passed' | 'failed';
-  /** From the body's entry to its settling, in milliseconds. */
-  readonly duration?: number;
-  /** What a failed body threw: its message, cut at `MESSAGE` characters. */
-  readonly message?: string;
-  /** And its stack, cut at `STACK` characters, for the fold to find the checkout's frame in. */
-  readonly stack?: string;
-}
-
-/** Enough to name a failure, and its nearest frames, without carrying a diff of two large values. */
-const MESSAGE = 2_000;
-const STACK = 4_000;
-
-/** Read once, so a case that fakes its timers does not fake how long it ran. */
-const clock = typeof performance === 'undefined' ? undefined : performance.now.bind(performance);
-
-/** `value[name]` when it is text, cut at `cap`; a thrown value is anything, and reading it may throw. */
-function textOf(value: unknown, name: 'message' | 'stack', cap: number): string | undefined {
-  try {
-    const text = typeof value === 'string' && name === 'message' ? value : (value as Record<string, unknown> | null | undefined)?.[name];
-    return typeof text === 'string' ? text.slice(0, cap) : undefined;
-  } catch {
-    return undefined;
-  }
 }
 
 function encodeEyesFrame(frame: EyesFrame): Uint8Array {
@@ -83,7 +58,7 @@ function decodeEyesFrame(bytes: Uint8Array): EyesFrame | undefined {
 
 /** What a collector's case scope adds for Eyes, and the two calls it owes it. */
 interface Attending {
-  /** Handed to Eyes under the case scope's symbol; `undefined` when the collector was given no checkout. */
+  /** Handed to Eyes under the case scope's symbol. */
   readonly scope: {
     readonly root: string;
     readonly eyes: (journal: Readonly<Record<string, unknown>>) => boolean;
@@ -92,21 +67,20 @@ interface Attending {
     readonly begin: () => void;
     /** The attempt's hooks are done. */
     readonly leave: () => void;
-  } | undefined;
-  /** A case's body is entered, under `key`. The answer is called once that body settles, with what it threw. */
-  readonly entered: (key: string) => (threw: boolean, thrown?: unknown) => void;
+  };
+  /** A case's body is entered, under `key`. */
+  readonly entered: (key: string) => void;
 }
 
 /**
  * The attending bracket for one collector.
  *
- * @param root The checkout Eyes resolves its paths against; absent, Eyes is handed nothing.
  * @param running The case whose body is running now, or `undefined` outside
  * every body; `null` when the collector can no longer tell cases apart.
  * @param push Where a frame goes, beside the collector's case frames.
  */
 function attending(
-  root: string | undefined,
+  root: string,
   running: () => string | undefined | null,
   push: (frame: Uint8Array) => void,
 ): Attending {
@@ -119,28 +93,12 @@ function attending(
   const write = (key: string, journal?: Readonly<Record<string, unknown>>): void => {
     push(encodeEyesFrame({ case: key, attempt: attempts.get(key) ?? 1, ...(journal === undefined ? {} : { journal }) }));
   };
-  // How each case's first attempt ended, held until a second one is entered.
-  const first = new Map<string, EyesFrame>();
-  const settled = (key: string, attempt: number, started: number | undefined) => (threw: boolean, thrown?: unknown): void => {
-    const message = threw ? textOf(thrown, 'message', MESSAGE) : undefined;
-    const stack = threw ? textOf(thrown, 'stack', STACK) : undefined;
-    const frame: EyesFrame = {
-      case: key,
-      attempt,
-      ended: threw ? 'failed' : 'passed',
-      ...(started === undefined ? {} : { duration: Math.round(clock!() - started) }),
-      ...(message === undefined ? {} : { message }),
-      ...(stack === undefined ? {} : { stack }),
-    };
-    if (attempts.get(key)! > 1) push(encodeEyesFrame(frame));
-    else first.set(key, frame);
-  };
   const target = (): string | undefined | null => {
     const now = running();
     return now === undefined ? attended : now;
   };
   return {
-    scope: root === undefined ? undefined : {
+    scope: {
       root,
       eyes(journal) {
         const key = target();
@@ -166,20 +124,12 @@ function attending(
       },
     },
     entered(key) {
-      const attempt = (attempts.get(key) ?? 0) + 1;
-      attempts.set(key, attempt);
-      const held = first.get(key);
-      if (held !== undefined) {
-        first.delete(key);
-        push(encodeEyesFrame(held));
-      }
-      const over = settled(key, attempt, clock?.());
-      if (!trying) return over;
+      attempts.set(key, (attempts.get(key) ?? 0) + 1);
+      if (!trying) return;
       attended = key;
-      if (!watching) return over;
+      if (!watching) return;
       watching = false;
       write(key);
-      return over;
     },
   };
 }

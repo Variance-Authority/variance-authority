@@ -8,12 +8,10 @@
  * last attempt as the case's outcome, so a case that failed and then passed
  * reads as passed everywhere else; the attempts beside the case index
  * (`test-selection/attempts-record.ts`) are what tell the two apart. Nothing
- * here runs a test or retries one, and it speaks of one recorded run: a case
- * that ended the same way every attempt is counted, not listed, and one that
- * ran once has nothing to compare.
+ * here runs a test or retries one, and it speaks of one recorded run.
  *
- * A record written before attempts were kept is answered as that, never as a
- * run in which no case was retried.
+ * A record whose run kept no attempts is answered as that, never as a run in
+ * which no case was retried.
  */
 
 // compass: variance-authority.reach
@@ -45,16 +43,16 @@ export type RecordedAttempts = { readonly suite?: string; readonly recording: st
       readonly commit?: string;
       /** When the record's latest run landed, as ISO 8601; absent where no runs record beside it stands at this commit. */
       readonly landed?: string;
-      /** The cases whose attempts ended differently, in path and then name order, at most the limit asked for. */
+      /** The cases whose attempts ended differently, one that left no row included, in path and then name order, at most the limit asked for. */
       readonly differed: readonly RetriedCase[];
       /** Every case whose attempts ended differently. */
       readonly differing: number;
-      /** Every case the run entered more than once, however its attempts ended. */
+      /** Every case the runner reported more than one attempt of, however they ended. */
       readonly retried: number;
-      /** Every case the record holds. */
+      /** Every case the record holds: a case it lacks, or one its runner could not name apart, has no attempts to count. */
       readonly cases: number;
     }
-  /** The record holds cases and no attempts: a run older than attempts wrote it. */
+  /** The record holds cases and no attempts: a build older than them wrote it, its runner reports none, or a shard kept none. */
   | { readonly commit?: string; readonly landed?: string; readonly unkept: true }
   | { readonly unread: string }
 );
@@ -77,7 +75,9 @@ export function recordedAttempts(root: string, limit: number): readonly Recorded
       if (rows === undefined) return { ...read, ...taken, unkept: true };
       const tests = decodeExecutionTests(readFileSync(recording));
       const retried = retriedCases(rows, new Map(tests.map((test) => [test.id, test])));
-      const differed = retried.filter(({ attempts }) => new Set(attempts.map((attempt) => attempt.ended)).size > 1);
+      // An attempt with no row ended without a word, a worker that died under it: not the way its neighbour ended.
+      const differed = retried.filter(({ attempts }) =>
+        new Set(attempts.map((attempt) => attempt.ended)).size > 1 || attempts.length < attempts.at(-1)!.attempt);
       return { ...read, ...taken, differed: differed.slice(0, limit), differing: differed.length, retried: retried.length, cases: tests.length };
     } catch (error) {
       return { ...read, unread: error instanceof Error ? error.message : String(error) };

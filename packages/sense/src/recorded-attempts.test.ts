@@ -89,6 +89,13 @@ describe('the recorded cases whose attempts ended differently', () => {
     expect(suite).toMatchObject({ differed: [{ name: 'never pays' }], differing: 2, retried: 2 });
   });
 
+  it('counts a case whose earlier attempt left no row as one that ended differently', () => {
+    // The worker that ran attempt 1 died before it could say how the attempt ended.
+    record([passed('a', 2)]);
+
+    expect(recordedAttempts(root, 10)[0]).toMatchObject({ differed: [{ name: 'pays > twice', attempts: [{ attempt: 2 }] }], differing: 1, retried: 1 });
+  });
+
   it('answers with no case for a run that kept attempts and retried none', () => {
     record([]);
 

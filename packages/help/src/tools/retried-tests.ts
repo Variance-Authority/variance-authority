@@ -23,6 +23,9 @@ const MESSAGE_WIDTH = 120;
 
 const NAMED = 'Ended differently across attempts';
 
+/** An attempt the record has no row of: the process running it died before the runner said how it ended. */
+const UNSAID = 'ended unreported';
+
 /** The answer, from what each suite's recording said, read at `now`. */
 export function formatRetried(suites: readonly RecordedAttempts[], now: number): string {
   return suites
@@ -37,8 +40,8 @@ function told(suite: RecordedAttempts, named: string): string[] {
   if ('unread' in suite) return [`${named}: none read from ${suite.recording}, ${suite.unread}.`];
   if ('unkept' in suite) {
     return [
-      `${named}: attempts were not kept in ${suite.recording}, which a run older than them wrote, ` +
-        'so it does not say whether a case was retried. The next recorded run keeps them.',
+      `${named}: attempts were not kept in ${suite.recording}, so it does not say whether a case was retried. ` +
+        'A run keeps them when its runner reports each attempt and every shard of it kept them.',
     ];
   }
   if (suite.retried === 0) return [`${named}: none; no case of the ${suite.cases} recorded ran more than once.`];
@@ -56,10 +59,12 @@ function told(suite: RecordedAttempts, named: string): string[] {
 function caseLines({ file, name, limit, attempts }: RetriedCase): string[] {
   return [
     `  ${file}  ${name}${limit === undefined ? '' : `  (limit ${spent(limit)})`}`,
-    ...attempts.map(({ attempt, ended, duration, frame, message }) =>
-      [`    attempt ${attempt}`, ended, duration === undefined ? undefined : spent(duration), frame, firstLine(message)]
+    ...Array.from({ length: attempts.at(-1)?.attempt ?? 0 }, (_, at) => {
+      const { ended, duration, frame, message } = attempts.find(({ attempt }) => attempt === at + 1) ?? { ended: UNSAID };
+      return [`    attempt ${at + 1}`, ended, duration === undefined ? undefined : spent(duration), frame, firstLine(message)]
         .filter((part) => part !== undefined)
-        .join('  ')),
+        .join('  ');
+    }),
   ];
 }
 
@@ -78,8 +83,9 @@ export const retriedTests: Tool<unknown> = {
     'passed. Each case names its file, its declaration path and its limit, then every attempt in order: how it ' +
     'ended as its runner said it, how long it ran, and for one that did not pass the frame inside the checkout ' +
     'and the first line of what it failed with. Retried cases that ended the same way every attempt are counted, ' +
-    'not listed, and a case that ran once has no attempts. A record written before attempts were kept is said to ' +
-    'be that, never that no case was retried. It speaks of one recorded run, not of how often a case fails. ' +
+    'not listed, and a case that ran once has no attempts. An attempt whose process died before the runner said ' +
+    'how it ended reads `ended unreported`. A record whose run kept no attempts is said to be that, never that ' +
+    'no case was retried. It speaks of one recorded run, not of how often a case fails. ' +
     'Reads the recording a test run with test selection published; runs and retries nothing itself.',
   inputSchema: {
     type: 'object',

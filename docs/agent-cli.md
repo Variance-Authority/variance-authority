@@ -363,15 +363,20 @@ Ended differently across attempts:
 
 Each suite's answer opens with the record it read: whose it is, at which commit,
 and how long ago its latest run landed. A case is listed with its limit and
-every attempt: how it ended as the runner says it, how long it ran, and for an
-attempt that did not pass the frame inside the checkout and the message it
-failed with. The answer says what the one run recorded and nothing about any
-other run of the case.
+every attempt: how it ended as the runner says it and, where the runner says
+them, how long it ran, the frame inside the checkout and the message it failed
+with. Jest and Rstest time no single attempt, and Jest names what an earlier
+attempt failed with only under
+`jest.retryTimes(n, { logErrorsBeforeRetry: true })`. An attempt whose worker
+died before the runner said how it ended reads `ended unreported`. The answer
+says what the one run recorded and nothing about any other run of the case.
 
 A record that kept no attempts says so and lists nothing, which is different
-from a record whose run retried no case. Only the runner's own retries are
-attempts: Vitest's `retry`, Jest's `jest.retryTimes`, Rstest's `retry` and
-Playwright's `retries`.
+from a record whose run retried no case: its runner reports no attempts, as a
+Vitest older than 4.1 does, or a shard of the run kept none. Only the runner's
+own attempts are listed: Vitest's `retry` and `repeats`, Jest's
+`jest.retryTimes`, Rstest's `retry` and Playwright's `retries`. A case the
+record does not hold has none, as every case of a file recorded as a whole.
 
 ## Find where the suite's time goes
 
