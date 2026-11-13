@@ -23,8 +23,6 @@ import { declaredSuites } from '../test-selection/suites.js';
 import { testCoverageFile } from '../test-selection/record-location.js';
 import { storiesAsked } from './asked.js';
 
-export { STORY_VARIABLE, storiesAsked } from './asked.js';
-
 const SUFFIX = '.stories';
 
 /** The story directory beside the record at `recordFile`, whether or not anything has been written there. */

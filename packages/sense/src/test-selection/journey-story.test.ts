@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { JourneyReport } from './journey.js';
 import { UNATTRIBUTED } from './stitch.js';
-import { STORY_VARIABLE } from '../story/directory.js';
+import { STORY_VARIABLE } from '../story/asked.js';
 import { driver, evaluate, forget, head, inRoot } from './__fixtures__/journey-head.js';
 
 /**
@@ -76,14 +76,21 @@ describe('a head started with VARIANCE_AUTHORITY_STORY=1', () => {
       const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
       const parts = await head(root);
       let behind: Promise<string> | undefined;
+      let release!: () => void;
+      let go!: () => void;
+      const held = new Promise<void>((resume) => (release = resume));
+      const settled = new Promise<void>((resume) => (go = resume));
 
       // The second request is open the whole time, so nothing starts the tape again.
-      const open = collector.enter('theme=dark', () => new Promise((resume) => setTimeout(resume, 60)));
+      const open = collector.enter('theme=dark', () => held);
       await collector.enter('theme=dark', async () => {
         await parts.currency('en');
-        behind = new Promise((resume) => setTimeout(resume, 20)).then(() => parts.currency('de'));
+        behind = settled.then(() => parts.currency('de'));
       });
+      // Its request has settled before the promise it left runs on.
+      go();
       await behind;
+      release();
       await open;
       await collector.close();
 

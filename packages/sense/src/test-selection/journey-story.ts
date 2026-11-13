@@ -8,10 +8,6 @@
  * head's engine unchanged, and each journey's story is cut from the one tape by
  * its id, as a case's is by its key. What a live run shows is what its functions
  * were handed: a module's top level says nothing of what it holds.
- *
- * Loaded only when asked, and by `require` from where it was built: the tap and
- * the format are CommonJS that name their neighbours by built names, and a head
- * that was not asked for stories never loads either.
  */
 
 import { createRequire } from 'node:module';
@@ -36,6 +32,10 @@ export interface JourneyTape {
 
 /** Put a tape in front of `engine`, which a scope already keys by journey. */
 export function tapeJourneys(engine: ReturnType<typeof probeLog.createEngine>): JourneyTape {
+  // Loaded here, not imported: a head not asked for stories never loads the tap
+  // or the format, and `journey.ts`, which every head and its unit tests load
+  // from source, would otherwise pull in the tap, whose `require` of its
+  // CommonJS neighbours names built files that exist only in `dist`.
   const require = createRequire(import.meta.url);
   const storyTap = require('../instrument/story-tap.cjs') as StoryTap;
   const format = require('../story/format.cjs') as StoryFormat;

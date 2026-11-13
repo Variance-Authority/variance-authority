@@ -3729,6 +3729,7 @@
         "compareOutcomes": "function",
         "compareReadings": "function",
         "drawRoute": "function",
+        "drawToldRoute": "function",
         "foldSteps": "function",
         "listStories": "function",
         "pageStories": "function",
@@ -3736,7 +3737,8 @@
         "recordedReadings": "function",
         "storyDirectories": "function",
         "storyDirectory": "function",
-        "storyPageSource": "function"
+        "storyPageSource": "function",
+        "toldModules": "function"
       },
       "./vitest": {
         "TestSelectionOptions": "interface",
