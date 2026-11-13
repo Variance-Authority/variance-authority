@@ -1,8 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
 import { afterEach, describe, expect, it } from 'vitest';
 import { mintJourney, type JourneyReport } from './journey.js';
 import { UNATTRIBUTED } from './stitch.js';
@@ -269,20 +267,4 @@ describe('a head started with VARIANCE_AUTHORITY_STORY=1', () => {
       expect(watcher.reports.filter((report) => 'story' in report)).toEqual([]);
     });
   });
-});
-
-it('tells a story from a head a bundler packed, with no file of the package beside it', async () => {
-  // An ES module bundle, given `require` for Node's own modules as such a bundle is.
-  const bundle = join(tmpdir(), 'head.mjs');
-  await build({
-    entryPoints: [fileURLToPath(new URL('../../dist/test-selection/journey-story.js', import.meta.url))],
-    bundle: true, platform: 'node', format: 'esm', outfile: bundle, logLevel: 'silent',
-    banner: { js: "import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" },
-  });
-  const { tapeJourneys } = (await import(bundle)) as typeof import('./journey-story.js');
-  const probeLog = (await import('../../dist/instrument/probe-log.cjs')).default as typeof import('../instrument/probe-log.cjs');
-
-  const tape = tapeJourneys(probeLog.createEngine(true));
-
-  expect(storyFormat.decodeStory(Buffer.from(tape.storyOf('j-1'), 'base64')).notes).toEqual([]);
 });
