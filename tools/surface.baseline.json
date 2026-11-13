@@ -2990,6 +2990,7 @@
         "fileCases": "function",
         "fileSizes": "function",
         "firstParentChanges": "function",
+        "firstParentChangesBetween": "function",
         "forksBetween": "function",
         "forwardsDigest": "function",
         "gitDigests": "function",

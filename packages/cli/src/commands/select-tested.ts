@@ -64,8 +64,8 @@ async function observe(
         const stale = await indexUpToCheckout(here, undefined, !asked.noGit);
         if (stale !== undefined) return { kind: 'failed', why: stale };
         const relations = await relationsFor(here, ['.'], [], [], asked.noGit);
-        const side = (end: string) => reachOf(git, read, { ...asked, at: full.reading.at, relations, recorded: full.whole }, record, fork, end);
-        return { kind: 'sides', pull: await side(tested), main: await side(mainline) };
+        const side = (end: string, again: readonly string[]) => reachOf(git, read, { ...asked, at: full.reading.at, relations, recorded: full.whole }, record, fork, end, again);
+        return { kind: 'sides', pull: await side(tested, []), main: await side(mainline, await changedAgain(here, fork, mainline)) };
       } catch (error) {
         return { kind: 'failed', why: `the record could not read a side of the merge (${error instanceof Error ? error.message : String(error)})` };
       }
@@ -104,6 +104,18 @@ function mergeOf(git: Git, asked: TestedRequest): MergeAnswer {
 }
 
 /**
+ * The files two or more of the mainline's commits past the fork changed. The
+ * pull request's check ran merged with the mainline of its day, which may have
+ * held a line a later commit took back, so the net diff no longer shows it.
+ */
+async function changedAgain(here: string, fork: string, mainline: string): Promise<readonly string[]> {
+  const { firstParentChangesBetween } = await import('@variance-authority/sense');
+  const [once, again] = [new Set<string>(), new Set<string>()];
+  for (const { files } of firstParentChangesBetween(here, fork, mainline)) for (const file of files) (once.has(file) ? again : once).add(file);
+  return [...again];
+}
+
+/**
  * The tests one side's change reaches, read on the record's lines. Every line
  * the side changed differs from the record's commit at the fork or at the
  * side's tip, so both diffs are read, cut to the files the side changed. The
@@ -111,7 +123,7 @@ function mergeOf(git: Git, asked: TestedRequest): MergeAnswer {
  * code reaches through HEAD's import graph are added: HEAD holds both sides'
  * edges, which only adds tests. A module reached that way joins with the tests
  * the record saw execute it, which the graph alone cannot reach when a test
- * loads it by a name it builds.
+ * loads it by a name it builds. A file in `again` is read as changed whole.
  */
 async function reachOf(
   git: Git,
@@ -120,10 +132,11 @@ async function reachOf(
   record: string,
   fork: string,
   end: string,
+  again: readonly string[],
 ): Promise<SideAnswer> {
   const selection = await import('@variance-authority/sense/test-selection');
   const names = (from: string, to: string) => git('diff', '--name-only', '-z', '--no-renames', from, to).split('\0').filter(Boolean);
-  const own = new Set(names(fork, end));
+  const own = new Set([...names(fork, end), ...again]);
   const ownCode = [...own].filter((file) => !selection.readByInstall(file));
   const walk = (files: readonly string[]) => affectedBy(asked.relations, files, { through: RUNTIME_EDGES }).files;
   const walked = walk(ownCode);
@@ -133,11 +146,14 @@ async function reachOf(
   if (moved !== undefined) return { whole: `the merge holds its change to ${moved} under another path` };
   const blind = [...ownCode, ...walked].find((file) => asked.relations.unknown[idOf(asked.relations, 'file', file) ?? -1] === 1);
   if (blind !== undefined) return { whole: `it reaches ${blind}, whose imports the graph could not all read` };
+  // Which of an install file's lines a check ran with, the record cannot place by package.
+  const churned = again.find(selection.readByInstall);
+  if (churned !== undefined) return { whole: `the mainline changed ${churned} in more than one commit since the fork` };
   const code = new Set(walked.filter((file) => asked.recorded.has(file)));
   const install = new Set<string>();
   // The graph cannot follow a load by a built name back to its test, but the record saw the test run what it loaded:
   // each module the side reaches past its own files is read as changed whole, so the tests that executed it join.
-  const past = walked.filter((file) => !own.has(file) && !asked.recorded.has(file) && !selection.readByInstall(file));
+  const past = [...walked.filter((file) => !own.has(file) && !selection.readByInstall(file)), ...again].filter((file) => !asked.recorded.has(file));
   if (past.length > 0) {
     const reading = await read(readOf(asked, selection.standDiff((...args) => git(...args, '--', ...past), record, EMPTY_TREE)));
     if (reading.declined !== undefined) return { whole: reading.declined };
