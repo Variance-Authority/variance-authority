@@ -3,8 +3,9 @@
  * and the readings section (`readings-bytes.ts`) write every number.
  */
 
-/** Appends `value`, seven bits to a byte, low bits first. */
+/** Appends `value`, seven bits to a byte, low bits first; a value five bytes cannot hold is refused. */
 export function put(out: number[], value: number): void {
+  if (!Number.isInteger(value) || value < 0 || value >= 2 ** 35) throw new RangeError(`${value} is not a varint of at most five bytes`);
   let rest = value;
   while (rest > 0x7f) {
     out.push((rest & 0x7f) | 0x80);

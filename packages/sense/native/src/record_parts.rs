@@ -240,29 +240,69 @@ struct ReadingsIn<'a> {
 
 fn read_readings(bytes: &[u8]) -> Result<ReadingsIn<'_>, String> {
     let mut reader = Varints::new(bytes);
-    let text = |reader: &mut Varints<'_>| -> Result<String, String> {
-        let length = reader.take()?;
-        String::from_utf8(reader.bytes(length)?.to_vec()).map_err(|error| error.to_string())
-    };
+    let text = |bytes: Vec<u8>| String::from_utf8(bytes).map_err(|error| error.to_string());
     let count = reader.take()?;
     let mut cases = Vec::new();
+    let mut last = Vec::new();
     for _ in 0..count {
-        let id = text(&mut reader)?;
+        let id = text(fronted(&mut reader, &mut last)?)?;
         let length = reader.take()?;
         cases.push((id, reader.bytes(length)?));
     }
     let count = reader.take()?;
     let mut inputs = Vec::new();
+    let mut last = Vec::new();
     for _ in 0..count {
-        inputs.push((text(&mut reader)?, text(&mut reader)?));
+        let file = text(fronted(&mut reader, &mut last)?)?;
+        let length = reader.take()?;
+        let digest = match length {
+            0 => {
+                let length = reader.take()?;
+                text(reader.bytes(length)?.to_vec())?
+            }
+            _ => format!("v1:{}", reader.bytes(length)?.iter().map(|byte| format!("{byte:02x}")).collect::<String>()),
+        };
+        inputs.push((file, digest));
     }
     reader.end()?;
     Ok(ReadingsIn { cases, inputs })
 }
 
-fn put_text(out: &mut Vec<u8>, value: &str) {
-    put(out, value.len() as u64);
-    out.extend_from_slice(value.as_bytes());
+/// A string as the bytes it shares with the one before it, `last`, and the rest.
+fn fronted(reader: &mut Varints<'_>, last: &mut Vec<u8>) -> Result<Vec<u8>, String> {
+    let shared = reader.take()? as usize;
+    if shared > last.len() {
+        return Err("a string shares more than the one before it holds".to_owned());
+    }
+    let length = reader.take()?;
+    last.truncate(shared);
+    last.extend_from_slice(reader.bytes(length)?);
+    Ok(last.clone())
+}
+
+fn put_fronted(out: &mut Vec<u8>, last: &mut Vec<u8>, value: &str) {
+    let bytes = value.as_bytes();
+    let shared = last.iter().zip(bytes).take_while(|(left, right)| left == right).count();
+    put(out, shared as u64);
+    put(out, (bytes.len() - shared) as u64);
+    out.extend_from_slice(&bytes[shared..]);
+    *last = bytes.to_vec();
+}
+
+/// A digest as `format/hash.ts` spells it, `v1:` and lowercase hex, as its bytes; any other as a zero and its text.
+fn put_digest(out: &mut Vec<u8>, digest: &str) {
+    let hex = digest.strip_prefix("v1:").filter(|hex| !hex.is_empty() && hex.len() % 2 == 0 && hex.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')));
+    match hex {
+        Some(hex) => {
+            put(out, (hex.len() / 2) as u64);
+            out.extend((0..hex.len()).step_by(2).map(|at| u8::from_str_radix(&hex[at..at + 2], 16).unwrap_or_default()));
+        }
+        None => {
+            put(out, 0);
+            put(out, digest.len() as u64);
+            out.extend_from_slice(digest.as_bytes());
+        }
+    }
 }
 
 /// What one shard ran, rather than carried from the record it was laid over:
@@ -353,16 +393,18 @@ pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], 
     let mut files: Vec<&String> = inputs.keys().collect();
     files.sort_by(|left, right| order::code_unit(left, right));
     let mut bytes = Vec::new();
+    let mut last = Vec::new();
     put(&mut bytes, ids.len() as u64);
     for id in ids {
-        put_text(&mut bytes, id);
+        put_fronted(&mut bytes, &mut last, id);
         put(&mut bytes, held[id].len() as u64);
         bytes.extend_from_slice(held[id]);
     }
+    let mut last = Vec::new();
     put(&mut bytes, files.len() as u64);
     for file in files {
-        put_text(&mut bytes, file);
-        put_text(&mut bytes, &inputs[file]);
+        put_fronted(&mut bytes, &mut last, file);
+        put_digest(&mut bytes, &inputs[file]);
     }
     Ok(bytes)
 }

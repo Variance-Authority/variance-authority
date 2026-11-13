@@ -4,7 +4,10 @@
  * Every number is an unsigned varint of at most five bytes, as the case lines
  * write it, and a string is its UTF-8 length then its bytes. The section is a
  * count of cases, each its id and the length of its bytes then the bytes, in
- * id order; then a count of test files, each its path and its inputs' digest.
+ * id order; then a count of test files, each its path and its inputs' digest,
+ * in path order. An id and a path are each the count of bytes it shares with
+ * the one before it, then the rest as a string; a `v1:` digest is its hex's
+ * byte count then those bytes, and any other is a zero then the digest.
  * A case's bytes stand alone, so a fold of shards compares them without
  * reading them: a count of strings and the strings, each module, name and path
  * once in the order its readings first name it; then a count of readings and
@@ -26,6 +29,9 @@ export interface StoredReading {
   readonly added?: readonly (readonly [at: number, region: ReadRegion])[];
 }
 
+/** A digest as `@variance-authority/core` spells it (`format/hash.ts`): stored as its bytes. */
+const DIGEST = /^v1:((?:[0-9a-f]{2})+)$/;
+
 const STOPPED = 1;
 const STOPS = 2;
 const REGIONS = 4;
@@ -36,17 +42,22 @@ const ADDED = 32;
 /** The section: each case's stored readings, in id order, and each test file's inputs, in file order. */
 export function encodeReadings(cases: readonly (readonly [string, readonly StoredReading[]])[], inputs: readonly (readonly [string, string])[]): Buffer {
   const out: number[] = [];
+  const id = fronted(out);
   put(out, cases.length);
-  for (const [id, readings] of cases) {
-    text(out, id);
+  for (const [case_, readings] of cases) {
+    id(case_);
     const own = encodeCase(readings);
     put(out, own.length);
     for (const byte of own) out.push(byte);
   }
+  const path = fronted(out);
   put(out, inputs.length);
   for (const [file, digest] of inputs) {
-    text(out, file);
-    text(out, digest);
+    path(file);
+    const hex = DIGEST.exec(digest)?.[1];
+    put(out, hex === undefined ? 0 : hex.length / 2);
+    if (hex === undefined) text(out, digest);
+    else for (const byte of Buffer.from(hex, 'hex')) out.push(byte);
   }
   return Buffer.from(out);
 }
@@ -63,11 +74,17 @@ export function decodeReadings(bytes: Uint8Array | undefined): { readonly cases:
   if (bytes === undefined) return { cases, inputs };
   try {
     const read = reader(bytes);
-    for (let count = read.take(); cases.size < count;) {
-      const id = read.text();
-      cases.set(id, read.bytes(read.take()));
+    const id = read.fronted();
+    for (let count = read.take(); count > 0; count--) {
+      const case_ = id();
+      cases.set(case_, read.bytes(read.take()));
     }
-    for (let count = read.take(); inputs.size < count;) inputs.set(read.text(), read.text());
+    const path = read.fronted();
+    for (let count = read.take(); count > 0; count--) {
+      const file = path();
+      const length = read.take();
+      inputs.set(file, length === 0 ? read.text() : `v1:${read.hex(length)}`);
+    }
     read.end();
     return { cases, inputs };
   } catch {
@@ -75,8 +92,16 @@ export function decodeReadings(bytes: Uint8Array | undefined): { readonly cases:
   }
 }
 
-/** One case's stored readings off its bytes. */
+/** One case's stored readings off its bytes; bytes this build cannot read hold none, as a section does. */
 export function decodeCase(bytes: Uint8Array): StoredReading[] {
+  try {
+    return readCase(bytes);
+  } catch {
+    return [];
+  }
+}
+
+function readCase(bytes: Uint8Array): StoredReading[] {
   const read = reader(bytes);
   const strings: string[] = [];
   for (let count = read.take(); strings.length < count;) strings.push(read.text());
@@ -157,13 +182,57 @@ function encodeCase(readings: readonly StoredReading[]): number[] {
   return out;
 }
 
-function reader(bytes: Uint8Array): { take(): number; bytes(length: number): Uint8Array; text(): string; end(): void } {
+interface Reader {
+  take(): number;
+  bytes(length: number): Uint8Array;
+  text(): string;
+  hex(length: number): string;
+  fronted(): () => string;
+  end(): void;
+}
+
+function reader(bytes: Uint8Array): Reader {
   const read = varints(bytes, refused);
+  const view = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const at = (held: Uint8Array): number => held.byteOffset - bytes.byteOffset;
+  const spelled = (encoding: 'utf8' | 'hex', held: Uint8Array): string => view.toString(encoding, at(held), at(held) + held.byteLength);
   return {
     take: read.take,
     bytes: read.bytes,
-    text: () => Buffer.from(read.bytes(read.take())).toString('utf8'),
+    text: () => spelled('utf8', read.bytes(read.take())),
+    hex: (length) => spelled('hex', read.bytes(length)),
+    fronted: () => {
+      let last: Buffer = Buffer.alloc(0);
+      return () => {
+        const shared = read.take();
+        if (shared > last.length) invalid();
+        const rest = read.bytes(read.take());
+        if (shared === 0) {
+          last = view.subarray(at(rest), at(rest) + rest.byteLength);
+          return spelled('utf8', rest);
+        }
+        const whole = Buffer.allocUnsafe(shared + rest.byteLength);
+        last.copy(whole, 0, 0, shared);
+        view.copy(whole, shared, at(rest), at(rest) + rest.byteLength);
+        last = whole;
+        return whole.toString('utf8');
+      };
+    },
     end: () => void (read.done || invalid()),
+  };
+}
+
+/** A writer of strings in order, each the bytes it shares with the one before and the rest. */
+function fronted(out: number[]): (value: string) => void {
+  let last = Buffer.alloc(0);
+  return (value) => {
+    const bytes = Buffer.from(value, 'utf8');
+    let shared = 0;
+    while (shared < bytes.length && shared < last.length && bytes[shared] === last[shared]) shared++;
+    put(out, shared);
+    put(out, bytes.length - shared);
+    for (let at = shared; at < bytes.length; at++) out.push(bytes[at]!);
+    last = bytes;
   };
 }
 

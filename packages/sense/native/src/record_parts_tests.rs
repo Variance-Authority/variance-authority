@@ -169,15 +169,18 @@ fn a_last_run_at_no_commit_takes_the_commit_the_others_name() {
 /// A readings section as `readings-bytes.ts` writes it; a case's bytes are opaque to the fold, so any distinct text stands for them.
 fn section(cases: &[(&str, &str)], inputs: &[(&str, &str)]) -> Vec<u8> {
     let mut out = Vec::new();
+    let mut last = Vec::new();
     put(&mut out, cases.len() as u64);
     for (id, own) in cases {
-        put_text(&mut out, id);
-        put_text(&mut out, own);
+        put_fronted(&mut out, &mut last, id);
+        put(&mut out, own.len() as u64);
+        out.extend_from_slice(own.as_bytes());
     }
+    let mut last = Vec::new();
     put(&mut out, inputs.len() as u64);
     for (file, digest) in inputs {
-        put_text(&mut out, file);
-        put_text(&mut out, digest);
+        put_fronted(&mut out, &mut last, file);
+        put_digest(&mut out, digest);
     }
     out
 }
@@ -225,6 +228,21 @@ fn folds_what_each_test_file_ran_over_beside_the_readings() {
     let folded = fold_readings(&[("one", &one, &none()), ("two", &two, &none())], &cases(&["a"]), &HashMap::new()).unwrap();
 
     assert_eq!(folded, section(&[("a", "first")], &[("a.test.ts", "1"), ("b.test.ts", "2"), ("c.test.ts", "3")]));
+}
+
+#[test]
+fn writes_each_path_after_what_it_shares_and_a_digest_as_its_bytes() {
+    let one = section(&[], &[("src/a.test.ts", "v1:00ff"), ("src/b.test.ts", "sha:x")]);
+    let folded = fold_readings(&[("one", &one, &none())], &cases(&[]), &HashMap::new()).unwrap();
+
+    let mut expected = vec![0, 2, 0, 13];
+    expected.extend_from_slice(b"src/a.test.ts");
+    expected.extend_from_slice(&[2, 0x00, 0xff, 4, 9]);
+    expected.extend_from_slice(b"b.test.ts");
+    expected.extend_from_slice(&[0, 5]);
+    expected.extend_from_slice(b"sha:x");
+    assert_eq!(folded, expected);
+    assert_eq!(read_readings(&folded).unwrap().inputs, [("src/a.test.ts".to_owned(), "v1:00ff".to_owned()), ("src/b.test.ts".to_owned(), "sha:x".to_owned())]);
 }
 
 #[test]

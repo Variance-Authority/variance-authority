@@ -97,7 +97,7 @@ export function layReadings(
   const holding = new Map<string, Reading[]>();
   for (const [id, readings] of stored) {
     const read = expanded(decodeCase(readings), earlier.get(id)?.regions);
-    if (read !== undefined) holding.set(id, read);
+    if (read !== undefined && read.length > 0) holding.set(id, read);
   }
   const now = fresh === undefined ? new Map<string, Read>() : readsOf(fresh, ran);
   const opened = landed === undefined ? undefined : openSetExecutionIndex(landed);
@@ -209,8 +209,8 @@ export function inputsIn(section: Uint8Array | undefined): ReadonlyMap<string, s
 export function readingsOf(section: Uint8Array | undefined, index: Uint8Array | undefined, id: string): readonly Reading[] | undefined {
   const opened = index === undefined ? undefined : openSetExecutionIndex(index);
   const bytes = decodeReadings(section).cases.get(id);
-  if (bytes === undefined) return undefined;
-  const stored = decodeCase(bytes);
+  const stored = bytes === undefined ? [] : decodeCase(bytes);
+  if (stored.length === 0) return undefined;
   const newest = opened === undefined || stored[0]?.regions !== undefined ? undefined : readsOf(opened, new Set([id])).get(id)?.regions;
   return expanded(stored, newest ?? []);
 }

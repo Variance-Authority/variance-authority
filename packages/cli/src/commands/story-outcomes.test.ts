@@ -14,12 +14,13 @@ afterEach(async () => {
 /** A checkout whose one record keeps, of the case `clicks` in each of `files`, a reading for each outcome in `stopped`, undefined where the run could not say how it ended. */
 /**
  * A readings section, as `readings-bytes.ts` in the sense package lays it out,
- * keeping of each case one run per entry of `stopped`, each crossing nothing.
+ * keeping of each case one run per entry of `stopped`, each crossing nothing;
+ * each id shares no bytes with the one before it.
  */
 function readingsOf(ids: readonly string[], stopped: readonly (boolean | undefined)[]): Buffer {
   const text = (value: string) => [value.length, ...Buffer.from(value)];
   const own = [0, stopped.length, ...stopped.flatMap((one) => [1, (one === undefined ? 0 : one ? 3 : 1) | 4, 0])];
-  return Buffer.from([ids.length, ...ids.flatMap((id) => [...text(id), own.length, ...own]), 0]);
+  return Buffer.from([ids.length, ...ids.flatMap((id) => [0, ...text(id), own.length, ...own]), 0]);
 }
 
 async function checkout(files: readonly string[], stopped: readonly (boolean | undefined)[]): Promise<string> {
