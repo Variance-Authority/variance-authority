@@ -1,5 +1,9 @@
 # @variance-authority/wire
 
+## 0.32.1
+
+No changes in this release.
+
 ## 0.32.0
 
 ### Minor Changes
