@@ -64,8 +64,8 @@ async function observe(
         const stale = await indexUpToCheckout(here, undefined, !asked.noGit);
         if (stale !== undefined) return { kind: 'failed', why: stale };
         const relations = await relationsFor(here, ['.'], [], [], asked.noGit);
-        const side = (end: string, again: Again) => reachOf(git, read, { ...asked, at: full.reading.at, relations, recorded: full.whole }, record, fork, end, again);
-        return { kind: 'sides', pull: await side(tested, { files: [], at: [] }), main: await side(mainline, await changedAgain(here, fork, mainline)) };
+        const side = (end: string, again?: Again) => reachOf(git, read, { ...asked, at: full.reading.at, relations, recorded: full.whole }, record, fork, end, again);
+        return { kind: 'sides', pull: await side(tested), main: await side(mainline, await changedAgain(here, fork, mainline)) };
       } catch (error) {
         return { kind: 'failed', why: `the record could not read a side of the merge (${error instanceof Error ? error.message : String(error)})` };
       }
@@ -131,7 +131,10 @@ async function changedAgain(here: string, fork: string, mainline: string): Promi
  * code reaches through HEAD's import graph are added: HEAD holds both sides'
  * edges, which only adds tests. A module reached that way joins with the tests
  * the record saw execute it, which the graph alone cannot reach when a test
- * loads it by a name it builds. A commit in `again` is a further end, read for the files it changed again.
+ * loads it by a name it builds. The mainline's side gives `again`, and is read as
+ * any tree between the fork and its tip: a commit in `again` is a further end, read
+ * for the files it changed again, and a changed file another one reaches is read
+ * whole, as it stood unchanged while that one had changed.
  */
 async function reachOf(
   git: Git,
@@ -140,11 +143,11 @@ async function reachOf(
   record: string,
   fork: string,
   end: string,
-  again: Again,
+  again?: Again,
 ): Promise<SideAnswer> {
   const selection = await import('@variance-authority/sense/test-selection');
   const names = (from: string, to: string) => git('diff', '--name-only', '-z', '--no-renames', from, to).split('\0').filter(Boolean);
-  const own = new Set([...names(fork, end), ...again.files]);
+  const own = new Set([...names(fork, end), ...(again?.files ?? [])]);
   const ownCode = [...own].filter((file) => !selection.readByInstall(file));
   const walk = (files: readonly string[]) => affectedBy(asked.relations, files, { through: RUNTIME_EDGES }).files;
   const walked = walk(ownCode);
@@ -158,9 +161,8 @@ async function reachOf(
   const install = new Set<string>();
   // The graph cannot follow a load by a built name back to its test, but the record saw the test run what it loaded:
   // each module the side reaches past its own files is read as changed whole, so the tests that executed it join.
-  // A file changed again stood, at some end, as at the fork while another changed file it reaches had changed:
-  // there it was a module the change reaches, read whole like one the side never changed.
-  const reached = new Set(again.files.filter((file) => walk(ownCode.filter((other) => other !== file)).includes(file)));
+  // Between the mainline's fork and tip a changed file may have stood unchanged while another it reaches had changed.
+  const reached = again === undefined ? new Set<string>() : new Set(ownCode.filter((file) => walk(ownCode.filter((other) => other !== file)).includes(file)));
   const outside = (file: string) => !own.has(file) || reached.has(file);
   const past = walked.filter((file) => outside(file) && !asked.recorded.has(file) && !selection.readByInstall(file));
   if (past.length > 0) {
@@ -177,11 +179,11 @@ async function reachOf(
     }
     for (const test of reading.whole) if (!reading.skip.has(test)) code.add(test);
   }
-  for (const to of new Set([fork, end, ...again.at])) {
+  for (const to of new Set([fork, end, ...(again?.at ?? [])])) {
     if (to === record) continue;
     const all = names(record, to);
     // A file changed once stands at a further end as at the fork or at the tip, both read already.
-    const cut = to === fork || to === end ? own : new Set(again.files);
+    const cut = to === fork || to === end ? own : new Set(again?.files);
     const kept = all.filter((file) => cut.has(file));
     const installs = kept.filter(selection.readByInstall);
     const text = selection.standDiff(git, record, to);

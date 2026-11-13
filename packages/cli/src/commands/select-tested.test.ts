@@ -182,65 +182,27 @@ describe('`variance select --ran-at` in a merge queue', () => {
     expect(here.out).not.toContain('test/other.test.ts');
   });
 
-  it('runs a test the pull request reaches that loads a module importing what the mainline changed, though the mainline also changed that module again', async () => {
-    // `other` loads `bridge` by a name it builds, and `bridge` imports `dep`. The mainline changed a function in `dep`
-    // that no test entered, and changed and reverted one in `bridge` that `other` never entered: `bridge` is read whole
-    // as a module its change reaches, which places `other` on the mainline's side too.
-    const DEP = 'export function spare(): number {\n  return 1;\n}\nexport function used(): number {\n  return 2;\n}\n';
-    const BRIDGE = "import { used } from './dep';\nexport function call(): number {\n  return used();\n}\nexport function idle(): number {\n  return 0;\n}\n";
+  // `other` loads `bridge` by a name it builds, and `bridge` imports `dep` (through `mid` in the chain). Each mainline below
+  // passes a tree where a file `other` ran stood as at the fork while one it imports had changed, so `other` runs.
+  const DEP = 'export function spare(): number {\n  return 1;\n}\nexport function used(): number {\n  return 2;\n}\n';
+  const MID = "import { used } from './dep';\nexport function via(): number {\n  return used();\n}\nexport function rest(): number {\n  return 0;\n}\n";
+  const BRIDGE = "import { used } from './dep';\nexport function call(): number {\n  return used();\n}\nexport function idle(): number {\n  return 0;\n}\n";
+  const CHAIN = BRIDGE.replace("{ used } from './dep'", "{ via as used } from './mid'");
+  const SPANS = { 'test/other.test.ts': [2, 4], 'test/total.test.ts': [5, 7] } as const;
+  const DEP_BACK = { 'src/dep.ts': DEP.replace('1;', '4;') };
+  const BRIDGE_BACK = { 'src/bridge.ts': BRIDGE.replace('0;', '3;') };
+  const TOTAL_BASE = { 'src/total.ts': TOTAL.replace('0.9', '0.8') };
+  it.each([
+    ['changed `dep` for good and changed and reverted `bridge`', {}, BRIDGE_BACK, DEP_BACK],
+    ['changed and reverted both', {}, { ...BRIDGE_BACK, ...DEP_BACK }, TOTAL_BASE],
+    ['changed and reverted all three of a chain', { 'src/bridge.ts': CHAIN, 'src/mid.ts': MID }, { 'src/bridge.ts': CHAIN.replace('0;', '3;'), 'src/mid.ts': MID.replace('0;', '3;'), ...DEP_BACK }, TOTAL_BASE],
+    ['changed and reverted `dep` and changed `bridge` once', {}, DEP_BACK, { 'src/bridge.ts': BRIDGE.replace('0;', '3;') }],
+  ] as const)('runs a test the pull request reaches that loads a module importing what the mainline changed, when the mainline %s', async (_, chain, reverted, base) => {
     const queue = await queued(home(), {
-      start: { 'src/dep.ts': DEP, 'src/bridge.ts': BRIDGE },
-      entered: {
-        'src/dep.ts': { 'test/other.test.ts': [4, 6], 'test/total.test.ts': [1, 3] },
-        'src/bridge.ts': { 'test/other.test.ts': [2, 4], 'test/total.test.ts': [5, 7] },
-      },
-      reverted: { 'src/bridge.ts': BRIDGE.replace('0;', '3;') },
-      base: { 'src/dep.ts': DEP.replace('1;', '4;') },
-      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
-      recordAt: 'fork',
-    });
-
-    const here = await selected(queue.dir, queue.base, queue.tested);
-
-    // `other` ran `bridge`, which the mainline's change to `dep` reaches, so it runs.
-    expect(here.out).not.toContain('test/other.test.ts');
-  });
-
-  it('runs a test the pull request reaches that loads a module importing what the mainline changed, when the mainline changed and reverted both', async () => {
-    // As above, but `dep` was changed and put back with `bridge`: the net diff holds neither, yet the check may have run
-    // with both, and then `bridge` was a module `dep`'s change reaches.
-    const DEP = 'export function spare(): number {\n  return 1;\n}\nexport function used(): number {\n  return 2;\n}\n';
-    const BRIDGE = "import { used } from './dep';\nexport function call(): number {\n  return used();\n}\nexport function idle(): number {\n  return 0;\n}\n";
-    const queue = await queued(home(), {
-      start: { 'src/dep.ts': DEP, 'src/bridge.ts': BRIDGE },
-      entered: {
-        'src/dep.ts': { 'test/other.test.ts': [4, 6], 'test/total.test.ts': [1, 3] },
-        'src/bridge.ts': { 'test/other.test.ts': [2, 4], 'test/total.test.ts': [5, 7] },
-      },
-      reverted: { 'src/bridge.ts': BRIDGE.replace('0;', '3;'), 'src/dep.ts': DEP.replace('1;', '4;') },
-      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
-      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
-      recordAt: 'fork',
-    });
-
-    const here = await selected(queue.dir, queue.base, queue.tested);
-
-    expect(here.out).not.toContain('test/other.test.ts');
-  });
-
-  it('runs a test the pull request reaches that loads a module importing what the mainline changed through a third, when the mainline changed and reverted all three', async () => {
-    const DEP = 'export function spare(): number {\n  return 1;\n}\nexport function used(): number {\n  return 2;\n}\n';
-    const MID = "import { used } from './dep';\nexport function via(): number {\n  return used();\n}\nexport function rest(): number {\n  return 0;\n}\n";
-    const BRIDGE = "import { via } from './mid';\nexport function call(): number {\n  return via();\n}\nexport function idle(): number {\n  return 0;\n}\n";
-    const queue = await queued(home(), {
-      start: { 'src/dep.ts': DEP, 'src/mid.ts': MID, 'src/bridge.ts': BRIDGE },
-      entered: {
-        'src/dep.ts': { 'test/other.test.ts': [4, 6], 'test/total.test.ts': [1, 3] },
-        'src/mid.ts': { 'test/other.test.ts': [2, 4], 'test/total.test.ts': [5, 7] },
-        'src/bridge.ts': { 'test/other.test.ts': [2, 4], 'test/total.test.ts': [5, 7] },
-      },
-      reverted: { 'src/bridge.ts': BRIDGE.replace('0;', '3;'), 'src/mid.ts': MID.replace('0;', '3;'), 'src/dep.ts': DEP.replace('1;', '4;') },
-      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      start: { 'src/dep.ts': DEP, 'src/bridge.ts': BRIDGE, ...chain },
+      entered: { 'src/dep.ts': { 'test/other.test.ts': [4, 6], 'test/total.test.ts': [1, 3] }, 'src/bridge.ts': SPANS, ...('src/mid.ts' in chain ? { 'src/mid.ts': SPANS } : {}) },
+      reverted,
+      base,
       prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
       recordAt: 'fork',
     });
