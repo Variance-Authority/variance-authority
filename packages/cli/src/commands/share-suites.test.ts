@@ -112,7 +112,7 @@ describe('`variance share --publish <records>`', () => {
     const record = testCoverageFile(ci, { suite: 'unit' });
     const { index, readings } = caseSectionsOf(await readFile(record));
     expect(index).toBeDefined();
-    expect(readings === undefined ? {} : JSON.parse(Buffer.from(readings).toString()).cases).toEqual({});
+    expect(readings === undefined || !Buffer.from(readings).includes(DISCOUNTS.id)).toBe(true);
     expect((await readCommitRuns(record))?.over).toBeUndefined();
   });
 

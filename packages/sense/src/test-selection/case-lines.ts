@@ -1,5 +1,6 @@
 import { blob, column, type Stored } from './format-layout.js';
 import { LAYOUT } from './record-layout.js';
+import { put, varints } from './varints.js';
 
 /**
  * The test line that first reached each region a case crossed, as the case
@@ -197,16 +198,8 @@ export function encodeCaseLines(lines: CaseLines | undefined): Uint8Array {
 /** One case's lines off its bytes, or undefined for a case whose lines were not recorded. */
 export function decodeCaseLines(bytes: Uint8Array): CaseLines | undefined {
   if (bytes.length === 0) return undefined;
-  let at = 0;
-  const take = (): number => {
-    let value = 0;
-    for (let shift = 0; ; shift += 7) {
-      const byte = bytes[at++];
-      if (byte === undefined || shift > 28) throw invalid();
-      value += (byte & 0x7f) * 2 ** shift;
-      if (byte < 0x80) return value;
-    }
-  };
+  const read = varints(bytes, invalid);
+  const take = read.take;
   const table: number[] = [];
   for (let count = take(); table.length < count;) table.push((table.at(-1) ?? 0) + take());
   const segments = new Map<number, Segment>();
@@ -225,7 +218,7 @@ export function decodeCaseLines(bytes: Uint8Array): CaseLines | undefined {
       segments.set(module, { values, starts });
     }
   }
-  if (at !== bytes.length) throw invalid();
+  if (!read.done) throw invalid();
   return { table, fallback, segments };
 }
 
@@ -258,15 +251,6 @@ export function caseBytes(table: LinesTable, test: number): Uint8Array {
   const to = table.offsets[test + 1];
   if (from === undefined || to === undefined || to < from || to > table.blob.length) throw invalid();
   return table.blob.subarray(from, to);
-}
-
-function put(out: number[], value: number): void {
-  let rest = value;
-  while (rest > 0x7f) {
-    out.push((rest & 0x7f) | 0x80);
-    rest = Math.floor(rest / 128);
-  }
-  out.push(rest);
 }
 
 function fail(): never {

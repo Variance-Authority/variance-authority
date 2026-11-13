@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 
+use crate::case_shard::{put, Varints};
 use crate::order;
 use crate::record_start::{last_started, LastStart};
 
@@ -230,14 +231,38 @@ pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)], case
     Ok(bytes)
 }
 
-/// A `cases.readings` section as `case-readings.ts` writes it: each case's
-/// readings, kept as written, and what each test file ran over.
-#[derive(Deserialize)]
+/// A `cases.readings` section as `readings-bytes.ts` writes it: each case's
+/// bytes, kept as written, and what each test file ran over.
 struct ReadingsIn<'a> {
-    #[serde(borrow, default)]
-    cases: HashMap<String, &'a RawValue>,
-    #[serde(default)]
-    inputs: HashMap<String, String>,
+    cases: Vec<(String, &'a [u8])>,
+    inputs: Vec<(String, String)>,
+}
+
+fn read_readings(bytes: &[u8]) -> Result<ReadingsIn<'_>, String> {
+    let mut reader = Varints::new(bytes);
+    let text = |reader: &mut Varints<'_>| -> Result<String, String> {
+        let length = reader.take()?;
+        String::from_utf8(reader.bytes(length)?.to_vec()).map_err(|error| error.to_string())
+    };
+    let count = reader.take()?;
+    let mut cases = Vec::new();
+    for _ in 0..count {
+        let id = text(&mut reader)?;
+        let length = reader.take()?;
+        cases.push((id, reader.bytes(length)?));
+    }
+    let count = reader.take()?;
+    let mut inputs = Vec::new();
+    for _ in 0..count {
+        inputs.push((text(&mut reader)?, text(&mut reader)?));
+    }
+    reader.end()?;
+    Ok(ReadingsIn { cases, inputs })
+}
+
+fn put_text(out: &mut Vec<u8>, value: &str) {
+    put(out, value.len() as u64);
+    out.extend_from_slice(value.as_bytes());
 }
 
 /// What one shard ran, rather than carried from the record it was laid over:
@@ -291,10 +316,10 @@ impl<V: PartialEq> Settled<V> {
 /// attempt are, and so are two that ran one file over different inputs.
 pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], cases: &HashSet<String>, ran: &HashMap<String, Ran>) -> Result<Vec<u8>, String> {
     let nothing = Ran::default();
-    let mut readings: Settled<&str> = Settled::new();
+    let mut readings: Settled<&[u8]> = Settled::new();
     let mut inputs: Settled<String> = Settled::new();
     for (name, bytes, renames) in shards {
-        let section: ReadingsIn<'_> = serde_json::from_slice(bytes).map_err(|_| format!("{name}: its readings section is not one this build reads"))?;
+        let section = read_readings(bytes).map_err(|_| format!("{name}: its readings section is not one this build reads"))?;
         let own = ran.get(*name).unwrap_or(&nothing);
         for (file, digest) in section.inputs {
             let by = own.files.contains(&file);
@@ -308,7 +333,7 @@ pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], 
                 return Err(format!("{name}: its readings section holds readings of `{case}`, a case the combined index does not record"));
             }
             let by = own.cases.contains(&case);
-            readings.offer(case, name, value.get(), by, |first, second, case| {
+            readings.offer(case, name, value, by, |first, second, case| {
                 format!("{first} and {second} hold different readings of `{case}`, so they are not shards of one run and cannot be folded into one.")
             })?;
         }
@@ -318,7 +343,7 @@ pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], 
     // another shard carried from its seed is from before that run and goes.
     let ran_cases: HashSet<&String> = ran.values().flat_map(|own| &own.cases).collect();
     let ran_files: HashSet<&String> = ran.values().flat_map(|own| &own.files).collect();
-    let held: HashMap<String, &str> =
+    let held: HashMap<String, &[u8]> =
         readings.held.into_iter().filter(|(case, (_, _, by))| *by || !ran_cases.contains(case)).map(|(case, (_, value, _))| (case, value)).collect();
     let inputs: HashMap<String, String> =
         inputs.held.into_iter().filter(|(file, (_, _, by))| *by || !ran_files.contains(file)).map(|(file, (_, digest, _))| (file, digest)).collect();
@@ -326,35 +351,18 @@ pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], 
     ids.sort_by(|left, right| order::code_unit(left, right));
     let mut files: Vec<&String> = inputs.keys().collect();
     files.sort_by(|left, right| order::code_unit(left, right));
-    let mut bytes = b"{".to_vec();
-    if !ids.is_empty() {
-        bytes.extend(b"\"cases\":{");
-        for (at, id) in ids.into_iter().enumerate() {
-            if at > 0 {
-                bytes.push(b',');
-            }
-            bytes.extend(serde_json::to_vec(id).map_err(|error| error.to_string())?);
-            bytes.push(b':');
-            bytes.extend(held[id].as_bytes());
-        }
-        bytes.push(b'}');
+    let mut bytes = Vec::new();
+    put(&mut bytes, ids.len() as u64);
+    for id in ids {
+        put_text(&mut bytes, id);
+        put(&mut bytes, held[id].len() as u64);
+        bytes.extend_from_slice(held[id]);
     }
-    if !files.is_empty() {
-        if bytes.len() > 1 {
-            bytes.push(b',');
-        }
-        bytes.extend(b"\"inputs\":{");
-        for (at, file) in files.into_iter().enumerate() {
-            if at > 0 {
-                bytes.push(b',');
-            }
-            bytes.extend(serde_json::to_vec(file).map_err(|error| error.to_string())?);
-            bytes.push(b':');
-            bytes.extend(serde_json::to_vec(&inputs[file]).map_err(|error| error.to_string())?);
-        }
-        bytes.push(b'}');
+    put(&mut bytes, files.len() as u64);
+    for file in files {
+        put_text(&mut bytes, file);
+        put_text(&mut bytes, &inputs[file]);
     }
-    bytes.push(b'}');
     Ok(bytes)
 }
 

@@ -318,6 +318,15 @@ impl<'a> Varints<'a> {
         Err("case lines hold a number too long".to_owned())
     }
 
+    /// The next `length` bytes, as they are.
+    pub(crate) fn bytes(&mut self, length: u64) -> Result<&'a [u8], String> {
+        let end = usize::try_from(length).ok().and_then(|length| self.at.checked_add(length)).filter(|end| *end <= self.bytes.len())
+            .ok_or_else(|| "case lines end early".to_owned())?;
+        let held = &self.bytes[self.at..end];
+        self.at = end;
+        Ok(held)
+    }
+
     pub(crate) fn end(&self) -> Result<(), String> {
         if self.at == self.bytes.len() { Ok(()) } else { Err("case lines run past their values".to_owned()) }
     }

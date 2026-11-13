@@ -3,6 +3,7 @@ import { CaseLinesBuilder, lineValue } from './case-lines.js';
 import { inputsOf, layReadings, readingsOf, READINGS } from './case-readings.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import { shapeOf } from './__fixtures__/readings.js';
 
 const ID = 'a.test.ts > clicks';
 
@@ -89,11 +90,19 @@ describe('layReadings', () => {
     ]);
   });
 
+  it('writes the section as bytes, not text', () => {
+    const { section } = laid([run(true, { handle: 3 }), run(false, { wire: 2 })]);
+
+    expect(() => JSON.parse(section!.toString('utf8'))).toThrow();
+    expect(section!.includes('src/page.ts')).toBe(true);
+    expect(section!.indexOf('src/page.ts')).toBe(section!.lastIndexOf('src/page.ts'));
+  });
+
   it('holds a case read alike every run as its count alone', () => {
     expect(laid([run(false, { wire: 2 })]).section).toBeUndefined();
     const { section } = laid([run(false, { wire: 2 }), run(false, { wire: 2 }), run(false, { wire: 2 })]);
 
-    expect(JSON.parse(section!.toString('utf8'))).toEqual({ cases: { [ID]: [{ count: 3, stopped: false }] } });
+    expect(shapeOf(section!)).toEqual({ cases: { [ID]: [{ count: 3, stopped: false }] } });
   });
 
   it('keeps the count of runs read alike once a run reads otherwise', () => {
@@ -119,7 +128,7 @@ describe('layReadings', () => {
 
     const moved = laid([run(true, { handle: 3 }), run(false, { wire: 2 })], unchanged, [at('one'), at('two')]);
     expect(readingsOf(moved.section, moved.index, ID)).toBeUndefined();
-    expect(JSON.parse(moved.section!.toString('utf8'))).toEqual({ inputs: { 'a.test.ts': 'two' } });
+    expect(shapeOf(moved.section!)).toEqual({ inputs: { 'a.test.ts': 'two' } });
   });
 
   it('keeps a case its readings where the index it is laid over holds fewer cases', () => {
@@ -132,7 +141,7 @@ describe('layReadings', () => {
   it('stores an earlier reading as what it read otherwise than the newest', () => {
     const { section, index } = laid([run(true, { handle: 3 }), run(true, { wire: 1, handle: 3 }), run(false, { wire: 2, handle: 4 })]);
 
-    expect(JSON.parse(section!.toString('utf8'))).toEqual({
+    expect(shapeOf(section!)).toEqual({
       cases: { [ID]: [{ count: 1, stopped: false }, { count: 1, stopped: true, values: [[0, lineValue(1, false)], [1, lineValue(3, false)]] }, { count: 1, stopped: true, gone: [0], values: [[1, lineValue(3, false)]] }] },
     });
     expect(readingsOf(section, index, ID)!.map(({ regions }) => regions.map(([, name, , , , value]) => [name, value]))).toEqual([
@@ -145,8 +154,8 @@ describe('layReadings', () => {
   it('refuses a section that is not the readings it writes', () => {
     const index = run(false, { wire: 2 });
 
-    expect(() => readingsOf(Buffer.from('{"cases":'), index, ID)).toThrow(/readings section/);
-    expect(() => readingsOf(Buffer.from('[]'), index, ID)).toThrow(/readings section/);
+    expect(() => readingsOf(Buffer.from('{"cases":{}}'), index, ID)).toThrow(/readings section/);
+    expect(() => readingsOf(Buffer.from([1, 9]), index, ID)).toThrow(/readings section/);
   });
 
   it('drops the oldest distinct reading past the bound', () => {
