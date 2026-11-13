@@ -182,6 +182,30 @@ describe('`variance select --ran-at` in a merge queue', () => {
     expect(here.out).not.toContain('test/other.test.ts');
   });
 
+  it('runs a test the pull request reaches that loads a module importing what the mainline changed, though the mainline also changed that module again', async () => {
+    // `other` loads `bridge` by a name it builds, and `bridge` imports `dep`. The mainline changed a function in `dep`
+    // that no test entered, and changed and reverted one in `bridge` that `other` never entered: `bridge` is read whole
+    // as a module its change reaches, which places `other` on the mainline's side too.
+    const DEP = 'export function spare(): number {\n  return 1;\n}\nexport function used(): number {\n  return 2;\n}\n';
+    const BRIDGE = "import { used } from './dep';\nexport function call(): number {\n  return used();\n}\nexport function idle(): number {\n  return 0;\n}\n";
+    const queue = await queued(home(), {
+      start: { 'src/dep.ts': DEP, 'src/bridge.ts': BRIDGE },
+      entered: {
+        'src/dep.ts': { 'test/other.test.ts': [4, 6], 'test/total.test.ts': [1, 3] },
+        'src/bridge.ts': { 'test/other.test.ts': [2, 4], 'test/total.test.ts': [5, 7] },
+      },
+      reverted: { 'src/bridge.ts': BRIDGE.replace('0;', '3;') },
+      base: { 'src/dep.ts': DEP.replace('1;', '4;') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // `other` ran `bridge`, which the mainline's change to `dep` reaches, so it runs.
+    expect(here.out).not.toContain('test/other.test.ts');
+  });
+
   it('skips a test only the pull request reaches when the mainline changed a module it does not reach more than once', async () => {
     const queue = await queued(home(), {
       reverted: { 'src/total.ts': TOTAL.replace('0.9', '0.7') },
