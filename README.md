@@ -85,6 +85,11 @@ open. Other examples cover [source selection](examples/selection-reuse),
 [external cases](cases/README.md) exercise the packages against real hosts and
 runners.
 
+To explore on your own, clone
+[a full-stack story](https://github.com/Variance-Authority/example-full-stack-story):
+a Next.js app with a bug in it. Tick a todo, tell your agent what you saw, and
+it finds the line from what that click ran in the browser and on the server.
+
 ## Add it to a Playwright test
 
 The fastest way in is a test that already gets the app into the UI state you
