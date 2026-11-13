@@ -13,7 +13,8 @@
  * parent drawn from it would nest every sibling under the one before.
  */
 
-import type { Place, Route, Step, Stop } from '@variance-authority/sense/story';
+import type { Step } from './fold.js';
+import type { Place, Route, Stop } from './read.js';
 
 /** One line of a numbered route: a stop with its step, or the head of a loop. */
 export interface Line {

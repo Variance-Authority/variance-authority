@@ -91,12 +91,15 @@ by guess.
   once
 - `packages/cli/src/commands/story.ts` — `variance story`, the route as text or
   JSON
-- `packages/cli/src/commands/story-view.ts` — the numbered route, the overview,
+- `packages/sense/src/story/view.ts` — the numbered route, the overview,
   and the windows through one file or package or around one step
-- `packages/cli/src/commands/story-tree.ts` — a step's arms drawn as the code
+- `packages/sense/src/story/tree.ts` — a step's arms drawn as the code
   nests them, from the region paths
-- `packages/cli/src/commands/story-levels.ts` — the levels a part is drawn at,
+- `packages/sense/src/story/levels.ts` — the levels a part is drawn at,
   the one picked, and the packages passed through
+- `packages/sense/src/story/text.ts` — a route as text, a step a line with its
+  arms and what was handed there; `variance story` and `ask ran --story` both
+  draw by it
 - `packages/cli/src/package-home.ts` — the package a file is in, from the
   nearest manifest
 

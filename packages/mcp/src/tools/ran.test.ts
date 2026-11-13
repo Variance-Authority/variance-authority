@@ -228,12 +228,38 @@ describe('variance_ran', () => {
       common: [],
     });
 
-    it('prints each execution\'s story, what each function was handed under the step it was handed at', () => {
+    it('draws each execution\'s story as `variance story` draws a step, what each function was handed under the step it was handed at', () => {
       const text = ran.run(storied([told]), { story: true }, { modules: WHOLE });
-      expect(text).toContain('app/actions.ts:15 toggle');
-      expect(text.indexOf("» handed on=true")).toBeGreaterThan(text.indexOf('app/actions.ts:15 toggle'));
-      expect(text.indexOf("» handed on=false")).toBeGreaterThan(text.indexOf("» handed on=true"));
-      expect(text).toContain('if#0/else');
+      expect(text.split('\n').slice(text.split('\n').indexOf('  head web') + 1)).toEqual([
+        '      in app: actions.ts',
+        '      1  toggle  actions.ts:15 ×2',
+        '           if 18  else ×1',
+        '           » handed on=true',
+        '           » handed on=false',
+      ]);
+    });
+
+    it('says what the tape lost of an execution, the steps past its end and the lines it was handed past its limit', () => {
+      const lost = encodeStory(
+        {
+          tape: Int32Array.from([1, 1, 2]), taped: 3, visits: 5, at: [0], keys: [JOURNEY], lines: [], unnoted: 2,
+          notes: [[1, JOURNEY, 'handed on=true']],
+          rows: { ids: [ACTIONS], counts: [3], bases: [0] },
+          held: new Map(),
+        },
+        JOURNEY,
+      ).toString('base64');
+      const text = ran.run(storied([lost]), { story: true }, { modules: WHOLE });
+      expect(text).toContain('    the recording filled up, and 2 later visits are not on this route\n');
+      expect(text).toContain('    the recording kept its first lines said, and 2 later ones are not on this route\n');
+    });
+
+    it('says how many tellings of an execution the watcher counted and did not keep', () => {
+      const text = ran.run(state({
+        executions: [{ id: JOURNEY, ordinal: 0, open: false, heads: [{ head: 'web', instrumentation: PROBES, modules: [], stories: [told], untold: 2 }] }],
+        common: [],
+      }), { story: true }, { modules: WHOLE });
+      expect(text).toContain('    told 2 more times, which the watcher did not keep\n');
     });
 
     it('asks its host to cut every module a story went through, though the execution entered it while the module loaded', () => {

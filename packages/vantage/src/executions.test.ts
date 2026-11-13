@@ -4,6 +4,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { VANTAGE_ASK, attachVantage, type AttachedVantage, type VantageReading } from './attach.js';
+import { STORIES, STORY_BYTES } from './executions.js';
 import type { WatchedRan } from './state.js';
 
 const attached: AttachedVantage[] = [];
@@ -137,6 +138,19 @@ describe('a watcher a head reports to', () => {
       [{ head: 'api', instrumentation: 'probes-1', modules: [{ id: 'src/cart.ts@abc', entered: [1] }], stories: ['Zmlyc3Q=', 'dGhlbg=='] }],
       [{ head: 'api', instrumentation: 'probes-1', modules: [{ id: 'src/cart.ts@abc', entered: [2] }] }],
     ]);
+  });
+
+  it('keeps the first tellings of an execution up to its bound, and counts the ones it did not keep', async () => {
+    const one = await watcher();
+    for (let told = 0; told < STORIES + 2; told += 1) await says(one, 'j-1', { story: `dGVsbA${told}` });
+    // One telling past the bytes a head's stories of one execution are held to is not kept, though it is the first.
+    await says(one, 'j-2', { story: 'A'.repeat(STORY_BYTES + 1) });
+
+    const [first, second] = (await ran(one)).executions.map((execution) => execution.heads[0]);
+    expect(first?.stories).toEqual(Array.from({ length: STORIES }, (_, told) => `dGVsbA${told}`));
+    expect(first?.untold).toBe(2);
+    expect(second?.stories).toBeUndefined();
+    expect(second?.untold).toBe(1);
   });
 
   it('takes nothing from an account whose story is not a string', async () => {

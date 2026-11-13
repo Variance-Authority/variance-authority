@@ -37,7 +37,7 @@ an execution inside a service process.
 - `packages/sense/src/test-selection/` — the execution record and its queries
 - `packages/core/src/relate/` — the graph, its traversals, and the closure fold
 - `packages/cli/src/commands/` — `run-select.ts`, `affected.ts`, `reach.ts`,
-  `journey.ts`, `story.ts`, `story-view.ts`, `since.ts`, `changes.ts`,
+  `journey.ts`, `story.ts`, `since.ts`, `changes.ts`,
   `installed.ts`, `index-command.ts`, `source-graph.ts`
 - `packages/sense/src/story/` — the order one case visited, and the route read
   from it

@@ -13,3 +13,6 @@ export { compareReadings, type Comparison, type Moment, type Only, type Order, t
 export { drawRoute, drawToldRoute, listStories, readRoute, toldModules, type Arm, type Place, type Region, type Route, type Stop, type StoryEntry, type Untaken } from './read.js';
 export { pageStories, storyPageSource, type PageStories, type StoryCase } from './page.js';
 export { PAGE_STORY, type PageStory } from './page-story.js';
+export { numbered, through, window, type Gap, type Line } from './view.js';
+export { BUDGET, drawings, pick, type Drawing, type Through } from './levels.js';
+export { armStarts, drawingText, routeText, saidText, unnotedText, untapedText, type Starts } from './text.js';

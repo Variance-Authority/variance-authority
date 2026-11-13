@@ -105,11 +105,14 @@ every execution is read for the name.
 
 `--story` (MCP: `story: true`) needs a server head started with
 `VARIANCE_AUTHORITY_STORY=1` as well. Each execution is then its steps in the
-order they ran, each `file:line name` with its branches, and under each entry
-`» handed name=value`, the arguments only: no local or module variable is
-shown. Concurrent requests are taped apart. An execution told again lists what
-ran since under `told again`. A head without the variable tells no story, and
-the answer says so and lists regions. A `head page` tells none yet.
+order they ran, drawn as `variance story` draws every step: `N  name
+file:lines` with its branches under it, and `» handed name=value`, the
+arguments only: no local or module variable is shown. Concurrent requests are
+taped apart. An execution told again lists what ran since under `told again`.
+What the tape lost is said above the steps; the watcher keeps 8 tellings of an
+execution, up to 1 MiB, and counts the rest as `told N more times`. A head
+without the variable tells no story, and the answer says so and lists regions.
+A `head page` tells none yet.
 
 A region arrives as a number and is named from the checkout `ask` runs in, so
 ask from the repository the application was built from. A module whose regions

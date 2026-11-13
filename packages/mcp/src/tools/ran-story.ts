@@ -1,4 +1,4 @@
-import { drawToldRoute, toldModules, type Region, type Route, type Step, type Stop } from '@variance-authority/sense/story';
+import { drawToldRoute, routeText, toldModules, unnotedText, untapedText, type Region, type Route } from '@variance-authority/sense/story';
 import type { HeadRan } from '@variance-authority/vantage';
 import { cappedRows } from './capped.js';
 import type { CutModules } from './tool.js';
@@ -10,9 +10,9 @@ import type { CutModules } from './tool.js';
  * told: a head started with `VARIANCE_AUTHORITY_STORY=1` tapes each execution
  * the way a test story tapes a case, and says what each function was handed.
  *
- * The route is drawn by the same reading a test story is, with the regions the
- * host cut from the checkout, so a step reads as the listing's regions do and
- * what was handed reads as it does in a test story, `» handed name=value`.
+ * The route is read and drawn by the same code a test story is, with the
+ * regions the host cut from the checkout, so a step, its arms and what was
+ * handed there, `» handed name=value`, read as they do under `variance story`.
  */
 
 /** Every module the stories a head told went through. */
@@ -44,27 +44,11 @@ export function toldRows(head: HeadRan, cut: CutModules | undefined): string[] {
     ...(told === 0 ? [] : ['told again, once more of it had run:']),
     ...routeRows(drawToldRoute(Buffer.from(story, 'base64'), regionsOf)),
   ]);
-  return cappedRows(rows, (row) => `    ${row}`, TOLD);
+  const untold = head.untold === undefined ? [] : [`    told ${head.untold} more ${head.untold === 1 ? 'time' : 'times'}, which the watcher did not keep`];
+  return [...cappedRows(rows, (row) => `    ${row}`, TOLD), ...untold];
 }
 
+/** A told route as `variance story` draws every step of one, after what the tape lost of it. */
 function routeRows(route: Route): string[] {
-  const said = (lines: readonly string[] | undefined, indent: string): string[] => (lines ?? []).map((line) => `${indent}  » ${line}`);
-  const walk = (steps: readonly Step<Stop>[], indent: string): string[] =>
-    steps.flatMap((step) => {
-      if ('repeat' in step) return [`${indent}${step.times} times:`, ...walk(step.repeat, `${indent}  `)];
-      const stop = step.token;
-      if ('loaded' in stop) return [`${indent}loaded ${stop.loaded.join(', ')}`, ...said(stop.said, indent)];
-      const { file, name, startLine } = stop.place;
-      const at = startLine === undefined ? file : `${file}:${startLine}`;
-      return [
-        `${indent}${at} ${name === '' ? '(top level)' : name}`,
-        ...stop.arms.map((arm) => `${indent}  ${arm.path}${arm.times === 1 ? '' : ` ${arm.times} times`}`),
-        ...said(stop.said, indent),
-      ];
-    });
-  return [
-    ...said(route.opening?.route, ''),
-    ...walk(route.route, ''),
-    ...(route.untaped === 0 ? [] : [`${route.untaped} step(s) past the tape's end were not kept`]),
-  ];
+  return [...untapedText(route), ...unnotedText(route), ...routeText(route).filter((row) => row !== '')];
 }
