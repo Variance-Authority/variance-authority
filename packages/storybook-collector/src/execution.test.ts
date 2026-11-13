@@ -70,7 +70,7 @@ async function inRoot(
 
 describe('a Storybook run records what each story executed', () => {
   it('writes each story\'s story beside the record, once however many times it was read, where the run asked for stories', async () => {
-    const story = { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, held: [], rows: { ids: [moduleId('price.js', SOURCE)], counts: [1], bases: [0] } };
+    const story = { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, rows: { ids: [moduleId('price.js', SOURCE)], counts: [1], bases: [0] } };
     const taped = (...hits: number[]): ExecutionJournal => ({ ...journal(...hits), story });
     for (const asked of [true, false]) {
       await inRoot(async ({ root, cacheRoot, coverageFile, index }) => {

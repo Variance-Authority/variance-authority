@@ -19,8 +19,6 @@ export interface PageStory {
   /** Each test line a statement the page ran was cut at: how many visits were taped before it, the line, the notes before it, and 1 for a hook's. */
   readonly lines: readonly (readonly [at: number, line: number, said: number, hook?: 1])[];
   readonly unnoted: number;
-  /** What each module held when it ran, kept from the first drain on. */
-  readonly held: readonly (readonly [ModuleId, string])[];
   readonly rows: { readonly ids: readonly ModuleId[]; readonly counts: readonly number[]; readonly bases: readonly number[] };
   /** What the documents this page's frame replaced ran since the drain before, oldest first. */
   readonly before?: readonly PageStory[];

@@ -278,17 +278,6 @@ function encodeStory(tape: Tape, key: string, stopped?: boolean, page: { readonl
     const counted = (place.said ? saidBy : beforeBy)[said]!;
     (place.said ? lines : beforeLines).push(hook === 1 ? [place.at, line, counted, 1] : [place.at, line, counted]);
   }
-  // What a module held was said once, when it loaded, and the tape started
-  // again before the first case: every case that went through it opens with it.
-  const told = new Set([...notes, ...beforeNotes].map(([, text]) => text));
-  const holding = rows.flatMap(([id]): [number, string][] => {
-    const line = tape.held.get(id);
-    return line === undefined || told.has(line) ? [] : [[0, line]];
-  });
-  beforeNotes.unshift(...holding);
-  for (const [index, cut] of beforeLines.entries()) {
-    beforeLines[index] = cut[3] === 1 ? [cut[0], cut[1], cut[2] + holding.length, 1] : [cut[0], cut[1], cut[2] + holding.length];
-  }
 
   const { file, name, project } = caseOwner.unpackCase(key);
   const header = Buffer.from(

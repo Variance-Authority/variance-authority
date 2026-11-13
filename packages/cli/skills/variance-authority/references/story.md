@@ -40,8 +40,10 @@ question open:
   provider's value reached a component as a prop, whether a wrapper passed a
   config on or made a new one. Follow the ref, read as the step lines below
   say, from step to step: the first step handed a new ref where you expected
-  the same one is where the replacement arrived. The story does not show what made it;
-  a module's `» holds` line names it when it is a top-level binding. A return
+  the same one is where the replacement arrived. The story does not show what made it:
+  follow its ref back through the `» handed` lines to the first step handed it,
+  and the code that called that step passed it in. A module's top-level
+  variables are not shown. A return
   value is not shown, so a value read with `useContext` or a hook shows only
   where it is handed on.
 - **Two tests or more differ in their setup and in their result**: the flag
@@ -171,9 +173,7 @@ The answer prints a key for its marks. What the key leaves out:
 - `» text` under a step is a line the code emitted at that step: a `console`
   line as `console.log …`, an Eyes entry as `eyes …` with a query's arguments
   and what it found, a `vae` announcement as `vae …`. `» handed a=1, b=ref2
-  Object` is what the function was bound to on entry, and `» holds …` what a
-  module's top level declared: at its step when the test loaded it, in the
-  header for every test that goes through it when it loaded with the file. One ref is one object everywhere in
+  Object` is what the function was bound to on entry. One ref is one object everywhere in
   the run: the same ref at two steps is the same value handed on. Lines
   emitted before the first step are in the header.
 - `loaded N files` is modules loaded one inside another. `… steps 1-2 left out`

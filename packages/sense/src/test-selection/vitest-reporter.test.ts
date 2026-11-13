@@ -20,7 +20,7 @@ afterEach(() => {
 // A case in a page, as its task's `meta` carries it to the reporter.
 const meta = {
   [BROWSER_JOURNAL]: {
-    story: { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, held: [], rows: { ids: ['a'], counts: [1], bases: [0] } },
+    story: { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, rows: { ids: ['a'], counts: [1], bases: [0] } },
   },
 };
 

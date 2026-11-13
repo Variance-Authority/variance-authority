@@ -436,9 +436,10 @@ story when the code does not answer your question:
   [what each function was handed](#what-each-function-was-handed) as a ref, so
   the steps handed the same ref are the path that one object took. The first
   step handed a different ref where you expected the same one is where the
-  replacement arrived. The story does not show what made it; when it is a
-  module's top-level binding, the module's `» holds` line names it. What a
-  function returns is not shown either, so a value read with `useContext` or a
+  replacement arrived. The story does not show what made it: follow its ref
+  back through the `» handed` lines to the first step handed it, and the code
+  that called that step passed it in. A module's top-level variables are not
+  shown. What a function returns is not shown either, so a value read with `useContext` or a
   hook appears only once the component hands it on, as a prop or an argument.
 - **You hand one test to an agent to fix or extend.** The story gives it the
   steps in order, each with its file and lines, so it reads those and not the whole package.
@@ -553,23 +554,18 @@ shown as one line, that line names the package, and `--package` opens it.
 ## What each function was handed
 
 Every function step lists the values its parameters were bound to, after its
-branches and loops, one line per time it was entered. A module lists what its
-top level declared, once it has run: at its step when the test loaded it, and
-in the header, as said before the test began, when it loaded with the test
-file, for every test that goes through it:
+branches and loops, one line per time it was entered:
 
 ```text
-  3  theme.tsx  theme.tsx:1-30
-       » holds Theme=ref1 react.context, ThemeProvider=ref2 function ThemeProvider
   4  ThemeProvider  theme.tsx:12-20
-       » handed theme=ref5 Object, label='Save'
+       » handed theme=ref1 Object, label='Save'
   7  Panel  panel.tsx:3-9
-       » handed theme=ref5 Object
+       » handed theme=ref1 Object
 ```
 
 A number or a boolean is shown as it is, and a string in quotes, on one line
-and cut to 40 characters. An object is shown as a ref and what it is: `ref5
-Object`, `ref6 Array(3)`, `ref2 function ThemeProvider`, `ref3 react.memo`.
+and cut to 40 characters. An object is shown as a ref and what it is: `ref1
+Object`, `ref2 Array(3)`, `ref3 function ThemeProvider`, `ref4 react.memo`.
 A React context, memo or element is named by React's own word, such as
 `react.context`, when the suite's setup files include
 `@variance-authority/react/story` from [React](../packages/react); without it,
@@ -590,7 +586,7 @@ its number: `ref Object`, by kind.
 The calls that hand the values over are in the instrumented code on every run,
 but they do nothing unless the run records a story: on any other run each is
 one read of a variable and a branch not taken. A generator is not shown, and
-neither is what a function returned.
+neither is what a function returned or what a module declares at its top level.
 
 ## What the code prints
 

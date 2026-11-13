@@ -10,26 +10,22 @@ function tape(notes: [number, string, string][], lines: [number, string, number,
   return {
     tape: Int32Array.from([0, 1]), taped: 2, visits: 2, at: [0], keys: [KEY], notes, lines, unnoted: 0,
     rows: { ids: ['src/theme.ts', 'src/unvisited.ts'], counts: [2, 1], bases: [0, 2] },
-    held: new Map([
-      ['src/theme.ts', 'holds Theme=ref1 react.context'],
-      ['src/unvisited.ts', 'holds never=ref2 Object'],
-    ]),
   };
 }
 
-describe('what a story says a module holds', () => {
-  it('opens each case with what every module it went through held when it loaded', () => {
+describe('what a story says', () => {
+  it('opens a case with nothing a module holds, only what the case said', () => {
     const story = decodeStory(encodeStory(tape([[1, KEY, 'handed theme=ref3 Object']]), KEY));
 
-    expect(story.beforeNotes).toEqual([[0, 'holds Theme=ref1 react.context']]);
+    expect(story.beforeNotes).toEqual([]);
     expect(story.notes).toEqual([[1, 'handed theme=ref3 Object']]);
   });
 
-  it('says it once when the module loaded inside the case', () => {
-    const story = decodeStory(encodeStory(tape([[0, KEY, 'holds Theme=ref1 react.context']]), KEY));
+  it('reads a story written when a module said what it held, the line as it was said', () => {
+    const story = decodeStory(encodeStory(tape([[0, '', 'holds Theme=ref1 react.context'], [1, KEY, 'handed theme=ref1 Object']]), KEY));
 
-    expect(story.beforeNotes).toEqual([]);
-    expect(story.notes).toEqual([[0, 'holds Theme=ref1 react.context']]);
+    expect(story.beforeNotes).toEqual([[0, 'holds Theme=ref1 react.context']]);
+    expect(story.notes).toEqual([[1, 'handed theme=ref1 Object']]);
   });
 });
 
@@ -38,7 +34,7 @@ describe('where a story says the case was', () => {
     const lines: [number, string, number, number, 1?][] = [[0, '', 2, 0], [0, KEY, 3, 0], [1, KEY, 4, 0, 1]];
     const story = decodeStory(encodeStory(tape([], lines), KEY));
 
-    expect(story.beforeLines).toEqual([[0, 2, 1]]);
+    expect(story.beforeLines).toEqual([[0, 2, 0]]);
     expect(story.lines).toEqual([[0, 3, 0], [1, 4, 0, 1]]);
     expect(story.notes).toEqual([]);
   });
@@ -51,9 +47,8 @@ describe('where a story says the case was', () => {
 
     expect(story.notes).toEqual([[1, 'first'], [1, 'second']]);
     expect(story.lines).toEqual([[1, 3, 1], [1, 4, 2]]);
-    // What `src/theme.ts` held opens what came before, so the hook's line counts it too.
-    expect(story.beforeNotes.map(([, text]) => text)).toEqual(['holds Theme=ref1 react.context', 'hooked']);
-    expect(story.beforeLines).toEqual([[0, 2, 2]]);
+    expect(story.beforeNotes.map(([, text]) => text)).toEqual(['hooked']);
+    expect(story.beforeLines).toEqual([[0, 2, 1]]);
   });
 
   it('reads a story written before lines were carried as one with none', () => {

@@ -311,16 +311,16 @@ function handed(tapped: boolean) {
   return { tap, run: (code: string): unknown => runInContext(code, context) };
 }
 
-describe('what a function was handed, and what a module holds', () => {
+describe('what a function was handed', () => {
   it('names an object by a ref, the same one wherever it goes, and never its contents', () => {
     const { tap, run } = handed(true);
 
     run('checkout(2)');
 
+    // A module's own variables are not among them: a story follows what is handed.
     expect(tap!.read().notes.map(([, , text]) => text)).toEqual([
-      `holds cart=ref1 Object, label='${'x'.repeat(39)}…', Till=ref2 class Till, total=ref3 function total, lines=ref4 function lines, checkout=ref5 function checkout`,
       'handed n=2',
-      'handed c=ref1 Object, tax=2, rest=ref6 Array(2)',
+      'handed c=ref1 Object, tax=2, rest=ref2 Array(2)',
     ]);
     // A generator's body is left as it was: what it was handed is not asked for.
     expect(run('out')).toEqual([1004, 1]);
@@ -333,18 +333,7 @@ describe('what a function was handed, and what a module holds', () => {
     tap!.reset();
     run('checkout(3)');
 
-    expect(tap!.read().notes.map(([, , text]) => text)).toContain('handed c=ref1 Object, tax=3, rest=ref7 Array(2)');
-  });
-
-  it('keeps what each module holds past a reset, since a module runs once and its cases come after', () => {
-    const { tap, run } = handed(true);
-
-    tap!.reset();
-    run('checkout(2)');
-
-    const { held, notes } = tap!.read();
-    expect(notes.map(([, , text]) => text)).not.toContainEqual(expect.stringMatching(/^holds /));
-    expect([...held]).toEqual([['fixture.js', expect.stringMatching(/^holds cart=ref1 Object, label=/)]]);
+    expect(tap!.read().notes.map(([, , text]) => text)).toContain('handed c=ref1 Object, tax=3, rest=ref3 Array(2)');
   });
 
   it('names an object by what its framework calls it, when the framework said so to the realm', () => {
@@ -360,11 +349,11 @@ describe('what a function was handed, and what a module holds', () => {
     };
     const scope = { __VA__: tap.root, [Symbol.for('variance-authority.story.kind')]: [failing, branded] };
     storyTap.listen(tap, scope);
-    const source = "const Theme = { brand: 'ui.theme' };\nconst Plain = { other: 1 };\n";
+    const source = "const Theme = { brand: 'ui.theme' };\nconst Plain = { other: 1 };\nfunction use(t, p) {}\nuse(Theme, Plain);\n";
     runInContext(instrument(source, 'fixture.js')!.code, createContext(scope), { filename: 'fixture.js' });
 
     // A namer that throws is passed over, and an object no namer knows is named as before.
-    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['holds Theme=ref1 ui.theme, Plain=ref2 Object']);
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['handed t=ref1 ui.theme, p=ref2 Object']);
   });
 
   it('never crowds out what the code said, however often a function is handed something', () => {
@@ -375,7 +364,7 @@ describe('what a function was handed, and what a module holds', () => {
 
     const notes = tap!.read().notes.map(([, , text]) => text);
     expect(notes.at(-1)).toBe('console.log done');
-    expect(notes.filter((text) => text.startsWith('handed '))).toHaveLength(storyTap.NOTE_LIMIT - 1);
+    expect(notes.filter((text) => text.startsWith('handed '))).toHaveLength(storyTap.NOTE_LIMIT);
   });
 
   it('spells a string on one line', () => {
@@ -383,7 +372,15 @@ describe('what a function was handed, and what a module holds', () => {
 
     run(`total(cart, { tax: 'a\\nb' })`);
 
-    expect(tap!.read().notes.at(-1)![2]).toBe("handed c=ref1 Object, tax='a\\nb', rest=ref6 Array(0)");
+    expect(tap!.read().notes.at(-1)![2]).toBe("handed c=ref1 Object, tax='a\\nb', rest=ref2 Array(0)");
+  });
+
+  it('cuts a long string it was handed', () => {
+    const { tap, run } = handed(true);
+
+    run('total(cart, { tax: label })');
+
+    expect(tap!.read().notes.at(-1)![2]).toBe(`handed c=ref1 Object, tax='${'x'.repeat(39)}…', rest=ref2 Array(0)`);
   });
 
   it('asks nothing of a module when no story listens', () => {

@@ -172,7 +172,7 @@ describe('the case a Playwright test runs as', () => {
     try {
       await writeFile(resolve(root, 'price.js'), SOURCE, 'utf8');
       const recorder = createExecutionRecorder({ root, cacheRoot: resolve(root, 'cache') });
-      const story = { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, held: [], rows: { ids: [moduleId('price.js', SOURCE)], counts: [1], bases: [0] } };
+      const story = { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, rows: { ids: [moduleId('price.js', SOURCE)], counts: [1], bases: [0] } };
       const page = {
         evaluate: async () => ({ instrumentation: INSTRUMENTATION, modules: [{ id: moduleId('price.js', SOURCE), hits: [0], shared: [] }], story }),
       } as unknown as Page;

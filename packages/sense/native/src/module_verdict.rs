@@ -58,7 +58,7 @@ use oxc_span::ContentEq;
 use napi_derive::napi;
 
 use crate::module_moved::{exported, Top};
-use crate::module_readers::{bound, declared, interface_of, Erased};
+use crate::module_readers::{bound, declared, interface_of};
 use crate::module_shape::{parse, plain_class, pure, Lines};
 
 pub enum Verdict {
@@ -329,7 +329,7 @@ fn declaration<'s, 'a>(view: &mut View<'s, 'a>, it: &'s Declaration<'a>) {
         }
         it => {
             view.step(Step::Declaration(it));
-            for name in declared(it, Erased::Kept) {
+            for name in declared(it) {
                 view.bind(name, Bound::Evaluated);
             }
         }

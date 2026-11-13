@@ -20,8 +20,8 @@ fn a_probe_already_in_the_body_is_not_a_statement_of_the_test() {
     let out = cut("it('adds', () => {__va(1);\n  add(1, 2);\n});\n");
     assert!(out.contains("() => {__va(1);\n  __vaC(2);add(1, 2);\n"), "{out}");
     // Nor is the dormant capture a body with parameters opens with.
-    let out = cut("it('adds', ({ a }) => {__va(1);__vaL&&__vaL(1,\"a\",a);\n  add(a);\n});\n");
-    assert!(out.contains("__vaL&&__vaL(1,\"a\",a);\n  __vaC(2);add(a);\n"), "{out}");
+    let out = cut("it('adds', ({ a }) => {__va(1);__vaL&&__vaL(\"a\",a);\n  add(a);\n});\n");
+    assert!(out.contains("__vaL&&__vaL(\"a\",a);\n  __vaC(2);add(a);\n"), "{out}");
     assert!(!out.contains("__vaC(1)"), "{out}");
 }
 

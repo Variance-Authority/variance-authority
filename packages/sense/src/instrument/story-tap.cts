@@ -56,15 +56,13 @@
  * tape and hands it on unchanged. Both happen only in a realm that is recording
  * a story, which somebody asked for by name.
  *
- * ## What a region was handed
+ * ## What a function was handed
  *
  * The walk ends every function's first region, once its parameters are bound,
- * and every module, once its top level has run, with a call nobody answers:
- * `__vaL&&__vaL(region, "a,b", a, b)`. `__vaL` is the `V` a root hands a
- * module when it registers, and only the tap hands one over, so the values
- * reach a story and nothing else. Each call is a note — `handed c=ref1 Object,
- * tax=2` for a function, `holds cart=ref1 Object, Till=ref2 class Till` for a
- * module — said where the region was entered.
+ * with a call nobody answers: `__vaL&&__vaL("a,b", a, b)`. `__vaL` is
+ * the `V` a root hands a module when it registers, and only the tap hands one
+ * over, so the values reach a story and nothing else. Each call is a note —
+ * `handed c=ref1 Object, tax=2` — said where the function was entered.
  *
  * A value is shown as it is when it is a primitive, and a string is cut. An
  * object is a ref and a word: the ref is its identity, the same wherever it is
@@ -107,11 +105,6 @@ interface Tape {
   readonly lines: readonly (readonly [at: number, key: string, line: number, said: number, hook?: 1])[];
   /** Notes past either {@link NOTE_LIMIT}, counted and not kept. */
   readonly unnoted: number;
-  /**
-   * What each module held when it last ran, by module. A module runs once, when
-   * it loads, and the cases that go through it run after: a reset keeps these.
-   */
-  readonly held: ReadonlyMap<ModuleId, string>;
   readonly rows: { readonly ids: readonly ModuleId[]; readonly counts: readonly number[]; readonly bases: readonly number[] };
 }
 
@@ -181,13 +174,12 @@ function createTap(engine: Engine, limit: number): Tap {
   // nothing followed, visit or note, gives way to the next.
   type Line = [at: number, key: string, line: number, said: number, hook?: 1];
   let lines: Line[] = [];
-  const held = new Map<ModuleId, string>();
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
 
   // Every object a region handed over, by identity, for as long as the realm
-  // holds it: refs outlive a reset, so a module's bindings, held once when it
-  // ran, still name what a later case is handed.
+  // holds it: refs outlive a reset, so an object handed in one case is named
+  // the same in a later one.
   const sightings = new WeakMap<object, { ref: string; kind?: string }>();
   let refs = 0;
   const describe = Function.prototype.toString;
@@ -253,33 +245,29 @@ function createTap(engine: Engine, limit: number): Tap {
     return `${sighting.ref} ${sighting.kind}`;
   };
 
-  const put = (text: string): string => {
+  const put = (text: string): void => {
     const line = text.length > NOTE_LENGTH ? `${text.slice(0, NOTE_LENGTH - 1)}…` : text;
     // Where an async scope decides the bucket, ask it, as a probe would
     // before it writes: a note said in a case's continuation is the case's.
     inner.s?.();
     notes.push([taped, engine.current().key, line]);
-    return line;
   };
 
   // What a row's regions hand over: the names the walk wrote, and their values.
-  const handing =
-    (module: ModuleId) =>
-    (region: number, names: string, ...values: unknown[]): void => {
-      // Past the limit nothing is read: a hot function pays for a count.
-      if (handedOver >= NOTE_LIMIT) {
-        unnoted += 1;
-        return;
-      }
-      try {
-        const said = names.split(',').map((name, index) => `${name}=${shown(values[index])}`);
-        handedOver += 1;
-        if (region !== 0) put(`handed ${said.join(', ')}`);
-        else held.set(module, put(`holds ${said.join(', ')}`));
-      } catch {
-        // What the story could not say never reaches the code that said it.
-      }
-    };
+  const handing = (names: string, ...values: unknown[]): void => {
+    // Past the limit nothing is read: a hot function pays for a count.
+    if (handedOver >= NOTE_LIMIT) {
+      unnoted += 1;
+      return;
+    }
+    try {
+      const said = names.split(',').map((name, index) => `${name}=${shown(values[index])}`);
+      handedOver += 1;
+      put(`handed ${said.join(', ')}`);
+    } catch {
+      // What the story could not say never reaches the code that said it.
+    }
+  };
 
   const record = (entry: number): void => {
     const activation = inner.a;
@@ -328,7 +316,7 @@ function createTap(engine: Engine, limit: number): Tap {
         rowCounts.push(count);
         rowBases.push(registered.b);
       }
-      return { f: registered.f, s: registered.s, b: registered.b, p: pass, V: handing(id) };
+      return { f: registered.f, s: registered.s, b: registered.b, p: pass, V: handing };
     },
     e(): void {
       inner.e();
@@ -366,7 +354,7 @@ function createTap(engine: Engine, limit: number): Tap {
     root,
     engine,
     read() {
-      return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
+      return { tape, taped, visits, at, keys, notes, lines, unnoted, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
       if (spoken >= NOTE_LIMIT) {

@@ -40,9 +40,9 @@ describe('a story of a React tree', () => {
     const route = readRoute(repository, resolve(stories, story!));
     const said = [...(route.opening?.before ?? []), ...(route.opening?.route ?? []), ...saidAt(route.route)];
 
-    expect(said.find((line) => line.startsWith('holds '))).toMatch(
-      /^holds .*ThemeContext=ref\d+ react\.context, Panel=ref\d+ function Panel, Shown=ref\d+ react\.memo, App=ref\d+ function App$/,
-    );
+    // A module's own variables are not said; what a component is handed is, named as React names it.
+    expect(said.some((line) => line.startsWith('holds '))).toBe(false);
+    expect(said).toContainEqual(expect.stringMatching(/^handed context=ref\d+ react\.context$/));
     const handed = said.filter((line) => line.startsWith('handed theme='));
     expect(handed.length).toBeGreaterThanOrEqual(2);
     expect(new Set(handed).size).toBe(1);

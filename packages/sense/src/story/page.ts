@@ -49,7 +49,6 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
         notes,
         lines,
         unnoted: read.unnoted,
-        held: Array.from(read.held),
         rows: { ids: read.rows.ids.slice(), counts: read.rows.counts.slice(), bases: read.rows.bases.slice() },
       };
       tap.reset();
@@ -91,7 +90,6 @@ interface CaseTape {
   readonly entries: number[];
   readonly notes: [number, string][];
   readonly lines: [number, number, number, 1?][];
-  readonly held: Map<ModuleId, string>;
   // Where the story moves into another realm, and the frames and documents it met.
   readonly parts: [number, number, number, number][];
   readonly frames: Map<object, { readonly frame: number; document: number }>;
@@ -144,7 +142,7 @@ export function pageStories(directory: string): PageStories {
     const key = keyOf(subject);
     let tape = tapes.get(key);
     if (tape === undefined) {
-      tape = { entries: [], notes: [], lines: [], held: new Map(), parts: [], frames: new Map(), documents: 0, rows: new Map(), ids: [], counts: [], bases: [], visits: 0, unnoted: 0, total: 0 };
+      tape = { entries: [], notes: [], lines: [], parts: [], frames: new Map(), documents: 0, rows: new Map(), ids: [], counts: [], bases: [], visits: 0, unnoted: 0, total: 0 };
       tapes.set(key, tape);
     }
     return tape;
@@ -216,7 +214,6 @@ export function pageStories(directory: string): PageStories {
       const said = tape.notes.length;
       for (const [at, line, before, hook] of story.lines) tape.lines.push(hook === 1 ? [offset + at, line, said + before, 1] : [offset + at, line, said + before]);
       for (const [at, text] of story.notes) tape.notes.push([offset + at, text]);
-      for (const [id, text] of story.held) tape.held.set(id, text);
       tape.visits += story.visits - story.taped;
       tape.unnoted += story.unnoted;
     },
@@ -245,7 +242,6 @@ export function pageStories(directory: string): PageStories {
           notes: tape.notes.map(([at, text]) => [at, key, text] as const),
           lines: tape.lines.map(([at, line, said, hook]) => (hook === 1 ? ([at, key, line, said, 1] as const) : ([at, key, line, said] as const))),
           unnoted: tape.unnoted,
-          held: tape.held,
           rows: { ids: tape.ids, counts: tape.counts, bases: tape.bases },
         },
         key,

@@ -133,7 +133,6 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     expect(story.lines.every(([, , , hook]) => hook === undefined)).toBe(true);
     expect(await toldIn('shop.spec.ts', story)).toEqual([
       'test line opens',
-      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'test line looks',
       'test line chooses',
       "handed item='tea'",
@@ -155,7 +154,6 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     expect(await routeOf(directory, story!)).toEqual(['top level', 'choose', 'pay']);
     expect(await toldIn('own-context.spec.ts', story!)).toEqual([
       'test line opens',
-      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'test line chooses',
       "handed item='tea'",
       'console.log chose tea',
@@ -174,11 +172,9 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     expect(await routeOf(directory, story)).toEqual(['top level', 'choose', 'top level', 'pay']);
     expect(await toldIn('navigates.spec.ts', story)).toEqual([
       'test line opens',
-      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'test line leaves',
       "handed item='jam'",
       'console.log chose jam',
-      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'test line pays',
       'handed amount=20',
     ]);

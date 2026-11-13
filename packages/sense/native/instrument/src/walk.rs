@@ -332,7 +332,7 @@ impl Walker {
 
         let entry = self.at("", owner, |w| w.open(Kind::Function, "entry", params.span.start, end, Some(owner)));
         let plan = params::plan(params, &self.probe(entry), arrow);
-        let handed = if generator { None } else { capture::call(entry, &capture::parameters(params)) };
+        let handed = if generator { None } else { capture::call(&capture::parameters(params)) };
         self.at("", entry, |w| {
             for (at, text) in plan.iter().flat_map(|plan| &plan.before) {
                 w.push(*at, format_args!("{text}"));

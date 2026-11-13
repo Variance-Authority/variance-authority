@@ -339,7 +339,7 @@ function linesText(
 /** What was said, one `»` line each: the first {@link SAID} printed and the first {@link SAID} handed, counted apart, then a count of the rest. */
 function saidText(said: readonly string[], indent: string): string[] {
   const seen = { printed: 0, handed: 0 };
-  const kind = (line: string) => (line.startsWith('handed ') || line.startsWith('holds ') ? 'handed' : 'printed');
+  const kind = (line: string) => (line.startsWith('handed ') ? 'handed' : 'printed');
   const shown = said.filter((line) => seen[kind(line)]++ < SAID).map((line) => `${indent}» ${line}`);
   const rest = said.length - shown.length;
   return rest > 0 ? [...shown, `${indent}» and ${rest} more ${rest === 1 ? 'line' : 'lines'}`] : shown;

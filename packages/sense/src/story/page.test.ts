@@ -16,7 +16,7 @@ afterEach(() => {
 const subject = { file: 'tests/shop.spec.ts', name: 'pays', id: 'a1' };
 
 function drained(story: Partial<PageStory> & Pick<PageStory, 'tape' | 'rows'>): PageStory {
-  return { taped: story.tape.length, visits: story.tape.length, notes: [], lines: [], unnoted: 0, held: [], ...story };
+  return { taped: story.tape.length, visits: story.tape.length, notes: [], lines: [], unnoted: 0, ...story };
 }
 
 function written(directory: string) {

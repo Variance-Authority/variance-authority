@@ -7,8 +7,8 @@ interface Theme {
 /** A theme provided at the top and read below, through a memoised component. */
 export const ThemeContext = createContext<Theme | null>(null);
 
-export function Panel() {
-  return <ThemeContext.Consumer>{(theme) => <p>{theme?.name}</p>}</ThemeContext.Consumer>;
+export function Panel({ context }: { context: typeof ThemeContext }) {
+  return <context.Consumer>{(theme) => <p>{theme?.name}</p>}</context.Consumer>;
 }
 
 export const Shown = memo(Panel);
@@ -16,7 +16,7 @@ export const Shown = memo(Panel);
 export function App({ theme }: { theme: Theme }) {
   return (
     <ThemeContext.Provider value={theme}>
-      <Shown />
+      <Shown context={ThemeContext} />
     </ThemeContext.Provider>
   );
 }
