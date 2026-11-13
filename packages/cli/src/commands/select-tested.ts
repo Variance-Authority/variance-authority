@@ -124,17 +124,10 @@ async function changedAgain(here: string, fork: string, mainline: string): Promi
 }
 
 /**
- * The tests one side's change reaches, read on the record's lines. Every line
- * the side changed differs from the record's commit at the fork or at the
- * side's tip, so both diffs are read, cut to the files the side changed. The
- * record predates the pull request's own imports, so the files the side's
- * code reaches through HEAD's import graph are added: HEAD holds both sides'
- * edges, which only adds tests. A module reached that way joins with the tests
- * the record saw execute it, which the graph alone cannot reach when a test
- * loads it by a name it builds. The mainline's side gives `again`, and is read as
- * any tree between the fork and its tip: a commit in `again` is a further end, read
- * for the files it changed again, and a changed file another one reaches is read
- * whole, as it stood unchanged while that one had changed.
+ * The tests one side's change reaches, read on the record's lines at the fork
+ * and at the side's tip, with the modules its code reaches through HEAD's
+ * import graph. Given `again`, the side is the mainline's, read as any tree
+ * between the fork and its tip.
  */
 async function reachOf(
   git: Git,
@@ -161,7 +154,8 @@ async function reachOf(
   const install = new Set<string>();
   // The graph cannot follow a load by a built name back to its test, but the record saw the test run what it loaded:
   // each module the side reaches past its own files is read as changed whole, so the tests that executed it join.
-  // Between the mainline's fork and tip a changed file may have stood unchanged while another it reaches had changed.
+  // Between the mainline's fork and tip a changed file may have stood unchanged while another it reaches had changed,
+  // so it is read whole, as a module the change reaches.
   const reached = again === undefined ? new Set<string>() : new Set(ownCode.filter((file) => walk(ownCode.filter((other) => other !== file)).includes(file)));
   const outside = (file: string) => !own.has(file) || reached.has(file);
   const past = walked.filter((file) => outside(file) && !asked.recorded.has(file) && !selection.readByInstall(file));
@@ -182,7 +176,7 @@ async function reachOf(
   for (const to of new Set([fork, end, ...(again?.at ?? [])])) {
     if (to === record) continue;
     const all = names(record, to);
-    // A file changed once stands at a further end as at the fork or at the tip, both read already.
+    // A commit in `again` is a further end: a file changed once stands there as at the fork or at the tip, both read already.
     const cut = to === fork || to === end ? own : new Set(again?.files);
     const kept = all.filter((file) => cut.has(file));
     const installs = kept.filter(selection.readByInstall);
