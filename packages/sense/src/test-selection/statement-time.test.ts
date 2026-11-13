@@ -191,6 +191,50 @@ describe('how a case times its statements', () => {
     expect(slowest.long?.line).toBe(7);
     expect(slowest.long?.time).toBeGreaterThanOrEqual(60);
   });
+
+  /** A case that waits on line 7 until `release`, entered in an attempt of its own. */
+  function waiting(file: ReturnType<typeof recording>) {
+    let release = (): void => {};
+    const held = new Promise<void>((done) => { release = done; });
+    file.scope.begin();
+    const body = file.scope.enter(file.key('waits'), async () => { file.cut(7); await held; });
+    return { body, release };
+  }
+
+  it('keeps the whole time of a case that outlasts two beside it that settle together', async () => {
+    const file = recording();
+    const { body, release } = waiting(file);
+    file.scope.begin();
+    const first = file.scope.enter(file.key('first'), async () => { await Promise.resolve(); });
+    file.scope.begin();
+    const second = file.scope.enter(file.key('second'), async () => { await Promise.resolve(); });
+    await Promise.all([first, second]);
+    file.scope.leave();
+    file.scope.leave();
+    spin(60);
+    release();
+    await body;
+    file.scope.leave();
+
+    const { waits } = file.read();
+    expect(waits?.line).toBe(7);
+    expect(waits?.time).toBeGreaterThanOrEqual(60);
+  });
+
+  it('keeps the whole time of a case beside an attempt that ends without a body', async () => {
+    const file = recording();
+    const { body, release } = waiting(file);
+    file.scope.begin();
+    file.scope.leave();
+    spin(60);
+    release();
+    await body;
+    file.scope.leave();
+
+    const { waits } = file.read();
+    expect(waits?.line).toBe(7);
+    expect(waits?.time).toBeGreaterThanOrEqual(60);
+  });
 });
 
 describe('the slowest statement of a case that ran twice', () => {

@@ -585,10 +585,12 @@ its runs, and the time is read on the real clock, so a case under fake timers
 is timed as any other. Vitest, Jest and Rstest record it for a case whose test
 file [cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
 transforms; hooks are not timed. A case its runner stopped, at a timeout, ends
-where that attempt ended, so its statement in flight is timed up to there; one
-stopped while other cases of its file run at the same time ends where the file
-does, and can read longer than the case. A retry adds to the attempt before
-it. A case whose statements all took under a
+where that attempt ended, so its statement in flight is timed up to there.
+Where attempts of a file overlap, by cases running at the same time or a retry
+begun before the attempt before it was closed, a stopped case ends where the
+file does, as does every case stopped in that file after it, and can read
+longer than the case; a case that finishes is timed whole either way. A retry
+adds to the attempt before it. A case whose statements all took under a
 millisecond, a case whose file was not transformed and every case of an index
 written before the section are absent from it, never `0`. No selection, key or
 digest reads the section.

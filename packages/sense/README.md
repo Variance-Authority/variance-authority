@@ -2626,8 +2626,8 @@ Each call reads a clock taken before a test can fake its timers, and adds the
 time since the call before it to that statement's line; the end of the case
 closes the last one. A case the runner stops at its timeout ends where that
 attempt ends, hooks included, so the statement it was waiting in holds the
-wait; among cases running at the same time the runner's signal names no case,
-and a stopped one is closed where its file ends. A statement in a loop holds the sum of its runs, and a
+wait; where attempts overlap the runner's signal names no case, and a stopped
+one is closed where its file ends, never short of what it took. A statement in a loop holds the sum of its runs, and a
 hook's statements are not timed. The record keeps one statement per case: the
 line that took longest and its whole milliseconds, which
 [`variance ask slowest-tests`](https://variance-authority.dev/agents/cli#find-the-tests-close-to-their-limit)

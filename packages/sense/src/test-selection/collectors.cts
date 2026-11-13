@@ -331,23 +331,29 @@ function scoped(
     });
   }
 
-  // The case bodies in flight, and whether one settled since an attempt last
-  // ended. An attempt that ends with none settled and one in flight is a case
-  // its runner gave up on: the statement it was in ends there. With more in
-  // flight, cases run at once and the edge names none: the file's end closes
-  // them.
+  // The case bodies in flight, the attempts the runner has open, and whether
+  // two of either have overlapped since the file last had none. Only an edge
+  // that closes the one open attempt, with one body in flight and no overlap,
+  // names its case: the runner gave up on it, and its statement in flight
+  // ends there. Any other leaves the case to the file's end.
   const inFlight = new Set<Bucket>();
-  let oneSettled = false;
+  let attempts = 0;
+  let crowded = false;
+  const attempted = (): void => {
+    if (attempts === 0 && inFlight.size === 0) crowded = false;
+    else crowded = true;
+    attempts += 1;
+  };
   const givenUp = (): void => {
-    if (!oneSettled && inFlight.size === 1) {
+    if (!crowded && attempts === 1 && inFlight.size === 1) {
       for (const bucket of inFlight) cuts?.stop(bucket);
       inFlight.clear();
     }
-    oneSettled = false;
+    if (attempts > 0) attempts -= 1;
   };
   const release = (bucket: Bucket): void => {
     bucket.open = false;
-    if (inFlight.delete(bucket)) oneSettled = true;
+    inFlight.delete(bucket);
     if (current === bucket) {
       current = ambient;
       engine.use(ambient);
@@ -408,6 +414,7 @@ function scoped(
     const bucket = bucketFor(key);
     bucket.open = true;
     cuts?.time(bucket);
+    if (inFlight.size > 0) crowded = true;
     inFlight.add(bucket);
     attention?.entered(key);
     const carried = trace;
@@ -432,6 +439,7 @@ function scoped(
   // that never ran is forgotten, and Eyes attends the attempt from here. One
   // the runner never said was over ends as the next begins.
   const begin = (token?: unknown): void => {
+    attempted();
     ended();
     owed = [];
     recorder.begin(token);
