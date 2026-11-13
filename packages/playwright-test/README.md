@@ -751,6 +751,12 @@ retry is a pass in Playwright's report and two attempts in the record, and
 its own in the record, with its own attempts. A worker that dies under an
 attempt leaves no row for it.
 
+An attempt's status is the one Playwright held when the fixture from
+`varianceFixtures` was torn down. A failure in `afterAll`, or in a fixture torn
+down after that one, is not in the attempt's row: a test that only such a
+failure sent to a retry reads as passed twice, and `variance ask retried-tests`
+does not list it.
+
 ### Read what a snapshot was taken under
 
 A snapshot taken with `variance(locator)` names the case it was taken in: the

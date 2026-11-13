@@ -595,6 +595,10 @@ failing hook.
 | Rstest | the last attempt as `passed`, `failed` or `skipped`, each earlier one `failed`; a limit reads `failed` | every attempt that did not pass | none |
 | Playwright | `testInfo.status`, `timedOut` included | `testInfo.error` | `testInfo.duration` |
 
+Under Playwright an attempt's ending is the status Playwright held when the
+recorder's fixture was torn down, so a failure in `afterAll`, or in a fixture
+torn down after the recorder's, is not in the row.
+
 Vitest counts a repeat as an attempt, like a retry. Under Playwright each
 repeat of `repeatEach` is a case of its own in the index, the second named with
 a trailing `#1`, and has its own rows. Rstest adds the retries of every repeat
