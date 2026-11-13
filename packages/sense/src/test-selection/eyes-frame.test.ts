@@ -21,9 +21,9 @@ interface Attended {
   leave?(): void;
 }
 
-function collector(root: string | undefined) {
+function collector(root: string | undefined, continuations = false) {
   const holder: Record<PropertyKey, unknown> = {};
-  const made = collectors.scoped(holder, false, undefined, root);
+  const made = collectors.scoped(holder, continuations, undefined, root);
   return { made, scope: holder[CASE_SCOPE] as Attended };
 }
 
@@ -31,8 +31,16 @@ function collector(root: string | undefined) {
 function handed(frames: readonly Uint8Array[] | undefined) {
   return journals.unpackFrames(journals.packFrames(frames ?? []))
     .map((frame) => eyesFrames.decodeEyesFrame(frame))
-    .filter((frame) => frame !== undefined)
-    .map((frame) => ({ ...frame, case: caseOwner.unpackCase(frame.case).name }));
+    .filter((frame) => frame !== undefined && frame.ended === undefined)
+    .map((frame) => ({ ...frame!, case: caseOwner.unpackCase(frame!.case).name }));
+}
+
+/** What the file's write says of how attempts ended, in the order they settled. */
+function ended(frames: readonly Uint8Array[] | undefined) {
+  return journals.unpackFrames(journals.packFrames(frames ?? []))
+    .map((frame) => eyesFrames.decodeEyesFrame(frame))
+    .filter((frame) => frame?.ended !== undefined)
+    .map((frame) => ({ ...frame!, case: caseOwner.unpackCase(frame!.case).name }));
 }
 
 const key = (name: string) => caseOwner.packCase(FILE, name, name);
@@ -109,6 +117,38 @@ describe('what Eyes hands a case, as the collector writes it', () => {
     const { scope } = collector(undefined);
     expect(scope.eyes).toBeUndefined();
     expect(scope.watch).toBeUndefined();
+  });
+});
+
+describe('how an attempt ended, as the collector writes it', () => {
+  it('writes each attempt of a case entered twice, with what a failed one threw, and nothing for a case entered once', async () => {
+    const { made, scope } = collector(undefined);
+    scope.enter(key('once'), () => {});
+    expect(() => scope.enter(key('failed once'), () => { throw new Error('gave up'); })).toThrow('gave up');
+    expect(() => scope.enter(key('retried'), () => { throw new Error('first try'); })).toThrow('first try');
+    let pass!: () => void;
+    const second = scope.enter(key('retried'), () => new Promise<void>((resolve) => { pass = resolve; }));
+    pass();
+    await second;
+
+    expect(ended(made.finish(FILE).frames)).toEqual([
+      { case: 'retried', attempt: 1, ended: 'failed', duration: expect.any(Number), message: 'first try', stack: expect.stringContaining('eyes-frame.test.ts') },
+      { case: 'retried', attempt: 2, ended: 'passed', duration: expect.any(Number) },
+    ]);
+  });
+
+  it('names the attempt a body was entered as, when it settles after the next one was entered', async () => {
+    const { made, scope } = collector(undefined, true);
+    let fail!: (thrown: unknown) => void;
+    const first = scope.enter(key('late'), () => new Promise<void>((_, reject) => { fail = reject; }));
+    scope.enter(key('late'), () => {});
+    fail('a thrown string');
+    await expect(first).rejects.toBe('a thrown string');
+
+    expect(ended(made.finish(FILE).frames)).toEqual([
+      { case: 'late', attempt: 2, ended: 'passed', duration: expect.any(Number) },
+      { case: 'late', attempt: 1, ended: 'failed', duration: expect.any(Number), message: 'a thrown string' },
+    ]);
   });
 });
 

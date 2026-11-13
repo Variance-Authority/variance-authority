@@ -25,8 +25,10 @@ import {
   type CaseCoordinate,
 } from './cases.js';
 import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
+import type { RecordedAttempt } from './attempts-record.js';
+import { besideCases } from './case-beside.js';
 import eyesFrames from './eyes-frame.cjs';
-import type { EyesSection, RecordedEyes } from './eyes-record.js';
+import type { EyesSection } from './eyes-record.js';
 import { saidJoined, type Said } from './case-said.js';
 import caseOwner from './case-owner.cjs';
 import type { ExecutionTest } from './reverse.js';
@@ -46,6 +48,8 @@ export interface CaseRun {
   readonly testsByFile: ReadonlyMap<string, readonly [number, number]>;
   /** The cases that opened Eyes journals and what they handed over; absent when none did. */
   readonly eyes?: EyesSection;
+  /** How each attempt of a retried case ended; none when no case was retried. */
+  readonly attempts: readonly RecordedAttempt[];
   /** 1 for each test with lines, by `linedCases`; absent when no frame was cut. */
   readonly lined?: Uint8Array;
 }
@@ -96,24 +100,18 @@ export async function inspectCaseRun(
   const paths = [...names].sort(codeUnitOrder).map((name) => resolve(directory, name));
   const coordinates = new Map<string, Coordinate>();
   const moduleIds = new Set<ModuleId>();
-  // What Eyes handed each case, by coordinate key, in the order it arrived.
-  const looked = new Map<string, Omit<RecordedEyes, 'case'>[]>();
+  // What the workers wrote beside the case frames: Eyes journals, and how attempts ended.
+  const beside = besideCases(root);
   // The test files a frame was cut in, and the frame being scanned: a case, or a file's ambient frame.
   const cutFiles = new Set<string>();
   let scanning: Coordinate | string = '';
   let frame = 0;
   for (const path of paths) {
     for (const bytes of unpackFrames(await readFile(path))) {
-      const eyes = eyesFrames.decodeEyesFrame(bytes);
-      if (eyes !== undefined) {
-        const coordinate = unpackCase(eyes.case);
-        const located = { ...coordinate, file: projectPath(root, coordinate.file) };
-        const key = caseKey(located);
+      const named = beside.take(bytes);
+      if (named !== undefined) {
         // A case that watched is a case, whether or not it crossed anything.
-        if (!coordinates.has(key)) coordinates.set(key, { ...caseOf(located), said: [], frames: [] });
-        const rows = looked.get(key) ?? [];
-        if (eyes.journal !== undefined) rows.push({ attempt: eyes.attempt, journal: eyes.journal });
-        looked.set(key, rows);
+        if (!coordinates.has(named.key)) coordinates.set(named.key, { ...caseOf(named.located), said: [], frames: [] });
         continue;
       }
       scanJournal(bytes, {
@@ -185,12 +183,9 @@ export async function inspectCaseRun(
     first = last;
   }
   const lined = linedCases(ordered, cutFiles);
-  const eyes = looked.size === 0 ? undefined : {
-    watched: [...looked.keys()].map((key) => ids.get(key)!),
-    journals: [...looked].flatMap(([key, rows]) => rows.map((row) => ({ case: ids.get(key)!, ...row }))),
-  };
+  const eyes = beside.eyes(ids);
   return {
-    root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile,
+    root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile, attempts: beside.attempts(ids),
     ...(eyes === undefined ? {} : { eyes }),
     ...(lined === undefined ? {} : { lined }),
   };
@@ -244,7 +239,7 @@ export async function freshCases(
   const fresh = (await foldCaseRun(inspected, modules, DEFAULT_BUDGET, readings)).bytes;
   return {
     fresh,
-    run: { tests: run.tests, ...(run.commit === undefined ? {} : { commit: run.commit }) },
+    run: { tests: run.tests, ...(run.commit === undefined ? {} : { commit: run.commit }), attempts: inspected.attempts },
     ...(inspected.eyes === undefined ? {} : { eyes: inspected.eyes }),
   };
 }

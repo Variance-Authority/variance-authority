@@ -15,6 +15,7 @@ the answer. Run them from the checkout you are asking about.
 | a history, and the question of how far its commits reached | `containment`, with `--after <date>` for another window than the last two weeks |
 | a place, and the question of what it may import | `stack --from <path>` |
 | a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran at least 3s |
+| a suite whose runner retries, and the question of which passes failed first | `retried-tests` |
 
 ## `orient`
 
@@ -143,3 +144,20 @@ read too.
 
 For the time each visual subject takes, ask `variance ask costs`, which needs
 the config.
+
+## `retried-tests`
+
+A runner that retries a case reports its last attempt, so a case that failed and
+then passed is a pass in the runner's report. The record keeps every attempt of
+a retried case, and the answer lists the cases whose attempts ended differently
+in the recorded run. It opens with the record it read: whose it is, at which
+commit, and how long ago its latest run landed.
+
+Each case comes with its limit and every attempt: how it ended as the runner
+says it, how long it ran, and for an attempt that did not pass the frame inside
+the checkout and the message. Start from that frame. The retried cases whose
+attempts all ended the same way are counted and not listed.
+
+The answer is about one run. It does not say how often the case fails, and a
+case absent from it was not retried in that run. A record that kept no attempts
+says so: read that as unknown, not as no retries. `--limit` lists more cases.

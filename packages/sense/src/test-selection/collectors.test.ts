@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { EVALUATING, probeRuntime } from '../instrument/index.js';
 import preconditions from './case-preconditions.cjs';
 import caseOwner from './case-owner.cjs';
+import eyesFrames from './eyes-frame.cjs';
 import journals from './journal-format.cjs';
 
 /**
@@ -196,10 +197,17 @@ function drive(mode: 'flat' | 'sequential' | 'continuations', seed: number, stor
   work(next(20), 0);
   fold(caseOwner.packCase(FILE, '', ''), ambient);
   const done = collector.finish(FILE);
+  // How an attempt ended rides the same frames and is not the journal's: the
+  // first fifteen cases are entered twice, and each of those attempts passed.
+  const ends = (done.frames ?? []).map((bytes) => eyesFrames.decodeEyesFrame(bytes)).filter((end) => end !== undefined);
+  expect(ends.map((end) => `${end.case} ${end.attempt} ${end.ended}`).sort()).toEqual(Array.from({ length: 15 }, (_, index) => {
+    const key = caseOwner.packCase(FILE, `case ${index}`, String(index));
+    return [`${key} 1 passed`, `${key} 2 passed`];
+  }).flat().sort());
   return {
     engine: journals.encodeJournal(FILE, done.modules, sealed),
     model: journals.encodeJournal(FILE, counters(union), counters(sealedModel)),
-    frames: [journals.packFrames(done.frames ?? []), journals.packFrames(frames)],
+    frames: [journals.packFrames((done.frames ?? []).filter((bytes) => eyesFrames.decodeEyesFrame(bytes) === undefined)), journals.packFrames(frames)],
     stories: [new Map([...written].map(([key, bytes]) => [key, spoken(bytes)])), told] as const,
     registered: [collector.registered(), loaded.map((module) => module.id)] as const,
   };

@@ -743,6 +743,12 @@ The journal is kept under the same case id as the test's crossings, and under
 its attempt, `testInfo.retry + 1`, so a retried test keeps both.
 `variance distill --test '<case id>'` reads the two together.
 
+`varianceFixtures` alone keeps how each attempt of a retried test ended: its
+`testInfo.status`, its `testInfo.duration` and, when it did not pass, the error's
+message and its frame inside the checkout. A test that failed and passed on the
+retry is a pass in Playwright's report and two attempts in the record, and
+`variance ask retried-tests` lists it.
+
 ### Read what a snapshot was taken under
 
 A snapshot taken with `variance(locator)` names the case it was taken in: the

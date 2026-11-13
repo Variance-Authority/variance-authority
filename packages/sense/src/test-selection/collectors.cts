@@ -395,24 +395,22 @@ function scoped(
   // A case is over when its body settles, not when it returns: an async case
   // returns a promise at its first await and everything past that await is
   // still the case. A synchronous one has no promise and is over on return.
-  const settling = <Result,>(bucket: Bucket, body: () => Result): Result => {
+  const settling = <Result,>(body: () => Result, over: (threw: boolean, thrown?: unknown) => void): Result => {
     let answered: Result;
     try {
       answered = body();
     } catch (thrown) {
-      stopped.set(bucket.key, true);
-      release(bucket);
+      over(true, thrown);
       throw thrown;
     }
     const thenable = answered as { then?: unknown } | null | undefined;
     if (thenable == null || typeof thenable.then !== 'function') {
-      stopped.set(bucket.key, false);
-      release(bucket);
+      over(false);
       return answered;
     }
     return (answered as unknown as Promise<unknown>).then(
-      (value) => { stopped.set(bucket.key, false); release(bucket); return value; },
-      (thrown: unknown) => { stopped.set(bucket.key, true); release(bucket); throw thrown; },
+      (value) => { over(false); return value; },
+      (thrown: unknown) => { over(true, thrown); throw thrown; },
     ) as unknown as Result;
   };
   const enter = <Result,>(key: string, body: () => Result, token?: unknown): Result => {
@@ -427,24 +425,24 @@ function scoped(
     }
     const bucket = bucketFor(key);
     bucket.open = true;
-    attention?.entered(key);
+    // The body settled: whether it threw, how this attempt ended, then the case is written.
+    const settle = attention.entered(key);
+    const over = (threw: boolean, thrown?: unknown): void => { stopped.set(key, threw); settle(threw, thrown); release(bucket); };
     const carried = trace;
     const run = carried === undefined
       ? body
       : (): Result => carried.carry(journeyOf(key), nameOf(key), body);
-    if (scopes !== undefined) return scopes.run(bucket, () => settling(bucket, run));
+    if (scopes !== undefined) return scopes.run(bucket, () => settling(run, over));
     current = bucket;
     engine.use(bucket);
-    return settling(bucket, run);
+    return settling(run, over);
   };
   const journey = (): string | undefined => {
     const key = running();
     return key === undefined ? undefined : journeyOf(key);
   };
   // A tangled file writes no case frame, so it keeps no journal either.
-  const attention = root === undefined
-    ? undefined
-    : eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
+  const attention = eyesFrames.attending(root, () => (tangled ? null : running()), (frame) => frames.push(frame));
   const { phase, within, where } = recorder;
   // One edge starts an attempt for both: what a `beforeEach` said for a case
   // that never ran is forgotten, and Eyes attends the attempt from here. One
@@ -453,11 +451,11 @@ function scoped(
     ended();
     owed = [];
     recorder.begin(token);
-    attention?.scope.begin();
+    attention.scope?.begin();
   };
-  const leave = (): void => { ended(); attention?.scope.leave(); };
+  const leave = (): void => { ended(); attention.scope?.leave(); };
   (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = {
-    enter, journey, phase, within, where, ...attention?.scope, begin, leave,
+    enter, journey, phase, within, where, ...attention.scope, begin, leave,
   };
 
   const ambientKey = (testFile: string): string => caseOwner.packCase(testFile, '', '');

@@ -70,8 +70,13 @@ export function formatSlowest(
   return lines.join('\n');
 }
 
+/** What an answer holds of the record it read, or why it read none. */
+type RecordRead =
+  | { readonly suite?: string; readonly recording: string; readonly origin: RecordOrigin; readonly commit?: string; readonly landed?: string }
+  | { readonly unread: string };
+
 /** Which record this suite's answer read: whose run, at which commit, how old. An unread one says why where it is listed. */
-function recordLine(suite: RecordedDurations, now: number): string[] {
+export function recordLine(suite: RecordRead, now: number): string[] {
   if ('unread' in suite) return [];
   const named = suite.suite === undefined ? 'Read' : `Suite ${suite.suite} read`;
   return [`${named} ${WHOSE[suite.origin]}${takenAt(suite, now)}, ${suite.recording}.`];

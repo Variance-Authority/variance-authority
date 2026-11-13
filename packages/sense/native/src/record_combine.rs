@@ -1,7 +1,8 @@
 //! `combineRecords`: N shards' records as the one record an unsharded run
 //! would have written, and nothing more. Every way the product folds shards
 //! comes here: the coverage through `record_coverage_fold`, the case index
-//! through `case_fold`, the last-run layer and the Eyes through `record_parts`.
+//! through `case_fold`, the last-run layer and the Eyes through `record_parts`,
+//! the attempts through `record_attempts`.
 //!
 //! Nothing is read but the shards: no checkout, no source, no index of the
 //! project. The shards are taken in code-unit order of their paths, and every
@@ -25,6 +26,7 @@ use crate::order;
 use crate::record_coverage::{self, Parts};
 use crate::record_coverage_fold::Fold;
 use crate::record_layout::LAYOUT;
+use crate::record_attempts;
 use crate::record_parts;
 use crate::record_start::{self, Starts};
 
@@ -181,7 +183,8 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
         let empty = !tested
             && index.as_ref().is_none_or(|index| index.tests.is_empty())
             && last.as_ref().is_none_or(|(_, files)| files.is_empty())
-            && record.parts.eyes.is_none();
+            && record.parts.eyes.is_none()
+            && record.parts.attempts.is_none();
         let covered = match &record.coverage {
             Some(coverage) => {
                 let strings = coverage.strings()?;
@@ -309,23 +312,28 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
     if !eyes.is_empty() {
         columns.push(Column::Plain(LAYOUT.coverage.part("eyes"), record_parts::fold_eyes(&eyes, cases.is_some().then_some(&ids))?));
     }
+    let attempts = parts(|parts| parts.attempts.as_deref());
     let readings = parts(|parts| parts.readings.as_deref());
+    // What each shard ran, by its last-run layer, so what it carried from its seed yields to the shard that ran it.
+    let unfiled = HashMap::new();
+    let ran = if attempts.is_empty() && readings.is_empty() { Vec::new() } else { last.clone() }
+        .iter()
+        .map(|(name, bytes, renames)| {
+            let files = files_of.get(*name).unwrap_or(&unfiled);
+            let own = record_parts::last_cases(bytes, rows.get(*name)).map_err(|error| format!("{name}: {error}"))?;
+            let files_ran = own.iter().filter_map(|id| files.get(id).cloned()).collect();
+            let cases_ran = own.iter().map(|id| renames.get(id).cloned().unwrap_or_else(|| id.clone())).collect();
+            Ok(((*name).to_owned(), record_parts::Ran { cases: cases_ran, files: files_ran }))
+        })
+        .collect::<Result<HashMap<_, _>, String>>()?;
+    // Attempts are kept by the combined run only when every shard that ran cases kept them: absent is not "none retried".
+    if !attempts.is_empty() && attempts.len() == last.len() {
+        columns.push(Column::Plain(LAYOUT.coverage.part("attempts"), record_attempts::fold_attempts(&attempts, cases.is_some().then_some(&ids), &ran)?));
+    }
     if !readings.is_empty() {
         if cases.is_none() {
             return Err("a shard holds readings of its cases, and no shard kept cases, so the combined record has no case index to name them.".to_owned());
         }
-        // What each shard ran, by its last-run layer, so a value it carried from its seed yields to the shard that ran it.
-        let unfiled = HashMap::new();
-        let ran = last
-            .iter()
-            .map(|(name, bytes, renames)| {
-                let files = files_of.get(*name).unwrap_or(&unfiled);
-                let own = record_parts::last_cases(bytes, rows.get(*name)).map_err(|error| format!("{name}: {error}"))?;
-                let files_ran = own.iter().filter_map(|id| files.get(id).cloned()).collect();
-                let cases_ran = own.iter().map(|id| renames.get(id).cloned().unwrap_or_else(|| id.clone())).collect();
-                Ok(((*name).to_owned(), record_parts::Ran { cases: cases_ran, files: files_ran }))
-            })
-            .collect::<Result<HashMap<_, _>, String>>()?;
         columns.push(Column::Plain(LAYOUT.coverage.part("readings"), record_parts::fold_readings(&readings, &ids, &ran, &laid)?));
     }
     if let Some(base) = starts.base() {

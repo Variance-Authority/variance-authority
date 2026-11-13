@@ -12,6 +12,7 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { layerBefore, layerCaseIndex } from './case-layer.js';
+import { layAttempts, readableAttempts, type RecordedAttempt } from './attempts-record.js';
 import { inputsIn, layReadings } from './case-readings.js';
 import { caseSectionsAt, type CaseSections } from './case-record.js';
 import { decodeExecutionIndex, decodeExecutionTests } from './execution-format.js';
@@ -32,6 +33,8 @@ export interface LaidRun {
   readonly modules?: readonly Pick<CoverageModule, 'file' | 'sourceDigest'>[];
   /** What each test file the run recorded ran over, as `inputsOf` digests it; absent when the run measured nothing. */
   readonly inputs?: ReadonlyMap<string, string>;
+  /** How each attempt of a case the run retried ended, none when it retried none; absent when the run kept no attempts. */
+  readonly attempts?: readonly RecordedAttempt[];
 }
 
 /** The text each module of a case index was cut from, by file, as the coverage beside the index names it. */
@@ -205,6 +208,7 @@ export function layCases(
     cases: last,
   };
   const journals = layEyes(previous.eyes, eyes, cases, announced);
+  const attempts = layAttempts(previous.attempts, run.attempts, cases, announced);
   const readings = layReadings(previous.readings, previous.index, merged, new Set(cases()), {
     fresh,
     announced: new Set(announced),
@@ -217,6 +221,7 @@ export function layCases(
     // Absent is not empty: with no index to take them from, there is no before.
     ...(before === undefined ? {} : { before }),
     ...(journals === undefined ? {} : { eyes: journals }),
+    ...(attempts === undefined ? {} : { attempts }),
     ...(readings === undefined ? {} : { readings }),
   };
 }
@@ -396,7 +401,8 @@ export function landCases(
     if (named === undefined) continue;
     // The shard's own landing named what each of its files ran over, off the coverage it measured.
     const inputs = named.modules === undefined ? undefined : inputsIn(kept.readings);
-    const run = inputs === undefined || named.inputs !== undefined ? named : { ...named, inputs };
+    const tried = readableAttempts(kept.attempts);
+    const run = { ...named, ...(inputs === undefined || named.inputs !== undefined ? {} : { inputs }), ...(tried === undefined ? {} : { attempts: tried }) };
     if (fresh !== undefined) {
       // A section this build cannot read is laid as a shard that opened none.
       // `stands`, the commit the snapshot stands at, names the before layer when

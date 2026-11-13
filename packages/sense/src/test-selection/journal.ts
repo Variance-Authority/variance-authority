@@ -48,6 +48,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
+import { attemptsOfCases } from './attempts-record.js';
 import { eyesOfCases } from './eyes-record.js';
 import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import {
@@ -119,6 +120,7 @@ export {
   type ObservedSubject,
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
+export type { ObservedAttempt } from './attempts-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
 export { preconditionText, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
@@ -405,13 +407,14 @@ export async function recordExecution(
   // laid over by id and never replaced by file.
   const observed = options.cases ?? [];
   const eyes = eyesOfCases(observed);
+  const attempts = attemptsOfCases(observed, root);
   const owned = observed.length === 0 ? undefined : ownedExecutionIndexFrom(caseJournals(observed), byId);
   const cases =
     owned === undefined
       ? undefined
       : {
           fresh: encodeOwnedSetExecutionIndex(owned.index, owned.owners, owned.lines),
-          run: { tests, ...(commit === undefined ? {} : { commit }) },
+          run: { tests, ...(commit === undefined ? {} : { commit }), ...(attempts === undefined ? {} : { attempts }) },
           ...(eyes === undefined ? {} : { eyes }),
         };
   // Read-modify-write, and more than one process does it. A Playwright suite

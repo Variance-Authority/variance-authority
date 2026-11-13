@@ -134,17 +134,18 @@ function inWrittenOrder<T>(written: readonly T[], owner: (one: T) => string): re
  * join, which knows neither: a case retried in another worker settled once it
  * finished once, and cost both attempts. Its Eyes journals ride the same way,
  * every attempt kept: a retry is a second journal, never a replacement of the
- * first.
+ * first, and so does how each attempt ended.
  */
 function foldCases(observations: readonly ObservedCase[]): readonly ObservedCase[] {
   const settled = new Map<
     string,
-    { stopped?: boolean; duration?: number; limit?: number; said?: ObservedCase['said']; eyes?: readonly ObservedEyes[]; lines?: ObservedCase['lines'] }
+    { stopped?: boolean; duration?: number; limit?: number; said?: ObservedCase['said']; eyes?: readonly ObservedEyes[]; attempts?: NonNullable<ObservedCase['attempts']>; lines?: ObservedCase['lines'] }
   >();
   const staging = observations.map((observed) => {
     const owner = caseOwner(observed);
     const held = settled.get(owner) ?? {};
     const eyes = [...(held.eyes ?? []), ...(observed.eyes ?? [])];
+    const attempts = [...(held.attempts ?? []), ...(observed.attempts ?? [])];
     settled.set(owner, {
       ...settledAcross(held.stopped, observed.stopped),
       ...timedAcross(held.duration, observed.duration),
@@ -152,6 +153,7 @@ function foldCases(observations: readonly ObservedCase[]): readonly ObservedCase
       ...saidAcross(held.said, observed.said),
       ...linesAcross(held.lines, observed.lines),
       ...(held.eyes === undefined && observed.eyes === undefined ? {} : { eyes }),
+      ...(held.attempts === undefined && observed.attempts === undefined ? {} : { attempts }),
     });
     return { owner, journal: observed.journal };
   });

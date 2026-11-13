@@ -338,6 +338,41 @@ the rest and leaves the files out. A case with no recorded limit is counted besi
 the ranking, and a record older than the column says so and lists its cases by
 time alone.
 
+## Find the tests that failed and then passed
+
+```bash
+variance ask retried-tests
+variance ask retried-tests --limit 50
+```
+
+A runner that retries a failing test reports the last attempt, so a test that
+failed once and passed on the retry is a pass in its report. The
+[execution record](execution-record.md) keeps how each attempt of a retried case
+ended, and `retried-tests` lists the cases whose attempts ended differently in
+the recorded run:
+
+```text
+Read this checkout's record at 3f9c2a41d07b, landed 3 days ago, node_modules/.cache/variance-authority/test-selection/coverage.bin.
+
+Ended differently across attempts:
+  src/checkout/total.test.ts  total > pays once  (limit 5.0 s)
+    attempt 1  failed  1.3 s  src/checkout/total.test.ts:7  expected 1 to be 2
+    attempt 2  passed  3 ms
+1 of 1 case(s) shown; 2 other retried case(s) ended the same way every attempt.
+```
+
+Each suite's answer opens with the record it read: whose it is, at which commit,
+and how long ago its latest run landed. A case is listed with its limit and
+every attempt: how it ended as the runner says it, how long it ran, and for an
+attempt that did not pass the frame inside the checkout and the message it
+failed with. The answer says what the one run recorded and nothing about any
+other run of the case.
+
+A record that kept no attempts says so and lists nothing, which is different
+from a record whose run retried no case. Only the runner's own retries are
+attempts: Vitest's `retry`, Jest's `jest.retryTimes`, Rstest's `retry` and
+Playwright's `retries`.
+
 ## Find where the suite's time goes
 
 ```bash

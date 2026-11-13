@@ -577,6 +577,29 @@ limit of 5 s, and a retried case more. A case with no limit is absent from the
 column, never `0`, and a case index written before the column opens with every
 case's limit absent.
 
+**Attempts.** A runner that retries a case reports one outcome for it, the last,
+so a case that failed and then passed reads as a pass. The record keeps what
+that outcome folds away, in a `cases.attempts` section beside the case index:
+one row for each attempt of a retried case, in order, with how the attempt
+ended, how long it ran and, for an attempt that did not pass, the failure's
+message cut at five hundred characters and its nearest frame inside the
+checkout as `path:line`. Under Vitest, Jest and Rstest an attempt ended `passed`
+or `failed`, as the case's body returned or threw, and is timed from the body's
+entry to that moment. Under Playwright it ended as `testInfo.status` says,
+`timedOut` included, and ran `testInfo.duration`. A case you pass to
+`startRecording().finish()` carries its own `attempts`. The case's `stopped`,
+duration and limit are what they are without the section.
+
+Only a case that ran more than once has rows, so a suite nobody retried pays 28
+bytes for an empty section, and a retried case about 450 bytes for a failed and
+a passed attempt. A record without the section, as one written before attempts
+were kept is, says that attempts were not kept, never that no case was retried.
+Shards of one run keep the section only when every shard that ran cases kept
+it. No selection reads the section and no digest a selection compares takes it
+in, so a record with attempts selects the tests the same record without them
+selects. `variance ask retried-tests` lists the cases whose attempts ended
+differently.
+
 The case index also carries what each case said, its
 [case preconditions](case-preconditions.md), in a `tests.said` section. Each
 distinct `(name, value, site, level)` is one item, and the cases that said it are

@@ -7,7 +7,7 @@ import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
 import { caughtUp, foundNothingAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
-import { containment, discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
+import { containment, discover, grep, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
@@ -16,7 +16,7 @@ import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { type Answering, containmentSource, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
+import { type Answering, containmentSource, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, retriedSource, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
@@ -52,7 +52,7 @@ import { readVantage } from './watch.js';
  * The checkout is the third. The tools `@variance-authority/help` serves read
  * the source tree under the working directory: what each package publishes,
  * who imports a name, where a thing somebody can only describe is declared.
- * `orient` and `slowest-tests` also read the latest recording. No config has
+ * `orient`, `slowest-tests` and `retried-tests` also read the latest recording. No config has
  * to exist, which is why they answer before one is read. They are here because `locate` is here:
  * a reader with a description and no name should not have to know whether the
  * names live in a report or in the code before they can ask.
@@ -335,6 +335,7 @@ async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: 
     : tool.name === intersection.name ? await intersectionSource(process.cwd(), input, reading)
     : tool.name === orient.name ? orientSource(process.cwd(), input)
     : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
+    : tool.name === retriedTests.name ? retriedSource(process.cwd(), input)
     : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
     : tool.name === testCompositionTool.name ? testCompositionSource(process.cwd(), input)
     : tool.name === containment.name ? containmentSource(process.cwd(), input)

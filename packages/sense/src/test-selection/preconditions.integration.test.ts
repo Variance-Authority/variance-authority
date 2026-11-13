@@ -5,6 +5,8 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { RecordedAttempt } from './attempts-record.js';
+import { recordedAttemptsAt } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { readsOf, rowOf, type CasePrecondition } from './case-said.js';
 import type { ExecutionIndex } from './reverse.js';
@@ -60,6 +62,7 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
   let directory: string;
   let index: ExecutionIndex;
   let output: string;
+  let attempts: readonly RecordedAttempt[] | undefined;
   const sources = new Map<string, readonly string[]>();
 
   beforeAll(async () => {
@@ -79,6 +82,7 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
       (failed: { stdout?: string; stderr?: string }) => `${failed.stdout ?? ''}${failed.stderr ?? ''}`,
     );
     index = decodeExecutionIndex(await readFile(coverageFile));
+    attempts = recordedAttemptsAt(coverageFile);
     for (const file of new Set(['checkout.case.ts', 'misplaced.case.ts', runner.retries])) {
       sources.set(file, (await readFile(resolve(fixture, 'test', file), 'utf8')).split('\n'));
     }
@@ -171,6 +175,22 @@ describe.each(Object.entries(runners))('a %s case that names its preconditions',
       said('fixture:attempt', 2, 'retried', runner.retries),
       ...runner.retries === 'checkout.case.ts' ? [said('fixture:network', 'live', 'file default')] : [],
     ]);
+  });
+
+  it('keeps how each attempt of a retried case ended, beside the one outcome its runner reported', () => {
+    const retried = row('retries');
+    // The fixture retries one case, which fails once and then passes: every other case ran once and has no row.
+    expect(attempts?.map(({ duration: _duration, message: _message, ...rest }) => rest)).toEqual([
+      { case: retried.id, attempt: 1, ended: 'failed', frame: `${tests}/${runner.retries}:${line('first attempt fails', runner.retries)}` },
+      { case: retried.id, attempt: 2, ended: 'passed' },
+    ]);
+    expect(attempts![0]!.message).toMatch(/expected.*\b1\b[^]*\b2\b|\b2\b[^]*\b1\b/iu);
+    expect(attempts![1]!.message).toBeUndefined();
+    for (const attempt of attempts!) expect(Number.isInteger(attempt.duration) && attempt.duration! >= 0, `${attempt.attempt}: ${attempt.duration}`).toBe(true);
+    // What the runner said of the case is what it was: it finished, in a time, under the runner's limit.
+    expect(retried.stopped).toBe(false);
+    expect(retried.duration).toBeGreaterThanOrEqual(0);
+    expect(retried.limit).toBeGreaterThan(0);
   });
 
   it.runIf(runnerName !== 'jest')('tells two concurrent cases and their hooks apart', () => {

@@ -157,6 +157,7 @@ mod record_coverage_recut;
 #[cfg(test)]
 mod record_fixture;
 mod record_layout;
+mod record_attempts;
 mod record_parts;
 mod record_start;
 mod resolve;
