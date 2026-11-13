@@ -10,8 +10,6 @@ generated API site or `variance.config.json` is involved.
 
 ## Connect your agent
 
-### Install the packages and index your source
-
 You need a git repository and Node 22.15 or newer. You do not need a
 `variance.config.json` or a run.
 
@@ -56,15 +54,23 @@ symbol` just did.
 The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
 ```
 
-Run `variance index` again after an edit adds names or imports: `ask search`
-on the command line answers from the last index, so a name written since is not
-among its candidates until then.
+A name the index does not hold is looked for again in the checkout as it is, so
+a function you just wrote is answered with no step from you. A name it does hold
+is answered from the index, which a question reuses for an hour, and read again
+when a file the answer rests on changed since. An edit anywhere else can leave
+that answer behind. Run `variance index` when the next answer has to match it:
+who imports a name, and which names exist, are then current. What `ask symbol`
+prints from the declaration of a name that stays exported — its kind, line,
+signature and comment — can stay old. A question reads them again once the index
+is over an hour old, and a `variance index` that read a changed file restarts
+that hour, so read the file itself for those. `ask search` answers from the last
+index at any age, and its last line says so.
 
 Your agent can now run any `variance ask` question, and one step is left:
 [point it at them](#point-an-agent-at-it). A client that reaches tools only
 through a server adds the server first.
 
-### Add the MCP server if your client needs it
+### Add the MCP server
 
 Add this entry to the file your client keeps its servers in, `.mcp.json` at the
 repository root for Claude Code:
@@ -127,19 +133,13 @@ manager runs a local binary:
 
 Choose the reader first. For text outside the source graph, such as GitHub
 Actions YAML, configuration, documentation or logs, use the text search you
-already have: your client's own, or `rg` or `git grep`. For source
-declarations, use these shell commands or MCP tools:
-
-- `variance ask symbol --name <name>` / `docs_symbol`: what it is and where
-  it is declared.
-- `variance ask uses --name <name>` / `docs_uses`: who imports it.
-- `variance ask search --query <words>` / `docs_search`: candidate source
-  names by their spelling and documentation.
-
-A question spanning source and text uses both readers from the start. An empty
-Variance answer says nothing about a file it did not search. The
-`variance-authority` skill defines the source scope,
-including files imported by code, and has the rest.
+already have: your client's own, or `rg` or `git grep`. For source, `variance
+ask uses --name <name>` lists who imports a name, `ask symbol --name <name>`
+prints what it is and where it is declared, and `ask search --query <words>`
+finds a name by what it does. A question spanning source and text uses both
+readers from the start: an empty answer says nothing about a file they did not
+search. The `variance-authority` skill lists what the index parses, and has the
+rest.
 ```
 
 The skill is `variance-authority`. It ships in `@variance-authority/cli` at
@@ -166,7 +166,7 @@ search, indexed source search and observed-subject search.
 
 | You need | Start with |
 | --- | --- |
-| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | Your text search — the client's own, or `rg` or `git grep`; use both readers when a question spans source and text. Text search needs no index, and an empty `variance` answer says nothing about a file it did not search. |
+| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | Your text search — the client's own, or `rg` or `git grep` — beside `variance` rather than after it; it needs no index, and an empty `variance` answer says nothing about a file `variance` did not search. |
 | A string or a regular expression in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b`; it matches only the files that path names and reaches along the imports, a Markdown or JSON file that code imports among them, nearest first, and a top folder is the widest path it takes. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
@@ -367,10 +367,6 @@ published, a declaration you moved is given at the line it holds today, and a us
 is given at its line. An edit anywhere
 else waits for the hour: `uses` does not see an import you just added to a file
 it does not list. The look is a stat of each file.
-
-Run `variance index` when the next answer must include names added since the
-last index, which the command line's `search` does not look for again, or
-imports added to files the previous answer did not list.
 
 When the checkout cannot be read again, or the new read cannot be saved, or a
 file the answer rests on is saved during the read that answers it, the answer or
