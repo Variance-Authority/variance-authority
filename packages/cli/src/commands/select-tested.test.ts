@@ -196,20 +196,19 @@ describe('`variance select --ran-at` in a merge queue', () => {
     expect(here.out).toContain('test/other.test.ts');
   });
 
-  it('selects as without `--ran-at` when the mainline changed an install file in more than one commit since the fork', async () => {
+  it('runs a test the pull request reaches through a package the mainline bumped and put back after the fork', async () => {
     const queue = await queued(home(), {
       start: { 'src/total.ts': PADDED, 'package-lock.json': npmLock('1.3.0') },
       reverted: { 'package-lock.json': npmLock('1.4.0') },
-      base: { 'package-lock.json': npmLock('1.3.1') },
-      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      base: { 'src/other.ts': OTHER.replace('+ 1', '+ 2') },
+      prs: [{ 'src/total.ts': PADDED.replace('0.9', '0.8') }],
       recordAt: 'fork',
     });
 
-    const whole = await selected(queue.dir, queue.base);
     const here = await selected(queue.dir, queue.base, queue.tested);
 
-    expect(here.out).toBe(whole.out);
-    expect(here.err).toContain('the mainline changed package-lock.json in more than one commit since the fork');
+    // `total` may have run beside `left-pad` 1.4.0, which HEAD no longer holds, so it runs.
+    expect(here.out).toBe('test/other.test.ts\n');
   });
 
   it('selects as without `--ran-at` when a side changes a file the record cannot place', async () => {

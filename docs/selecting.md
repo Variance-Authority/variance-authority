@@ -242,9 +242,8 @@ and the report says so.
 The pull request's check ran merged with the mainline of its day, which may
 have held a change the mainline has since taken back, so the net change since
 the merge base no longer shows it. A file two or more mainline commits changed
-since the merge base is therefore read as changed whole: every test it reaches
-runs beside a pull request that reaches it too. When that file is a lockfile or
-a `package.json`, the queue selects as without `--ran-at`.
+since the merge base is therefore read as it stood after each of them too, and
+the tests its lines or packages there reach count as the mainline's.
 
 A pull request already up to date with the mainline merges nothing new: the
 merge's tree is the tested commit's tree. When HEAD's clean tree is the tree
