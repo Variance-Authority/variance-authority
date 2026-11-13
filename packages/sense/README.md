@@ -2627,7 +2627,7 @@ time since the call before it to that statement's line; the end of the case
 closes the last one. A statement in a loop holds the sum of its runs, and a
 hook's statements are not timed. The record keeps one statement per case: the
 line that took longest and its whole milliseconds, which
-[`variance ask slowest-tests`](https://variance-authority.dev/docs/agent-cli#find-the-tests-close-to-their-limit)
+[`variance ask slowest-tests`](https://variance-authority.dev/agents/cli#find-the-tests-close-to-their-limit)
 prints under the case. A case whose statements all took under a millisecond
 records none, which is not a time of zero. Selection reads none of it.
 

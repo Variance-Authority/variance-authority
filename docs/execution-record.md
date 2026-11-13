@@ -583,7 +583,7 @@ whole milliseconds between the moment it began and the moment the next
 statement began, or the case ended. A statement in a loop counts as the sum of
 its runs, and the time is read on the real clock, so a case under fake timers
 is timed as any other. Vitest, Jest and Rstest record it for a case whose test
-file [cadence](test-level-coverage.md#see-which-test-line-reached-a-region)
+file [cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
 transforms; hooks are not timed. A case whose statements all took under a
 millisecond, a case whose file was not transformed and every case of an index
 written before the section are absent from it, never `0`. No selection, key or

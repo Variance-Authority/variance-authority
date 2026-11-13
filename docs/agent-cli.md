@@ -332,14 +332,9 @@ the test files and cases the run spent longest in. A row states the two figures
 and judges neither: the run spans hooks and every attempt, the limit one
 attempt, so a passing case can read above its limit.
 
-A case that recorded its slowest statement carries it on the next line: the
-file and line, the time that statement took on the real clock, and its share of
-the case.
-
-```text
-  1.4 s  test/checkout.test.ts  submits an order
-         slowest statement test/checkout.test.ts:12, 1.2 s, 86% of the case
-```
+A case that recorded its slowest statement carries it on the next line, as
+`slowest statement <file>:<line>, 1.2 s, 86% of the case`: the file and line,
+the time that statement took on the real clock, and its share of the case.
 
 Vitest, Jest and Rstest record it for the statements of the case's own body,
 unless `cadence: false`. A case without one lists on one line.
