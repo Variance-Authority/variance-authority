@@ -20,6 +20,12 @@ describe('the attempts of a run\'s cases', () => {
     expect(tried('a.test.ts', 'twin', 'twin')).toBeUndefined();
   });
 
+  it('are absent for a case whose report counted none, beside one whose report did', () => {
+    const tried = caseAttempts(file(finishedCase('flaky', undefined, 1, undefined, failed), finishedCase('plain', undefined, 1)), '/repo')!;
+    expect(tried('a.test.ts', 'plain', 'plain')).toBeUndefined();
+    expect(tried('a.test.ts', 'flaky', 'flaky')).toBe(failed);
+  });
+
   it('are not kept by a run whose report counted none', () => {
     expect(caseAttempts(file(finishedCase('plain', undefined, 1)), '/repo')).toBeUndefined();
     expect(triedAttempts([{ file: 'a.test.ts', name: 'plain', id: 'plain' }], new Map(), undefined, '/repo')).toBeUndefined();

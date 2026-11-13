@@ -45,8 +45,8 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-function record(attempts?: readonly RecordedAttempt[], cases: ExecutionIndex | null = CASES): string {
-  const at = testCoverageFile(root);
+function record(attempts?: readonly RecordedAttempt[], cases: ExecutionIndex | null = CASES, suite?: string): string {
+  const at = testCoverageFile(root, { suite });
   mkdirSync(dirname(at), { recursive: true });
   const bytes = encodeTestCoverage({ version: 3, instrumentation: 'fixture-instrumentation', commit: COMMIT, tests: [], modules: [] });
   writeFileSync(at, cases === null ? bytes : withCaseSections(bytes, {
@@ -117,6 +117,17 @@ describe('the recorded cases whose attempts ended differently', () => {
     const empty = mkdtempSync(join(tmpdir(), 'va-attempts-none-'));
     execFileSync('git', ['init', '--quiet', empty]);
     expect(recordedAttempts(empty, 10)).toEqual([{ recording: testCoverageFile(empty), origin: 'own', unread: 'nothing is recorded there' }]);
+  });
+
+  it('answers each declared suite from its own record', () => {
+    writeFileSync(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' }, site: { kind: 'e2e' } } }));
+    const unit = record([failed('a', 1), passed('a', 2)], CASES, 'unit');
+    const site = record(undefined, CASES, 'site');
+
+    expect(recordedAttempts(root, 10)).toMatchObject([
+      { suite: 'site', recording: site, unkept: true },
+      { suite: 'unit', recording: unit, differing: 1, retried: 1 },
+    ]);
   });
 
   it('refuses attempts that name a case the index does not hold', () => {
