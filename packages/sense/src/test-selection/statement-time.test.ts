@@ -177,18 +177,19 @@ describe('how a case times its statements', () => {
     file.scope.begin();
     const quick = file.scope.enter(file.key('quick'), async () => { file.cut(2); await Promise.resolve(); });
     file.scope.begin();
-    const long = file.scope.enter(file.key('long'), async () => {
-      file.cut(7);
-      await new Promise((done) => setTimeout(done, 60));
-    });
+    let release = (): void => {};
+    const held = new Promise<void>((done) => { release = done; });
+    const long = file.scope.enter(file.key('long'), async () => { file.cut(7); await held; });
     await quick;
     file.scope.leave();
+    spin(60);
+    release();
     await long;
     file.scope.leave();
 
     const slowest = file.read();
     expect(slowest.long?.line).toBe(7);
-    expect(slowest.long?.time).toBeGreaterThanOrEqual(50);
+    expect(slowest.long?.time).toBeGreaterThanOrEqual(60);
   });
 });
 
