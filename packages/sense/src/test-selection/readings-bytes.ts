@@ -48,7 +48,7 @@ export function encodeReadings(cases: readonly (readonly [string, readonly Store
   put(out, cases.length);
   for (const [case_, readings] of cases) {
     id(case_);
-    const own = encodeCase(readings);
+    const own = caseBytes(readings);
     put(out, own.length);
     for (const byte of own) out.push(byte);
   }
@@ -129,7 +129,8 @@ export function decodeCase(bytes: Uint8Array): StoredReading[] {
   return readings;
 }
 
-function encodeCase(readings: readonly StoredReading[]): number[] {
+/** One case's bytes in the section: its readings as {@link decodeCase} reads them. */
+export function caseBytes(readings: readonly StoredReading[]): number[] {
   const strings = new Map<string, number>();
   const body: number[] = [];
   const string = (value: string): void => {
