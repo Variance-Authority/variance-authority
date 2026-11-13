@@ -124,10 +124,10 @@ manager runs a local binary:
 Choose the reader first. For text outside the source graph, such as GitHub
 Actions YAML, configuration, documentation or logs, use `rg` or `git grep`
 directly. For a source declaration, `variance ask symbol --name <name>` prints
-what it is and where it is declared, `ask uses --name <name>` lists who imports
-it, and `ask search --query <words>` finds candidate source names by their
-spelling and documentation. A question spanning source and text uses both
-readers from the start. An empty Variance answer says nothing about a file it
+what it is and where it is declared, `variance ask uses --name <name>` lists
+who imports it, and `variance ask search --query <words>` finds candidate source
+names by their spelling and documentation. A question spanning source and text
+uses both readers from the start. An empty Variance answer says nothing about a file it
 did not search. The `variance-authority` skill defines the source scope,
 including files imported by code, and has the rest.
 ```
@@ -156,7 +156,7 @@ search, indexed source search and observed-subject search.
 
 | You need | Start with |
 | --- | --- |
-| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep`, beside `variance` rather than after it; it needs no index, and an empty `variance` answer says nothing about a file `variance` did not search. |
+| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep` directly; use both readers when a question spans source and text. Text search needs no index, and an empty `variance` answer says nothing about a file it did not search. |
 | A string or a regular expression in code | `ask grep --query <pattern> --from <path>`, or `docs_grep` over MCP; the query is a ripgrep regular expression: to match a literal, escape each metacharacter with a backslash, as `'a\(b'` matches `a(b`; it matches only the files that path names and reaches along the imports, a Markdown or JSON file that code imports among them, nearest first, and a top folder is the widest path it takes. |
 | An exact string in committed source | `git grep <tree>`; a named tree searches Git objects and deliberately leaves working-tree edits out. |
 | A name you can only describe, its exact signature, or the code that imports it | The workspace index; those answers depend on declarations, exports, resolved imports, and the area named by `from` or `to`. |
