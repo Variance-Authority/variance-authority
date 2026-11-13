@@ -24,9 +24,9 @@ read the code map:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/help
-npx variance index
-npx variance ask symbol --name price
-npx variance ask orient
+variance index
+variance ask symbol --name price
+variance ask orient
 ```
 
 The index lives in `node_modules/.cache`, so it adds no tracked file. `ask symbol`
@@ -56,7 +56,7 @@ symbol` just did.
 The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
 ```
 
-Run `npx variance index` again after an edit adds names or imports: `ask search`
+Run `variance index` again after an edit adds names or imports: `ask search`
 on the command line answers from the last index, so a name written since is not
 among its candidates until then.
 
@@ -130,10 +130,10 @@ Actions YAML, configuration, documentation or logs, use the text search you
 already have: your client's own, or `rg` or `git grep`. For source
 declarations, use these shell commands or MCP tools:
 
-- `npx variance ask symbol --name <name>` / `docs_symbol`: what it is and where
+- `variance ask symbol --name <name>` / `docs_symbol`: what it is and where
   it is declared.
-- `npx variance ask uses --name <name>` / `docs_uses`: who imports it.
-- `npx variance ask search --query <words>` / `docs_search`: candidate source
+- `variance ask uses --name <name>` / `docs_uses`: who imports it.
+- `variance ask search --query <words>` / `docs_search`: candidate source
   names by their spelling and documentation.
 
 A question spanning source and text uses both readers from the start. An empty
