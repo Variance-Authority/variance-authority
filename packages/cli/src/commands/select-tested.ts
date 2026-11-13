@@ -14,7 +14,7 @@
  * widened by HEAD's import graph, which holds edges the record predates.
  */
 
-import { affectedBy, idOf, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
+import { affectedBy, EDGE_KINDS, idOf, nodeAt, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import { gitIn, topLevel } from './since.js';
 import type { SuiteReading, SuiteRequest } from './select-suite.js';
 import { initial, isOpen, selectionOf, transition, type MergeAnswer, type SideAnswer, type TestedInput, type TestedState } from './select-tested-state.js';
@@ -64,8 +64,10 @@ async function observe(
         const stale = await indexUpToCheckout(here, undefined, !asked.noGit);
         if (stale !== undefined) return { kind: 'failed', why: stale };
         const relations = await relationsFor(here, ['.'], [], [], asked.noGit);
-        const side = (end: string) => reachOf(git, read, { ...asked, at: full.reading.at, relations, recorded: full.whole }, record, fork, end);
-        return { kind: 'sides', pull: await side(tested), main: await side(mainline) };
+        const side = (end: string, again?: Again) => reachOf(git, read, { ...asked, at: full.reading.at, relations, recorded: full.whole }, record, fork, end, again);
+        const again = await changedAgain(here, fork, mainline);
+        if (typeof again === 'string') return { kind: 'failed', why: again };
+        return { kind: 'sides', pull: await side(tested), main: await side(mainline, again) };
       } catch (error) {
         return { kind: 'failed', why: `the record could not read a side of the merge (${error instanceof Error ? error.message : String(error)})` };
       }
@@ -103,15 +105,34 @@ function mergeOf(git: Git, asked: TestedRequest): MergeAnswer {
   }
 }
 
+/** Files the mainline changed in more than one commit past the fork, and the commits that changed them. */
+interface Again {
+  readonly files: readonly string[];
+  readonly at: readonly string[];
+}
+
 /**
- * The tests one side's change reaches, read on the record's lines. Every line
- * the side changed differs from the record's commit at the fork or at the
- * side's tip, so both diffs are read, cut to the files the side changed. The
- * record predates the pull request's own imports, so the files the side's
- * code reaches through HEAD's import graph are added: HEAD holds both sides'
- * edges, which only adds tests. A module reached that way joins with the tests
- * the record saw execute it, which the graph alone cannot reach when a test
- * loads it by a name it builds.
+ * The pull request's check ran merged with the mainline of its day, which may
+ * have held a line a later commit took back: a file one commit changed stood at
+ * the fork or at the tip, but one changed again may have stood at any commit
+ * that changed it, so each is read as a tree the side's lines may have been.
+ * A line the clone holds only part of answers why instead: it hides what it cut.
+ */
+async function changedAgain(here: string, fork: string, mainline: string): Promise<Again | string> {
+  const { firstParentChangesBetween } = await import('@variance-authority/sense');
+  const line = firstParentChangesBetween(here, fork, mainline);
+  const cut = line.find(({ compared }) => !compared);
+  if (cut !== undefined) return `the clone holds no parent of ${cut.commit}, so what the mainline landed since the merge base cannot all be read`;
+  const [once, again] = [new Set<string>(), new Set<string>()];
+  for (const { files } of line) for (const file of files) (once.has(file) ? again : once).add(file);
+  return { files: [...again], at: line.filter(({ files }) => files.some((file) => again.has(file))).map(({ commit }) => commit) };
+}
+
+/**
+ * The tests one side's change reaches, read on the record's lines at the fork
+ * and at the side's tip, with the modules its code reaches through HEAD's
+ * import graph. Given `again`, the side is the mainline's, read as any tree
+ * between the fork and its tip.
  */
 async function reachOf(
   git: Git,
@@ -120,12 +141,13 @@ async function reachOf(
   record: string,
   fork: string,
   end: string,
+  again?: Again,
 ): Promise<SideAnswer> {
   const selection = await import('@variance-authority/sense/test-selection');
   const names = (from: string, to: string) => git('diff', '--name-only', '-z', '--no-renames', from, to).split('\0').filter(Boolean);
-  const own = new Set(names(fork, end));
+  const own = new Set([...names(fork, end), ...(again?.files ?? [])]);
   const ownCode = [...own].filter((file) => !selection.readByInstall(file));
-  const walk = (files: readonly string[]) => affectedBy(asked.relations, files, { through: RUNTIME_EDGES }).files;
+  const walk = (files: Parameters<typeof affectedBy>[1]) => affectedBy(asked.relations, files, { through: RUNTIME_EDGES }).files;
   const walked = walk(ownCode);
   // An import HEAD's graph could not read — a name built at run time, a file gone — may load what the other side changed.
   // A clean merge follows renames: a path this side changed that HEAD lacks holds its change under another path.
@@ -137,7 +159,12 @@ async function reachOf(
   const install = new Set<string>();
   // The graph cannot follow a load by a built name back to its test, but the record saw the test run what it loaded:
   // each module the side reaches past its own files is read as changed whole, so the tests that executed it join.
-  const past = walked.filter((file) => !own.has(file) && !asked.recorded.has(file) && !selection.readByInstall(file));
+  // Between the mainline's fork and tip a changed file may have stood unchanged while another it reaches had changed,
+  // so it is read whole, as a module the change reaches.
+  // One walk from every changed file's importers: a file reached only from itself through a cycle counts too, wide by one bound.
+  const reached = again === undefined ? new Set<string>() : new Set(walk(importersOf(asked.relations, ownCode)).filter((file) => own.has(file)));
+  const outside = (file: string) => !own.has(file) || reached.has(file);
+  const past = walked.filter((file) => outside(file) && !asked.recorded.has(file) && !selection.readByInstall(file));
   if (past.length > 0) {
     const reading = await read(readOf(asked, selection.standDiff((...args) => git(...args, '--', ...past), record, EMPTY_TREE)));
     if (reading.declined !== undefined) return { whole: reading.declined };
@@ -152,10 +179,12 @@ async function reachOf(
     }
     for (const test of reading.whole) if (!reading.skip.has(test)) code.add(test);
   }
-  for (const to of new Set([fork, end])) {
+  for (const to of new Set([fork, end, ...(again?.at ?? [])])) {
     if (to === record) continue;
     const all = names(record, to);
-    const kept = all.filter((file) => own.has(file));
+    // A commit in `again` is a further end: a file changed once stands there as at the fork or at the tip, both read already.
+    const cut = to === fork || to === end ? own : new Set(again?.files);
+    const kept = all.filter((file) => cut.has(file));
     const installs = kept.filter(selection.readByInstall);
     const text = selection.standDiff(git, record, to);
     for (const [files, into] of [[kept.filter((file) => !installs.includes(file)), code], [installs, install]] as const) {
@@ -188,4 +217,14 @@ function readOf(asked: TestedRequest & { readonly at: string; readonly relations
     relations: asked.relations,
     change,
   };
+}
+
+/** The nodes one runtime import away from these files, against the arrows: what loads them directly. */
+function importersOf(relations: Relations, files: readonly string[]): NonNullable<ReturnType<typeof nodeAt>>[] {
+  const { offset, target, kind } = relations.dependents;
+  const found = new Set<number>();
+  for (const id of files.map((file) => idOf(relations, 'file', file)).filter((id) => id !== undefined)) {
+    for (let edge = offset[id]!; edge < offset[id + 1]!; edge++) if (RUNTIME_EDGES.includes(EDGE_KINDS[kind[edge]!]!)) found.add(target[edge]!);
+  }
+  return [...found].map((id) => nodeAt(relations, id)).filter((node) => node !== undefined);
 }

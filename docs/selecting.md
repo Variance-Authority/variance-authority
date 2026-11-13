@@ -239,6 +239,12 @@ holds, since the record predates the pull request's own. A lockfile or
 other side did. When the two sides reach no test in common, no test file runs,
 and the report says so.
 
+The pull request's check ran merged with the mainline of its day, which may
+have held a change the mainline has since taken back, so the net change since
+the merge base no longer shows it. A file two or more mainline commits changed
+since the merge base is therefore read as it stood after each of them too, and
+the tests its lines or packages there reach count as the mainline's.
+
 A pull request already up to date with the mainline merges nothing new: the
 merge's tree is the tested commit's tree. When HEAD's clean tree is the tree
 `--ran-at` names, every test file is skipped, and the note names

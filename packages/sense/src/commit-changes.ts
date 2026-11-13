@@ -1,5 +1,5 @@
 /**
- * What each commit on the first-parent line of `HEAD` touched, as git says it.
+ * What each commit on a first-parent line touched, as git says it.
  *
  * Git owns the history, so nothing here is stored: a question about what
  * changed together reads the log it asks about. A merge is one change, compared
@@ -54,17 +54,27 @@ function commitsIn(log: string): readonly CommitChange[] {
   return commits;
 }
 
+/** The first-parent line `revisions` name, newest first, each commit compared with its first parent. */
+function lineOf(root: string, ...revisions: readonly string[]): readonly CommitChange[] {
+  return commitsIn(git(root, [
+    'log', '-z', '--no-show-signature', '--first-parent', '--diff-merges=first-parent', '--no-renames', '--name-only', '--relative',
+    `--format=${FIELD}%H${FIELD}%an${FIELD}%P${FIELD}`, ...revisions, '--',
+  ]));
+}
+
 /**
  * The commits on `HEAD`'s first-parent line committed on or after `after`, a
  * `YYYY-MM-DD` read as midnight UTC, newest first. Git left to read the bare
  * date takes the time of day it is now.
  */
 export function firstParentChanges(root: string, after: string): CommitChanges {
-  const log = git(root, [
-    'log', '-z', '--no-show-signature', '--first-parent', '--diff-merges=first-parent', '--no-renames', '--name-only', '--relative',
-    `--format=${FIELD}%H${FIELD}%an${FIELD}%P${FIELD}`, `--since=${after}T00:00:00Z`, 'HEAD', '--',
-  ]);
-  return { commits: commitsIn(log), shallow: git(root, ['rev-parse', '--is-shallow-repository']).trim() === 'true' };
+  const commits = lineOf(root, `--since=${after}T00:00:00Z`, 'HEAD');
+  return { commits, shallow: git(root, ['rev-parse', '--is-shallow-repository']).trim() === 'true' };
+}
+
+/** The commits on `to`'s first-parent line that `from` does not hold, newest first: what landed between the two. */
+export function firstParentChangesBetween(root: string, from: string, to: string): readonly CommitChange[] {
+  return lineOf(root, `${from}..${to}`);
 }
 
 /** The files `HEAD` holds under `root`, spelled from it: the tree the log ends at, not what is staged. */

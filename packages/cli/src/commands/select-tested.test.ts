@@ -143,6 +143,104 @@ describe('`variance select --ran-at` in a merge queue', () => {
     expect(here.out).toBe('test/total.test.ts\n');
   });
 
+  it('runs a test the pull request reaches that a change the mainline landed and reverted after the fork reaches too', async () => {
+    // The pull request's check ran on its head merged with the mainline of its day, which may have held the rate the
+    // mainline later reverted: the net diff from the fork to the base shows neither commit.
+    const RATE = 'export const rate = 1;\n';
+    const OTHER_RATED = "import { rate } from './rate';\nexport function other(price: number): number {\n  return price + rate;\n}\n";
+    const queue = await queued(home(), {
+      start: { 'src/rate.ts': RATE, 'src/other.ts': OTHER_RATED },
+      entered: { 'src/rate.ts': 'test/other.test.ts' },
+      reverted: { 'src/rate.ts': 'export const rate = 2;\n' },
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER_RATED.replace('price + rate', 'price + rate + 1') }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // `other` ran beside a rate HEAD no longer holds: its earlier pass says nothing of HEAD, so it runs.
+    expect(here.out).not.toContain('test/other.test.ts');
+  });
+
+  it('runs a test the pull request reaches whose function the mainline changed and reverted, though another it changed stays', async () => {
+    // The mainline changed `rate` and `fee`, then put `rate` back: the net diff holds `fee` alone, which `other` never
+    // entered. `other` loads the module by a name it builds, so no import joins them and only the record does.
+    const RATES = 'export function rate(): number {\n  return 1;\n}\nexport function fee(): number {\n  return 5;\n}\n';
+    const queue = await queued(home(), {
+      start: { 'src/rates.ts': RATES },
+      entered: { 'src/rates.ts': { 'test/other.test.ts': [1, 3], 'test/total.test.ts': [4, 6] } },
+      reverted: { 'src/rates.ts': RATES.replace('1;', '2;').replace('5;', '6;') },
+      base: { 'src/rates.ts': RATES.replace('5;', '6;') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // `other` ran beside a `rate` HEAD no longer holds, so it runs.
+    expect(here.out).not.toContain('test/other.test.ts');
+  });
+
+  // `other` loads `bridge` by a name it builds, and `bridge` imports `dep` (through `mid` in the chain). Each mainline below
+  // passes a tree where a file `other` ran stood as at the fork while one it imports had changed, so `other` runs.
+  const DEP = 'export function spare(): number {\n  return 1;\n}\nexport function used(): number {\n  return 2;\n}\n';
+  const MID = "import { used } from './dep';\nexport function via(): number {\n  return used();\n}\nexport function rest(): number {\n  return 0;\n}\n";
+  const BRIDGE = "import { used } from './dep';\nexport function call(): number {\n  return used();\n}\nexport function idle(): number {\n  return 0;\n}\n";
+  const CHAIN = BRIDGE.replace("{ used } from './dep'", "{ via as used } from './mid'");
+  const SPANS = { 'test/other.test.ts': [2, 4], 'test/total.test.ts': [5, 7] } as const;
+  const DEP_BACK = { 'src/dep.ts': DEP.replace('1;', '4;') };
+  const BRIDGE_BACK = { 'src/bridge.ts': BRIDGE.replace('0;', '3;') };
+  const TOTAL_BASE = { 'src/total.ts': TOTAL.replace('0.9', '0.8') };
+  it.each([
+    ['changed `dep` for good and changed and reverted `bridge`', {}, BRIDGE_BACK, DEP_BACK],
+    ['changed and reverted both', {}, { ...BRIDGE_BACK, ...DEP_BACK }, TOTAL_BASE],
+    ['changed and reverted all three of a chain', { 'src/bridge.ts': CHAIN, 'src/mid.ts': MID }, { 'src/bridge.ts': CHAIN.replace('0;', '3;'), 'src/mid.ts': MID.replace('0;', '3;'), ...DEP_BACK }, TOTAL_BASE],
+    ['changed and reverted `dep` and changed `bridge` once', {}, DEP_BACK, { 'src/bridge.ts': BRIDGE.replace('0;', '3;') }],
+  ] as const)('runs a test the pull request reaches that loads a module importing what the mainline changed, when the mainline %s', async (_, chain, reverted, base) => {
+    const queue = await queued(home(), {
+      start: { 'src/dep.ts': DEP, 'src/bridge.ts': BRIDGE, ...chain },
+      entered: { 'src/dep.ts': { 'test/other.test.ts': [4, 6], 'test/total.test.ts': [1, 3] }, 'src/bridge.ts': SPANS, ...('src/mid.ts' in chain ? { 'src/mid.ts': SPANS } : {}) },
+      reverted,
+      base,
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    expect(here.out).not.toContain('test/other.test.ts');
+  });
+
+  it('skips a test only the pull request reaches when the mainline changed a module it does not reach more than once', async () => {
+    const queue = await queued(home(), {
+      reverted: { 'src/total.ts': TOTAL.replace('0.9', '0.7') },
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // Read whole, `total` reaches `total` alone: `other` met no line of it, so its pass stands.
+    expect(here.out).toContain('test/other.test.ts');
+  });
+
+  it('runs a test the pull request reaches through a package the mainline bumped and put back after the fork', async () => {
+    const queue = await queued(home(), {
+      start: { 'src/total.ts': PADDED, 'package-lock.json': npmLock('1.3.0') },
+      reverted: { 'package-lock.json': npmLock('1.4.0') },
+      base: { 'src/other.ts': OTHER.replace('+ 1', '+ 2') },
+      prs: [{ 'src/total.ts': PADDED.replace('0.9', '0.8') }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // `total` may have run beside `left-pad` 1.4.0, which HEAD no longer holds, so it runs.
+    expect(here.out).toBe('test/other.test.ts\n');
+  });
+
   it('selects as without `--ran-at` when a side changes a file the record cannot place', async () => {
     const READS = "import { readFileSync } from 'node:fs';\nexport function other(price: number): number {\n  return price + Number(readFileSync('src/rate.txt', 'utf8'));\n}\n";
     const queue = await queued(home(), {
