@@ -14,6 +14,7 @@ import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { combineRecords, readTestCoverage, sourceCut, writeTestCoverage } from './index.js';
 import { notingRead } from './record-base.js';
 import { timesFrom } from './selection-environment.js';
+import { readingsOf } from './case-readings.js';
 import { sectionOf, shapeOf } from './__fixtures__/readings.js';
 
 const source = 'export function greet() { return "hello"; }\n';
@@ -166,6 +167,28 @@ describe('combineRecords against the TypeScript writers', () => {
     combineRecords(shards, into, root);
 
     expect(shapeOf(caseSectionsOf(await readFile(into)).readings!)).toEqual({ cases: { ...kept('a.test.ts').cases, ...kept('b.test.ts').cases } });
+  });
+
+  it('reads back, over the combined index, the newest reading each shard kept as what it read otherwise than its own index', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
+    const extra = ['src/greet.ts', 'wave', 'wave', 1, 1, null] as const;
+    const differing = { count: 1, stopped: true, values: [[0, 7]] as [number, number][], added: [[1, extra]] as [number, typeof extra][] };
+    const before = new Map<string, unknown>();
+    for (const [shard, file] of [[shards[0]!, 'a.test.ts'], [shards[1]!, 'b.test.ts']] as const) {
+      const bytes = await readFile(shard);
+      const readings = sectionOf({ cases: { [`${file} > greets`]: [differing] } });
+      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings }));
+      before.set(file, readingsOf(readings, caseSectionsOf(bytes).index, `${file} > greets`));
+    }
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    const combined = caseSectionsOf(await readFile(into));
+
+    for (const file of ['a.test.ts', 'b.test.ts']) {
+      const read = readingsOf(combined.readings, combined.index, `${file} > greets`);
+      expect(read).toEqual([{ count: 1, stopped: true, regions: [['src/greet.ts', 'greet', 'greet', 1, 1, 7], extra] }]);
+      expect(read).toEqual(before.get(file));
+    }
   });
 
   it('takes a case its readings and its file its inputs from the shard that ran it, over what another carried from its seed', async () => {
