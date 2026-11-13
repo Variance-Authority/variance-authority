@@ -265,6 +265,35 @@ describe('layReadings', () => {
     expect(readingsOf(newest, twice(true), ID)!.map(({ regions }) => regions)).toEqual([[entry(1), entry(2)]]);
   });
 
+  it('reads back a newest reading crossed in another order than the landed index lists its regions, and an earlier reading laid over it', () => {
+    /** `src/page.ts` with `blocks` in this order, each `[kind, name, line, value]` crossed by the case at that value. */
+    const listing = (blocks: readonly (readonly [string, string, number, number])[]): Buffer => {
+      const sets = new CrossingSets(1);
+      sets.intern([]);
+      const builder = new CaseLinesBuilder();
+      blocks.forEach(([, , , value], block) => builder.add(0, block, lineValue(value, false)));
+      return encodeSetExecutionIndex({
+        tests: [{ id: ID, file: 'a.test.ts', name: 'clicks', stopped: false }],
+        modules: [{
+          file: 'src/page.ts',
+          blocks: blocks.map(([kind, name, line]) => ({ kind, name, path: name, startLine: line, endLine: line, source: true })),
+          called: Uint32Array.from(blocks, () => sets.intern([0])),
+          loaded: new Uint8Array(blocks.length),
+        }],
+        sets: sets.pool(),
+        lines: [builder.finish()],
+      });
+    };
+    const a = ['src/page.ts', 'a', 'a', 1, 1, lineValue(1, false)] as const;
+    const b = ['src/page.ts', 'b', 'b', 2, 2, lineValue(2, false)] as const;
+    const first = listing([['function', 'b', 2, 2]]);
+    const fresh = listing([['function', 'b', 2, 2], ['function', 'a', 1, 1]]);
+    const landed = listing([['function', 'a', 1, 1], ['function', 'b', 2, 2], ['statement', 'a', 1, 1]]);
+    const section = layReadings(layReadings(undefined, undefined, first, cases, over(first)), first, landed, cases, over(fresh));
+
+    expect(readingsOf(section, landed, ID)!.map(({ regions }) => regions)).toEqual([[b, a], [b]]);
+  });
+
   it('keeps the newest reading in full where its difference from the landed index would cost more', () => {
     const fresh = run(false, { handle: 3 });
     const landed = run(false, { wire: 2 });

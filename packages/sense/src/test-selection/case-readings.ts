@@ -150,11 +150,24 @@ export function layReadings(
  */
 function packed(readings: readonly Reading[], there: Read | undefined): StoredReading[] {
   const [newest, ...rest] = readings;
-  const earlier = rest.map((reading) => ({ count: reading.count, ...stop(reading), ...difference(reading.regions, newest!.regions) }));
+  const earlier = rest.map((reading) => ({ count: reading.count, ...stop(reading), ...against(reading.regions, newest!.regions) }));
   const whole = [{ count: newest!.count, ...stop(newest!), regions: newest!.regions }, ...earlier];
   if (there === undefined) return whole;
-  const differing = [{ count: newest!.count, ...stop(newest!), ...difference(newest!.regions, there.regions) }, ...earlier];
+  const differing = [{ count: newest!.count, ...stop(newest!), ...against(newest!.regions, there.regions) }, ...earlier];
   return caseBytes(differing).length <= caseBytes(whole).length ? differing : whole;
+}
+
+/**
+ * `regions` as their difference from `base`, or whole where the difference
+ * would not read back as them: it holds the regions the two share in the
+ * base's order, so one crossed in another order is kept as it ran.
+ */
+function against(regions: readonly ReadRegion[], base: readonly ReadRegion[]): Pick<StoredReading, 'regions' | 'gone' | 'values' | 'added'> {
+  const held = difference(regions, base);
+  const back = applied(held, base);
+  return back.length === regions.length && back.every((region, at) => region.every((field, place) => field === regions[at]![place]))
+    ? held
+    : { regions };
 }
 
 /**
@@ -188,7 +201,7 @@ function difference(regions: readonly ReadRegion[], base: readonly ReadRegion[])
 }
 
 /** The regions `stored` names over `base`, as {@link difference} wrote them; its own where it holds them. */
-function applied({ regions, gone, values, added }: StoredReading, base: readonly ReadRegion[]): readonly ReadRegion[] {
+function applied({ regions, gone, values, added }: Pick<StoredReading, 'regions' | 'gone' | 'values' | 'added'>, base: readonly ReadRegion[]): readonly ReadRegion[] {
   if (regions !== undefined) return regions;
   if (gone === undefined && values === undefined && added === undefined) return base;
   const charged = new Map(values ?? []);
