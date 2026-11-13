@@ -1,5 +1,5 @@
 /**
- * What each commit on the first-parent line of `HEAD` touched, as git says it.
+ * What each commit on a first-parent line touched, as git says it.
  *
  * Git owns the history, so nothing here is stored: a question about what
  * changed together reads the log it asks about. A merge is one change, compared

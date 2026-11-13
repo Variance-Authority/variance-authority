@@ -131,7 +131,7 @@ async function changedAgain(here: string, fork: string, mainline: string): Promi
  * code reaches through HEAD's import graph are added: HEAD holds both sides'
  * edges, which only adds tests. A module reached that way joins with the tests
  * the record saw execute it, which the graph alone cannot reach when a test
- * loads it by a name it builds. A commit in `again` is read as a third end.
+ * loads it by a name it builds. A commit in `again` is a further end, read for the files it changed again.
  */
 async function reachOf(
   git: Git,
@@ -176,7 +176,9 @@ async function reachOf(
   for (const to of new Set([fork, end, ...again.at])) {
     if (to === record) continue;
     const all = names(record, to);
-    const kept = all.filter((file) => own.has(file));
+    // A file changed once stands at a further end as at the fork or at the tip, both read already.
+    const cut = to === fork || to === end ? own : new Set(again.files);
+    const kept = all.filter((file) => cut.has(file));
     const installs = kept.filter(selection.readByInstall);
     const text = selection.standDiff(git, record, to);
     for (const [files, into] of [[kept.filter((file) => !installs.includes(file)), code], [installs, install]] as const) {
