@@ -22,6 +22,7 @@ import preconditions = require('./case-preconditions.cjs');
 import presence = require('./presence.cjs');
 import probeCuts = require('../instrument/probe-cuts.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
+import storyListen = require('../instrument/story-listen.cjs');
 import storyTap = require('../instrument/story-tap.cjs');
 import stories = require('../story/format.cjs');
 import type { ModuleId } from '../instrument/index.js';
@@ -212,7 +213,7 @@ function scoped(
   const engine = attach(holder, continuations, story !== undefined);
   const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
   const { cuts } = engine;
-  if (tap !== undefined) storyTap.listen(tap, holder);
+  if (tap !== undefined) storyListen.listen(tap, holder);
   const buckets = new Map<string, Bucket>();
   const late = new Set<string>();
   // A bucket is written the moment its case settles and then dropped, so a

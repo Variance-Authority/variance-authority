@@ -13,6 +13,7 @@ import probeLog from './probe-log.cjs';
 const storyTap = createRequire(import.meta.url)(
   '../../dist/instrument/story-tap.cjs',
 ) as typeof import('./story-tap.cjs');
+const { listen } = createRequire(import.meta.url)('../../dist/instrument/story-listen.cjs') as typeof import('./story-listen.cjs');
 
 type Engine = ReturnType<typeof probeLog.createEngine>;
 
@@ -278,8 +279,8 @@ describe('what a case says on the way', () => {
       console: { ...console, log: (...values: unknown[]) => printed.push(values) },
     };
 
-    storyTap.listen(tap, scope);
-    storyTap.listen(tap, scope);
+    listen(tap, scope);
+    listen(tap, scope);
     scope.console.log('stock %d', 0, { sku: 'A1' });
     (scope as unknown as Record<symbol, (text: string) => void>)[Symbol.for('variance-authority.story.note')]!('vae once checkout upsell decided');
 
@@ -359,7 +360,7 @@ describe('what a function was handed, and what a module holds', () => {
       throw new Error('a framework that cannot tell');
     };
     const scope = { __VA__: tap.root, [Symbol.for('variance-authority.story.kind')]: [failing, branded] };
-    storyTap.listen(tap, scope);
+    listen(tap, scope);
     const source = "const Theme = { brand: 'ui.theme' };\nconst Plain = { other: 1 };\n";
     runInContext(instrument(source, 'fixture.js')!.code, createContext(scope), { filename: 'fixture.js' });
 

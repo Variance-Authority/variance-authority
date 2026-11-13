@@ -66,6 +66,10 @@ by guess.
 
 - `packages/sense/src/instrument/story-tap.cts` — the root that stands in front
   of the engine, tapes every hit and forwards it
+- `packages/sense/src/instrument/story-listen.cts` — what a realm announces and
+  prints, put on its tap as notes
+- `packages/sense/src/test-selection/journey-story.ts` — a live head's tap,
+  which tells each journey's story once and lets it go
 - `packages/sense/src/test-selection/collectors.cts` — where a realm installs
   the tap instead of the engine, and writes each case's story as it settles
 - `packages/sense/src/story/page.ts` — the script that makes a page tape, and

@@ -302,6 +302,8 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   const report = (journey: string, over: Channel | undefined, settled = 0): void => {
     const bucket = buckets.get(journey);
     buckets.delete(journey);
+    // Taken whether or not it is sent: the tape holds only what is open.
+    const story = over === undefined || over.home !== watched || journey === UNATTRIBUTED ? taped?.forget(journey) : taped?.storyOf(journey);
     const entered: ExecutedModule[] =
       bucket === undefined ? [] : probeLists.lists(engine.close(bucket), false);
     // What the process did outside any journey is every subject's, and so is
@@ -326,7 +328,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
       scope: 'journey',
       ...(settled === 0 ? {} : { settled }),
       modules: entered.sort((left, right) => codeUnitOrder(left.id, right.id)),
-      ...(taped === undefined || over.home !== watched ? {} : { story: taped.storyOf(journey) }),
+      ...(story === undefined ? {} : { story }),
     });
   };
 
@@ -351,7 +353,6 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     report(UNATTRIBUTED, over);
     // Whichever journey carries it, the driver unions it into every subject.
     if (over !== undefined) catchUp(over);
-    if (depth.size === 0) taped?.reset();
   };
 
   /**

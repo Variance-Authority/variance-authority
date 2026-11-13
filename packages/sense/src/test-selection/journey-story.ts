@@ -1,3 +1,4 @@
+// compass: variance-authority.reach.story
 /**
  * The story of each execution a live head runs, for a head started with
  * `VARIANCE_AUTHORITY_STORY=1`.
@@ -8,6 +9,10 @@
  * head's engine unchanged, and each journey's story is cut from the one tape by
  * its id, as a case's is by its key. What a live run shows is what its functions
  * were handed: a module's top level says nothing of what it holds.
+ *
+ * A head serves for as long as it runs and may never be idle, so the tap keeps
+ * each journey's part apart and lets it go once it is told: what it holds is
+ * what is open, and telling one journey reads that journey's part alone.
  */
 
 import { createRequire } from 'node:module';
@@ -22,12 +27,12 @@ export interface JourneyTape {
   readonly root: object;
   /**
    * The story of `journey` since it was last told, base64 as the wire carries
-   * it. A journey told again, by a promise its request left running, is told
-   * only what it ran since.
+   * it, and the tape lets it go. A journey told again, by a promise its request
+   * left running, is told only what it ran since.
    */
   storyOf(journey: string): string;
-  /** Start the tape again, when no journey is open and everything on it was told. */
-  reset(): void;
+  /** Let go of what `journey` ran since it was last told, for an account nobody reads a story of. */
+  forget(journey: string): void;
 }
 
 /** Put a tape in front of `engine`, which a scope already keys by journey. */
@@ -39,29 +44,11 @@ export function tapeJourneys(engine: ReturnType<typeof probeLog.createEngine>): 
   const require = createRequire(import.meta.url);
   const storyTap = require('../instrument/story-tap.cjs') as StoryTap;
   const format = require('../story/format.cjs') as StoryFormat;
-  const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT, false);
+  const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT, true);
   tap.nameIn(globalThis);
-  // How many segments and notes the tape held when each journey was last told.
-  const told = new Map<string, readonly [segments: number, notes: number]>();
-  // A segment already told is nobody's now, and other work to the journey told again.
-  const ELSEWHERE = '\u0000told';
   return {
     root: tap.root,
-    storyOf(journey) {
-      const tape = tap.read();
-      const [segments, notes] = told.get(journey) ?? [0, 0];
-      told.set(journey, [tape.keys.length, tape.notes.length]);
-      const since = {
-        ...tape,
-        keys: tape.keys.map((key, at) => (at < segments && key === journey ? ELSEWHERE : key)),
-        notes: tape.notes.filter((note, at) => at >= notes || note[1] !== journey),
-        held: new Map(),
-      };
-      return format.encodeStory(since, journey).toString('base64');
-    },
-    reset() {
-      tap.reset();
-      told.clear();
-    },
+    storyOf: (journey) => format.encodeStory(tap.take(journey), journey).toString('base64'),
+    forget: (journey) => void tap.take(journey),
   };
 }

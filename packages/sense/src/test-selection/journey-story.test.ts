@@ -10,6 +10,7 @@ import { driver, evaluate, forget, head, inRoot } from './__fixtures__/journey-h
  */
 const { collectJourneys } = (await import('../../dist/test-selection/journey.js')) as typeof import('./journey.js');
 const storyFormat = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
+const storyTap = (await import('../../dist/instrument/story-tap.cjs')).default as typeof import('../instrument/story-tap.cjs');
 
 const told = process.env[STORY_VARIABLE];
 
@@ -99,6 +100,42 @@ describe('a head started with VARIANCE_AUTHORITY_STORY=1', () => {
         ["handed locale='en'", 'handed value=1200', "handed locale='de'", 'handed value=1200'],
         [],
       ]);
+    });
+  });
+
+  it('keeps telling what each execution was handed while one stays open, and holds only what is open', async () => {
+    await inRoot(async (root) => {
+      process.env[STORY_VARIABLE] = '1';
+      const watcher = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
+      const HANDS = 64;
+      const source = [
+        'function hand(value) { return value; }',
+        `globalThis.__head_test_currency = async (locale) => { for (let at = 0; at < ${HANDS}; at += 1) hand(at); return locale; };`,
+      ].join('\n');
+      const parts = await head(root, 'build', { source });
+      let release!: () => void;
+      const held = new Promise<void>((resume) => (release = resume));
+
+      // Open the whole time, so the head is never idle; together the executions
+      // after it are handed more than the tape keeps notes of.
+      const open = collector.enter('theme=dark', () => held);
+      const executions = storyTap.NOTE_LIMIT / HANDS + 8;
+      for (let execution = 0; execution < executions; execution += 1) {
+        await collector.enter('theme=dark', () => parts.currency(`l${execution}`));
+      }
+      const holding = storyTap.tapOf((globalThis as { __VA__?: unknown }).__VA__)!.holding();
+      release();
+      await open;
+      await collector.close();
+
+      const told = (execution: number): string[] => [`handed locale='l${execution}'`, ...Array.from({ length: HANDS }, (_, at) => `handed value=${at}`)];
+      // In the order the executions ran, which is not always the order their accounts arrived in.
+      const ran = (said: readonly string[]): number => Number(/l(\d+)/.exec(said[0]!)![1]);
+      const stories = [...handed(watcher.reports).values()].filter((said) => said.length > 0).sort((left, right) => ran(left) - ran(right));
+      expect(stories).toEqual(Array.from({ length: executions }, (_, execution) => told(execution)));
+      // Every execution told is let go: the open one ran nothing, and nothing else is kept.
+      expect(holding).toEqual({ visits: 0, notes: 0 });
     });
   });
 
