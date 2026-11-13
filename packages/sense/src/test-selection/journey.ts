@@ -82,6 +82,8 @@ import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 import { isThenable, journeyScope, TOLD, writeParts } from './journey-parts.js';
 import { journeyOf, type JourneyTrace } from './journey-carrier.js';
+import { tapeJourneys } from './journey-story.js';
+import { storiesAsked } from '../story/asked.js';
 import {
   JOURNEY_HEAD_VARIABLE,
   JOURNEY_PARTS_VARIABLE,
@@ -270,6 +272,8 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     return bucket;
   };
   engine.scope(journeyScope(() => store.getStore() ?? trace?.current(), bucketFor));
+  // Only the watcher reads a story, so a head with none tapes nothing.
+  const taped = watched !== undefined && storiesAsked() ? tapeJourneys(engine) : undefined;
 
   const send = (over: Channel, account: Omit<JourneyAccount, 'version' | 'instrumentation' | 'head' | 'lost'>): void => {
     const to = over.home === watched ? 'watcher' : 'drivers';
@@ -322,6 +326,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
       scope: 'journey',
       ...(settled === 0 ? {} : { settled }),
       modules: entered.sort((left, right) => codeUnitOrder(left.id, right.id)),
+      ...(taped === undefined || over.home !== watched ? {} : { story: taped.storyOf(journey) }),
     });
   };
 
@@ -346,6 +351,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     report(UNATTRIBUTED, over);
     // Whichever journey carries it, the driver unions it into every subject.
     if (over !== undefined) catchUp(over);
+    if (depth.size === 0) taped?.reset();
   };
 
   /**
@@ -392,7 +398,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     configurable: true,
     writable: true,
     enumerable: false,
-    value: engine.root,
+    value: taped?.root ?? engine.root,
   });
 
   return {

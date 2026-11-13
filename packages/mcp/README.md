@@ -554,7 +554,7 @@ members. Native tools remain available on the same connection:
 | `variance_presentations` | presentation reports | full presentation graphs, telemetry, semantic evidence, measured structures, and findings |
 | `variance_run_signals`, `variance_test_signals` | **Vantage state** — what [`@variance-authority/vantage`](https://variance-authority.dev/reference/packages/vantage) has heard from a suite that has not finished | what an in-flight suite and one test have announced |
 | `variance_waiting`, `variance_continue` | Vantage state | which tests have stopped for you to look at them, and letting one go on |
-| `variance_ran` | Vantage state, and the checkout its regions are named from | what an application used by hand ran: one execution per request no test drove |
+| `variance_ran` | Vantage state, and the checkout its regions are named from | what an application used by hand ran: one execution per request no test drove; with `story: true`, each as a story of what its functions were handed |
 | visual report tools | run report | visual decisions, presentation signals, composition, variation, history, and review evidence |
 | `variance_scenarios` | scenario manifests | the witnessed Arrange state and observed or unobserved Act outcomes |
 | `variance_distill` | a Sense execution index, and the Eyes journals the same record keeps | one test's addressed AAA surface, React update initiators, and source reduction opportunities |

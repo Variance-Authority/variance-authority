@@ -149,8 +149,10 @@ const NOTE_LENGTH = 240;
  *
  * @param limit How many visits the tape keeps between resets. Past it the tape
  * stops and counts, and the engine goes on recording presence.
+ * @param holds Whether a module's top level says what it holds. A live run
+ * shows what its functions were handed and nothing a module keeps.
  */
-function createTap(engine: Engine, limit: number): Tap {
+function createTap(engine: Engine, limit: number, holds = true): Tap {
   const inner = engine.root;
   const pass = new Uint8Array(1);
   const empty = new Int32Array(0);
@@ -272,6 +274,7 @@ function createTap(engine: Engine, limit: number): Tap {
         return;
       }
       try {
+        if (region === 0 && !holds) return;
         const said = names.split(',').map((name, index) => `${name}=${shown(values[index])}`);
         handedOver += 1;
         if (region !== 0) put(`handed ${said.join(', ')}`);

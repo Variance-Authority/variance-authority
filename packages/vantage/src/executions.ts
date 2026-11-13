@@ -31,6 +31,8 @@ export interface HeadAccount {
   readonly lost?: number;
   readonly opened?: number;
   readonly settled?: number;
+  /** What the execution's functions were handed since the head last told it, in the story format, base64. */
+  readonly story?: string;
   readonly modules: readonly {
     readonly id: string;
     readonly hits: readonly number[];
@@ -51,6 +53,7 @@ export function isHeadAccount(body: unknown): body is HeadAccount {
     typeof said.instrumentation === 'string' &&
     typeof said.head === 'string' &&
     (said.scope === 'journey' || said.scope === 'process') &&
+    (said.story === undefined || typeof said.story === 'string') &&
     Array.isArray(said.modules) &&
     said.modules.every(
       (module: { id?: unknown; hits?: unknown; shared?: unknown; again?: unknown }) =>
@@ -64,8 +67,11 @@ export function isHeadAccount(body: unknown): body is HeadAccount {
   );
 }
 
-/** One head's modules, each with the ordinals entered so far. */
-type Entered = Map<string, { readonly instrumentation: string; readonly modules: Map<string, Set<number>> }>;
+/** One head's modules, each with the ordinals entered so far, and the stories it told, in the order told. */
+type Entered = Map<
+  string,
+  { readonly instrumentation: string; readonly modules: Map<string, Set<number>>; readonly stories: string[] }
+>;
 
 interface Held {
   readonly ordinal: number;
@@ -126,6 +132,7 @@ export function createExecutions(kept: number): Executions {
         const shared = new Set(module.shared.filter((ordinal) => !again.has(ordinal)));
         enter(one.heads, account, module.id, module.hits.filter((ordinal) => !shared.has(ordinal)));
       }
+      if (account.story !== undefined) headOf(one.heads, account).stories.push(account.story);
     },
     snapshot: () => ({
       executions: [...held].map(
@@ -143,14 +150,19 @@ const DROPPED = 4096;
 
 function enter(into: Entered, account: HeadAccount, id: string, entered: readonly number[]): void {
   if (entered.length === 0) return;
-  let head = into.get(account.head);
-  if (head === undefined) {
-    head = { instrumentation: account.instrumentation, modules: new Map() };
-    into.set(account.head, head);
-  }
+  const head = headOf(into, account);
   let module = head.modules.get(id);
   if (module === undefined) head.modules.set(id, (module = new Set()));
   for (const ordinal of entered) module.add(ordinal);
+}
+
+function headOf(into: Entered, account: HeadAccount) {
+  let head = into.get(account.head);
+  if (head === undefined) {
+    head = { instrumentation: account.instrumentation, modules: new Map(), stories: [] };
+    into.set(account.head, head);
+  }
+  return head;
 }
 
 function ran(heads: Entered): HeadRan[] {
@@ -160,5 +172,6 @@ function ran(heads: Entered): HeadRan[] {
     modules: [...one.modules].map(
       ([id, entered]): EnteredModule => ({ id, entered: [...entered].sort((left, right) => left - right) }),
     ),
+    ...(one.stories.length === 0 ? {} : { stories: [...one.stories] }),
   }));
 }

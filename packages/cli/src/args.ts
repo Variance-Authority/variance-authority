@@ -75,6 +75,7 @@ export const BOOLEAN = new Set([
   '--fan-in',
   '--local',
   '--as-base',
+  '--story',
 ]);
 
 /**

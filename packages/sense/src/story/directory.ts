@@ -21,9 +21,9 @@
 import { resolve } from 'node:path';
 import { declaredSuites } from '../test-selection/suites.js';
 import { testCoverageFile } from '../test-selection/record-location.js';
+import { storiesAsked } from './asked.js';
 
-/** Set to `1`, or to a label, to write a story for every case the run runs. */
-export const STORY_VARIABLE = 'VARIANCE_AUTHORITY_STORY';
+export { STORY_VARIABLE, storiesAsked } from './asked.js';
 
 const SUFFIX = '.stories';
 
@@ -58,7 +58,6 @@ export function storyDirectories(root: string): string[] {
  * has not placed yet.
  */
 export function askedForStories(recordFile: string | (() => string), environment: NodeJS.ProcessEnv = process.env): string | undefined {
-  const asked = environment[STORY_VARIABLE];
-  if (asked === undefined || asked === '' || asked === '0') return undefined;
+  if (!storiesAsked(environment)) return undefined;
   return storyDirectory(typeof recordFile === 'string' ? recordFile : recordFile());
 }

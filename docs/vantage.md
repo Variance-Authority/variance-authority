@@ -375,6 +375,35 @@ These limits keep the listing honest:
   installs nothing. Both calls stay in place in production.
 
 `--name <function>` and `--limit <n>` narrow the listing.
+
+### What each function was handed
+
+Start a server with `VARIANCE_AUTHORITY_STORY=1` beside the two variables it
+reports with, and `--story` prints each of its executions as a
+[story](test-stories.md): the functions it entered in the order it entered
+them, the branches each took, and the arguments each was handed, spelled as
+[a test story spells them](test-stories.md#what-each-function-was-handed).
+
+```bash
+variance ask ran --at http://127.0.0.1:53393 --story
+```
+
+```
+1 execution(s) at http://127.0.0.1:53393.
+
+  b4128c59-ac7c-45d3-abdd-882e39f0e906
+  head pricing
+    cases/journey-tracing-case/src/pricing.mjs:6 quote
+      if#0/then
+      » handed items=ref1 Array(2), code='SPRING'
+```
+
+A live story shows arguments only: no variable a function declares, and
+nothing a module holds at its top level. Two requests that run at once are
+taped apart, each under its own execution. A request whose promises run on
+after it settles is told again with what it ran since. A head started
+without the variable tapes nothing, and `--story` then says so and lists the
+regions as before. A page that calls `reportPage` tells no story yet.
 The agent skill
 [installed with the CLI](agent-workspace-api.md)
 has each of them, and what to do about a region that was not named.

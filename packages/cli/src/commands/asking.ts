@@ -108,9 +108,10 @@ export interface Argument {
   readonly required: boolean;
   /**
    * How the text on the command line becomes the value the tool is given. A
-   * list of questions is typed as words after the question, each in quotes.
+   * list of questions is typed as words after the question, each in quotes,
+   * and a switch is the flag alone, which says true.
    */
-  readonly kind: 'text' | 'list' | 'number' | 'questions';
+  readonly kind: 'text' | 'list' | 'number' | 'questions' | 'switch';
 }
 
 /**
@@ -190,7 +191,7 @@ function kindOf(schema: unknown): Argument['kind'] {
     return item === 'object' ? 'questions' : 'list';
   }
   if (type === 'integer' || type === 'number') return 'number';
-  return 'text';
+  return type === 'boolean' ? 'switch' : 'text';
 }
 
 /** A list takes several, and says so the way `<path>[,...]` does, whatever one of them is called. */
@@ -200,6 +201,7 @@ function listed(placeholder: string | undefined, kind: Argument['kind']): string
 }
 
 function fallback(kind: Argument['kind']): string {
+  if (kind === 'switch') return '';
   if (kind === 'list') return '<value>[,...]';
   return kind === 'number' ? '<n>' : '<value>';
 }
@@ -214,14 +216,19 @@ function spelling(argument: Argument): string {
   return argument.kind === 'questions' ? `${argument.placeholder} ${argument.placeholder}...` : argument.flag;
 }
 
+/** A flag with what it takes after it, or alone when it is a switch. */
+function withValue(argument: Argument): string {
+  return argument.kind === 'switch' ? argument.flag : `${argument.flag} ${argument.placeholder}`;
+}
+
 /** What a question accepts, as it appears after the question in a listing. */
 export function takes(tool: Asked): string {
   const flags = argumentsOf(tool).map((argument) =>
     argument.kind === 'questions'
       ? spelling(argument)
       : argument.required
-        ? `${argument.flag} ${argument.placeholder}`
-        : `[${argument.flag} ${argument.placeholder}]`,
+        ? withValue(argument)
+        : `[${withValue(argument)}]`,
   );
   return flags.length === 0 ? '' : `  ${flags.join(' ')}`;
 }

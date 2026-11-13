@@ -122,6 +122,8 @@ export interface AskRequest extends Crossing {
   readonly taintFile?: string;
   /** Use the last published source generation without inspecting the checkout. */
   readonly justAnswer?: boolean;
+  /** `--story`: what each execution's functions were handed, for `ran`. */
+  readonly story?: boolean;
   /** `--over <time>`: only the cases that ran at least that long. */
   readonly over?: string;
   /** `--after <date>`: the first day `containment` counts, as `YYYY-MM-DD`. */

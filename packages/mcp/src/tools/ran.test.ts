@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { JOURNEY_VARIABLE } from '@variance-authority/sense/journey';
+import { STORY_VARIABLE } from '@variance-authority/sense/story';
 import type { VantageState, WatchedExecution } from '@variance-authority/vantage';
 import { handle, VANTAGE } from '../protocol.js';
 import { JOURNEYS, ran } from './ran.js';
 import type { CutModules } from './tool.js';
+
+/** The story format as it ships: built, because it `require`s its neighbours by the names the build gives them. */
+const { encodeStory } = (await import('../../../sense/dist/story/format.cjs')).default as typeof import('../../../sense/src/story/format.cjs');
 
 const ADDRESS = 'http://127.0.0.1:53411';
 const PROBES = 'sense:instrument/presence-v6';
@@ -194,5 +198,57 @@ describe('variance_ran', () => {
     expect(text).toContain(`VARIANCE_AUTHORITY_JOURNEYS=1 VARIANCE_AUTHORITY_VANTAGE=${ADDRESS}`);
     expect(JOURNEYS).toBe(JOURNEY_VARIABLE);
     expect(text).toContain('collectJourneys');
+  });
+
+  describe('with `story`', () => {
+    const JOURNEY = 'request-7';
+    // What `toggle` was handed each time it was entered, said once its entry was taped, and the arm it took once.
+    const told = encodeStory(
+      {
+        tape: Int32Array.from([1, 1, 2]), taped: 3, visits: 3, at: [0], keys: [JOURNEY], lines: [], unnoted: 0,
+        notes: [[1, JOURNEY, "handed on=true"], [2, JOURNEY, "handed on=false"]],
+        rows: { ids: [ACTIONS], counts: [3], bases: [0] },
+        held: new Map(),
+      },
+      JOURNEY,
+    ).toString('base64');
+    const WHOLE: CutModules = new Map([[PROBES, new Map([[ACTIONS, {
+      instrumented: true,
+      blocks: [
+        { ordinal: 0, kind: 'module', name: '', path: 'module', startLine: 1 },
+        { ordinal: 1, kind: 'function', name: 'toggle', path: 'entry', startLine: 15 },
+        { ordinal: 2, kind: 'branch', name: 'toggle', path: 'if#0/else', startLine: 18 },
+      ],
+    }]])]]);
+    const storied = (stories?: readonly string[], entered: readonly number[] = [1, 2]): VantageState => state({
+      executions: [{
+        id: JOURNEY, ordinal: 0, open: false,
+        heads: [{ head: 'web', instrumentation: PROBES, modules: entered.length === 0 ? [] : [{ id: ACTIONS, entered }], ...(stories === undefined ? {} : { stories }) }],
+      }],
+      common: [],
+    });
+
+    it('prints each execution\'s story, what each function was handed under the step it was handed at', () => {
+      const text = ran.run(storied([told]), { story: true }, { modules: WHOLE });
+      expect(text).toContain('app/actions.ts:15 toggle');
+      expect(text.indexOf("» handed on=true")).toBeGreaterThan(text.indexOf('app/actions.ts:15 toggle'));
+      expect(text.indexOf("» handed on=false")).toBeGreaterThan(text.indexOf("» handed on=true"));
+      expect(text).toContain('if#0/else');
+    });
+
+    it('asks its host to cut every module a story went through, though the execution entered it while the module loaded', () => {
+      expect(ran.cuts?.(storied([told], []), { story: true })).toEqual(new Map([[PROBES, [ACTIONS]]]));
+      expect(ran.cuts?.(storied([told], []), {})).toEqual(new Map([[PROBES, []]]));
+    });
+
+    it('prints today\'s listing without it', () => {
+      expect(ran.run(storied([told]), {}, { modules: WHOLE })).not.toContain('» handed');
+    });
+
+    it('says no head was started to tell one when none did', () => {
+      const text = ran.run(storied(), { story: true }, { modules: WHOLE });
+      expect(text).toContain(`No head here was started with ${STORY_VARIABLE}=1`);
+      expect(text).toContain('app/actions.ts:15 toggle entry');
+    });
   });
 });
