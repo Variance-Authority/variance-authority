@@ -358,6 +358,9 @@ is given at its line. An edit anywhere
 else waits for the hour: `uses` does not see an import you just added to a file
 it does not list. The look is a stat of each file.
 
+Run `variance index` when the next answer must include imports added to files
+the previous answer did not list.
+
 When the checkout cannot be read again, or the new read cannot be saved, or a
 file the answer rests on is saved during the read that answers it, the answer or
 the refusal names the generation time,
