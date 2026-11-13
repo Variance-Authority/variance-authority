@@ -1,5 +1,22 @@
 # @variance-authority/cli
 
+## 0.32.0
+
+### Minor Changes
+
+- f621404: A push to a mainline can publish its merge queue's record of the same commit as soon as it lands. `variance share --publish --from-queue <artifact pattern>` finds the latest green `merge_group` run of the running workflow that tested `HEAD`, downloads its matching artifacts, folds them over the mainline's record and publishes the result marked partial. The whole run's publish at the same commit replaces a partial entry, and a partial publish keeps a whole one, saying so. A checkout that read a partial record asks the line again, and moves its own record onto the whole one when it lands.
+- 6ad2a9a: A merge queue's group of one now skips what its pull request already ran. `variance select --ran-at` skips every test file when HEAD's clean tree is the tree the tested commit ran, where it used to decline a pull request already up to date with the mainline. `variance shards --ran-at` counts shards from the same selection, and the runner seam reads `VARIANCE_AUTHORITY_RAN_AT` beside `VARIANCE_AUTHORITY_SINCE`.
+- 12e277d: `variance ask ran --at <address>` and the MCP tool `variance_ran` list what an application used by hand ran: one execution per request no test drove, each with the regions it ran as `file:line name`.
+
+  An application reports when its build places the probes, its request handler runs inside `collectJourneys().enter`, and it is started with `VARIANCE_AUTHORITY_JOURNEYS=1` and the watcher's address in `VARIANCE_AUTHORITY_VANTAGE`. A head given an address that is not an http address on this machine refuses to start; an empty address is read as none. `--name` and `--limit` narrow the listing, and `variance ask self` counts the executions a watcher holds.
+
+  A question only a watcher answers (`self`, `run-signals`, `test-signals`, `waiting`, `ran`) no longer reads `variance.config.json`, so it can be asked where no visual suite was configured.
+
+### Patch Changes
+
+- 913de28: `variance share --publish <records>` publishes a run of the whole suite as that run's record alone. It no longer lays the records over the mainline's last record, so a test file, a case or a reading only an earlier run held is not carried into every later record. The merge queue's publish of part of the suite (`--from-queue`) still lays its run over the mainline's record, since what it did not run stands where it last ran.
+- 8bf0826: An application whose framework owns the request can be watched without wrapping a handler. A head handed the application's tracing as `trace` (`sentry(Sentry)` or `openTelemetry(api)`) and started with a watcher's address reports each traced flow to the watcher under its trace id, so `variance ask ran` lists it with no `enter` call. The listing is one execution per trace: where a browser SDK propagates its trace, that is one per page view. An id `enter` named still outranks the trace, and a head handed `trace` with neither a watcher's address nor a parts target still refuses to start.
+
 ## 0.31.0
 
 ### Minor Changes

@@ -1,5 +1,35 @@
 # @variance-authority/sense
 
+## 0.32.0
+
+### Minor Changes
+
+- 28723fc: A page used by hand reports what it ran. `reportPage(address)` from the new
+  `@variance-authority/sense/page` entry sends a probed page's executed regions to
+  the watcher `variance watch` started, as a head called `page`. Each load, click
+  and submit is one execution, and a server whose handler runs inside
+  `collectJourneys().enter` reports under the same one, so `variance ask ran`
+  lists a click with the page and the server together. Given no address, or one
+  that is not `http` on this machine, it installs nothing.
+
+  A page a test drives stays the test's: the Playwright recording claims each
+  page before it loads, `drainExecution` claims the page it drains, and a driver
+  of your own installs `claimPageSource()` from `@variance-authority/sense/journal`.
+- f621404: A push to a mainline can publish its merge queue's record of the same commit as soon as it lands. `variance share --publish --from-queue <artifact pattern>` finds the latest green `merge_group` run of the running workflow that tested `HEAD`, downloads its matching artifacts, folds them over the mainline's record and publishes the result marked partial. The whole run's publish at the same commit replaces a partial entry, and a partial publish keeps a whole one, saying so. A checkout that read a partial record asks the line again, and moves its own record onto the whole one when it lands.
+- 6ad2a9a: A merge queue's group of one now skips what its pull request already ran. `variance select --ran-at` skips every test file when HEAD's clean tree is the tree the tested commit ran, where it used to decline a pull request already up to date with the mainline. `variance shards --ran-at` counts shards from the same selection, and the runner seam reads `VARIANCE_AUTHORITY_RAN_AT` beside `VARIANCE_AUTHORITY_SINCE`.
+- 8bf0826: An application whose framework owns the request can be watched without wrapping a handler. A head handed the application's tracing as `trace` (`sentry(Sentry)` or `openTelemetry(api)`) and started with a watcher's address reports each traced flow to the watcher under its trace id, so `variance ask ran` lists it with no `enter` call. The listing is one execution per trace: where a browser SDK propagates its trace, that is one per page view. An id `enter` named still outranks the trace, and a head handed `trace` with neither a watcher's address nor a parts target still refuses to start.
+- 12e277d: `variance ask ran --at <address>` and the MCP tool `variance_ran` list what an application used by hand ran: one execution per request no test drove, each with the regions it ran as `file:line name`.
+
+  An application reports when its build places the probes, its request handler runs inside `collectJourneys().enter`, and it is started with `VARIANCE_AUTHORITY_JOURNEYS=1` and the watcher's address in `VARIANCE_AUTHORITY_VANTAGE`. A head given an address that is not an http address on this machine refuses to start; an empty address is read as none. `--name` and `--limit` narrow the listing, and `variance ask self` counts the executions a watcher holds.
+
+  A question only a watcher answers (`self`, `run-signals`, `test-signals`, `waiting`, `ran`) no longer reads `variance.config.json`, so it can be asked where no visual suite was configured.
+
+### Patch Changes
+
+- e57fdfb: A record keeps its cases' earlier readings as bytes rather than JSON: each module, name and path is written once per case, every number as a varint, each case id and test file path as what it shares with the one before it, and each inputs digest as its bytes. A record an earlier build wrote reads as holding no earlier readings, and the next run writes them again.
+- 7ba42c2: A case's readings now hold the regions its index names by the first set in the pool. A natively folded index can give id 0 to a set that holds cases, and those regions were dropped, so a rerun that read alike was stored in full and the record outgrew GitHub's 100 MB limit.
+- 9a011de: A checkout repinned to a newer mainline record keeps each test where that record's runs say it stands, rather than at the record's commit, so a record that did not run every test there can be laid without losing what changed since a test last ran.
+
 ## 0.31.0
 
 ### Minor Changes
