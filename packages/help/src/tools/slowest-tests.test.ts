@@ -242,6 +242,25 @@ describe('the slowest statement of a listed case', () => {
       '3 of 3 timed case(s) shown.',
     ]);
   });
+
+  it('is under the case in each list that names it, when different cases top the two', () => {
+    const near = { file: 'test/a.test.ts', name: 'near', duration: 900, limit: 1_000, slowest: { line: 4, time: 800 } };
+    const long = { file: 'test/b.test.ts', name: 'long', duration: 3_000, limit: 30_000, slowest: { line: 9, time: 1_500 } };
+    const bare = { file: 'test/c.test.ts', name: 'bare', duration: 500, limit: 1_000 };
+
+    const answer = printed([suite(read({ closest: [near, bare, long], slowest: [long, near, bare], limited: 3, timed: 3 }))]);
+
+    expect(answer.split('\n').slice(2, 9)).toEqual([
+      'Closest to their limit, each as run and limit:',
+      '  900 ms of 1.0 s  test/a.test.ts  near',
+      '                   slowest statement test/a.test.ts:4, 800 ms, 89% of the case',
+      '  500 ms of 1.0 s  test/c.test.ts  bare',
+      '  3.0 s of 30.0 s  test/b.test.ts  long',
+      '                   slowest statement test/b.test.ts:9, 1.5 s, 50% of the case',
+      '3 of 3 limited case(s) shown.',
+    ]);
+    expect(answer).toContain('   3.0 s  test/b.test.ts  long\n          slowest statement test/b.test.ts:9, 1.5 s, 50% of the case');
+  });
 });
 
 describe('where it looks', () => {

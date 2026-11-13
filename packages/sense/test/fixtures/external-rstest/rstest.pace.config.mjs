@@ -20,7 +20,8 @@ export default withTestSelection(
   {
     root,
     globals: true,
-    include: ['test/*.pace.ts'],
+    // A test names another file to run in place of the waiting one.
+    include: [process.env['FIXTURE_INCLUDE'] ?? 'test/*.pace.ts'],
     setupFiles: ['./test/setup.mjs'],
   },
   {
@@ -29,5 +30,7 @@ export default withTestSelection(
     preconditions: ['rstest.pace.config.mjs'],
     // A test asks for the file uncut, to see that nothing is timed then.
     ...(process.env['FIXTURE_CADENCE'] === 'off' ? { cadence: false } : {}),
+    // A test whose case is stopped while the file goes on asks for a scope per case.
+    ...(process.env['FIXTURE_CONTINUATIONS'] === 'on' ? { continuations: true } : {}),
   },
 );

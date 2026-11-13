@@ -144,11 +144,10 @@ function openCaseScopes(): void {
 
   // The first `beforeEach` of every case, registered before the file's own:
   // what a `beforeEach` said for a case that never ran — it threw after
-  // speaking — is forgotten before the next case's hooks speak.
+  // speaking — is forgotten before the next case's hooks speak. An attempt
+  // begins once: where `test_start` already opened it, this says nothing.
   beforeEach(() => {
-    (globalThis as { [key: symbol]: { begin?: () => void } | undefined })[
-      Symbol.for('variance-authority.test-selection.cases')
-    ]?.begin?.();
+    if (!attempting) attempt('begin');
   });
 
   bracketEveryCase(nextId);
@@ -299,8 +298,14 @@ function bracketEveryCase(nextId: () => string): void {
 
   register((event, state): void => {
     placeCalls(event);
-    if (event.name === 'test_start') attempt('begin');
-    if (event.name === 'test_done' || event.name === 'test_skip' || event.name === 'test_todo') attempt('leave');
+    if (event.name === 'test_start') {
+      attempting = true;
+      attempt('begin');
+    }
+    if (event.name === 'test_done' || event.name === 'test_skip' || event.name === 'test_todo') {
+      attempting = false;
+      attempt('leave');
+    }
     if (event.name !== 'test_fn_start') return;
     const held = event.test;
     if (held === undefined) return;
@@ -311,6 +316,9 @@ function bracketEveryCase(nextId: () => string): void {
     held.fn = scopeCase(body as CaseBody, held.name, nextId);
   });
 }
+
+/** Whether the runner's own event opened an attempt that it has not closed yet. */
+let attempting = false;
 
 /** Open or close the attending bracket, where the realm's case scope keeps one. */
 function attempt(edge: 'begin' | 'leave'): void {

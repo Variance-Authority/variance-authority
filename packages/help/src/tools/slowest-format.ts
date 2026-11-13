@@ -87,7 +87,7 @@ function takenAt({ commit, landed }: { readonly commit?: string; readonly landed
   return commit === undefined ? at : `${at}, landed at a time the record does not hold`;
 }
 
-/** The cases that ran the largest share of their limit, each as its run and its limit. */
+/** The cases that ran the largest share of their limit, each as its run and its limit, over its slowest statement. */
 function closestSection(cases: RecordedCaseDurations, named: string): string[] {
   if ('unread' in cases || cases.timed === 0) return [];
   if (cases.limited === 0) return [`${named}: none of the ${cases.timed} timed case(s) has a recorded limit, so they are listed by time alone.`];
@@ -100,7 +100,10 @@ function closestSection(cases: RecordedCaseDurations, named: string): string[] {
   const unlimited = cases.timed - cases.limited;
   return [
     `${named}, each as run and limit:`,
-    ...cases.closest.map((row) => `  ${pair(row).padStart(wide)}  ${row.file}  ${row.name}`),
+    ...cases.closest.flatMap((row) => [
+      `  ${pair(row).padStart(wide)}  ${row.file}  ${row.name}`,
+      ...statementLine(row, wide + 4),
+    ]),
     `${cases.closest.length} of ${cases.limited} limited case(s) shown` +
       `${unlimited === 0 ? '.' : `; ${unlimited} timed case(s) have no recorded limit.`}`,
   ];
