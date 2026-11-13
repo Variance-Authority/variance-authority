@@ -133,10 +133,10 @@ manager runs a local binary:
 
 Choose the reader first. For text outside the source graph, such as GitHub
 Actions YAML, configuration, documentation or logs, use the text search you
-already have: your client's own, or `rg` or `git grep`. For source, `variance
-ask uses --name <name>` lists who imports a name, `ask symbol --name <name>`
-prints what it is and where it is declared, and `ask search --query <words>`
-finds a name by what it does. A question spanning source and text uses both
+already have: your client's own, or `rg` or `git grep`. For source,
+`variance ask uses --name <name>` lists who imports a name, `ask symbol --name
+<name>` prints what it is and where it is declared, and `ask search --query
+<words>` finds a name by what it does. A question spanning source and text uses both
 readers from the start: an empty answer says nothing about a file they did not
 search. The `variance-authority` skill lists what the index parses, and has the
 rest.
