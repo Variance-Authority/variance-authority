@@ -199,7 +199,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   let rooting = false;
 
   // Made only when live: a page's tap is this function's source alone, without the module.
-  const parts = live ? storyParts.createParts(engine, limit) : undefined;
+  const parts = live ? storyParts.createParts(engine, limit, { ids: rowIds, bases: rowBases }) : undefined;
 
   // Every object a region handed over, by identity, for as long as the realm
   // holds it: refs outlive a reset, so a module's bindings, held once when it

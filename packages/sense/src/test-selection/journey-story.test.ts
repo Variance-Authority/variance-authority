@@ -1,3 +1,4 @@
+import { mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +8,7 @@ import { mintJourney, type JourneyReport } from './journey.js';
 import { UNATTRIBUTED } from './stitch.js';
 import { STORY_VARIABLE } from '../story/asked.js';
 import { driver, evaluate, forget, head, inRoot } from './__fixtures__/journey-head.js';
+import { testSelectionProbes } from './probes.js';
 
 /**
  * The head and the story format as they ship: built, because the tap and the
@@ -195,6 +197,35 @@ describe('a head started with VARIANCE_AUTHORITY_STORY=1', () => {
       const sizes = watcher.reports.filter((report) => report.journey !== UNATTRIBUTED && report.story !== undefined).map((report) => report.story!.length);
       expect(sizes).toHaveLength(1);
       expect(sizes[0]).toBeLessThanOrEqual(1 << 20);
+    });
+  });
+
+  it('tells a partial story of an execution that entered more modules than a watcher keeps the names of', async () => {
+    await inRoot(async (root) => {
+      process.env[STORY_VARIABLE] = '1';
+      const watcher = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
+      const plugin = testSelectionProbes({ root, label: 'build' });
+      const step = '(globalThis.__head_test_modules ??= []).push(function step(x) { return x; });';
+      await mkdir(join(root, 'd'.repeat(200)));
+      for (let at = 0; at < 2500; at += 1) {
+        const file = join(root, 'd'.repeat(200), `${'m'.repeat(200)}${at}.js`);
+        await writeFile(file, step);
+        evaluate(plugin.transform.handler(step, file)!.code);
+      }
+      const source = 'globalThis.__head_test_currency = async (locale) => { for (const step of globalThis.__head_test_modules) step(locale); return locale; };';
+      const parts = await head(root, 'build', { source });
+
+      await collector.enter('theme=dark', () => parts.currency('de'));
+      await collector.close();
+      delete (globalThis as { __head_test_modules?: unknown }).__head_test_modules;
+
+      const stories = watcher.reports.filter((report) => report.journey !== UNATTRIBUTED && report.story !== undefined).map((report) => report.story!);
+      expect(stories).toHaveLength(1);
+      expect(stories[0]!.length).toBeLessThanOrEqual(1 << 20);
+      const story = storyFormat.decodeStory(Buffer.from(stories[0]!, 'base64'));
+      expect(story.rows.length).toBeGreaterThan(0);
+      expect(story.untaped).toBeGreaterThan(0);
     });
   });
 

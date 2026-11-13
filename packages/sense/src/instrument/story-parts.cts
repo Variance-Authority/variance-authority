@@ -11,6 +11,8 @@
  * another.
  */
 
+import type storyFormat = require('../story/format.cjs');
+
 /** What a part reads of the engine: the activation, the async scope, and the bucket now. */
 interface Engine {
   readonly root: { readonly a: number; readonly s: (() => void) | null };
@@ -23,12 +25,13 @@ interface Engine {
  */
 const PART_LIMIT = 1 << 16;
 const PART_NOTES = 1024;
-// The bytes a part's notes take in the story's JSON, with each one's place
-// and key: with its visits and their rows, base64 keeps the telling under the
-// watcher's 1 MiB whatever script a note is written in.
-const PART_NOTE_BYTES = 384 << 10;
+// The bytes a part's notes and the rows of the modules it entered take in the
+// story's JSON, a note with its place and key, a row with its count: with the
+// visits, base64 keeps the telling under the watcher's 1 MiB whatever script a
+// note is written in and however many modules the execution entered.
+const PART_TEXT_BYTES = 384 << 10;
 const utf8 = new TextEncoder();
-const encodedLength = (line: string): number => 12 + utf8.encode(JSON.stringify(line)).length;
+const encodedLength = (text: string): number => 12 + utf8.encode(JSON.stringify(text)).length;
 
 interface Part {
   tape: number[];
@@ -40,6 +43,8 @@ interface Part {
   spoken: number;
   handed: number;
   bytes: number;
+  // The rows of the modules it entered, which its story's header names.
+  modules: Set<number>;
   // Whether the realm wrote to another bucket's part since this one's last visit.
   left: boolean;
 }
@@ -69,14 +74,23 @@ interface Parts {
   holding(): { visits: number; notes: number };
 }
 
+/** The modules a realm registered: each one's id, and the index its regions start at. */
+interface Rows {
+  readonly ids: readonly string[];
+  readonly bases: readonly number[];
+}
+
 /**
- * Parts in front of `engine`, each keeping at most `limit` visits.
+ * Parts in front of `engine`, each keeping at most `limit` visits, and a visit
+ * to a module of `rows` only while the module's row fits its text.
  *
  * A part left for another bucket's work and resumed says so with an empty
  * segment of nobody's, so its story counts the interleaving as a whole tape's
  * would.
  */
-function createParts(engine: Engine, limit: number): Parts {
+function createParts(engine: Engine, limit: number, rows: Rows): Parts {
+  // The format places a visit in its module's row; loaded here, as only a live tap makes parts.
+  const { rowAt } = require('../story/format.cjs') as typeof storyFormat;
   const inner = engine.root;
   const parts = new Map<string, Part>();
   // The part the realm writes to now, and the last one it wrote to that was not idle.
@@ -88,7 +102,7 @@ function createParts(engine: Engine, limit: number): Parts {
     if (key === '') return undefined;
     let found = parts.get(key);
     if (found === undefined) {
-      found = { tape: [], at: [], keys: [], visits: 0, notes: [], unnoted: 0, spoken: 0, handed: 0, bytes: 0, left: false };
+      found = { tape: [], at: [], keys: [], visits: 0, notes: [], unnoted: 0, spoken: 0, handed: 0, bytes: 0, modules: new Set(), left: false };
       parts.set(key, found);
     }
     return found;
@@ -119,6 +133,14 @@ function createParts(engine: Engine, limit: number): Parts {
       if (part === undefined) return;
       part.visits += 1;
       if (part.tape.length >= limit) return;
+      const row = rowAt(rows.bases, entry & 0x7fffffff);
+      if (!part.modules.has(row)) {
+        // A row is its id, a count of at most ten digits, two brackets and two commas.
+        const bytes = encodedLength(rows.ids[row]!) + 2;
+        if (part.bytes + bytes > PART_TEXT_BYTES) return;
+        part.bytes += bytes;
+        part.modules.add(row);
+      }
       part.tape.push(entry);
       open += 1;
     },
@@ -134,7 +156,7 @@ function createParts(engine: Engine, limit: number): Parts {
       const into = here();
       if (into === undefined) return;
       const bytes = encodedLength(line);
-      if (into.bytes + bytes > PART_NOTE_BYTES) {
+      if (into.bytes + bytes > PART_TEXT_BYTES) {
         into.unnoted += 1;
         return;
       }
