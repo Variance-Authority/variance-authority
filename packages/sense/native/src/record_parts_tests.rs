@@ -213,7 +213,15 @@ fn refuses_readings_of_a_case_the_index_does_not_record() {
 }
 
 #[test]
-fn reads_a_readings_section_this_build_did_not_write_as_none() {
+fn refuses_a_readings_section_of_bytes_cut_short() {
+    let one = section(&[("a", "first")], &[("a.test.ts", "1")]);
+    let cut = &one[..one.len() - 1];
+
+    assert!(fold_readings(&[("one", cut, &none())], &cases(&["a"]), &HashMap::new()).is_err());
+}
+
+#[test]
+fn reads_a_readings_section_an_earlier_build_wrote_as_json_as_none() {
     let json = br#"{"cases":{"a":[{"count":1}]}}"#.to_vec();
     let two = section(&[("b", "second")], &[]);
     let folded = fold_readings(&[("one", &json, &none()), ("two", &two, &none())], &cases(&["a", "b"]), &HashMap::new()).unwrap();

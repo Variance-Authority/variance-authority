@@ -66,32 +66,33 @@ export function encodeReadings(cases: readonly (readonly [string, readonly Store
 
 /**
  * The section's cases, each its bytes for {@link decodeCase}, and its inputs.
- * A section `encodeReadings` did not write, such as one an earlier build wrote
- * as JSON, holds none: the readings are only what earlier runs saw, and the
- * next record writes them again.
+ * A section an earlier build wrote as JSON holds none: the readings are only
+ * what earlier runs saw, and the next record writes them as bytes. Bytes this
+ * build cannot read are refused, so a damaged section never passes for empty.
  */
 export function decodeReadings(bytes: Uint8Array | undefined): { readonly cases: Map<string, Uint8Array>; readonly inputs: Map<string, string> } {
   const cases = new Map<string, Uint8Array>();
   const inputs = new Map<string, string>();
-  if (bytes === undefined) return { cases, inputs };
-  try {
-    const read = reader(bytes);
-    const id = read.fronted();
-    for (let count = read.take(); count > 0; count--) {
-      const case_ = id();
-      cases.set(case_, read.bytes(read.take()));
-    }
-    const path = read.fronted();
-    for (let count = read.take(); count > 0; count--) {
-      const file = path();
-      const length = read.take();
-      inputs.set(file, length === 0 ? read.text() : `v1:${read.hex(length)}`);
-    }
-    read.end();
-    return { cases, inputs };
-  } catch {
-    return { cases: new Map(), inputs: new Map() };
+  if (bytes === undefined || isJson(bytes)) return { cases, inputs };
+  const read = reader(bytes);
+  const id = read.fronted();
+  for (let count = read.take(); count > 0; count--) {
+    const case_ = id();
+    cases.set(case_, read.bytes(read.take()));
   }
+  const path = read.fronted();
+  for (let count = read.take(); count > 0; count--) {
+    const file = path();
+    const length = read.take();
+    inputs.set(file, length === 0 ? read.text() : `v1:${read.hex(length)}`);
+  }
+  read.end();
+  return { cases, inputs };
+}
+
+/** An object as `JSON.stringify` opens it, `{"`: a section of bytes opens with a count then a shared count of 0. */
+function isJson(bytes: Uint8Array): boolean {
+  return bytes[0] === 0x7b && bytes[1] === 0x22;
 }
 
 /** One case's stored readings off its bytes, which the section's frame already accepted. */
@@ -105,7 +106,11 @@ export function decodeCase(bytes: Uint8Array): StoredReading[] {
     return held === 0 ? null : held - 1;
   };
   const region = (): ReadRegion => [string(), string(), string(), read.take(), read.take(), value()];
-  const list = <T>(each: () => T): T[] => Array.from({ length: read.take() }, each);
+  // Every item takes a byte at least, so a count past what is left is refused before room is made for it.
+  const list = <T>(each: () => T): T[] => {
+    const count = read.take();
+    return count > read.left ? invalid() : Array.from({ length: count }, each);
+  };
   const readings: StoredReading[] = [];
   for (let count = read.take(); readings.length < count;) {
     const reading: { -readonly [K in keyof StoredReading]: StoredReading[K] } = { count: read.take() };
@@ -179,6 +184,7 @@ function encodeCase(readings: readonly StoredReading[]): number[] {
 interface Reader {
   take(): number;
   bytes(length: number): Uint8Array;
+  readonly left: number;
   text(): string;
   hex(length: number): string;
   fronted(): () => string;
@@ -193,6 +199,9 @@ function reader(bytes: Uint8Array): Reader {
   return {
     take: read.take,
     bytes: read.bytes,
+    get left() {
+      return read.left;
+    },
     text: () => spelled('utf8', read.bytes(read.take())),
     hex: (length) => spelled('hex', read.bytes(length)),
     fronted: () => {

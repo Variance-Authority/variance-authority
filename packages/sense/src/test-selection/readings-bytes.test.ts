@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { decodeReadings, encodeReadings } from './readings-bytes.js';
+import { decodeCase, decodeReadings, encodeReadings } from './readings-bytes.js';
 
 describe('encodeReadings', () => {
   // The same bytes `record_parts_tests.rs` expects the native fold to write.
@@ -17,5 +17,12 @@ describe('encodeReadings', () => {
     const read = decodeReadings(encodeReadings(ids.map((id) => [id, [{ count: 1 }]]), []));
 
     expect([...read.cases.keys()]).toEqual(ids);
+  });
+
+  it('refuses a case that claims more regions than it has bytes for, before making room for them', () => {
+    // No strings, one reading of count 1 holding regions, and a count of 2^35 - 1, the most five bytes hold.
+    const claims = Uint8Array.from([0, 1, 1, 4, 0xff, 0xff, 0xff, 0xff, 0x7f]);
+
+    expect(() => decodeCase(claims)).toThrow('not one this build reads');
   });
 });

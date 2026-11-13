@@ -15,7 +15,7 @@ export function put(out: number[], value: number): void {
 }
 
 /** A reader over `bytes` that throws what `invalid` returns on a varint or a slice they do not hold. */
-export function varints(bytes: Uint8Array, invalid: () => Error): { take(): number; bytes(length: number): Uint8Array; readonly done: boolean } {
+export function varints(bytes: Uint8Array, invalid: () => Error): { take(): number; bytes(length: number): Uint8Array; readonly left: number; readonly done: boolean } {
   let at = 0;
   return {
     take(): number {
@@ -31,6 +31,9 @@ export function varints(bytes: Uint8Array, invalid: () => Error): { take(): numb
       if (at + length > bytes.length) throw invalid();
       at += length;
       return bytes.subarray(at - length, at);
+    },
+    get left(): number {
+      return bytes.length - at;
     },
     get done(): boolean {
       return at === bytes.length;

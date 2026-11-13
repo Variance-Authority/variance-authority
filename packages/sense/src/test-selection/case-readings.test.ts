@@ -151,14 +151,23 @@ describe('layReadings', () => {
     ]);
   });
 
-  it('reads a section it did not write as holding no readings, and lays a run over it as over none', () => {
+  it('reads a section an earlier build wrote as JSON as holding no readings, and lays a run over it as over none', () => {
     const index = run(false, { wire: 2 });
     const fresh = run(true, { wire: 2 });
+    const json = Buffer.from('{"cases":{"a.test.ts > clicks":[{"count":1}]}}');
 
-    for (const kept of [Buffer.from('{"cases":{"a.test.ts > clicks":[{"count":1}]}}'), Buffer.from([1, 9])]) {
-      expect(readingsOf(kept, index, ID)).toBeUndefined();
-      expect(layReadings(kept, index, fresh, cases, over(fresh))).toEqual(layReadings(undefined, index, fresh, cases, over(fresh)));
-    }
+    expect(readingsOf(json, index, ID)).toBeUndefined();
+    expect(layReadings(json, index, fresh, cases, over(fresh))).toEqual(layReadings(undefined, index, fresh, cases, over(fresh)));
+  });
+
+  it('refuses a section of bytes cut short rather than reading it as none', () => {
+    const index = run(false, { wire: 2 });
+    const fresh = run(true, { wire: 2 });
+    const { section } = laid([run(true, { wire: 2 }), index]);
+    const cut = section!.subarray(0, section!.length - 1);
+
+    expect(() => readingsOf(cut, index, ID)).toThrow('not one this build reads');
+    expect(() => layReadings(cut, index, fresh, cases, over(fresh))).toThrow('not one this build reads');
   });
 
   it('drops the oldest distinct reading past the bound', () => {
