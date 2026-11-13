@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { lineValue } from '../test-selection/case-lines.js';
-import type { ReadRegion, Reading } from '../test-selection/case-readings.js';
+import type { Reading } from '../test-selection/case-readings.js';
+import type { ReadRegion } from '../test-selection/readings-bytes.js';
 import { compareOutcomes } from './outcomes.js';
 
 const WIRE = { file: 'src/page.ts', name: 'wire', path: 'entry', startLine: 1, endLine: 3 };

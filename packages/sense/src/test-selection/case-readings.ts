@@ -17,7 +17,6 @@ import { decodeCase, decodeReadings, encodeReadings, type ReadRegion, type Store
 /** Distinct readings kept per case, newest first. */
 export const READINGS = 16;
 
-export type { ReadRegion } from './readings-bytes.js';
 
 /**
  * One recorded run of one case, and how many runs read it so: an equal reading
