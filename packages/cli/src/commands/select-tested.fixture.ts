@@ -25,14 +25,17 @@ const TOTAL_TEST = "import { total } from '../src/total';\nit('totals', () => to
 const OTHER_TEST = "import { other } from '../src/other';\nit('others', () => other(1));\n";
 export const DEV = ['-c', 'user.name=Dev', '-c', 'user.email=dev@example.test'];
 
+/** The first and last line each test entered, by test file: one function each. */
+export type Lines = Readonly<Record<string, readonly [number, number]>>;
+
 /** Files by path; `null` deletes the file. */
 export type Files = Readonly<Record<string, string | null>>;
 
 export interface Queue {
   /** Files at the fork, beside the two folders and their tests. */
   readonly start?: Files;
-  /** Which test entered each file the record holds beyond each folder's own module. */
-  readonly entered?: Readonly<Record<string, string>>;
+  /** Which test entered each file the record holds beyond each folder's own module, or which lines each test entered. */
+  readonly entered?: Readonly<Record<string, string | Lines>>;
   /** What the mainline lands past the fork, which the queue merges onto. */
   readonly base: Files;
   /** What the mainline lands past the fork and then reverts, before `base`: a pull request's check may have run with it. */
@@ -149,7 +152,7 @@ export async function written(dir: string, files: Files): Promise<void> {
  * each test entered its own folder's module, and each file of `entered` as it
  * names, with the text each file holds there.
  */
-async function recorded(home: string, ci: string, entered: Readonly<Record<string, string>>): Promise<void> {
+async function recorded(home: string, ci: string, entered: Readonly<Record<string, string | Lines>>): Promise<void> {
   const commit = await git(ci, 'rev-parse', 'HEAD');
   const held = { 'src/other.ts': 'test/other.test.ts', 'src/total.ts': 'test/total.test.ts', ...entered };
   const modules = [];
@@ -169,20 +172,26 @@ async function recorded(home: string, ci: string, entered: Readonly<Record<strin
   await publishTo(home, ci, commit, PUSH, 'mainline main');
 }
 
-/** `file` holding `source`: its module, and one function over every line, both entered by `test` alone. */
-function moduleOf(file: string, source: string, test: string) {
+/** `file` holding `source`: its module, entered by every test, and one function per test over the lines it entered. */
+function moduleOf(file: string, source: string, entered: string | Lines) {
   const lines = source.split('\n').length - 1;
+  const spans = typeof entered === 'string' ? { [entered]: [1, lines] as const } : entered;
+  const tests = Object.keys(spans).sort(codeUnitOrder);
   return {
     file,
     sourceDigest: digestString(source),
     instrumented: true,
     blocks: [{
       ordinal: 0, kind: 'module' as const, digest: digestString(file), name: '', path: 'module',
-      startLine: 1, endLine: lines, source: true, testFiles: [test],
-    }, {
-      ordinal: 1, owner: 0, kind: 'function' as const, digest: digestString(`${file}#body`), name: 'body', path: 'body',
-      startLine: 1, endLine: lines, source: true, testFiles: [test],
-    }],
+      startLine: 1, endLine: lines, source: true, testFiles: tests,
+    }, ...tests.map((test, index) => {
+      const name = typeof entered === 'string' ? 'body' : `body${index}`;
+      const [startLine, endLine] = spans[test]!;
+      return {
+        ordinal: index + 1, owner: 0, kind: 'function' as const, digest: digestString(`${file}#${name}`), name, path: name,
+        startLine, endLine, source: true, testFiles: [test],
+      };
+    })],
   };
 }
 

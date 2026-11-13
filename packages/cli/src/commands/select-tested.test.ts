@@ -163,6 +163,25 @@ describe('`variance select --ran-at` in a merge queue', () => {
     expect(here.out).not.toContain('test/other.test.ts');
   });
 
+  it('runs a test the pull request reaches whose function the mainline changed and reverted, though another it changed stays', async () => {
+    // The mainline changed `rate` and `fee`, then put `rate` back: the net diff holds `fee` alone, which `other` never
+    // entered. `other` loads the module by a name it builds, so no import joins them and only the record does.
+    const RATES = 'export function rate(): number {\n  return 1;\n}\nexport function fee(): number {\n  return 5;\n}\n';
+    const queue = await queued(home(), {
+      start: { 'src/rates.ts': RATES },
+      entered: { 'src/rates.ts': { 'test/other.test.ts': [1, 3], 'test/total.test.ts': [4, 6] } },
+      reverted: { 'src/rates.ts': RATES.replace('1;', '2;').replace('5;', '6;') },
+      base: { 'src/rates.ts': RATES.replace('5;', '6;') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // `other` ran beside a `rate` HEAD no longer holds, so it runs.
+    expect(here.out).not.toContain('test/other.test.ts');
+  });
+
   it('selects as without `--ran-at` when a side changes a file the record cannot place', async () => {
     const READS = "import { readFileSync } from 'node:fs';\nexport function other(price: number): number {\n  return price + Number(readFileSync('src/rate.txt', 'utf8'));\n}\n";
     const queue = await queued(home(), {
