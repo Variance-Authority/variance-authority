@@ -182,6 +182,36 @@ describe('`variance select --ran-at` in a merge queue', () => {
     expect(here.out).not.toContain('test/other.test.ts');
   });
 
+  it('skips a test only the pull request reaches when the mainline changed a module it does not reach more than once', async () => {
+    const queue = await queued(home(), {
+      reverted: { 'src/total.ts': TOTAL.replace('0.9', '0.7') },
+      base: { 'src/total.ts': TOTAL.replace('0.9', '0.8') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    // Read whole, `total` reaches `total` alone: `other` met no line of it, so its pass stands.
+    expect(here.out).toContain('test/other.test.ts');
+  });
+
+  it('selects as without `--ran-at` when the mainline changed an install file in more than one commit since the fork', async () => {
+    const queue = await queued(home(), {
+      start: { 'src/total.ts': PADDED, 'package-lock.json': npmLock('1.3.0') },
+      reverted: { 'package-lock.json': npmLock('1.4.0') },
+      base: { 'package-lock.json': npmLock('1.3.1') },
+      prs: [{ 'src/other.ts': OTHER.replace('+ 1', '+ 2') }],
+      recordAt: 'fork',
+    });
+
+    const whole = await selected(queue.dir, queue.base);
+    const here = await selected(queue.dir, queue.base, queue.tested);
+
+    expect(here.out).toBe(whole.out);
+    expect(here.err).toContain('the mainline changed package-lock.json in more than one commit since the fork');
+  });
+
   it('selects as without `--ran-at` when a side changes a file the record cannot place', async () => {
     const READS = "import { readFileSync } from 'node:fs';\nexport function other(price: number): number {\n  return price + Number(readFileSync('src/rate.txt', 'utf8'));\n}\n";
     const queue = await queued(home(), {
