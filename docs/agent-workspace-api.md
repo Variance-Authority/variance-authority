@@ -24,9 +24,9 @@ read the code map:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/help
-variance index
-variance ask symbol --name price
-variance ask orient
+npx variance index
+npx variance ask symbol --name price
+npx variance ask orient
 ```
 
 The index lives in `node_modules/.cache`, so it adds no tracked file. `ask symbol`
@@ -123,12 +123,17 @@ manager runs a local binary:
 
 Choose the reader first. For text outside the source graph, such as GitHub
 Actions YAML, configuration, documentation or logs, use `rg` or `git grep`
-directly. For a source declaration, `variance ask symbol --name <name>` prints
-what it is and where it is declared, `variance ask uses --name <name>` lists
-who imports it, and `variance ask search --query <words>` finds candidate source
-names by their spelling and documentation. A question spanning source and text
-uses both readers from the start. An empty Variance answer says nothing about a file it
-did not search. The `variance-authority` skill defines the source scope,
+directly. For source declarations, use these shell commands or MCP tools:
+
+- `npx variance ask symbol --name <name>` / `docs_symbol`: what it is and where
+  it is declared.
+- `npx variance ask uses --name <name>` / `docs_uses`: who imports it.
+- `npx variance ask search --query <words>` / `docs_search`: candidate source
+  names by their spelling and documentation.
+
+A question spanning source and text uses both readers from the start. An empty
+Variance answer says nothing about a file it did not search. The
+`variance-authority` skill defines the source scope,
 including files imported by code, and has the rest.
 ```
 
