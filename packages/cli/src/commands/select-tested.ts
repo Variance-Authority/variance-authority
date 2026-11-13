@@ -144,8 +144,7 @@ async function reachOf(
 ): Promise<SideAnswer> {
   const selection = await import('@variance-authority/sense/test-selection');
   const names = (from: string, to: string) => git('diff', '--name-only', '-z', '--no-renames', from, to).split('\0').filter(Boolean);
-  const net = new Set(names(fork, end));
-  const own = new Set([...net, ...again.files]);
+  const own = new Set([...names(fork, end), ...again.files]);
   const ownCode = [...own].filter((file) => !selection.readByInstall(file));
   const walk = (files: readonly string[]) => affectedBy(asked.relations, files, { through: RUNTIME_EDGES }).files;
   const walked = walk(ownCode);
@@ -159,9 +158,10 @@ async function reachOf(
   const install = new Set<string>();
   // The graph cannot follow a load by a built name back to its test, but the record saw the test run what it loaded:
   // each module the side reaches past its own files is read as changed whole, so the tests that executed it join.
-  // A file changed again and back is still a module the net change reaches, read whole as it would be unchanged.
-  const fromNet = new Set(walk(ownCode.filter((file) => net.has(file))));
-  const outside = (file: string) => !own.has(file) || (!net.has(file) && fromNet.has(file));
+  // A file changed again stood, at some end, as at the fork while another changed file it reaches had changed:
+  // there it was a module the change reaches, read whole like one the side never changed.
+  const reached = new Set(again.files.filter((file) => walk(ownCode.filter((other) => other !== file)).includes(file)));
+  const outside = (file: string) => !own.has(file) || reached.has(file);
   const past = walked.filter((file) => outside(file) && !asked.recorded.has(file) && !selection.readByInstall(file));
   if (past.length > 0) {
     const reading = await read(readOf(asked, selection.standDiff((...args) => git(...args, '--', ...past), record, EMPTY_TREE)));
