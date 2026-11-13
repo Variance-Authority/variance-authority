@@ -50,6 +50,12 @@ source facts and observations it reads, through the interfaces it already has.
   investigation, UI review, test selection, and test reduction, each carried
   through an edit and a check.
 
+To try it on your own, clone
+[a full-stack story](https://github.com/Variance-Authority/example-full-stack-story):
+a Next.js app with a bug in it, which connects your agent when you open it in
+the folder. Tick a todo, tell your agent what you saw, and it finds the line
+from what that click ran in the browser and on the server.
+
 Point your coding agent at [`llms.txt`](https://variance-authority.dev/llms.txt).
 
 ## One change, traced end to end
@@ -84,11 +90,6 @@ open. Other examples cover [source selection](examples/selection-reuse),
 [flake diagnosis](examples/dynamic-route-flake). The
 [external cases](cases/README.md) exercise the packages against real hosts and
 runners.
-
-To explore on your own, clone
-[a full-stack story](https://github.com/Variance-Authority/example-full-stack-story):
-a Next.js app with a bug in it. Tick a todo, tell your agent what you saw, and
-it finds the line from what that click ran in the browser and on the server.
 
 ## Add it to a Playwright test
 
