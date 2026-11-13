@@ -135,12 +135,8 @@ export function layReadings(
   const read = new Set([...now.values()].map((reading) => reading.file));
   const inputs = new Map([...held, ...[...run?.inputs ?? []].filter(([file]) => read.has(file))].filter(([file]) => files.has(file)));
   if (laid.size === 0 && inputs.size === 0) return undefined;
-  // A case is held once it keeps more than one run the landed index does not
-  // say. A file the run did not finish is laid over its earlier crossings
-  // (`case-layer.ts`), and a cut index holds less, so the newest reading of
-  // either keeps its regions. A file's inputs are what {@link inputsOf} names:
-  // a region a module crossed only while it evaluated is no case's, so the
-  // regions alone do not say what a file loaded.
+  // The newest keeps its regions where its file did not finish, laid over
+  // earlier crossings (`case-layer.ts`), or the index is cut.
   return encodeReadings(
     [...laid.keys()].sort(codeUnitOrder).map((id) => [id, packed(laid.get(id)!, there.get(id))]),
     [...inputs].sort(([left], [right]) => codeUnitOrder(left, right)),
