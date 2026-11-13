@@ -101,22 +101,25 @@ one subdirectory, and there `search` is the only verb worth asking, because
 
 ## Names, then relations
 
-Ask by what you hold:
-
-| You hold | Ask |
-|---|---|
-| A name | `symbol`, then `uses` |
-| A meaning, in words | `search`, with each likely spelling |
-| A local name, a string or a pattern in code | `grep --from <path>`, from where you are working |
-| Text outside the source: YAML, JSON, Markdown, shell, workflows, logs | `rg` or `git grep` |
-
 The source is the files the index parses — JavaScript and TypeScript,
 stylesheets, Python, Rust, Java, Kotlin and Swift — and any other file one of
 them imports. `symbol`, `uses` and `search` answer from the declarations in the
 first; `grep` searches both, along the imports from its start point. A YAML,
-JSON, Markdown or shell file nothing imports is outside the source, and an empty
-answer says nothing about it: search it with `rg` or `git grep` alongside
-`variance`, not after `variance` comes back empty.
+JSON, Markdown or shell file nothing imports is outside the source. Search
+repository text with the text search you already use — your client's own, or
+`rg` or `git grep`: a GitHub Actions job or an
+`upload-artifact` step in `action.yml` is that kind of question. When the answer
+may sit in source and text, use both readers from the start. An empty Variance
+answer says nothing about a file it did not search.
+
+Choose by that scope, then by what you hold:
+
+| You hold | Ask |
+|---|---|
+| A workflow, configuration, documentation or log outside the source | your text search: the client's own, or `rg` or `git grep` |
+| A source declaration's name | `symbol`, then `uses` |
+| Words describing a source declaration | `search`, with each likely spelling |
+| A local name, a string or a pattern in code | `grep --from <path>`, from where you are working |
 
 `search` turns the words you have into candidate names. When the editor, ticket
 or stack trace already gives you a path, pass it on that first search as a start
