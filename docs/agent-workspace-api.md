@@ -690,18 +690,6 @@ named import is a question for your editor's language server. A member has no
 import, so its sites are the typed lines described
 [above](#search-finds-the-name-the-graph-finds-the-area).
 
-A name the index does not hold is looked for again in the checkout as it is, so
-a function you just wrote is answered with no step from you. A name it does hold
-is answered from the index, which a question reuses for an hour, and read again
-when a file the answer rests on changed since. An edit anywhere else can leave
-that answer behind. Run `variance index` when the next answer has to match it:
-who imports a name, and which names exist, are then current. What `ask symbol`
-prints from the declaration of a name that stays exported — its kind, line,
-signature and comment — can stay old. A question reads them again once the index
-is over an hour old, and a `variance index` that read a changed file restarts
-that hour, so read the file itself for those. `ask search` answers from the last
-index at any age, and its last line says so.
-
 Missing documentation remains missing, and a search with no exact substring
 match reports that before it offers anything near it. Those absences are source
 facts, not prompts for the server to infer an answer: a looser reading of your
