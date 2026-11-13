@@ -120,6 +120,7 @@ export {
   type TimedTestCase,
   type TimedTestFile,
 } from './recorded-durations.js';
+export { recordedAttempts, type RecordedAttempts, type RetriedCase } from './recorded-attempts.js';
 export { type DurationScope, type ScopeCounts } from './recorded-scope.js';
 export { type RecordOrigin } from './test-selection/record-location.js';
 export { layerMoves, type LayerCause, type LayerHeld, type LayerMoves, type LayerPresence } from './layer-moves.js';

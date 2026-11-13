@@ -81,6 +81,10 @@
         "eyes"
       ],
       [
+        "attempts",
+        "cases.attempts"
+      ],
+      [
         "base",
         "run.base"
       ],

@@ -595,6 +595,62 @@ millisecond, a case whose file was not transformed and every case of an index
 written before the section are absent from it, never `0`. No selection, key or
 digest reads the section.
 
+**Attempts.** A runner that retries a case reports one outcome for it, the last,
+so a case that failed and then passed reads as a pass. The record keeps what
+that outcome folds away, in a `cases.attempts` section beside the case index:
+one row for each attempt of a retried case, in order, with how the attempt
+ended and, where the runner says them, how long it ran and, for an attempt that
+did not pass, the failure's message cut at five hundred characters and its
+nearest frame inside the checkout as `path:line`. Every field is the runner's
+own report of the attempt. Nothing watches the case's body, because a runner
+ends an attempt for reasons the body never sees: its limit, a soft assertion, a
+failing hook.
+
+| Runner | How an attempt ended | Message and frame | Duration |
+|---|---|---|---|
+| Vitest 4.1 and newer | `passed`, `failed` or `skipped`; a limit reads `failed` | every attempt that did not pass | every attempt |
+| Jest | the last attempt as Jest reports it, each earlier one `failed`; a limit reads `failed` | the last attempt; an earlier one only under `jest.retryTimes(n, { logErrorsBeforeRetry: true })` | none |
+| Rstest | the last attempt as `passed`, `failed` or `skipped`, each earlier one `failed`; a limit reads `failed` | every attempt that did not pass | none |
+| Playwright | `testInfo.status`, `timedOut` included | `testInfo.error` | `testInfo.duration` |
+
+Under Playwright an attempt's ending is the status Playwright held when the
+recorder's fixture was torn down, so a failure in `afterAll`, or in a fixture
+torn down after the recorder's, is not in the row.
+
+Vitest counts a repeat as an attempt, like a retry. Under Playwright each
+repeat of `repeatEach` is a case of its own in the index, the second named with
+a trailing `#1`, and has its own rows. Rstest adds the retries of every repeat
+of `repeats` into one count and says nowhere that the case was repeated: a
+repeat that passed at once is no attempt, and a case whose count cannot be one
+run of retries, because two of its failures carry one retry number, has no
+rows. If two shards of one run both hand over a row for one attempt of one
+case, the record keeps the row whose JSON text sorts first. A Vitest older than 4.1 reports no
+attempts, and its record has no section. A case you pass to
+`startRecording().finish()` carries its own `attempts`. The case's `stopped`,
+duration and limit are what they are without the section.
+
+Only a case whose runner reported more than one attempt has rows, so a suite
+nobody retried pays 28 bytes for an empty section, and a retried case between
+about 150 and 450 bytes for a failed and a passed attempt. A record without the
+section says that attempts were not kept, never that no case was retried: a
+build older than attempts wrote it, or its runner reports none, or a shard of
+its run kept none, because shards of one run keep the section only when every
+shard that ran cases kept it. A run laid over an older record writes the
+section only when the run kept attempts and every case it carries from that
+record had its attempts kept there: a run that kept none drops the section,
+and a run that carries cases from a record without the section writes none.
+The carried cases keep their rows, and the cases that ran again take the
+run's. Shards landed together are one run here: a case any of them ran is not
+carried. A record with the section speaks of the cases it
+holds and the runner could name. A case the index lacks, as every case of a file
+recorded as a whole is, has no rows, and neither has a Jest or Rstest case
+whose name its file declares twice. An attempt whose worker died before the
+runner said how it ended has no row either, and the case keeps the rows of its
+other attempts. No selection reads the section and no digest a selection compares takes it
+in, so a record with attempts selects the tests the same record without them
+selects. `variance ask retried-tests` lists the cases whose attempts ended
+differently.
+
 The case index also carries what each case said, its
 [case preconditions](case-preconditions.md), in a `tests.said` section. Each
 distinct `(name, value, site, level)` is one item, and the cases that said it are

@@ -284,6 +284,7 @@ variance ask describe --subject story:card
 variance ask search --query viewport    # the code, and the cases the last run recorded: no report and no config needed
 variance ask costs --from src           # where the suite's time goes under src, from the mainline's published times
 variance ask slowest-tests --over 3s --from src   # the cases under src that ran at least 3 s, closest to their limit first
+variance ask retried-tests              # the cases the runner retried whose attempts ended differently: failed, then passed
 variance ask containment --after 2026-01-01    # how far commits since that day reached across package boundaries
 variance ask decisions --subject story:card   # what reviewers decided on it, read with the share token
 variance ask concerns --build ci-42           # what reviewers flagged as suspect on the subjects that build showed, and why

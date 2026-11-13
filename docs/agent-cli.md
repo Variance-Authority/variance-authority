@@ -346,6 +346,48 @@ the rest and leaves the files out. A case with no recorded limit is counted besi
 the ranking, and a record older than the column says so and lists its cases by
 time alone.
 
+## Find the tests that failed and then passed
+
+```bash
+variance ask retried-tests
+variance ask retried-tests --limit 50
+```
+
+A runner that retries a failing test reports the last attempt, so a test that
+failed once and passed on the retry is a pass in its report. The
+[execution record](execution-record.md) keeps how each attempt of a retried case
+ended, and `retried-tests` lists the cases whose attempts ended differently in
+the recorded run:
+
+```text
+Read this checkout's record at 3f9c2a41d07b, landed 3 days ago, node_modules/.cache/variance-authority/test-selection/coverage.bin.
+
+Ended differently across attempts:
+  src/checkout/total.test.ts  total > pays once  (limit 5.0 s)
+    attempt 1  failed  1.3 s  src/checkout/total.test.ts:7  expected 1 to be 2
+    attempt 2  passed  3 ms
+1 of 1 case(s) shown; 2 other retried case(s) ended the same way every attempt.
+```
+
+Each suite's answer opens with the record it read: whose it is, at which commit,
+and how long ago its latest run landed. A case is listed with its limit and
+every attempt: how it ended as the runner says it and, where the runner says
+them, how long it ran, the frame inside the checkout and the message it failed
+with. Jest and Rstest time no single attempt, and Jest names what an earlier
+attempt failed with only under
+`jest.retryTimes(n, { logErrorsBeforeRetry: true })`. An attempt whose worker
+died before the runner said how it ended reads `ended unreported`. The answer
+says what the one run recorded and nothing about any other run of the case.
+
+A record that kept no attempts says so and lists nothing, which is different
+from a record whose run retried no case: its runner reports no attempts, as a
+Vitest older than 4.1 does, or a shard of the run kept none, or the run carried
+cases from a record that kept none. Only the runner's
+own attempts are listed: Vitest's `retry` and `repeats`, Jest's
+`jest.retryTimes`, Rstest's `retry` and Playwright's `retries`. Rstest's
+`repeats` are not attempts. A case the
+record does not hold has none, as every case of a file recorded as a whole.
+
 ## Find where the suite's time goes
 
 ```bash
