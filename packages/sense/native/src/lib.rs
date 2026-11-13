@@ -26,6 +26,7 @@ mod batch;
 mod case_fold;
 mod case_id;
 mod case_lines;
+mod case_readings;
 mod case_owner;
 mod case_said;
 mod case_said_napi;

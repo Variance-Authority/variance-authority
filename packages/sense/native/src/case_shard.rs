@@ -327,6 +327,11 @@ impl<'a> Varints<'a> {
         Ok(held)
     }
 
+    /// How many bytes are left to read.
+    pub(crate) fn left(&self) -> usize {
+        self.bytes.len() - self.at
+    }
+
     pub(crate) fn end(&self) -> Result<(), String> {
         if self.at == self.bytes.len() { Ok(()) } else { Err("case lines run past their values".to_owned()) }
     }

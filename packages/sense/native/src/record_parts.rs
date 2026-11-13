@@ -233,12 +233,12 @@ pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)], case
 
 /// A `cases.readings` section as `readings-bytes.ts` writes it: each case's
 /// bytes, kept as written, and what each test file ran over.
-struct ReadingsIn<'a> {
-    cases: Vec<(String, &'a [u8])>,
-    inputs: Vec<(String, String)>,
+pub(crate) struct ReadingsIn<'a> {
+    pub cases: Vec<(String, &'a [u8])>,
+    pub inputs: Vec<(String, String)>,
 }
 
-fn read_readings(bytes: &[u8]) -> Result<ReadingsIn<'_>, String> {
+pub(crate) fn read_readings(bytes: &[u8]) -> Result<ReadingsIn<'_>, String> {
     let mut reader = Varints::new(bytes);
     let text = |bytes: Vec<u8>| String::from_utf8(bytes).map_err(|error| error.to_string());
     let count = reader.take()?;
@@ -354,7 +354,12 @@ impl<V: PartialEq> Settled<V> {
 /// where that one kept nothing of it. Two
 /// shards that ran one case otherwise are refused, as two journals of one
 /// attempt are, and so are two that ran one file over different inputs.
-pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], cases: &HashSet<String>, ran: &HashMap<String, Ran>) -> Result<Vec<u8>, String> {
+pub(crate) fn fold_readings(
+    shards: &[(&str, &[u8], &HashMap<String, String>)],
+    cases: &HashSet<String>,
+    ran: &HashMap<String, Ran>,
+    rebased: &HashMap<(String, String), Vec<u8>>,
+) -> Result<Vec<u8>, String> {
     let nothing = Ran::default();
     let mut readings: Settled<&[u8]> = Settled::new();
     let mut inputs: Settled<String> = Settled::new();
@@ -378,6 +383,8 @@ pub(crate) fn fold_readings(shards: &[(&str, &[u8], &HashMap<String, String>)], 
                 return Err(format!("{name}: its readings section holds readings of `{case}`, a case the combined index does not record"));
             }
             let by = own.cases.contains(&case);
+            // A newest laid over the shard's own regions of the case is laid again over the combined index's.
+            let value = rebased.get(&((*name).to_owned(), id)).map_or(value, Vec::as_slice);
             readings.offer(case, name, value, by, |first, second, case| {
                 format!("{first} and {second} hold different readings of `{case}`, so they are not shards of one run and cannot be folded into one.")
             })?;
