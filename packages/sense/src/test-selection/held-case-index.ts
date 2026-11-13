@@ -1,7 +1,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { CaseLines } from './case-lines.js';
 import type { CrossingSetsPool } from './crossing-sets.js';
-import { durationColumn, limitColumn, stoppedColumn, type SetColumns } from './execution-set-columns.js';
+import { durationColumn, limitColumn, slowestColumn, slowestFrom, stoppedColumn, type SetColumns } from './execution-set-columns.js';
 import { moduleAt, openSetColumns, writeSetColumns, type SetExecutionModule } from './execution-set-format.js';
 import { below, mergedDictionary } from './format-dictionary.js';
 import { NO_DURATION, NO_OWNER } from './format-layout.js';
@@ -262,6 +262,10 @@ export function writeLaid(
   return writeSetColumns({
     strings: { blob: dictionary.blob, offsets: dictionary.offsets },
     testId, testFile, testName, testStopped, testDuration, testLimit,
+    testSlowest: slowestColumn(tests.length, (at) => {
+      const test = tests[at]!;
+      return typeof test === 'number' ? slowestFrom(columns.testSlowest, test).slowest : test.slowest;
+    }),
     testSaid: tests.map((test) => (typeof test === 'number' ? columns.testSaid?.[test] : test.said)),
     moduleFile, moduleBlocks,
     blockKind, blockName, blockPath, blockStart, blockEnd, blockSource, blockCalled, blockLoaded, blockOwner, blockOverwritten,

@@ -65,7 +65,9 @@ A cut is a log length, not a probe: it goes into nested blocks and stops at a
 nested function, because the callback a statement hands over is part of that
 statement. The close charges each region to the last cut before its first
 entry, so a case records which of its own lines, or a hook's, first reached
-each region it crossed.
+each region it crossed. Inside a case's body a cut also reads the clock: the
+time since the cut before it is its statement's, and the case keeps the line
+that took longest.
 
 Regions are always cut from the text the author wrote, because a diff speaks
 in the coordinates of the file the author edited and extents taken from
@@ -134,7 +136,8 @@ its own probes handed back with none in it, carry the same mark.
 - `packages/sense/src/instrument/cadence.ts` — the seams' call into it, kept
   off the published `instrument` entry
 - `packages/sense/src/instrument/probe-cuts.cts` — a cut at run time: the
-  current bucket's log length beside the line
+  current bucket's log length beside the line, and each statement's time
+  inside a case's body
 - `packages/sense/src/test-selection/jest-transform.ts` — the handoff: a
   transformer that answers `senseRecipe` with this build's recipe is given
   `senseProbes` and places the probes itself
