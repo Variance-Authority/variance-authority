@@ -198,7 +198,8 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
 
-  const parts = storyParts.createParts(engine, limit);
+  // Made only when live: a page's tap is this function's source alone, without the module.
+  const parts = live ? storyParts.createParts(engine, limit) : undefined;
 
   // Every object a region handed over, by identity, for as long as the realm
   // holds it: refs outlive a reset, so a module's bindings, held once when it
@@ -272,7 +273,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     const line = text.length > NOTE_LENGTH ? `${text.slice(0, NOTE_LENGTH - 1)}…` : text;
     // Where an async scope decides the bucket, ask it, as a probe would
     // before it writes: a note said in a case's continuation is the case's.
-    if (live) parts.note(line);
+    if (parts !== undefined) parts.note(line);
     else {
       inner.s?.();
       notes.push([taped, engine.current().key, line]);
@@ -285,7 +286,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     (module: ModuleId) =>
     (region: number, names: string, ...values: unknown[]): void => {
       // Past the limit nothing is read: a hot function pays for a count.
-      if (live) {
+      if (parts !== undefined) {
         const into = parts.here();
         if (region === 0 || into === undefined || !parts.room(into, 'handed')) return;
       } else if (handedOver >= NOTE_LIMIT) {
@@ -294,7 +295,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       }
       try {
         const said = names.split(',').map((name, index) => `${name}=${shown(values[index])}`);
-        if (!live) handedOver += 1;
+        if (parts === undefined) handedOver += 1;
         if (region !== 0) put(`handed ${said.join(', ')}`);
         else held.set(module, put(`holds ${said.join(', ')}`));
       } catch {
@@ -303,7 +304,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     };
 
   const record = (entry: number): void => {
-    if (live) return parts.tape(entry);
+    if (parts !== undefined) return parts.tape(entry);
     const activation = inner.a;
     if (activation !== seen) {
       seen = activation;
@@ -391,7 +392,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
-      if (live) {
+      if (parts !== undefined) {
         const into = parts.here();
         if (into !== undefined && parts.room(into, 'spoken')) put(text);
         return;
@@ -419,11 +420,11 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       seen = -1;
     },
     take(key: string): Tape {
-      const taken = (live ? parts.take(key) : undefined) ?? { tape: empty, visits: 0, at: [], keys: [], notes: [], unnoted: 0 };
+      const taken = parts?.take(key) ?? { tape: empty, visits: 0, at: [], keys: [], notes: [], unnoted: 0 };
       return { ...taken, taped: taken.tape.length, lines: [], held: new Map(), rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     holding() {
-      return live ? parts.holding() : { visits: taped, notes: notes.length };
+      return parts !== undefined ? parts.holding() : { visits: taped, notes: notes.length };
     },
   };
   Object.defineProperty(root, Symbol.for('variance-authority.test-selection.engine'), { value: engine });
