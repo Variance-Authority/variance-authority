@@ -114,6 +114,8 @@ pub struct Cases {
     pub duration: String,
     /// Each case's limit in milliseconds, a word a case, `coverage.no_duration` where none is named.
     pub limit: String,
+    /// Each case's slowest statement, two words a case: its line and its whole milliseconds, both zero where none is named.
+    pub slowest: String,
     /// Each case's lines, a blob of one row a case.
     pub lines: String,
     pub lines_offsets: String,

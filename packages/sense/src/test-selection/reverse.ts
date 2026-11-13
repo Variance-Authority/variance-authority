@@ -36,6 +36,12 @@ export interface ExecutionTest {
    * be read or the runner sets none, which is not a case that cannot time out.
    */
   readonly limit?: number;
+  /**
+   * The slowest statement of the case's body: its line in the test file and
+   * its whole milliseconds, a loop's runs summed. Absent where the file was
+   * not cut or no statement took a millisecond, which is not a time of zero.
+   */
+  readonly slowest?: { readonly line: number; readonly time: number };
   /** Every item the case said it arranged, unresolved; `[]` is heard-nothing, absent is unheard. */
   readonly said?: Said;
 }

@@ -480,7 +480,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them. `'loads'` records which files each test file loaded and nothing inside them: no module is probed, each one runs with one line added after its own text, and a change to a file selects every test file that loaded it. A record made so has no cases, so `continuations` and stories do not apply to it ([below](#record-only-what-each-test-file-loaded)). Which `precision` each mode answers, and what each costs: [record as finely as you select](https://variance-authority.dev/docs/selecting#record-as-finely-as-you-select) |
 | `placement` | `'after-transforms'` | `'before-transforms'` places the probes in the file as read, ahead of your transforms, for a run whose transforms only strip types or JSX ([below](#place-the-probes-ahead-of-your-transforms)) |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
-| `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region ([below](#record-which-test-line-reached-a-region)) |
+| `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region and without each case's slowest statement ([below](#record-which-test-line-reached-a-region)) |
 | `selection` | read from `@variance-authority/cli` when `VARIANCE_AUTHORITY_SINCE` is set | you compute the selection yourself: a function returning the `SuiteSelection` whose `skip` the run removes |
 
 The config file Vite loaded, the local modules it imports and the configured
@@ -2621,8 +2621,18 @@ suite's duration stays inside its run-to-run spread on both, over three runs
 each with and without them: 48.9–51.9 s against 48.8–56.3 s here, 16.2–16.5 s
 against 16.0–17.2 s on MUI.
 
-Pass `cadence: false` to leave test files as you wrote them and write no lines.
-A Jest journey run leaves test files as they are either way.
+The same call times the case's own statements under Vitest, Jest and Rstest.
+Each call reads a clock taken before a test can fake its timers, and adds the
+time since the call before it to that statement's line; the end of the case
+closes the last one. A statement in a loop holds the sum of its runs, and a
+hook's statements are not timed. The record keeps one statement per case: the
+line that took longest and its whole milliseconds, which
+[`variance ask slowest-tests`](https://variance-authority.dev/docs/agent-cli#find-the-tests-close-to-their-limit)
+prints under the case. A case whose statements all took under a millisecond
+records none, which is not a time of zero. Selection reads none of it.
+
+Pass `cadence: false` to leave test files as you wrote them and write neither
+the lines nor the times. A Jest journey run leaves test files as they are either way.
 
 ### Record the state each test ran under
 

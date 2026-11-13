@@ -221,6 +221,29 @@ describe('how many rows it lists', () => {
   });
 });
 
+describe('the slowest statement of a listed case', () => {
+  it('is one more line under the case: the file line, its time and its share of the case', () => {
+    const slowest = [
+      { file: 'test/a.test.ts', name: 'waits', duration: 1_400, slowest: { line: 12, time: 1_204 } },
+      { file: 'test/a.test.ts', name: 'uncut', duration: 250 },
+      { file: 'test/b.test.ts', name: 'stopped', duration: 200, slowest: { line: 7, time: 230 } },
+    ];
+
+    const answer = printed([suite(read({ slowest, timed: 3 }))]).split('\n');
+
+    // A case its runner stopped is timed to where its file ended: never more than the whole case.
+    expect(answer.slice(-7)).toEqual([
+      'Slowest recorded test cases, as their runner timed them:',
+      '   1.4 s  test/a.test.ts  waits',
+      '          slowest statement test/a.test.ts:12, 1.2 s, 86% of the case',
+      '  250 ms  test/a.test.ts  uncut',
+      '  200 ms  test/b.test.ts  stopped',
+      '          slowest statement test/b.test.ts:7, 230 ms, 100% of the case',
+      '3 of 3 timed case(s) shown.',
+    ]);
+  });
+});
+
 describe('where it looks', () => {
   it('reads a path or a list of them, and drops a leading `./`', () => {
     expect(scopeOf({})).toEqual({});

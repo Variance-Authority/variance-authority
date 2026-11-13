@@ -141,5 +141,12 @@ refused. `--over 3s` keeps the cases that ran at least that long, in both
 rankings, leaves the files out and counts what ran faster; `500ms` and `1.5s`
 read too.
 
+A listed case that recorded its slowest statement carries one more line:
+`slowest statement <file>:<line>, <time>, <share>% of the case`. The time is
+that statement's on the real clock, summed over a loop's runs, and never a
+hook's. Read that line of the test before the rest of the case. Vitest, Jest
+and Rstest record it unless `cadence: false`; a case without one lists on one
+line, and says nothing about where its time went.
+
 For the time each visual subject takes, ask `variance ask costs`, which needs
 the config.

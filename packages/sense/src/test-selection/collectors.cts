@@ -116,7 +116,7 @@ function attach(holder: Holder, continuations: boolean, story = false): Engine {
     }
     return found;
   }
-  const engine = probeLog.createEngine(continuations, probeCuts.createCuts());
+  const engine = probeLog.createEngine(continuations, probeCuts.cutsIn(holder));
   holder.__VA__ = story ? storyTap.createTap(engine, storyTap.TAPE_LIMIT).root : engine.root;
   return engine;
 }
@@ -211,6 +211,7 @@ function scoped(
 ): Collector {
   const engine = attach(holder, continuations, story !== undefined);
   const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
+  const cuts = probeCuts.cutsIn(holder);
   if (tap !== undefined) storyTap.listen(tap, holder);
   const buckets = new Map<string, Bucket>();
   const late = new Set<string>();
@@ -268,6 +269,8 @@ function scoped(
   );
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
+    // Read before the bucket closes: the case's end is its last statement's.
+    const slowest = cuts.slowest(bucket.cuts);
     const view = engine.close(bucket);
     const settled = stopped.get(bucket.key);
     const journey = journeys.get(bucket.key);
@@ -280,7 +283,8 @@ function scoped(
     // has nothing to write when it entered nothing.
     if (view.rows.length === 0 && settled === undefined && journey === undefined && !spoke) return undefined;
     const settledOwner = settled === undefined ? name : caseOwner.settledCase(name, settled);
-    const owner = journey === undefined ? settledOwner : caseOwner.packJourney(settledOwner, journey);
+    const timedOwner = slowest === undefined ? settledOwner : caseOwner.slowestCase(settledOwner, slowest);
+    const owner = journey === undefined ? timedOwner : caseOwner.packJourney(timedOwner, journey);
     frames.push(journals.encodeLog(heard === undefined ? owner : caseOwner.packHeard(owner, heard), view));
     foldInto(union, view);
     return view;
@@ -388,6 +392,7 @@ function scoped(
     }
     const bucket = bucketFor(key);
     bucket.open = true;
+    cuts.time(bucket.cuts);
     attention?.entered(key);
     const carried = trace;
     const run = carried === undefined

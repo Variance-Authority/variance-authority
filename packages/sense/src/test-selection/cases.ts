@@ -160,7 +160,7 @@ export const AMBIENT = '';
  */
 export const packCase = caseOwner.packCase;
 
-export interface UnpackedCase extends Pick<ExecutionTest, 'limit'> {
+export interface UnpackedCase extends Pick<ExecutionTest, 'limit' | 'slowest'> {
   readonly file: string;
   /** The declaration path the runner reports, or empty for the ambient bucket. */
   readonly name: string;

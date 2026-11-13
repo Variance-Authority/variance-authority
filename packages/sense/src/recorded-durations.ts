@@ -53,6 +53,12 @@ export interface TimedTestCase {
   readonly duration: number;
   /** The milliseconds its runner allowed one attempt; absent where no limit was recorded. */
   readonly limit?: number;
+  /**
+   * The statement of the case that took longest, as its line in `file` and its
+   * whole milliseconds on the real clock; absent where the case was not cut or
+   * no statement took a millisecond.
+   */
+  readonly slowest?: { readonly line: number; readonly time: number };
 }
 
 /** One suite's slowest recorded cases, or why there is no case index to read. */
@@ -214,10 +220,10 @@ function caseDurations(recording: string, limit: number, scope: DurationScope, o
     let untimed = 0;
     let faster = 0;
     const counts = countScope(scopeOfCases(index, scope), scope, index.tests.length, (at) => {
-      const { file, name, duration, limit: allowed } = index.tests[at]!;
+      const { file, name, duration, limit: allowed, slowest } = index.tests[at]!;
       if (duration === undefined) untimed += 1;
       else if (duration < over) faster += 1;
-      else timed.push({ file, name, duration, ...(allowed === undefined ? {} : { limit: allowed }) });
+      else timed.push({ file, name, duration, ...(allowed === undefined ? {} : { limit: allowed }), ...(slowest === undefined ? {} : { slowest }) });
     });
     timed.sort((left, right) =>
       right.duration - left.duration || codeUnitOrder(left.file, right.file) || codeUnitOrder(left.name, right.name));
