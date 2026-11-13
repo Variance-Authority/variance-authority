@@ -27,7 +27,7 @@ export interface CaseSections {
   readonly eyes?: Uint8Array;
   /** `run.base`: the record the run started from (`record-base.ts`), so shards of one build that restored two records refuse to combine. */
   readonly base?: Uint8Array;
-  /** `cases.readings`: the earlier readings of cases run again over the code they read before, as JSON (`case-readings.ts`). */
+  /** `cases.readings`: the earlier readings of cases run again over the code they read before, as bytes (`readings-bytes.ts`). */
   readonly readings?: Uint8Array;
 }
 

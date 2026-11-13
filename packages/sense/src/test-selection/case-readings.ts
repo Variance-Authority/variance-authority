@@ -3,8 +3,8 @@
  * so a reader can set one reading against another (spec 0072 item 2). A rerun
  * keeps the reading it replaces while its test file ran over the same inputs
  * and every module either reading entered stands at the same text; anything
- * that moved drops them, since they read other code. The section is JSON,
- * which selection never decodes.
+ * that moved drops them, since they read other code. The section's bytes are
+ * `readings-bytes.ts`'s, which selection never decodes.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -12,12 +12,11 @@ import { digestString } from '../digest.js';
 import { linesOf, valueAt } from './case-lines.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex } from './execution-set-format.js';
 import type { CoverageModule, CoverageTest, TestCoverage } from './index.js';
+import { decodeCase, decodeReadings, encodeReadings, type ReadRegion, type StoredReading } from './readings-bytes.js';
 
 /** Distinct readings kept per case, newest first. */
 export const READINGS = 16;
 
-/** One region a reading crossed: its module, its declaration's name and the path in it, its lines, and the value cadence charged it; null where no line was recorded. */
-export type ReadRegion = readonly [module: string, name: string, path: string, startLine: number, endLine: number, value: number | null];
 
 /**
  * One recorded run of one case, and how many runs read it so: an equal reading
@@ -32,35 +31,6 @@ export interface Reading {
   readonly regions: readonly ReadRegion[];
 }
 
-/**
- * A reading as stored. The newest holds no regions where the landed index
- * holds the case as it ran; an earlier one holds what it read otherwise than
- * the newest: the newest's regions it did not cross by position (`gone`), the
- * values it charged them otherwise (`values`), and the regions only it crossed,
- * each at its position among its own (`added`).
- */
-interface StoredReading {
-  readonly count: number;
-  readonly stopped?: boolean;
-  readonly regions?: readonly ReadRegion[];
-  readonly gone?: readonly number[];
-  readonly values?: readonly (readonly [at: number, value: number | null])[];
-  readonly added?: readonly (readonly [at: number, region: ReadRegion])[];
-}
-
-/**
- * The section: each case's readings by id, and what each test file ran over
- * when its cases were last read. A case is held once it keeps more than one
- * run the landed index does not say: an earlier reading, or the count of the
- * runs read alike. A file the run did not finish is laid over its earlier
- * crossings (`case-layer.ts`), and a cut index holds less, so the newest
- * reading of either keeps its regions.
- */
-interface Section {
-  readonly cases?: Readonly<Record<string, readonly StoredReading[]>>;
-  /** By test file, the digest {@link inputsOf} names: a region a module crossed only while it evaluated is no case's, so the regions alone do not say what a file loaded. */
-  readonly inputs?: Readonly<Record<string, string>>;
-}
 
 /** What a case's reading is, read off an index. */
 interface Read {
@@ -115,7 +85,7 @@ export function layReadings(
   run?: ReadingsRun,
 ): Buffer | undefined {
   const before = previous === undefined ? undefined : openSetExecutionIndex(previous);
-  const { cases: stored, inputs: held } = parsed(kept);
+  const { cases: stored, inputs: held } = decodeReadings(kept);
   const fresh = run === undefined ? undefined : openSetExecutionIndex(run.fresh);
   if (run !== undefined && fresh === undefined) throw new Error('a case fold wrote an index it cannot open');
   const recorded = fresh?.modules.map((module) => module.file) ?? [];
@@ -124,8 +94,8 @@ export function layReadings(
   const earlier = before === undefined ? new Map<string, Read>() : readsOf(before, new Set([...ran, ...stored.keys()]));
   const holding = new Map<string, Reading[]>();
   for (const [id, readings] of stored) {
-    const read = expanded(readings, earlier.get(id)?.regions);
-    if (read !== undefined) holding.set(id, read);
+    const read = expanded(decodeCase(readings), earlier.get(id)?.regions);
+    if (read !== undefined && read.length > 0) holding.set(id, read);
   }
   const now = fresh === undefined ? new Map<string, Read>() : readsOf(fresh, ran);
   const opened = landed === undefined ? undefined : openSetExecutionIndex(landed);
@@ -163,15 +133,21 @@ export function layReadings(
   const read = new Set([...now.values()].map((reading) => reading.file));
   const inputs = new Map([...held, ...[...run?.inputs ?? []].filter(([file]) => read.has(file))].filter(([file]) => files.has(file)));
   if (laid.size === 0 && inputs.size === 0) return undefined;
-  const ids = [...laid.keys()].sort(codeUnitOrder);
-  const section: Section = {
-    ...(laid.size === 0 ? {} : { cases: Object.fromEntries(ids.map((id) => [id, packed(laid.get(id)!, there.get(id))])) }),
-    ...(inputs.size === 0 ? {} : { inputs: Object.fromEntries([...inputs].sort(([left], [right]) => codeUnitOrder(left, right))) }),
-  };
-  return Buffer.from(JSON.stringify(section), 'utf8');
+  // The newest keeps its regions where its file did not finish, laid over
+  // earlier crossings (`case-layer.ts`), or the index is cut.
+  return encodeReadings(
+    [...laid.keys()].sort(codeUnitOrder).map((id) => [id, packed(laid.get(id)!, there.get(id))]),
+    [...inputs].sort(([left], [right]) => codeUnitOrder(left, right)),
+  );
 }
 
-/** A case's readings as stored: the newest without its regions where the landed index holds them as they ran, each earlier one as what it read otherwise. */
+/**
+ * A case's readings as stored: the newest without its regions where the
+ * landed index holds them as they ran; each earlier one as what it read
+ * otherwise than the newest: the newest's regions it did not cross by position
+ * (`gone`), the values it charged them otherwise (`values`), and the regions
+ * only it crossed, each at its position among its own (`added`).
+ */
 function packed(readings: readonly Reading[], there: Read | undefined): StoredReading[] {
   const [newest, ...rest] = readings;
   const base = newest!.regions;
@@ -220,7 +196,7 @@ function expanded(stored: readonly StoredReading[], base: readonly ReadRegion[] 
 
 /** What each test file ran over when its cases were last read, as `section` names it; absent when it names none. */
 export function inputsIn(section: Uint8Array | undefined): ReadonlyMap<string, string> | undefined {
-  const { inputs } = parsed(section);
+  const { inputs } = decodeReadings(section);
   return inputs.size === 0 ? undefined : inputs;
 }
 
@@ -230,8 +206,9 @@ export function inputsIn(section: Uint8Array | undefined): ReadonlyMap<string, s
  */
 export function readingsOf(section: Uint8Array | undefined, index: Uint8Array | undefined, id: string): readonly Reading[] | undefined {
   const opened = index === undefined ? undefined : openSetExecutionIndex(index);
-  const stored = parsed(section).cases.get(id);
-  if (stored === undefined) return undefined;
+  const bytes = decodeReadings(section).cases.get(id);
+  const stored = bytes === undefined ? [] : decodeCase(bytes);
+  if (stored.length === 0) return undefined;
   const newest = opened === undefined || stored[0]?.regions !== undefined ? undefined : readsOf(opened, new Set([id])).get(id)?.regions;
   return expanded(stored, newest ?? []);
 }
@@ -272,18 +249,4 @@ function readsOf(index: OpenedSetExecutionIndex, wanted: ReadonlySet<string>): M
     }
   }
   return byId;
-}
-
-/** The section's readings by case, and its inputs by test file; a section `layReadings` did not write is refused. */
-function parsed(section: Uint8Array | undefined): { readonly cases: Map<string, readonly StoredReading[]>; readonly inputs: Map<string, string> } {
-  if (section === undefined) return { cases: new Map(), inputs: new Map() };
-  let value: unknown;
-  try {
-    value = JSON.parse(Buffer.from(section).toString('utf8'));
-  } catch (error) {
-    throw new Error('the record\'s readings section is not JSON', { cause: error });
-  }
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) throw new Error('the record\'s readings section is not an object');
-  const { cases, inputs } = value as Section;
-  return { cases: new Map(Object.entries(cases ?? {})), inputs: new Map(Object.entries(inputs ?? {})) };
 }

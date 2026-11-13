@@ -14,6 +14,7 @@ import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { combineRecords, readTestCoverage, sourceCut, writeTestCoverage } from './index.js';
 import { notingRead } from './record-base.js';
 import { timesFrom } from './selection-environment.js';
+import { sectionOf, shapeOf } from './__fixtures__/readings.js';
 
 const source = 'export function greet() { return "hello"; }\n';
 const durations: Readonly<Record<string, number>> = { 'a.test.ts': 120, 'b.test.ts': 340 };
@@ -159,12 +160,12 @@ describe('combineRecords against the TypeScript writers', () => {
     const kept = (file: string) => ({ cases: { [`${file} > greets`]: [{ count: 1, stopped: false }, { count: 2, stopped: true, gone: [0] }] } });
     for (const [shard, file] of [[shards[0]!, 'a.test.ts'], [shards[1]!, 'b.test.ts']] as const) {
       const bytes = await readFile(shard);
-      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: Buffer.from(JSON.stringify(kept(file))) }));
+      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: sectionOf(kept(file)) }));
     }
     const into = join(root, 'combined.bin');
     combineRecords(shards, into, root);
 
-    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: { ...kept('a.test.ts').cases, ...kept('b.test.ts').cases } });
+    expect(shapeOf(caseSectionsOf(await readFile(into)).readings!)).toEqual({ cases: { ...kept('a.test.ts').cases, ...kept('b.test.ts').cases } });
   });
 
   it('takes a case its readings and its file its inputs from the shard that ran it, over what another carried from its seed', async () => {
@@ -173,12 +174,12 @@ describe('combineRecords against the TypeScript writers', () => {
     const carried = { cases: { 'a.test.ts > greets': [{ count: 1, stopped: false }] }, inputs: { 'a.test.ts': 'one', 'b.test.ts': 'one' } };
     for (const [shard, section] of [[shards[0]!, ran], [shards[1]!, carried]] as const) {
       const bytes = await readFile(shard);
-      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: Buffer.from(JSON.stringify(section)) }));
+      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: sectionOf(section) }));
     }
     const into = join(root, 'combined.bin');
     combineRecords(shards, into, root);
 
-    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: ran.cases, inputs: { 'a.test.ts': 'two', 'b.test.ts': 'one' } });
+    expect(shapeOf(caseSectionsOf(await readFile(into)).readings!)).toEqual({ cases: ran.cases, inputs: { 'a.test.ts': 'two', 'b.test.ts': 'one' } });
   });
 
   // Each shard restores the cached record and runs over it; a shard's record

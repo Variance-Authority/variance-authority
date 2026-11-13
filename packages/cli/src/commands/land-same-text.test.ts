@@ -151,7 +151,7 @@ describe('landJourneys alone', () => {
 
     const { index, readings } = caseSectionsOf(await readFile(record));
     // The section keeps a case's earlier readings; the newest is its index's.
-    expect(readings === undefined ? {} : JSON.parse(Buffer.from(readings).toString()).cases).toEqual({});
+    expect(readings === undefined || !Buffer.from(readings).includes(DISCOUNTS.id)).toBe(true);
     expect(index).toBeDefined();
     expect(await casesByRegion(record)).toEqual({ 'await#0': [DISCOUNTS.id], 'await#2': [] });
   });

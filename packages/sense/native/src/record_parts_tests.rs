@@ -166,20 +166,39 @@ fn a_last_run_at_no_commit_takes_the_commit_the_others_name() {
     }
 }
 
+/// A readings section as `readings-bytes.ts` writes it; a case's bytes are opaque to the fold, so any distinct text stands for them.
+fn section(cases: &[(&str, &str)], inputs: &[(&str, &str)]) -> Vec<u8> {
+    let mut out = Vec::new();
+    let mut last = Vec::new();
+    put(&mut out, cases.len() as u64);
+    for (id, own) in cases {
+        put_fronted(&mut out, &mut last, id);
+        put(&mut out, own.len() as u64);
+        out.extend_from_slice(own.as_bytes());
+    }
+    let mut last = Vec::new();
+    put(&mut out, inputs.len() as u64);
+    for (file, digest) in inputs {
+        put_fronted(&mut out, &mut last, file);
+        put_digest(&mut out, digest);
+    }
+    out
+}
+
 #[test]
 fn folds_readings_under_each_case_combined_id() {
-    let one = br#"{"cases":{"b":[{"count":1,"stopped":false},{"count":2,"stopped":true}]}}"#.to_vec();
-    let two = br#"{"cases":{"a":[{"count":1}]}}"#.to_vec();
+    let one = section(&[("b", "two readings")], &[]);
+    let two = section(&[("a", "one reading")], &[]);
     let renamed: HashMap<String, String> = [("b".to_owned(), "c".to_owned())].into();
     let folded = fold_readings(&[("one", &one, &renamed), ("two", &two, &none())], &cases(&["a", "c"]), &HashMap::new()).unwrap();
 
-    assert_eq!(String::from_utf8(folded).unwrap(), r#"{"cases":{"a":[{"count":1}],"c":[{"count":1,"stopped":false},{"count":2,"stopped":true}]}}"#);
+    assert_eq!(folded, section(&[("a", "one reading"), ("c", "two readings")], &[]));
 }
 
 #[test]
 fn refuses_two_shards_reading_one_case_otherwise() {
-    let one = br#"{"cases":{"a":[{"count":1}]}}"#.to_vec();
-    let two = br#"{"cases":{"a":[{"count":2}]}}"#.to_vec();
+    let one = section(&[("a", "first")], &[]);
+    let two = section(&[("a", "second")], &[]);
     let message = fold_readings(&[("two", &two, &none()), ("one", &one, &none())], &cases(&["a"]), &HashMap::new()).err().unwrap();
 
     assert_eq!(message, "one and two hold different readings of `a`, so they are not shards of one run and cannot be folded into one.");
@@ -187,25 +206,57 @@ fn refuses_two_shards_reading_one_case_otherwise() {
 
 #[test]
 fn refuses_readings_of_a_case_the_index_does_not_record() {
-    let one = br#"{"cases":{"a":[{"count":1}]}}"#.to_vec();
+    let one = section(&[("a", "first")], &[]);
     let message = fold_readings(&[("one", &one, &none())], &cases(&["b"]), &HashMap::new()).err().unwrap();
 
     assert_eq!(message, "one: its readings section holds readings of `a`, a case the combined index does not record");
 }
 
 #[test]
+fn refuses_a_readings_section_of_bytes_cut_short() {
+    let one = section(&[("a", "first")], &[("a.test.ts", "1")]);
+    let cut = &one[..one.len() - 1];
+
+    assert!(fold_readings(&[("one", cut, &none())], &cases(&["a"]), &HashMap::new()).is_err());
+}
+
+#[test]
+fn reads_a_readings_section_an_earlier_build_wrote_as_json_as_none() {
+    let json = br#"{"cases":{"a":[{"count":1}]}}"#.to_vec();
+    let two = section(&[("b", "second")], &[]);
+    let folded = fold_readings(&[("one", &json, &none()), ("two", &two, &none())], &cases(&["a", "b"]), &HashMap::new()).unwrap();
+
+    assert_eq!(folded, section(&[("b", "second")], &[]));
+}
+
+#[test]
 fn folds_what_each_test_file_ran_over_beside_the_readings() {
-    let one = br#"{"cases":{"a":[{"count":2}]},"inputs":{"b.test.ts":"2","a.test.ts":"1"}}"#.to_vec();
-    let two = br#"{"inputs":{"c.test.ts":"3","a.test.ts":"1"}}"#.to_vec();
+    let one = section(&[("a", "first")], &[("b.test.ts", "2"), ("a.test.ts", "1")]);
+    let two = section(&[], &[("c.test.ts", "3"), ("a.test.ts", "1")]);
     let folded = fold_readings(&[("one", &one, &none()), ("two", &two, &none())], &cases(&["a"]), &HashMap::new()).unwrap();
 
-    assert_eq!(String::from_utf8(folded).unwrap(), r#"{"cases":{"a":[{"count":2}]},"inputs":{"a.test.ts":"1","b.test.ts":"2","c.test.ts":"3"}}"#);
+    assert_eq!(folded, section(&[("a", "first")], &[("a.test.ts", "1"), ("b.test.ts", "2"), ("c.test.ts", "3")]));
+}
+
+#[test]
+fn writes_each_path_after_what_it_shares_and_a_digest_as_its_bytes() {
+    let one = section(&[], &[("src/a.test.ts", "v1:00ff"), ("src/b.test.ts", "sha:x")]);
+    let folded = fold_readings(&[("one", &one, &none())], &cases(&[]), &HashMap::new()).unwrap();
+
+    let mut expected = vec![0, 2, 0, 13];
+    expected.extend_from_slice(b"src/a.test.ts");
+    expected.extend_from_slice(&[2, 0x00, 0xff, 4, 9]);
+    expected.extend_from_slice(b"b.test.ts");
+    expected.extend_from_slice(&[0, 5]);
+    expected.extend_from_slice(b"sha:x");
+    assert_eq!(folded, expected);
+    assert_eq!(read_readings(&folded).unwrap().inputs, [("src/a.test.ts".to_owned(), "v1:00ff".to_owned()), ("src/b.test.ts".to_owned(), "sha:x".to_owned())]);
 }
 
 #[test]
 fn refuses_two_shards_naming_one_test_file_otherwise() {
-    let one = br#"{"inputs":{"a.test.ts":"1"}}"#.to_vec();
-    let two = br#"{"inputs":{"a.test.ts":"2"}}"#.to_vec();
+    let one = section(&[], &[("a.test.ts", "1")]);
+    let two = section(&[], &[("a.test.ts", "2")]);
     let message = fold_readings(&[("two", &two, &none()), ("one", &one, &none())], &cases(&[]), &HashMap::new()).err().unwrap();
 
     assert_eq!(message, "one and two name different inputs of `a.test.ts`, so they are not shards of one run and cannot be folded into one.");
@@ -213,18 +264,18 @@ fn refuses_two_shards_naming_one_test_file_otherwise() {
 
 #[test]
 fn takes_what_the_shard_that_ran_a_file_read_over_what_another_carried_from_its_seed() {
-    let ran = br#"{"cases":{"a":[{"count":1,"stopped":true},{"count":1}]},"inputs":{"a.test.ts":"2"}}"#.to_vec();
-    let carried = br#"{"cases":{"a":[{"count":1}]},"inputs":{"a.test.ts":"1"}}"#.to_vec();
+    let ran = section(&[("a", "ran")], &[("a.test.ts", "2")]);
+    let carried = section(&[("a", "carried")], &[("a.test.ts", "1")]);
     let who: HashMap<String, Ran> = [("one".to_owned(), Ran { cases: cases(&["a"]), files: cases(&["a.test.ts"]) })].into();
     let folded = fold_readings(&[("two", &carried, &none()), ("one", &ran, &none())], &cases(&["a"]), &who).unwrap();
 
-    assert_eq!(String::from_utf8(folded).unwrap(), r#"{"cases":{"a":[{"count":1,"stopped":true},{"count":1}]},"inputs":{"a.test.ts":"2"}}"#);
+    assert_eq!(folded, section(&[("a", "ran")], &[("a.test.ts", "2")]));
 }
 
 #[test]
 fn refuses_two_shards_that_ran_one_file_naming_it_otherwise() {
-    let one = br#"{"inputs":{"a.test.ts":"1"}}"#.to_vec();
-    let two = br#"{"inputs":{"a.test.ts":"2"}}"#.to_vec();
+    let one = section(&[], &[("a.test.ts", "1")]);
+    let two = section(&[], &[("a.test.ts", "2")]);
     let both = Ran { cases: cases(&[]), files: cases(&["a.test.ts"]) };
     let who: HashMap<String, Ran> = [("one".to_owned(), both.clone()), ("two".to_owned(), both)].into();
     let message = fold_readings(&[("two", &two, &none()), ("one", &one, &none())], &cases(&[]), &who).err().unwrap();
@@ -234,10 +285,10 @@ fn refuses_two_shards_that_ran_one_file_naming_it_otherwise() {
 
 #[test]
 fn drops_what_a_shard_carried_of_a_case_or_file_another_shard_ran_and_kept_nothing_of() {
-    let ran = br#"{}"#.to_vec();
-    let carried = br#"{"cases":{"a":[{"count":1}]},"inputs":{"a.test.ts":"1","b.test.ts":"1"}}"#.to_vec();
+    let ran = section(&[], &[]);
+    let carried = section(&[("a", "carried")], &[("a.test.ts", "1"), ("b.test.ts", "1")]);
     let who: HashMap<String, Ran> = [("one".to_owned(), Ran { cases: cases(&["a"]), files: cases(&["a.test.ts"]) })].into();
     let folded = fold_readings(&[("two", &carried, &none()), ("one", &ran, &none())], &cases(&["a"]), &who).unwrap();
 
-    assert_eq!(String::from_utf8(folded).unwrap(), r#"{"inputs":{"b.test.ts":"1"}}"#);
+    assert_eq!(folded, section(&[], &[("b.test.ts", "1")]));
 }
