@@ -144,7 +144,7 @@ export function recordedDurations(
 }
 
 /** The commit the record at `recording` names, and when its latest run landed if the runs beside it stand at that commit. */
-function takenAt(recording: string, commit: string | undefined): { readonly commit?: string; readonly landed?: string } {
+export function takenAt(recording: string, commit: string | undefined): { readonly commit?: string; readonly landed?: string } {
   return { ...(commit === undefined ? {} : { commit }), ...landedAt(commitRunsFile(recording), commit) };
 }
 

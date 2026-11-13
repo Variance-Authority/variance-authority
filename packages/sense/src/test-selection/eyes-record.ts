@@ -138,12 +138,24 @@ export interface ObservedEyes {
 }
 
 function ordered(rows: readonly RecordedEyes[]): readonly RecordedEyes[] {
-  const byKey = new Map<string, { row: RecordedEyes; text: string }>();
+  return orderedByAttempt(rows, (row) => JSON.stringify(row.journal));
+}
+
+/**
+ * Rows of cases' attempts in the order a section keeps them: by case, then by
+ * attempt. Two shards that ran one case hand one attempt twice; the row whose
+ * `text` sorts first is kept, so the section does not depend on the shards' order.
+ */
+export function orderedByAttempt<Row extends { readonly case: string; readonly attempt: number }>(
+  rows: readonly Row[],
+  text: (row: Row) => string,
+): readonly Row[] {
+  const byKey = new Map<string, { row: Row; text: string }>();
   for (const row of rows) {
     const key = `${row.case}\0${row.attempt}`;
-    const text = JSON.stringify(row.journal);
+    const own = text(row);
     const held = byKey.get(key);
-    if (held === undefined || codeUnitOrder(text, held.text) < 0) byKey.set(key, { row, text });
+    if (held === undefined || codeUnitOrder(own, held.text) < 0) byKey.set(key, { row, text: own });
   }
   return [...byKey.values()]
     .map(({ row }) => row)

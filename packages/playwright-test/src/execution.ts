@@ -30,6 +30,7 @@ import {
   stagingDirectory,
   type CasePrecondition,
   type EvaluatingPage,
+  type ObservedAttempt,
   type ObservedCase,
   type ObservedEyes,
   type ObservedSubject,
@@ -123,6 +124,8 @@ export interface ExecutionRecorder {
    * the id the index gives the case; see `case-scope.ts`.
    */
   readonly eyes: (owner: string, subject: ObservedTest, attempt: number, journal?: Readonly<Record<string, unknown>>) => void;
+  /** Keep how one attempt of a case ended, as the runner said it when the attempt's fixtures tore down. */
+  readonly ended: (owner: string, subject: ObservedTest, attempt: ObservedAttempt) => void;
   /** What the case has said so far, or nothing where no listener runs; see `arranged.ts`. */
   readonly arranged: (owner: string, subject: ObservedTest) => readonly CasePrecondition[] | undefined;
   /** The checkout every path this recorder writes is named against. */
@@ -178,6 +181,8 @@ export function createExecutionRecorder(
   const limits = new Map<string, number>();
   // Each case's Eyes journals, one per attempt that handed one over.
   const looked = new Map<string, ObservedEyes[]>();
+  // How each attempt of each case ended, one per attempt this worker ran.
+  const tried = new Map<string, ObservedAttempt[]>();
   const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
   // The medium is opened on the first execution that could use it, and only when
   // a head was named: a suite with one realm has nothing to reach it from
@@ -206,6 +211,11 @@ export function createExecutionRecorder(
       caseOf(owner, subject);
       const key = caseKey(owner, subject.id);
       looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
+    },
+    ended: (owner, subject, attempt) => {
+      caseOf(owner, subject);
+      const key = caseKey(owner, subject.id);
+      tried.set(key, [...(tried.get(key) ?? []), attempt]);
     },
     note: async (page, owner, subject, line, hook) => {
       const journal = await quietly(page, () => drainExecution(page));
@@ -318,6 +328,7 @@ export function createExecutionRecorder(
       const duration = spent.get(key);
       const limit = limits.get(key);
       const eyes = looked.get(key);
+      const attempts = tried.get(key);
       const listened = listener === undefined ? undefined : (heard.get(key) ?? listener.nothing);
       const said = listened !== undefined && unheard.has(key) ? withoutEmptyReads(listened) : listened;
       const lines = reached.of(key);
@@ -328,6 +339,7 @@ export function createExecutionRecorder(
         ...(duration === undefined ? {} : { duration }),
         ...(limit === undefined ? {} : { limit }),
         ...(eyes === undefined ? {} : { eyes }),
+        ...(attempts === undefined ? {} : { attempts }),
         ...(lines === undefined ? {} : { lines }),
         journal: journalOf(held.hits),
       };

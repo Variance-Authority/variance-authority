@@ -44,7 +44,7 @@ afterEach(async () => {
  * The cases of `overwritten` ran `greet` in a text an edit wrote over, as a
  * layering cut to the edited text keeps them (`landedThrough`).
  */
-async function recordOf(name: string, files: readonly string[], overwritten: readonly string[] = []): Promise<string> {
+async function recordOf(name: string, files: readonly string[], overwritten: readonly string[] = [], retried: readonly string[] | undefined = undefined): Promise<string> {
   const tests = files.map((file) => ({ id: `${file} > greets`, file, name: 'greets', stopped: false }));
   const blocks = [
     { ordinal: 0, kind: 'module' as const, digest: 'module', name: '', path: '', startLine: 1, endLine: 1, source: true, testFiles: [], loadedBy: [...files] },
@@ -63,7 +63,12 @@ async function recordOf(name: string, files: readonly string[], overwritten: rea
     watched: tests.map((test) => test.id),
     journals: tests.map((test) => ({ case: test.id, attempt: 1, journal: { shots: [`${test.file}.png`], closed: true } })),
   };
-  const run = { commit: 'c0ffee', tests: files.map((file) => ({ file, complete: true })), modules };
+  // A shard whose runner retried `greets` of a file kept both of its attempts.
+  const attempts = retried?.filter((file) => files.includes(file)).flatMap((file) => [
+    { case: `${file} > greets`, attempt: 1, ended: 'failed', duration: 2, message: 'expected hello', frame: `${file}:1` },
+    { case: `${file} > greets`, attempt: 2, ended: 'passed', duration: 1 },
+  ]);
+  const run = { commit: 'c0ffee', tests: files.map((file) => ({ file, complete: true })), modules, ...(attempts === undefined ? {} : { attempts }) };
   const cases = layCases({}, fresh, root, run, eyes);
   const path = join(root, name);
   await writeTestCoverage(path, {
@@ -78,7 +83,7 @@ async function recordOf(name: string, files: readonly string[], overwritten: rea
 function readable(record: Buffer): Record<string, string> {
   return Object.fromEntries(Object.entries(caseSectionsOf(record)).map(([part, bytes]) => {
     const held = Buffer.from(bytes!);
-    return [part, part === 'last' || part === 'eyes' ? held.toString() : held.toString('hex')];
+    return [part, part === 'last' || part === 'eyes' || part === 'attempts' ? held.toString() : held.toString('hex')];
   }));
 }
 
@@ -96,6 +101,35 @@ describe('combineRecords against the TypeScript writers', () => {
       expect(readable(combined)).toEqual(readable(whole));
       expect(Buffer.compare(combined, whole)).toBe(0);
     }
+  });
+
+  it('folds how the attempts of a retried case ended into the bytes the unsharded run writes', async () => {
+    const retried = ['b.test.ts'];
+    const whole = await readFile(await recordOf('whole.bin', ['a.test.ts', 'b.test.ts'], [], retried));
+    const shards = [await recordOf('a.bin', ['a.test.ts'], [], retried), await recordOf('b.bin', ['b.test.ts'], [], retried)];
+    expect(readable(whole)['attempts']).toContain('"ended":"failed"');
+
+    for (const named of [shards, [...shards].reverse()]) {
+      const into = join(root, `attempts-${named[0]!.endsWith('a.bin') ? 'ab' : 'ba'}.bin`);
+      combineRecords(named, into, root);
+      const combined = await readFile(into);
+      expect(readable(combined)).toEqual(readable(whole));
+      expect(Buffer.compare(combined, whole)).toBe(0);
+    }
+  });
+
+  it('says attempts were not kept when one shard of the run kept none, rather than that its cases ran once', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'], [], ['b.test.ts'])];
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    expect(caseSectionsOf(await readFile(into)).attempts).toBeUndefined();
+  });
+
+  it('keeps the attempts of a run one of whose shards ran no case, and so had none to keep', async () => {
+    const shards = [await recordOf('idle.bin', []), await recordOf('b.bin', ['b.test.ts'], [], ['b.test.ts'])];
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    expect(readable(await readFile(into))['attempts']).toContain('"ended":"failed"');
   });
 
   it('carries a case a shard ran over another text of a region as overwritten, never as absent', async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { encodeRecordedAttempts, readableAttempts } from './attempts-record.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
 import { collectedRecord } from './collected-record.js';
 import { CrossingSets } from './crossing-sets.js';
@@ -73,6 +74,16 @@ describe('collectedRecord', () => {
     const sections = caseSectionsOf(collected);
     expect(decodeExecutionIndex(sections.index!).tests.map((test) => test.id)).toEqual([`${KEPT} > counts`]);
     expect(readableEyes(sections.eyes)?.journals.map((row) => row.case)).toEqual([`${KEPT} > counts`]);
+  });
+
+  it('retires the attempts of a case it retires and keeps the others, and leaves a record that kept none without any', () => {
+    const tried = (id: string) => [{ case: id, attempt: 1, ended: 'failed' }, { case: id, attempt: 2, ended: 'passed' }];
+    const attempts = encodeRecordedAttempts([...tried(`${FOREIGN} > opens`), ...tried(`${KEPT} > counts`)]);
+    const kept = collectedRecord(withCaseSections(encodeTestCoverage(coverage), { index: cases(), attempts }), new Set([KEPT]));
+    const none = collectedRecord(withCaseSections(encodeTestCoverage(coverage), { index: cases() }), new Set([KEPT]));
+
+    expect(readableAttempts(caseSectionsOf(kept.record).attempts)).toEqual(tried(`${KEPT} > counts`));
+    expect(caseSectionsOf(none.record).attempts).toBeUndefined();
   });
 
   it('refuses a list that names none of the test files the record holds, rather than emptying it', () => {
