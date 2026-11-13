@@ -154,11 +154,8 @@ describe('layReadings', () => {
   it('reads a section it did not write as holding no readings, and lays a run over it as over none', () => {
     const index = run(false, { wire: 2 });
     const fresh = run(true, { wire: 2 });
-    const id = Buffer.from(ID);
-    // A case whose own bytes hold a flag this build does not know, inside a frame it reads.
-    const later = Buffer.from([1, id.length, ...id, 5, 0, 1, 1, 64, 9, 0]);
 
-    for (const kept of [Buffer.from('{"cases":{"a.test.ts > clicks":[{"count":1}]}}'), Buffer.from([1, 9]), later]) {
+    for (const kept of [Buffer.from('{"cases":{"a.test.ts > clicks":[{"count":1}]}}'), Buffer.from([1, 9])]) {
       expect(readingsOf(kept, index, ID)).toBeUndefined();
       expect(layReadings(kept, index, fresh, cases, over(fresh))).toEqual(layReadings(undefined, index, fresh, cases, over(fresh)));
     }

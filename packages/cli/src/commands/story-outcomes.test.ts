@@ -11,7 +11,6 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-/** A checkout whose one record keeps, of the case `clicks` in each of `files`, a reading for each outcome in `stopped`, undefined where the run could not say how it ended. */
 /**
  * A readings section, as `readings-bytes.ts` in the sense package lays it out,
  * keeping of each case one run per entry of `stopped`, each crossing nothing;
@@ -23,6 +22,7 @@ function readingsOf(ids: readonly string[], stopped: readonly (boolean | undefin
   return Buffer.from([ids.length, ...ids.flatMap((id) => [0, ...text(id), own.length, ...own]), 0]);
 }
 
+/** A checkout whose one record keeps, of the case `clicks` in each of `files`, a reading for each outcome in `stopped`, undefined where the run could not say how it ended. */
 async function checkout(files: readonly string[], stopped: readonly (boolean | undefined)[]): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'variance-authority-outcomes-'));
   roots.push(root);

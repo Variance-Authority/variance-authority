@@ -12,13 +12,12 @@ import { digestString } from '../digest.js';
 import { linesOf, valueAt } from './case-lines.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex } from './execution-set-format.js';
 import type { CoverageModule, CoverageTest, TestCoverage } from './index.js';
-import { decodeCase, decodeReadings, encodeReadings, type StoredReading } from './readings-bytes.js';
+import { decodeCase, decodeReadings, encodeReadings, type ReadRegion, type StoredReading } from './readings-bytes.js';
 
 /** Distinct readings kept per case, newest first. */
 export const READINGS = 16;
 
-/** One region a reading crossed: its module, its declaration's name and the path in it, its lines, and the value cadence charged it; null where no line was recorded. */
-export type ReadRegion = readonly [module: string, name: string, path: string, startLine: number, endLine: number, value: number | null];
+export type { ReadRegion } from './readings-bytes.js';
 
 /**
  * One recorded run of one case, and how many runs read it so: an equal reading

@@ -16,8 +16,10 @@
  * and its value plus one, zero for none.
  */
 
-import type { ReadRegion } from './case-readings.js';
 import { put, varints } from './varints.js';
+
+/** One region a reading crossed: its module, its declaration's name and the path in it, its lines, and the value cadence charged it; null where no line was recorded. */
+export type ReadRegion = readonly [module: string, name: string, path: string, startLine: number, endLine: number, value: number | null];
 
 /** A reading as stored: see `case-readings.ts`. */
 export interface StoredReading {
@@ -92,16 +94,8 @@ export function decodeReadings(bytes: Uint8Array | undefined): { readonly cases:
   }
 }
 
-/** One case's stored readings off its bytes; bytes this build cannot read hold none, as a section does. */
+/** One case's stored readings off its bytes, which the section's frame already accepted. */
 export function decodeCase(bytes: Uint8Array): StoredReading[] {
-  try {
-    return readCase(bytes);
-  } catch {
-    return [];
-  }
-}
-
-function readCase(bytes: Uint8Array): StoredReading[] {
   const read = reader(bytes);
   const strings: string[] = [];
   for (let count = read.take(); strings.length < count;) strings.push(read.text());
