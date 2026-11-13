@@ -83,6 +83,7 @@
  */
 
 import probeLog = require('./probe-log.cjs');
+import storyParts = require('./story-parts.cjs');
 import type { ModuleId } from './index.js';
 
 type Engine = ReturnType<typeof probeLog.createEngine>;
@@ -151,14 +152,6 @@ const NOTE_LIMIT = 4096;
 const NOTE_LENGTH = 240;
 
 /**
- * How many visits, and notes of each kind, one execution's part of a live tape
- * keeps: told, it fits the 1 MiB a watcher keeps of an execution, and one
- * chatty execution, or the process's own work, never silences another.
- */
-const PART_LIMIT = 1 << 16;
-const PART_NOTES = 1024;
-
-/**
  * A root in front of `engine` that tapes every visit.
  *
  * @param limit How many visits the tape keeps between resets. Past it the tape
@@ -167,8 +160,8 @@ const PART_NOTES = 1024;
  * functions were handed and nothing a module keeps, and it keeps each bucket's
  * part apart, to be {@link Tap.take | taken} when the bucket's journey is
  * told: a head that serves for weeks, never idle, holds what is open and
- * nothing it already told. Its limits then bound each part, `limit` its visits
- * and {@link PART_NOTES} each kind of its notes, not uptime.
+ * nothing it already told: see [`story-parts.cts`](story-parts.cts). Its limits
+ * then bound each part, `limit` its visits, not uptime.
  */
 function createTap(engine: Engine, limit: number, live = false): Tap {
   const inner = engine.root;
@@ -205,29 +198,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
 
-  // A live tap's parts, by bucket. One left for another bucket's work and
-  // resumed says so with an empty segment of nobody's, so its story counts
-  // the interleaving as a whole tape's would. The idle bucket keeps nothing.
-  type Part = { tape: number[]; at: number[]; keys: string[]; visits: number; notes: [number, string, string][]; unnoted: number; spoken: number; handed: number; left: boolean };
-  const parts = new Map<string, Part>();
-  // The part the realm writes to now, and the last one it wrote to that was not idle.
-  let part: Part | undefined;
-  let last: Part | undefined;
-  let open = 0;
-  const partOf = (key: string): Part | undefined => {
-    if (key === '') return undefined;
-    let found = parts.get(key);
-    if (found === undefined) {
-      found = { tape: [], at: [], keys: [], visits: 0, notes: [], unnoted: 0, spoken: 0, handed: 0, left: false };
-      parts.set(key, found);
-    }
-    return found;
-  };
-  // Where the realm is now, and the part it writes to, after the scope has said.
-  const here = (): Part | undefined => {
-    inner.s?.();
-    return live ? partOf(engine.current().key) : undefined;
-  };
+  const parts = storyParts.createParts(engine, limit);
 
   // Every object a region handed over, by identity, for as long as the realm
   // holds it: refs outlive a reset, so a module's bindings, held once when it
@@ -301,9 +272,11 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     const line = text.length > NOTE_LENGTH ? `${text.slice(0, NOTE_LENGTH - 1)}…` : text;
     // Where an async scope decides the bucket, ask it, as a probe would
     // before it writes: a note said in a case's continuation is the case's.
-    const into = here();
-    if (live) into?.notes.push([into.tape.length, engine.current().key, line]);
-    else notes.push([taped, engine.current().key, line]);
+    if (live) parts.note(line);
+    else {
+      inner.s?.();
+      notes.push([taped, engine.current().key, line]);
+    }
     return line;
   };
 
@@ -311,18 +284,17 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   const handing =
     (module: ModuleId) =>
     (region: number, names: string, ...values: unknown[]): void => {
-      const into = live ? here() : undefined;
-      if (live && (region === 0 || into === undefined)) return;
       // Past the limit nothing is read: a hot function pays for a count.
-      if (into === undefined ? handedOver >= NOTE_LIMIT : into.handed >= PART_NOTES) {
-        if (into === undefined) unnoted += 1;
-        else into.unnoted += 1;
+      if (live) {
+        const into = parts.here();
+        if (region === 0 || into === undefined || !parts.room(into, 'handed')) return;
+      } else if (handedOver >= NOTE_LIMIT) {
+        unnoted += 1;
         return;
       }
       try {
         const said = names.split(',').map((name, index) => `${name}=${shown(values[index])}`);
-        if (into === undefined) handedOver += 1;
-        else into.handed += 1;
+        if (!live) handedOver += 1;
         if (region !== 0) put(`handed ${said.join(', ')}`);
         else held.set(module, put(`holds ${said.join(', ')}`));
       } catch {
@@ -330,31 +302,8 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       }
     };
 
-  const tapeLive = (entry: number): void => {
-    if (inner.a !== seen) {
-      seen = inner.a;
-      const key = engine.current().key;
-      part = partOf(key);
-      if (part === undefined) return;
-      if (last !== undefined && last !== part) last.left = true;
-      last = part;
-      // A full part is counted, and its segments no longer grow with uptime.
-      if (part.tape.length < limit) {
-        const resumed = part.left && part.at.length > 0;
-        part.at.push(...Array<number>(resumed ? 2 : 1).fill(part.tape.length));
-        part.keys.push(...(resumed ? ['\u0000elsewhere', key] : [key]));
-        part.left = false;
-      }
-    }
-    if (part === undefined) return;
-    part.visits += 1;
-    if (part.tape.length >= limit) return;
-    part.tape.push(entry);
-    open += 1;
-  };
-
   const record = (entry: number): void => {
-    if (live) return tapeLive(entry);
+    if (live) return parts.tape(entry);
     const activation = inner.a;
     if (activation !== seen) {
       seen = activation;
@@ -442,15 +391,16 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
-      const into = live ? here() : undefined;
-      if (live && into === undefined) return;
-      if (into === undefined ? spoken >= NOTE_LIMIT : into.spoken >= PART_NOTES) {
-        if (into === undefined) unnoted += 1;
-        else into.unnoted += 1;
+      if (live) {
+        const into = parts.here();
+        if (into !== undefined && parts.room(into, 'spoken')) put(text);
         return;
       }
-      if (into === undefined) spoken += 1;
-      else into.spoken += 1;
+      if (spoken >= NOTE_LIMIT) {
+        unnoted += 1;
+        return;
+      }
+      spoken += 1;
       put(text);
     },
     nameIn(scope: object): void {
@@ -469,20 +419,11 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       seen = -1;
     },
     take(key: string): Tape {
-      const taken = parts.get(key);
-      parts.delete(key);
-      if (taken === part) [part, seen] = [undefined, -1];
-      if (taken === last) last = undefined;
-      const rows = { ids: rowIds, counts: rowCounts, bases: rowBases };
-      if (taken === undefined) return { tape: empty, taped: 0, visits: 0, at: [], keys: [], notes: [], lines: [], unnoted: 0, held: new Map(), rows };
-      open -= taken.tape.length;
-      const { tape, at, keys, visits, notes, unnoted } = taken;
-      return { tape: Int32Array.from(tape), taped: tape.length, visits, at, keys, notes, lines: [], unnoted, held: new Map(), rows };
+      const taken = (live ? parts.take(key) : undefined) ?? { tape: empty, visits: 0, at: [], keys: [], notes: [], unnoted: 0 };
+      return { ...taken, taped: taken.tape.length, lines: [], held: new Map(), rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     holding() {
-      let held = notes.length;
-      for (const { notes } of parts.values()) held += notes.length;
-      return { visits: live ? open : taped, notes: held };
+      return live ? parts.holding() : { visits: taped, notes: notes.length };
     },
   };
   Object.defineProperty(root, Symbol.for('variance-authority.test-selection.engine'), { value: engine });
@@ -496,4 +437,4 @@ function tapOf(root: unknown): Tap | undefined {
   return (root as { [key: symbol]: Tap | undefined })[Symbol.for('variance-authority.story.tap')];
 }
 
-export = { createTap, tapOf, TAPE_LIMIT, NOTE_LIMIT, NOTE_LENGTH, PART_LIMIT, PART_NOTES };
+export = { createTap, tapOf, TAPE_LIMIT, NOTE_LIMIT, NOTE_LENGTH, PART_LIMIT: storyParts.PART_LIMIT, PART_NOTES: storyParts.PART_NOTES };

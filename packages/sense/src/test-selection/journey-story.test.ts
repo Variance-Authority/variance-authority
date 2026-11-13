@@ -171,15 +171,16 @@ describe('a head started with VARIANCE_AUTHORITY_STORY=1', () => {
     });
   });
 
-  it('tells no more of one execution than a watcher keeps of it', async () => {
+  // A character past ASCII takes up to three bytes once encoded, so the bound is on bytes, not characters.
+  it.each(['x', '中'])('tells no more of one execution than a watcher keeps of it, handed %s', async (character) => {
     await inRoot(async (root) => {
       process.env[STORY_VARIABLE] = '1';
       const watcher = await driver();
       const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
-      const long = 'x'.repeat(storyTap.NOTE_LENGTH);
+      const long = character.repeat(storyTap.NOTE_LENGTH);
       const source = [
-        'function hand(value) { return value; }',
-        `globalThis.__head_test_currency = async (locale) => { for (let at = 0; at < 1 << 18; at += 1) hand(at % 7 === 0 ? '${long}' + at : at); return locale; };`,
+        'function hand(a, b, c, d, e, f) { return a; }',
+        `globalThis.__head_test_currency = async (locale) => { const long = '${long}'; for (let at = 0; at < 1 << 18; at += 1) hand(long + at, long, long, long, long, long); return locale; };`,
       ].join('\n');
       const parts = await head(root, 'build', { source });
 
