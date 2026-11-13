@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import type { JourneyReport } from './journey.js';
+import { mintJourney, type JourneyReport } from './journey.js';
 import { UNATTRIBUTED } from './stitch.js';
 import { STORY_VARIABLE } from '../story/asked.js';
 import { driver, evaluate, forget, head, inRoot } from './__fixtures__/journey-head.js';
@@ -136,6 +136,86 @@ describe('a head started with VARIANCE_AUTHORITY_STORY=1', () => {
       expect(stories).toEqual(Array.from({ length: executions }, (_, execution) => told(execution)));
       // Every execution told is let go: the open one ran nothing, and nothing else is kept.
       expect(holding).toEqual({ visits: 0, notes: 0 });
+    });
+  });
+
+  it("never lets one execution's chatter, or the process's own work, silence another's", async () => {
+    await inRoot(async (root) => {
+      process.env[STORY_VARIABLE] = '1';
+      const watcher = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
+      const chatter = storyTap.NOTE_LIMIT + 8;
+      const source = [
+        'function hand(value) { return value; }',
+        `globalThis.__head_test_chatter = () => { for (let at = 0; at < ${chatter}; at += 1) hand(at); };`,
+        'globalThis.__head_test_currency = async (locale) => { hand(locale); return locale; };',
+      ].join('\n');
+      const parts = await head(root, 'build', { source });
+      const chatterOf = (globalThis as { __head_test_chatter?: () => void }).__head_test_chatter!;
+      let release!: () => void;
+      const held = new Promise<void>((resume) => (release = resume));
+
+      // Outside any request, as a server's boot or its timers run.
+      chatterOf();
+      // A request that stays open and is handed more than one telling keeps.
+      const open = collector.enter('theme=dark', async () => {
+        chatterOf();
+        await held;
+      });
+      await collector.enter('theme=dark', () => parts.currency('first'));
+      release();
+      await open;
+      await collector.close();
+
+      expect([...handed(watcher.reports).values()]).toContainEqual(["handed locale='first'", "handed value='first'"]);
+    });
+  });
+
+  it('tells no more of one execution than a watcher keeps of it', async () => {
+    await inRoot(async (root) => {
+      process.env[STORY_VARIABLE] = '1';
+      const watcher = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
+      const long = 'x'.repeat(storyTap.NOTE_LENGTH);
+      const source = [
+        'function hand(value) { return value; }',
+        `globalThis.__head_test_currency = async (locale) => { for (let at = 0; at < 1 << 18; at += 1) hand(at % 7 === 0 ? '${long}' + at : at); return locale; };`,
+      ].join('\n');
+      const parts = await head(root, 'build', { source });
+
+      await collector.enter('theme=dark', () => parts.currency('de'));
+      await collector.close();
+
+      // The watcher's own bound, vantage's STORY_BYTES: a telling past it is counted there, never kept.
+      const sizes = watcher.reports.filter((report) => report.journey !== UNATTRIBUTED && report.story !== undefined).map((report) => report.story!.length);
+      expect(sizes).toHaveLength(1);
+      expect(sizes[0]).toBeLessThanOrEqual(1 << 20);
+    });
+  });
+
+  it('tells an open request once, when it settles, though a driven request settles while it runs', async () => {
+    await inRoot(async (root) => {
+      process.env[STORY_VARIABLE] = '1';
+      const watcher = await driver();
+      const driven = await driver();
+      const collector = collectJourneys({ head: 'api', enabled: true, watcher: watcher.origin });
+      const parts = await head(root);
+      let release!: () => void;
+      const held = new Promise<void>((resume) => (release = resume));
+
+      const open = collector.enter('theme=dark', async () => {
+        await parts.currency('de');
+        await held;
+        await parts.currency('en');
+      });
+      await collector.enter(driven.carrying(mintJourney()), () => 0);
+      release();
+      await open;
+      await collector.close();
+
+      const told = watcher.reports.filter((report) => report.journey !== UNATTRIBUTED && report.story !== undefined);
+      expect(told).toHaveLength(1);
+      expect(handed(told)).toEqual(new Map([[told[0]!.journey, ["handed locale='de'", 'handed value=1200', "handed locale='en'", 'handed value=1200']]]));
     });
   });
 

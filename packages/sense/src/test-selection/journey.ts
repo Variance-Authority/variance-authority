@@ -297,13 +297,17 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   /**
    * Report what one journey entered. `settled` is how many of the scopes this
    * head said it opened for that journey the account closes; the driver waits
-   * for every one of them before it joins anything.
+   * for every one of them before it joins anything. `running` says the request
+   * is still open, reported only because another settled, so its story waits.
    */
-  const report = (journey: string, over: Channel | undefined, settled = 0): void => {
+  const report = (journey: string, over: Channel | undefined, settled = 0, running = false): void => {
     const bucket = buckets.get(journey);
     buckets.delete(journey);
     // Taken whether or not it is sent: the tape holds only what is open.
-    const story = over === undefined || over.home !== watched || journey === UNATTRIBUTED ? taped?.forget(journey) : taped?.storyOf(journey);
+    const story =
+      over === undefined || over.home !== watched || journey === UNATTRIBUTED ? taped?.forget(journey)
+      : running ? undefined
+      : taped?.storyOf(journey);
     const entered: ExecutedModule[] =
       bucket === undefined ? [] : probeLists.lists(engine.close(bucket), false);
     // What the process did outside any journey is every subject's, and so is
@@ -349,7 +353,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     const over = channels.get(journey);
     report(journey, over, 1);
     // A request nobody drove and still open is the process's to this driver too, so far.
-    if (watched !== undefined && over?.home !== watched) for (const [open, home] of channels) if (home.home === watched && buckets.has(open)) report(open, home);
+    if (watched !== undefined && over?.home !== watched) for (const [open, home] of channels) if (home.home === watched && buckets.has(open)) report(open, home, 0, true);
     report(UNATTRIBUTED, over);
     // Whichever journey carries it, the driver unions it into every subject.
     if (over !== undefined) catchUp(over);

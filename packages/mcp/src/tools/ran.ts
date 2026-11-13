@@ -80,7 +80,7 @@ export const ran: Tool<VantageState> = {
     const spell = spellingOf(invocation);
     const shown = newest(matching, limitOf(input, SHOWN, spell));
     const story = storyArg(input);
-    const untold = story && !shown.some((execution) => execution.heads.some((head) => head.stories !== undefined));
+    const untold = story && !shown.some((execution) => execution.heads.some(told));
     const elided = matching.length - shown.length;
     const where = state.address === undefined ? '' : ` at ${state.address}`;
     const count = matching.length === executions.length ? `${executions.length}` : `${matching.length} of ${executions.length}`;
@@ -175,16 +175,19 @@ function line(region: Entered): string {
   return `      ${[at, region.name, region.path].filter((part) => part !== '').join(' ')}`;
 }
 
+/** Whether a head told a story of the execution, kept by the watcher or only counted. */
+const told = (head: HeadRan): boolean => head.stories !== undefined || head.untold !== undefined;
+
 function listed(execution: WatchedExecution, cut: CutModules | undefined, story: boolean): string[] {
   const mark = execution.open ? '▸' : ' ';
   return [
     `${mark} ${execution.id}`,
     ...execution.heads.flatMap((head) => [
       `  head ${head.head}`,
-      ...(story && head.stories !== undefined ? toldRows(head, cut) : regionsOf(head, cut).map(line)),
+      ...(story && told(head) ? toldRows(head, cut) : regionsOf(head, cut).map(line)),
     ]),
     // A request that reached a head and none of its probed code: a route the build left out.
-    ...(execution.heads.some((head) => head.modules.length > 0) ? [] : [execution.open ? '  still open: what it ran is listed when it settles' : '  ran no code the build placed a probe in']),
+    ...(execution.heads.some((head) => head.modules.length > 0 || (story && told(head))) ? [] : [execution.open ? '  still open: what it ran is listed when it settles' : '  ran no code the build placed a probe in']),
   ];
 }
 

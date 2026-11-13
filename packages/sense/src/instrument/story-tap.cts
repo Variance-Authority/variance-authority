@@ -151,6 +151,14 @@ const NOTE_LIMIT = 4096;
 const NOTE_LENGTH = 240;
 
 /**
+ * How many visits, and notes of each kind, one execution's part of a live tape
+ * keeps: told, it fits the 1 MiB a watcher keeps of an execution, and one
+ * chatty execution, or the process's own work, never silences another.
+ */
+const PART_LIMIT = 1 << 16;
+const PART_NOTES = 1024;
+
+/**
  * A root in front of `engine` that tapes every visit.
  *
  * @param limit How many visits the tape keeps between resets. Past it the tape
@@ -159,7 +167,8 @@ const NOTE_LENGTH = 240;
  * functions were handed and nothing a module keeps, and it keeps each bucket's
  * part apart, to be {@link Tap.take | taken} when the bucket's journey is
  * told: a head that serves for weeks, never idle, holds what is open and
- * nothing it already told. Its limits then bound what is open, not uptime.
+ * nothing it already told. Its limits then bound each part, `limit` its visits
+ * and {@link PART_NOTES} each kind of its notes, not uptime.
  */
 function createTap(engine: Engine, limit: number, live = false): Tap {
   const inner = engine.root;
@@ -305,15 +314,15 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       const into = live ? here() : undefined;
       if (live && (region === 0 || into === undefined)) return;
       // Past the limit nothing is read: a hot function pays for a count.
-      if (handedOver >= NOTE_LIMIT) {
-        unnoted += 1;
-        if (into !== undefined) into.unnoted += 1;
+      if (into === undefined ? handedOver >= NOTE_LIMIT : into.handed >= PART_NOTES) {
+        if (into === undefined) unnoted += 1;
+        else into.unnoted += 1;
         return;
       }
       try {
         const said = names.split(',').map((name, index) => `${name}=${shown(values[index])}`);
-        handedOver += 1;
-        if (into !== undefined) into.handed += 1;
+        if (into === undefined) handedOver += 1;
+        else into.handed += 1;
         if (region !== 0) put(`handed ${said.join(', ')}`);
         else held.set(module, put(`holds ${said.join(', ')}`));
       } catch {
@@ -329,17 +338,17 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       if (part === undefined) return;
       if (last !== undefined && last !== part) last.left = true;
       last = part;
-      if (part.left && part.at.length > 0) {
-        part.at.push(part.tape.length);
-        part.keys.push('\u0000elsewhere');
+      // A full part is counted, and its segments no longer grow with uptime.
+      if (part.tape.length < limit) {
+        const resumed = part.left && part.at.length > 0;
+        part.at.push(...Array<number>(resumed ? 2 : 1).fill(part.tape.length));
+        part.keys.push(...(resumed ? ['\u0000elsewhere', key] : [key]));
+        part.left = false;
       }
-      part.left = false;
-      part.at.push(part.tape.length);
-      part.keys.push(key);
     }
     if (part === undefined) return;
     part.visits += 1;
-    if (open >= limit) return;
+    if (part.tape.length >= limit) return;
     part.tape.push(entry);
     open += 1;
   };
@@ -435,13 +444,13 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     note(text: string): void {
       const into = live ? here() : undefined;
       if (live && into === undefined) return;
-      if (spoken >= NOTE_LIMIT) {
-        unnoted += 1;
-        if (into !== undefined) into.unnoted += 1;
+      if (into === undefined ? spoken >= NOTE_LIMIT : into.spoken >= PART_NOTES) {
+        if (into === undefined) unnoted += 1;
+        else into.unnoted += 1;
         return;
       }
-      spoken += 1;
-      if (into !== undefined) into.spoken += 1;
+      if (into === undefined) spoken += 1;
+      else into.spoken += 1;
       put(text);
     },
     nameIn(scope: object): void {
@@ -467,8 +476,6 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       const rows = { ids: rowIds, counts: rowCounts, bases: rowBases };
       if (taken === undefined) return { tape: empty, taped: 0, visits: 0, at: [], keys: [], notes: [], lines: [], unnoted: 0, held: new Map(), rows };
       open -= taken.tape.length;
-      spoken -= taken.spoken;
-      handedOver -= taken.handed;
       const { tape, at, keys, visits, notes, unnoted } = taken;
       return { tape: Int32Array.from(tape), taped: tape.length, visits, at, keys, notes, lines: [], unnoted, held: new Map(), rows };
     },
@@ -489,4 +496,4 @@ function tapOf(root: unknown): Tap | undefined {
   return (root as { [key: symbol]: Tap | undefined })[Symbol.for('variance-authority.story.tap')];
 }
 
-export = { createTap, tapOf, TAPE_LIMIT, NOTE_LIMIT, NOTE_LENGTH };
+export = { createTap, tapOf, TAPE_LIMIT, NOTE_LIMIT, NOTE_LENGTH, PART_LIMIT, PART_NOTES };

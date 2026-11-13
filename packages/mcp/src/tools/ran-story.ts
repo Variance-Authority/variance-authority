@@ -44,7 +44,8 @@ export function toldRows(head: HeadRan, cut: CutModules | undefined): string[] {
     ...(told === 0 ? [] : ['told again, once more of it had run:']),
     ...routeRows(drawToldRoute(Buffer.from(story, 'base64'), regionsOf)),
   ]);
-  const untold = head.untold === undefined ? [] : [`    told ${head.untold} more ${head.untold === 1 ? 'time' : 'times'}, which the watcher did not keep`];
+  const more = head.stories === undefined ? '' : ' more';
+  const untold = head.untold === undefined ? [] : [`    told ${head.untold}${more} ${head.untold === 1 ? 'time' : 'times'}, which the watcher did not keep`];
   return [...cappedRows(rows, (row) => `    ${row}`, TOLD), ...untold];
 }
 

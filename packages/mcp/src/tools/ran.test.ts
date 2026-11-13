@@ -259,7 +259,23 @@ describe('variance_ran', () => {
         executions: [{ id: JOURNEY, ordinal: 0, open: false, heads: [{ head: 'web', instrumentation: PROBES, modules: [], stories: [told], untold: 2 }] }],
         common: [],
       }), { story: true }, { modules: WHOLE });
-      expect(text).toContain('    told 2 more times, which the watcher did not keep\n');
+      expect(text).toContain('    told 2 more times, which the watcher did not keep');
+      expect(text).not.toContain('ran no code the build placed a probe in');
+    });
+
+    it('says a head told the stories the watcher kept none of, not that none was started to tell one', () => {
+      const text = ran.run(state({
+        executions: [{ id: JOURNEY, ordinal: 0, open: false, heads: [{ head: 'web', instrumentation: PROBES, modules: [{ id: ACTIONS, entered: [1] }], untold: 3 }] }],
+        common: [],
+      }), { story: true }, { modules: WHOLE });
+      expect(text).not.toContain('No head here was started');
+      expect(text).toContain('  head web\n    told 3 times, which the watcher did not keep');
+    });
+
+    it('draws the story of an execution that entered its modules only as they loaded, without saying it ran no probed code', () => {
+      const text = ran.run(storied([told], []), { story: true }, { modules: WHOLE });
+      expect(text).toContain('» handed on=true');
+      expect(text).not.toContain('ran no code the build placed a probe in');
     });
 
     it('asks its host to cut every module a story went through, though the execution entered it while the module loaded', () => {

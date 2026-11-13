@@ -44,7 +44,7 @@ export function tapeJourneys(engine: ReturnType<typeof probeLog.createEngine>): 
   const require = createRequire(import.meta.url);
   const storyTap = require('../instrument/story-tap.cjs') as StoryTap;
   const format = require('../story/format.cjs') as StoryFormat;
-  const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT, true);
+  const tap = storyTap.createTap(engine, storyTap.PART_LIMIT, true);
   tap.nameIn(globalThis);
   return {
     root: tap.root,
