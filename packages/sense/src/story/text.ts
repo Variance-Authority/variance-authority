@@ -140,6 +140,7 @@ export function saidText(said: readonly string[], indent: string): string[] {
 /** The line each arm of each declaration starts on, from every step on the route that took it and every arm it never took. */
 export type Starts = ReadonlyMap<string, ReadonlyMap<string, number>>;
 
+/** Where each arm the route took or never took starts, by declaration, so a step's arms are named by the line they start on. */
 export function armStarts(lines: readonly Line[], untaken: readonly Untaken[]): Starts {
   const starts = new Map<string, Map<string, number>>();
   const add = (at: Place, arms: readonly { readonly path: string; readonly startLine?: number }[]) => {
