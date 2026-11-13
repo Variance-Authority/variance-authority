@@ -65,7 +65,9 @@ async function observe(
         if (stale !== undefined) return { kind: 'failed', why: stale };
         const relations = await relationsFor(here, ['.'], [], [], asked.noGit);
         const side = (end: string, again?: Again) => reachOf(git, read, { ...asked, at: full.reading.at, relations, recorded: full.whole }, record, fork, end, again);
-        return { kind: 'sides', pull: await side(tested), main: await side(mainline, await changedAgain(here, fork, mainline)) };
+        const again = await changedAgain(here, fork, mainline);
+        if (typeof again === 'string') return { kind: 'failed', why: again };
+        return { kind: 'sides', pull: await side(tested), main: await side(mainline, again) };
       } catch (error) {
         return { kind: 'failed', why: `the record could not read a side of the merge (${error instanceof Error ? error.message : String(error)})` };
       }
@@ -114,10 +116,13 @@ interface Again {
  * have held a line a later commit took back: a file one commit changed stood at
  * the fork or at the tip, but one changed again may have stood at any commit
  * that changed it, so each is read as a tree the side's lines may have been.
+ * A line the clone holds only part of answers why instead: it hides what it cut.
  */
-async function changedAgain(here: string, fork: string, mainline: string): Promise<Again> {
+async function changedAgain(here: string, fork: string, mainline: string): Promise<Again | string> {
   const { firstParentChangesBetween } = await import('@variance-authority/sense');
   const line = firstParentChangesBetween(here, fork, mainline);
+  const cut = line.find(({ compared }) => !compared);
+  if (cut !== undefined) return `the clone holds no parent of ${cut.commit}, so what the mainline landed since the merge base cannot all be read`;
   const [once, again] = [new Set<string>(), new Set<string>()];
   for (const { files } of line) for (const file of files) (once.has(file) ? again : once).add(file);
   return { files: [...again], at: line.filter(({ files }) => files.some((file) => again.has(file))).map(({ commit }) => commit) };
