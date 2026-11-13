@@ -79,10 +79,24 @@ a half-built checkout, and is run again.
 
 ## Ask before you grep
 
-This holds in every phase, and outside any task: a question asked in passing is
-still a question about the code. `variance` reads the source index and the
-recording, so it answers by what the code declares and what ran, not by what a
-line happens to spell:
+Choose the reader before the command, in every phase and outside any task.
+`variance` reads the source index and the recording: what the code declares and
+imports, and what ran.
+
+`symbol`, `uses` and `search` answer from the files the index parses: JavaScript
+and TypeScript, stylesheets, Python, Rust, Java, Kotlin and Swift. Those files
+and what they import are the source. `grep` searches the source files its start
+point names and what they import, and its answer counts them; a path that holds
+no source file is refused.
+
+For text outside that source — most often YAML, JSON, Markdown, shell,
+workflows, logs or session transcripts — use `rg` or `git grep` directly, as for
+a line in a file you already have open. A GitHub Actions job or a step in
+`action.yml` is a text question: `rg -n 'upload-artifact' .github/ --glob '*.yml'`.
+When the answer may sit in both source and text, use both readers from the
+start. An empty `variance` answer says nothing about a file it did not search.
+
+For a question about that source or the recording:
 
 ```bash
 yarn variance ask symbol --name <name>     # what it is and where it is declared
@@ -92,24 +106,14 @@ yarn variance ask grep --query <pattern> --from <path>   # a local name, a strin
 yarn variance covering --file <path>       # which tests entered a file
 ```
 
-Ask by what you hold. A name goes to `symbol`, a meaning to `search`, and a
-local name, a string or a pattern to `grep`, from the file or folder you are
-working in, or a top folder such as `packages/` or `tools/` at the widest.
+Ask by what you hold. A source declaration's name goes to `symbol`, words
+describing a source declaration to `search`, and a local name, a string or a
+pattern in code to `grep`, from the file or folder you are working in, or a top
+folder such as `packages/` or `tools/` at the widest.
 
 Read an answer whole: widen it with `--limit` where it says rows were not
 shown, and never cut it with `head` or `tail`, whose dropped rows read later as
 a defect `variance` does not have.
-
-`symbol`, `uses` and `search` answer from the files the index parses: JavaScript
-and TypeScript, stylesheets, Python, Rust, Java, Kotlin and Swift. Those files
-and what they import are the source. `grep` searches the source files its start
-point names and what they import, and its answer counts them; a path that holds
-no source file is refused. A file outside the source — most often YAML, JSON,
-Markdown, shell, a workflow, an action's `action.yml`, a log or a session
-transcript — is text, and text is `rg`'s and `git grep`'s, as is a line in a
-file you already have open. Run them beside `variance` whenever the answer may
-sit in such a file, not after `variance` comes back empty: its empty answer says
-nothing about a file it did not search.
 
 A miss is a defect in `variance` only on a file of a kind its index parses: a
 code question about such a file that it could not answer, a wrong refusal or a

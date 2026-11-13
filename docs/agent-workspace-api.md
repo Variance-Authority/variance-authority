@@ -10,6 +10,8 @@ generated API site or `variance.config.json` is involved.
 
 ## Connect your agent
 
+### Install the packages and index your source
+
 You need a git repository and Node 22.15 or newer. You do not need a
 `variance.config.json` or a run.
 
@@ -54,23 +56,11 @@ symbol` just did.
 The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
 ```
 
-A name the index does not hold is looked for again in the checkout as it is, so
-a function you just wrote is answered with no step from you. A name it does hold
-is answered from the index, which a question reuses for an hour, and read again
-when a file the answer rests on changed since. An edit anywhere else can leave
-that answer behind. Run `variance index` when the next answer has to match it:
-who imports a name, and which names exist, are then current. What `ask symbol`
-prints from the declaration of a name that stays exported — its kind, line,
-signature and comment — can stay old. A question reads them again once the index
-is over an hour old, and a `variance index` that read a changed file restarts
-that hour, so read the file itself for those. `ask search` answers from the last
-index at any age, and its last line says so.
-
 Your agent can now run any `variance ask` question, and one step is left:
 [point it at them](#point-an-agent-at-it). A client that reaches tools only
 through a server adds the server first.
 
-### Add the MCP server
+### Add the MCP server if your client needs it
 
 Add this entry to the file your client keeps its servers in, `.mcp.json` at the
 repository root for Claude Code:
@@ -131,12 +121,15 @@ manager runs a local binary:
 ```markdown
 ## Finding your way in the code
 
-Ask before you grep: `variance ask uses --name <name>` lists who imports a
-name, `ask symbol --name <name>` prints what it is and where it is declared, and
-`ask search --query <words>` finds a name by what it does. They answer from the
-code its index parses; YAML, JSON, Markdown and shell are `rg`'s, run beside
-them, and an empty answer says nothing about a file they did not search. The
-`variance-authority` skill lists what the index parses, and has the rest.
+Choose the reader first. For text outside the source graph, such as GitHub
+Actions YAML, configuration, documentation or logs, use `rg` or `git grep`
+directly. For a source declaration, `variance ask symbol --name <name>` prints
+what it is and where it is declared, `ask uses --name <name>` lists who imports
+it, and `ask search --query <words>` finds candidate source names by their
+spelling and documentation. A question spanning source and text uses both
+readers from the start. An empty Variance answer says nothing about a file it
+did not search. The `variance-authority` skill defines the source scope,
+including files imported by code, and has the rest.
 ```
 
 The skill is `variance-authority`. It ships in `@variance-authority/cli` at
@@ -696,6 +689,18 @@ it off a module the file holds whole, not a call to it: where that file uses a
 named import is a question for your editor's language server. A member has no
 import, so its sites are the typed lines described
 [above](#search-finds-the-name-the-graph-finds-the-area).
+
+A name the index does not hold is looked for again in the checkout as it is, so
+a function you just wrote is answered with no step from you. A name it does hold
+is answered from the index, which a question reuses for an hour, and read again
+when a file the answer rests on changed since. An edit anywhere else can leave
+that answer behind. Run `variance index` when the next answer has to match it:
+who imports a name, and which names exist, are then current. What `ask symbol`
+prints from the declaration of a name that stays exported — its kind, line,
+signature and comment — can stay old. A question reads them again once the index
+is over an hour old, and a `variance index` that read a changed file restarts
+that hour, so read the file itself for those. `ask search` answers from the last
+index at any age, and its last line says so.
 
 Missing documentation remains missing, and a search with no exact substring
 match reports that before it offers anything near it. Those absences are source
