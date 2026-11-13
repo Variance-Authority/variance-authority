@@ -116,7 +116,7 @@ function attach(holder: Holder, continuations: boolean, story = false): Engine {
     }
     return found;
   }
-  const engine = probeLog.createEngine(continuations, probeCuts.cutsIn(holder));
+  const engine = probeLog.createEngine(continuations, probeCuts.createCuts());
   holder.__VA__ = story ? storyTap.createTap(engine, storyTap.TAPE_LIMIT).root : engine.root;
   return engine;
 }
@@ -211,7 +211,7 @@ function scoped(
 ): Collector {
   const engine = attach(holder, continuations, story !== undefined);
   const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
-  const cuts = probeCuts.cutsIn(holder);
+  const { cuts } = engine;
   if (tap !== undefined) storyTap.listen(tap, holder);
   const buckets = new Map<string, Bucket>();
   const late = new Set<string>();
@@ -270,7 +270,7 @@ function scoped(
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
     // Read before the bucket closes: the case's end is its last statement's.
-    const slowest = cuts.slowest(bucket.cuts);
+    const slowest = cuts?.slowest(bucket);
     const view = engine.close(bucket);
     const settled = stopped.get(bucket.key);
     const journey = journeys.get(bucket.key);
@@ -331,8 +331,23 @@ function scoped(
     });
   }
 
+  // The case bodies in flight, and whether one settled since an attempt last
+  // ended. An attempt that ends with none settled and one in flight is a case
+  // its runner gave up on: the statement it was in ends there. With more in
+  // flight, cases run at once and the edge names none: the file's end closes
+  // them.
+  const inFlight = new Set<Bucket>();
+  let oneSettled = false;
+  const givenUp = (): void => {
+    if (!oneSettled && inFlight.size === 1) {
+      for (const bucket of inFlight) cuts?.stop(bucket);
+      inFlight.clear();
+    }
+    oneSettled = false;
+  };
   const release = (bucket: Bucket): void => {
     bucket.open = false;
+    if (inFlight.delete(bucket)) oneSettled = true;
     if (current === bucket) {
       current = ambient;
       engine.use(ambient);
@@ -392,7 +407,8 @@ function scoped(
     }
     const bucket = bucketFor(key);
     bucket.open = true;
-    cuts.time(bucket.cuts);
+    cuts?.time(bucket);
+    inFlight.add(bucket);
     attention?.entered(key);
     const carried = trace;
     const run = carried === undefined
@@ -421,7 +437,7 @@ function scoped(
     recorder.begin(token);
     attention?.scope.begin();
   };
-  const leave = (): void => { ended(); attention?.scope.leave(); };
+  const leave = (): void => { givenUp(); ended(); attention?.scope.leave(); };
   (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = {
     enter, journey, phase, within, where, ...attention?.scope, begin, leave,
   };

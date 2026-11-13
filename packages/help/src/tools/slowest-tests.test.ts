@@ -231,7 +231,7 @@ describe('the slowest statement of a listed case', () => {
 
     const answer = printed([suite(read({ slowest, timed: 3 }))]).split('\n');
 
-    // A case its runner stopped is timed to where its file ended: never more than the whole case.
+    // A case stopped among cases running at once is timed to where its file ended: never more than the whole case.
     expect(answer.slice(-7)).toEqual([
       'Slowest recorded test cases, as their runner timed them:',
       '   1.4 s  test/a.test.ts  waits',

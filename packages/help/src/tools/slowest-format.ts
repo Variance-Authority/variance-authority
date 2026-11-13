@@ -10,8 +10,8 @@
  * case can read above it.
  *
  * A case that names its slowest statement carries it on one more line: the
- * file line, its time, and its share of the case, never above the whole of it,
- * since a case its runner stopped is timed to where its file ended.
+ * file line, its time, and its share of the case, never above the whole of it:
+ * two clocks time them, and a case stopped beside others ends with its file.
  *
  * A scope that matched nothing says which half matched nothing, and a `to`
  * path the record holds no row for is named as unrecorded: a table with no

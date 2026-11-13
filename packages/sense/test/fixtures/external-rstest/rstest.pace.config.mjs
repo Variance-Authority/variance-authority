@@ -23,5 +23,11 @@ export default withTestSelection(
     include: ['test/*.pace.ts'],
     setupFiles: ['./test/setup.mjs'],
   },
-  { coverageFile, include: (file) => file.startsWith(source), preconditions: ['rstest.pace.config.mjs'] },
+  {
+    coverageFile,
+    include: (file) => file.startsWith(source),
+    preconditions: ['rstest.pace.config.mjs'],
+    // A test asks for the file uncut, to see that nothing is timed then.
+    ...(process.env['FIXTURE_CADENCE'] === 'off' ? { cadence: false } : {}),
+  },
 );

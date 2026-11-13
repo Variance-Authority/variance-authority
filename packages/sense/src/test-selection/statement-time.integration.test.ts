@@ -22,6 +22,29 @@ afterAll(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
+const RSTEST = [
+  resolve(repository, 'node_modules/@rstest/core/bin/rstest.js'), 'run',
+  '-c', resolve(fixtures, 'external-rstest/rstest.pace.config.mjs'),
+];
+
+/** Runs one fixture's waiting case under its runner, and reads the cases it recorded. */
+async function recorded(fixture: string, args: readonly string[], env: Record<string, string>) {
+  const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-statement-time-'));
+  temporary.push(directory);
+  const coverageFile = resolve(directory, 'coverage.bin');
+  await execute(process.execPath, args, {
+    cwd: resolve(fixtures, fixture),
+    env: {
+      ...process.env,
+      ...env,
+      VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+      VARIANCE_AUTHORITY_CACHE: directory,
+      VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'jest'),
+    },
+  });
+  return decodeExecutionIndex(await readFile(coverageFile)).tests;
+}
+
 describe('the slowest statement of a case, under each runner', () => {
   it.each([
     [
@@ -36,31 +59,9 @@ describe('the slowest statement of a case, under each runner', () => {
       [resolve(repository, 'node_modules/jest/bin/jest.js'), '--config', 'jest.config.mjs', '--watchman=false'],
       { FIXTURE_TEST_MATCH: '<rootDir>/test/waits.pace.ts' },
     ],
-    [
-      'Rstest',
-      'external-rstest',
-      [
-        resolve(repository, 'node_modules/@rstest/core/bin/rstest.js'), 'run',
-        '-c', resolve(fixtures, 'external-rstest/rstest.pace.config.mjs'),
-      ],
-      {},
-    ],
+    ['Rstest', 'external-rstest', RSTEST, {}],
   ] as const)('is the line that waited, at no less than its wait and no more than the case, under %s', async (_, fixture, args, env) => {
-    const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-statement-time-'));
-    temporary.push(directory);
-    const coverageFile = resolve(directory, 'coverage.bin');
-    await execute(process.execPath, args, {
-      cwd: resolve(fixtures, fixture),
-      env: {
-        ...process.env,
-        ...env,
-        VARIANCE_AUTHORITY_COVERAGE: coverageFile,
-        VARIANCE_AUTHORITY_CACHE: directory,
-        VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'jest'),
-      },
-    });
-
-    const [waits, ...others] = decodeExecutionIndex(await readFile(coverageFile)).tests;
+    const [waits, ...others] = await recorded(fixture, args, env);
 
     expect(others).toEqual([]);
     expect(waits?.name).toBe('waits on one line');
@@ -68,5 +69,14 @@ describe('the slowest statement of a case, under each runner', () => {
     expect(waits?.slowest?.time).toBeGreaterThanOrEqual(WAIT.time);
     // The runner's clock spans the whole case; each side rounds to a millisecond.
     expect(waits?.slowest?.time).toBeLessThanOrEqual(waits!.duration! + 1);
+  }, 120_000);
+
+  it('is not recorded for a case whose file `cadence: false` left uncut', async () => {
+    const [waits, ...others] = await recorded('external-rstest', RSTEST, { FIXTURE_CADENCE: 'off' });
+
+    expect(others).toEqual([]);
+    expect(waits?.name).toBe('waits on one line');
+    expect(waits?.duration).toBeGreaterThanOrEqual(WAIT.time);
+    expect(waits?.slowest).toBeUndefined();
   }, 120_000);
 });

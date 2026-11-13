@@ -403,7 +403,7 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
   // A cut test reached `line`: what the bucket logs from here on is charged to it.
   const cut = (line: number): void => {
     if (scoped) sync();
-    if (current !== idle && current.cuts !== null) cuts!.cut(current.cuts, line, root.n);
+    if (current !== idle && current.cuts !== null) cuts!.cut(current, line, root.n);
   };
 
   // What the probes and a tap read, and nothing else: `a` the activation, a
@@ -448,7 +448,7 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
 
   const api = {
     root,
-    scoped,
+    scoped, cuts,
     /** A new, empty bucket. */
     open,
     /** Make `bucket` the one the probes write into. */
