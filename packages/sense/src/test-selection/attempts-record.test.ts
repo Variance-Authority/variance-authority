@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  attemptsOfCases, decodeRecordedAttempts, encodeRecordedAttempts, frameIn, layAttempts, readableAttempts, retriedAttempts,
+  attemptsOfCases, decodeRecordedAttempts, encodeRecordedAttempts, endedDifferently, frameIn, layAttempts, readableAttempts, retriedAttempts,
   type RecordedAttempt,
 } from './attempts-record.js';
 
@@ -111,5 +111,14 @@ describe('the attempts of a run\'s cases, as a driver observed them', () => {
       { case: 'tests/a.spec.ts > retried', attempt: 1, ended: 'timedOut', duration: 30_000, message: 'boom\nmore', frame: 'tests/a.spec.ts:3' },
       { case: 'tests/a.spec.ts > retried', attempt: 2, ended: 'passed', duration: 5 },
     ]);
+  });
+});
+
+describe('attempts that ended differently', () => {
+  it('are two endings, or an attempt that left no row', () => {
+    expect(endedDifferently([failed('a', 1), passed('a', 2)])).toBe(true);
+    expect(endedDifferently([failed('a', 1), failed('a', 2)])).toBe(false);
+    expect(endedDifferently([passed('a', 2)])).toBe(true);
+    expect(endedDifferently([])).toBe(false);
   });
 });

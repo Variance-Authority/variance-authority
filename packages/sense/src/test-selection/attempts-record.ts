@@ -3,8 +3,8 @@
  * them — `stopped`, `duration`, `limit` — loses. One row per attempt of a case
  * its runner reported more than one attempt of, joined to its case by the
  * index's id, as an Eyes journal is. Absent, attempts were not kept; empty, no
- * case was retried. Two rows for one attempt of one case, as two shards or two
- * repeats hand over, are one: the row whose JSON text sorts first by code unit.
+ * case was retried. Two rows for one attempt of one case, as two shards that
+ * both ran it hand over, are one: the row whose JSON text sorts first by code unit.
  *
  * No selection reads it and no digest a selection compares takes it in; the
  * digest of the whole record file covers it as it covers every section.
@@ -21,9 +21,12 @@ export interface RecordedAttempt {
   /** Which run of the case this is, counted from 1. A retry is attempt 2. */
   readonly attempt: number;
   /**
-   * How it ended, in the word of the runner that ran it: its own report of
-   * the attempt, never what the case's body did. A limit that stopped an
-   * attempt is `timedOut` only from a runner that tells it from a failure.
+   * How it ended, never what the case's body did. Vitest and Playwright report
+   * every attempt, and the word is theirs. Jest and Rstest report the last one
+   * and count the others: the last is the runner's word, and each earlier one
+   * is `failed` by derivation, because neither retries anything else. A limit
+   * that stopped an attempt is `timedOut` only from a runner that tells it
+   * from a failure.
    */
   readonly ended: string;
   /** How long the attempt ran, in milliseconds; absent, nobody timed it. */
@@ -42,6 +45,35 @@ export interface ObservedAttempt {
   readonly message?: string;
   /** The failure's stack, for {@link frameIn} to find the checkout's frame in. */
   readonly stack?: string;
+}
+
+/** A failure as a runner serialises it. Jest hands one string, message and stack together. */
+export type Failure = string | { readonly message?: unknown; readonly stack?: unknown } | null | undefined;
+
+/** One attempt out of a runner's report: what the report leaves out of it stays absent. */
+export function observedAttempt(attempt: number, ended: string, failure?: Failure, duration?: unknown): ObservedAttempt {
+  const text = (value: unknown): string | undefined => (typeof value === 'string' && value !== '' ? value : undefined);
+  const stack = typeof failure === 'string' ? failure : text(failure?.stack);
+  const lines = typeof failure === 'string' ? failure.split('\n') : [];
+  const message = typeof failure === 'string'
+    ? text(lines.slice(0, lines.findIndex((line) => parseStackFrames(line).length > 0) >>> 0).join('\n'))
+    : text(failure?.message);
+  return {
+    attempt,
+    ended,
+    ...(typeof duration === 'number' && Number.isFinite(duration) && duration >= 0 ? { duration: Math.round(duration) } : {}),
+    ...(message === undefined ? {} : { message }),
+    ...(stack === undefined ? {} : { stack }),
+  };
+}
+
+/**
+ * Whether the attempts of one case, in attempt order, ended in more than one
+ * way. An attempt with no row ended without a word, a worker that died under
+ * it, which is not the way its neighbour ended.
+ */
+export function endedDifferently(attempts: readonly Pick<RecordedAttempt, 'attempt' | 'ended'>[]): boolean {
+  return new Set(attempts.map((one) => one.ended)).size > 1 || attempts.length < (attempts.at(-1)?.attempt ?? 0);
 }
 
 interface Section {
@@ -178,8 +210,13 @@ export function attemptsOfCases(
   const kept = named.filter((observed) => observed.attempts !== undefined);
   if (kept.length === 0) return undefined;
   const ids = caseIds(named);
-  return retriedAttempts(kept.flatMap((observed) =>
+  return retriedAttempts(kept.filter((observed) => triedAgain(observed.attempts!)).flatMap((observed) =>
     observed.attempts!.map((attempt) => recordedAttempt(ids.get(caseKey(observed))!, attempt, root))));
+}
+
+/** Whether a case's attempts go past its first: one that ran once has no rows, and nothing is worked out for it. */
+export function triedAgain(attempts: readonly ObservedAttempt[]): boolean {
+  return attempts.some((one) => one.attempt > 1);
 }
 
 function ordered(rows: readonly RecordedAttempt[]): readonly RecordedAttempt[] {

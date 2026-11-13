@@ -375,7 +375,8 @@ A record that kept no attempts says so and lists nothing, which is different
 from a record whose run retried no case: its runner reports no attempts, as a
 Vitest older than 4.1 does, or a shard of the run kept none. Only the runner's
 own attempts are listed: Vitest's `retry` and `repeats`, Jest's
-`jest.retryTimes`, Rstest's `retry` and Playwright's `retries`. A case the
+`jest.retryTimes`, Rstest's `retry` and Playwright's `retries`. Rstest's
+`repeats` are not attempts. A case the
 record does not hold has none, as every case of a file recorded as a whole.
 
 ## Find where the suite's time goes

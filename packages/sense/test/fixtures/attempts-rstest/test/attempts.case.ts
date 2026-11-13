@@ -27,6 +27,12 @@ it('twin', () => {
   expect(total([1])).toBe(1);
 });
 
+// Two repeats, each failing once: Rstest counts two retries and numbers both
+// failures 0, so its report cannot say which run was which attempt.
+it('fails once in each repeat', { repeats: 1, retry: 1 }, () => {
+  expect(total([attempt('repeat') % 2])).toBe(0);
+});
+
 it('runs once', () => {
   expect(total([1])).toBe(1);
 });

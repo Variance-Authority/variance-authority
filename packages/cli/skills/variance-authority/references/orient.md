@@ -157,7 +157,8 @@ Each case comes with its limit and every attempt: how it ended as the runner
 says it and, where the runner says them, how long it ran, the frame inside the
 checkout and the message. Start from that frame. Jest and Rstest time no single
 attempt, and a limit reads `timedOut` only under Playwright: elsewhere it is
-`failed` with the limit in its message. `ended unreported` is an attempt whose
+`failed`, told from a failure by its message where the attempt has one. Jest
+gives an earlier attempt a message only under `logErrorsBeforeRetry`. `ended unreported` is an attempt whose
 worker died first. The retried cases whose attempts all ended the same way are
 counted and not listed.
 

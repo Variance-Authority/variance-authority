@@ -16,8 +16,7 @@
  * of the two it is, so neither is timed: fall back, never fake.
  */
 
-import type { ObservedAttempt } from './attempts-record.js';
-import { vitestAttempts } from './case-attempts.js';
+import { observedAttempt, type Failure, type ObservedAttempt } from './attempts-record.js';
 import { limitAcross } from './execution-set-columns.js';
 import type { ReportedModule, RunnerTask } from './finished-files.js';
 import { projectPath } from './instrumented-modules.js';
@@ -32,7 +31,7 @@ export interface FinishedCase {
   readonly duration?: number;
   /** Milliseconds the runner held the case to, for a runner that says so only outside the case. */
   readonly limit?: number;
-  /** How each attempt of the case ended, as `case-attempts.ts` reads the runner's report; absent when it counts none. */
+  /** How each attempt of the case ended, as the runner's seam reads its report; absent when it counts none. */
   readonly attempts?: readonly ObservedAttempt[];
 }
 
@@ -150,6 +149,25 @@ export function namedTasks(file: RunnerTask): { readonly task: RunnerTask; reado
   };
   walk(file, []);
   return named;
+}
+
+/** Vitest's own attempt, structurally: `TestCase.attempts()`, which Vitest before 4.1 does not have. */
+export interface VitestAttempt {
+  readonly state: string;
+  readonly errors?: readonly Failure[] | undefined;
+  readonly duration?: number;
+}
+
+/**
+ * Vitest reports every attempt whole: its state, its errors and its own
+ * duration, a repeat counted as an attempt like a retry. An attempt its limit
+ * stopped is `failed`, told apart only by its message. Absent from a Vitest
+ * whose test case has no `attempts()`.
+ */
+export function vitestAttempts(reported: Iterable<VitestAttempt> | undefined): readonly ObservedAttempt[] | undefined {
+  return reported === undefined
+    ? undefined
+    : [...reported].map((one, at) => observedAttempt(at + 1, one.state, one.errors?.[0], one.duration));
 }
 
 /** The cases of a module Vitest 3 or 4 reported, by the id its task carried. */

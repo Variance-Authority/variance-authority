@@ -592,13 +592,17 @@ failing hook.
 |---|---|---|---|
 | Vitest 4.1 and newer | `passed`, `failed` or `skipped`; a limit reads `failed` | every attempt that did not pass | every attempt |
 | Jest | the last attempt as Jest reports it, each earlier one `failed`; a limit reads `failed` | the last attempt; an earlier one only under `jest.retryTimes(n, { logErrorsBeforeRetry: true })` | none |
-| Rstest | `passed` or `failed`, each earlier one `failed`; a limit reads `failed` | every attempt that did not pass | none |
+| Rstest | the last attempt as `passed`, `failed` or `skipped`, each earlier one `failed`; a limit reads `failed` | every attempt that did not pass | none |
 | Playwright | `testInfo.status`, `timedOut` included | `testInfo.error` | `testInfo.duration` |
 
-Vitest counts a repeat as an attempt, like a retry. Playwright numbers retries
-inside each repeat of `repeatEach`, so the repeats of a case share its rows, and
-of two repeats' rows for one attempt the record keeps the one whose JSON text
-sorts first: `failed`, then `passed`, then `timedOut`. A Vitest older than 4.1 reports no
+Vitest counts a repeat as an attempt, like a retry. Under Playwright each
+repeat of `repeatEach` is a case of its own in the index, the second named with
+a trailing `#1`, and has its own rows. Rstest adds the retries of every repeat
+of `repeats` into one count and says nowhere that the case was repeated: a
+repeat that passed at once is no attempt, and a case whose count cannot be one
+run of retries, because two of its failures carry one retry number, has no
+rows. If two shards of one run both hand over a row for one attempt of one
+case, the record keeps the row whose JSON text sorts first. A Vitest older than 4.1 reports no
 attempts, and its record has no section. A case you pass to
 `startRecording().finish()` carries its own `attempts`. The case's `stopped`,
 duration and limit are what they are without the section.

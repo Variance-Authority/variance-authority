@@ -39,7 +39,7 @@ import { testFilesAt } from './test-files.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import { finishedCase } from './case-durations.js';
-import { rstestAttempts, type RstestAttempts } from './case-attempts.js';
+import { rstestAttempts, type RstestAttempts } from './rstest-attempts.js';
 import { refuseUnreadable } from './precondition-entries.js';
 import { buildingPlugin, buildsTestFile, declareEntries, isBuilding, joinEntries, noteBuilding } from './rstest-entries.js';
 import { governingPreconditions } from './governing-config.js';

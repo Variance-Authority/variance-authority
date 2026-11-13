@@ -18,7 +18,7 @@
 
 import { existsSync, readFileSync } from 'node:fs';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { RecordedAttempt } from './test-selection/attempts-record.js';
+import { endedDifferently, type RecordedAttempt } from './test-selection/attempts-record.js';
 import { keepsCases, recordedAttemptsAt } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { decodeExecutionTests } from './test-selection/execution-format.js';
@@ -75,9 +75,7 @@ export function recordedAttempts(root: string, limit: number): readonly Recorded
       if (rows === undefined) return { ...read, ...taken, unkept: true };
       const tests = decodeExecutionTests(readFileSync(recording));
       const retried = retriedCases(rows, new Map(tests.map((test) => [test.id, test])));
-      // An attempt with no row ended without a word, a worker that died under it: not the way its neighbour ended.
-      const differed = retried.filter(({ attempts }) =>
-        new Set(attempts.map((attempt) => attempt.ended)).size > 1 || attempts.length < attempts.at(-1)!.attempt);
+      const differed = retried.filter(({ attempts }) => endedDifferently(attempts));
       return { ...read, ...taken, differed: differed.slice(0, limit), differing: differed.length, retried: retried.length, cases: tests.length };
     } catch (error) {
       return { ...read, unread: error instanceof Error ? error.message : String(error) };

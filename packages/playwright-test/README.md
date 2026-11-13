@@ -747,9 +747,8 @@ its attempt, `testInfo.retry + 1`, so a retried test keeps both.
 `testInfo.status`, its `testInfo.duration` and, when it did not pass, the error's
 message and its frame inside the checkout. A test that failed and passed on the
 retry is a pass in Playwright's report and two attempts in the record, and
-`variance ask retried-tests` lists it. Playwright numbers retries inside each
-repeat of `repeatEach`, so the repeats of a test share its attempts, and of two
-repeats' rows for one attempt the record keeps one. A worker that dies under an
+`variance ask retried-tests` lists it. Each repeat of `repeatEach` is a test of
+its own in the record, with its own attempts. A worker that dies under an
 attempt leaves no row for it.
 
 ### Read what a snapshot was taken under
