@@ -847,7 +847,7 @@ jobs:
       # Only a push to `main` hands its records on, to the `publish` job, which
       # writes the record; this job writes only the badge, through the review
       # step above. It hands on the records the suite jobs handed on, as they
-      # handed them, for the publish to fold over the mainline's record itself.
+      # handed them, for the publish to land as this run's record alone.
       # A red suite on `main` still hands them on: the next change is reviewed
       # against what `main` ran, not against an older record that no longer
       # describes it.
@@ -911,11 +911,12 @@ jobs:
         with:
           suites: ${{ needs.record.outputs.shared }}
 
-      # `share --publish`, handed the records the suite jobs handed on, folds
-      # each suite's over the mainline's record, as `record` folded them, and
-      # publishes every suite the root config gives to the share, on the line
-      # of this run (`main`, on a push to it). It refuses a record that was not
-      # recorded at this commit, or whose runs record does not show that every
+      # `share --publish`, handed the records the suite jobs handed on, lands
+      # each suite's as `record` folded them, over nothing: the mainline's
+      # record is replaced, not carried forward. It then publishes every suite
+      # the root config gives to the share, on the line of this run (`main`, on
+      # a push to it). It refuses a record that was not recorded at this
+      # commit, or whose runs record does not show that every
       # test file the runner collects ran here. The runs record travels with
       # it, so a reader knows where each test last ran. What it did goes to the
       # job summary. A refusal of one suite does not keep the rest from being

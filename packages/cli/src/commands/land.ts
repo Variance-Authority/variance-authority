@@ -8,52 +8,23 @@ import { isMissing, messageOf } from './resources.js';
 import { landingRecord } from './suite-record.js';
 
 /**
- * N shard snapshots into the one this repository reads, and the reading points
- * at it.
+ * N shard snapshots into the one this repository reads, landed where the
+ * runner would have put it, as the one run they are. The fold is
+ * `combineRecords`'s, in the native addon, refusing by name as `mergeReports`
+ * does.
  *
- * The other half of the recipe `mergeReports` completes for reports. A suite
- * too large for one machine records one snapshot per job, and until they are
- * one file nothing here can be asked about the suite: `journeyAgainst` reads a
- * single path and so does everything a runner layers over. The fold itself is
- * `combineRecords`'s, in the native addon, and refuses by name, for the same
- * reasons `mergeReports` does: it writes the one record an unsharded run would
- * have written, beside the target. This lands that record where the runner
- * would have put it, as the one run it is, and says so.
- *
- * Landing is a *layer*, not a replacement, and by the runner's own rule: a
- * snapshot already at the target — the local runs of a laptop over the record
- * the build cached — is what the fold is laid over, through the lay a runner's
- * teardown goes through (`landedCoverage`), so the result stands at the fold's
- * commit, retires every observation the fold re-recorded whole, and keeps the
- * ones it did not. The runs record beside it names the local snapshot's commit
- * as the one the fold was laid over, whatever the history between the two:
- * whether that commit is where a change starts is asked of git by the review
- * that reads it, not here, where the landing may run outside the checkout or
- * before the other commit was fetched.
- *
- * The cases travel in the record (spec 0094): each shard's seam kept its own in
- * the shard's record, the combine folds them into one index, and that is laid
- * over the target's and written into the record the landing writes; shards that
- * kept none take the target's with them, so nobody reads cases the snapshot has
- * replaced. See `landCases`. A module whose rows the landing re-cut to another text has its
- * held cases laid onto the same cut (`followRows`).
- *
- * A shard whose run instrumented nothing holds its cases and no coverage. It is
- * unmeasured, so it folds no coverage and names no install, and its cases are
- * laid with the others', its files finished as its last run ran them. Landed alone where no coverage stands, it writes a
- * record of cases and no coverage, which narrows no later selection.
- *
- * A target that exists and cannot be read, or one `into` names under other
- * probes, is refused rather than replaced: either is another build's, and a
- * sentence naming the file is worth more than the evidence a silent overwrite
- * would cost. The checkout's cached record under other probes is the tool's own,
- * and `prepareRecord` replaces it, as it does for a runner.
+ * The fold is laid over the snapshot already at the target, as a runner's
+ * teardown lays a run (`landedCoverage`), its cases with it (`landCases`).
+ * `alone` lays it over nothing, reading no base and nothing at the target, as a
+ * whole run's publish does. A target that exists and cannot be read, or one
+ * `into` names under other probes, is refused rather than replaced.
  */
 export async function landJourneys(
   root: string,
   shards: readonly string[],
   into?: string,
   suite?: string,
+  alone = false,
 ): Promise<LandedJourneys> {
   const selection = await import('@variance-authority/sense/test-selection');
   if (into !== undefined && selection.writesBase(selection.repositoryLayers(root), into)) {
@@ -68,7 +39,7 @@ export async function landJourneys(
   // a file system, and the staged name ends in `.tmp` for prune to find.
   const combinedAt = `${at}.${process.pid}-${randomUUID()}-combined.tmp`;
   try {
-    return await landCombined(selection, root, shards, at, combinedAt, selected);
+    return await landCombined(selection, root, shards, at, combinedAt, selected, alone);
   } finally {
     await rm(combinedAt, { force: true });
   }
@@ -83,6 +54,7 @@ async function landCombined(
   at: string,
   combinedAt: string,
   selected: string | null | undefined,
+  alone: boolean,
 ): Promise<LandedJourneys> {
   let combined;
   try {
@@ -94,6 +66,9 @@ async function landCombined(
   // coverage the landing writes, and what else is asked of it is a few columns.
   const fold = opened(selection, combinedAt, await readFile(combinedAt));
   const measured = combined.shards.filter((shard) => shard.measured);
+  // A shard whose run instrumented nothing folds no coverage and names no
+  // install; its files land finished, so its cases retire the target's, and
+  // landed alone it writes cases and no coverage, which narrows no selection.
   const unmeasured = combined.shards.flatMap((shard) => (shard.measured ? [] : shard.files));
 
   // Each shard's own landing kept the install it ran on in the runs record
@@ -142,11 +117,15 @@ async function landCombined(
     // primary checkout's. Without the copy the fold would land over nothing and stand for
     // the whole suite. A cached record under other probes is replaced first. A
     // no-op for `--into`, and after the first landing.
-    await selection.prepareRecord(lock, root, fold?.coverage.instrumentation, { selected });
+    await selection.prepareRecord(lock, root, fold?.coverage.instrumentation, { selected, alone });
     let [previous, over]: [Opened | undefined, Buffer | undefined] = [undefined, undefined];
     try {
-      over = await readFile(at);
-      previous = opened(selection, at, over);
+      // The runs record names this snapshot's commit as the one the fold was
+      // laid over; whether a change starts there is git's, asked by the review.
+      if (!alone) {
+        over = await readFile(at);
+        previous = opened(selection, at, over);
+      }
     } catch (error) {
       // A record whose run instrumented nothing has no coverage to fold over,
       // and its cases are laid under the shards' below.
@@ -176,14 +155,14 @@ async function landCombined(
     // A runs record that cannot be read is written afresh, and said so, as a
     // runner's `landRun` does: refusing would leave the operator to delete it
     // and land again, which writes the same record.
-    const held = await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
+    const held = alone ? undefined : await selection.heldCommitRuns(at, (line) => process.stderr.write(`variance: ${line}\n`));
     const before = previous === undefined ? undefined : selection.recordedRun(previous.coverage);
     // The index beside the snapshot was cut from the texts the snapshot names,
     // and a module no shard recorded is laid onto the cut its rows landed at.
     const texts = selection.textsOf(before);
     const { landing, sections: laid } = selection.landCases(
       at,
-      selection.caseSectionsAt(at),
+      alone ? {} : selection.caseSectionsAt(at),
       root,
       [{ path: combinedAt, ...(run === undefined ? {} : { coverage: run }) }],
       texts,
@@ -232,6 +211,8 @@ async function landCombined(
       // before, an older commit than the one it last ran at, so `test:since`
       // reads more of the change for it rather than less.
       if (runs !== undefined) await rename(stagedRuns, runsAt);
+      // Over nothing, a runs record this landing did not write answers for an earlier run.
+      else if (alone) await rm(runsAt, { force: true });
       return {
         landed: landed === undefined
           ? undefined

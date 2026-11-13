@@ -58,8 +58,8 @@ place by time, your mainline has to publish one:
 2. Publish them with `variance share --publish <records>`, to the
    [share](sharing.md), the store CI keeps each run's record in. It folds the
    shards of each suite into the record one unsharded run would have written,
-   over the mainline's last one, and publishes every suite the root config
-   gives `"carry": "share"`.
+   carrying nothing of the mainline's last one, and publishes every suite the
+   root config gives `"carry": "share"`.
    [A suite with no run report](sharing.md#a-suite-with-no-run-report) is that
    job, step by step.
 

@@ -1,21 +1,30 @@
 import { execFile } from 'node:child_process';
-import { cp, mkdir, mkdtemp, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
 import { instrumentationId } from '@variance-authority/sense/instrument';
-import { commitRunsFile, readCommitRuns, readTestCoverage, testCoverageFile, writeCommitRuns, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import {
+  caseSectionsOf,
+  commitRunsFile,
+  readCommitRuns,
+  readTestCoverage,
+  testCoverageFile,
+  writeCommitRuns,
+  writeTestCoverage,
+} from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../parse.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
-import { PUSH, gitPublished, totalCoverage, totalModule } from './mainline-fixture.js';
+import { DISCOUNTS, PUSH, casesIndex, gitPublished, totalCoverage, totalModule } from './mainline-fixture.js';
 import { suitesShare } from './share-suites.js';
 
 /**
  * What `variance share` does in the root config's form: the records a CI run's
- * jobs handed on folded over the mainline's base, and every suite given to the
- * share published or refused by name.
+ * jobs handed on published as the run they make, the merge queue's part of the
+ * suite folded over the mainline's, and every suite given to the share
+ * published or refused by name.
  */
 
 const run = promisify(execFile);
@@ -39,11 +48,12 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 /**
  * The CI checkout one commit past the published `first`, `unit` and `integration`
  * given to the share, `site` declared beside them, and only `unit` published, as the publish job finds it: nothing
- * recorded in its own cache, and the commit pushed.
+ * recorded in its own cache, and the commit pushed. The published record keeps
+ * `readings` of its cases when given.
  */
-async function nextPush(): Promise<{ ci: string; origin: string; first: string; second: string }> {
+async function nextPush(readings?: Uint8Array): Promise<{ ci: string; origin: string; first: string; second: string }> {
   const suites = { unit: { kind: 'unit', carry: 'share' }, integration: { kind: 'unit', carry: 'share' }, site: { kind: 'unit' } };
-  const { ci, origin, first } = await gitPublished(home, { instrumentation: instrumentationId(), suites });
+  const { ci, origin, first } = await gitPublished(home, { instrumentation: instrumentationId(), suites, ...(readings === undefined ? {} : { readings }) });
   await writeFile(join(ci, 'src/later.ts'), 'export const later = 1;\n');
   await git(ci, 'add', '-A');
   await git(ci, 'commit', '--quiet', '-m', 'second');
@@ -52,15 +62,16 @@ async function nextPush(): Promise<{ ci: string; origin: string; first: string; 
   return { ci, origin, first, second: await git(ci, 'rev-parse', 'HEAD') };
 }
 
-/** What one job of `suite` that ran `file` whole at `commit` handed on: its cache, under `ran/<job>`. */
-async function handedOn(job: string, suite: string, file: string, commit: string): Promise<string> {
+/** What one job of `suite` that ran `file` whole at `commit` handed on: its cache, under `ran/<job>`, keeping `cases` when given. */
+async function handedOn(job: string, suite: string, file: string, commit: string, cases?: readonly (typeof DISCOUNTS)[]): Promise<string> {
   const record = join(home, 'ran', job, 'test-selection', 'digest', 'suites', suite, 'coverage.bin');
   await mkdir(dirname(record), { recursive: true });
   const blocks = [totalModule([file]), {
     ordinal: 1, owner: 0, kind: 'function' as const, digest: digestString('applyDiscount'), name: 'applyDiscount', path: 'applyDiscount',
     startLine: 1, endLine: 3, source: true, testFiles: [file],
   }];
-  await writeTestCoverage(record, { ...totalCoverage(commit, [file], blocks), instrumentation: instrumentationId() });
+  const coverage = { ...totalCoverage(commit, [file], blocks), instrumentation: instrumentationId() };
+  await writeTestCoverage(record, coverage, ...(cases === undefined ? [] : [{ index: casesIndex(cases) }]));
   return record;
 }
 
@@ -73,7 +84,7 @@ async function collectedEach(): Promise<string> {
 }
 
 describe('`variance share --publish <records>`', () => {
-  it("folds a suite's shards over the mainline's base and publishes the run they make whole", async () => {
+  it("lands a suite's shards and publishes the run they make whole", async () => {
     const { ci, origin, second } = await nextPush();
     await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
     await handedOn('variance-shard-unit-2', 'unit', 'test/other.test.ts', second);
@@ -85,6 +96,51 @@ describe('`variance share --publish <records>`', () => {
     expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
     expect(await git(home, 'ls-remote', origin, 'refs/variance/mainline/main')).not.toBe(before);
     expect(testCoverageFile(ci, { suite: 'unit' })).toContain(join(home, 'publish-cache'));
+  });
+
+  it("publishes a whole run as its shards recorded it, keeping no reading only the mainline's record held", async () => {
+    // The mainline's record read `discounts` once passing and once throwing.
+    const earlier = { cases: { [DISCOUNTS.id]: [{ count: 1, stopped: false }, { count: 1, stopped: true }] } };
+    const { ci, second } = await nextPush(Buffer.from(JSON.stringify(earlier)));
+    await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second, [DISCOUNTS]);
+    const collected = join(home, 'collected-total.txt');
+    await writeFile(collected, 'test/total.test.ts\n');
+    expect((await suitesShare(ci, { suite: 'unit', publish: true, records: [join(home, 'ran')], collected }, { env: PUSH })).exit).toBe(EXIT_CLEAN);
+
+    vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'reader-cache'));
+    expect((await suitesShare(ci, { suite: 'unit', records: [] }, { env: PUSH })).lines.join('\n')).toMatch(/read from mainline main/u);
+    const record = testCoverageFile(ci, { suite: 'unit' });
+    const { index, readings } = caseSectionsOf(await readFile(record));
+    expect(index).toBeDefined();
+    expect(readings === undefined ? {} : JSON.parse(Buffer.from(readings).toString()).cases).toEqual({});
+    expect((await readCommitRuns(record))?.over).toBeUndefined();
+  });
+
+  it("publishes a whole run alone where the publish job already fetched the mainline's record", async () => {
+    const { ci, second } = await nextPush();
+    expect((await suitesShare(ci, { suite: 'unit', records: [] }, { env: PUSH })).lines.join('\n')).toMatch(/read from mainline main/u);
+    await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
+    const collected = join(home, 'collected-total.txt');
+    await writeFile(collected, 'test/total.test.ts\n');
+
+    const done = await suitesShare(ci, { suite: 'unit', publish: true, records: [join(home, 'ran')], collected }, { env: PUSH });
+
+    expect(done.exit).toBe(EXIT_CLEAN);
+    const record = testCoverageFile(ci, { suite: 'unit' });
+    expect((await readTestCoverage(record)).tests.map((test) => test.file)).toEqual(['test/total.test.ts']);
+    expect((await readCommitRuns(record))?.over).toBeUndefined();
+  });
+
+  it("folds a branch's run over the record it was seeded from, keeping the tests it did not run", async () => {
+    const { ci, second } = await nextPush();
+    await handedOn('variance-shard-unit-1', 'unit', 'test/total.test.ts', second);
+    const branch = { ...PUSH, GITHUB_REF_NAME: 'feat/x' };
+
+    const done = await suitesShare(ci, { suite: 'unit', publish: true, records: [join(home, 'ran')] }, { env: branch });
+
+    expect(done.lines.join('\n')).toMatch(/read from mainline main/u);
+    const record = testCoverageFile(ci, { suite: 'unit' });
+    expect((await readTestCoverage(record)).tests.map((test) => test.file)).toEqual(['test/other.test.ts', 'test/total.test.ts']);
   });
 
   it("lays a slice's record, already laid over the base in its job, as that job left it, and refuses it when the slice ran part of the suite", async () => {
@@ -243,7 +299,7 @@ describe('`variance share --publish <records>`', () => {
     const done = await suitesShare(ci, { publish: true, records: [join(home, 'ran')], collected: await collectedEach() }, { env: PUSH });
 
     expect(done.exit).toBe(EXIT_OPERATOR);
-    expect(done.lines).toContain('integration: nothing was handed on, so the base stands.');
+    expect(done.lines).toContain('integration: nothing was handed on.');
     expect(done.lines.join('\n')).toMatch(/wrote suite-v1\/unit to mainline main in /u);
     expect(done.lines.at(-1)).toBe('not published: integration.');
   });

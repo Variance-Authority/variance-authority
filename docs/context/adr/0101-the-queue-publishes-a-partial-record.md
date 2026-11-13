@@ -34,8 +34,9 @@ replaces it, and a partial one never replaces a whole one.**
   <artifact pattern>` asks GitHub for a green `merge_group` run of the running
   workflow whose head is `HEAD`, takes the latest, and downloads its artifacts
   that match. A push with no such run publishes nothing and says why.
-- **The record folds over the mainline's**, as the whole publish folds, so a
-  test the queue did not run keeps the stand the mainline gave it.
+- **The record folds over the mainline's**, so a test the queue did not run
+  keeps the stand the mainline gave it. A whole run's publish lands alone
+  (#1302).
 - **The whole-run gate stands for every other publish.** Only `--from-queue`
   marks its entry `partial`, and only for a run GitHub reports as the queue's.
 - **The manifest holds `partial`.** A whole entry at a commit is kept against
