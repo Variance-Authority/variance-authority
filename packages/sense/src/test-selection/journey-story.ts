@@ -15,11 +15,8 @@
  * what is open, and telling one journey reads that journey's part alone.
  */
 
-import { createRequire } from 'node:module';
 import type probeLog from '../instrument/probe-log.cjs';
-
-type StoryTap = typeof import('../instrument/story-tap.cjs');
-type StoryFormat = typeof import('../story/format.cjs');
+import recorder from './journey-recorder.cjs';
 
 /** A tape in front of a reporting head's engine. */
 export interface JourneyTape {
@@ -41,9 +38,7 @@ export function tapeJourneys(engine: ReturnType<typeof probeLog.createEngine>): 
   // or the format, and `journey.ts`, which every head and its unit tests load
   // from source, would otherwise pull in the tap, whose `require` of its
   // CommonJS neighbours names built files that exist only in `dist`.
-  const require = createRequire(import.meta.url);
-  const storyTap = require('../instrument/story-tap.cjs') as StoryTap;
-  const format = require('../story/format.cjs') as StoryFormat;
+  const { storyTap, storyFormat: format } = recorder.loadRecorder();
   const tap = storyTap.createTap(engine, storyTap.PART_LIMIT, true);
   tap.nameIn(globalThis);
   return {
