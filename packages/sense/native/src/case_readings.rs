@@ -8,9 +8,9 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::case_lines;
+use crate::order;
 use crate::case_shard::{self, put, Inventory, Shard, Varints};
-use crate::record_parts;
-use crate::crossing_sets::{decode_set, set_slice};
+use crate::crossing_sets::{set_holds, set_slice};
 
 const STOPPED: u64 = 1;
 const STOPS: u64 = 2;
@@ -237,95 +237,120 @@ fn against(regions: &[Region], base: &[Region]) -> Stored {
     if applied(&held, base) == regions { held } else { Stored { regions: Some(regions.to_vec()), ..Stored::default() } }
 }
 
-/// A case's bytes with its newest reading, stored over `from`, laid again over
-/// `to`: as its difference from `to`, or whole where that costs fewer bytes,
-/// as `packed` chooses. A newest stored whole stands on no index and is kept.
-pub(crate) fn rebased(bytes: &[u8], from: &[Region], to: &[Region]) -> Result<Option<Vec<u8>>, String> {
-    let stored = decode_case(bytes)?;
-    let Some(first) = stored.first().filter(|first| first.regions.is_none()) else {
-        return Ok(None);
-    };
-    let newest = applied(first, from);
-    let head = Stored { count: first.count, stopped: first.stopped, ..Stored::default() };
-    let mut whole = stored.clone();
-    whole[0] = Stored { regions: Some(newest.clone()), ..head.clone() };
-    let mut differing = stored;
-    differing[0] = Stored { count: head.count, stopped: head.stopped, ..against(&newest, to) };
-    let (whole, differing) = (case_bytes(&whole), case_bytes(&differing));
-    Ok(Some(if differing.len() <= whole.len() { differing } else { whole }))
-}
-
-/// Whether a case's newest reading is stored as its difference from the index, so it stands on the index's regions.
-pub(crate) fn stands_on_index(bytes: &[u8]) -> Result<bool, String> {
-    Ok(decode_case(bytes)?.first().is_some_and(|first| first.regions.is_none()))
-}
-
-/// The regions `shard`, its cuts in `inventories`, holds of each case `wanted`
-/// names, as `readsOf` reads them: in module and region order, each with the
-/// value the case's lines give it.
-pub(crate) fn regions_of(shard: &Shard, inventories: &HashMap<String, Vec<Inventory>>, wanted: &HashSet<String>) -> Result<HashMap<String, Vec<Region>>, String> {
-    let rows: HashMap<u32, (&str, Option<case_lines::Lines>)> = shard
-        .tests
-        .iter()
-        .enumerate()
-        .filter(|(_, test)| wanted.contains(&test.id))
-        .map(|(row, test)| Ok((row as u32, (test.id.as_str(), case_lines::decode(&shard.lines[row])?))))
-        .collect::<Result<_, String>>()?;
-    let mut read: HashMap<String, Vec<Region>> = rows.values().map(|(id, _)| ((*id).to_owned(), Vec::new())).collect();
-    if rows.is_empty() {
-        return Ok(read);
+/// Whether a case's newest reading is stored as a difference from the index
+/// that names some change, read off its first flags alone: a newest stored
+/// whole stands on no index, and one stored as its count alone reads as the
+/// index holds the case, as it does on `main`.
+fn newest_differs(bytes: &[u8]) -> Result<bool, String> {
+    let mut read = Varints::new(bytes);
+    for _ in 0..read.take()? {
+        let length = read.take()?;
+        read.bytes(length)?;
     }
+    if read.take()? == 0 {
+        return Ok(false);
+    }
+    read.take()?;
+    let flags = read.take()?;
+    Ok(flags & REGIONS == 0 && flags & (GONE | VALUES | ADDED) != 0)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many cases' regions were laid out, so a test can see a fold that needed none lay out none.
+    pub(crate) static EXPANDED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// The regions `shard`, its cuts in `inventories`, holds of the case at `row`,
+/// as `readsOf` reads them: in module and region order, each with the value
+/// the case's lines give it. Only this case's regions are laid out.
+fn case_regions(shard: &Shard, inventories: &HashMap<String, Vec<Inventory>>, row: u32) -> Result<Vec<Region>, String> {
+    #[cfg(test)]
+    EXPANDED.with(|expanded| expanded.set(expanded.get() + 1));
+    let lines = case_lines::decode(&shard.lines[row as usize])?;
+    let mut read = Vec::new();
     for (place, module) in shard.modules.iter().enumerate() {
-        let blocks = &inventories
-            .get(&module.file)
-            .and_then(|cuts| cuts.get(module.inventory))
-            .ok_or_else(|| format!("the case index names a cut of `{}` it does not hold", module.file))?
-            .blocks;
+        let blocks = &cut_of(inventories, &module.file, module.inventory)?.blocks;
         for (block, set) in module.called.iter().enumerate() {
-            for row in decode_set(set_slice(&shard.set_bytes, &shard.set_offsets, *set)?, shard.tests.len())? {
-                let Some((id, lines)) = rows.get(&row) else { continue };
-                let region = blocks.get(block).ok_or_else(|| format!("the case index names a region of `{}` its cut does not hold", module.file))?;
-                read.get_mut(*id).expect("every wanted row is held").push(Region {
-                    module: module.file.clone(),
-                    name: region.name.clone(),
-                    path: region.path.clone(),
-                    start: u64::from(region.start_line),
-                    end: u64::from(region.end_line),
-                    value: lines.as_ref().and_then(|lines| case_lines::value_at(lines, place as u32, block as u32)),
-                });
+            if !set_holds(set_slice(&shard.set_bytes, &shard.set_offsets, *set)?, shard.tests.len(), row)? {
+                continue;
             }
+            let region = blocks.get(block).ok_or_else(|| format!("the case index names a region of `{}` its cut does not hold", module.file))?;
+            read.push(Region {
+                module: module.file.clone(),
+                name: region.name.clone(),
+                path: region.path.clone(),
+                start: u64::from(region.start_line),
+                end: u64::from(region.end_line),
+                value: lines.as_ref().and_then(|lines| case_lines::value_at(lines, place as u32, block as u32)),
+            });
         }
     }
     Ok(read)
 }
 
-/// The cases of one shard's readings `section` whose newest stands on the
-/// shard's index, each with its bytes and the regions that index holds of it.
-pub(crate) fn owed(shard: &Shard, inventories: &HashMap<String, Vec<Inventory>>, section: &[u8]) -> Result<Vec<(String, Vec<u8>, Vec<Region>)>, String> {
-    // An earlier build's JSON holds no readings; bytes this build cannot read are the fold's to refuse.
-    if section.starts_with(b"{\"") {
-        return Ok(Vec::new());
-    }
-    let Ok(read) = record_parts::read_readings(section) else { return Ok(Vec::new()) };
-    let mut standing = Vec::new();
-    for (id, bytes) in read.cases {
-        if stands_on_index(bytes)? {
-            standing.push((id, bytes.to_vec()));
-        }
-    }
-    let wanted = standing.iter().map(|(id, _)| id.clone()).collect();
-    let mut regions = regions_of(shard, inventories, &wanted)?;
-    Ok(standing.into_iter().map(|(id, bytes)| {
-        let from = regions.remove(&id).unwrap_or_default();
-        (id, bytes, from)
-    }).collect())
+fn cut_of<'a>(inventories: &'a HashMap<String, Vec<Inventory>>, file: &str, at: usize) -> Result<&'a Inventory, String> {
+    inventories.get(file).and_then(|cuts| cuts.get(at)).ok_or_else(|| format!("the case index names a cut of `{file}` it does not hold"))
 }
 
-/// Each owed case, by its shard and its own id, laid again over the combined
-/// index in `combined` where that index holds its regions otherwise than the
-/// shard's did; a case it holds alike is left to be copied as it is.
+/// A case of one shard whose newest the combined index may read otherwise:
+/// its own id, and its bytes with the newest written whole.
+pub(crate) struct Owed {
+    pub id: String,
+    pub whole: Vec<u8>,
+}
+
+/// The cases of one shard's readings whose newest a fold may read otherwise
+/// than the shard did: stored as a difference from the shard's index, and
+/// crossing a file the shards cut more than one way, the only file whose
+/// regions the fold reconciles (or any file, where the shard did not lay its
+/// modules in the fold's order). Each is read over the shard's index one at a
+/// time and kept as the bytes `main` keeps it in, its newest whole. A shard
+/// whose cases cross no such file lays out no case's regions.
+pub(crate) fn owed(shard: &Shard, inventories: &HashMap<String, Vec<Inventory>>, cases: &[(String, &[u8])]) -> Result<Vec<Owed>, String> {
+    let mut differing: HashMap<&str, &[u8]> = HashMap::new();
+    for (id, bytes) in cases {
+        if newest_differs(bytes)? {
+            differing.insert(id.as_str(), *bytes);
+        }
+    }
+    // The fold lays modules in file order; a shard that laid them otherwise would read every case's regions in another order.
+    let ordered = shard.modules.windows(2).all(|pair| order::code_unit(&pair[0].file, &pair[1].file).is_lt());
+    let recut: Vec<&case_shard::ShardModule> =
+        shard.modules.iter().filter(|module| !ordered || inventories.get(&module.file).is_some_and(|cuts| cuts.len() > 1)).collect();
+    if differing.is_empty() || recut.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut owed = Vec::new();
+    for (row, test) in shard.tests.iter().enumerate() {
+        let Some(bytes) = differing.get(test.id.as_str()) else { continue };
+        let row = row as u32;
+        let mut crosses = false;
+        'modules: for module in &recut {
+            for set in &module.called {
+                if set_holds(set_slice(&shard.set_bytes, &shard.set_offsets, *set)?, shard.tests.len(), row)? {
+                    crosses = true;
+                    break 'modules;
+                }
+            }
+        }
+        if !crosses {
+            continue;
+        }
+        let mut stored = decode_case(bytes)?;
+        let newest = applied(&stored[0], &case_regions(shard, inventories, row)?);
+        stored[0] = Stored { count: stored[0].count, stopped: stored[0].stopped, regions: Some(newest), ..Stored::default() };
+        owed.push(Owed { id: test.id.clone(), whole: case_bytes(&stored) });
+    }
+    Ok(owed)
+}
+
+/// Each owed case, by its shard and its own id, laid over the combined index
+/// in `combined` as `packed` lays a newest: as its difference from the
+/// regions that index holds of the case, or whole where that costs fewer
+/// bytes. Cases are laid one at a time; with none owed, nothing is read.
 pub(crate) fn laid_again(
-    owed: Vec<(String, Vec<(String, Vec<u8>, Vec<Region>)>)>,
+    owed: Vec<(String, Vec<Owed>)>,
     combined: &[u8],
     renamed: &HashMap<String, HashMap<String, String>>,
 ) -> Result<HashMap<(String, String), Vec<u8>>, String> {
@@ -337,16 +362,18 @@ pub(crate) fn laid_again(
     let index = case_shard::read_shard(combined, &mut inventories)?;
     let unrenamed = HashMap::new();
     let name = |shard: &str, id: &str| renamed.get(shard).unwrap_or(&unrenamed).get(id).cloned().unwrap_or_else(|| id.to_owned());
-    let wanted = owed.iter().flat_map(|(shard, cases)| cases.iter().map(|(id, _, _)| name(shard, id))).collect();
-    let there = regions_of(&index, &inventories, &wanted)?;
+    let wanted: HashSet<String> = owed.iter().flat_map(|(shard, cases)| cases.iter().map(|case| name(shard, &case.id))).collect();
+    let rows: HashMap<&str, u32> = index.tests.iter().enumerate().filter(|(_, test)| wanted.contains(&test.id)).map(|(row, test)| (test.id.as_str(), row as u32)).collect();
     for (shard, cases) in owed {
-        for (id, bytes, from) in cases {
-            let to = there.get(&name(&shard, &id)).map_or(&[][..], Vec::as_slice);
-            if from != to {
-                if let Some(again) = rebased(&bytes, &from, to)? {
-                    laid.insert((shard.clone(), id), again);
-                }
-            }
+        for case in cases {
+            let row = *rows.get(name(&shard, &case.id).as_str()).ok_or_else(|| format!("{shard}: the combined index does not record `{}`", case.id))?;
+            let to = case_regions(&index, &inventories, row)?;
+            let whole = decode_case(&case.whole)?;
+            let newest = whole[0].regions.as_deref().unwrap_or_default();
+            let mut differing = whole.clone();
+            differing[0] = Stored { count: whole[0].count, stopped: whole[0].stopped, ..against(newest, &to) };
+            let differing = case_bytes(&differing);
+            laid.insert((shard.clone(), case.id), if differing.len() <= case.whole.len() { differing } else { case.whole });
         }
     }
     Ok(laid)

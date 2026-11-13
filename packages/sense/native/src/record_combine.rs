@@ -269,7 +269,13 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
         let owed = held
             .iter()
             .filter_map(|(_, shard)| shard.index.as_ref().zip(shard.parts.readings.as_deref()).map(|(index, section)| (shard, index, section)))
-            .map(|(shard, index, section)| Ok((shard.path.clone(), case_readings::owed(index, &inventories, section).map_err(|error| format!("{}: {error}", shard.path))?)))
+            .map(|(shard, index, section)| {
+                // An earlier build's JSON holds no readings, and bytes this build cannot read are `fold_readings`' to refuse.
+                let Some(read) = (!section.starts_with(b"{\"")).then(|| record_parts::read_readings(section).ok()).flatten() else {
+                    return Ok((shard.path.clone(), Vec::new()));
+                };
+                Ok((shard.path.clone(), case_readings::owed(index, &inventories, &read.cases).map_err(|error| format!("{}: {error}", shard.path))?))
+            })
             .collect::<Result<Vec<_>, String>>()?;
         let indexes: Vec<case_shard::Shard> = held.iter_mut().filter_map(|(_, shard)| shard.index.take()).collect();
         let names: Vec<String> = indexes.iter().map(|index| index.name.clone()).collect();
