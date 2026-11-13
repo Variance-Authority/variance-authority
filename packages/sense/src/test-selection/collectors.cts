@@ -19,6 +19,7 @@ import caseOwner = require('./case-owner.cjs');
 import journals = require('./journal-format.cjs');
 import eyesFrames = require('./eyes-frame.cjs');
 import preconditions = require('./case-preconditions.cjs');
+import presence = require('./presence.cjs');
 import probeCuts = require('../instrument/probe-cuts.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
 import storyTap = require('../instrument/story-tap.cjs');
@@ -29,7 +30,8 @@ import type { JourneyTrace } from './journey.js';
 type Engine = ReturnType<typeof probeLog.createEngine>;
 type Bucket = ReturnType<Engine['open']>;
 type View = ReturnType<Engine['read']>;
-type Presence = Map<ModuleId, Uint32Array>;
+type Presence = ReturnType<typeof presence.presenceOf>;
+const { presenceOf, foldInto } = presence;
 /** Where a case's story goes once the case settles; see `story/format.cts`. */
 type StoryWriter = (key: string, bytes: Uint8Array) => void;
 
@@ -79,47 +81,6 @@ const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 
 /** Where a runner's environment leaves the application's tracing; mirrors `TRACE` in `jest-runtime.cts`. */
 const TRACE = Symbol.for('variance-authority.test-selection.trace');
-
-/** Mirrors `EVALUATING` in `../instrument/index.ts`, with the entered bit beside it. */
-const ENTERED_EVALUATING = 0x80000001;
-
-/**
- * A read-out as one array per module, 1 for entered and the evaluating bit
- * beside it: what `encodeJournal` reads, and all it reads.
- */
-function presenceOf(view: View): Presence {
-  const out: Presence = new Map();
-  for (const row of view.rows) {
-    const counters = new Uint32Array(view.counts[row]!);
-    for (let at = view.start[row]!; at < view.end[row]!; at += 1) {
-      const value = view.sorted[at]!;
-      counters[value >>> 1] = value & 1 ? ENTERED_EVALUATING : 1;
-    }
-    out.set(view.ids[row]!, counters);
-  }
-  return out;
-}
-
-/**
- * Or a bucket into the file's union. A module whose block count changed
- * restarts from this bucket: its old ordinals name regions the new text does
- * not have.
- */
-function foldInto(union: Presence, view: View): void {
-  for (const row of view.rows) {
-    const id = view.ids[row]!;
-    const count = view.counts[row]!;
-    let counters = union.get(id);
-    if (counters === undefined || counters.length !== count) {
-      counters = new Uint32Array(count);
-      union.set(id, counters);
-    }
-    for (let at = view.start[row]!; at < view.end[row]!; at += 1) {
-      const value = view.sorted[at]!;
-      counters[value >>> 1]! |= value & 1 ? ENTERED_EVALUATING : 1;
-    }
-  }
-}
 
 /**
  * The realm's engine, made and installed if this is the first collector in it.
