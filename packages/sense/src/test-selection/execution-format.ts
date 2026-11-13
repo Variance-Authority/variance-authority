@@ -11,7 +11,7 @@ import type {
 } from './reverse.js';
 import { decodeSetExecutionIndex, executionTestsOf } from './execution-set-format.js';
 import { LAYOUT } from './record-layout.js';
-import { durationColumn, durationFrom, limitColumn, limitFrom, stoppedColumn, stoppedFrom } from './execution-set-columns.js';
+import { durationColumn, durationFrom, limitColumn, limitFrom, slowestColumn, slowestFrom, stoppedColumn, stoppedFrom } from './execution-set-columns.js';
 
 /**
  * The execution index as columns, because the JSON spelling of it is the
@@ -153,6 +153,7 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
   moduleBlocks[index.modules.length] = block;
   blockCrossings[blockCount] = crossing;
 
+  const slowest = slowestColumn(index.tests.length, (at) => index.tests[at]!.slowest);
   return sections(
     {
       'strings.blob': blob(Buffer.concat(encoded), stringOffsets),
@@ -163,6 +164,7 @@ export function encodeExecutionIndex(index: ExecutionIndex): Buffer {
       'tests.stopped': column(stoppedColumn(index.tests)),
       'tests.duration': column(durationColumn(index.tests)),
       [LAYOUT.cases.limit]: column(limitColumn(index.tests)),
+      ...(slowest === undefined ? {} : { [LAYOUT.cases.slowest]: column(slowest) }),
       'modules.file': column(moduleFile),
       'modules.blocks': column(moduleBlocks),
       'blocks.kind': column(blockKind),
@@ -309,7 +311,10 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   const testDuration = found.has('tests.duration') ? words('tests.duration') : undefined;
   // A file before cases carried a limit names none.
   const testLimit = found.has(LAYOUT.cases.limit) ? words(LAYOUT.cases.limit) : undefined;
+  // Written where a cut case timed a statement; a file without it timed none.
+  const testSlowest = found.has(LAYOUT.cases.slowest) ? words(LAYOUT.cases.slowest) : undefined;
   if (testFile.length !== testId.length || testName.length !== testId.length) throw invalid();
+  if (testSlowest !== undefined && testSlowest.length !== testId.length * 2) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testId.length) throw invalid();
   if (testLimit !== undefined && testLimit.length !== testId.length) throw invalid();
   const tests: ExecutionTest[] = [];
@@ -321,6 +326,7 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
       ...stoppedFrom(testStopped, at),
       ...durationFrom(testDuration, at),
       ...limitFrom(testLimit, at),
+      ...slowestFrom(testSlowest, at),
     });
   }
 

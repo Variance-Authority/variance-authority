@@ -166,8 +166,9 @@ down costs run time. Added to this repository's unit suite under Vitest:
 
 The other recording options:
 
-- `cadence` (on): the test line that first reached each region. `false`
-  leaves test files untransformed.
+- `cadence` (on): the test line that first reached each region, and each
+  case's slowest statement with its time. `false` leaves test files
+  untransformed and records neither.
 - `continuations` (off): a case keeps the asynchronous work it started after
   it returns. Turn it on for a concurrent suite, or one whose work outlives
   its cases.

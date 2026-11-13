@@ -85,6 +85,9 @@ pub struct CaseExtras {
     pub durations: Vec<Option<u32>>,
     /// Each case's limit in milliseconds; empty where no case named one.
     pub limits: Vec<Option<u32>>,
+    /// Each case's slowest statement as its line and whole milliseconds; empty
+    /// where no case timed one.
+    pub slowest: Vec<Option<(u32, u32)>>,
     /// Each case's lines as stored, empty for a case that recorded none; no
     /// rows where no case recorded any.
     pub lines: Vec<Vec<u8>>,
@@ -105,7 +108,8 @@ pub fn encode(
     let timed = extras.always_timed || extras.durations.iter().any(Option::is_some);
     let limited = extras.always_timed || extras.limits.iter().any(Option::is_some);
     let lined = extras.lines.iter().any(|lines| !lines.is_empty());
-    if (timed && extras.durations.len() != tests.len()) || (limited && extras.limits.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
+    let paced = extras.slowest.iter().any(Option::is_some);
+    if (paced && extras.slowest.len() != tests.len()) || (timed && extras.durations.len() != tests.len()) || (limited && extras.limits.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
         return Err("case columns disagree with the cases".to_owned());
     }
     let mut strings = Vec::new();
@@ -222,6 +226,10 @@ pub fn encode(
     if limited {
         let words = extras.limits.iter().map(|limit| limit.unwrap_or(LAYOUT.coverage.no_duration)).collect();
         columns.push(Column::Words(cases.limit.as_str(), words));
+    }
+    if paced {
+        let words = extras.slowest.iter().flat_map(|slowest| <[u32; 2]>::from(slowest.unwrap_or((0, 0)))).collect();
+        columns.push(Column::Words(cases.slowest.as_str(), words));
     }
     for (section, laid) in case_said::SECTIONS.into_iter().zip(heard) {
         if let Some(laid) = laid {

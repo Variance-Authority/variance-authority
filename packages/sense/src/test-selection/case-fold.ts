@@ -7,7 +7,7 @@ import { FoldLines, fileStarts, linedCases, writtenPlaces } from './case-fold-li
 import { collect, markRange, moduleOf } from './case-fold-bits.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
-import { limitAcross } from './execution-set-columns.js';
+import { limitAcross, slowestAcross } from './execution-set-columns.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import {
   isMissing,
@@ -68,6 +68,8 @@ interface Coordinate extends CaseCoordinate {
   stopped?: boolean;
   /** The limit it ran under, by `limitAcross`. */
   limit?: number;
+  /** Its slowest statement, by `slowestAcross`. */
+  slowest?: ExecutionTest['slowest'];
   /** What each of its frames said it arranged, as the realm wrote it; absent where a frame's writer never listened. */
   readonly said: (Said | undefined)[];
   /** Every frame written under this coordinate, in replay order. */
@@ -137,6 +139,7 @@ export async function inspectCaseRun(
                 ...caseOf(located),
                 ...settledAcross(coordinate.stopped, undefined),
                 ...limitAcross(coordinate.limit, undefined),
+                ...slowestAcross(coordinate.slowest, undefined),
                 said: [said],
                 frames: [frame],
               };
@@ -146,7 +149,7 @@ export async function inspectCaseRun(
               held.frames.push(frame);
               const settled = settledAcross(held.stopped, coordinate.stopped).stopped;
               if (settled !== undefined) held.stopped = settled;
-              Object.assign(held, limitAcross(held.limit, coordinate.limit));
+              Object.assign(held, limitAcross(held.limit, coordinate.limit), slowestAcross(held.slowest, coordinate.slowest));
               held.said.push(said);
             }
             frame += 1;
@@ -180,6 +183,7 @@ export async function inspectCaseRun(
       ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
       ...(duration === undefined ? {} : { duration }),
       ...limitAcross(coordinate.limit, limits(coordinate.file, coordinate.name)),
+      ...slowestAcross(coordinate.slowest, undefined),
       ...(said === undefined ? {} : { said }),
     };
   });

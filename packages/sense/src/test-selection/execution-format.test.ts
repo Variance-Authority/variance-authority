@@ -266,6 +266,38 @@ describe('the duration each case carries', () => {
   });
 });
 
+describe('the slowest statement a cut case names', () => {
+  const paced: ExecutionIndex = {
+    tests: [
+      { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', duration: 260, slowest: { line: 4, time: 210 } },
+      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', duration: 3 },
+    ],
+    modules: [],
+  };
+  const sectionsOf = (bytes: Buffer): string[] => {
+    const header = JSON.parse(bytes.toString('utf8', 4, 4 + bytes.readUInt32LE(0)).replace(/\0+$/u, '')) as { sections: { name: string }[] };
+    return header.sections.map((section) => section.name);
+  };
+
+  it('is kept in either spelling, and a case that names none stays without one, never at zero', () => {
+    for (const bytes of [encodeExecutionIndex(paced), encodeAsSetExecutionIndex(paced)]) {
+      const back = decodeExecutionIndex(bytes);
+      expect(back.tests).toEqual(paced.tests);
+      expect('slowest' in back.tests[1]!).toBe(false);
+    }
+  });
+
+  it('adds no section to an index none of whose cases names one, which is how an older record reads', () => {
+    const untimed: ExecutionIndex = { tests: paced.tests.map(({ slowest: _, ...test }) => test), modules: [] };
+
+    for (const bytes of [encodeExecutionIndex(untimed), encodeAsSetExecutionIndex(untimed)]) {
+      expect(sectionsOf(bytes)).not.toContain('tests.slowest');
+      expect(decodeExecutionIndex(bytes).tests.map((test) => 'slowest' in test)).toEqual([false, false]);
+    }
+    expect(sectionsOf(encodeExecutionIndex(paced))).toContain('tests.slowest');
+  });
+});
+
 describe('the limit each case ran under', () => {
   const limited: ExecutionIndex = {
     tests: [
@@ -377,6 +409,21 @@ describe('the preconditions each case named', () => {
     const tests = [
       { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', limit: 5000 },
       { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', limit: 6000 },
+    ];
+    const rows = encodeExecutionIndex({ tests, modules: [] });
+    const set = encodeSetExecutionIndex({ tests, modules: [], sets: new CrossingSets(3).pool() });
+
+    expect(() => decodeExecutionIndex(withHeader(rows, short))).toThrow(/not a variance-authority execution index/);
+    expect(() => decodeExecutionIndex(withHeader(set, short))).toThrow(/not a variance-authority execution index/);
+  });
+
+  it('refuses a slowest-statement column that does not hold two entries per case, in either spelling', () => {
+    const short = (sections: { name: string; length: number }[]) => {
+      sections.find((section) => section.name === 'tests.slowest')!.length = 8;
+    };
+    const tests = [
+      { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', slowest: { line: 4, time: 210 } },
+      { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two' },
     ];
     const rows = encodeExecutionIndex({ tests, modules: [] });
     const set = encodeSetExecutionIndex({ tests, modules: [], sets: new CrossingSets(3).pool() });

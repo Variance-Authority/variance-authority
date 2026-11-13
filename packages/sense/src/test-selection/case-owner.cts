@@ -83,6 +83,18 @@ const PROJECT = 6;
  */
 const LIMIT = 7;
 
+/**
+ * The case's slowest statement, as `<line> <milliseconds>`: the line in the
+ * test file and the whole milliseconds it took. Absent where the file was not
+ * cut or no statement took a millisecond, which is not a case that took none.
+ */
+const SLOWEST = 8;
+
+interface Slowest {
+  readonly line: number;
+  readonly time: number;
+}
+
 function withField(packed: string, at: number, value: string): string {
   const fields = packed.split('\u0000');
   while (fields.length <= at) fields.push('');
@@ -105,16 +117,22 @@ function settledCase(packed: string, stopped: boolean): string {
   return withField(packed, SETTLED, stopped ? STOPPED : FINISHED);
 }
 
-function unpackCase(packed: string): { file: string; name: string; id: string; project?: string; limit?: number; stopped?: boolean } {
+function slowestCase(packed: string, slowest: Slowest): string {
+  return withField(packed, SLOWEST, `${slowest.line} ${slowest.time}`);
+}
+
+function unpackCase(packed: string): { file: string; name: string; id: string; project?: string; limit?: number; slowest?: Slowest; stopped?: boolean } {
   const parts = packed.split('\u0000');
   const project = parts[PROJECT];
   const limit = parts[LIMIT];
+  const [line, time] = (parts[SLOWEST] ?? '').split(' ').map(Number);
   const coordinate = {
     file: parts[0] ?? packed,
     name: parts[1] ?? AMBIENT,
     id: parts[2] ?? AMBIENT,
     ...(project === undefined || project === '' ? {} : { project }),
     ...(limit === undefined || limit === '' ? {} : { limit: Number(limit) }),
+    ...(line === undefined || time === undefined ? {} : { slowest: { line, time } }),
   };
   if (parts[SETTLED] === STOPPED) return { ...coordinate, stopped: true };
   if (parts[SETTLED] === FINISHED) return { ...coordinate, stopped: false };
@@ -137,4 +155,4 @@ function journeyOf(packed: string): string {
   return packed.split('\u0000')[JOURNEY] ?? '';
 }
 
-export = { packCase, settledCase, unpackCase, packJourney, journeyOf, packHeard, heardField };
+export = { packCase, settledCase, slowestCase, unpackCase, packJourney, journeyOf, packHeard, heardField };
