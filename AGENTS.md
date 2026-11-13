@@ -92,7 +92,7 @@ no source file is refused.
 For text outside that source — most often YAML, JSON, Markdown, shell,
 workflows, logs or session transcripts — use `rg` or `git grep` directly, as for
 a line in a file you already have open. A GitHub Actions job or a step in
-`action.yml` is a text question: `rg -n 'upload-artifact' .github/ --glob '*.yml'`.
+`action.yml` is a text question: `rg -n 'upload-artifact' .github/actions/variance`.
 When the answer may sit in both source and text, use both readers from the
 start. An empty `variance` answer says nothing about a file it did not search.
 

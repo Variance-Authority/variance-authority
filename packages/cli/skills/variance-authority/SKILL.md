@@ -5,13 +5,10 @@ description: How to use `variance`, the Variance Authority CLI. Read it before y
 
 # Variance Authority
 
-Choose the evidence before a command. Text outside the source graph, such as
-GitHub Actions YAML, configuration, documentation and logs, goes directly to
-`rg` or `git grep`. Source declarations and resolved imports go to the
-[workspace API](references/workspace-api.md#names-then-relations); recorded
-execution goes to the recording tools below. A question spanning source and
-repository text uses both readers from the start. An empty Variance answer says
-nothing about a file it did not search.
+Choose the evidence before a command: text outside the source graph, such as
+workflow YAML, goes to the text search you already use, and source to the
+[workspace API](references/workspace-api.md#names-then-relations), which says
+where one ends and the other begins.
 
 Every command here reads. It reads a file a run left, a watcher that is still
 listening, the test-selection recording, or the checkout's source. None of them

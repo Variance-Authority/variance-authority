@@ -11,7 +11,8 @@ import { MARKDOWN, ROOT, type Fence, fencesIn, lineOf, prose } from './markdown.
  *
  * Each failed for a different reason before it was printed: `variance serve` and
  * `variance doctor` exit 2 with no config, and a client launches a `command` from
- * its own PATH, where a local install puts nothing. So this follows the page as a
+ * its own PATH, where a local install puts nothing. A plain shell is no different,
+ * so the lines run with the PATH they were given. This follows the page as a
  * reader would, in a fresh repository with no config.
  */
 
@@ -28,12 +29,6 @@ const ORIENT = 'npx variance ask orient';
 const SYMBOL = 'npx variance ask symbol --name price';
 
 const made: string[] = [];
-
-/** What a package manager does for a reader: their `node_modules/.bin` leads the PATH, so the bare command finds the install. */
-const asInstalled = (root: string): NodeJS.ProcessEnv => ({
-  ...process.env,
-  PATH: `${join(root, 'node_modules/.bin')}:${process.env.PATH ?? ''}`,
-});
 
 afterAll(() => {
   for (const directory of made.splice(0)) rmSync(directory, { recursive: true, force: true });
@@ -164,7 +159,7 @@ async function follow(fences: readonly Fence[], shape: Shape): Promise<Followed>
   const lines = shellLines(fences)
     .filter((line) => !STANDS_IN.test(line))
     .map((line) => {
-      const run = spawnSync('sh', ['-c', line], { cwd: root, encoding: 'utf8', env: asInstalled(root) });
+      const run = spawnSync('sh', ['-c', line], { cwd: root, encoding: 'utf8' });
       return { line, status: run.status, out: run.stdout, said: run.stderr };
     });
   const [entry] = entriesIn(fences);
@@ -175,17 +170,17 @@ async function follow(fences: readonly Fence[], shape: Shape): Promise<Followed>
 /** The pages that print the Inspector, and the version they print: 2 needs Node 22.19, above what our packages declare. */
 const INSPECTED = [PAGE, 'packages/cli/skills/variance-authority/references/mcp.md'];
 const INSPECTOR = '@modelcontextprotocol/inspector@1 ';
-const USES = 'variance ask uses --name price';
+const USES = 'npx variance ask uses --name price';
 
 /** What `ask uses` prints for a name, as indexed, after a file came to import it, and after `variance index`. */
 function editedUse(): { readonly indexed: string; readonly reused: string; readonly reindexed: string } {
   const root = repository('one package');
-  const sh = (line: string) => spawnSync('sh', ['-c', line], { cwd: root, encoding: 'utf8', env: asInstalled(root) }).stdout;
-  sh('variance index');
+  const sh = (line: string) => spawnSync('sh', ['-c', line], { cwd: root, encoding: 'utf8' }).stdout;
+  sh('npx variance index');
   const indexed = sh(USES);
   writeFileSync(join(root, 'src/use.ts'), "import { price } from './index.js';\nexport const total = price(1);\n");
   const reused = sh(USES);
-  sh('variance index');
+  sh('npx variance index');
   return { indexed, reused, reindexed: sh(USES) };
 }
 
