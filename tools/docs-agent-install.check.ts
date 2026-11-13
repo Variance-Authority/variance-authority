@@ -24,8 +24,8 @@ const HISTORY = /^(?:docs\/context\/|docs\/specs\/|backlog\/)/;
 /** The lines a reader runs that this cannot: each reaches the registry, for us or for a client. */
 const STANDS_IN = /^npm install |@modelcontextprotocol\/inspector/;
 
-const ORIENT = 'variance ask orient';
-const SYMBOL = 'variance ask symbol --name price';
+const ORIENT = 'npx variance ask orient';
+const SYMBOL = 'npx variance ask symbol --name price';
 
 const made: string[] = [];
 
@@ -220,7 +220,7 @@ describe(`${PAGE} connects an agent with no variance config`, () => {
     expect(shellLines(fences)).toEqual(
       expect.arrayContaining([
         'npm install --save-dev @variance-authority/cli @variance-authority/help',
-        'variance index',
+        'npx variance index',
         expect.stringContaining('--method tools/list'),
         expect.stringContaining('ln -s ../../node_modules/@variance-authority/cli/skills/variance-authority'),
       ]),
