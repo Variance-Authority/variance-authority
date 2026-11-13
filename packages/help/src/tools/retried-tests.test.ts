@@ -63,7 +63,7 @@ describe('the recorded cases whose attempts ended differently, as printed', () =
   it('says attempts were not kept, never that no case was retried, and promises nothing of the next run', () => {
     expect(printed([{ ...READ, unkept: true }])).toBe(
       `${RECORD}\n\nEnded differently across attempts: attempts were not kept in /cache/coverage.bin, so it does not say whether a case was retried. ` +
-        'A run keeps them when its runner reports each attempt and every shard of it kept them.',
+        'A run keeps them when its runner reports each attempt, every shard of it kept them, and so did the record it carries cases from.',
     );
   });
 

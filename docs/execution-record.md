@@ -613,7 +613,12 @@ about 150 and 450 bytes for a failed and a passed attempt. A record without the
 section says that attempts were not kept, never that no case was retried: a
 build older than attempts wrote it, or its runner reports none, or a shard of
 its run kept none, because shards of one run keep the section only when every
-shard that ran cases kept it. A record with the section speaks of the cases it
+shard that ran cases kept it. A run laid over an older record writes the
+section only when the run kept attempts and every case it carries from that
+record had its attempts kept there: a run that kept none drops the section,
+and a run that carries cases from a record without the section writes none.
+The carried cases keep their rows, and the cases that ran again take the
+run's. A record with the section speaks of the cases it
 holds and the runner could name. A case the index lacks, as every case of a file
 recorded as a whole is, has no rows, and neither has a Jest or Rstest case
 whose name its file declares twice. An attempt whose worker died before the

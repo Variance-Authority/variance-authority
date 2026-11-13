@@ -42,21 +42,39 @@ describe('the attempts a run lays', () => {
   });
 
   it('writes a section with no row for a run that kept attempts and retried nothing, and none for a run that kept none', () => {
-    expect(laid(layAttempts(undefined, [], cases, ['a']))).toEqual([]);
+    expect(laid(layAttempts(undefined, [], cases, ['a', 'b', 'c']))).toEqual([]);
     expect(layAttempts(undefined, undefined, cases, ['a'])).toBeUndefined();
-    // A run that kept none leaves what the record held of the cases it did not run.
-    expect(laid(layAttempts(encodeRecordedAttempts([failed('b', 1), passed('b', 2)]), undefined, cases, ['a'])))
-      .toEqual([failed('b', 1), passed('b', 2)]);
   });
 
   it('does not lay what the run holds of a case it did not record, as a shard\'s seed carries it', () => {
-    expect(laid(layAttempts(undefined, [failed('a', 1), passed('a', 2), failed('b', 1), passed('b', 2)], cases, ['a'])))
+    expect(laid(layAttempts(encodeRecordedAttempts([]), [failed('a', 1), passed('a', 2), failed('b', 1), passed('b', 2)], cases, ['a'])))
       .toEqual([failed('a', 1), passed('a', 2)]);
   });
 
   it('refuses an attempt whose case the run did not record', () => {
     expect(() => layAttempts(undefined, [failed('z', 1), passed('z', 2)], cases, ['z']))
       .toThrow('an attempt names a case the run did not record: z');
+  });
+});
+
+describe('a laid record that claims no more than was observed', () => {
+  const cases = () => ['a', 'b'];
+  const retried = encodeRecordedAttempts([failed('a', 1), passed('a', 2), failed('b', 1), passed('b', 2)]);
+
+  it('has no section once a run that kept no attempts ran one of its cases: that case is not "not retried"', () => {
+    expect(layAttempts(retried, undefined, cases, ['a'])).toBeUndefined();
+  });
+
+  it('has no section when a run that kept attempts carries cases of a record that kept none', () => {
+    expect(layAttempts(undefined, [failed('a', 1), passed('a', 2)], cases, ['a'])).toBeUndefined();
+    expect(laid(layAttempts(undefined, [failed('a', 1), passed('a', 2)], cases, ['a', 'b']))).toEqual([failed('a', 1), passed('a', 2)]);
+  });
+});
+
+describe('the frame of a checkout whose path a URL escapes', () => {
+  it('is found under the path as the disk spells it', () => {
+    const stack = 'Error: boom\n    at file:///private/tmp/pr1322%20space/failure.mjs:2:15';
+    expect(frameIn(stack, '/private/tmp/pr1322 space')).toBe('failure.mjs:2');
   });
 });
 

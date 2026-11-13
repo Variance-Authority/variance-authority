@@ -373,7 +373,8 @@ says what the one run recorded and nothing about any other run of the case.
 
 A record that kept no attempts says so and lists nothing, which is different
 from a record whose run retried no case: its runner reports no attempts, as a
-Vitest older than 4.1 does, or a shard of the run kept none. Only the runner's
+Vitest older than 4.1 does, or a shard of the run kept none, or the run carried
+cases from a record that kept none. Only the runner's
 own attempts are listed: Vitest's `retry` and `repeats`, Jest's
 `jest.retryTimes`, Rstest's `retry` and Playwright's `retries`. Rstest's
 `repeats` are not attempts. A case the

@@ -52,7 +52,7 @@ export type RecordedAttempts = { readonly suite?: string; readonly recording: st
       /** Every case the record holds: a case it lacks, or one its runner could not name apart, has no attempts to count. */
       readonly cases: number;
     }
-  /** The record holds cases and no attempts: a build older than them wrote it, its runner reports none, or a shard kept none. */
+  /** The record holds cases and no attempts: a build older than them wrote it, its runner reports none, a shard kept none, or its run carried cases from a record that kept none. */
   | { readonly commit?: string; readonly landed?: string; readonly unkept: true }
   | { readonly unread: string }
 );

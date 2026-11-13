@@ -41,7 +41,7 @@ function told(suite: RecordedAttempts, named: string): string[] {
   if ('unkept' in suite) {
     return [
       `${named}: attempts were not kept in ${suite.recording}, so it does not say whether a case was retried. ` +
-        'A run keeps them when its runner reports each attempt and every shard of it kept them.',
+        'A run keeps them when its runner reports each attempt, every shard of it kept them, and so did the record it carries cases from.',
     ];
   }
   if (suite.retried === 0) return [`${named}: none; no case of the ${suite.cases} recorded ran more than once.`];

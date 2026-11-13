@@ -10,6 +10,7 @@
  * digest of the whole record file covers it as it covers every section.
  */
 
+import { fileURLToPath } from 'node:url';
 import { isVendorPath, parseStackFrames } from '@variance-authority/core/attribute';
 import { AMBIENT, caseIds, caseKey, type CaseCoordinate } from './cases.js';
 import { orderedByAttempt } from './eyes-record.js';
@@ -127,7 +128,13 @@ export function readableAttempts(bytes: Uint8Array | undefined): readonly Record
  * A case in `ran` has its attempts replaced by the run's, and by none when the
  * run retried it no more; a case `cases` no longer holds loses its own; every
  * other keeps what it had. A fresh attempt whose case is not in `cases` is
- * refused. `undefined` when neither the record nor the run kept attempts.
+ * refused.
+ *
+ * The section says of every case the record holds that its attempts were
+ * kept, so it is written only when they were: the run kept attempts, and the
+ * cases it did not run come from a record that kept them. `undefined`
+ * otherwise, which reads as not kept: a section over a case nobody kept the
+ * attempts of would say it was not retried.
  */
 export function layAttempts(
   previous: Uint8Array | undefined,
@@ -135,16 +142,17 @@ export function layAttempts(
   cases: () => readonly string[],
   ran: readonly string[],
 ): Uint8Array | undefined {
+  if (fresh === undefined) return undefined;
   const prior = readableAttempts(previous);
-  if (prior === undefined && fresh === undefined) return undefined;
   const held = new Set(cases());
-  for (const row of fresh ?? []) {
+  for (const row of fresh) {
     if (!held.has(row.case)) throw new Error(`an attempt names a case the run did not record: ${row.case}`);
   }
   const replaced = new Set(ran);
+  if (prior === undefined && [...held].some((id) => !replaced.has(id))) return undefined;
   return encodeRecordedAttempts([
     ...(prior?.filter((row) => held.has(row.case) && !replaced.has(row.case)) ?? []),
-    ...(fresh?.filter((row) => replaced.has(row.case)) ?? []),
+    ...fresh.filter((row) => replaced.has(row.case)),
   ]);
 }
 
@@ -168,13 +176,23 @@ export function frameIn(stack: string | undefined, root: string | undefined): st
   if (stack === undefined || root === undefined) return undefined;
   const prefix = `${root.replaceAll('\\', '/').replace(/\/$/u, '')}/`;
   for (const frame of parseStackFrames(stack)) {
-    const path = frame.url.replaceAll('\\', '/').replace(/^file:\/\/(?=\/)/u, '');
+    const path = onDisk(frame.url).replaceAll('\\', '/');
     const inside = path.startsWith(prefix) ? path.slice(prefix.length) : undefined;
     // The seam's own wrapper around a case is written under `.variance-authority/`: nobody opens it.
     if (inside === undefined || isVendorPath(`/${inside}`) || inside.split('/').includes('.variance-authority')) continue;
     return `${inside}:${frame.line}`;
   }
   return undefined;
+}
+
+/** A frame's file as the disk spells it: a `file:` URL escapes what a path does not, a space among them. */
+function onDisk(url: string): string {
+  if (!url.startsWith('file://')) return url;
+  try {
+    return fileURLToPath(url);
+  } catch {
+    return url;
+  }
 }
 
 /** One attempt as the record keeps it: its message without colour and cut, its stack as the checkout's frame. */
