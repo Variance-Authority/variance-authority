@@ -112,8 +112,9 @@ production markup with no runtime, read only inside the photographed roots.
   that first reached each region it crossed, stored as runs over the regions
 - `packages/sense/src/test-selection/case-readings.ts` — `layReadings` and
   `readingsOf`: a case's earlier readings over unchanged module texts, kept
-  beside the newest as what each read otherwise, so a reader can set a failing
-  run against a passing one; `record_parts.rs` folds them across shards
+  beside the newest as what each read otherwise, and the newest as what it read
+  otherwise than the case index, so a reader can set a failing run against a
+  passing one; `record_parts.rs` folds them across shards
 
 ## Diagram
 
