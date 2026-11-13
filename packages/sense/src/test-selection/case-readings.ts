@@ -12,7 +12,7 @@ import { digestString } from '../digest.js';
 import { linesOf, valueAt } from './case-lines.js';
 import { openSetExecutionIndex, type OpenedSetExecutionIndex } from './execution-set-format.js';
 import type { CoverageModule, CoverageTest, TestCoverage } from './index.js';
-import { decodeCase, decodeReadings, encodeReadings, type ReadRegion, type StoredReading } from './readings-bytes.js';
+import { caseBytes, decodeCase, decodeReadings, encodeReadings, type ReadRegion, type StoredReading } from './readings-bytes.js';
 
 /** Distinct readings kept per case, newest first. */
 export const READINGS = 16;
@@ -133,8 +133,8 @@ export function layReadings(
   const read = new Set([...now.values()].map((reading) => reading.file));
   const inputs = new Map([...held, ...[...run?.inputs ?? []].filter(([file]) => read.has(file))].filter(([file]) => files.has(file)));
   if (laid.size === 0 && inputs.size === 0) return undefined;
-  // The newest keeps its regions where its file did not finish, laid over
-  // earlier crossings (`case-layer.ts`), or the index is cut.
+  // The newest differs from the index where its file did not finish, laid
+  // over earlier crossings (`case-layer.ts`), or the index is cut.
   return encodeReadings(
     [...laid.keys()].sort(codeUnitOrder).map((id) => [id, packed(laid.get(id)!, there.get(id))]),
     [...inputs].sort(([left], [right]) => codeUnitOrder(left, right)),
@@ -142,56 +142,91 @@ export function layReadings(
 }
 
 /**
- * A case's readings as stored: the newest without its regions where the
- * landed index holds them as they ran; each earlier one as what it read
- * otherwise than the newest: the newest's regions it did not cross by position
- * (`gone`), the values it charged them otherwise (`values`), and the regions
- * only it crossed, each at its position among its own (`added`).
+ * A case's readings as stored, each as what it read otherwise than a base
+ * (`difference`): the newest against the regions the landed index holds of the
+ * case, so one the index holds as it ran costs its count, and each earlier one
+ * against the newest. The newest keeps its regions where the index holds none
+ * of the case, or where they cost fewer bytes than its difference.
  */
 function packed(readings: readonly Reading[], there: Read | undefined): StoredReading[] {
   const [newest, ...rest] = readings;
-  const base = newest!.regions;
-  const place = new Map(base.map((region, at) => [region.slice(0, 5).join('\0'), at]));
-  return [
-    alike(newest!, there) ? { count: newest!.count, ...stop(newest!) } : newest!,
-    ...rest.map((reading): StoredReading => {
-      const crossed = new Set<number>();
-      const values: [number, number | null][] = [];
-      const added: [number, ReadRegion][] = [];
-      reading.regions.forEach((region, at) => {
-        const from = place.get(region.slice(0, 5).join('\0'));
-        if (from === undefined) return void added.push([at, region]);
-        crossed.add(from);
-        if (base[from]![5] !== region[5]) values.push([from, region[5]]);
-      });
-      const gone = base.flatMap((_, at) => crossed.has(at) ? [] : [at]);
-      return {
-        count: reading.count,
-        ...stop(reading),
-        ...(gone.length === 0 ? {} : { gone }),
-        ...(values.length === 0 ? {} : { values }),
-        ...(added.length === 0 ? {} : { added }),
-      };
-    }),
-  ];
+  const earlier = rest.map((reading) => ({ count: reading.count, ...stop(reading), ...against(reading.regions, newest!.regions) }));
+  const whole = [{ count: newest!.count, ...stop(newest!), regions: newest!.regions }, ...earlier];
+  if (there === undefined) return whole;
+  const differing = [{ count: newest!.count, ...stop(newest!), ...against(newest!.regions, there.regions) }, ...earlier];
+  return caseBytes(differing).length <= caseBytes(whole).length ? differing : whole;
 }
 
-/** A case's stored readings in full, the newest's regions `base` where it holds none; absent where neither holds them. */
-function expanded(stored: readonly StoredReading[], base: readonly ReadRegion[] | undefined): Reading[] | undefined {
-  const newest = stored[0]?.regions ?? base;
-  if (newest === undefined) return undefined;
-  return stored.map(({ count, stopped, regions, gone, values, added }, at): Reading => {
-    const read = { count, ...(stopped === undefined ? {} : { stopped }) };
-    if (at === 0) return { ...read, regions: newest };
-    if (regions !== undefined) return { ...read, regions };
-    const charged = new Map(values ?? []);
-    const dropped = new Set(gone ?? []);
-    const own: ReadRegion[] = newest.flatMap((region, place) => dropped.has(place) ? [] : [
-      charged.has(place) ? [...region.slice(0, 5), charged.get(place)!] as unknown as ReadRegion : region,
-    ]);
-    for (const [place, region] of added ?? []) own.splice(place, 0, region);
-    return { ...read, regions: own };
+/**
+ * `regions` as their difference from `base`, or whole where the difference
+ * would not read back as them: it holds the regions the two share in the
+ * base's order, so one crossed in another order is kept as it ran.
+ */
+function against(regions: readonly ReadRegion[], base: readonly ReadRegion[]): Pick<StoredReading, 'regions' | 'gone' | 'values' | 'added'> {
+  const held = difference(regions, base);
+  const back = applied(held, base);
+  return back.length === regions.length && back.every((region, at) => region.every((field, place) => field === regions[at]![place]))
+    ? held
+    : { regions };
+}
+
+/**
+ * What `regions` crossed otherwise than `base`: the base's regions it did not
+ * cross by position (`gone`), the values it charged them otherwise (`values`),
+ * and the regions only it crossed, each at its position among its own
+ * (`added`); none of the three where it crossed the base as it is. Regions
+ * the base names alike, as a callback's entry and its body are, pair in order.
+ */
+function difference(regions: readonly ReadRegion[], base: readonly ReadRegion[]): Pick<StoredReading, 'gone' | 'values' | 'added'> {
+  const places = new Map<string, number[]>();
+  base.forEach((region, at) => {
+    const key = region.slice(0, 5).join('\0');
+    places.set(key, [...(places.get(key) ?? []), at]);
   });
+  const crossed = new Set<number>();
+  const values: [number, number | null][] = [];
+  const added: [number, ReadRegion][] = [];
+  regions.forEach((region, at) => {
+    const from = places.get(region.slice(0, 5).join('\0'))?.shift();
+    if (from === undefined) return void added.push([at, region]);
+    crossed.add(from);
+    if (base[from]![5] !== region[5]) values.push([from, region[5]]);
+  });
+  const gone = base.flatMap((_, at) => crossed.has(at) ? [] : [at]);
+  return {
+    ...(gone.length === 0 ? {} : { gone }),
+    ...(values.length === 0 ? {} : { values }),
+    ...(added.length === 0 ? {} : { added }),
+  };
+}
+
+/** The regions `stored` names over `base`, as {@link difference} wrote them; its own where it holds them. */
+function applied({ regions, gone, values, added }: Pick<StoredReading, 'regions' | 'gone' | 'values' | 'added'>, base: readonly ReadRegion[]): readonly ReadRegion[] {
+  if (regions !== undefined) return regions;
+  if (gone === undefined && values === undefined && added === undefined) return base;
+  const charged = new Map(values ?? []);
+  const dropped = new Set(gone ?? []);
+  const own: ReadRegion[] = base.flatMap((region, place) => dropped.has(place) ? [] : [
+    charged.has(place) ? [...region.slice(0, 5), charged.get(place)!] as unknown as ReadRegion : region,
+  ]);
+  for (const [place, region] of added ?? []) own.splice(place, 0, region);
+  return own;
+}
+
+/**
+ * A case's stored readings in full: the newest over `base`, the regions the
+ * index it was laid into holds of the case, and each earlier one over the
+ * newest; absent where the newest holds no regions and `base` is absent.
+ */
+function expanded(stored: readonly StoredReading[], base: readonly ReadRegion[] | undefined): Reading[] | undefined {
+  const [first] = stored;
+  if (first === undefined || (first.regions === undefined && base === undefined)) return undefined;
+  const newest = applied(first, base ?? []);
+  return stored.map((reading, at): Reading => ({
+    count: reading.count,
+    ...(reading.stopped === undefined ? {} : { stopped: reading.stopped }),
+    regions: at === 0 ? newest : applied(reading, newest),
+  }));
 }
 
 /** What each test file ran over when its cases were last read, as `section` names it; absent when it names none. */

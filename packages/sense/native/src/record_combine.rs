@@ -17,6 +17,7 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
 use crate::case_fold;
+use crate::case_readings;
 use crate::case_shard::{self, Inventory};
 use crate::journey_columns::{self, Column};
 use crate::journey_output;
@@ -241,6 +242,7 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
     let mut rows = HashMap::new();
     let mut combined_rows = Vec::new();
     let mut files_of: HashMap<String, HashMap<String, String>> = HashMap::new();
+    let mut laid = HashMap::new();
     if let Some(cased) = observed.iter().map(shard).find(|shard| shard.index.is_some()) {
         if let Some(uncased) = observed.iter().map(shard).find(|shard| shard.index.is_none()) {
             return Err(format!(
@@ -263,15 +265,28 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
                 .collect::<Result<Vec<_>, _>>()?;
             before_layer = Some(fold_index(layers, inventories, false)?.bytes);
         }
+        // A newest a shard stored over its own index's regions of a case is read now, before the fold takes the index.
+        let owed = held
+            .iter()
+            .filter_map(|(_, shard)| shard.index.as_ref().zip(shard.parts.readings.as_deref()).map(|(index, section)| (shard, index, section)))
+            .map(|(shard, index, section)| {
+                // An earlier build's JSON holds no readings, and bytes this build cannot read are `fold_readings`' to refuse.
+                let Some(read) = (!section.starts_with(b"{\"")).then(|| record_parts::read_readings(section).ok()).flatten() else {
+                    return Ok((shard.path.clone(), Vec::new()));
+                };
+                Ok((shard.path.clone(), case_readings::owed(index, &inventories, &read.cases).map_err(|error| format!("{}: {error}", shard.path))?))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
         let indexes: Vec<case_shard::Shard> = held.iter_mut().filter_map(|(_, shard)| shard.index.take()).collect();
         let names: Vec<String> = indexes.iter().map(|index| index.name.clone()).collect();
         files_of = indexes.iter().map(|index| (index.name.clone(), index.tests.iter().map(|test| (test.id.clone(), test.file.clone())).collect())).collect();
         rows = indexes.iter().map(|index| (index.name.clone(), index.tests.iter().map(|test| test.id.clone()).collect())).collect();
         let index = fold_index(indexes, inventories, true)?;
+        renamed = names.into_iter().zip(index.renamed).collect();
+        laid = case_readings::laid_again(owed, &index.bytes, &renamed)?;
         columns.push(Column::Plain(LAYOUT.coverage.part("index"), index.bytes));
         cases = Some(index.tests);
         renumbered = index.renumbered;
-        renamed = names.into_iter().zip(index.renamed).collect();
         ids = index.ids.iter().cloned().collect();
         combined_rows = index.ids;
     }
@@ -311,7 +326,7 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
                 Ok(((*name).to_owned(), record_parts::Ran { cases: cases_ran, files: files_ran }))
             })
             .collect::<Result<HashMap<_, _>, String>>()?;
-        columns.push(Column::Plain(LAYOUT.coverage.part("readings"), record_parts::fold_readings(&readings, &ids, &ran)?));
+        columns.push(Column::Plain(LAYOUT.coverage.part("readings"), record_parts::fold_readings(&readings, &ids, &ran, &laid)?));
     }
     if let Some(base) = starts.base() {
         columns.push(Column::Plain(LAYOUT.coverage.part("base"), base.as_bytes().to_vec()));
