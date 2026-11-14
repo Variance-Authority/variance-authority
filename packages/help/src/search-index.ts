@@ -1,22 +1,23 @@
 import type { Help, UseKind } from '@variance-authority/package/help';
-import { everyEntry, PARAGRAPH_BREAK } from '@variance-authority/package/help';
-import { encodeSearch, type PublishedRows, type SearchGeneration } from '@variance-authority/sense';
-import { specifierOf } from './tools/find.js';
+import { PARAGRAPH_BREAK } from '@variance-authority/package/help';
+import { helpOf } from './store-value.js';
+import { NONE } from '@variance-authority/core/segment';
+import { USE_KINDS, generationOf, sectionsOf, type StoreHead } from './store-layout.js';
 
 /**
- * What `docs_search` reads, laid out so a question reads only what it matches.
+ * The questions' store: the Help value and the search over it, in one file a
+ * question opens in place.
  *
- * The published Help value holds every export of the repository, every import
- * site of every published name, and every signature and doc comment. Search
- * needs a substring over names and docs, and then the few rows the substring
- * hit. Parsing the whole value to ask for one name made every question cost the
- * repository: on a Jira-scale workspace, 836 ms of `JSON.parse` in front of a
- * 71 ms scan.
+ * The value holds every export of the repository, every import site of every
+ * published name, and every signature and doc comment. A question needs a few
+ * rows of it: a name's entry, its uses, a substring over names and docs.
+ * Parsing the whole value to ask for one name made every question cost the
+ * repository: on Kibana, 162 MB of JSON in front of every name question.
  *
- * So the rows search can print are columns here, every string lives once in a
- * pool, and the text a substring runs over is one lowercased byte run per
- * column. Opening the file costs one read and no decoding; a question decodes
- * the rows it matched.
+ * So every field is a column here, every string lives once in a pool, and the
+ * text a substring runs over is one lowercased byte run per column. Opening the
+ * file costs one read and no decoding; a question decodes the rows it reads,
+ * and the value decodes a field the first time something reads it.
  *
  * The loose pass reads a term dictionary written with the same tokenizer and
  * term rule MiniSearch was given, so the set it answers is the set MiniSearch
@@ -25,11 +26,6 @@ import { specifierOf } from './tools/find.js';
  * when the token is written in several words, each word, so `select test
  * files` reaches `selectTestFiles`.
  */
-
-// The layout is written by `help_search.rs` in the sense addon.
-const MAGIC = 0x53484156; // "VAHS", little-endian
-const VERSION = 5;
-const NONE = 0xffffffff;
 
 /**
  * The tokenizer MiniSearch applies by default, which the loose pass was built
@@ -46,53 +42,6 @@ export function tokensOf(text: string): readonly string[] {
     if (token.length >= 2) found.push(token.toLowerCase());
   }
   return found;
-}
-
-const USE_KINDS: readonly UseKind[] = ['source', 'test', 'story'];
-
-const SECTIONS = [
-  'strings.off', 'strings.blob', 'files',
-  'names.name', 'names.rank', 'names.lowerOff', 'names.lower', 'names.pubOff', 'names.pub', 'names.expOff', 'names.exp',
-  'pub.name', 'pub.spec', 'pub.kind', 'pub.doc', 'pub.at', 'pub.usedBy', 'pub.uses', 'pub.sitesOff', 'sites.at',
-  'pub.docLowerOff', 'pub.docLower',
-  'exp.name', 'exp.at', 'exp.by', 'exp.line', 'exp.kind', 'exp.doc', 'exp.docLowerOff', 'exp.docLower',
-  'terms.off', 'terms.blob', 'terms.nameOff', 'terms.name', 'terms.pubOff', 'terms.pub', 'terms.expOff', 'terms.exp',
-  'terms.pubSigOff', 'terms.pubSig', 'terms.expSigOff', 'terms.expSig',
-] as const;
-type SectionName = (typeof SECTIONS)[number];
-
-/**
- * The published rows of one Help value, a column per field, in the order
- * `everyEntry` yields them.
- */
-export function publishedRows(help: Help): PublishedRows {
-  const rows: PublishedRows = { name: [], spec: [], kind: [], doc: [], signature: [], at: [], usedBy: [], uses: [], siteCounts: [], sites: [] };
-  for (const [owner, held, entry] of everyEntry(help)) {
-    rows.name.push(entry.name);
-    rows.spec.push(specifierOf(owner, held));
-    rows.kind.push(entry.kind);
-    rows.doc.push(entry.doc ?? null);
-    rows.signature.push(entry.signature ?? null);
-    rows.at.push(entry.at);
-    rows.usedBy.push(entry.usedBy.length);
-    rows.uses.push(entry.uses);
-    rows.siteCounts.push(entry.sites.length);
-    for (const site of entry.sites) rows.sites.push(site.at);
-  }
-  return rows;
-}
-
-/**
- * Encode what search reads of one Help value. The addon encodes it
- * (`help_search.rs`), because `variance index` publishes the same file from a
- * reading whose export list never reaches JavaScript.
- */
-export function encodeSearchIndex(help: Help, generation?: SearchGeneration): Uint8Array {
-  return encodeSearch(publishedRows(help), help.exported, generation).bytes;
-}
-
-function align(at: number): number {
-  return (at + 3) & ~3;
 }
 
 /** One published name, as a search line prints it. */
@@ -119,9 +68,10 @@ export interface ExportedRow {
   readonly doc?: string;
 }
 
-/** An opened index: columns over one buffer, decoded a row at a time. */
+/** An opened store's search: columns over one buffer, decoded a row at a time. */
 export interface SearchIndex {
-  readonly generation?: SearchGeneration;
+  /** The generation the store was published as; absent when it was encoded in memory. */
+  readonly generation?: StoreHead;
   /** Names whose lowercase text contains `query`, ascending. */
   namesContaining(query: string): readonly number[];
   /** Published rows whose lowercase doc contains `query`, ascending. */
@@ -132,6 +82,7 @@ export interface SearchIndex {
   docOpeningsContaining(query: string): readonly number[];
   /** Of {@link exportedDocsContaining}, the rows whose doc says `query` in its opening paragraph. */
   exportedDocOpeningsContaining(query: string): readonly number[];
+  /** The name `id` names; ids are in code-unit order of the names. */
   name(id: number): string;
   publishedOf(name: number): Uint32Array;
   exportedOf(name: number): Uint32Array;
@@ -140,8 +91,6 @@ export interface SearchIndex {
   publishedName(row: number): number;
   /** The bytes of one published row's doc, without decoding it; absent when it has none. */
   publishedDocLength(row: number): number | undefined;
-  /** A name's place in code-unit order among every name the index holds. */
-  rank(name: number): number;
   /** The package and import counts of one published row, read off their columns. */
   usedBy(row: number): number;
   uses(row: number): number;
@@ -180,39 +129,33 @@ export interface SearchIndex {
   termExportedSignature(term: number): Uint32Array;
 }
 
-/** Open one encoded index. Throws on anything that is not this format and version. */
-export function openSearchIndex(bytes: Uint8Array): SearchIndex {
-  // Columns are read in place as 32-bit words, which needs them 4-aligned.
-  const buffer =
-    bytes.byteOffset % 4 === 0
-      ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-      : Buffer.from(new Uint8Array(bytes).buffer);
-  if (buffer.length < 12 || buffer.readUInt32LE(0) !== MAGIC || buffer.readUInt32LE(4) !== VERSION) {
-    throw new Error(`not a search index v${VERSION}`);
-  }
-  const headLength = buffer.readUInt32LE(8);
-  const head = JSON.parse(buffer.toString('utf8', 12, 12 + headLength)) as {
-    generation: SearchGeneration | null;
-    sections: Record<string, readonly [number, number]>;
-  };
-  const start = align(12 + headLength);
-  const bytesOf = (name: SectionName): Buffer => {
-    const [at, length] = head.sections[name] ?? [0, 0];
-    return buffer.subarray(start + at, start + at + length);
-  };
-  const u32 = (name: SectionName): Uint32Array => {
-    const held = bytesOf(name);
-    return new Uint32Array(held.buffer, held.byteOffset, held.byteLength / 4);
-  };
+/** One opened store: the Help value, decoded a field at a time, and the search over it. */
+export interface OpenedStore {
+  readonly help: Help;
+  readonly search: SearchIndex;
+  /** Absent for a store encoded in memory. */
+  readonly generation?: StoreHead;
+  /** The digest of the export list, which every store carries. */
+  readonly exportedDigest: string;
+}
 
+/** Open one encoded store's search. Throws on anything that is not this format and version. */
+export function openSearchIndex(bytes: Uint8Array): SearchIndex {
+  return openHelpStore(bytes).search;
+}
+
+/**
+ * Open one encoded store. Throws on anything that is not this format and
+ * version; nothing past the head is decoded until something reads it.
+ */
+export function openHelpStore(bytes: Uint8Array): OpenedStore {
+  const sections = sectionsOf(bytes);
+  const { fields, bytesOf, u32, string, maybe, slice } = sections;
+  const files = u32('files');
   const stringOff = u32('strings.off');
   const stringBlob = bytesOf('strings.blob');
-  const files = u32('files');
-  const string = (id: number): string =>
-    stringBlob.toString('utf8', stringOff[id] ?? 0, stringOff[id + 1] ?? 0);
 
   const nameString = u32('names.name');
-  const nameRank = u32('names.rank');
   const namesLowerOff = u32('names.lowerOff');
   const namesLower = bytesOf('names.lower');
   const namesPubOff = u32('names.pubOff');
@@ -221,15 +164,16 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
   const namesExp = u32('names.exp');
   const pub = {
     name: u32('pub.name'), spec: u32('pub.spec'), kind: u32('pub.kind'), doc: u32('pub.doc'), at: u32('pub.at'),
-    usedBy: u32('pub.usedBy'), uses: u32('pub.uses'), sitesOff: u32('pub.sitesOff'),
+    usedByOff: u32('pub.usedByOff'), usedByList: u32('pub.usedByList'), uses: u32('pub.uses'),
+    sitesOff: u32('pub.sitesOff'), tdOff: u32('pub.tdOff'),
   };
-  const sitesAt = u32('sites.at');
   const docLowerOff = u32('pub.docLowerOff');
   const docLower = bytesOf('pub.docLower');
   const exp = { name: u32('exp.name'), at: u32('exp.at'), by: u32('exp.by'), line: u32('exp.line'), doc: u32('exp.doc') };
   const expDocLowerOff = u32('exp.docLowerOff');
   const expDocLower = bytesOf('exp.docLower');
   const expKind = bytesOf('exp.kind');
+  const useAt = u32('use.at');
   const termOff = u32('terms.off');
   const termBlob = bytesOf('terms.blob');
   const termNameOff = u32('terms.nameOff');
@@ -244,22 +188,15 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
   const termExpSig = u32('terms.expSig');
 
   const name = (id: number): string => string(nameString[id] ?? NONE);
-  const pubDoc = (row: number): string => {
-    const doc = pub.doc[row] ?? NONE;
-    return doc === NONE ? '' : string(doc).toLowerCase();
-  };
-  const expDoc = (row: number): string => {
-    const doc = exp.doc[row] ?? NONE;
-    return doc === NONE ? '' : string(doc).toLowerCase();
-  };
+  const pubDoc = (row: number): string => maybe(pub.doc[row])?.toLowerCase() ?? '';
+  const expDoc = (row: number): string => maybe(exp.doc[row])?.toLowerCase() ?? '';
   // Each doc in a lowercase blob is followed by its separator, the last one included.
   const docLength = (docs: Uint32Array, off: Uint32Array, row: number): number | undefined =>
     (docs[row] ?? NONE) === NONE ? undefined : (off[row + 1] ?? 0) - (off[row] ?? 0) - 1;
-  const slice = (off: Uint32Array, rows: Uint32Array, key: number): Uint32Array =>
-    rows.subarray(off[key] ?? 0, off[key + 1] ?? 0);
+  const generation = generationOf(fields);
 
-  return {
-    ...(head.generation === null ? {} : { generation: head.generation }),
+  const search: SearchIndex = {
+    ...(generation === undefined ? {} : { generation }),
     namesContaining: (query) => containing(namesLower, namesLowerOff, query, (id) => name(id).toLowerCase()),
     docsContaining: (query) => containing(docLower, docLowerOff, query, pubDoc),
     exportedDocsContaining: (query) => containing(expDocLower, expDocLowerOff, query, expDoc),
@@ -269,25 +206,24 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     publishedOf: (id) => slice(namesPubOff, namesPub, id),
     exportedOf: (id) => slice(namesExpOff, namesExp, id),
     published(row) {
-      const doc = pub.doc[row] ?? NONE;
+      const doc = maybe(pub.doc[row]);
       return {
         row,
         name: name(pub.name[row] ?? NONE),
         specifier: string(pub.spec[row] ?? NONE),
         kind: string(pub.kind[row] ?? NONE),
-        ...(doc === NONE ? {} : { doc: string(doc) }),
+        ...(doc === undefined ? {} : { doc }),
         at: string(pub.at[row] ?? NONE),
-        usedBy: { length: pub.usedBy[row] ?? 0 },
+        usedBy: { length: usedByCount(row) },
         uses: pub.uses[row] ?? 0,
       };
     },
     publishedName: (row) => pub.name[row] ?? NONE,
     publishedDocLength: (row) => docLength(pub.doc, docLowerOff, row),
-    rank: (id) => nameRank[id] ?? NONE,
-    usedBy: (row) => pub.usedBy[row] ?? 0,
+    usedBy: (row) => usedByCount(row),
     uses: (row) => pub.uses[row] ?? 0,
-    sites: (row) => [...slice(pub.sitesOff, sitesAt, row)].map(string),
-    siteFiles: (row) => slice(pub.sitesOff, sitesAt, row),
+    sites: (row) => [...slice(pub.sitesOff, useAt, row)].map(string),
+    siteFiles: (row) => slice(pub.sitesOff, useAt, row),
     fileIds(paths) {
       const ids = new Set<number>();
       for (const path of paths) {
@@ -311,7 +247,7 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     file: string,
     exportedFile: (row) => exp.at[row] ?? NONE,
     exported(row) {
-      const doc = exp.doc[row] ?? NONE;
+      const doc = maybe(exp.doc[row]);
       return {
         row,
         name: name(exp.name[row] ?? NONE),
@@ -319,7 +255,7 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
         by: string(exp.by[row] ?? NONE),
         line: exp.line[row] ?? 0,
         kind: USE_KINDS[expKind[row] ?? 0] ?? 'source',
-        ...(doc === NONE ? {} : { doc: string(doc) }),
+        ...(doc === undefined ? {} : { doc }),
       };
     },
     exportedName: (row) => exp.name[row] ?? NONE,
@@ -337,6 +273,13 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
     termPublishedSignature: (term) => slice(termPubSigOff, termPubSig, term),
     termExportedSignature: (term) => slice(termExpSigOff, termExpSig, term),
   };
+  function usedByCount(row: number): number {
+    return (pub.usedByOff[row + 1] ?? 0) - (pub.usedByOff[row] ?? 0);
+  }
+
+  const exportedDigest = fields.exportedDigest;
+  if (exportedDigest === undefined) throw new Error('the help store states no digest of its export list');
+  return { help: helpOf(sections), search, exportedDigest, ...(generation === undefined ? {} : { generation }) };
 }
 
 /**

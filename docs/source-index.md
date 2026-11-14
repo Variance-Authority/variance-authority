@@ -41,7 +41,7 @@ source index updated: 2215 files, 0 read again, at <cache>/test-selection/<diges
 code map: 71 packages in 16 areas, 2 deep, over 8 dependency layers
 journeys, suite unit: 5718 cases walked; a caller is placed for 216327 of the 253543 functions the cases entered, counted once per case that entered each (85%); 8895 distinct calls, 204 distinct package flows; 2 import specifiers the index did not resolve were resolved by the walk
 dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.bin
-questions: published at <cache>/test-selection/<digest>/source-index.bin.help.json
+questions: published at <cache>/test-selection/<digest>/source-index.bin.help.bin
 ```
 
 - **The index.** How many files it holds, how many it read again, and where it

@@ -36,8 +36,8 @@ const FUZZY = 0.2;
 /** One published row, keyed by the columns it sorts on — nothing decoded yet. */
 interface Hit {
   readonly row: number;
+  /** The name id: ids are in code-unit order, so it settles names of equal counts. */
   readonly name: number;
-  readonly rank: number;
   readonly usedBy: number;
   readonly uses: number;
   /**
@@ -94,11 +94,11 @@ function surface(
 function hitOf(index: SearchIndex, row: number, area: Area | undefined, inArea: ReadonlySet<number> | undefined, field?: (row: number, name: number) => number): Hit {
   const scoped = area === undefined || inArea === undefined ? undefined : usedWithin(index, row, area, inArea);
   const name = index.publishedName(row);
-  return { row, name, rank: index.rank(name), usedBy: index.usedBy(row), uses: index.uses(row), field: field?.(row, name) ?? 0, scoped };
+  return { row, name, usedBy: index.usedBy(row), uses: index.uses(row), field: field?.(row, name) ?? 0, scoped };
 }
 
 /**
- * The order {@link surface}'s rows are read in. A rank is a name's own, so {@link rowTextOrder} settles rows of
+ * The order {@link surface}'s rows are read in. A name id is the name's own, so {@link rowTextOrder} settles rows of
  * one name: by the doc's text, then the kind, then the row's path and specifier, never by where the index wrote them.
  */
 const surfaceOrder = (index: SearchIndex) => (a: Hit, b: Hit): number =>
@@ -107,7 +107,7 @@ const surfaceOrder = (index: SearchIndex) => (a: Hit, b: Hit): number =>
   (b.scoped?.imports ?? 0) - (a.scoped?.imports ?? 0) ||
   b.usedBy - a.usedBy ||
   b.uses - a.uses ||
-  a.rank - b.rank ||
+  a.name - b.name ||
   rowTextOrder(index, { kind: 'published', row: a.row }, { kind: 'published', row: b.row });
 
 /**

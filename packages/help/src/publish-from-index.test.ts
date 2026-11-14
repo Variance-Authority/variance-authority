@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -7,7 +7,7 @@ import * as help from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as read from './read.js';
-import { publishedGeneration, readWorkspaceSnapshot, workspaceSnapshotPath } from './snapshot.js';
+import { publishedGeneration, publishedHead, readWorkspaceSnapshot } from './snapshot.js';
 import { publishWorkspaceFromIndex } from './refresh-native.js';
 
 /**
@@ -92,7 +92,7 @@ afterAll(() => {
 
 /** The time the published value says its read began. */
 function publishedReadStart(): unknown {
-  return (JSON.parse(readFileSync(workspaceSnapshotPath(index), 'utf8')) as { readStartedAt?: unknown }).readStartedAt;
+  return publishedHead(index)?.readStartedAt;
 }
 
 describe('publishing the questions from the index', () => {

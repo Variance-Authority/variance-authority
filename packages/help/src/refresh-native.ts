@@ -12,31 +12,26 @@ import {
 import {
   everyEntry,
   readWorkspaceManifests,
-  type Deep,
   type Help,
   type HelpOptions,
-  type Taken,
   type Usage,
   type Use,
   type WorkspaceManifests,
 } from '@variance-authority/package/help';
-import { joinUsage, readWorkspaceOver, sameExportedSurface, samePackages } from './read.js';
+import { joinUsage, packagesDigest, readWorkspaceOver, sameExportedSurface, samePackages } from './read.js';
 import {
-  SNAPSHOT_FORMAT,
-  SNAPSHOT_VERSION,
   indexManifestDigest,
   readWorkspaceSnapshot,
   workspaceExportedDigest,
   workspaceForwardsDigest,
   workspaceGeneration,
   workspaceIndexDigest,
-  workspaceSearchPath,
   workspaceSnapshotPath,
   workspaceTreePrefix,
 } from './snapshot.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
-import { publishedRows } from './search-index.js';
-import { type NativeUsage, useOf } from './native-use.js';
+import { storeOf } from './store-encode.js';
+import { useOf } from './native-use.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -134,49 +129,26 @@ async function refreshOver(
     held.set(use.name, uses);
     uses.push(useOf(use));
   }
-  // The export list is the reading's; the value joined here carries none of it.
-  const usage: Usage = {
-    names,
-    deep: read.deep.map(byPathOf),
-    byPath: read.byPath.map(byPathOf),
-    unfollowed: read.unfollowed.map(byPathOf),
-    exported: [],
-    unreadable: read.unreadable,
-  };
+  // The export list and the imports by path are the reading's, written by the addon; the value joined here carries the packages.
+  const usage: Usage = { names, deep: [], byPath: [], unfollowed: [], exported: [], unreadable: read.unreadable };
   const help: Help = joinUsage(documented, offerings, usage);
   const generatedAt = new Date().toISOString();
   try {
     await stepped(options.progress, 'publishing the questions', () => reading.publish({
       snapshot: workspaceSnapshotPath(own),
-      search: workspaceSearchPath(own),
       graph: workspaceTreePrefix(own),
-      format: SNAPSHOT_FORMAT,
-      version: SNAPSHOT_VERSION,
       root: realpathSync(where),
       graphRoot: realpathSync(scope.root),
       generatedAt,
       readStartedAt: options.readStartedAt,
       indexDigest,
       forwardsDigest: forwards,
-      packages: JSON.stringify(help.packages),
-      deep: JSON.stringify(help.deep),
-      byPath: JSON.stringify(help.byPath),
-      unfollowed: JSON.stringify(help.unfollowed),
-      unreadable: JSON.stringify(help.unreadable),
-      published: publishedRows(help),
+      packagesDigest: packagesDigest(scope.root, offerings),
+      packages: storeOf(help).packages,
+      unreadable: help.unreadable,
     }));
   } catch {
     // The value is complete. An unwritable cache costs reuse, and the caller reads it back.
   }
   return generatedAt;
-}
-
-/** An import by path as the addon hands it over. */
-function byPathOf(held: NativeUsage['deep'][number]): Deep {
-  const names: Taken[] = held.names.map((use) => ({ name: use.name, ...useOf(use) }));
-  return {
-    specifier: held.specifier, by: held.by, at: held.at, line: held.line,
-    ...(held.to === undefined || held.to === null ? {} : { to: held.to }),
-    names,
-  };
 }

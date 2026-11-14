@@ -29,7 +29,7 @@
  */
 
 export { readWorkspace, readWorkspaceForAnswer, refreshWorkspace } from './read.js';
-export { publishedGeneration, readAgain, readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
+export { publishedGeneration, publishedHead, readAgain, readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
 export type { AnsweringOptions, ReadingOptions } from './read.js';
 export type { SnapshotOptions } from './snapshot.js';
 export { publishWorkspaceFromIndex, type FromIndexOptions } from './refresh-native.js';
@@ -37,6 +37,7 @@ export { readNamedTree, type NamedTree } from './names-read.js';
 export { countingShown, type ShownCounting } from './ask.js';
 export { readSearchForAnswer, unopenedLine, type SearchReading, type Unopened, type ValueRead } from './search-read.js';
 export type { SearchIndex } from './search-index.js';
+export type { StoreHead } from './store-layout.js';
 export { serveWorkspace } from './server.js';
 export type { WorkspaceOptions } from './server.js';
 export { wordsOf } from './words.js';

@@ -25,5 +25,9 @@ pub(crate) mod help_own_uses;
 pub(crate) mod help_publish;
 #[path = "help_search.rs"]
 pub(crate) mod help_search;
+#[path = "help_store.rs"]
+pub(crate) mod help_store;
+#[path = "help_store_encode.rs"]
+pub(crate) mod help_store_encode;
 #[path = "help_usage.rs"]
 pub(crate) mod help_usage;

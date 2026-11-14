@@ -32,7 +32,7 @@
  */
 
 import { relative, resolve } from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
+import { digestString } from '@variance-authority/core/format';
 import { treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import {
   openSourceIndex,
@@ -69,6 +69,7 @@ import {
   tryPublishWorkspaceSnapshot,
   workspaceForwardsDigest,
   workspaceGeneration,
+  workspacePackagesDigest,
   workspaceReadStarted,
 } from './snapshot.js';
 
@@ -330,7 +331,7 @@ export async function refreshWorkspace(
   const help = joinUsage(documented, read.offerings, read.scanned.usage);
   if (options.save !== false) {
     if (options.saveIndex !== false || read.scanned.ownIndex) await read.scanned.save();
-    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, read.readStartedAt, read.scanned.forwards, options.index);
+    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, read.readStartedAt, read.scanned.forwards, packagesDigest(read.root, read.offerings), options.index);
   }
   return help;
 }
@@ -389,7 +390,7 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
   if (options.save !== false) {
     await stepped(options.progress, 'publishing the questions', async () => {
       if (options.saveIndex !== false || scanned.ownIndex) await scanned.save();
-      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, read.readStartedAt, scanned.forwards, options.index);
+      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, read.readStartedAt, scanned.forwards, packagesDigest(root, offerings), options.index);
     });
   }
   return help;
@@ -401,24 +402,28 @@ function sameSurface(read: WorkspaceScan, documented: Help): boolean {
   return read.scanned.forwards === workspaceForwardsDigest(documented) && sameExportedSurface(read.changed, read.scanned.usage.exported, documented);
 }
 
-/** The offerings as `documented` published them: names, declarations, whether each declares an entry, and openings. */
-export function samePackages(read: Pick<WorkspaceScan, 'root' | 'offerings'>, documented: Help): boolean {
-  const shape = read.offerings.map((offering) => ({
+/**
+ * The offerings a value is documented from, as a digest: names, declarations,
+ * whether each declares an entry, and openings. The store keeps it in its head,
+ * so a refresh compares manifests without keeping them.
+ */
+export function packagesDigest(root: string, offerings: readonly Offering[]): string {
+  const shape = offerings.map((offering) => ({
     name: offering.name,
     declared: offering.declared,
     entry: offering.entry,
     openings: offering.entrypoints.map((entry) => ({
       subpath: entry.subpath,
-      source: relative(read.root, entry.source),
+      source: relative(root, entry.source),
     })),
   }));
-  const previous = documented.packages.map((published) => ({
-    name: published.name,
-    declared: published.declared,
-    entry: published.entry,
-    openings: published.openings.map(({ subpath, source }) => ({ subpath, source })),
-  }));
-  return isDeepStrictEqual(shape, previous);
+  return digestString(JSON.stringify(shape));
+}
+
+/** Whether the offerings are the ones `documented` was published from; never for a value published without them. */
+export function samePackages(read: Pick<WorkspaceScan, 'root' | 'offerings'>, documented: Help): boolean {
+  const held = workspacePackagesDigest(documented);
+  return held !== undefined && held === packagesDigest(read.root, read.offerings);
 }
 
 /**

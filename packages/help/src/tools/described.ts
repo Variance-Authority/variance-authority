@@ -77,6 +77,7 @@ export interface DescribedKey {
   readonly near: number;
   /** Rows that publish or export it, in an area only those {@link rowWithin} it. */
   readonly rows: number;
+  /** The name id, which is its place in code-unit order; after every name for what is not one. */
   readonly rank: number;
   /** The bytes of the doc it is judged by, absent when it has none: what a word its doc holds is counted against. */
   readonly docLength?: number;
@@ -244,7 +245,7 @@ export function describedNames(
       const pick = { through: row, words: wordsOf(heldThrough(name, row)), named: own, signed: wordsOf(signedThrough(name, row)), ...docLengthOf(rowDocLength(index, row)) };
       return { ...pick, weighs: weight(pick) };
     }).sort((a, b) => b.weighs - a.weighs || order(a.through, b.through));
-    return { name, ...representedBy(picks), rows: rows.length, rank: index.rank(name), holds, docLengths, picks };
+    return { name, ...representedBy(picks), rows: rows.length, rank: name, holds, docLengths, picks };
   });
 }
 
