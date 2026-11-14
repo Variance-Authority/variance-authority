@@ -1,5 +1,38 @@
 # @variance-authority/cli
 
+## 0.33.0
+
+### Minor Changes
+
+- a9dce7a: A case records its slowest statement under Vitest, Jest and Rstest: the line of
+  the test that took longest and its time on the real clock, with a loop's runs
+  summed and hooks left out. `variance ask slowest-tests` prints it under each
+  case it lists, with its share of the case. `cadence: false` turns it off, and a
+  record written before it reads every case as untimed.
+- 08f6331: `variance ask ran --story` shows what each function of a live execution was handed
+
+  A server head started with `VARIANCE_AUTHORITY_STORY=1`, beside `VARIANCE_AUTHORITY_JOURNEYS` and a watcher, now tapes each execution it reports to the watcher and sends its story with the account: the functions entered in order, their branches, and `» handed name=value` for the arguments each was handed, spelled as a test story spells them. It shows arguments only, never a local or module variable. Two requests that run at once are taped apart, and a request whose promises run on after it settled is told again with only what it ran since. Without the variable nothing is taped and nothing changes.
+
+  `variance ask ran --story` (`variance_ran` with `story: true`) prints those stories in place of each execution's regions, a step drawn as `variance story` draws it, with what the tape lost said above it. Asked of heads that told none, it says no head was started with `VARIANCE_AUTHORITY_STORY=1` and lists the regions as before. A page that calls `reportPage` tells no story yet.
+
+  `variance ask` takes a true-or-false tool argument as a bare flag. The watcher keeps the first 8 stories a head sent of an execution, up to 1 MiB, as `stories` on that head, and counts the rest as `untold`. `@variance-authority/sense/story` exports the reading `variance story` draws a route by, so both draw a step the same way.
+- 77bdb72: A name not found, and every other refusal of a source question, is answered from the generation the question read. It no longer rescans the checkout, rebuilds the dependency lexicon, or publishes a new snapshot first. Before this change, `variance ask symbol` or `ask uses` for an absent name took about ten seconds on a checkout of a hundred thousand files, and now takes about as long as a name it finds. When that generation was made before the question, the answer's last line says the checkout was not compared with it. A function written since then is reported missing until `variance index` runs or `--changed-file` names its file. A found answer whose files changed since its generation is still asked again of one made now, as before. This holds on `variance ask`, `variance serve`, `variance-authority-help` and its server. A server holding a generation, `variance serve` or `variance-authority-help`'s, reads the generation `variance index` published since on its next call, on the same connection and under `--just-answer` too, so the name is found without restarting it; seeing that one was published costs a read of the published value's head.
+
+  `caughtUp` no longer takes a lexicon root, and its `again` reads a generation made now with no argument. `madeBefore` says whether a refusal's generation predates the question, and `readAgain` whether a server reads the workspace again before a call: when it holds nothing, a newer generation was published, or, without `justAnswer`, the one it holds has expired. In `@variance-authority/mcp`, `serve` hands `again` only an answer that `outlived` flags, never a refused call, and `answered` receives when the request started.
+- a6b7aea: The record keeps how each attempt of a retried case ended. A runner that retries a failing case reports the last attempt, so a case that failed and then passed read as a pass. A recorded run under Vitest, Jest, Rstest or Playwright now writes one row per attempt of every case its runner reported more than one attempt of: how the attempt ended, in the runner's own word, and where the runner says them how long it ran and, for one that did not pass, the failure's message and its frame inside the checkout. Vitest 4.1 and Playwright say all of it; Jest and Rstest time no single attempt, and Jest names what an earlier attempt failed with only under `logErrorsBeforeRetry`. A case that ran once adds nothing, and its `stopped`, duration and limit are unchanged.
+
+  `variance ask retried-tests` (`docs_retried_tests`) lists the cases whose attempts ended differently in the recorded run, each with its attempts and its limit, under the record's origin, commit and age. A record whose run kept no attempts says that they were not kept, not that no case was retried.
+
+  A build older than this one refuses a record that holds the new `cases.attempts` section, as it refuses any section it does not know. No selection reads the section.
+
+### Patch Changes
+
+- 615030d: `select --ran-at` runs a test a change the mainline landed and took back reaches
+
+  A pull request's check ran on its head merged with the mainline of its day, which may have held a change the mainline landed after the fork. When the mainline then reverted a change, in whole or in part, the net diff from the fork no longer showed it, so a test both the pull request and that change reached was skipped as one only the pull request reached. The mainline's side now also reads every file two or more of its commits since the fork changed as it stood after each of those commits, by its lines or, for an install file, by its packages.
+
+  `firstParentChangesBetween(root, from, to)` lists what each commit on `to`'s first-parent line that `from` does not hold changed.
+
 ## 0.32.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
