@@ -25,7 +25,7 @@ pub(crate) use importers_walk::importers_from;
 
 #[path = "help_unresolved.rs"]
 mod unresolved_walk;
-pub(crate) use unresolved_walk::sources;
+pub(crate) use unresolved_walk::{sources, Configurations};
 
 #[napi(object)]
 #[derive(Clone, serde::Serialize)]
@@ -394,14 +394,14 @@ pub struct Namespace {
 ///
 /// A file asked about that declares the name uses it by scope, not by import,
 /// and the scan read those lines with its parse: they are `in_file`.
-pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Importers {
+pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configurations, files: &[String], name: &str) -> Importers {
     // Every file is one origin, so a file passed the name by two of them is followed once.
     let origins: HashMap<String, HashMap<String, HashSet<usize>>> =
         files.iter().map(|file| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([0]))]))).collect();
     let folded = fold(layers);
     let in_file = in_file(root, layers, &folded, files, name);
     let walked = importers_folded(root, layers, &folded, origins);
-    let unresolved = unresolved_walk::unresolved(root, layers, &folded, files, &walked.through, &walked.exports);
+    let unresolved = unresolved_walk::unresolved(root, layers, &folded, configurations, files, &walked.through, &walked.exports);
     let mut found: Vec<NameUse> = walked.taken.into_iter().map(|taken| taken.taken).collect();
     found.sort_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at)
