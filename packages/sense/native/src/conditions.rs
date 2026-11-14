@@ -16,6 +16,8 @@
 //! The emit options (`emitted.rs`) inherit along the same chain, so both are
 //! asked of `Configs`, which reads each file of the chain once in a scan.
 
+// compass: variance-authority.reach.source-scan
+
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
