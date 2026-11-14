@@ -50,6 +50,12 @@ impl U32s<'_> {
         u32::from_le_bytes([self.0[at], self.0[at + 1], self.0[at + 2], self.0[at + 3]])
     }
 
+    /// Where `value` stands in a column that ascends, when it is there.
+    pub fn search(&self, value: u32) -> Option<usize> {
+        let at = partition(self.len(), |index| self.at(index) < value);
+        (at < self.len() && self.at(at) == value).then_some(at)
+    }
+
     /// The children of `row`, from an offset column already checked by
     /// [`Stored::offsets`].
     pub fn range(&self, row: usize) -> Range<usize> {
@@ -180,11 +186,31 @@ impl<'a> Stored<'a> {
         (id != NONE).then(|| self.text(id))
     }
 
+    /// The id the dictionary holds `value` under. Every writer of the framing
+    /// sorts its dictionary in code-unit order (`Strings` in `segment.rs`), so
+    /// it is searched rather than read string by string.
+    pub fn id_of(&self, value: &str) -> Option<u32> {
+        let strings = &self.strings;
+        let at = partition(strings.len(), |index| crate::order::code_unit(strings[index], value).is_lt());
+        (strings.get(at) == Some(&value)).then_some(at as u32)
+    }
+
     /// The ids the dictionary holds `value` under, so a column is asked by id
     /// rather than read string by string; none when the segment never names it.
     pub fn ids_of(&self, value: &str) -> Vec<u32> {
         self.strings.iter().enumerate().filter(|(_, text)| **text == value).map(|(at, _)| at as u32).collect()
     }
+}
+
+/// The first of `0..length` for which `before` is false, where it is true of
+/// every index before that one and of none after.
+pub fn partition(length: usize, before: impl Fn(usize) -> bool) -> usize {
+    let (mut low, mut high) = (0, length);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if before(middle) { low = middle + 1 } else { high = middle }
+    }
+    low
 }
 
 /// Every column in `columns` holds `length` entries.

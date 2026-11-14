@@ -18,13 +18,12 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::HashMap;
-
 use napi_derive::napi;
 
 use crate::compact::Layer;
 use crate::help_declared::span;
-use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
+use crate::chain_lookup::record;
+use crate::package_graph::{join_parses, passed_on, Crossing};
 use crate::package_owners::NO_OWNER;
 use crate::resolve_export::{resolve_export, Bound, Exports, Modules, Passes, Reached};
 
@@ -54,9 +53,8 @@ pub struct ExportedDeclaration {
 /// file that does not export the name, back at a file it already passed
 /// through, or at stars that reach different declarations.
 pub(crate) fn declaration_exported(layers: &[Layer], file: &str, name: &str) -> Option<ExportedDeclaration> {
-    let folded = fold(layers);
-    let index = Index { layers, folded: &folded };
-    let (&file, _) = folded.get_key_value(file)?;
+    let index = Index { layers };
+    let (file, _) = record(layers, file)?;
     resolve_export(&index, &file, name).declaration()
 }
 
@@ -67,12 +65,12 @@ pub(crate) fn declaration_exported(layers: &[Layer], file: &str, name: &str) -> 
 /// neither, and no star passes `default`. Where the reading cannot say what
 /// `file`'s stars export under the name — one reaches a module outside the
 /// checkout, or one the index holds no export list of — the star passes it on.
-pub(crate) fn star_passes<'l>(layers: &'l [Layer<'l>], folded: &HashMap<&'l str, At>, file: &str, star: &str, name: &str) -> bool {
+pub(crate) fn star_passes<'l>(layers: &'l [Layer<'l>], file: &str, star: &str, name: &str) -> bool {
     if name == "default" {
         return false;
     }
-    let index = Index { layers, folded };
-    let Some((&at, _)) = folded.get_key_value(file) else { return true };
+    let index = Index { layers };
+    let Some((at, _)) = record(layers, file) else { return true };
     // The file's own export and its named `export … from` decide before its
     // stars, even where the reading cannot follow what they lead to.
     match index.exports(&at, name) {
@@ -80,7 +78,7 @@ pub(crate) fn star_passes<'l>(layers: &'l [Layer<'l>], folded: &HashMap<&'l str,
         Exports::Passes(_) | Exports::Unread => {}
     }
     let resolved = |at: &str| -> Option<Reached<ExportedDeclaration>> {
-        let (&at, _) = folded.get_key_value(at)?;
+        let (at, _) = record(layers, at)?;
         Some(resolve_export(&index, &at, name))
     };
     match resolved(file) {
@@ -90,20 +88,19 @@ pub(crate) fn star_passes<'l>(layers: &'l [Layer<'l>], folded: &HashMap<&'l str,
     }
 }
 
-/// The source index's layers, folded to each file's newest record.
-struct Index<'l, 'f> {
+/// The source index's layers, read at each file's newest record.
+struct Index<'l> {
     layers: &'l [Layer<'l>],
-    folded: &'f HashMap<&'l str, At>,
 }
 
-impl<'l> Modules for Index<'l, '_> {
+impl<'l> Modules for Index<'l> {
     type File = &'l str;
     type Declaration = ExportedDeclaration;
 
     /// A file whose parse never recorded its export list answers by its
     /// top-level declarations alone, and passes nothing on.
     fn exports(&self, file: &&'l str, name: &str) -> Exports<&'l str, ExportedDeclaration> {
-        let Some(parsed) = Parsed::of(self.layers, self.folded, file) else { return Exports::Unread };
+        let Some(parsed) = Parsed::of(self.layers, file) else { return Exports::Unread };
         match parsed.exports_locally(name) {
             Some(Bound::Declared(symbol)) => Exports::Own(Bound::Declared(parsed.declaration(file, symbol))),
             Some(Bound::Imported(to, imported)) => Exports::Own(Bound::Imported(to, imported)),
@@ -125,8 +122,8 @@ impl<'a> Parsed<'a> {
     /// `None` when the file has no record or no parse, or when its record's
     /// targets do not line up with the parse's requests, which then answer
     /// none of them.
-    fn of(layers: &'a [Layer<'a>], folded: &HashMap<&'a str, At>, file: &str) -> Option<Self> {
-        let (&file, &at) = folded.get_key_value(file)?;
+    fn of(layers: &'a [Layer<'a>], file: &str) -> Option<Self> {
+        let (file, at) = record(layers, file)?;
         let mut crossings = [Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }];
         join_parses(layers, &mut crossings);
         let (layer, row) = crossings[0].parse?;

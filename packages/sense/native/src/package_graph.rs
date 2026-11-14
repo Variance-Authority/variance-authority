@@ -348,47 +348,15 @@ pub(crate) fn names_object(digest: &str, oid: &Oid) -> bool {
 /// Each crossing's parse, found the way the fold would find it: the key is the
 /// record's digest and its file's way (`keyFor` in `files.ts`), and the newest
 /// layer that puts or deletes the key decides. Only the wanted keys are looked
-/// at, so a question about three packages reads three packages' parses.
+/// up, so a question about three packages reads three packages' parses.
 pub(crate) fn join_parses(layers: &[Layer], crossings: &mut [Crossing]) {
-    let ways: Vec<String> = crossings.iter().map(|crossing| crate::index::way(crossing.file)).collect();
-    let mut wanted: HashMap<&str, Vec<usize>> = HashMap::new();
-    for (at, crossing) in crossings.iter().enumerate() {
+    crossings.par_iter_mut().for_each(|crossing| {
         let (layer, row) = crossing.at;
         let (stored, records) = (&layers[layer].stored, &layers[layer].records);
-        if let Some(digest) = stored.optional(records.digest.at(row)) {
-            wanted.entry(digest).or_default().push(at);
-        }
-    }
-    let (wanted, ways) = (&wanted, &ways);
-    let hits: Vec<(Vec<usize>, Vec<(usize, usize)>)> = layers
-        .par_iter()
-        .map(|layer| {
-            let (stored, parses) = (&layer.stored, &layer.parses);
-            let matching = |digest: u32, way: u32, into: &mut Vec<usize>| {
-                if let Some(held) = wanted.get(stored.text(digest)) {
-                    let way = stored.text(way);
-                    into.extend(held.iter().copied().filter(|&at| ways[at] == way));
-                }
-            };
-            let (mut deleted, mut found, mut put) = (Vec::new(), Vec::new(), Vec::new());
-            for row in 0..parses.deleted.len() {
-                matching(parses.deleted.at(row), parses.deleted_way.at(row), &mut deleted);
-            }
-            for row in 0..parses.key.len() {
-                matching(parses.key.at(row), parses.way.at(row), &mut found);
-                put.extend(found.drain(..).map(|at| (at, row)));
-            }
-            (deleted, put)
-        })
-        .collect();
-    for (layer, (deleted, put)) in hits.into_iter().enumerate() {
-        for at in deleted {
-            crossings[at].parse = None;
-        }
-        for (at, row) in put {
-            crossings[at].parse = Some((layer, row));
-        }
-    }
+        crossing.parse = stored
+            .optional(records.digest.at(row))
+            .and_then(|digest| crate::chain_lookup::parse(layers, digest, &crate::index::way(crossing.file)));
+    });
 }
 
 /// One name an `export … from` passes on: `imported` is `*` for a star, and

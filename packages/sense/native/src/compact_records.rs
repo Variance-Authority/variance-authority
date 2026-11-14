@@ -37,6 +37,9 @@ pub(crate) struct Records<'a> {
     unresolved_value: U32s<'a>,
     package_to: U32s<'a>,
     package_kind: U32s<'a>,
+    reverse_to: U32s<'a>,
+    reverse: U32s<'a>,
+    reverse_row: U32s<'a>,
 }
 
 impl<'a> Records<'a> {
@@ -47,7 +50,11 @@ impl<'a> Records<'a> {
         let (edge_to, declare_name) = (u32s("edges.to")?, u32s("record-declares.name")?);
         let (package_to, unresolved_value) = (u32s("packages.to")?, u32s("unresolved.value")?);
         let (witness_directory, target_path) = (u32s("witnesses.directory")?, u32s("targets.path")?);
+        let (reverse_to, reverse_row) = (u32s("targets.reverse-to")?, u32s("targets.reverse-row")?);
         let records = Records {
+            reverse: stored.offsets("targets.reverse", reverse_to.len(), reverse_row.len())?,
+            reverse_to,
+            reverse_row,
             file,
             deleted: stored.maybe_u32s("records.deleted")?,
             digest: u32s("records.digest")?,
@@ -91,6 +98,24 @@ impl<'a> Records<'a> {
         if !flag(self.edges_present, row) { return None; }
         let (offsets, to, kind) = (self.edges, self.edge_to, self.edge_kind);
         Some(offsets.range(row).map(move |at| (stored.text(to.at(at)), stored.text(kind.at(at)))))
+    }
+
+    /// The rows of the records here whose imports resolve to `path`,
+    /// ascending: `targets.path` read backwards, from the columns the encoder
+    /// writes beside it.
+    pub fn importing(&self, stored: &Stored<'a>, path: &str) -> impl Iterator<Item = usize> + use<'a> {
+        let rows = stored.id_of(path).and_then(|id| self.reverse_to.search(id)).map_or(0..0, |at| self.reverse.range(at));
+        let reverse_row = self.reverse_row;
+        rows.map(move |at| reverse_row.at(at) as usize)
+    }
+
+    /// Every row whose record lists a specifier it resolved to no file, with
+    /// the dictionary ids of those specifiers: one id is one specifier.
+    pub fn with_unresolved(&self) -> impl Iterator<Item = (usize, impl Iterator<Item = u32> + use<'a>)> + use<'_, 'a> {
+        let (offsets, value) = (self.unresolved, self.unresolved_value);
+        (0..self.file.len())
+            .filter(move |&row| flag(self.unresolved_present, row) && !offsets.range(row).is_empty())
+            .map(move |row| (row, offsets.range(row).map(move |at| value.at(at))))
     }
 
     /// The directories the record at `row` was answered from.

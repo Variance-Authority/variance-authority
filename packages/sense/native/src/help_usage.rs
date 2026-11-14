@@ -20,12 +20,23 @@ use crate::package_owners::{owners, NO_OWNER};
 
 #[path = "help_importers.rs"]
 mod importers_walk;
-use importers_walk::importers_folded;
 pub(crate) use importers_walk::importers_from;
 
 #[path = "help_unresolved.rs"]
 mod unresolved_walk;
 pub(crate) use unresolved_walk::{sources, Configurations};
+
+#[cfg(test)]
+thread_local! {
+    /// The files whose record a question on this thread read.
+    pub(crate) static READ: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The record of `file` is read: a test holds `importers` to the rows it reaches.
+pub(crate) fn read_record(_file: &str) {
+    #[cfg(test)]
+    READ.with(|read| read.borrow_mut().push(_file.to_owned()));
+}
 
 #[napi(object)]
 #[derive(Clone, serde::Serialize)]
@@ -398,10 +409,9 @@ pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configura
     // Every file is one origin, so a file passed the name by two of them is followed once.
     let origins: HashMap<String, HashMap<String, HashSet<usize>>> =
         files.iter().map(|file| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([0]))]))).collect();
-    let folded = fold(layers);
-    let in_file = in_file(root, layers, &folded, files, name);
-    let walked = importers_folded(root, layers, &folded, origins);
-    let unresolved = unresolved_walk::unresolved(root, layers, &folded, configurations, files, &walked.through, &walked.exports);
+    let in_file = in_file(root, layers, files, name);
+    let walked = importers_from(root, layers, origins);
+    let unresolved = unresolved_walk::unresolved(root, layers, configurations, files, &walked.through, &walked.exports);
     let mut found: Vec<NameUse> = walked.taken.into_iter().map(|taken| taken.taken).collect();
     found.sort_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at)

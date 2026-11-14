@@ -5,14 +5,13 @@
 
 // compass: variance-authority.reach.relations
 
-use std::collections::HashMap;
-
 use napi_derive::napi;
 
 use crate::compact::Layer;
 use crate::help_usage::kind_of;
 use crate::orient_map_read::beside;
-use crate::package_graph::{join_parses, At, Crossing};
+use crate::chain_lookup::record;
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 
 /// One line of a file that uses a name the file declares at its top level.
@@ -25,11 +24,12 @@ pub struct InFile {
 }
 
 /// The lines of each of `files` that use `name`, a name the file declares.
-pub(crate) fn in_file(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, files: &[String], name: &str) -> Vec<InFile> {
+pub(crate) fn in_file(root: &str, layers: &[Layer], files: &[String], name: &str) -> Vec<InFile> {
     let mut crossings: Vec<Crossing> = files
         .iter()
-        .filter_map(|file| folded.get_key_value(file.as_str()))
-        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+        .filter_map(|file| record(layers, file))
+        .inspect(|&(file, _)| crate::help_usage::read_record(file))
+        .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
         .collect();
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
     crossings.dedup_by(|a, b| a.file == b.file);
