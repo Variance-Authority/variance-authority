@@ -13,7 +13,7 @@ use super::{kind_of, taken, Namespace, NameUse};
 use crate::compact::Layer;
 use crate::help_origin::star_passes;
 use crate::orient_map_read::beside;
-use crate::chain_lookup::newest;
+use crate::chain_lookup::importers;
 use crate::package_graph::{join_parses, passed_on, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 
@@ -165,22 +165,14 @@ pub(crate) fn importers_from(root: &str, layers: &[Layer], asked: HashMap<String
 /// One step of `importers_from`: the uses of each wanted name out of its
 /// file, and each re-export passing one of them on.
 ///
-/// The files importing a wanted file are each layer's rows that import it
-/// (`importing`), kept where the row is still its file's newest record: what
-/// a pass over every record of the folded chain would keep, read off the
-/// wanted files alone.
+/// The files importing a wanted file are read off the wanted files alone
+/// (`importers` in `chain_lookup.rs`), not off every record of the chain.
 fn importers_of(root: &str, layers: &[Layer], wanted: &Wanted, deepest: &OnceLock<usize>) -> (Vec<Taken>, Vec<Pass>) {
-    let mut crossings: Vec<Crossing> = Vec::new();
-    for (at, layer) in layers.iter().enumerate() {
-        let (stored, records) = (&layer.stored, &layer.records);
-        for path in wanted.keys() {
-            for row in records.importing(stored, path) {
-                if !newest(layers, (at, row)) { continue; }
-                let file = stored.text(records.file.at(row));
-                crossings.push(Crossing { file, owner: NO_OWNER, others: Vec::new(), at: (at, row), parse: None });
-            }
-        }
-    }
+    let mut crossings: Vec<Crossing> = wanted
+        .keys()
+        .flat_map(|path| importers(layers, path))
+        .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+        .collect();
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
     crossings.dedup_by(|a, b| a.file == b.file);
     for crossing in &crossings {

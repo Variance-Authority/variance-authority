@@ -36,6 +36,23 @@ pub(crate) fn newest(layers: &[Layer], at: At) -> bool {
     })
 }
 
+/// Every file whose newest record imports `path`, with that record, in no
+/// particular order: each layer's rows that import it (`importing`), kept
+/// where the row is still its file's newest record. A file whose records in
+/// two layers both import `path` is named once, from the newer.
+pub(crate) fn importers<'l>(layers: &'l [Layer<'l>], path: &str) -> Vec<(&'l str, At)> {
+    let mut found = Vec::new();
+    for (at, layer) in layers.iter().enumerate() {
+        let (stored, records) = (&layer.stored, &layer.records);
+        for row in records.importing(stored, path) {
+            if newest(layers, (at, row)) {
+                found.push((stored.text(records.file.at(row)), (at, row)));
+            }
+        }
+    }
+    found
+}
+
 /// The parse read from `digest` the way `way` names, as the fold keys it.
 pub(crate) fn parse(layers: &[Layer], digest: &str, way: &str) -> Option<At> {
     for (at, layer) in layers.iter().enumerate().rev() {

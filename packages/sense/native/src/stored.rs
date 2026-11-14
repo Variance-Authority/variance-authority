@@ -194,12 +194,6 @@ impl<'a> Stored<'a> {
         let at = partition(strings.len(), |index| crate::order::code_unit(strings[index], value).is_lt());
         (strings.get(at) == Some(&value)).then_some(at as u32)
     }
-
-    /// The ids the dictionary holds `value` under, so a column is asked by id
-    /// rather than read string by string; none when the segment never names it.
-    pub fn ids_of(&self, value: &str) -> Vec<u32> {
-        self.strings.iter().enumerate().filter(|(_, text)| **text == value).map(|(at, _)| at as u32).collect()
-    }
 }
 
 /// The first of `0..length` for which `before` is false, where it is true of
