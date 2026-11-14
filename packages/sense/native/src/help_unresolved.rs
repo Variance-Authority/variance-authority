@@ -7,10 +7,10 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
 
+use crate::chain_lookup::{fold, newest};
 use crate::compact::Layer;
 use crate::orient_map_read::beside;
-use crate::chain_lookup::newest;
-use crate::package_graph::{fold, join_parses, passed_on, Crossing};
+use crate::package_graph::{join_parses, passed_on, Crossing};
 use crate::package_owners::{owners, parent, NO_OWNER};
 use crate::specifier::{is_relative, package_of};
 use crate::witness_aliases::{AliasMapping, AliasesRead};

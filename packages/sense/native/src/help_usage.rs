@@ -12,10 +12,11 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 use rayon::prelude::*;
 
+use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::help_in_file::{in_file, InFile};
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 
 #[path = "help_importers.rs"]

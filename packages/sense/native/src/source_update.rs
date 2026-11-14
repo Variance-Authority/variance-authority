@@ -31,6 +31,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
 use crate::batch::{is_module, walk_beyond, GraphOptions, Walked};
+use crate::chain_lookup::{fold, At};
 use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Generation};
@@ -39,7 +40,7 @@ use crate::index::way;
 use crate::index_chain::read_chain;
 use crate::log::{written, LogSegment, Over};
 use crate::order::code_unit;
-use crate::package_graph::{fold, names_object, At};
+use crate::package_graph::names_object;
 use crate::parse_store::{self, Parse, Stores};
 use crate::read::Read;
 use crate::record::{built, Indexed, Settling};

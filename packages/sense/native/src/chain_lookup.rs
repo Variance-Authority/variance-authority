@@ -1,15 +1,35 @@
-//! One key of an opened source-index chain, found without folding the chain:
-//! the newest layer that puts or deletes the key decides, which is what the
-//! fold (`fold` in `package_graph.rs`, oldest layer first, its deletes and
-//! then its puts) would hold under it. Every column searched here is sorted by
-//! its key in code-unit order and the dictionary is too, so a key is a binary
-//! search per layer rather than a pass over every row of every layer.
+//! Which record of an opened source-index chain answers for a file: the
+//! newest layer that puts or deletes the file decides, and within one layer a
+//! put wins over a delete. `fold` applies that rule to every file at once;
+//! `record`, `newest`, `importers` and `parse` apply it to one key, by a binary
+//! search per layer over columns sorted by key in code-unit order, rather than
+//! a pass over every row of every layer.
 
 // compass: variance-authority.reach.source-index
 
+use std::collections::HashMap;
+
 use crate::compact::Layer;
-use crate::package_graph::At;
 use crate::stored::partition;
+
+/// A record of the chain: its layer and row.
+pub(crate) type At = (usize, usize);
+
+/// Every file's newest record. Oldest layer first, its deletes,
+/// then its puts, as `compacted` folds them.
+pub(crate) fn fold<'a>(layers: &'a [Layer<'a>]) -> HashMap<&'a str, At> {
+    let mut folded: HashMap<&str, At> = HashMap::new();
+    for (at, layer) in layers.iter().enumerate() {
+        let (stored, records) = (&layer.stored, &layer.records);
+        for row in 0..records.deleted.len() {
+            folded.remove(stored.text(records.deleted.at(row)));
+        }
+        for row in 0..records.file.len() {
+            folded.insert(stored.text(records.file.at(row)), (at, row));
+        }
+    }
+    folded
+}
 
 /// The file's newest record, and the file as the chain spells it.
 pub(crate) fn record<'l>(layers: &'l [Layer<'l>], file: &str) -> Option<(&'l str, At)> {

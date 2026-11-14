@@ -5,6 +5,7 @@
 use std::collections::BTreeSet;
 
 use super::{chain, file, fixture, passes, read, request, uses, Configurations};
+use crate::chain_lookup::{fold, newest, record};
 use crate::compact::Layer;
 use crate::generation::Delta;
 use crate::graph_index::merged;
@@ -92,6 +93,15 @@ fn a_record_a_later_layer_replaces_or_deletes_imports_nothing() {
             "deletedRecords": ["src/direct.ts"], "deletedParses": []}}"#
     )]).unwrap());
     let layers = [Layer::open(&base).unwrap(), Layer::open(&warm).unwrap()];
+    let folded = fold(&layers);
+    for (at, layer) in layers.iter().enumerate() {
+        for row in 0..layer.records.file.len() {
+            let file = layer.stored.text(layer.records.file.at(row));
+            assert_eq!(record(&layers, file), folded.get(file).map(|&found| (file, found)), "{file}");
+            assert_eq!(newest(&layers, (at, row)), folded.get(file) == Some(&(at, row)), "{file} in layer {at}");
+        }
+    }
+    assert_eq!(record(&layers, "src/direct.ts"), None);
 
     let answer = importers(root.0.to_str().unwrap(), &layers, &Configurations::default(), &["src/greet.ts".to_owned()], "greet");
 

@@ -27,6 +27,7 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 use rayon::prelude::*;
 
+use crate::chain_lookup::{fold, At};
 use crate::compact::Layer;
 use crate::git::Oid;
 use crate::index_chain::{read_chain, Chain};
@@ -104,9 +105,6 @@ pub fn orient_packages(root: String, index: String, files: Vec<String>, rows: u3
     let listed = Listed { paths: &snapshot.paths, oids: &snapshot.oids };
     orientation(&root, &chain, &listed, &files, limits).map(Some).map_err(fail)
 }
-
-/// A folded record: its layer and row.
-pub(crate) type At = (usize, usize);
 
 /// One folded record as the answer sees it.
 struct Record<'a> {
@@ -291,22 +289,6 @@ pub(crate) fn orientation(root: &str, chain: &Chain, listed: &Listed, files: &[S
         unread,
         dropped: chain.damaged(),
     })
-}
-
-/// Every file's newest record. The fold is `compacted`'s: oldest layer first,
-/// its deletes, then its puts.
-pub(crate) fn fold<'a>(layers: &'a [Layer<'a>]) -> HashMap<&'a str, At> {
-    let mut folded: HashMap<&str, At> = HashMap::new();
-    for (at, layer) in layers.iter().enumerate() {
-        let (stored, records) = (&layer.stored, &layer.records);
-        for row in 0..records.deleted.len() {
-            folded.remove(stored.text(records.deleted.at(row)));
-        }
-        for row in 0..records.file.len() {
-            folded.insert(stored.text(records.file.at(row)), (at, row));
-        }
-    }
-    folded
 }
 
 /// Whether the record is stale, and which other packages its targets land in.

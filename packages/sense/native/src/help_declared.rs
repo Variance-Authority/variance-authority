@@ -24,6 +24,7 @@ use std::collections::BTreeSet;
 use napi_derive::napi;
 use rayon::prelude::*;
 
+use crate::chain_lookup::{fold, At};
 use crate::dependency_lexicon::purposes::{asked_run, code_stems, near, phrase_run, writes_run};
 
 use crate::compact::Layer;
@@ -31,7 +32,7 @@ use crate::help_declared_candidates::{candidates, sure, Said};
 use crate::help_usage::kind_of;
 use crate::name_table::Item;
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, At, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 use crate::segment::NONE;
 

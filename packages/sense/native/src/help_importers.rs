@@ -83,11 +83,6 @@ type Wanted = HashMap<String, HashMap<Want, HashMap<usize, bool>>>;
 /// origin, and whether only a type-only path reached it.
 type Pass = (String, Want, usize, bool);
 
-/// `importers` for several names at once: each `(file, name)` of `asked`
-/// carries the origins it answers for, and every use and every file passing
-/// one on carries them along, so one walk answers them all. Each file is
-/// followed once per name and origin, and once more when a value path reaches
-/// it after a type-only one; a site reached both ways is a value use.
 /// The most names any recorded read reaches off an export, `lib.a.b.x` reads
 /// three: a want deeper than that no read answers. Only an `export * as`
 /// asks, so it is read the first time one is met.
@@ -102,6 +97,11 @@ fn deepest(layers: &[Layer]) -> usize {
         .unwrap_or(0)
 }
 
+/// `importers` for several names at once: each `(file, name)` of `asked`
+/// carries the origins it answers for, and every use and every file passing
+/// one on carries them along, so one walk answers them all. Each file is
+/// followed once per name and origin, and once more when a value path reaches
+/// it after a type-only one; a site reached both ways is a value use.
 pub(crate) fn importers_from(root: &str, layers: &[Layer], asked: HashMap<String, HashMap<String, HashSet<usize>>>) -> Walked {
     let deepest = OnceLock::new();
     let mut wanted: Wanted = asked

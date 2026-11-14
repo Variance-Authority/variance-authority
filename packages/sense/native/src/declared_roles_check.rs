@@ -26,11 +26,12 @@ use napi::bindgen_prelude::AsyncTask;
 use napi_derive::napi;
 use rayon::prelude::*;
 
+use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::declared_role::{PRODUCTION, TEST_ONLY};
 use crate::index_chain::read_chain;
 use crate::off_thread::{off_thread, OffThread};
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::NO_OWNER;
 
 #[napi(object)]

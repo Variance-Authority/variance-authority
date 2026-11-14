@@ -18,10 +18,11 @@ use std::path::Path;
 
 use rayon::prelude::*;
 
+use crate::chain_lookup::{fold, At};
 use crate::commit_text::{absent, contents, Blob};
 use crate::compact::Layer;
 use crate::journeys_parse::{parse, Callee, Export, Parsed};
-use crate::package_graph::{fold, join_parses, At, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::resolve::{Resolvers, Tsconfig};
 use crate::resolve_export::{resolve_export, Bound, Exports, Modules, Passes};
 
