@@ -1275,6 +1275,7 @@ dependencies = [
  "grep-searcher",
  "json-strip-comments",
  "libc",
+ "memchr",
  "napi",
  "napi-build",
  "napi-derive",

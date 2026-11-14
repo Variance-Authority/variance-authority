@@ -6,8 +6,9 @@
 //! list, and the index holds it anyway: every parse harvests its file's
 //! top-level declarations. This reads those, so `symbol` and `search` can
 //! answer for a private function the way they answer for an exported one.
-//! `search` matches a declaration's doc comment as well as its name, and the
-//! index holds only the comment's span, so the text is read from the file.
+//! `search` matches a declaration's doc comment as well as its name, by the
+//! words the name table cut from it at index time; the text is read from the
+//! file only for a phrase, or a doc the writer did not hold the source of.
 //!
 //! A name asked for exactly is also answered by a function another function's
 //! body declares, from the index's own nested table, with the function that
@@ -23,10 +24,12 @@ use std::collections::BTreeSet;
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::dependency_lexicon::purposes::{code_stems, near, phrase_run, writes_run};
+use crate::dependency_lexicon::purposes::{asked_run, code_stems, near, phrase_run, writes_run};
 
 use crate::compact::Layer;
+use crate::help_declared_candidates::{candidates, sure, Said};
 use crate::help_usage::kind_of;
+use crate::name_table::Item;
 use crate::orient_map_read::beside;
 use crate::package_graph::{fold, join_parses, At, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
@@ -147,27 +150,9 @@ fn file_name(file: &str) -> &str {
     name.rsplit_once('.').map_or(name, |(stem, _)| stem)
 }
 
-/// The file as UTF-16, read once, and only when a doc is the one thing left to match.
-fn source_of<'s>(source: &'s mut Option<Option<Vec<u16>>>, root: &str, file: &str) -> Option<&'s [u16]> {
-    source
-        .get_or_insert_with(|| std::fs::read_to_string(std::path::Path::new(root).join(file)).ok().map(|text| text.encode_utf16().collect()))
-        .as_deref()
-}
-
 pub(crate) fn span(starts: crate::stored::U32s, ends: crate::stored::U32s, at: usize) -> (Option<u32>, Option<u32>) {
     let (start, end) = (starts.at(at), ends.at(at));
     if start == NONE || end == NONE { (None, None) } else { (Some(start), Some(end)) }
-}
-
-/// A doc comment as written, which [`near`] and [`writes_run`] read by paragraph,
-/// and as words, its lines joined by single spaces and lowercased, so text
-/// typed across a line break still matches.
-struct Prose { written: String, words: String }
-
-fn prose(source: &[u16], start: u32, end: u32) -> Option<Prose> {
-    let written = crate::dependency_namespace::doc(source, Some(crate::harvest::TextSpan { start, end }))?;
-    let words = written.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
-    Some(Prose { written, words })
 }
 
 /// One file's matches, and the file
@@ -240,6 +225,12 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
     let crossings = crossings(layers, &folded, files);
     // Cut once for every doc; a question of one stem is no phrase, and no doc is cut for it.
     let run = matches!(matching, Matching::Containing).then(|| phrase_run(query)).flatten();
+    // The stem pairs `near` counts: a doc whose words lack both of every pair is near nothing, and is not read for it.
+    let pairs: Vec<[String; 2]> = match &matching {
+        Matching::Described { query, .. } => asked_run(query).windows(2).map(|pair| [pair[0].1.clone(), pair[1].1.clone()]).collect(),
+        _ => Vec::new(),
+    };
+    let picked: Vec<_> = layers.par_iter().map(|layer| candidates(layer, query, &matching, run.as_deref())).collect();
     let found: Vec<FileHits> = crossings
         .par_iter()
         .map(|crossing| {
@@ -247,23 +238,40 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             // could not be opened: what it declares is as unknown as in a parse
             // its reader did not harvest.
             let Some((layer, row)) = crossing.parse else { return (Vec::new(), Some(crossing.file), None) };
-            let (text, parses) = (&layers[layer].stored, &layers[layer].parses);
+            let (text, parses, picked) = (&layers[layer].stored, &layers[layer].parses, &picked[layer]);
+            let names = &parses.names;
             let mut source: Option<Option<Vec<u16>>> = None;
+            let file_text = crossing.file;
+            let described = |said: Option<Said>, in_name: BTreeSet<u32>, stems: &[String], query: &str, source: &mut Option<Option<Vec<u16>>>| {
+                let mut held = in_name.clone();
+                if let Some(said) = &said { held.extend(held_in(stems, &said.words)) }
+                if held.is_empty() { return None }
+                let near = said.map_or(0, |mut said| {
+                    let any = pairs.iter().any(|pair| said.may_hold(pair.iter().map(String::as_str)));
+                    if !any { return 0 }
+                    said.written(source, root, file_text).map_or(0, |written| near(query, written))
+                });
+                Some((held, in_name, near))
+            };
             let file = match &matching {
                 Matching::Described { stems, query } => {
-                    let in_name = held_in(stems, file_name(crossing.file));
-                    let doc = parses.doc_of_module(row)
-                        .and_then(|span| source_of(&mut source, root, crossing.file).and_then(|source| prose(source, span.start, span.end)));
-                    let mut held = in_name.clone();
-                    if let Some(doc) = &doc { held.extend(held_in(stems, &doc.words)) }
-                    (!held.is_empty()).then(|| {
-                        let near = doc.as_ref().map_or(0, |doc| near(query, &doc.written));
-                        (layer, crossing.file, row, (held.into_iter().collect(), in_name.into_iter().collect(), near, doc.as_ref().map(|doc| doc.words.len() as u32)))
-                    })
+                    let name = file_name(crossing.file);
+                    let lowered = name.to_lowercase();
+                    let in_name = if stems.iter().any(|stem| !sure(stem) || lowered.contains(stem.as_str())) { held_in(stems, name) } else { BTreeSet::new() };
+                    let said = if picked.module(row) {
+                        let span = parses.doc_of_module(row).map(|span| (span.start, span.end)).unzip();
+                        Said::of(names[Item::Module as usize].doc(row), span, &mut source, root, crossing.file)
+                    } else {
+                        None
+                    };
+                    let length = said.as_ref().map(|said| said.words.len() as u32);
+                    described(said, in_name, stems, query, &mut source)
+                        .map(|(held, in_name, near)| (layer, crossing.file, row, (held.into_iter().collect(), in_name.into_iter().collect(), near, length)))
                 }
                 _ => None,
             };
             if parses.harvested[row] != 1 { return (Vec::new(), Some(crossing.file), file) }
+            if !picked.parse(row) { return (Vec::new(), None, file) }
             let own: Vec<&str> = if parses.exports_present[row] == 1 {
                 parses.exports.range(row)
                     .filter(|&export| text.optional(parses.export_from.at(export)).is_none())
@@ -272,30 +280,33 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             } else {
                 Vec::new()
             };
-            let doc_holds = |doc: &Prose| doc.words.contains(query) || run.as_ref().is_some_and(|run| writes_run(run, &doc.written).is_some());
+            let doc_holds = |said: Option<Said>, source: &mut Option<Option<Vec<u16>>>| {
+                let Some(mut said) = said else { return false };
+                if said.words.contains(query) { return true }
+                let Some(run) = &run else { return false };
+                said.may_hold(run.iter().map(|(_, stem)| stem.as_str()))
+                    && said.written(source, root, file_text).is_some_and(|written| writes_run(run, written).is_some())
+            };
             let mut named: Vec<&str> = Vec::new();
             let mut hits = Vec::new();
-            for symbol in parses.symbols.range(row) {
+            for symbol in parses.symbols.range(row).filter(|&symbol| picked.symbol(symbol)) {
                 let name = text.text(parses.symbol_name.at(symbol));
                 if own.contains(&name) || named.contains(&name) { continue }
-                let (doc_start, doc_end) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol);
-                let mut doc = || source_of(&mut source, root, crossing.file).and_then(|source| prose(source, doc_start?, doc_end?));
+                let doc_span = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol);
+                let doc = names[Item::Symbol as usize].doc(symbol);
                 let described = match &matching {
                     Matching::Exact if name == query || name.strip_suffix(query).is_some_and(|head| head.ends_with("::")) => None,
-                    Matching::Containing if name.to_lowercase().contains(query) || doc().is_some_and(|doc| doc_holds(&doc)) => None,
+                    Matching::Containing if name.to_lowercase().contains(query) || doc_holds(Said::of(doc, doc_span, &mut source, root, crossing.file), &mut source) => None,
                     Matching::Terms { groups } => {
                         let terms = crate::help_search::name_terms(name);
                         if !groups.iter().all(|group| group.iter().any(|term| terms.contains(term))) { continue }
                         None
                     }
                     Matching::Described { stems, query } => {
-                        let in_name = held_in(stems, name);
-                        let doc = doc();
-                        let mut held = in_name.clone();
-                        if let Some(doc) = &doc { held.extend(held_in(stems, &doc.words)) }
-                        if held.is_empty() { continue }
-                        let near = doc.as_ref().map_or(0, |doc| near(query, &doc.written));
-                        Some((held.into_iter().collect(), in_name.into_iter().collect(), near, doc.as_ref().map(|doc| doc.words.len() as u32)))
+                        let said = Said::of(doc, doc_span, &mut source, root, crossing.file);
+                        let length = said.as_ref().map(|said| said.words.len() as u32);
+                        let Some((held, in_name, near)) = described(said, held_in(stems, name), stems, query, &mut source) else { continue };
+                        Some((held.into_iter().collect(), in_name.into_iter().collect(), near, length))
                     }
                     _ => continue,
                 };
@@ -304,17 +315,17 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
             }
             if matches!(matching, Matching::Exact) {
                 // Each is its own declaration, under its own holder: none stands for another.
-                hits.extend(parses.nested.range(row).filter(|&at| text.text(parses.nested_name.at(at)) == query).map(|at| (layer, crossing.file, Row::Nested(at), None)));
+                hits.extend(parses.nested.range(row).filter(|&at| picked.nested(at) && text.text(parses.nested_name.at(at)) == query).map(|at| (layer, crossing.file, Row::Nested(at), None)));
             }
             if matches!(matching, Matching::Containing) {
-                hits.extend(parses.nested.range(row).filter(|&at| text.text(parses.nested_name.at(at)).to_lowercase().contains(query)).map(|at| (layer, crossing.file, Row::Nested(at), None)));
-                for at in parses.member_declarations.range(row) {
+                hits.extend(parses.nested.range(row).filter(|&at| picked.nested(at) && text.text(parses.nested_name.at(at)).to_lowercase().contains(query)).map(|at| (layer, crossing.file, Row::Nested(at), None)));
+                for at in parses.member_declarations.range(row).filter(|&at| picked.member(at)) {
                     let name = text.text(parses.member_declaration_name.at(at)).to_lowercase();
                     let on = text.text(parses.member_declaration_on.at(at)).to_lowercase();
                     let dotted = query.rsplit_once('.').is_some_and(|(asked_on, asked)| asked_on == on && asked == name);
-                    let (doc_start, doc_end) = span(parses.member_declaration_doc[0], parses.member_declaration_doc[1], at);
-                    let mut doc = || source_of(&mut source, root, crossing.file).and_then(|source| prose(source, doc_start?, doc_end?));
-                    if name.contains(query) || dotted || doc().is_some_and(|doc| doc_holds(&doc)) {
+                    let doc_span = span(parses.member_declaration_doc[0], parses.member_declaration_doc[1], at);
+                    let doc = names[Item::Member as usize].doc(at);
+                    if name.contains(query) || dotted || doc_holds(Said::of(doc, doc_span, &mut source, root, crossing.file), &mut source) {
                         hits.push((layer, crossing.file, Row::Member(at), None));
                     }
                 }
@@ -440,3 +451,7 @@ fn member_name(layers: &[Layer], layer: usize, at: &str, member: usize, by: &str
         on: Some(text.text(parses.member_declaration_on.at(member)).to_owned()),
     }
 }
+
+#[cfg(test)]
+#[path = "help_declared_tests.rs"]
+mod tests;

@@ -9,6 +9,8 @@
 pub(crate) mod help_aliases;
 #[path = "help_declared.rs"]
 pub(crate) mod help_declared;
+#[path = "help_declared_candidates.rs"]
+pub(crate) mod help_declared_candidates;
 #[path = "help_grep.rs"]
 pub(crate) mod help_grep;
 #[path = "help_in_file.rs"]
