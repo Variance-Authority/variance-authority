@@ -64,6 +64,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'libs/gamma/src/config.ts': "a reader's own module, quoted from a sample answer of a name",
   'cart.ts': "a reader's own module, quoted from a sample test story",
   'price.ts': "a reader's own module, quoted from a sample test story",
+  'pricing.mjs': 'the short name a live story gives cases/journey-tracing-case/src/pricing.mjs, quoted from a sample answer of ran --story',
   'format.ts': "a reader's own module, quoted from a sample test story",
   'packages/price/src/index.ts': "a reader's own module, quoted from a sample answer of symbol",
   'theme.tsx': "a reader's own component, quoted from a sample test story",

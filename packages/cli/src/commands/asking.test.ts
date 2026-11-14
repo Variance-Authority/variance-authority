@@ -88,4 +88,12 @@ describe('what a question takes', () => {
     expect(listed?.kind).toBe('list');
     expect(counted?.kind).toBe('number');
   });
+
+  it('spells a true-or-false argument as a bare flag', () => {
+    const ran = vantageToolByName('variance_ran')!;
+
+    expect(argumentsOf(ran).find((argument) => argument.property === 'story')?.kind).toBe('switch');
+    expect(takes(ran)).toContain('[--story]');
+    expect(takes(ran)).not.toContain('--story <');
+  });
 });

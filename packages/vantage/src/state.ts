@@ -100,6 +100,15 @@ export interface HeadRan {
   readonly instrumentation: string;
   /** In the order each was first entered. */
   readonly modules: readonly EnteredModule[];
+  /**
+   * What the execution's functions were handed, in the story format, base64:
+   * one story each time the head told it, in the order told. Absent unless the
+   * head was started with `VARIANCE_AUTHORITY_STORY=1`. A watcher keeps the
+   * first 8 tellings, up to 1 MiB of them.
+   */
+  readonly stories?: readonly string[];
+  /** How many tellings past that bound the watcher counted and did not keep; absent when it kept every one. */
+  readonly untold?: number;
 }
 
 /** One request nobody drove, and the code it entered in every head it reached. */

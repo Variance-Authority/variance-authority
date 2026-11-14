@@ -9,7 +9,8 @@ import { decodeTestCoverage } from './format.js';
 import { carriedJournal, type ReportedModule } from './finished-files.js';
 import { withTestSelection } from './vitest.js';
 import { BROWSER_JOURNAL } from './worker-source.js';
-import { STORY_VARIABLE, storyDirectory } from '../story/directory.js';
+import { STORY_VARIABLE } from '../story/asked.js';
+import { storyDirectory } from '../story/directory.js';
 
 /** Built, as `format.test.ts` reads it: the format `require`s its neighbours by the names the build gives them. */
 const { decodeStory } = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');

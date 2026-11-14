@@ -379,6 +379,41 @@ The agent skill
 [installed with the CLI](agent-workspace-api.md)
 has each of them, and what to do about a region that was not named.
 
+### What each function was handed
+
+Start a server with `VARIANCE_AUTHORITY_STORY=1` beside the two variables it
+reports with, and `--story` prints each of its executions as a
+[story](test-stories.md): the functions it entered in the order it entered
+them, the branches each took, and the arguments each was handed, spelled as
+[a test story spells them](test-stories.md#what-each-function-was-handed).
+
+```bash
+variance ask ran --at http://127.0.0.1:53393 --story
+```
+
+```
+1 execution(s) at http://127.0.0.1:53393.
+
+  b4128c59-ac7c-45d3-abdd-882e39f0e906
+  head pricing
+      in cases/journey-tracing-case/src: pricing.mjs
+      1  quote  pricing.mjs:6-13
+           if 7  then ×1
+           » handed locale='de'
+```
+
+A step reads as it does in `variance story`: the function, where it is, the
+branches it took under it, and what it was handed under those.
+
+A live story shows arguments only: no variable a function declares, and
+nothing a module holds at its top level. Two requests that run at once are
+taped apart, each under its own execution. A request whose promises run on
+after it settles is told again with what it ran since. The watcher keeps the
+first 8 tellings of an execution from each head, up to 1 MiB of them, and
+`--story` counts the rest. A head started without the variable tapes nothing,
+and `--story` then says so and lists the regions as before. A request still
+open has told nothing yet: its story arrives when it settles. A page that calls `reportPage` tells no story yet.
+
 ## Reading it from an agent
 
 `variance-authority-mcp --watch`, from

@@ -1,6 +1,7 @@
 import type { RunReport } from '@variance-authority/report';
 import type { Tree } from './tree.js';
 import type { SourceNames } from './names.js';
+import type { BlockKind } from '@variance-authority/sense/instrument';
 
 /**
  * The contract every tool implements, and the untyped boundary it sits behind.
@@ -83,6 +84,9 @@ export interface CutRegion {
   /** The structural path inside that declaration, `if#0/else`; empty on its entry. */
   readonly path: string;
   readonly startLine?: number;
+  readonly endLine?: number;
+  /** What the region is, where the host said: a story's route is drawn by it. */
+  readonly kind?: BlockKind;
 }
 
 /** A module cut again. `instrumented` is false where the file is no longer the text its probes were placed on. */

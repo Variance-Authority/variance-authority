@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { armTree } from './story-tree.js';
+import { armTree } from './tree.js';
 
 describe('the arms of one step, drawn as the code is nested', () => {
   it('pairs the arms of an `if`, draws what sits inside one arm under it, and leaves the code after a loop undrawn', () => {

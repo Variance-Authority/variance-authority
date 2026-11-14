@@ -144,6 +144,8 @@ describe('parseArgs', () => {
     });
     expect(parseArgs(['ask', 'search', '--query', 'button', '--just-answer'])).toMatchObject({ justAnswer: true });
     expect(parseArgs(['serve', '--just-answer'])).toMatchObject({ justAnswer: true });
+    // `--story` stands alone: the report path after it is a report, not its value.
+    expect(parseArgs(['ask', 'ran', '--story', 'out/report.json'])).toMatchObject({ story: true, reports: ['out/report.json'] });
   });
 
   it('reads distillation evidence without project configuration', () => {

@@ -48,8 +48,8 @@
  * route sees the value next to the step that printed it. A note is not a
  * visit: it moves no bucket and the engine never sees it.
  *
- * {@link listen} is how notes arrive. It installs one function under
- * `Symbol.for('variance-authority.story.note')` on the realm's global, which
+ * [`story-listen.cts`](story-listen.cts) is how notes arrive. It installs one
+ * function under `Symbol.for('variance-authority.story.note')` on the realm's global, which
  * `@variance-authority/event` and `@variance-authority/eyes` call when it is
  * there, and it wraps the realm's `console` so that every line the case prints
  * is also a note. The console still prints: the wrapper says the line to the
@@ -82,9 +82,8 @@
  * the two constants before it: see `story/page.ts`.
  */
 
-import util = require('node:util');
-import jestConsole = require('./jest-console.cjs');
 import probeLog = require('./probe-log.cjs');
+import storyParts = require('./story-parts.cjs');
 import type { ModuleId } from './index.js';
 
 type Engine = ReturnType<typeof probeLog.createEngine>;
@@ -132,6 +131,14 @@ interface Tap {
   nameIn(scope: object): void;
   /** Start the tape again, keeping what the realm registered and the refs it gave. */
   reset(): void;
+  /**
+   * A live tap's: the part of the tape bucket `key` ran since it was last
+   * taken, as a tape of its own, and let go of. A test's tap answers an empty
+   * tape; its cases are read by {@link Tap.read}.
+   */
+  take(key: string): Tape;
+  /** How many visits and notes the tap holds now, of every bucket not yet taken. */
+  holding(): { visits: number; notes: number };
 }
 
 /** How many visits one tape holds before it stops taping. */
@@ -149,8 +156,14 @@ const NOTE_LENGTH = 240;
  *
  * @param limit How many visits the tape keeps between resets. Past it the tape
  * stops and counts, and the engine goes on recording presence.
+ * @param live Whether the tap is a live head's. A live run shows what its
+ * functions were handed and nothing a module keeps, and it keeps each bucket's
+ * part apart, to be {@link Tap.take | taken} when the bucket's journey is
+ * told: a head that serves for weeks, never idle, holds what is open and
+ * nothing it already told: see [`story-parts.cts`](story-parts.cts). Its limits
+ * then bound each part, `limit` its visits, not uptime.
  */
-function createTap(engine: Engine, limit: number): Tap {
+function createTap(engine: Engine, limit: number, live = false): Tap {
   const inner = engine.root;
   const pass = new Uint8Array(1);
   const empty = new Int32Array(0);
@@ -184,6 +197,9 @@ function createTap(engine: Engine, limit: number): Tap {
   const held = new Map<ModuleId, string>();
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
+
+  // Made only when live: a page's tap is this function's source alone, without the module.
+  const parts = live ? storyParts.createParts(engine, limit, { ids: rowIds, bases: rowBases }) : undefined;
 
   // Every object a region handed over, by identity, for as long as the realm
   // holds it: refs outlive a reset, so a module's bindings, held once when it
@@ -257,8 +273,11 @@ function createTap(engine: Engine, limit: number): Tap {
     const line = text.length > NOTE_LENGTH ? `${text.slice(0, NOTE_LENGTH - 1)}…` : text;
     // Where an async scope decides the bucket, ask it, as a probe would
     // before it writes: a note said in a case's continuation is the case's.
-    inner.s?.();
-    notes.push([taped, engine.current().key, line]);
+    if (parts !== undefined) parts.note(line);
+    else {
+      inner.s?.();
+      notes.push([taped, engine.current().key, line]);
+    }
     return line;
   };
 
@@ -267,13 +286,16 @@ function createTap(engine: Engine, limit: number): Tap {
     (module: ModuleId) =>
     (region: number, names: string, ...values: unknown[]): void => {
       // Past the limit nothing is read: a hot function pays for a count.
-      if (handedOver >= NOTE_LIMIT) {
+      if (parts !== undefined) {
+        const into = parts.here();
+        if (region === 0 || into === undefined || !parts.room(into, 'handed')) return;
+      } else if (handedOver >= NOTE_LIMIT) {
         unnoted += 1;
         return;
       }
       try {
         const said = names.split(',').map((name, index) => `${name}=${shown(values[index])}`);
-        handedOver += 1;
+        if (parts === undefined) handedOver += 1;
         if (region !== 0) put(`handed ${said.join(', ')}`);
         else held.set(module, put(`holds ${said.join(', ')}`));
       } catch {
@@ -282,6 +304,7 @@ function createTap(engine: Engine, limit: number): Tap {
     };
 
   const record = (entry: number): void => {
+    if (parts !== undefined) return parts.tape(entry);
     const activation = inner.a;
     if (activation !== seen) {
       seen = activation;
@@ -369,6 +392,11 @@ function createTap(engine: Engine, limit: number): Tap {
       return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
+      if (parts !== undefined) {
+        const into = parts.here();
+        if (into !== undefined && parts.room(into, 'spoken')) put(text);
+        return;
+      }
       if (spoken >= NOTE_LIMIT) {
         unnoted += 1;
         return;
@@ -391,55 +419,17 @@ function createTap(engine: Engine, limit: number): Tap {
       keys = [];
       seen = -1;
     },
+    take(key: string): Tape {
+      const taken = parts?.take(key) ?? { tape: empty, visits: 0, at: [], keys: [], notes: [], unnoted: 0 };
+      return { ...taken, taped: taken.tape.length, lines: [], held: new Map(), rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
+    },
+    holding() {
+      return parts !== undefined ? parts.holding() : { visits: taped, notes: notes.length };
+    },
   };
   Object.defineProperty(root, Symbol.for('variance-authority.test-selection.engine'), { value: engine });
   Object.defineProperty(root, Symbol.for('variance-authority.story.tap'), { value: api });
   return api;
-}
-
-/** Where the realm's story listens for notes; `@variance-authority/event` and `eyes` mirror it. */
-const NOTE = Symbol.for('variance-authority.story.note');
-
-/** The console methods a case prints with; each line is a note, and still printed. */
-const PRINTS = ['log', 'info', 'warn', 'error', 'debug'] as const;
-
-type Channel = (text: string) => void;
-
-/**
- * Have `scope`'s announcements, attention and console lines put on `tap`,
- * and its frameworks name the objects `tap` is handed.
- *
- * The channel is replaced on every call, so a realm that makes a second
- * collector notes onto the tap it uses now. The console is wrapped once: the
- * wrapper looks the channel up when a line is printed, never when it is made.
- */
-function listen(tap: Tap, scope: object): void {
-  const global = scope as { [NOTE]?: Channel; console?: Console };
-  global[NOTE] = (text: string): void => tap.note(String(text));
-  tap.nameIn(scope);
-  const printer = global.console as (Console & { [NOTE]?: true }) | undefined;
-  if (printer === undefined || printer[NOTE] === true) return;
-  Object.defineProperty(printer, NOTE, { value: true });
-  const written = (method: string, text: string): void => {
-    const channel = global[NOTE];
-    if (typeof channel === 'function' && (PRINTS as readonly string[]).includes(method)) channel(`console.${method} ${text}`);
-  };
-  if (jestConsole.noteWrites(printer, written)) return;
-  for (const method of PRINTS) {
-    const original = printer[method] as ((...values: unknown[]) => void) | undefined;
-    if (typeof original !== 'function') continue;
-    printer[method] = function (this: unknown, ...values: unknown[]): void {
-      const channel = global[NOTE];
-      if (typeof channel === 'function') {
-        try {
-          channel(`console.${method} ${util.format(...values)}`);
-        } catch {
-          // A value whose inspection throws is still printed below.
-        }
-      }
-      original.apply(this, values);
-    };
-  }
 }
 
 /** The tap behind a realm's root, when the root is one. */
@@ -448,4 +438,4 @@ function tapOf(root: unknown): Tap | undefined {
   return (root as { [key: symbol]: Tap | undefined })[Symbol.for('variance-authority.story.tap')];
 }
 
-export = { createTap, tapOf, listen, TAPE_LIMIT, NOTE_LIMIT, NOTE_LENGTH };
+export = { createTap, tapOf, TAPE_LIMIT, NOTE_LIMIT, NOTE_LENGTH, PART_LIMIT: storyParts.PART_LIMIT, PART_NOTES: storyParts.PART_NOTES };

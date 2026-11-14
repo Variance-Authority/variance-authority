@@ -1,0 +1,49 @@
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
+import { expect, it } from 'vitest';
+
+/** Built, as the tap loads it: the parts `require` the story format by its built name. */
+const storyParts = createRequire(import.meta.url)('../../dist/instrument/story-parts.cjs') as typeof import('./story-parts.cjs');
+
+it('opens no segment for a part that kept none of the visits, however often its execution resumes', () => {
+  const root = { a: 0, s: null };
+  let key = '';
+  const parts = storyParts.createParts({ root, current: () => ({ key }) }, storyParts.PART_LIMIT, {
+    // A module whose row alone is past what a part's text holds.
+    ids: ['m'.repeat(400 << 10)],
+    bases: [0],
+  });
+
+  for (let switched = 0; switched < 1000; switched += 1) {
+    key = switched % 2 === 0 ? 'a' : 'b';
+    root.a += 1;
+    parts.tape(0);
+  }
+
+  const taken = parts.take('a')!;
+  expect([taken.tape.length, taken.at.length, taken.visits]).toEqual([0, 0, 500]);
+});
+
+it('keeps no note of a visit it did not keep, so nothing is told under the step before', () => {
+  const root = { a: 1, s: null };
+  const parts = storyParts.createParts({ root, current: () => ({ key: 'a' }) }, 1, { ids: ['app.js'], bases: [0] });
+
+  parts.tape(0);
+  parts.tape(1);
+  const said = parts.room(parts.here()!, 'handed');
+  if (said) parts.note("handed customer='mike'");
+
+  const taken = parts.take('a')!;
+  expect([said, taken.notes, taken.unnoted]).toEqual([false, [], 1]);
+});
+
+it('loads in a realm with no host globals, as a jsdom suite\'s is, though no story is asked for', () => {
+  const require = createRequire(import.meta.url);
+  const path = require.resolve('../../dist/instrument/story-parts.cjs');
+  const module = { exports: {} as Partial<typeof storyParts> };
+  // Only what ECMAScript itself gives: no `TextEncoder`, no `Buffer`.
+  runInNewContext(`(function (module, exports, require) {${readFileSync(path, 'utf8')}\n})`)(module, module.exports, require);
+
+  expect(module.exports.PART_LIMIT).toBe(storyParts.PART_LIMIT);
+});

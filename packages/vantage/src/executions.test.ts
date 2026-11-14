@@ -4,6 +4,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { VANTAGE_ASK, attachVantage, type AttachedVantage, type VantageReading } from './attach.js';
+import { STORIES, STORY_BYTES } from './executions.js';
 import type { WatchedRan } from './state.js';
 
 const attached: AttachedVantage[] = [];
@@ -20,6 +21,7 @@ interface Said {
   readonly opened?: number;
   readonly settled?: number;
   readonly lost?: number;
+  readonly story?: unknown;
   readonly modules?: readonly { id: string; hits: number[]; shared: number[]; again?: number[] }[];
 }
 
@@ -121,6 +123,41 @@ describe('a watcher a head reports to', () => {
     const held = await ran(one);
     expect(held.executions.map((execution) => execution.id)).toEqual(['j-2', 'j-3']);
     expect(held.forgotten).toBe(1);
+  });
+
+  it('keeps the story each head told of an execution, in the order told, and none where it told none', async () => {
+    const one = await watcher();
+    await says(one, 'j-1', { opened: 1 });
+    await says(one, 'j-1', { settled: 1, story: 'Zmlyc3Q=', modules: [{ id: 'src/cart.ts@abc', hits: [1], shared: [] }] });
+    // A promise the request left running, told only what it ran since; it entered nothing new.
+    await says(one, 'j-1', { story: 'dGhlbg==' });
+    await says(one, 'j-2', { modules: [{ id: 'src/cart.ts@abc', hits: [2], shared: [] }] });
+
+    const { executions } = await ran(one);
+    expect(executions.map((execution) => execution.heads)).toEqual([
+      [{ head: 'api', instrumentation: 'probes-1', modules: [{ id: 'src/cart.ts@abc', entered: [1] }], stories: ['Zmlyc3Q=', 'dGhlbg=='] }],
+      [{ head: 'api', instrumentation: 'probes-1', modules: [{ id: 'src/cart.ts@abc', entered: [2] }] }],
+    ]);
+  });
+
+  it('keeps the first tellings of an execution up to its bound, and counts the ones it did not keep', async () => {
+    const one = await watcher();
+    for (let told = 0; told < STORIES + 2; told += 1) await says(one, 'j-1', { story: `dGVsbA${told}` });
+    // One telling past the bytes a head's stories of one execution are held to is not kept, though it is the first.
+    await says(one, 'j-2', { story: 'A'.repeat(STORY_BYTES + 1) });
+
+    const [first, second] = (await ran(one)).executions.map((execution) => execution.heads[0]);
+    expect(first?.stories).toEqual(Array.from({ length: STORIES }, (_, told) => `dGVsbA${told}`));
+    expect(first?.untold).toBe(2);
+    expect(second?.stories).toBeUndefined();
+    expect(second?.untold).toBe(1);
+  });
+
+  it('takes nothing from an account whose story is not a string', async () => {
+    const one = await watcher();
+    await says(one, 'j-1', { story: 7 });
+
+    expect((await ran(one)).executions).toEqual([]);
   });
 
   it('carries how many accounts each head said it lost', async () => {

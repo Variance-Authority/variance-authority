@@ -82,6 +82,8 @@ import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 import { isThenable, journeyScope, TOLD, writeParts } from './journey-parts.js';
 import { journeyOf, type JourneyTrace } from './journey-carrier.js';
+import { tapeJourneys } from './journey-story.js';
+import { storiesAsked } from '../story/asked.js';
 import {
   JOURNEY_HEAD_VARIABLE,
   JOURNEY_PARTS_VARIABLE,
@@ -270,6 +272,8 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     return bucket;
   };
   engine.scope(journeyScope(() => store.getStore() ?? trace?.current(), bucketFor));
+  // Only the watcher reads a story, so a head with none tapes nothing.
+  const taped = watched !== undefined && storiesAsked() ? tapeJourneys(engine) : undefined;
 
   const send = (over: Channel, account: Omit<JourneyAccount, 'version' | 'instrumentation' | 'head' | 'lost'>): void => {
     const to = over.home === watched ? 'watcher' : 'drivers';
@@ -293,11 +297,17 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   /**
    * Report what one journey entered. `settled` is how many of the scopes this
    * head said it opened for that journey the account closes; the driver waits
-   * for every one of them before it joins anything.
+   * for every one of them before it joins anything. `running` says the request
+   * is still open, reported only because another settled, so its story waits.
    */
-  const report = (journey: string, over: Channel | undefined, settled = 0): void => {
+  const report = (journey: string, over: Channel | undefined, settled = 0, running = false): void => {
     const bucket = buckets.get(journey);
     buckets.delete(journey);
+    // Taken whether or not it is sent: the tape holds only what is open.
+    const story =
+      over === undefined || over.home !== watched || journey === UNATTRIBUTED ? taped?.forget(journey)
+      : running ? undefined
+      : taped?.storyOf(journey);
     const entered: ExecutedModule[] =
       bucket === undefined ? [] : probeLists.lists(engine.close(bucket), false);
     // What the process did outside any journey is every subject's, and so is
@@ -322,6 +332,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
       scope: 'journey',
       ...(settled === 0 ? {} : { settled }),
       modules: entered.sort((left, right) => codeUnitOrder(left.id, right.id)),
+      ...(story === undefined ? {} : { story }),
     });
   };
 
@@ -342,7 +353,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     const over = channels.get(journey);
     report(journey, over, 1);
     // A request nobody drove and still open is the process's to this driver too, so far.
-    if (watched !== undefined && over?.home !== watched) for (const [open, home] of channels) if (home.home === watched && buckets.has(open)) report(open, home);
+    if (watched !== undefined && over?.home !== watched) for (const [open, home] of channels) if (home.home === watched && buckets.has(open)) report(open, home, 0, true);
     report(UNATTRIBUTED, over);
     // Whichever journey carries it, the driver unions it into every subject.
     if (over !== undefined) catchUp(over);
@@ -392,7 +403,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
     configurable: true,
     writable: true,
     enumerable: false,
-    value: engine.root,
+    value: taped?.root ?? engine.root,
   });
 
   return {

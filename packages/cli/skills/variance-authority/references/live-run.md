@@ -94,6 +94,7 @@ variance ask ran --at "$VARIANCE_AUTHORITY_VANTAGE" --name quote --limit 1
 |---|---|
 | `--name <name>` | executions that ran a region of that name: a declaration, or one segment of `Cart/render` |
 | `--limit <n>` | the `n` most recent; 20 by default |
+| `--story` | nothing; prints each execution as a story instead of its regions |
 
 Executions are listed oldest first, so the request just made is the last one.
 `▸` marks one a process still holds open. Each region is `file:line name`,
@@ -101,6 +102,17 @@ followed by its branch. What a process ran outside every request, or while a
 module loaded, is listed once after them, narrowed by the same flags, with the
 regions past the fortieth counted. `--limit` does not narrow a `--name` search:
 every execution is read for the name.
+
+`--story` (MCP: `story: true`) needs a server head started with
+`VARIANCE_AUTHORITY_STORY=1` as well. Each execution is then its steps in the
+order they ran, drawn as `variance story` draws every step: `N  name
+file:lines` with its branches under it, and `» handed name=value`, the
+arguments only: no local or module variable is shown. Concurrent requests are
+taped apart. An execution told again lists what ran since under `told again`.
+What the tape lost is said above the steps; the watcher keeps 8 tellings of an
+execution, up to 1 MiB, and counts the rest as `told N more times`. A head
+without the variable tells no story, and the answer says so and lists regions.
+A `head page` tells none yet.
 
 A region arrives as a number and is named from the checkout `ask` runs in, so
 ask from the repository the application was built from. A module whose regions

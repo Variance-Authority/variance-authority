@@ -24,8 +24,8 @@
  * dropped: the line names what it holds, and `--package <name>` opens it.
  */
 
-import type { Place } from '@variance-authority/sense/story';
-import { overview, type FileVisits, type Gap, type Line } from './story-view.js';
+import type { Place } from './read.js';
+import { overview, type FileVisits, type Gap, type Line } from './view.js';
 
 /**
  * Characters a reading is held to before it is drawn one level coarser. A

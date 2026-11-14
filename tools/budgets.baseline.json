@@ -753,10 +753,10 @@
   "packages/cli/src/commands/step-progress.ts docblock": [
     13
   ],
-  "packages/cli/src/commands/story-levels.ts overview": [
+  "packages/sense/src/story/levels.ts overview": [
     20
   ],
-  "packages/cli/src/commands/story-tree.ts overview": [
+  "packages/sense/src/story/tree.ts overview": [
     19
   ],
   "packages/cli/src/commands/suite-base.ts docblock": [

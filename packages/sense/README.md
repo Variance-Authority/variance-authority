@@ -1397,6 +1397,13 @@ lists. Handed `trace` as well, the head reports a request nothing wrapped in
 where a browser SDK propagates its trace. A `trace` with neither a watcher nor
 `parts` is refused when the head starts.
 
+Started with `VARIANCE_AUTHORITY_STORY=1` as well, a head with a watcher tapes
+each execution it reports there, and the account carries its story: the steps
+it took and the arguments each function was handed, which `variance ask ran
+--story` prints. It shows no local or module variable. Concurrent requests are
+taped apart, by the journey each runs under. Without the variable nothing is
+taped.
+
 A journey's scope ends when what the body returned *settles*, not when the body
 returns, which is the only arrangement under which the code after an `await` is
 attributed at all. That can be well after the response went out, so the head

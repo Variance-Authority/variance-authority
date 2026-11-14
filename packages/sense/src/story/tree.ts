@@ -22,7 +22,7 @@
  * off a column.
  */
 
-import type { Arm, Untaken } from '@variance-authority/sense/story';
+import type { Arm, Untaken } from './read.js';
 
 type Unentered = Untaken['arms'][number];
 

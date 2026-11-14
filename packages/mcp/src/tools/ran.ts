@@ -1,6 +1,8 @@
 import { loadedUnprobed, modulePath } from '@variance-authority/sense';
 import type { HeadRan, VantageState, WatchedExecution } from '@variance-authority/vantage';
+import { STORY_VARIABLE } from '@variance-authority/sense/story';
 import { cappedRows } from './capped.js';
+import { toldIds, toldRows } from './ran-story.js';
 import { limitOf } from './limit.js';
 import { spellingOf } from './spelling.js';
 import type { CutModules, Tool } from './tool.js';
@@ -35,6 +37,10 @@ export const ran: Tool<VantageState> = {
         minimum: 1,
         description: 'How many of the most recent to list. Defaults to 20.',
       },
+      story: {
+        type: 'boolean',
+        description: `Show each execution's story in place of its regions: the steps it took in order, with what each function was handed. Told by a head started with \`${STORY_VARIABLE}=1\`.`,
+      },
     },
     additionalProperties: false,
   },
@@ -44,6 +50,7 @@ export const ran: Tool<VantageState> = {
       let ids = asked.get(head.instrumentation);
       if (ids === undefined) asked.set(head.instrumentation, (ids = new Set()));
       for (const module of head.modules) ids.add(module.id);
+      if (storyArg(input)) for (const id of toldIds(head)) ids.add(id);
     }
     return new Map([...asked].map(([instrumentation, ids]) => [instrumentation, [...ids]]));
   },
@@ -72,13 +79,21 @@ export const ran: Tool<VantageState> = {
 
     const spell = spellingOf(invocation);
     const shown = newest(matching, limitOf(input, SHOWN, spell));
+    const story = storyArg(input);
+    const untold = story && !shown.some((execution) => execution.heads.some(told));
     const elided = matching.length - shown.length;
     const where = state.address === undefined ? '' : ` at ${state.address}`;
     const count = matching.length === executions.length ? `${executions.length}` : `${matching.length} of ${executions.length}`;
 
     return [
       `${count} execution(s)${where}.`,
-      ...shown.flatMap((execution) => ['', ...listed(execution, cut)]),
+      // A head tells an execution's story when it settles, so only a settled one untold says no head was asked.
+      ...(!untold
+        ? []
+        : shown.some((execution) => !execution.open)
+          ? ['', `No head here was started with ${STORY_VARIABLE}=1, so no execution has a story; what each ran is listed instead.`]
+          : ['', 'No execution listed has settled, and a head tells an execution\'s story when it settles; what each ran so far is listed instead.']),
+      ...shown.flatMap((execution) => ['', ...listed(execution, cut, story)]),
       ...(elided === 0 ? [] : ['', `… ${elided} earlier execution(s) not listed; a higher \`${spell.input('limit')}\` lists them.`]),
       ...(forgotten === 0 ? [] : ['', `${forgotten} earlier execution(s) were dropped to keep this watcher bounded.`]),
       ...(lost === 0
@@ -163,18 +178,31 @@ function line(region: Entered): string {
   return `      ${[at, region.name, region.path].filter((part) => part !== '').join(' ')}`;
 }
 
-function listed(execution: WatchedExecution, cut: CutModules | undefined): string[] {
+/** Whether a head told a story of the execution, kept by the watcher or only counted. */
+const told = (head: HeadRan): boolean => head.stories !== undefined || head.untold !== undefined;
+
+function listed(execution: WatchedExecution, cut: CutModules | undefined, story: boolean): string[] {
   const mark = execution.open ? '▸' : ' ';
   return [
     `${mark} ${execution.id}`,
-    ...execution.heads.flatMap((head) => [`  head ${head.head}`, ...regionsOf(head, cut).map(line)]),
+    ...execution.heads.flatMap((head) => [
+      `  head ${head.head}`,
+      ...(story && told(head) ? toldRows(head, cut) : regionsOf(head, cut).map(line)),
+    ]),
     // A request that reached a head and none of its probed code: a route the build left out.
-    ...(execution.heads.some((head) => head.modules.length > 0) ? [] : [execution.open ? '  still open: what it ran is listed when it settles' : '  ran no code the build placed a probe in']),
+    ...(execution.heads.some((head) => head.modules.length > 0 || (story && told(head))) ? [] : [execution.open ? '  still open: what it ran is listed when it settles' : '  ran no code the build placed a probe in']),
   ];
 }
 
 /** The variable that turns a head on, as `@variance-authority/sense/journey` reads it; a test holds the two together. */
 export const JOURNEYS = 'VARIANCE_AUTHORITY_JOURNEYS';
+
+function storyArg(input: Readonly<Record<string, unknown>>): boolean {
+  const value = input['story'];
+  if (value === undefined) return false;
+  if (typeof value !== 'boolean') throw new Error('`story` must be true or false');
+  return value;
+}
 
 function nameArg(input: Readonly<Record<string, unknown>>): string | undefined {
   const value = input['name'];

@@ -196,6 +196,25 @@ export function readRoute(root: string, path: string): Route {
   return drawRoute(root, story, files, regions);
 }
 
+/**
+ * The route of a story that came off the wire rather than off disk: a live
+ * head's, told to a watcher with no record beside it. `regionsOf` names each
+ * row's regions by ordinal, from the module id and the count the story
+ * recorded, or leaves the row unresolved.
+ */
+export function drawToldRoute(
+  bytes: Uint8Array,
+  regionsOf: (id: string, count: number) => readonly Region[] | undefined,
+): Route {
+  const story = stories.decodeStory(bytes);
+  return drawRoute('', story, story.rows.map(([id]) => moduleIds.pathOf(id)), story.rows.map(([id, count]) => regionsOf(id, count)));
+}
+
+/** The module ids a told story went through, so a reader knows which to name before it draws the route. */
+export function toldModules(bytes: Uint8Array): readonly string[] {
+  return stories.decodeStory(bytes).rows.map(([id]) => id);
+}
+
 /** A region as the snapshot holds it, by ordinal. */
 export interface Region {
   readonly kind: BlockKind;
