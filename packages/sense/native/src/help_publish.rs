@@ -27,7 +27,7 @@ use crate::help_search::{exported_digest, set_digest};
 use crate::help_store::{encode, DeepRef, StoreMeta, StorePackage, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_origin::{declaration_exported, ExportedDeclaration};
-use crate::help_usage::{importers, usage, DeepRequest, Importers, IndexedUsage, NamedExport};
+use crate::help_usage::{importers, usage, Configurations, DeepRequest, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::{tree, Mocking};
 
@@ -132,7 +132,7 @@ fn reading(root: &str, index: String, opened: &[String], published: &[String], u
 /// specifier as the importing file wrote it, and its `name` the name it takes.
 #[napi]
 pub fn importers_of(root: String, index: &OpenedIndex, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
-    opened_chain(index, |layers| importers(&root, layers, &files, &name))
+    opened_chain(index, |layers| importers(&root, layers, &index.configurations, &files, &name))
 }
 
 /// Every specifier on the chain at `index` that names a package or a runtime
@@ -140,7 +140,7 @@ pub fn importers_of(root: String, index: &OpenedIndex, files: Vec<String>, name:
 /// order; `None` when there is no index.
 #[napi]
 pub fn outside_sources_of(root: String, index: &OpenedIndex, name: String) -> napi::Result<Option<Vec<String>>> {
-    opened_chain(index, |layers| crate::help_usage::sources(&root, layers, &name))
+    opened_chain(index, |layers| crate::help_usage::sources(&root, layers, &index.configurations, &name))
 }
 
 /// Every import on the chain at `index` that binds `local` to an export of
@@ -232,6 +232,8 @@ pub struct OpenedIndex {
     index: String,
     /// The opened chain; `None` when nothing was ever published.
     opened: Option<Opened>,
+    /// The workspace's configurations, read once for the question by the first reading that asks.
+    configurations: Configurations,
     closed: bool,
 }
 
@@ -274,7 +276,7 @@ impl OpenedIndex {
 pub fn open_index(index: String) -> napi::Result<OpenedIndex> {
     let chain = read_chain(&index).map_err(|error| refused(&index, error))?;
     let opened = chain.map(|chain| Opened::open(chain.segments)).transpose().map_err(|error| refused(&index, error))?;
-    Ok(OpenedIndex { index, opened, closed: false })
+    Ok(OpenedIndex { index, opened, configurations: Configurations::default(), closed: false })
 }
 
 fn refused(index: &str, error: String) -> napi::Error {
