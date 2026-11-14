@@ -121,6 +121,10 @@ describe('grep over a closure', () => {
     expect(() => ask({ query: '(', from: 'src/entry.ts' })).toThrow('ripgrep refused the pattern');
   });
 
+  it('refuses a NUL in the pattern, which binary detection makes impossible to match, as ripgrep does', () => {
+    expect(() => ask({ query: '\\x00', from: 'src/entry.ts' })).toThrow('ripgrep refused the pattern');
+  });
+
   it('answers with no `rg` on PATH', () => {
     const path = process.env.PATH;
     process.env.PATH = '';

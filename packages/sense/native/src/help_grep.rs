@@ -35,6 +35,8 @@ pub fn ripgrep(root: String, pattern: String, files: Vec<String>) -> napi::Resul
     let matcher = RegexMatcherBuilder::new()
         .multi_line(true)
         .line_terminator(Some(b'\n'))
+        // Binary detection turns NUL into a line break, so a pattern holding one never matches; `rg` refuses it.
+        .ban_byte(Some(b'\0'))
         .build(&pattern)
         .map_err(|error| napi::Error::from_reason(format!("ripgrep refused the pattern: {error}")))?;
     let root = Path::new(&root);
