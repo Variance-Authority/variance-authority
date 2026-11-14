@@ -113,6 +113,7 @@ mod module_moved;
 mod module_readers;
 mod module_shape;
 mod module_verdict;
+mod name_table;
 mod nested;
 mod off_thread;
 mod order;

@@ -131,6 +131,8 @@ pub struct Read {
     /// The module's own doc comment, inside its marks, as [`Harvest`] reads it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) doc: Option<TextSpan>,
+    /// The words of every doc the read spans, cut while its source was held.
+    #[serde(skip)] pub(crate) words: crate::name_table::Words,
 }
 
 pub(crate) struct Lines(Vec<usize>);
@@ -431,8 +433,8 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         own_uses: own_uses_in(&parsed.program, scoping, &lines),
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
-        doc: harvest.module_doc,
-    };
+        doc: harvest.module_doc, words: crate::name_table::Words::default(),
+    }.worded(source);
     drop(built);
     (read, parsed.program)
 }

@@ -257,4 +257,21 @@ impl ParseRow for ParseView<'_, '_> {
     fn doc(&self) -> crate::parse_columns::Span {
         span(self.columns.doc[0], self.columns.doc[1], self.row)
     }
+
+    /// Carried as the layer wrote them, so a compaction keeps what the writer held.
+    fn words(&self, item: crate::name_table::Item, at: usize) -> Option<Option<&str>> {
+        use crate::name_table::{Doc, Item};
+        let (columns, row) = (self.columns, self.row);
+        let entry = match item {
+            Item::Module => row,
+            Item::Symbol => columns.symbols.range(row).start + at,
+            Item::Nested => columns.nested.range(row).start + at,
+            Item::Member => columns.member_declarations.range(row).start + at,
+        };
+        match columns.names[item as usize].doc(entry) {
+            Doc::Absent => Some(None),
+            Doc::Words(words) => Some(Some(words)),
+            Doc::Unknown => None,
+        }
+    }
 }

@@ -175,6 +175,10 @@ impl ParseRow for Read {
     fn doc(&self) -> crate::parse_columns::Span {
         self.doc.map(|doc| (doc.start, doc.end))
     }
+
+    fn words(&self, item: crate::name_table::Item, at: usize) -> Option<Option<&str>> {
+        self.words.at(item, at)
+    }
 }
 
 /// What the path says about reading it: `parseWay` and the second half of

@@ -59,6 +59,10 @@ const DESCRIPTION: &[&str] = &["use", "using", "used", "library", "package", "mo
 /// four letters left, so `comment` stays apart from `come` and `generation`
 /// from `gene`; a plural `s` stays on after `s` or `u`, so `process` is not
 /// `proces`, and `ed` stays on after `e`, so `proceed` is not `proc`.
+///
+/// A stem is the lowered word with endings cut off, so it is always a prefix of
+/// that word: the name table's candidates find a stem as a substring of a doc's
+/// words, and a rewrite that changes a letter would drop answers there.
 pub(super) fn stem(word: &str) -> String {
     let mut stem = word.to_lowercase();
     for suffix in ["ings", "ing", "ies", "ed", "es", "s"] {
@@ -169,7 +173,7 @@ fn writes(said: &[Placed], at: &HashMap<(u32, u32), &str>, run: &[(u32, &str)]) 
 /// The question's stems as one run, each placed after the first: a word the
 /// question drops before its first stem asks for nothing before the run. A
 /// question is one run, so a line break in it parts nothing.
-fn asked_run(query: &str) -> Vec<(u32, String)> {
+pub(crate) fn asked_run(query: &str) -> Vec<(u32, String)> {
     let asked = placed(&query.replace(['\n', '\r'], " "));
     let start = asked.first().map_or(0, |one| one.place);
     asked.into_iter().map(|one| (one.place - start, one.stem)).collect()

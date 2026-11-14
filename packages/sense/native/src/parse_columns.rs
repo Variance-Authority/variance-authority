@@ -14,6 +14,7 @@
 
 // compass: variance-authority.reach.source-index
 
+use crate::name_table::{Item, NameColumn};
 use crate::segment::{u32s, u8s, Collected, Column, Strings, NONE};
 use crate::source_size::Size;
 
@@ -32,6 +33,9 @@ pub trait ParseRow {
     fn size(&self) -> Option<Size>;
     /// The module's own doc comment, inside its marks; absent when it writes none.
     fn doc(&self) -> Span;
+    /// The words of the doc of the `at`-th row of `item` this row writes, as
+    /// [`Words::at`] gives them; `None`, unknown, when the row did not hold its source.
+    fn words(&self, item: Item, at: usize) -> Option<Option<&str>>;
 }
 
 /// A text span's two ends, or `NONE` twice when there is no span.
@@ -116,6 +120,8 @@ pub struct ParseColumns {
     binding_member_within: Vec<u32>,
     binding_within_name: Vec<u32>,
     declare_name: Vec<u32>,
+    /// The name table, one column per [`Item`].
+    names: [NameColumn; 4],
 }
 
 fn span(into: &mut [Vec<u32>; 2], value: Span) {
@@ -139,10 +145,27 @@ impl ParseColumns {
             columns.lines.push(size.map_or(NONE, |size| size.lines));
             columns.blocks.push(size.and_then(|size| size.blocks).unwrap_or(NONE));
             span(&mut columns.doc, row.doc());
+            columns.names[Item::Module as usize].push("", row.doc().is_some(), row.words(Item::Module, 0));
+            let before = [columns.symbol_name.len(), columns.nested_name.len(), columns.member_declaration_name.len()];
             row.write(strings, &mut columns);
+            columns.name(strings, *row, before);
         }
         columns.close();
         columns
+    }
+
+    /// The name-table entries of the children `row` just wrote, from where each table stood before it.
+    fn name<P: ParseRow>(&mut self, strings: &Strings, row: &P, before: [usize; 3]) {
+        let tables = [
+            (Item::Symbol, &self.symbol_name, &self.symbol_doc[0]),
+            (Item::Nested, &self.nested_name, &self.nested_doc[0]),
+            (Item::Member, &self.member_declaration_name, &self.member_declaration_doc[0]),
+        ];
+        for ((item, names, docs), start) in tables.into_iter().zip(before) {
+            for at in start..names.len() {
+                self.names[item as usize].push(strings.text(names[at]), docs[at] != NONE, row.words(item, at - start));
+            }
+        }
     }
 
     /// A row's offsets: each list's length where the row starts.
@@ -369,6 +392,9 @@ impl ParseColumns {
             u32s("binding-within.name", self.binding_within_name),
             u32s("declares.name", self.declare_name),
         ]
+        .into_iter()
+        .chain(NameColumn::columns(self.names))
+        .collect()
     }
 }
 
