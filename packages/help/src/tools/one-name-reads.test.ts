@@ -35,6 +35,8 @@ async function published(): Promise<{ readonly root: string; readonly help: Help
     'packages/kit/src/internal/mount.ts': 'function mount(): void {}\nexport default mount;\n',
     'packages/kit/src/internal/limit.ts': "export { clamp as limit } from './clamp.js';\n",
     'packages/kit/src/internal/other.ts': 'export const other = 1;\nexport const another = 2;\n',
+    'packages/kit/src/internal/anonymous.ts': 'export default (): number => 1;\n',
+    'packages/kit/src/internal/door.ts': "export { default as gauge } from './anonymous.js';\n",
     'packages/app/package.json': JSON.stringify({ name: 'app' }),
     'packages/app/src/bounded.ts': "import { clamp } from 'kit/src/internal/clamp';\nexport const bounded = clamp(140);\n",
     'packages/app/src/mounted.ts': "import mount from 'kit/src/internal/mount';\nexport const mounted = mount();\n",
@@ -68,5 +70,12 @@ it.each(['clamp', 'mount', 'limit'])('`uses` answers `%s` without decoding the e
   const { root, help } = await published();
   const out = uses.run(help, { name }, { root });
   expect(out).toContain('packages/app/src/');
+  expect(decoded(help)).toEqual([]);
+});
+
+it('names an anonymous default by the export that passes it on, read off the rows of the file that does', async () => {
+  const { root, help } = await published();
+  const out = symbol.run(help, { name: 'gauge' }, { root });
+  expect(out).toContain('It passes on `gauge`, declared at packages/kit/src/internal/anonymous.ts:1');
   expect(decoded(help)).toEqual([]);
 });
