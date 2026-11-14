@@ -5,7 +5,7 @@ import type { Help } from '@variance-authority/package/help';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
-import { caughtUp, foundNothingAnswer, foundNothingFooter, outlived, refusalFooter, snapshotLine } from './caught-up.js';
+import { caughtUp, foundNothingAnswer, foundNothingFooter, madeBefore, outlived, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspace, readWorkspaceForAnswer } from './read.js';
 import { workspaceGeneration, workspaceReadStarted } from './snapshot.js';
 import { serveWorkspace, type WorkspaceOptions } from './server.js';
@@ -423,5 +423,14 @@ describe('a generation that could not be saved', () => {
     const help = await readWorkspace(root, { index: join(root, 'package.json', 'index') });
     expect(workspaceGeneration(help)).toBeDefined();
     expect(workspaceReadStarted(help)).toBeDefined();
+  });
+});
+
+describe('madeBefore', () => {
+  it('says a generation made before the question started predates it, and one made during it or with no date does not', () => {
+    const started = Date.parse('2026-11-14T08:00:00.000Z');
+    expect(madeBefore('2026-11-14T07:59:59.999Z', started)).toBe(true);
+    expect(madeBefore('2026-11-14T08:00:00.000Z', started)).toBe(false);
+    expect(madeBefore(undefined, started)).toBe(false);
   });
 });

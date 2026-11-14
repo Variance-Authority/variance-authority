@@ -1079,6 +1079,7 @@
         "countingShown": "function",
         "foundNothingAnswer": "function",
         "foundNothingFooter": "function",
+        "madeBefore": "function",
         "outlived": "function",
         "publishWorkspaceFromIndex": "function",
         "publishedGeneration": "function",
