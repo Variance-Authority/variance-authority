@@ -74,6 +74,13 @@ fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>,
         .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
         .collect();
     join_parses(layers, &mut crossings);
+    // A tracked `build/` is source only where the index holds it, as the scan's
+    // own resolve decides: the indexed files under one are what it may land on.
+    let known: HashMap<String, u32> = folded
+        .keys()
+        .filter(|path| path.split('/').any(crate::path::excluded))
+        .map(|path| ((*path).to_owned(), 0))
+        .collect();
     crossings
         .par_iter()
         .filter_map(|crossing| {
@@ -92,7 +99,7 @@ fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>,
             let from = mocking.root.join(crossing.file);
             let (mut targets, mut holes) = (Vec::new(), Vec::new());
             for value in said {
-                match mocking.resolvers.resolve(&mocking.root, &from, value, None) {
+                match mocking.resolvers.resolve(&mocking.root, &from, value, Some(&known)) {
                     Some(to) => targets.push(to),
                     None if request_of(value).is_some_and(is_relative) => holes.push(value),
                     None => {}

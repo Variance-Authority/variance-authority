@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
@@ -106,6 +106,40 @@ describe('the published tree', () => {
 
     expect([...tree.reachedFrom([TEST])]).toContain(MOCKED);
     expect(tree.unknownAmong([TEST])).toEqual([TEST]);
+  });
+
+  it('hands a fresh read the tree it publishes, mocks and all', async () => {
+    let drawn: Tree | undefined;
+    await read.readWorkspaceForAnswer(root, { index, tree: (tree) => { drawn = tree; } });
+
+    expect(drawn).toBeDefined();
+    expect([...drawn!.reachedFrom([TEST])]).toContain(MOCKED);
+    expect(drawn!.unknownAmong([TEST])).toEqual([TEST]);
+  });
+
+  it('reaches a tracked module under `build/` that a test loads for real', async () => {
+    write('packages/a/src/build/held.ts', 'export const held = 1;\n');
+    write(TEST, `${MOCKS}const held = await vi.importActual('./build/held');\n`);
+    execFileSync('git', ['add', '.'], { cwd: root });
+    await updateSourceIndex(root, { index });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: '2026-11-14T00:00:00.000Z' });
+
+    const tree = await publishedTree();
+
+    expect([...tree.reachedFrom([TEST])]).toContain('packages/a/src/build/held.ts');
+  });
+
+  it('publishes again when the tree beside an unmoved index does not open', async () => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: '2026-11-14T00:00:00.000Z' });
+    // A tree of an older version is published under its own digest, and opens no better than one that is gone.
+    for (const name of readdirSync(dirname(index)).filter((name) => name.includes('.help-tree.'))) {
+      rmSync(join(dirname(index), name));
+    }
+
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: '2026-11-14T00:00:00.000Z' });
+    const tree = await publishedTree();
+
+    expect([...tree.reachedFrom([TEST])]).toContain(MOCKED);
   });
 
   it('reaches the module a test loads for real when the addon draws no tree', async () => {

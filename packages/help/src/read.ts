@@ -33,7 +33,7 @@
 
 import { relative, resolve } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
-import { treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
+import { decodeSourceTree, treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import {
   openSourceIndex,
   placesOf,
@@ -201,7 +201,7 @@ export interface IndexedUsageOptions {
    * handed a graph it has to ignore.
    */
   readonly records?: (records: readonly FileRecord[], graphRoot: string) => void;
-  /** Handed the queryable graph when a caller asks a path-shaped question. */
+  /** Handed the queryable graph when a caller asks a path-shaped question: the tree this reading publishes. */
   readonly tree?: (tree: Tree) => void;
   /** Told each step as it starts and ends: the manifests, the source, the names, the publish. */
   readonly progress?: Progress;
@@ -273,6 +273,7 @@ async function scanIndexed(
   // The index holds what this scan read once it is saved: here, or by a caller
   // that wrote it a moment ago and says so with `saveIndex: false`.
   let saved = options.saveIndex === false && coversWhole(dirs);
+  let drawing: Promise<readonly FileRecord[] | Uint8Array> | undefined;
   const joined = usage.read();
   const recordUnknown = records.flatMap((record) => record.unknown === undefined ? [] : [record.unknown]);
   return {
@@ -295,11 +296,12 @@ async function scanIndexed(
     // The addon reads the tree off the saved index, so an index that did not
     // save leaves it to the records, as a caller's taints do, and the records
     // join the mocks here, so no tree of this version lacks them.
-    published: async () => {
+    // Drawn once: the tree published is the tree a caller asking a path-shaped question is handed.
+    published: () => (drawing ??= (async () => {
       const drawn = saved && options.taints === undefined ? await sourceTreeOf(where, at) : null;
       if (drawn !== null) return drawn;
       return tainted === given ? (await taintRecords(given.records, [mockTaint()], { root: where, cache: index.cache })).records : tainted.records;
-    },
+    })()),
   };
 }
 
@@ -354,6 +356,7 @@ export async function refreshWorkspace(
     if (options.saveIndex !== false || read.scanned.ownIndex) await read.scanned.save();
     await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, await read.scanned.published(), read.readStartedAt, read.scanned.forwards, packagesDigest(read.root, read.offerings), options.index);
   }
+  await handTree(read, options);
   return help;
 }
 
@@ -387,7 +390,6 @@ async function scanWorkspace(
 
   const at = scopeSourceIndexPath(options.index ?? sourceIndexPath(where), scope.dirs);
   const scanned = await scanIndexed(scope.root, opened, targets, options, scope.dirs, at);
-  options.tree?.(treeAtWorkspace(treeOf(scanned.records, scope.root), where));
   return {
     workspace: where,
     root: scope.root,
@@ -414,7 +416,21 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
       await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, await scanned.published(), read.readStartedAt, scanned.forwards, packagesDigest(root, offerings), options.index);
     });
   }
+  await handTree(read, options);
   return help;
+}
+
+/**
+ * The tree a caller asking a path-shaped question is handed: the one this
+ * reading publishes, after the index is saved, so a fresh read and the next
+ * question over its generation walk the same edges, mocks among them.
+ */
+async function handTree(read: WorkspaceScan, options: ReadingOptions): Promise<void> {
+  if (options.tree === undefined) return;
+  const published = await read.scanned.published();
+  options.tree(published instanceof Uint8Array
+    ? decodeSourceTree(published, read.root, read.workspace)
+    : treeAtWorkspace(treeOf(published, read.root), read.workspace));
 }
 
 function sameSurface(read: WorkspaceScan, documented: Help): boolean {

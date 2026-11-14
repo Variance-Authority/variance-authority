@@ -169,6 +169,24 @@ export function workspaceIndexDigest(help: Help): string | undefined {
   return snapshots.get(help)?.indexDigest;
 }
 
+/**
+ * Whether the tree published beside `help` at `index` opens in this build. A
+ * tree of another format version, or one whose bytes moved, is published
+ * again rather than kept, though the index it was drawn from did not move.
+ */
+export async function workspaceTreeOpens(help: Help, index: string): Promise<boolean> {
+  const held = snapshots.get(help);
+  if (held === undefined) return false;
+  try {
+    const tree = await readFile(workspaceTreePath(index, held.graphDigest));
+    if (digest(tree) !== held.graphDigest) return false;
+    decodeSourceTree(tree, held.graphRoot, held.root);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The package manifests the value was joined against, as `packagesDigest` states them; absent on an unrecorded reading. */
 export function workspacePackagesDigest(help: Help): string | undefined {
   return snapshots.get(help)?.packagesDigest;
