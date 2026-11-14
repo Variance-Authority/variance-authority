@@ -219,19 +219,46 @@ pub fn declared_loose_of(root: String, index: &OpenedIndex, groups: Vec<Vec<Stri
     opened_chain(index, |layers| declared(&root, layers, "", Matching::Terms { groups }, files.as_deref()))
 }
 
-/// The source index at a path, read once for one question: every segment the
+/// The source index at a path, opened once for one question: every segment the
 /// manifest names, checked against its digest and cut at the first that is
-/// missing or fails it, as [`read_chain`] reads them. A question opens it at its
-/// start and closes it at its end, and each reading in between opens the held
-/// bytes in place, so a name declared in ten files no longer reads and hashes
-/// the chain ten times. The bytes are copies, so a segment truncated or removed
-/// after the open changes nothing the question reads.
+/// missing or fails it, as [`read_chain`] reads them, and each opened in place.
+/// A question opens it at its start and closes it at its end, and each reading
+/// in between is handed the opened layers, so a name declared in ten files no
+/// longer reads, hashes and opens the chain ten times. The bytes are copies, so
+/// a segment truncated or removed after the open changes nothing the question
+/// reads.
 #[napi]
 pub struct OpenedIndex {
     index: String,
-    /// The segments, oldest first; `None` when nothing was ever published.
-    segments: Option<Vec<Vec<u8>>>,
+    /// The opened chain; `None` when nothing was ever published.
+    opened: Option<Opened>,
     closed: bool,
+}
+
+/// Segments and the layers opened over them, kept together because the layers
+/// borrow the bytes.
+struct Opened {
+    /// Declared before `segments`, so they are dropped first: nothing outlives
+    /// the bytes it reads.
+    layers: Vec<Layer<'static>>,
+    segments: Vec<Vec<u8>>,
+}
+
+impl Opened {
+    fn open(segments: Vec<Vec<u8>>) -> Result<Self, String> {
+        let layers = segments.par_iter().enumerate()
+            .map(|(at, bytes)| {
+                // SAFETY: each segment's buffer is on the heap and never written,
+                // moved out of or freed while `Opened` lives: moving the `Vec`
+                // moves its pointer, not its bytes, and `layers` is dropped before
+                // `segments`. Readers are handed the layers only through
+                // `opened_chain`, whose borrow ends with the call.
+                let bytes: &'static [u8] = unsafe { std::slice::from_raw_parts(bytes.as_ptr(), bytes.len()) };
+                Layer::open(bytes).map_err(|error| format!("segment {at}: {error}"))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Opened { layers, segments })
+    }
 }
 
 #[napi]
@@ -240,34 +267,29 @@ impl OpenedIndex {
     /// collector reaches the handle, and a reading through it is refused.
     #[napi]
     pub fn close(&mut self) {
-        self.segments = None;
+        self.opened = None;
         self.closed = true;
     }
 }
 
-/// The chain at `index`, read for one question.
+/// The chain at `index`, read and opened for one question.
 #[napi]
 pub fn open_index(index: String) -> napi::Result<OpenedIndex> {
-    let segments = read_chain(&index).map_err(|error| refused(&index, error))?.map(|chain| chain.segments);
-    Ok(OpenedIndex { index, segments, closed: false })
+    let chain = read_chain(&index).map_err(|error| refused(&index, error))?;
+    let opened = chain.map(|chain| Opened::open(chain.segments)).transpose().map_err(|error| refused(&index, error))?;
+    Ok(OpenedIndex { index, opened, closed: false })
 }
 
 fn refused(index: &str, error: String) -> napi::Error {
     napi::Error::from_reason(format!("the source index at {index} did not read: {error}"))
 }
 
-/// The chain `opened` holds, each segment opened in place, handed to `read`;
-/// `None` when there is no index.
+/// The layers `opened` holds, handed to `read`; `None` when there is no index.
 fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {
     if opened.closed {
         return Err(napi::Error::from_reason(format!("the source index at {} was opened for a question that has ended", opened.index)));
     }
-    let Some(segments) = &opened.segments else { return Ok(None) };
-    let layers = segments.par_iter().enumerate()
-        .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| refused(&opened.index, error))?;
-    Ok(Some(read(&layers)))
+    Ok(opened.opened.as_ref().map(|held| read(&held.layers)))
 }
 
 /// The `export … from` rows of a reading as a set, which the export list does
@@ -350,7 +372,14 @@ fn replace(path: &str, bytes: &[u8]) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::generation::Delta;
     use crate::log::{written, Over};
+
+    /// A segment of no files, told apart from another by its configuration.
+    fn segment(config: &str) -> Vec<u8> {
+        let document = format!(r#"{{"config": "{config}", "records": [], "parses": [], "deletedRecords": [], "deletedParses": []}}"#);
+        crate::graph_index::merged(&[], &Delta::of(vec![document]).unwrap())
+    }
 
     /// A chain of segments `a` and `b` at a fresh path, and where `b` is kept.
     fn published(name: &str) -> (std::path::PathBuf, String, String) {
@@ -358,10 +387,16 @@ mod tests {
         let _ = std::fs::remove_dir_all(&directory);
         std::fs::create_dir_all(&directory).unwrap();
         let path = directory.join("index.bin").to_str().unwrap().to_owned();
-        assert!(written(&path, Over::Nothing, &[], &[b"a", b"b"], &[], 0).unwrap());
-        let digest = crate::digest::of_sha256(Sha256::digest(b"b").as_slice());
+        let (a, b) = (segment("v1:a"), segment("v1:b"));
+        assert!(written(&path, Over::Nothing, &[], &[&a, &b], &[], 0).unwrap());
+        let digest = crate::digest::of_sha256(Sha256::digest(&b).as_slice());
         let second = format!("{path}.segments/{}.bin", digest.replacen(':', "-", 1));
         (directory, path, second)
+    }
+
+    /// The configuration of every layer `opened` reads.
+    fn configs(opened: &OpenedIndex) -> Option<Vec<String>> {
+        opened_chain(opened, |layers| layers.iter().map(|layer| layer.config.unwrap_or("").to_owned()).collect()).unwrap()
     }
 
     #[test]
@@ -369,7 +404,7 @@ mod tests {
         for (name, damage) in [("cut", (|at: &str| std::fs::write(at, b"").unwrap()) as fn(&str)), ("gone", |at| std::fs::remove_file(at).unwrap())] {
             let (directory, path, second) = published(name);
             damage(&second);
-            assert_eq!(open_index(path).unwrap().segments, Some(vec![b"a".to_vec()]), "{name}");
+            assert_eq!(configs(&open_index(path).unwrap()), Some(vec!["v1:a".to_owned()]), "{name}");
             std::fs::remove_dir_all(directory).unwrap();
         }
     }
@@ -379,7 +414,7 @@ mod tests {
         let (directory, path, second) = published("after");
         let opened = open_index(path).unwrap();
         std::fs::write(&second, b"").unwrap();
-        assert_eq!(opened.segments, Some(vec![b"a".to_vec(), b"b".to_vec()]));
+        assert_eq!(configs(&opened), Some(vec!["v1:a".to_owned(), "v1:b".to_owned()]));
         std::fs::remove_dir_all(directory).unwrap();
     }
 
