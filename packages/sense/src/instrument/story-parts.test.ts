@@ -22,3 +22,16 @@ it('opens no segment for a part that kept none of the visits, however often its 
   const taken = parts.take('a')!;
   expect([taken.tape.length, taken.at.length, taken.visits]).toEqual([0, 0, 500]);
 });
+
+it('keeps no note of a visit it did not keep, so nothing is told under the step before', () => {
+  const root = { a: 1, s: null };
+  const parts = storyParts.createParts({ root, current: () => ({ key: 'a' }) }, 1, { ids: ['app.js'], bases: [0] });
+
+  parts.tape(0);
+  parts.tape(1);
+  const said = parts.room(parts.here()!, 'handed');
+  if (said) parts.note("handed customer='mike'");
+
+  const taken = parts.take('a')!;
+  expect([said, taken.notes, taken.unnoted]).toEqual([false, [], 1]);
+});

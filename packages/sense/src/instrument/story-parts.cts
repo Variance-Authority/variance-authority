@@ -49,6 +49,8 @@ interface Part {
   left: boolean;
   // The key of the segment its next kept visit opens, when the realm activated it since.
   opening: string | undefined;
+  // Whether its last visit was not kept, so a note said now has no step to stand under.
+  dropped: boolean;
 }
 
 /** One execution's part, as {@link Parts.take} hands it over. */
@@ -66,7 +68,7 @@ interface Parts {
   here(): Part | undefined;
   /** Tape a visit into the part of the bucket now, counting what is past its limit. */
   tape(entry: number): void;
-  /** Whether `into` has room for a note of `kind`, counting the note as said or as lost. */
+  /** Whether `into` has room for a note of `kind`, and kept the visit it would stand under, counting the note as said or as lost. */
   room(into: Part, kind: 'spoken' | 'handed'): boolean;
   /** Put `line` in the part now, while its notes' bytes allow. */
   note(line: string): void;
@@ -104,7 +106,7 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
     if (key === '') return undefined;
     let found = parts.get(key);
     if (found === undefined) {
-      found = { tape: [], at: [], keys: [], visits: 0, notes: [], unnoted: 0, spoken: 0, handed: 0, bytes: 0, modules: new Set(), left: false, opening: undefined };
+      found = { tape: [], at: [], keys: [], visits: 0, notes: [], unnoted: 0, spoken: 0, handed: 0, bytes: 0, modules: new Set(), left: false, opening: undefined, dropped: false };
       parts.set(key, found);
     }
     return found;
@@ -128,6 +130,7 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
       }
       if (part === undefined) return;
       part.visits += 1;
+      part.dropped = true;
       if (part.tape.length >= limit) return;
       const row = rowAt(rows.bases, entry & 0x7fffffff);
       if (!part.modules.has(row)) {
@@ -146,10 +149,11 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
         part.opening = undefined;
       }
       part.tape.push(entry);
+      part.dropped = false;
       open += 1;
     },
     room(into: Part, kind: 'spoken' | 'handed'): boolean {
-      if (into[kind] >= PART_NOTES) {
+      if (into.dropped || into[kind] >= PART_NOTES) {
         into.unnoted += 1;
         return false;
       }
