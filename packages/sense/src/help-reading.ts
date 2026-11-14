@@ -211,22 +211,24 @@ export interface Alias {
 }
 
 export interface NativeHelp {
+  /** The chain at `index`, read and checked once, for the readers below to share. */
+  openIndex?(index: string): OpenedIndex;
   readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[], tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
   sourceTreeOf?(root: string, index: string, tsconfig: string | boolean | null, code: string[]): Promise<Uint8Array | null>;
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   digestForwards?(forwards: string[]): string;
-  importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
-  outsideSourcesOf?(root: string, index: string, name: string): string[] | null;
-  memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
-  membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
-  declarationExportedOf?(index: string, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
-  aliasesOf?(root: string, index: string, local: string): Alias[] | null;
-  declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
-  declaredDescribedOf?(root: string, index: string, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
-  declaredTermsOf?(index: string, files: string[] | null): string[] | null;
+  importersOf?(root: string, index: OpenedIndex, files: string[], name: string): NativeImporters | null;
+  outsideSourcesOf?(root: string, index: OpenedIndex, name: string): string[] | null;
+  memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
+  membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
+  declarationExportedOf?(index: OpenedIndex, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
+  aliasesOf?(root: string, index: OpenedIndex, local: string): Alias[] | null;
+  declaredOf?(root: string, index: OpenedIndex, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
+  declaredDescribedOf?(root: string, index: OpenedIndex, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
+  declaredTermsOf?(index: OpenedIndex, files: string[] | null): string[] | null;
   nameTerms?(names: string[]): NameTerms;
-  declaredLooseOf?(root: string, index: string, groups: string[][], files: string[] | null): DeclaredNames | null;
+  declaredLooseOf?(root: string, index: OpenedIndex, groups: string[][], files: string[] | null): DeclaredNames | null;
   /** ripgrep's matching lines of `files` under `root`, as columns; throws `ripgrep refused the pattern: …` for an invalid one. */
   ripgrep?(root: string, pattern: string, files: string[]): Grepped;
 }
@@ -257,6 +259,48 @@ export function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<Na
     throw new Error(`the Help value is read by the native scanner, and ${nativeRefusal() ?? `the scanner that loaded has no \`${name}\`; build it again`}`);
   }
   return (call as (...args: never[]) => unknown).bind(scanner) as NonNullable<NativeHelp[Name]>;
+}
+
+/** The source index the addon read and checked once for one question; `close` lets its bytes go. */
+export interface OpenedIndex {
+  close(): void;
+}
+
+/** The indexes the running question opened, by path; `undefined` outside one. */
+let question: Map<string, OpenedIndex> | undefined;
+
+/**
+ * `ask`, run as one question: each source index the readers here ask during it
+ * is read and checked the first time one asks, held while `ask` runs, and closed
+ * when it returns. Reading the chain is most of what one reader costs, and an
+ * answer about a name declared in ten files asks ten times. Nothing is held
+ * between questions, so a question never answers from a chain an index
+ * replaced before it began. `ask` is synchronous: no other question can run
+ * inside it, and a question asked within it is part of it.
+ */
+export function asOneQuestion<T>(ask: () => T): T {
+  if (question !== undefined) return ask();
+  const held = new Map<string, OpenedIndex>();
+  question = held;
+  try {
+    return ask();
+  } finally {
+    question = undefined;
+    for (const opened of held.values()) opened.close();
+  }
+}
+
+/** `read` over the index at `index` as the running question holds it, or as a question of its own. */
+export function onIndex<T>(index: string, read: (opened: OpenedIndex) => T): T {
+  return asOneQuestion(() => {
+    const held = question!;
+    let opened = held.get(index);
+    if (opened === undefined) {
+      opened = entry('openIndex')(index);
+      held.set(index, opened);
+    }
+    return read(opened);
+  });
 }
 
 /**
@@ -323,7 +367,7 @@ export function importersOf(
   name: string,
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
-  return entry('importersOf')(root, index, [...files], name) ?? undefined;
+  return onIndex(index, (opened) => entry('importersOf')(root, opened, [...files], name)) ?? undefined;
 }
 
 /**
@@ -333,7 +377,7 @@ export function importersOf(
  * when the index does not read.
  */
 export function outsideSourcesOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly string[] | undefined {
-  return entry('outsideSourcesOf')(root, index, name) ?? undefined;
+  return onIndex(index, (opened) => entry('outsideSourcesOf')(root, opened, name)) ?? undefined;
 }
 
 /**
@@ -347,7 +391,7 @@ export function outsideSourcesOf(root: string, name: string, index: string = sou
  * index was published. Throws when the index does not read.
  */
 export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): MemberDeclarations | undefined {
-  return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
+  return onIndex(index, (opened) => entry('memberDeclarationsOf')(root, opened, name)) ?? undefined;
 }
 
 /**
@@ -359,7 +403,7 @@ export function memberDeclarationsOf(root: string, name: string, index: string =
  * index was published; throws when the index does not read.
  */
 export function membersOn(root: string, file: string, on: string, index: string = sourceIndexPath(root)): readonly ContainerMember[] | undefined {
-  return entry('membersOnOf')(index, file, on) ?? undefined;
+  return onIndex(index, (opened) => entry('membersOnOf')(opened, file, on)) ?? undefined;
 }
 
 /**
@@ -377,7 +421,7 @@ export function membersOn(root: string, file: string, on: string, index: string 
  * read.
  */
 export function declarationExported(root: string, file: string, name: string, index: string = sourceIndexPath(root)): ExportedDeclaration | null | undefined {
-  const read = entry('declarationExportedOf')(index, file, name);
+  const read = onIndex(index, (opened) => entry('declarationExportedOf')(opened, file, name));
   return read === null ? undefined : (read.declaration ?? null);
 }
 
@@ -390,5 +434,5 @@ export function declarationExported(root: string, file: string, name: string, in
  * out. Throws when the index does not read.
  */
 export function aliasesOf(root: string, local: string, index: string = sourceIndexPath(root)): readonly Alias[] | undefined {
-  return entry('aliasesOf')(root, index, local) ?? undefined;
+  return onIndex(index, (opened) => entry('aliasesOf')(root, opened, local)) ?? undefined;
 }

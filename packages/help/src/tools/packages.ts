@@ -4,6 +4,7 @@ import type { Documented, Help } from '@variance-authority/package/help';
 import { REACHING, UNFOLLOWED, counted, countsByPath, unfollowedEntry } from './by-path.js';
 import { NOTHING_PUBLISHED, specifierOf } from './find.js';
 import { mostUsed, narrower, openingRow, plural, section, shell } from './format.js';
+import { oneQuestion } from './one-question.js';
 
 /**
  * `docs_packages` — what each package in this workspace is imported for, counted.
@@ -19,7 +20,7 @@ import { mostUsed, narrower, openingRow, plural, section, shell } from './format
  * repository whose packages declare no entry, every import between packages is
  * by path, and listing them all is the whole import graph.
  */
-export const packages: Tool<Help> = {
+export const packages: Tool<Help> = oneQuestion({
   name: 'docs_packages',
   description:
     'What each package in this workspace is imported for, counted. Call this first: the specifiers it ' +
@@ -98,7 +99,7 @@ export const packages: Tool<Help> = {
     const asks = [...new Set(doors)].map((asked) => `variance ask entrypoint --package ${shell(asked)}`);
     return [...lines, ...narrower(asks)].join('\n');
   },
-};
+});
 
 /**
  * Of the packages whose entry this reading could not follow, the one with the

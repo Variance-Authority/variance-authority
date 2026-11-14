@@ -17,6 +17,7 @@ import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { type PublishedDeclaration, publishedDeclarations, publishingFiles, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
+import { oneQuestion } from './one-question.js';
 
 /**
  * `docs_symbol` — what a name is and where it is declared, in full.
@@ -28,7 +29,7 @@ import { localNames, renamedSites } from './renamed.js';
  * write depend on which door this reading walked through first. Two files that
  * declare the name are two things, each answered with its own doors and imports.
  */
-export const symbol: Tool<Help> = {
+export const symbol: Tool<Help> = oneQuestion({
   name: 'docs_symbol',
   description:
     'Everything known about one name: what it is, the import line that reaches it, the ' +
@@ -176,7 +177,7 @@ export const symbol: Tool<Help> = {
     const root = invocation?.root;
     return declaredIn(help, input, invocation, (exported) => declaringExports(stringArg(input, 'name'), exported, root).map(([held]) => held));
   },
-};
+});
 
 /**
  * The files an answer about a name rests on, to be compared with the checkout:

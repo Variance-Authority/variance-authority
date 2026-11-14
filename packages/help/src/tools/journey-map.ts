@@ -14,6 +14,7 @@ import { checkoutListing, checkoutPath, journeyMaps } from '@variance-authority/
 import type { Tool } from '@variance-authority/mcp/tools';
 import { formatJourneyMap } from './journey-map-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
+import { oneQuestion } from './one-question.js';
 
 /** The words of a task, from a string or a list, lowercase-insensitive and without blanks. */
 export function termsOf(input: Readonly<Record<string, unknown>>): readonly string[] {
@@ -23,7 +24,7 @@ export function termsOf(input: Readonly<Record<string, unknown>>): readonly stri
 }
 
 /** Typed over nothing, like `docs_orient`: the checkout is the one the host names on the call. */
-export const journeyMapTool: Tool<unknown> = {
+export const journeyMapTool: Tool<unknown> = oneQuestion({
   name: 'docs_journey_map',
   description:
     'The code around one file, drawn from what tests ran: how many recorded tests entered it, which the ' +
@@ -75,4 +76,4 @@ export const journeyMapTool: Tool<unknown> = {
     }
     return [...answers, ...refused].join('\n\n');
   },
-};
+});

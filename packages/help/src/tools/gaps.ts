@@ -3,6 +3,7 @@ import { NO_ARGS } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { undocumented } from '@variance-authority/package/help';
 import { audience } from './format.js';
+import { oneQuestion } from './one-question.js';
 
 /**
  * `docs_gaps` — the names other packages import and which say nothing.
@@ -16,7 +17,7 @@ import { audience } from './format.js';
  * and a list that mixed the two would bury the ones with an audience under the
  * ones with a question mark.
  */
-export const gaps: Tool<Help> = {
+export const gaps: Tool<Help> = oneQuestion({
   name: 'docs_gaps',
   description:
     'Published names that other packages import and that have no documentation, ordered by how ' +
@@ -42,4 +43,4 @@ export const gaps: Tool<Help> = {
       ),
     ].join('\n');
   },
-};
+});

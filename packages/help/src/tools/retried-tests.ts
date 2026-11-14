@@ -14,6 +14,7 @@ import type { Tool } from '@variance-authority/mcp/tools';
 import { recordedAttempts, type RecordedAttempts, type RetriedCase } from '@variance-authority/sense';
 import { limitOf, spellingOf } from '@variance-authority/mcp/tools';
 import { recordLine, spent } from './slowest-format.js';
+import { oneQuestion } from './one-question.js';
 
 /** Cases listed per suite when the question names no limit. */
 export const RETRIED = 10;
@@ -75,7 +76,7 @@ function firstLine(message: string | undefined): string | undefined {
 }
 
 /** Typed over nothing, like `docs_slowest_tests`: the checkout is the one the host names on the call. */
-export const retriedTests: Tool<unknown> = {
+export const retriedTests: Tool<unknown> = oneQuestion({
   name: 'docs_retried_tests',
   description:
     'Which record it read, whose run, at which commit and how old; then the test cases whose attempts ended ' +
@@ -107,4 +108,4 @@ export const retriedTests: Tool<unknown> = {
     }
     return formatRetried(recordedAttempts(root, limit), Date.now());
   },
-};
+});

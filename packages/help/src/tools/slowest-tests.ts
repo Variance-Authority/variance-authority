@@ -14,6 +14,7 @@ import { recordedDurations, type DurationScope } from '@variance-authority/sense
 import { limitOf, spellingOf, type Spelling } from '@variance-authority/mcp/tools';
 import { formatSlowest } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
+import { oneQuestion } from './one-question.js';
 
 /** Files, and cases, listed per suite when the question names no limit. */
 export const SLOWEST = 10;
@@ -61,7 +62,7 @@ const PATHS = { type: 'array', items: { type: 'string' } } as const;
  * none named it refuses, because the process's working directory is where the
  * host was launched and not necessarily the checkout it serves.
  */
-export const slowestTests: Tool<unknown> = {
+export const slowestTests: Tool<unknown> = oneQuestion({
   name: 'docs_slowest_tests',
   description:
     'Which record it read, whose run, at which commit and how old; then the test cases closest to their limit, ' +
@@ -116,4 +117,4 @@ export const slowestTests: Tool<unknown> = {
     refuseUnknown(root, scope);
     return formatSlowest(recordedDurations(root, limit, scope, over), scope, over, Date.now());
   },
-};
+});

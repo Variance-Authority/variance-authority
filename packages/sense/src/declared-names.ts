@@ -6,7 +6,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-import { entry } from './help-reading.js';
+import { entry, onIndex } from './help-reading.js';
 import type { SourceSymbolReach } from './harvest.js';
 import { sourceIndexPath } from './source-index.js';
 
@@ -91,7 +91,7 @@ export function declaredOf(
 ): DeclaredNames | undefined {
   const containing = options.containing === true;
   const files = options.files === undefined ? null : [...options.files];
-  return entry('declaredOf')(root, index, containing ? query.toLowerCase() : query, containing, files) ?? undefined;
+  return onIndex(index, (opened) => entry('declaredOf')(root, opened, containing ? query.toLowerCase() : query, containing, files)) ?? undefined;
 }
 
 /**
@@ -111,7 +111,7 @@ export function declaredDescribedOf(
   files?: Iterable<string>,
   index: string = sourceIndexPath(root),
 ): DeclaredNames | undefined {
-  return entry('declaredDescribedOf')(root, index, query, [...stems], files === undefined ? null : [...files]) ?? undefined;
+  return onIndex(index, (opened) => entry('declaredDescribedOf')(root, opened, query, [...stems], files === undefined ? null : [...files])) ?? undefined;
 }
 
 /** Names cut into terms: the distinct terms, sorted by their UTF-8 bytes, and per name the positions of those it holds. */
@@ -132,7 +132,7 @@ export function nameTermsOf(names: readonly string[]): NameTerms {
  * `undefined` when no index was published; throws when the index does not read.
  */
 export function declaredTermsOf(root: string, files?: Iterable<string>, index: string = sourceIndexPath(root)): readonly string[] | undefined {
-  return entry('declaredTermsOf')(index, files === undefined ? null : [...files]) ?? undefined;
+  return onIndex(index, (opened) => entry('declaredTermsOf')(opened, files === undefined ? null : [...files])) ?? undefined;
 }
 
 /**
@@ -147,5 +147,5 @@ export function declaredLooseOf(
   files?: Iterable<string>,
   index: string = sourceIndexPath(root),
 ): DeclaredNames | undefined {
-  return entry('declaredLooseOf')(root, index, groups.map((group) => [...group]), files === undefined ? null : [...files]) ?? undefined;
+  return onIndex(index, (opened) => entry('declaredLooseOf')(root, opened, groups.map((group) => [...group]), files === undefined ? null : [...files])) ?? undefined;
 }

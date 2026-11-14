@@ -6,6 +6,7 @@ import { READABLE } from '@variance-authority/sense';
 import { startPointNeeded } from './area.js';
 import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
+import { oneQuestion } from './one-question.js';
 
 /**
  * `docs_discover` — the files in every one of several sets.
@@ -372,7 +373,7 @@ export function readsNames(input: Readonly<Record<string, unknown>>): boolean {
  * Typed over nothing, like `grep`: the tree and the names arrive on the
  * invocation, and the text is ripgrep's.
  */
-export const discover: Tool<unknown> = {
+export const discover: Tool<unknown> = oneQuestion({
   name: 'docs_discover',
   description:
     'Answer the files that are in every one of several sets, each read whole: what a path reaches ' +
@@ -435,7 +436,7 @@ export const discover: Tool<unknown> = {
     }
     return { files, ...(unread.length === 0 ? {} : { unread }) };
   },
-};
+});
 
 /** The files in every kept set and in no set taken out, nearest first, or the refusal. */
 function answered(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<unknown> | undefined) {

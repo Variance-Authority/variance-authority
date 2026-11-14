@@ -3,6 +3,7 @@ import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tool
 import { readsNames } from './discover.js';
 import { FoundNothing } from './find.js';
 import { limitOf, notShown, spellingOf, verbOf } from '@variance-authority/mcp/tools';
+import { oneQuestion } from './one-question.js';
 
 /**
  * `docs_intersection` — the files every one of several whole questions answers.
@@ -173,5 +174,5 @@ export function intersectionOf<Subject>(operands: readonly Tool<Subject>[]): Too
       return lines.join('\n');
     },
   };
-  return tool;
+  return oneQuestion(tool);
 }

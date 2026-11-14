@@ -12,9 +12,10 @@
 import { testCompositions } from '@variance-authority/sense';
 import type { Tool } from '@variance-authority/mcp/tools';
 import { formatTestComposition } from './test-composition-format.js';
+import { oneQuestion } from './one-question.js';
 
 /** Typed over nothing, like `docs_journey_map`: the checkout is the one the host names on the call. */
-export const testCompositionTool: Tool<unknown> = {
+export const testCompositionTool: Tool<unknown> = oneQuestion({
   name: 'docs_test_composition',
   description:
     'What one test is made of, from what the recorded tests ran: the smaller tests whose regions sit ' +
@@ -54,4 +55,4 @@ export const testCompositionTool: Tool<unknown> = {
     if (answers.length === 0) throw new Error(refused.join('\n'));
     return [...answers, ...refused].join('\n\n');
   },
-};
+});

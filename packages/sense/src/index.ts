@@ -229,6 +229,7 @@ export {
 } from './declared-names.js';
 export {
   aliasesOf,
+  asOneQuestion,
   declarationExported,
   encodeHelpStore,
   forwardsDigest,
@@ -250,6 +251,7 @@ export {
   type MemberDeclarations,
   type MemberSite,
   type HelpStore,
+  type OpenedIndex,
   type StoreDeep,
   type StoreEntry,
   type StoreMeta,
