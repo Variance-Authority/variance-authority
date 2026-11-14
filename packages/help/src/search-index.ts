@@ -305,7 +305,7 @@ function containing(
   const rows = off.length - 1;
   const found: number[] = [];
   if (rows <= 0 || query === '') return found;
-  if (query.includes('\0') || /[\uD800-\uDFFF�]/.test(query)) {
+  if (query.includes('\0') || /[\uD800-\uDFFF\uFFFD]/.test(query)) {
     for (let row = 0; row < rows; row += 1) {
       const said = text(row);
       const at = said.indexOf(query);
