@@ -30,8 +30,20 @@ const PART_NOTES = 1024;
 // visits, base64 keeps the telling under the watcher's 1 MiB whatever script a
 // note is written in and however many modules the execution entered.
 const PART_TEXT_BYTES = 384 << 10;
-const utf8 = new TextEncoder();
-const encodedLength = (text: string): number => 12 + utf8.encode(JSON.stringify(text)).length;
+// Counted by hand: a jsdom suite's realm loads this module and has no `TextEncoder`.
+const utf8Length = (text: string): number => {
+  let bytes = text.length;
+  for (let at = 0; at < text.length; at += 1) {
+    const unit = text.charCodeAt(at);
+    // Two units of a pair are four bytes, each other unit past ASCII two or three.
+    if (unit >= 0xd800 && unit <= 0xdbff && at + 1 < text.length && (text.charCodeAt(at + 1) & 0xfc00) === 0xdc00) {
+      bytes += 2;
+      at += 1;
+    } else if (unit >= 0x80) bytes += unit >= 0x800 ? 2 : 1;
+  }
+  return bytes;
+};
+const encodedLength = (text: string): number => 12 + utf8Length(JSON.stringify(text));
 
 interface Part {
   tape: number[];

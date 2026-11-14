@@ -1,4 +1,6 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { runInNewContext } from 'node:vm';
 import { expect, it } from 'vitest';
 
 /** Built, as the tap loads it: the parts `require` the story format by its built name. */
@@ -34,4 +36,14 @@ it('keeps no note of a visit it did not keep, so nothing is told under the step 
 
   const taken = parts.take('a')!;
   expect([said, taken.notes, taken.unnoted]).toEqual([false, [], 1]);
+});
+
+it('loads in a realm with no host globals, as a jsdom suite\'s is, though no story is asked for', () => {
+  const require = createRequire(import.meta.url);
+  const path = require.resolve('../../dist/instrument/story-parts.cjs');
+  const module = { exports: {} as Partial<typeof storyParts> };
+  // Only what ECMAScript itself gives: no `TextEncoder`, no `Buffer`.
+  runInNewContext(`(function (module, exports, require) {${readFileSync(path, 'utf8')}\n})`)(module, module.exports, require);
+
+  expect(module.exports.PART_LIMIT).toBe(storyParts.PART_LIMIT);
 });
