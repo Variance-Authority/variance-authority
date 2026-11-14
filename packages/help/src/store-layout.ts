@@ -137,11 +137,6 @@ export function storeHeadOf(bytes: Uint8Array): StoreHead | undefined {
   return generationOf(headOf(bufferOf(bytes)).fields);
 }
 
-/** The digest of the export list the head `bytes` starts with states. */
-export function storeExportedDigest(bytes: Uint8Array): string | undefined {
-  return headOf(bufferOf(bytes)).fields.exportedDigest;
-}
-
 /** The sections of one store, read in place, with the string pool every row refers to. */
 export interface Sections {
   readonly fields: HeadFields;
