@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
 import { caughtUp, foundNothingAnswer, foundNothingFooter, madeBefore, outlived, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspace, readWorkspaceForAnswer } from './read.js';
-import { workspaceGeneration, workspaceReadStarted } from './snapshot.js';
+import { readAgain, workspaceGeneration, workspaceReadStarted } from './snapshot.js';
 import { serveWorkspace, type WorkspaceOptions } from './server.js';
 import { FoundNothing } from './tools/find.js';
 import { search } from './tools/search.js';
@@ -403,6 +403,39 @@ describe('the help server about a name written after the published generation', 
     expect(answer.text).toMatch(/^`taxOf` is not published/u);
     expect(answer.text).toMatch(/not compared with the checkout \(a file it rests on changed while it was read\)/u);
     expect(answer.text.match(/Snapshot/gu)).toHaveLength(1);
+  });
+
+  it('reads again when it holds nothing, when a newer generation was published, or when the one it holds expired, and not otherwise', async () => {
+    const root = await fixture.published();
+    const held = await readWorkspaceForAnswer(root, { justAnswer: true });
+    const hour = { refreshAfterMs: 60 * 60 * 1000 };
+    expect(await readAgain(undefined, root, hour)).toBe(true);
+    expect(await readAgain(held, root, hour)).toBe(false);
+    expect(await readAgain(held, root, { ...hour, justAnswer: true })).toBe(false);
+    expect(await readAgain(held, root, { refreshAfterMs: -1 })).toBe(true);
+    expect(await readAgain(held, root, { refreshAfterMs: -1, justAnswer: true })).toBe(false);
+    await readWorkspace(root);
+    expect(await readAgain(held, root, { ...hour, justAnswer: true })).toBe(true);
+  });
+
+  it.each([false, true])('answers from a generation published since the one it holds, on the same connection, `justAnswer` %s', async (justAnswer) => {
+    const root = await fixture.published();
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const stop = serveWorkspace(root, { input, output, justAnswer });
+    const call = async (id: number): Promise<string> => {
+      const line = new Promise<string>((resolve) => output.once('data', (chunk: Buffer) => resolve(chunk.toString())));
+      input.write(`${JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'docs_symbol', arguments: { name: 'keptOf' } } })}\n`);
+      return (JSON.parse(await line) as { result: { content: { text: string }[] } }).result.content[0]!.text;
+    };
+    try {
+      expect(await call(1)).toMatch(/^`keptOf` is not published/u);
+      // `variance index`, publishing a generation that holds the name.
+      await readWorkspace(root);
+      expect(await call(2)).toContain('packages/kit/src/kept.ts');
+    } finally {
+      stop();
+    }
   });
 
   it('keeps no copy of a reading after a call: no help question compares one call with the last', async () => {

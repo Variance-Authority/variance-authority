@@ -12,7 +12,7 @@ import {
 } from '@variance-authority/mcp/tools';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
-import { caughtUp, foundNothingAnswer, madeBefore, outlived, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { caughtUp, foundNothingAnswer, madeBefore, outlived, readAgain, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
 import { HELP, HELP_TOOLS, UNCOMPARED_HELP, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
@@ -53,8 +53,8 @@ import { reportSource } from './report-source.js';
  *
  * Which half is read is decided by the question. A report is a file and is read
  * every request. A source question reads the last published workspace generation
- * while it is less than an hour old; `--just-answer` removes even that expiry,
- * and every answer then says it was not compared with the checkout. A source
+ * until it expires or a newer one is published, as `readAgain` decides; each
+ * `--just-answer` answer says it was not compared with the checkout. A source
  * question a reused generation refuses, or whose named files changed since it,
  * is asked again of one read now, as `caughtUp` decides for `variance ask` too.
  * Producing a generation remains separate work. Neither half pays for the other.
@@ -275,9 +275,7 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
       }
       if (asked !== undefined && SOURCE_QUESTIONS.has(asked)) {
         try {
-          const at = help === undefined ? undefined : workspaceGeneration(help);
-          const stale = at === undefined || Date.now() - Date.parse(at) > 60 * 60 * 1000;
-          if (help === undefined || (options.justAnswer !== true && stale)) await readHelp();
+          if (await readAgain(help, root, { index, justAnswer: options.justAnswer === true, refreshAfterMs: 60 * 60 * 1000 })) await readHelp();
         } catch (failure) {
           // A workspace mid-edit — a manifest saved half-written, a file being
           // rewritten — must not take the server down. The previous reading is

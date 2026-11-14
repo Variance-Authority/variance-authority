@@ -1083,6 +1083,7 @@
         "outlived": "function",
         "publishWorkspaceFromIndex": "function",
         "publishedGeneration": "function",
+        "readAgain": "function",
         "readNamedTree": "function",
         "readSearchForAnswer": "function",
         "readWorkspace": "function",

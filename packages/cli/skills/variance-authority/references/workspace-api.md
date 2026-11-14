@@ -37,7 +37,8 @@ the first argument is positional.
   published generation for up to one hour. A question that generation refuses,
   a name not found among them, is answered from it, and says the checkout was not
   compared with it: run `variance index`, which also builds the dependency
-  lexicon, when a name was written since. A `symbol` or `uses`
+  lexicon, when a name was written since; a server's next call, on the same
+  connection, reads the generation it published. A `symbol` or `uses`
   whose files, the ones that declare the name or pass it on, the entry that publishes it and each
   row `uses` lists, or a server's `docs_search` whose printed files or the entry and barrels publishing them, changed
   after that generation is asked again of one made now, so it does not answer from old lines. One that could not be

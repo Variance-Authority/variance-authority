@@ -4,7 +4,7 @@ import type { Tree } from '@variance-authority/mcp/tools';
 import { readOfferings, type Help } from '@variance-authority/package/help';
 import { caughtUp, foundNothingAnswer, madeBefore, outlived } from './caught-up.js';
 import { readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
-import { workspaceGeneration } from './snapshot.js';
+import { readAgain, workspaceGeneration } from './snapshot.js';
 import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
 
 /**
@@ -12,9 +12,8 @@ import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
  *
  * The decision is when to produce another generation. Asking a question is a
  * read of the last value the producer published; it is not permission to ask
- * Git what changed or to rebuild that value. The ordinary server refreshes a
- * generation after one hour, while `justAnswer` keeps serving the recorded one
- * until another process deliberately replaces it. Every answer says when that
+ * Git what changed or to rebuild that value, and {@link readAgain} decides when
+ * the generation held is replaced: expired, or one newer was published. Every answer says when that
  * generation was produced, so freshness is evidence rather than hidden work,
  * and a `justAnswer` answer says it was not compared with the checkout. A
  * refusal from a reused generation, or an answer whose named files changed
@@ -119,9 +118,7 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     subject: async (asked) => {
       if (asked === containment.name) return NOTHING_READ;
       try {
-        const at = cached === undefined ? undefined : workspaceGeneration(cached);
-        const stale = at === undefined || Date.now() - Date.parse(at) > refreshAfterMs;
-        if (cached === undefined || (!justAnswer && stale)) cached = await readNow(refreshAfterMs);
+        if (cached === undefined || await readAgain(cached, root, { ...(reading.index === undefined ? {} : { index: reading.index }), justAnswer, refreshAfterMs })) cached = await readNow(refreshAfterMs);
       } catch (failure) {
         // A workspace mid-edit — a manifest saved half-written, a file being
         // rewritten — must not take the server down. The previous reading is

@@ -111,6 +111,23 @@ describe('the server `variance serve` starts', () => {
     }
   });
 
+  it('answers from the generation `variance index` published since the one it holds, on the same connection', async () => {
+    const server = session();
+    try {
+      expect((await server.request<Answer>('tools/call', { name: 'docs_packages' })).isError).toBeUndefined();
+      await writeFile(join(workspace, 'src/kept.ts'), 'export function keptOf(amount: number): number {\n  return amount;\n}\n');
+      const missed = await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'keptOf' } });
+      expect(missed.content[0]!.text).toContain('`keptOf` is not');
+      indexed();
+      const result = await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'keptOf' } });
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0]!.text).toContain('src/kept.ts');
+    } finally {
+      server.close();
+      await rm(join(workspace, 'src/kept.ts'), { force: true });
+    }
+  });
+
   it('reads the checkout again before `docs_search` lists a name renamed since the generation it holds', async () => {
     await writeFile(join(workspace, 'src/renamed.ts'), 'export function oldName(): number {\n  return 1;\n}\n');
     indexed();

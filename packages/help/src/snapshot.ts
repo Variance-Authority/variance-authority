@@ -166,6 +166,21 @@ export async function publishedGeneration(root: string, index: string): Promise<
   return held.format === SNAPSHOT_FORMAT && held.version === SNAPSHOT_VERSION && held.root === where ? held.generatedAt : undefined;
 }
 
+/**
+ * Whether a server holding `held` reads the workspace again before it answers:
+ * when it holds none, when a generation newer than `held` was published since —
+ * `variance index`, or another reader — as {@link publishedGeneration} reads it
+ * off the value's head, or, unless `justAnswer`, when `held` is older than
+ * `refreshAfterMs`. A call where nothing was published costs that head's read.
+ */
+export async function readAgain(held: Help | undefined, root: string, options: { readonly index?: string; readonly justAnswer?: boolean; readonly refreshAfterMs: number }): Promise<boolean> {
+  const at = held === undefined ? undefined : workspaceGeneration(held);
+  if (at === undefined) return true;
+  if (options.justAnswer !== true && Date.now() - Date.parse(at) > options.refreshAfterMs) return true;
+  const published = await publishedGeneration(root, options.index ?? sourceIndexPath(realpathSync(resolve(root))));
+  return published !== undefined && Date.parse(published) > Date.parse(at);
+}
+
 /** The digest of the value's export list: the one published beside it, or computed. */
 export function workspaceExportedDigest(help: Help): string {
   return snapshots.get(help)?.exportedDigest ?? exportedDigest(help.exported);

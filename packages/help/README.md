@@ -552,7 +552,10 @@ UTC production time attached to a recorded value.
 `serveWorkspace` starts the stdio server and returns a function that stops it.
 `input` and `output` are the two streams the protocol is spoken over and default
 to this process's own; override them when the host owns the transport. It uses
-the same one-hour policy and asks a `docs_symbol`, `docs_uses` or `docs_search`
+the same one-hour policy, and on every call reads the published generation's
+head: one published since the generation it holds, by `variance index` or another
+reader, is read before the call is answered, with or without `justAnswer`.
+`readAgain` is that decision. It asks a `docs_symbol`, `docs_uses` or `docs_search`
 whose files changed again of a generation made now, or serves only the recorded generation when `justAnswer` is true. A refused call answers from the generation it was refused from. A host
 of its own asks `outlived` whether the files a found answer names changed after
 its generation, and `caughtUp` to ask that answer again of a generation made

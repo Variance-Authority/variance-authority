@@ -353,7 +353,10 @@ whichever command or server you ask through: the checkout is not read again. Whe
 the generation was made before the question, the answer's last line says the
 checkout was not compared with it. A function you wrote since, or a package you
 installed since, is reported missing until you run `variance index`, or name the
-file you changed with `--changed-file`.
+file you changed with `--changed-file`. A server holding a generation reads the
+one `variance index` published on its next call, on the same connection, and with
+`--just-answer` too: each call reads the head of the published generation to see
+whether it is newer than the one held.
 
 A found `symbol` or `uses`, and a `docs_search` over either server, is asked again
 of a generation made from the checkout as it is when a file it rests on changed or went away after the generation: the
