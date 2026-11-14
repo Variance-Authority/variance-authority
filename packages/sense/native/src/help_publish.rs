@@ -235,29 +235,26 @@ pub struct OpenedIndex {
     closed: bool,
 }
 
-/// Segments and the layers opened over them, kept together because the layers
-/// borrow the bytes.
-struct Opened {
-    /// Declared before `segments`, so they are dropped first: nothing outlives
-    /// the bytes it reads.
-    layers: Vec<Layer<'static>>,
-    segments: Vec<Vec<u8>>,
-}
+/// The layers opened over a chain's segments.
+type Layers<'a> = Vec<Layer<'a>>;
+
+self_cell::self_cell!(
+    /// Segments and the layers opened over them, kept together because the
+    /// layers borrow the bytes.
+    struct Opened {
+        owner: Vec<Vec<u8>>,
+        #[covariant]
+        dependent: Layers,
+    }
+);
 
 impl Opened {
     fn open(segments: Vec<Vec<u8>>) -> Result<Self, String> {
-        let layers = segments.par_iter().enumerate()
-            .map(|(at, bytes)| {
-                // SAFETY: each segment's buffer is on the heap and never written,
-                // moved out of or freed while `Opened` lives: moving the `Vec`
-                // moves its pointer, not its bytes, and `layers` is dropped before
-                // `segments`. Readers are handed the layers only through
-                // `opened_chain`, whose borrow ends with the call.
-                let bytes: &'static [u8] = unsafe { std::slice::from_raw_parts(bytes.as_ptr(), bytes.len()) };
-                Layer::open(bytes).map_err(|error| format!("segment {at}: {error}"))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Opened { layers, segments })
+        Opened::try_new(segments, |segments| {
+            segments.par_iter().enumerate()
+                .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
+                .collect()
+        })
     }
 }
 
@@ -289,7 +286,7 @@ fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> na
     if opened.closed {
         return Err(napi::Error::from_reason(format!("the source index at {} was opened for a question that has ended", opened.index)));
     }
-    Ok(opened.opened.as_ref().map(|held| read(&held.layers)))
+    Ok(opened.opened.as_ref().map(|held| read(held.borrow_dependent())))
 }
 
 /// The `export … from` rows of a reading as a set, which the export list does
