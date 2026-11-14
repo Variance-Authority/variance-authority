@@ -2,6 +2,7 @@ import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { asOneQuestion } from '@variance-authority/sense';
 import { workspaceGeneration, workspaceReadStarted } from './snapshot.js';
 import { writtenSince } from './tools/as-read.js';
 import { FoundNothing } from './tools/find.js';
@@ -45,7 +46,7 @@ export async function outlived(
   if (printed === undefined || at === undefined || since === undefined || (Date.parse(at) >= started && since < started)) return false;
   const rested = (read: Help): readonly string[] | undefined => {
     try {
-      return [...printed(read, input, invocation)];
+      return asOneQuestion(() => [...printed(read, input, invocation)]);
     } catch {
       return undefined;
     }

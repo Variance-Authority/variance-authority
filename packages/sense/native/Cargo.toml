@@ -65,6 +65,9 @@ oxc_semantic = "0.157.0"
 oxc_span = "0.157.0"
 oxc_syntax = { version = "0.157.0", features = ["to_js_string"] }
 rayon = "1"
+# Holds an opened chain's layers beside the segment bytes they borrow, which
+# `oxc_resolver` already builds with.
+self_cell = "1"
 regex = "1"
 rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }

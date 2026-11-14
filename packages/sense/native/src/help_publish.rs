@@ -99,7 +99,7 @@ pub fn read_help(
     let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
     off_thread(move || {
         let mocking = Mocking::at(&root, tsconfig, code);
-        reading(&root, &index, &opened, &published, &unentered, &declared, &mocking)
+        reading(&root, index, &opened, &published, &unentered, &declared, &mocking)
     })
 }
 
@@ -111,12 +111,12 @@ pub fn source_tree_of(root: String, index: String, tsconfig: Option<napi::Either
     let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
     off_thread(move || {
         let mocking = Mocking::at(&root, tsconfig, code);
-        opened_chain(&index, |layers| tree(layers, &mocking).into())
+        opened_chain(&open_index(index)?, |layers| tree(layers, &mocking).into())
     })
 }
 
-fn reading(root: &str, index: &str, opened: &[String], published: &[String], unentered: &[String], declared: &[String], mocking: &Mocking) -> napi::Result<Option<HelpReading>> {
-    opened_chain(index, |layers| {
+fn reading(root: &str, index: String, opened: &[String], published: &[String], unentered: &[String], declared: &[String], mocking: &Mocking) -> napi::Result<Option<HelpReading>> {
+    opened_chain(&open_index(index)?, |layers| {
         let (mut read, tree) = rayon::join(|| usage(root, layers, opened, published, unentered, declared), || tree(layers, mocking));
         let exported = std::mem::take(&mut read.exported);
         let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
@@ -131,39 +131,39 @@ fn reading(root: &str, index: &str, opened: &[String], published: &[String], une
 /// `through` and is no use; `None` when there is no index. A use's `key` is the
 /// specifier as the importing file wrote it, and its `name` the name it takes.
 #[napi]
-pub fn importers_of(root: String, index: String, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
-    opened_chain(&index, |layers| importers(&root, layers, &files, &name))
+pub fn importers_of(root: String, index: &OpenedIndex, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
+    opened_chain(index, |layers| importers(&root, layers, &files, &name))
 }
 
 /// Every specifier on the chain at `index` that names a package or a runtime
 /// module no file answers, out of which an import takes `name`, in code-unit
 /// order; `None` when there is no index.
 #[napi]
-pub fn outside_sources_of(root: String, index: String, name: String) -> napi::Result<Option<Vec<String>>> {
-    opened_chain(&index, |layers| crate::help_usage::sources(&root, layers, &name))
+pub fn outside_sources_of(root: String, index: &OpenedIndex, name: String) -> napi::Result<Option<Vec<String>>> {
+    opened_chain(index, |layers| crate::help_usage::sources(&root, layers, &name))
 }
 
 /// Every import on the chain at `index` that binds `local` to an export of
 /// another name, ordered by the importing file in code units, then by line;
 /// `None` when there is no index.
 #[napi]
-pub fn aliases_of(root: String, index: String, local: String) -> napi::Result<Option<Vec<Alias>>> {
-    opened_chain(&index, |layers| aliases(&root, layers, &local))
+pub fn aliases_of(root: String, index: &OpenedIndex, local: String) -> napi::Result<Option<Vec<Alias>>> {
+    opened_chain(index, |layers| aliases(&root, layers, &local))
 }
 
 /// Every declaration of a member named `name` the chain at `index` records,
 /// ordered by file in code units, then by line, beside the extensions of the
 /// files the chain holds; `None` when there is no index.
 #[napi]
-pub fn member_declarations_of(root: String, index: String, name: String) -> napi::Result<Option<MemberDeclarations>> {
-    opened_chain(&index, |layers| MemberDeclarations { sites: member_declarations(&root, layers, &name), extensions: indexed_extensions(layers) })
+pub fn member_declarations_of(root: String, index: &OpenedIndex, name: String) -> napi::Result<Option<MemberDeclarations>> {
+    opened_chain(index, |layers| MemberDeclarations { sites: member_declarations(&root, layers, &name), extensions: indexed_extensions(layers) })
 }
 
 /// Every member the interface, type alias or class named `on` declares in
 /// `file`, repo-relative, by line; `None` when there is no index.
 #[napi]
-pub fn members_on_of(index: String, file: String, on: String) -> napi::Result<Option<Vec<ContainerMember>>> {
-    opened_chain(&index, |layers| members_on(layers, &file, &on))
+pub fn members_on_of(index: &OpenedIndex, file: String, on: String) -> napi::Result<Option<Vec<ContainerMember>>> {
+    opened_chain(index, |layers| members_on(layers, &file, &on))
 }
 
 /// What the index reads of the declaration an export binds.
@@ -176,8 +176,8 @@ pub struct ExportedReading {
 /// The declaration the export `name` of `file`, repo-relative, binds, as
 /// [`declaration_exported`] walks to it; `None` when there is no index.
 #[napi]
-pub fn declaration_exported_of(index: String, file: String, name: String) -> napi::Result<Option<ExportedReading>> {
-    opened_chain(&index, |layers| ExportedReading { declaration: declaration_exported(layers, &file, &name) })
+pub fn declaration_exported_of(index: &OpenedIndex, file: String, name: String) -> napi::Result<Option<ExportedReading>> {
+    opened_chain(index, |layers| ExportedReading { declaration: declaration_exported(layers, &file, &name) })
 }
 
 /// Every top-level declaration on the chain at `index` that no export of its
@@ -186,9 +186,9 @@ pub fn declaration_exported_of(index: String, file: String, name: String) -> nap
 /// are named.
 /// `None` when there is no index.
 #[napi]
-pub fn declared_of(root: String, index: String, query: String, containing: bool, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+pub fn declared_of(root: String, index: &OpenedIndex, query: String, containing: bool, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
     let matching = if containing { Matching::Containing } else { Matching::Exact };
-    opened_chain(&index, |layers| declared(&root, layers, &query, matching, files.as_deref()))
+    opened_chain(index, |layers| declared(&root, layers, &query, matching, files.as_deref()))
 }
 
 /// The declarations no export binds whose name and doc hold any of `stems` —
@@ -197,9 +197,9 @@ pub fn declared_of(root: String, index: String, query: String, containing: bool,
 /// `query`; and the files whose name and module doc hold any, the same way.
 /// `None` when there is no index.
 #[napi]
-pub fn declared_described_of(root: String, index: String, query: String, stems: Vec<String>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+pub fn declared_described_of(root: String, index: &OpenedIndex, query: String, stems: Vec<String>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
     let matching = Matching::Described { stems, query };
-    opened_chain(&index, |layers| declared(&root, layers, "", matching, files.as_deref()))
+    opened_chain(index, |layers| declared(&root, layers, "", matching, files.as_deref()))
 }
 
 /// The distinct search terms of the top-level names the chain at `index`
@@ -207,28 +207,86 @@ pub fn declared_described_of(root: String, index: String, query: String, stems: 
 /// dictionary the loose pass reads for names no export list holds.
 /// `None` when there is no index.
 #[napi]
-pub fn declared_terms_of(index: String, files: Option<Vec<String>>) -> napi::Result<Option<Vec<String>>> {
-    opened_chain(&index, |layers| declared_terms(layers, files.as_deref()))
+pub fn declared_terms_of(index: &OpenedIndex, files: Option<Vec<String>>) -> napi::Result<Option<Vec<String>>> {
+    opened_chain(index, |layers| declared_terms(layers, files.as_deref()))
 }
 
 /// The declarations no export binds whose name's terms hold one of every
 /// group of `groups`, in `files` when they are named: the names the loose pass
 /// reaches among them. `None` when there is no index.
 #[napi]
-pub fn declared_loose_of(root: String, index: String, groups: Vec<Vec<String>>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
-    opened_chain(&index, |layers| declared(&root, layers, "", Matching::Terms { groups }, files.as_deref()))
+pub fn declared_loose_of(root: String, index: &OpenedIndex, groups: Vec<Vec<String>>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
+    opened_chain(index, |layers| declared(&root, layers, "", Matching::Terms { groups }, files.as_deref()))
 }
 
-/// The chain at `index`, each segment opened in place, handed to `read`;
-/// `None` when there is no index.
-fn opened_chain<T>(index: &str, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {
-    let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
-    let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
-    let layers = chain.segments.par_iter().enumerate()
-        .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(fail)?;
-    Ok(Some(read(&layers)))
+/// The source index at a path, opened once for one question: every segment the
+/// manifest names, checked against its digest and cut at the first that is
+/// missing or fails it, as [`read_chain`] reads them, and each opened in place.
+/// A question opens it at its start and closes it at its end, and each reading
+/// in between is handed the opened layers, so a name declared in ten files no
+/// longer reads, hashes and opens the chain ten times. The bytes are copies, so
+/// a segment truncated or removed after the open changes nothing the question
+/// reads.
+#[napi]
+pub struct OpenedIndex {
+    index: String,
+    /// The opened chain; `None` when nothing was ever published.
+    opened: Option<Opened>,
+    closed: bool,
+}
+
+/// The layers opened over a chain's segments.
+type Layers<'a> = Vec<Layer<'a>>;
+
+self_cell::self_cell!(
+    /// Segments and the layers opened over them, kept together because the
+    /// layers borrow the bytes.
+    struct Opened {
+        owner: Vec<Vec<u8>>,
+        #[covariant]
+        dependent: Layers,
+    }
+);
+
+impl Opened {
+    fn open(segments: Vec<Vec<u8>>) -> Result<Self, String> {
+        Opened::try_new(segments, |segments| {
+            segments.par_iter().enumerate()
+                .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
+                .collect()
+        })
+    }
+}
+
+#[napi]
+impl OpenedIndex {
+    /// Let the bytes go: a question that ended holds nothing until the
+    /// collector reaches the handle, and a reading through it is refused.
+    #[napi]
+    pub fn close(&mut self) {
+        self.opened = None;
+        self.closed = true;
+    }
+}
+
+/// The chain at `index`, read and opened for one question.
+#[napi]
+pub fn open_index(index: String) -> napi::Result<OpenedIndex> {
+    let chain = read_chain(&index).map_err(|error| refused(&index, error))?;
+    let opened = chain.map(|chain| Opened::open(chain.segments)).transpose().map_err(|error| refused(&index, error))?;
+    Ok(OpenedIndex { index, opened, closed: false })
+}
+
+fn refused(index: &str, error: String) -> napi::Error {
+    napi::Error::from_reason(format!("the source index at {index} did not read: {error}"))
+}
+
+/// The layers `opened` holds, handed to `read`; `None` when there is no index.
+fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {
+    if opened.closed {
+        return Err(napi::Error::from_reason(format!("the source index at {} was opened for a question that has ended", opened.index)));
+    }
+    Ok(opened.opened.as_ref().map(|held| read(held.borrow_dependent())))
 }
 
 /// The `export … from` rows of a reading as a set, which the export list does
@@ -306,4 +364,63 @@ fn replace(path: &str, bytes: &[u8]) -> std::io::Result<()> {
     let written = format!("{path}.{}.tmp", std::process::id());
     std::fs::write(&written, bytes)?;
     std::fs::rename(&written, path)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::generation::Delta;
+    use crate::log::{written, Over};
+
+    /// A segment of no files, told apart from another by its configuration.
+    fn segment(config: &str) -> Vec<u8> {
+        let document = format!(r#"{{"config": "{config}", "records": [], "parses": [], "deletedRecords": [], "deletedParses": []}}"#);
+        crate::graph_index::merged(&[], &Delta::of(vec![document]).unwrap())
+    }
+
+    /// A chain of segments `a` and `b` at a fresh path, and where `b` is kept.
+    fn published(name: &str) -> (std::path::PathBuf, String, String) {
+        let directory = std::env::temp_dir().join(format!("va-opened-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("index.bin").to_str().unwrap().to_owned();
+        let (a, b) = (segment("v1:a"), segment("v1:b"));
+        assert!(written(&path, Over::Nothing, &[], &[&a, &b], &[], 0).unwrap());
+        let digest = crate::digest::of_sha256(Sha256::digest(&b).as_slice());
+        let second = format!("{path}.segments/{}.bin", digest.replacen(':', "-", 1));
+        (directory, path, second)
+    }
+
+    /// The configuration of every layer `opened` reads.
+    fn configs(opened: &OpenedIndex) -> Option<Vec<String>> {
+        opened_chain(opened, |layers| layers.iter().map(|layer| layer.config.unwrap_or("").to_owned()).collect()).unwrap()
+    }
+
+    #[test]
+    fn a_segment_cut_short_or_missing_at_the_open_ends_the_chain_there() {
+        for (name, damage) in [("cut", (|at: &str| std::fs::write(at, b"").unwrap()) as fn(&str)), ("gone", |at| std::fs::remove_file(at).unwrap())] {
+            let (directory, path, second) = published(name);
+            damage(&second);
+            assert_eq!(configs(&open_index(path).unwrap()), Some(vec!["v1:a".to_owned()]), "{name}");
+            std::fs::remove_dir_all(directory).unwrap();
+        }
+    }
+
+    #[test]
+    fn a_segment_damaged_after_the_open_is_read_as_it_was() {
+        let (directory, path, second) = published("after");
+        let opened = open_index(path).unwrap();
+        std::fs::write(&second, b"").unwrap();
+        assert_eq!(configs(&opened), Some(vec!["v1:a".to_owned(), "v1:b".to_owned()]));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn nothing_published_is_no_chain_and_a_closed_index_is_refused() {
+        let directory = std::env::temp_dir().join(format!("va-opened-none-{}", std::process::id()));
+        let mut opened = open_index(directory.join("index.bin").to_str().unwrap().to_owned()).unwrap();
+        assert!(opened_chain(&opened, |layers| layers.len()).unwrap().is_none());
+        opened.close();
+        assert!(opened_chain(&opened, |layers| layers.len()).is_err());
+    }
 }

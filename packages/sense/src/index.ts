@@ -229,6 +229,7 @@ export {
 } from './declared-names.js';
 export {
   aliasesOf,
+  asOneQuestion,
   declarationExported,
   encodeHelpStore,
   forwardsDigest,
