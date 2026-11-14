@@ -2,9 +2,7 @@ import type { FileSet, Tool, ToolInvocation, Tree } from '@variance-authority/mc
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
-import { publishedSearch, workspaceReadStarted } from '../snapshot.js';
-import { openSearchIndex } from '../search-index.js';
-import { encodeStore } from '../store-encode.js';
+import { searchIndexOf, workspaceReadStarted } from '../snapshot.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { PublishedMatch } from './published-match.js';
@@ -169,17 +167,7 @@ const describedRow = (match: DescribedMatch): string =>
  * `search-answer.ts` builds.
  */
 
-const encoded = new WeakMap<Help, SearchIndex>();
-
-/**
- * The search over one Help value: the one the store it was read from or
- * published to holds, or one encoded in memory, once per value.
- */
-export function searchIndexOf(help: Help): SearchIndex {
-  let index = publishedSearch(help) ?? encoded.get(help);
-  if (index === undefined) encoded.set(help, (index = openSearchIndex(encodeStore(help).bytes)));
-  return index;
-}
+export { searchIndexOf };
 
 /** The question `search` is asked by `input`, as its schema accepted it. */
 export function searchQuestionOf(input: Readonly<Record<string, unknown>>): SearchQuestion {

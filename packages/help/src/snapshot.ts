@@ -271,9 +271,15 @@ export async function tryPublishWorkspaceSnapshot(
   }
 }
 
-/** The search the store a value was read from or published to holds; absent on an unrecorded reading. */
-export function publishedSearch(help: Help): SearchIndex | undefined {
-  return searches.get(help);
+/**
+ * The search over one Help value, and the rows of it a question names: the
+ * one the store it was read from or published to holds, or one encoded in
+ * memory, once per value.
+ */
+export function searchIndexOf(help: Help): SearchIndex {
+  let index = searches.get(help);
+  if (index === undefined) searches.set(help, (index = openSearchIndex(encodeStore(help).bytes)));
+  return index;
 }
 
 async function writeReplacing(at: string, bytes: Uint8Array): Promise<void> {

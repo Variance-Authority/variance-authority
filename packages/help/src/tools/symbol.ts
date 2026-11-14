@@ -17,6 +17,7 @@ import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { type PublishedDeclaration, publishedDeclarations, publishingFiles, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
+import { exportedNamed } from './rows.js';
 
 /**
  * `docs_symbol` — what a name is and where it is declared, in full.
@@ -369,8 +370,8 @@ function listedLine(tool: string, owner: string, count: Counted, may: boolean, u
  */
 function declaration(help: Help, name: string, site: PathSite): Named | undefined {
   const to = site.held.to;
-  if (to !== undefined) return help.exported.find((held) => held.name === name && held.at === to);
-  const owned = help.exported.filter((held) => held.name === name && held.by === site.owner);
+  if (to !== undefined) return exportedNamed(help, name).find((held) => held.at === to);
+  const owned = exportedNamed(help, name).filter((held) => held.by === site.owner);
   return owned.length === 1 ? owned[0] : undefined;
 }
 

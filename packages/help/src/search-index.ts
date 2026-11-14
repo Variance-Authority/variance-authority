@@ -1,6 +1,7 @@
 import type { Help, UseKind } from '@variance-authority/package/help';
 import { PARAGRAPH_BREAK } from '@variance-authority/package/help';
 import { helpOf } from './store-value.js';
+import { rowsOf, type StoreRows } from './store-rows.js';
 import { NONE } from '@variance-authority/core/segment';
 import { USE_KINDS, generationOf, sectionsOf, type StoreHead } from './store-layout.js';
 
@@ -113,6 +114,8 @@ export interface SearchIndex {
   exportedAt(row: number): string;
   /** The file of one published row. */
   publishedAt(row: number): string;
+  /** The rows a question names, by name, by file and by specifier, without the lists they are rows of. */
+  readonly rows: StoreRows;
   /** How many names the index holds. */
   readonly nameCount: number;
   /** How many dictionary terms there are; they are ordered by their UTF-8 bytes. */
@@ -151,9 +154,6 @@ export function openSearchIndex(bytes: Uint8Array): SearchIndex {
 export function openHelpStore(bytes: Uint8Array): OpenedStore {
   const sections = sectionsOf(bytes);
   const { fields, bytesOf, u32, string, maybe, slice } = sections;
-  const files = u32('files');
-  const stringOff = u32('strings.off');
-  const stringBlob = bytesOf('strings.blob');
 
   const nameString = u32('names.name');
   const namesLowerOff = u32('names.lowerOff');
@@ -194,6 +194,7 @@ export function openHelpStore(bytes: Uint8Array): OpenedStore {
   const docLength = (docs: Uint32Array, off: Uint32Array, row: number): number | undefined =>
     (docs[row] ?? NONE) === NONE ? undefined : (off[row + 1] ?? 0) - (off[row] ?? 0) - 1;
   const generation = generationOf(fields);
+  const rows = rowsOf(sections);
 
   const search: SearchIndex = {
     ...(generation === undefined ? {} : { generation }),
@@ -227,20 +228,8 @@ export function openHelpStore(bytes: Uint8Array): OpenedStore {
     fileIds(paths) {
       const ids = new Set<number>();
       for (const path of paths) {
-        const wanted = Buffer.from(path, 'utf8');
-        let low = 0;
-        let high = files.length;
-        while (low < high) {
-          const middle = (low + high) >>> 1;
-          const id = files[middle] ?? NONE;
-          const order = stringBlob.compare(wanted, 0, wanted.length, stringOff[id] ?? 0, stringOff[id + 1] ?? 0);
-          if (order === 0) {
-            ids.add(id);
-            break;
-          }
-          if (order > 0) high = middle;
-          else low = middle + 1;
-        }
+        const id = rows.fileId(path);
+        if (id !== undefined) ids.add(id);
       }
       return ids;
     },
@@ -263,6 +252,7 @@ export function openHelpStore(bytes: Uint8Array): OpenedStore {
     exportedKind: (row) => expKind[row] ?? 0,
     exportedAt: (row) => string(exp.at[row] ?? NONE),
     publishedAt: (row) => string(pub.at[row] ?? NONE),
+    rows,
     nameCount: nameString.length,
     termCount: termOff.length - 1,
     term: (id) => termBlob.toString('utf8', termOff[id] ?? 0, termOff[id + 1] ?? 0),
