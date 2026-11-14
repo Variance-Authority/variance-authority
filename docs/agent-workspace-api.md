@@ -348,16 +348,15 @@ that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
-Without `--just-answer`, a source question that a reused generation refuses is
-asked again, whichever command or server you ask through, except the command
-line's `search`: the name is looked for again in a generation made from the checkout as it is,
-and in what your installed packages export, with that list built first when it
-is missing or behind. A function you wrote a minute ago, or a package you just
-installed, is answered rather than reported missing, and that holds when you
-name changed files too.
+A name the generation does not hold is answered from that generation as it is,
+whichever command or server you ask through: the checkout is not read again. When
+the generation was made before the question, the answer's last line says the
+checkout was not compared with it. A function you wrote since, or a package you
+installed since, is reported missing until you run `variance index`, or name the
+file you changed with `--changed-file`.
 
-A found `symbol` or `uses`, and a `docs_search` over either server, is read the
-same way when a file it rests on changed or went away after the generation: the
+A found `symbol` or `uses`, and a `docs_search` over either server, is asked again
+of a generation made from the checkout as it is when a file it rests on changed or went away after the generation: the
 rows `docs_search` prints with the entry and each barrel that publish them, and
 for the other two the files that declare the name or pass it on and the entry
 that publishes it, with each row `uses` lists. So an export you renamed is not
@@ -375,9 +374,7 @@ after the generation's read the answer gives what the generation recorded, a
 declaration and its members by name, and none of the file's text: its lines are
 no longer the ones that were read. A read that cannot be saved is dropped whole,
 because its names would meet the last read's lines. The next question reads
-again. When the list
-of installed exports cannot be built, the refusal says the installed packages
-were not compared, and why.
+again.
 
 Pass `--just-answer` when the caller owns freshness: no Git status, generation,
 or regeneration is performed, and every answer and refusal names the generation
