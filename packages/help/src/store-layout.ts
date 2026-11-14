@@ -1,4 +1,4 @@
-import { NONE, openSegment, stringReader, type OpenSegment } from '@variance-authority/core/segment';
+import { openSegment, stringReader, type OpenSegment } from '@variance-authority/core/segment';
 import type { UseKind } from '@variance-authority/package/help';
 
 /**
@@ -13,7 +13,6 @@ import type { UseKind } from '@variance-authority/package/help';
 const FORMAT = 'variance-authority-help-store';
 const VERSION = 7;
 const WHAT = 'help store';
-export { NONE };
 
 export const USE_KINDS: readonly UseKind[] = ['source', 'test', 'story'];
 export const THROUGH = [undefined, 'dynamic', 'namespace'] as const;

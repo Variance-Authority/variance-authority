@@ -405,6 +405,7 @@
         "NONE": "const",
         "OpenSegment": "interface",
         "OtherSegmentVersion": "class",
+        "SegmentCutShort": "class",
         "codeUnitOrder": "function",
         "encodeSegment": "function",
         "flagOf": "function",

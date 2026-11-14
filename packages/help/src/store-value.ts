@@ -1,5 +1,6 @@
 import type { Deep, Documented, Entry, Help, Named, Opening, Taken, Use } from '@variance-authority/package/help';
-import { NONE, THROUGH, USE_KINDS, type Sections } from './store-layout.js';
+import { NONE } from '@variance-authority/core/segment';
+import { THROUGH, USE_KINDS, type Sections } from './store-layout.js';
 
 /**
  * The Help value of one opened store, decoded a field at a time: a question

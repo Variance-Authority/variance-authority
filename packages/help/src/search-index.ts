@@ -1,7 +1,8 @@
 import type { Help, UseKind } from '@variance-authority/package/help';
 import { PARAGRAPH_BREAK } from '@variance-authority/package/help';
 import { helpOf } from './store-value.js';
-import { NONE, USE_KINDS, generationOf, sectionsOf, type StoreHead } from './store-layout.js';
+import { NONE } from '@variance-authority/core/segment';
+import { USE_KINDS, generationOf, sectionsOf, type StoreHead } from './store-layout.js';
 
 /**
  * The questions' store: the Help value and the search over it, in one file a
