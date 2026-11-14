@@ -3,15 +3,9 @@ import type { Help } from '@variance-authority/package/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { operatorError } from './operator.js';
 import { UnsavedRead, readWorkspace, readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
-import {
-  readSearchSnapshot,
-  readSearchTree,
-  readWorkspaceSnapshot,
-  searchOf,
-  workspaceSearchPath,
-  workspaceSnapshotPath,
-} from './snapshot.js';
+import { readWorkspaceSnapshot, workspaceSnapshotPath } from './snapshot.js';
 import type { SearchIndex } from './search-index.js';
+import { searchIndexOf } from './tools/search.js';
 
 /** A search, and whether it was read from the checkout as it is now. */
 export interface SearchReading {
@@ -31,32 +25,24 @@ export interface SearchReading {
   readonly unopened?: readonly Unopened[];
   /**
    * The value the search was written from, which the published rows shown are
-   * counted against as `uses` counts them. Read when first asked for and kept:
-   * opened beside a published search, it is the parse the search file exists to
-   * spare, so the shell asks for it only for a row it counts.
+   * counted against as `uses` counts them; the shell asks for it only for a row
+   * it counts.
    */
   readonly value: () => Promise<ValueRead>;
 }
 
-/** The value a search was written from, or why the published one did not open; neither when none is published. */
+/** The value a search was written from. */
 export interface ValueRead {
   readonly help?: Help;
-  readonly unopened?: Unopened;
 }
 
 /** A value already in hand, as {@link SearchReading.value} hands it over. */
 const held = (help: Help): (() => Promise<ValueRead>) => () => Promise.resolve({ help });
 
-/** `read`, run the first time the thunk is called and never again. */
-function once<T>(read: () => Promise<T>): () => Promise<T> {
-  let pending: Promise<T> | undefined;
-  return () => (pending ??= read());
-}
-
 /** A published file the reading tried, and why it did not open. */
 export interface Unopened {
-  /** The published search, or the published value it is written from. */
-  readonly published: 'search' | 'value';
+  /** The published value, which holds the search. */
+  readonly published: 'value';
   readonly at: string;
   readonly reason: string;
 }
@@ -67,9 +53,7 @@ export interface Unopened {
  */
 export function unopenedLine(unopened: readonly Unopened[] | undefined, compared: boolean): string | undefined {
   if (unopened === undefined) return undefined;
-  // Only the value unopened beside a search that opened: the search answered, with the counts it carries.
-  const searched = !compared && unopened.every(({ published }) => published === 'value');
-  const instead = compared ? 'the checkout' : searched ? 'the published search, with the counts it carries,' : 'the published value';
+  const instead = compared ? 'the checkout' : 'the published value';
   const tried = unopened.map(({ published, at, reason }) => `The published ${published} at ${at} did not open (${reason})`);
   return `${tried.join('. ')}; ${instead} was read instead.`;
 }
@@ -90,13 +74,12 @@ const reasonOf = (error: unknown): string => (error instanceof Error ? error.mes
  *
  * Publishing is somebody else's job: in CI the scan and
  * the documentation are brought up to date by the steps before it, and the
- * question after them expects to find their output. So the published search is
- * opened in place at any age — not the value, not the checkout, and the graph
- * only when a start point was said. A search missing beside a published value
- * is written from that value, which reads no source. With neither, there is
- * nothing to look up: the checkout is read and the search published, as any
- * source question reads it, unless `--just-answer` was asked, which forbids the
- * read — and only then is the question refused, naming the flag that refused it.
+ * question after them expects to find their output. So the published store is
+ * opened in place at any age — not the checkout, and the graph only when a
+ * start point was said. With none, there is nothing to look up: the checkout is
+ * read and the store published, as any source question reads it, unless
+ * `--just-answer` was asked, which forbids the read — and only then is the
+ * question refused, naming the flag that refused it.
  *
  * Changed paths or taints are the one exception, because they ask for a new
  * generation by name: that reading is {@link readWorkspaceForAnswer}'s, and it
@@ -114,49 +97,34 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
       if (!(error instanceof UnsavedRead)) throw error;
       const { changed: _, taints: _taints, ...last } = reading;
       help = await readWorkspaceForAnswer(root, { ...last, justAnswer: true });
-      return { index: await searchOf(help, index), compared: false, value: held(help) };
+      return { index: searchIndexOf(help), compared: false, value: held(help) };
     }
-    return { index: await searchOf(help, index), compared: !justAnswer, value: held(help) };
+    return { index: searchIndexOf(help), compared: !justAnswer, value: held(help) };
   }
 
-  const searchAt = workspaceSearchPath(index);
+  const at = workspaceSnapshotPath(index);
   let unopened: Unopened[] | undefined;
   try {
-    const search = await readSearchSnapshot(root, reading.index);
-    if (reading.tree !== undefined) reading.tree(await readSearchTree(search, root, reading.index));
-    // The value is opened only for a published row shown; without one the search answers with the counts it carries, and says why.
-    const value = once(async (): Promise<ValueRead> => {
-      try {
-        return { help: await readWorkspaceSnapshot(root, reading.index === undefined ? {} : { index: reading.index }) };
-      } catch (error) {
-        return absent(error) ? {} : { unopened: { published: 'value', at: workspaceSnapshotPath(index), reason: reasonOf(error) } };
-      }
+    // The value opens in place: a name it holds is decoded when a question reads it, so the search costs what it reads.
+    const help = await readWorkspaceSnapshot(root, {
+      ...(reading.index === undefined ? {} : { index: reading.index }),
+      ...(reading.tree === undefined ? {} : { tree: reading.tree }),
     });
-    return { index: search, compared: false, value };
-  } catch (error) {
-    // Not published says nothing; published and unopenable is said with the answer.
-    if (!absent(error)) unopened = [{ published: 'search', at: searchAt, reason: reasonOf(error) }];
-  }
-  // The value is opened at any age, as the search is: how old a reused one may be is the other questions' rule.
-  let help: Help;
-  try {
-    help = await readWorkspaceForAnswer(root, { ...reading, justAnswer: true });
+    return { index: searchIndexOf(help), compared: false, value: held(help) };
   } catch (cause) {
-    // Asked with `justAnswer`, the value's own error is the cause of the refusal around it.
-    const own = cause instanceof Error && cause.cause !== undefined ? cause.cause : cause;
-    if (!absent(own)) unopened = [...(unopened ?? []), { published: 'value', at: workspaceSnapshotPath(index), reason: reasonOf(own) }];
+    // Not published says nothing; published and unopenable is said with the answer.
+    if (!absent(cause)) unopened = [{ published: 'value', at, reason: reasonOf(cause) }];
     if (justAnswer) {
       const tried = unopened === undefined
-        ? `none is published at ${searchAt}`
-        : unopened.map(({ published, at, reason }) => `the published ${published} at ${at} did not open (${reason})`).join(', and ');
+        ? `none is published at ${at}`
+        : unopened.map(({ published, at: where, reason }) => `the published ${published} at ${where} did not open (${reason})`).join(', and ');
       throw operatorError(
         `search reads the published source generation, and ${tried}; ` +
           'it was asked with `--just-answer`, so the checkout was not read. Run `variance index` to publish one.',
         { cause },
       );
     }
-    const read = await readWorkspace(root, reading);
-    return { index: await searchOf(read, index), compared: true, value: held(read), ...(unopened === undefined ? {} : { unopened }) };
   }
-  return { index: await searchOf(help, index), compared: false, value: held(help), ...(unopened === undefined ? {} : { unopened }) };
+  const read = await readWorkspace(root, reading);
+  return { index: searchIndexOf(read), compared: true, value: held(read), ...(unopened === undefined ? {} : { unopened }) };
 }

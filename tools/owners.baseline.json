@@ -237,7 +237,7 @@
   {
     "idiom": "atomic-write",
     "at": "packages/help/src/snapshot.ts",
-    "count": 3
+    "count": 1
   },
   {
     "idiom": "digest",

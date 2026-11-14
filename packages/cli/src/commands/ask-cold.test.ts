@@ -69,17 +69,17 @@ describe('variance ask on a checkout with no index', () => {
     expect(answered.out).not.toContain('not compared with the checkout');
   });
 
-  it('search says which published search did not open, and that it read the checkout instead', async () => {
+  it('search says which published value did not open, and that it read the checkout instead', async () => {
     const root = cold();
-    const at = `${sourceIndexPath(root)}.help-search.bin`;
+    const at = `${sourceIndexPath(root)}.help.bin`;
     mkdirSync(dirname(at), { recursive: true });
-    writeFileSync(at, 'not a search');
+    writeFileSync(at, 'not a store');
     const answered = await run(['ask', 'search', '--query', 'shim']);
     expect(answered.code).toBe(EXIT_CLEAN);
-    expect(answered.out).toContain(`The published search at ${at} did not open (`);
+    expect(answered.out).toContain(`The published value at ${at} did not open (`);
     expect(answered.out).toContain('the checkout was read instead.');
 
-    writeFileSync(at, 'not a search');
+    writeFileSync(at, 'not a store');
     const json = JSON.parse((await run(['ask', 'search', '--query', 'shim', '--format', 'json'])).out) as { unopened?: readonly { at: string }[] };
     expect(json.unopened?.map((one) => one.at)).toEqual([at]);
   });

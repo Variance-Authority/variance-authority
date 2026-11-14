@@ -6,8 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import { readHelp, type Help } from '@variance-authority/package/help';
+import { restampHelpStore } from '@variance-authority/sense';
 import { taintTable } from '@variance-authority/sense/taint';
-import { readWorkspaceSnapshot, workspaceGeneration, workspaceReadStarted, workspaceSnapshotPath } from './snapshot.js';
+import { publishedHead, readWorkspaceSnapshot, workspaceGeneration, workspaceReadStarted, workspaceSnapshotPath } from './snapshot.js';
 import { readWorkspace, readWorkspaceForAnswer, refreshWorkspace } from './read.js';
 import { HELP } from './tools.js';
 import { search } from './tools/search.js';
@@ -168,8 +169,7 @@ describe('reading a workspace through the source index', () => {
       const tool = HELP.tools.find((candidate) => candidate.name === 'docs_search')!;
       expect(tool.run(recorded, { query: 'measure' })).toContain('\nSnapshot ');
 
-      const snapshot = await readFile(workspaceSnapshotPath(at), 'utf8');
-      const digest = /"graphDigest":"([^"]+)"/u.exec(snapshot)?.[1];
+      const digest = publishedHead(at)?.graphDigest;
       expect(digest).toBeDefined();
       if (digest === undefined) throw new Error('snapshot did not name its graph');
       await writeFile(`${at}.help-tree.${digest}.bin`, new Uint8Array([0]));
@@ -193,13 +193,7 @@ describe('reading a workspace through the source index', () => {
       const at = join(root, '.index');
       await readWorkspace(root, { index: at });
       const snapshot = workspaceSnapshotPath(at);
-      await writeFile(
-        snapshot,
-        (await readFile(snapshot, 'utf8')).replace(
-          /"generatedAt":"[^"]+"/u,
-          '"generatedAt":"2000-01-01T00:00:00.000Z"',
-        ),
-      );
+      await writeFile(snapshot, restampHelpStore(await readFile(snapshot), '2000-01-01T00:00:00.000Z'));
       const values = join(root, 'packages/alpha/src/values.ts');
       await writeFile(values, (await readFile(values, 'utf8')).replace('Measures the thing', 'Changed later'));
 
@@ -234,19 +228,13 @@ describe('reading a workspace through the source index', () => {
       const at = join(root, '.index');
       const first = await readWorkspace(root, { index: at });
       const snapshot = workspaceSnapshotPath(at);
-      await writeFile(
-        snapshot,
-        (await readFile(snapshot, 'utf8')).replace(
-          /"generatedAt":"[^"]+"/u,
-          '"generatedAt":"2000-01-01T00:00:00.000Z"',
-        ),
-      );
+      await writeFile(snapshot, restampHelpStore(await readFile(snapshot), '2000-01-01T00:00:00.000Z'));
 
       const republished = await readWorkspaceForAnswer(root, { index: at, changed: [] });
 
       expect(republished).toEqual(first);
       expect(workspaceGeneration(republished)).not.toBe('2000-01-01T00:00:00.000Z');
-      expect(await readFile(snapshot, 'utf8')).not.toContain('2000-01-01T00:00:00.000Z');
+      expect(publishedHead(at)?.generatedAt).toBe(workspaceGeneration(republished));
     } finally {
       await rm(temporary, { recursive: true, force: true });
     }

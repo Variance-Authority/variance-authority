@@ -1,17 +1,17 @@
 //! The Help value `variance index` publishes, refreshed from the chain it just
-//! wrote without its export list ever reaching JavaScript.
+//! wrote without its export list or its imports by path ever reaching
+//! JavaScript.
 //!
 //! `publishWorkspaceFromIndex` in `packages/help/src/refresh-native.ts` drives
 //! it. A reading holds what the chain says — the uses JavaScript joins against
-//! the documented surface, and the export list and path graph it has nothing to
-//! add to — and publishing writes the three files beside the index that
-//! `tryPublishWorkspaceSnapshot` in `snapshot.ts` writes for a value read the
-//! long way: the graph, the value, and its search (`help_search.rs`).
+//! the documented surface, and the export list, the imports by path and the
+//! path graph it has nothing to add to — and publishing writes the two files
+//! beside the index that `tryPublishWorkspaceSnapshot` in `snapshot.ts` writes
+//! for a value read the long way: the graph, and the store (`help_store.rs`).
 
 // compass: variance-authority.report.agent-surface
 
 use std::collections::HashSet;
-use std::io::Write;
 use std::sync::Arc;
 
 use napi::bindgen_prelude::AsyncTask;
@@ -23,10 +23,11 @@ use crate::compact::Layer;
 use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
-use crate::help_search::{encode, exported_digest, set_digest, PublishedRows, SearchGeneration};
+use crate::help_search::{exported_digest, set_digest};
+use crate::help_store::{encode, DeepRef, StoreMeta, StorePackage, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_origin::{declaration_exported, ExportedDeclaration};
-use crate::help_usage::{importers, usage, Importers, IndexedUsage, NamedExport};
+use crate::help_usage::{importers, usage, DeepRequest, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::tree;
 
@@ -34,28 +35,27 @@ use crate::source_tree::tree;
 #[napi]
 pub struct HelpReading {
     held: Arc<Held>,
-    /// What `usage` hands over once, with its export list left empty.
+    /// What `usage` hands over once, with its export list and imports by path left empty.
     usage: Option<IndexedUsage>,
 }
 
 /// What publishing reads, shared with the thread that writes it.
 struct Held {
     exported: Vec<NamedExport>,
+    /// The deep imports, those of packages that declare no entry, and those unfollowed.
+    deep: [Vec<DeepRequest>; 3],
     tree: Vec<u8>,
     digest: String,
 }
 
-/// The value's own fields, printed by JavaScript: they are the documented
+/// The value's own fields, joined by JavaScript: they are the documented
 /// surface and are small.
 #[napi(object)]
 pub struct HelpPublish {
-    /// Where the value, its search and its graph are written: `snapshot`, and
-    /// `search`; the graph at `graph` followed by its digest and `.bin`.
+    /// Where the store and the graph are written: `snapshot`, and the graph at
+    /// `graph` followed by its digest and `.bin`.
     pub snapshot: String,
-    pub search: String,
     pub graph: String,
-    pub format: String,
-    pub version: u32,
     pub root: String,
     pub graph_root: String,
     pub generated_at: String,
@@ -66,13 +66,10 @@ pub struct HelpPublish {
     pub index_digest: String,
     /// What `digest_forwards` states of the reading's `export … from` rows.
     pub forwards_digest: String,
-    /// JSON of the value's `packages`, `deep`, `byPath`, `unfollowed` and `unreadable`.
-    pub packages: String,
-    pub deep: String,
-    pub by_path: String,
-    pub unfollowed: String,
-    pub unreadable: String,
-    pub published: PublishedRows,
+    /// What `workspacePackagesDigest` states of the manifests the value was joined against.
+    pub packages_digest: String,
+    pub packages: Vec<StorePackage>,
+    pub unreadable: Vec<String>,
 }
 
 #[napi(object)]
@@ -94,8 +91,9 @@ fn reading(root: &str, index: &str, opened: &[String], published: &[String], une
     opened_chain(index, |layers| {
         let (mut read, tree) = rayon::join(|| usage(root, layers, opened, published, unentered, declared), || tree(layers));
         let exported = std::mem::take(&mut read.exported);
+        let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
         let digest = exported_digest(&exported);
-        HelpReading { held: Arc::new(Held { exported, tree, digest }), usage: Some(read) }
+        HelpReading { held: Arc::new(Held { exported, deep, tree, digest }), usage: Some(read) }
     })
 }
 
@@ -205,13 +203,6 @@ fn opened_chain<T>(index: &str, read: impl FnOnce(&[Layer]) -> T) -> napi::Resul
     Ok(Some(read(&layers)))
 }
 
-/// `exportedDigest` of a list JavaScript holds: a value published before the
-/// digest was kept beside it.
-#[napi(catch_unwind)]
-pub fn digest_exported(exported: Vec<NamedExport>) -> String {
-    exported_digest(&exported)
-}
-
 /// The `export … from` rows of a reading as a set, which the export list does
 /// not hold: `export *` names nothing, and a named row does not say where it leads.
 #[napi(catch_unwind)]
@@ -221,7 +212,7 @@ pub fn digest_forwards(forwards: Vec<String>) -> String {
 
 #[napi]
 impl HelpReading {
-    /// The export list as a set, as `EncodedSearch.exported` states it.
+    /// The export list as a set, as the store's `exportedDigest` states it.
     #[napi(getter)]
     pub fn exported_digest(&self) -> String {
         self.held.digest.clone()
@@ -235,8 +226,8 @@ impl HelpReading {
         self.held.exported.iter().filter(|named| files.contains(&named.at)).cloned().collect()
     }
 
-    /// The uses, imports by path and unreadable files, handed over once: the
-    /// export list is left empty, and stays here.
+    /// The uses and unreadable files, handed over once: the export list and
+    /// the imports by path are left empty, and stay here.
     #[napi]
     pub fn usage(&mut self) -> IndexedUsage {
         self.usage.take().unwrap_or_else(|| IndexedUsage {
@@ -244,8 +235,8 @@ impl HelpReading {
         })
     }
 
-    /// Write the graph, the value and its search. A graph already written
-    /// under its digest is the same bytes, and is not written again.
+    /// Write the graph and the store. A graph already written under its
+    /// digest is the same bytes, and is not written again.
     #[napi(ts_return_type = "Promise<HelpPublished>")]
     pub fn publish(&self, o: HelpPublish) -> AsyncTask<OffThread<HelpPublished>> {
         let held = Arc::clone(&self.held);
@@ -257,16 +248,19 @@ impl Held {
     fn publish(&self, o: HelpPublish) -> napi::Result<HelpPublished> {
         let fail = |error: std::io::Error| napi::Error::from_reason(error.to_string());
         let graph_digest: String = Sha256::digest(&self.tree).iter().map(|byte| format!("{byte:02x}")).collect();
-        let generation = SearchGeneration {
-            root: o.root.clone(),
-            graph_root: o.graph_root.clone(),
+        let meta = StoreMeta {
+            root: o.root,
+            graph_root: o.graph_root,
             graph_digest: graph_digest.clone(),
-            generated_at: o.generated_at.clone(),
+            generated_at: o.generated_at,
+            read_started_at: o.read_started_at,
+            forwards_digest: Some(o.forwards_digest),
+            index_digest: Some(o.index_digest),
+            packages_digest: Some(o.packages_digest),
         };
-        let (search, value) = rayon::join(
-            || encode(&o.published, &self.exported, Some(&generation)),
-            || value(&o, &generation, &self.digest, &self.exported),
-        );
+        let deep = [&self.deep[0], &self.deep[1], &self.deep[2]].map(|held| held.iter().map(DeepRef::from).collect());
+        let input = StoreRef { packages: &o.packages, deep, unreadable: &o.unreadable };
+        let (store, _) = encode(&input, &self.exported, Some(&meta), Some(&self.digest));
         if let Some(parent) = std::path::Path::new(&o.snapshot).parent() {
             std::fs::create_dir_all(parent).map_err(fail)?;
         }
@@ -274,26 +268,9 @@ impl Held {
         if !std::path::Path::new(&graph).exists() {
             replace(&graph, &self.tree).map_err(fail)?;
         }
-        replace(&o.snapshot, &value.map_err(fail)?).map_err(fail)?;
-        replace(&o.search, &search).map_err(fail)?;
+        replace(&o.snapshot, &store).map_err(fail)?;
         Ok(HelpPublished { graph_digest })
     }
-}
-
-/// The value as `JSON.stringify` prints a `WorkspaceSnapshot`, with the
-/// export list printed here.
-fn value(o: &HelpPublish, generation: &SearchGeneration, digest: &str, exported: &[NamedExport]) -> std::io::Result<Vec<u8>> {
-    let json = |text: &str| serde_json::to_string(text).expect("a string prints");
-    let mut out = Vec::with_capacity(exported.len() * 200);
-    write!(
-        out,
-        "{{\"format\":{},\"version\":{},\"root\":{},\"graphRoot\":{},\"graphDigest\":{},\"generatedAt\":{},\"readStartedAt\":{},\"exportedDigest\":{},\"forwardsDigest\":{},\"indexDigest\":{},\"help\":{{\"packages\":{},\"deep\":{},\"byPath\":{},\"unfollowed\":{},\"exported\":",
-        json(&o.format), o.version, json(&o.root), json(&o.graph_root), json(&generation.graph_digest), json(&o.generated_at), json(&o.read_started_at), json(digest), json(&o.forwards_digest), json(&o.index_digest),
-        o.packages, o.deep, o.by_path, o.unfollowed,
-    )?;
-    serde_json::to_writer(&mut out, exported)?;
-    write!(out, ",\"unreadable\":{}}}}}\n", o.unreadable)?;
-    Ok(out)
 }
 
 /// Write beside `path` and rename over it, so a reader sees one whole file.

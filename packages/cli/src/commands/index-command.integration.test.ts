@@ -1,10 +1,11 @@
 /// <depends path="../bin.ts" />
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { encodeSegment } from '@variance-authority/core/segment';
+import { publishedHead } from '@variance-authority/help';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { encodeAsSetExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
@@ -42,7 +43,7 @@ function unprepared(root: string, unchanged = false): string {
   return 'code map: none, because no manifest names a package\n' +
     `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}\n` +
     `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin')}\n` +
-    `questions: published at ${sourceIndexPath(root)}.help.json\n`;
+    `questions: published at ${sourceIndexPath(root)}.help.bin\n`;
 }
 
 function checkout(): string {
@@ -298,8 +299,11 @@ describe('variance index', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const index = sourceIndexPath(root);
-    const held = JSON.parse(readFileSync(`${index}.help.json`, 'utf8')) as { readStartedAt: string };
-    expect(Date.parse(held.readStartedAt)).toBeLessThanOrEqual(statSync(index).mtimeMs);
+    const held = publishedHead(index);
+    expect(Date.parse(held?.readStartedAt ?? '')).toBeLessThanOrEqual(statSync(index).mtimeMs);
+    // One binary file holds the questions: no JSON value and no search beside it.
+    expect(readdirSync(dirname(index)).filter((name) => name.includes('.help')).map((name) => name.replace(/\.help-tree\.[0-9a-f]+\.bin$/u, '.help-tree.<digest>.bin')).sort())
+      .toEqual(['source-index.bin.help-tree.<digest>.bin', 'source-index.bin.help.bin']);
   });
 
   it('leaves a fresh checkout answering `ask search` from what `index` published', async () => {
