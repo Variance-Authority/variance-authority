@@ -361,16 +361,19 @@ one `variance index` published on its next call, on the same connection, and wit
 `--just-answer` too: each call reads the head of the published generation to see
 whether it is newer than the one held.
 
-A found `symbol` or `uses`, and a `docs_search` over either server, is asked again
+A found `symbol` or `uses`, a `grep`, and a `docs_search` over either server, is asked again
 of a generation made from the checkout as it is when a file it rests on changed or went away after the generation: the
-rows `docs_search` prints with the entry and each barrel that publish them, and
+rows `docs_search` prints with the entry and each barrel that publish them, for
+`grep` every file of the area it searched, and
 for the other two the files that declare the name or pass it on and the entry
 that publishes it, with each row `uses` lists. So an export you renamed is not
 given under its old name, a name a barrel stopped passing on is not called
 published, a declaration you moved is given at the line it holds today, and a use
 is given at its line. An edit anywhere
 else waits for the hour: `uses` does not see an import you just added to a file
-it does not list. The look is a stat of each file.
+it does not list, and `grep` does not see a file that just began importing into
+its area, or one written under a folder it starts from. The look is a stat of
+each file.
 
 When the checkout cannot be read again, or the new read cannot be saved, or a
 file the answer rests on is saved during the read that answers it, the answer or
