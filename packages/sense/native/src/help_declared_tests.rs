@@ -43,6 +43,17 @@ fn a_doc_is_matched_by_the_words_the_index_cut_from_it_with_no_file_to_read() {
 }
 
 #[test]
+fn a_file_described_by_its_name_alone_still_counts_the_words_of_its_module_doc() {
+    let source = "/** Starts the app. */\n\nexport const x = 1;\n";
+    let (records, parses) = chain(&[("src/mount.ts", "git:a", source)]);
+    let layers = [Layer::open(&records).unwrap(), Layer::open(&parses).unwrap()];
+    let asked = Matching::Described { stems: vec!["mount".to_owned()], query: "mount".to_owned() };
+    let found = declared("/nonexistent-root", &layers, "mount", asked, None);
+    let files: Vec<(&str, Option<u32>)> = found.files.iter().map(|file| (file.at.as_str(), file.doc_length)).collect();
+    assert_eq!(files, vec![("src/mount.ts", Some("starts the app.".len() as u32))]);
+}
+
+#[test]
 fn only_the_rows_whose_names_or_doc_words_hold_the_question_are_candidates() {
     let (_, parses) = chain(&[("src/mount.ts", "git:a", MOUNT), ("src/plain.ts", "git:b", PLAIN)]);
     let layer = Layer::open(&parses).unwrap();

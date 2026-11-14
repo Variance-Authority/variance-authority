@@ -34,7 +34,6 @@ impl Rows {
 /// One layer's candidates: its parse rows, and the rows of each table a parse holds.
 pub(crate) struct Candidates {
     parses: Rows,
-    module: Rows,
     symbols: Rows,
     nested: Rows,
     members: Rows,
@@ -44,10 +43,6 @@ impl Candidates {
     /// Whether the parse at `row` holds a candidate, or is one by its own doc.
     pub(crate) fn parse(&self, row: usize) -> bool {
         self.parses.has(row)
-    }
-
-    pub(crate) fn module(&self, row: usize) -> bool {
-        self.module.has(row)
     }
 
     pub(crate) fn symbol(&self, at: usize) -> bool {
@@ -115,7 +110,7 @@ pub(crate) fn candidates(layer: &Layer, query: &str, matching: &Matching, run: O
     let (module, symbols, nested, members) =
         (scan(Item::Module, module), scan(Item::Symbol, symbols), scan(Item::Nested, nested), scan(Item::Member, members));
     let rows = parses.key.len();
-    let mut held = module.0.clone();
+    let mut held = module.0;
     for (children, off) in [(&symbols, parses.symbols), (&nested, parses.nested), (&members, parses.member_declarations)] {
         match (&mut held, &children.0) {
             (Some(held), Some(children)) => {
@@ -126,7 +121,7 @@ pub(crate) fn candidates(layer: &Layer, query: &str, matching: &Matching, run: O
             _ => held = None,
         }
     }
-    Candidates { parses: Rows(held), module, symbols, nested, members }
+    Candidates { parses: Rows(held), symbols, nested, members }
 }
 
 /// The file as UTF-16, read once, and only when a doc is the one thing left to match.

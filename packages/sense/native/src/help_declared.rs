@@ -225,7 +225,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
     let crossings = crossings(layers, &folded, files);
     // Cut once for every doc; a question of one stem is no phrase, and no doc is cut for it.
     let run = matches!(matching, Matching::Containing).then(|| phrase_run(query)).flatten();
-    // The stem pairs `near` counts: a doc whose words lack both of every pair is near nothing, and is not read for it.
+    // The stem pairs `near` counts: a doc whose words lack a stem of every pair is near nothing, and is not read for it.
     let pairs: Vec<[String; 2]> = match &matching {
         Matching::Described { query, .. } => asked_run(query).windows(2).map(|pair| [pair[0].1.clone(), pair[1].1.clone()]).collect(),
         _ => Vec::new(),
@@ -258,12 +258,10 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                     let name = file_name(crossing.file);
                     let lowered = name.to_lowercase();
                     let in_name = if stems.iter().any(|stem| !sure(stem) || lowered.contains(stem.as_str())) { held_in(stems, name) } else { BTreeSet::new() };
-                    let said = if picked.module(row) {
-                        let span = parses.doc_of_module(row).map(|span| (span.start, span.end)).unzip();
-                        Said::of(names[Item::Module as usize].doc(row), span, &mut source, root, crossing.file)
-                    } else {
-                        None
-                    };
+                    // Its words are borrowed from the table, so a file matched by its name alone still counts them; only
+                    // an unknown doc is read, and that row is a candidate whatever it holds.
+                    let span = parses.doc_of_module(row).map(|span| (span.start, span.end)).unzip();
+                    let said = Said::of(names[Item::Module as usize].doc(row), span, &mut source, root, crossing.file);
                     let length = said.as_ref().map(|said| said.words.len() as u32);
                     described(said, in_name, stems, query, &mut source)
                         .map(|(held, in_name, near)| (layer, crossing.file, row, (held.into_iter().collect(), in_name.into_iter().collect(), near, length)))
