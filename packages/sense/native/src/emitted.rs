@@ -51,7 +51,7 @@ use oxc_resolver::{FileMetadata, FileSystem, FileSystemOs, ResolveError};
 use rustc_hash::FxBuildHasher;
 use serde_json::Value;
 
-use crate::conditions::{extended, normalize, read};
+use crate::conditions::{normalize, Configs};
 
 /// What TypeScript emits, and the sources each is emitted from, in the order
 /// one is preferred when several exist. A declaration file written by hand is
@@ -181,6 +181,8 @@ pub struct Emitted {
     declared: Memo<Arc<OnceLock<Arc<[Arc<Layout>]>>>>,
     /// The canonical root and what git lists under it.
     listed: Option<(PathBuf, Arc<Listing>)>,
+    /// The configs a layout or a condition set is read from, each read once.
+    pub(crate) configs: Configs,
 }
 
 impl Emitted {
@@ -285,7 +287,7 @@ impl Emitted {
         let known = self.declared.get(directory).map(|cell| Arc::clone(&cell));
         let cell = known.unwrap_or_else(|| Arc::clone(&self.declared.entry(directory.to_owned()).or_default()));
         let listed = self.listed.as_ref().map(|(root, listing)| (root.as_path(), listing.as_ref()));
-        Arc::clone(cell.get_or_init(|| layouts_of(directory, listed).into_iter().map(Arc::new).collect()))
+        Arc::clone(cell.get_or_init(|| layouts_of(&self.configs, directory, listed).into_iter().map(Arc::new).collect()))
     }
 
     /// The directory a mapped path would be in on disk: its nearest ancestor
@@ -300,13 +302,13 @@ impl Emitted {
     }
 }
 
-fn layouts_of(directory: &Path, listed: Option<(&Path, &Listing)>) -> Vec<Layout> {
+fn layouts_of(configs: &Configs, directory: &Path, listed: Option<(&Path, &Listing)>) -> Vec<Layout> {
     let under = listed.and_then(|(root, listing)| Some((listing, directory.strip_prefix(root).ok()?)));
     if let Some((listing, rest)) = under {
         // Git keeps nothing beneath a symlink, so a directory it lists is its
         // own real path, and holds what git lists in it.
         if let Some(names) = listing.directories.get(rest) {
-            return declare(directory, directory, names);
+            return declare(configs, directory, directory, names);
         }
     }
     if !directory.join("package.json").is_file() {
@@ -320,7 +322,7 @@ fn layouts_of(directory: &Path, listed: Option<(&Path, &Listing)>) -> Vec<Layout
     }
     let listing = listed.and_then(|(root, listing)| listing.directories.get(real.strip_prefix(root).ok()?));
     if let Some(names) = listing {
-        return declare(directory, &real, names);
+        return declare(configs, directory, &real, names);
     }
     let Ok(entries) = std::fs::read_dir(&real) else {
         return Vec::new();
@@ -329,12 +331,12 @@ fn layouts_of(directory: &Path, listed: Option<(&Path, &Listing)>) -> Vec<Layout
     if !names.iter().any(|name| name == "package.json") {
         return Vec::new();
     }
-    declare(directory, &real, &names)
+    declare(configs, directory, &real, &names)
 }
 
 /// The layouts a package directory declares, from the names in it; `real` is
 /// where it is, and `directory` how it was reached.
-fn declare(directory: &Path, real: &Path, names: &[OsString]) -> Vec<Layout> {
+fn declare(kept: &Configs, directory: &Path, real: &Path, names: &[OsString]) -> Vec<Layout> {
     if published(real) || !names.iter().any(|name| name == "package.json") {
         return Vec::new();
     }
@@ -344,11 +346,11 @@ fn declare(directory: &Path, real: &Path, names: &[OsString]) -> Vec<Layout> {
     let mut layouts: Vec<Layout> = Vec::new();
     for config in configs {
         let path = real.join(config);
-        let set = |name: &str| matches!(setting(&path, name, &mut Vec::new()), Some((Value::Bool(true), _)));
+        let set = |name: &str| matches!(kept.setting(&path, name), Some((Value::Bool(true), _)));
         if set("noEmit") {
             continue;
         }
-        let option = |name: &str| path_option(&path, real, name);
+        let option = |name: &str| path_option(kept, &path, real, name);
         let (Some(out), Some(source)) = (option("outDir"), option("rootDir")) else {
             continue;
         };
@@ -386,40 +388,11 @@ fn spelled(path: &Path, real: &Path, directory: &Path) -> PathBuf {
     path.strip_prefix(real).map_or_else(|_| path.to_owned(), |rest| directory.join(rest))
 }
 
-/// A compiler option as the config chain sets it, with the directory of the
-/// config that wrote it. The nearest config that names it wins, and of several
-/// bases the last one.
-fn setting(path: &Path, name: &str, seen: &mut Vec<PathBuf>) -> Option<(Value, PathBuf)> {
-    if seen.iter().any(|known| known == path) {
-        return None;
-    }
-    seen.push(path.to_owned());
-    let config = read(path)?;
-    let directory = path.parent()?;
-    if let Some(value) = config
-        .get("compilerOptions")
-        .and_then(Value::as_object)
-        .and_then(|options| options.get(name))
-    {
-        return Some((value.clone(), directory.to_owned()));
-    }
-    let bases: Vec<&str> = match config.get("extends") {
-        Some(Value::String(one)) => vec![one.as_str()],
-        Some(Value::Array(many)) => many.iter().filter_map(Value::as_str).collect(),
-        _ => Vec::new(),
-    };
-    bases
-        .into_iter()
-        .rev()
-        .filter_map(|base| extended(directory, base))
-        .find_map(|base| setting(&base, name, seen))
-}
-
 /// A path option, unset or cleared by `null` alike. A relative value is
 /// relative to the config that wrote it, and `${configDir}` is the directory of
 /// the config being built.
-fn path_option(path: &Path, leaf: &Path, name: &str) -> Option<PathBuf> {
-    let (value, directory) = setting(path, name, &mut Vec::new())?;
+fn path_option(configs: &Configs, path: &Path, leaf: &Path, name: &str) -> Option<PathBuf> {
+    let (value, directory) = configs.setting(path, name)?;
     let value = value.as_str()?;
     Some(normalize(&match value.strip_prefix("${configDir}") {
         Some(rest) => {

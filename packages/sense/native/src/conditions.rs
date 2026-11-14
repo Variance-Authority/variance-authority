@@ -12,65 +12,99 @@
 //!
 //! The JavaScript oracle reads the same option by the same rule
 //! (`src/conditions.ts`), and the two are compared on a fixture.
+//!
+//! The emit options (`emitted.rs`) inherit along the same chain, so both are
+//! asked of `Configs`, which reads each file of the chain once in a scan.
 
-use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 
-use serde_json::Value;
+use dashmap::DashMap;
+use rustc_hash::FxBuildHasher;
+use serde_json::{Map, Value};
 
-/// What a config chain says about `customConditions`: nothing, or a list,
-/// where a `null` in the chain is the empty list.
-pub fn custom_conditions(tsconfig: &Path) -> Option<Vec<String>> {
-    declared(tsconfig, &mut HashSet::new())
+/// What one config file says by itself: its `compilerOptions`, and the files
+/// its `extends` names, the last first.
+struct Config {
+    directory: PathBuf,
+    options: Map<String, Value>,
+    bases: Vec<PathBuf>,
 }
 
-fn declared(path: &Path, seen: &mut HashSet<PathBuf>) -> Option<Vec<String>> {
-    if !seen.insert(path.to_owned()) {
-        return None;
-    }
-    let config = read(path)?;
-    if let Some(value) = config
-        .get("compilerOptions")
-        .and_then(Value::as_object)
-        .and_then(|options| options.get("customConditions"))
-    {
-        return Some(match value {
-            Value::Array(names) => names
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_owned)
-                .collect(),
+/// One scan's reading of its `tsconfig` files. A base a thousand packages
+/// extend is asked for once per option per package, so each file is read and
+/// parsed once and kept while the scan's resolvers live; the next scan reads
+/// the disk again.
+#[derive(Clone, Default)]
+pub struct Configs {
+    /// One cell per file, so resolvers asking at once read it once.
+    files: Arc<DashMap<PathBuf, Arc<OnceLock<Option<Arc<Config>>>>, FxBuildHasher>>,
+}
+
+impl Configs {
+    /// What a config chain says about `customConditions`: nothing, or a list,
+    /// where a `null` in the chain is the empty list.
+    pub fn custom_conditions(&self, tsconfig: &Path) -> Option<Vec<String>> {
+        let (value, _) = self.setting(tsconfig, "customConditions")?;
+        Some(match value {
+            Value::Array(names) => names.iter().filter_map(Value::as_str).map(str::to_owned).collect(),
             _ => Vec::new(),
-        });
+        })
     }
-    let directory = path.parent()?;
-    let bases: Vec<&str> = match config.get("extends") {
-        Some(Value::String(one)) => vec![one.as_str()],
-        Some(Value::Array(many)) => many.iter().filter_map(Value::as_str).collect(),
-        _ => Vec::new(),
-    };
-    bases
-        .into_iter()
-        .rev()
-        .filter_map(|base| extended(directory, base))
-        .find_map(|base| declared(&base, seen))
+
+    /// A compiler option as the config chain sets it, with the directory of
+    /// the config that wrote it. The nearest config that names it wins, and of
+    /// several bases the last one.
+    pub(crate) fn setting(&self, path: &Path, name: &str) -> Option<(Value, PathBuf)> {
+        self.inherited(path, name, &mut Vec::new())
+    }
+
+    fn inherited(&self, path: &Path, name: &str, seen: &mut Vec<PathBuf>) -> Option<(Value, PathBuf)> {
+        if seen.iter().any(|known| known == path) {
+            return None;
+        }
+        seen.push(path.to_owned());
+        let config = self.config(path)?;
+        if let Some(value) = config.options.get(name) {
+            return Some((value.clone(), config.directory.clone()));
+        }
+        config.bases.iter().find_map(|base| self.inherited(base, name, seen))
+    }
+
+    fn config(&self, path: &Path) -> Option<Arc<Config>> {
+        let known = self.files.get(path).map(|cell| Arc::clone(&cell));
+        let cell = known.unwrap_or_else(|| Arc::clone(&self.files.entry(path.to_owned()).or_default()));
+        cell.get_or_init(|| read(path).map(Arc::new)).clone()
+    }
 }
 
-pub(crate) fn read(path: &Path) -> Option<Value> {
+fn read(path: &Path) -> Option<Config> {
     let mut bytes = std::fs::read(path).ok()?;
     if bytes.starts_with(b"\xEF\xBB\xBF") {
         bytes.drain(..3);
     }
     json_strip_comments::strip_slice(&mut bytes).ok()?;
-    if bytes.iter().all(u8::is_ascii_whitespace) {
-        return Some(Value::Null);
-    }
-    serde_json::from_slice(&bytes).ok()
+    let mut config = match bytes.iter().all(u8::is_ascii_whitespace) {
+        true => Value::Null,
+        false => serde_json::from_slice(&bytes).ok()?,
+    };
+    let directory = path.parent()?.to_owned();
+    let bases: Vec<&str> = match config.get("extends") {
+        Some(Value::String(one)) => vec![one.as_str()],
+        Some(Value::Array(many)) => many.iter().filter_map(Value::as_str).collect(),
+        _ => Vec::new(),
+    };
+    let bases = bases.into_iter().rev().filter_map(|base| extended(&directory, base)).collect();
+    let options = match config.get_mut("compilerOptions").map(Value::take) {
+        Some(Value::Object(options)) => options,
+        _ => Map::new(),
+    };
+    Some(Config { directory, options, bases })
 }
 
 /// The file an `extends` entry names: a path, or a package under a
 /// `node_modules` above the config. A `#` import is not followed.
-pub(crate) fn extended(directory: &Path, specifier: &str) -> Option<PathBuf> {
+fn extended(directory: &Path, specifier: &str) -> Option<PathBuf> {
     // FIXME: a package `extends` is read as the path `node_modules/<specifier>`
     // and never through the package's `exports`, which `oxc_resolver` follows
     // for the alias table in `witness.ts`. A base published only behind
@@ -158,7 +192,7 @@ mod tests {
             ),
             ("d/tsconfig.json", "{}"),
         ]);
-        let of = |dir: &str| custom_conditions(&root.join(dir).join("tsconfig.json"));
+        let of = |dir: &str| Configs::default().custom_conditions(&root.join(dir).join("tsconfig.json"));
 
         assert_eq!(of(""), Some(vec!["@acme/source".to_owned()]));
         assert_eq!(of("a"), Some(vec!["@acme/source".to_owned()]));
