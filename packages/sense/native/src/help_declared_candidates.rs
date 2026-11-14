@@ -69,6 +69,10 @@ type Needles = Option<Vec<(String, Scope)>>;
 /// The candidates of `layer` for `query` asked by `matching`, with `run`, the
 /// phrase `Containing` asks of a doc when the question holds one.
 pub(crate) fn candidates(layer: &Layer, query: &str, matching: &Matching, run: Option<&[(u32, String)]>) -> Candidates {
+    // The table writes a marker byte inside a name as a stand-in, so a question holding one passes every row.
+    if crate::name_table::marked(query) {
+        return Candidates { parses: Rows(None), symbols: Rows(None), nested: Rows(None), members: Rows(None) };
+    }
     let unknown = || (UNKNOWN_TEXT.to_owned(), Scope::Entry);
     let (module, symbols, nested, members): (Needles, Needles, Needles, Needles) = match matching {
         Matching::Exact => {

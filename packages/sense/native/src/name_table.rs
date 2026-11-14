@@ -49,6 +49,12 @@ const SECTIONS: [(&str, &str); 4] = [
 
 const WORDS: u8 = 0x00;
 const UNKNOWN: u8 = 0x01;
+/// What a marker byte inside a name is written as: one ASCII byte, so the column stays UTF-8.
+const STAND_IN: u8 = 0x02;
+/// Whether `text` holds a byte the table writes only as a marker, so it cannot be scanned for.
+pub(crate) fn marked(text: &str) -> bool {
+    text.bytes().any(|byte| byte == WORDS || byte == UNKNOWN)
+}
 /// [`UNKNOWN`] as text to scan for: the rows it is in are the ones whose doc is read from the file.
 pub(crate) const UNKNOWN_TEXT: &str = "\u{1}";
 
@@ -110,8 +116,12 @@ impl Default for NameColumn {
 impl NameColumn {
     /// One row: its name, whether it spans a doc, and that doc's words when
     /// the writer held them — `Some(None)` for a span that holds no words.
+    /// A marker byte inside a name — a string-literal member name may hold
+    /// one — is written as [`STAND_IN`], so it never reads as a doc; a
+    /// question that holds a marker byte passes every row instead.
     pub(crate) fn push(&mut self, name: &str, doc: bool, words: Option<Option<&str>>) {
-        self.text.extend_from_slice(name.to_lowercase().as_bytes());
+        let lowered = name.to_lowercase();
+        self.text.extend(lowered.bytes().map(|byte| if byte == WORDS || byte == UNKNOWN { STAND_IN } else { byte }));
         match (doc, words) {
             (false, _) | (true, Some(None)) => {}
             (true, Some(Some(words))) => {
@@ -270,5 +280,15 @@ mod tests {
             (0..5).map(|row| names.doc(row)).collect::<Vec<_>>(),
             vec![Doc::Words("mounts the app"), Doc::Absent, Doc::Absent, Doc::Unknown, Doc::Absent]
         );
+    }
+
+    #[test]
+    fn a_name_that_holds_a_marker_byte_is_read_as_a_name_with_no_doc() {
+        let bytes = table(&[("a\u{0}b", false, None), ("c\u{1}d", true, Some(Some("said")))]);
+        let stored = Stored::open(&bytes).unwrap();
+        let names = Names::open(&stored, Item::Symbol, 2).unwrap();
+        assert_eq!((0..2).map(|row| names.doc(row)).collect::<Vec<_>>(), vec![Doc::Absent, Doc::Words("said")]);
+        assert_eq!(names.holding("b", Scope::Name), vec![0]);
+        assert_eq!(names.holding("d", Scope::Name), vec![1]);
     }
 }

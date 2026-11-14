@@ -62,4 +62,6 @@ fn only_the_rows_whose_names_or_doc_words_hold_the_question_are_candidates() {
     assert_eq!(rows, vec![true, false]);
     let exact = candidates(&layer, "unrelated", &Matching::Exact, None);
     assert_eq!((0..2).map(|row| exact.parse(row)).collect::<Vec<_>>(), vec![false, true]);
+    let marked = candidates(&layer, "a\u{0}b", &Matching::Exact, None);
+    assert_eq!((0..2).map(|row| marked.parse(row)).collect::<Vec<_>>(), vec![true, true]);
 }
