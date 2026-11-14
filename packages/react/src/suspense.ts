@@ -268,7 +268,7 @@ function collectFrom(root: Fiber, into: SuspenseBoundary[]): void {
 }
 
 function describe(fiber: Fiber, depth: number): SuspenseBoundary {
-  const state = stateOf(fiber);
+  const state = suspenseStateOf(fiber);
   const createdBy = debugOwnerName(fiber._debugOwner);
 
   const boundary: {
@@ -294,7 +294,7 @@ function describe(fiber: Fiber, depth: number): SuspenseBoundary {
  * `pending` naming a component that is fine, sending somebody to fix a spinner
  * that was never on screen.
  */
-function stateOf(fiber: Fiber): SuspenseStateName {
+export function suspenseStateOf(fiber: Fiber): SuspenseStateName {
   const state = fiber.memoizedState as SuspenseState | null | undefined;
   if (state === null || state === undefined) return 'resolved';
   if (typeof state !== 'object') return 'resolved';

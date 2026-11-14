@@ -69,7 +69,13 @@ Never record:
   are, an object as a ref and its kind, such as `ref5 Object` or
   `ref3 react.memo`, never its contents. A React kind such as `react.memo`
   needs `@variance-authority/react/story` in the suite's setup files; without
-  it, a memo or a context is `Object`. Add a `console.log` of the value in
+  it, a memo or a context is `Object`. The same setup file opens each commit with `commit — <n> rendered`, `0` for one of host elements alone, then `, started by <Component>` where React recorded whose update started it, and adds a
+  `rendered <Component> — <cause>` line for each component in it, a keyed component
+  named with its key (`Row key="b"`) and `(hidden)` inside a hidden `<Activity>` or behind a fallback: the prop, state cell or
+  context that moved, with values shown as handed ones are and `(same source)` or `(equal value)` after a value made anew but alike, `the Suspense boundary above it came back from its fallback`, `mounted with <each component below>`, `its
+  parent rendered`, `no input it reads moved`, or `state not read past <hook>`
+  where the reader stops (`state not read` where the build keeps no hook record); `renders not read: <reason>` when React announces no
+  commit to it. Add a `console.log` of the value in
   the code under test, not in the test, and record again, or use a debugger at
   the line it names.
 - **When a stack trace already names the line.** Open that line.
@@ -209,7 +215,9 @@ compare  src/checkout.test.ts > saves the total it charges
 ```
 
 - A listed difference is true of every reading on one side and of no reading
-  on the other. That is the lead: open the place it names.
+  on the other. That is the lead: open the place it names. A line said is
+  compared with how many times it was said: `commit — 1 rendered ×2` on one
+  side and `commit — 1 rendered` on the other is an extra commit.
 - The last line counts what differs between readings of one side too. It is
   not the cause; do not read it as one, and do not report the order changing
   between runs as a flake.

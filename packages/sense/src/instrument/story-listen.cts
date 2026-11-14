@@ -17,7 +17,8 @@ const NOTE = Symbol.for('variance-authority.story.note');
 /** The console methods a case prints with; each line is a note, and still printed. */
 const PRINTS = ['log', 'info', 'warn', 'error', 'debug'] as const;
 
-type Channel = (text: string) => void;
+/** A line of text, or a template's strings and the values between them. */
+type Channel = (text: string | readonly string[], ...values: unknown[]) => void;
 
 /**
  * Have `scope`'s announcements, attention and console lines put on `tap`,
@@ -27,9 +28,10 @@ type Channel = (text: string) => void;
  * collector notes onto the tap it uses now. The console is wrapped once: the
  * wrapper looks the channel up when a line is printed, never when it is made.
  */
-function listen(tap: Pick<Tap, 'note' | 'nameIn'>, scope: object): void {
+function listen(tap: Pick<Tap, 'note' | 'say' | 'nameIn'>, scope: object): void {
   const global = scope as { [NOTE]?: Channel; console?: Console };
-  global[NOTE] = (text: string): void => tap.note(String(text));
+  global[NOTE] = (text: string | readonly string[], ...values: unknown[]): void =>
+    Array.isArray(text) ? tap.say(text, values) : tap.note(String(text));
   tap.nameIn(scope);
   const printer = global.console as (Console & { [NOTE]?: true }) | undefined;
   if (printer === undefined || printer[NOTE] === true) return;

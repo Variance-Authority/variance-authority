@@ -106,6 +106,24 @@ describe('two sides of a case', () => {
     expect(comparison.unsteady.said).toBe(3);
   });
 
+  it('are told apart by how many times a line was said, as a step that commits twice is from one that commits once', () => {
+    const twice: [number, string][] = [[1, 'commit — 1 rendered'], [1, 'rendered Cart — useState #0 false → true'], [2, 'commit — 1 rendered'], [2, 'rendered Cart — useState #0 false → true']];
+    const once: [number, string][] = [[1, 'commit — 1 rendered'], [1, 'rendered Cart — useState #0 false → true']];
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 4], twice), reading([1, 4], twice)),
+      threw(reading([1, 4], once, true), reading([1, 4], once, true)),
+    ]);
+    const flaky = compareLoaded(ROOT, [passed(reading([1, 4], twice), reading([1, 4], once)), threw(reading([1, 4], once, true), reading([1, 4], once, true))]);
+
+    expect(comparison.only.map((only) => [only.sides, only.said])).toEqual([
+      [['passed'], ['commit — 1 rendered ×2', 'rendered Cart — useState #0 false → true ×2']],
+      [['threw'], ['commit — 1 rendered', 'rendered Cart — useState #0 false → true']],
+    ]);
+    expect(comparison.unsteady.said).toBe(0);
+    expect(flaky.only).toEqual([]);
+    expect(flaky.unsteady.said).toBe(4);
+  });
+
   it('list the lines one side said every time in the order it said them, not by their text', () => {
     const lines: [number, string][] = [[1, 'console.log zeta'], [1, 'console.log beta'], [2, 'console.log alpha']];
     const comparison = compareLoaded(ROOT, [passed(reading([1, 4]), reading([1, 4])), threw(reading([1, 4], lines, true), reading([1, 4], lines, true))]);
@@ -133,6 +151,22 @@ describe('two sides of a case', () => {
     ]);
 
     expect(comparison.only.map((only) => only.said)).toEqual([['handed cart=ref…'], ['holds é=ref Object']]);
+    expect(comparison.unsteady.said).toBe(0);
+  });
+
+  it('leave out the number of a ref a note showed a value as', () => {
+    const comparison = compareLoaded(ROOT, [
+      passed(
+        reading([1, 4], [[1, 'rendered Row — onPick ref4 function onPick → ref9 function onPick']]),
+        reading([1, 4], [[1, 'rendered Row — onPick ref2 function onPick → ref7 function onPick']]),
+      ),
+      threw(reading([1, 4], [[1, 'rendered Row — its parent rendered']], true), reading([1, 4], [[1, 'rendered Row — its parent rendered']], true)),
+    ]);
+
+    expect(comparison.only.map((only) => only.said)).toEqual([
+      ['rendered Row — onPick ref function onPick → ref function onPick'],
+      ['rendered Row — its parent rendered'],
+    ]);
     expect(comparison.unsteady.said).toBe(0);
   });
 

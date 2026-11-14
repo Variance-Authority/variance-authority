@@ -129,8 +129,8 @@ export interface ContextDependency {
   /**
    * The context value this fiber read, as of its last render.
    *
-   * Read by `holding.ts` and by nothing else, because it is a *value* and the
-   * wiring band may not carry one. It is the only route to a context's current
+   * Its value is read through `inputs.ts` by `holding.ts` and `renders.ts` alone (`wiring.ts` reads only names), because it
+   * is a *value* and the wiring band may not carry one. It is the only route to a context's current
    * contents: the provider holds the value, the consumer holds this, and the
    * hook chain holds nothing at all — `useContext` builds no cell (measured on
    * 19.2.8, and asserted in `holding.test.tsx`).
@@ -264,7 +264,16 @@ export function isOwnerFrame(fiber: Fiber): boolean {
  * A fiber tree deeper than this is not a real tree; it is a corrupted or cyclic
  * `return` chain, which would otherwise hang the collector rather than fail it.
  */
-const MAX_FIBER_DEPTH = 10_000;
+export const MAX_FIBER_DEPTH = 10_000;
+
+/** The nearest composite above `fiber`, the one a "parent rendered" line means, or `null` at the root. */
+export function compositeAbove(fiber: Fiber): Fiber | null {
+  let above = fiber.return ?? null;
+  for (let depth = 0; depth < MAX_FIBER_DEPTH && above !== null; depth += 1, above = above.return ?? null) {
+    if (isOwnerFrame(above)) return above;
+  }
+  return null;
+}
 
 /**
  * Expando prefixes `react-dom` writes onto host nodes.

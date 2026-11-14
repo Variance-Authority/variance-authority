@@ -127,6 +127,14 @@ interface Tap {
   read(): Tape;
   /** Put `text` on the tape where the realm is now, in the case running now. */
   note(text: string): void;
+  /**
+   * {@link note} a template's text with each value between its strings shown
+   * as a region shows what it was handed: a primitive as it is, an object as
+   * its ref and kind, the same ref on every line. The channel `story-listen.cts`
+   * installs takes a tagged template's arguments for it. Past
+   * {@link NOTE_LIMIT} nothing is shown, only counted.
+   */
+  say(strings: readonly string[], values: readonly unknown[]): void;
   /** Ask the namers in `scope`'s kind array, as it holds them then, what each object is. */
   nameIn(scope: object): void;
   /** Start the tape again, keeping what the realm registered and the refs it gave. */
@@ -392,16 +400,18 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
+      api.say([text], []);
+    },
+    say(strings: readonly string[], values: readonly unknown[]): void {
       if (parts !== undefined) {
         const into = parts.here();
-        if (into !== undefined && parts.room(into, 'spoken')) put(text);
-        return;
-      }
-      if (spoken >= NOTE_LIMIT) {
+        if (into === undefined || !parts.room(into, 'spoken')) return;
+      } else if (spoken >= NOTE_LIMIT) {
         unnoted += 1;
         return;
-      }
-      spoken += 1;
+      } else spoken += 1;
+      let text = String(strings[0] ?? '');
+      for (let index = 1; index < strings.length; index += 1) text += shown(values[index - 1]) + String(strings[index]);
       put(text);
     },
     nameIn(scope: object): void {
