@@ -2851,6 +2851,7 @@
         "ExternalOrientation": "interface",
         "FileSize": "interface",
         "ForksBetween": "interface",
+        "Grepped": "interface",
         "HelpPublish": "interface",
         "HelpReading": "interface",
         "ImportDiff": "interface",

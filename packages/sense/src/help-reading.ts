@@ -177,6 +177,26 @@ export interface NativeHelp {
   declaredTermsOf?(index: string, files: string[] | null): string[] | null;
   nameTerms?(names: string[]): NameTerms;
   declaredLooseOf?(root: string, index: string, groups: string[][], files: string[] | null): DeclaredNames | null;
+  /** ripgrep's matching lines of `files` under `root`, as columns; throws `ripgrep refused the pattern: …` for an invalid one. */
+  ripgrep?(root: string, pattern: string, files: string[]): Grepped;
+}
+
+/** Every matching line, a column per field, and one complaint per file that could not be read. */
+export interface Grepped {
+  /** The position in the asked list of each hit's file. */
+  readonly file: number[];
+  readonly line: number[];
+  readonly text: string[];
+  readonly errors: string[];
+}
+
+/**
+ * Every line of `files`, relative to `root`, that ripgrep's pattern matches, in
+ * the order the files were asked. The search is ripgrep's own crates, linked
+ * into the addon, so no `rg` is run.
+ */
+export function ripgrepNative(root: string, pattern: string, files: readonly string[]): Grepped {
+  return entry('ripgrep')(root, pattern, [...files]);
 }
 
 function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHelp[Name]> {
