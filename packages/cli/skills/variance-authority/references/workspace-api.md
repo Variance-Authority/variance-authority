@@ -34,17 +34,16 @@ the first argument is positional.
 - **One of the two binaries.** `@variance-authority/cli` provides `variance ask`;
   `@variance-authority/help` provides `variance-authority-help`.
 - **No run, no config, no revision requirement.** Ordinary questions reuse a
-  published generation for up to one hour. On either binary and either
-  server, a question that generation refuses is asked again of one made from
-  the checkout now, with the dependency lexicon built when it is missing or
-  behind, so a refusal is about the checkout as it is. So is a `symbol` or `uses`
+  published generation for up to one hour. A question that generation refuses,
+  a name not found among them, is answered from it, and says the checkout was not
+  compared with it: run `variance index`, which also builds the dependency
+  lexicon, when a name was written since. A `symbol` or `uses`
   whose files, the ones that declare the name or pass it on, the entry that publishes it and each
   row `uses` lists, or a server's `docs_search` whose printed files or the entry and barrels publishing them, changed
-  after that generation, so it does not answer from old lines. One that could not be
+  after that generation is asked again of one made now, so it does not answer from old lines. One that could not be
   read again or saved, or whose file was saved during the read that answers it, says the checkout
   was not compared, and why, gives a file written since by its recorded names and
-  none of its text, and one whose
-  lexicon could not be built says the installed packages were not compared. `--just-answer` uses the
+  none of its text. `--just-answer` uses the
   last generation without inspecting the checkout and refuses when none exists;
   its answers and refusals say the checkout was not compared, and JSON carries
   `compared: false`. When no changed files are named, `search` reads a
@@ -194,9 +193,10 @@ specifier that publishes the name.
 
 A name nothing declares is answered on stdout, exit `0`: what was read and
 declares nothing, and where else the name may be written. Over MCP it is the
-same text, as a result rather than an error. Unless you pass
-`--just-answer`, a generation reused from earlier is asked again with one made
-now before the answer is given:
+same text, as a result rather than an error. It is answered from the generation
+the question read, which `variance index` keeps current, and its last line says
+when that generation was made before the question and so not compared with the
+checkout:
 
 ```
 `NotAThing` is not published by this workspace, and no published name contains it; ask `search` with a word from its documentation. No file in this workspace declares `NotAThing`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.

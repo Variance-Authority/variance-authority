@@ -78,7 +78,8 @@ describe('variance ask when what it read again cannot be saved', () => {
 
     expect((await run(['ask', 'symbol', '--name', 'hiddenOf'])).out).toMatch(NOT_COMPARED);
     const renamed = await run(['ask', 'symbol', '--name', 'halfOf']);
-    expect(`${renamed.out}${renamed.err}`).toContain('could not be read again');
+    expect(renamed.out).toMatch(/Snapshot \S+Z, not compared with the checkout: run `variance index` if files changed since\./u);
+    expect(`${renamed.out}${renamed.err}`).not.toContain('could not be read again');
   });
 
   it('answers as ever when nothing an answer rests on moved', async () => {

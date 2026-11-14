@@ -72,10 +72,10 @@ describe('variance ask symbol says what is true of a name', () => {
     });
   }
 
-  it('says nothing in the workspace declares an absent name, and that its dependencies were not checked', async () => {
+  it('says nothing in the workspace declares an absent name, and leaves its dependencies unchecked when the lexicon is not published', async () => {
     const root = await indexed(false);
-    // An answer not compared with the checkout leaves the lexicon as it found it.
-    const { code, out, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten', '--just-answer']);
+    const { code, out, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
+    // The lexicon is `variance index`'s to publish; a miss leaves it as it found it.
     expect(lexiconFiles(root).map(existsSync)).toEqual([false, false]);
     expect(code).toBe(EXIT_CLEAN);
     expect(err).toBe('');
@@ -95,16 +95,6 @@ describe('variance ask symbol says what is true of a name', () => {
     expect(out).toContain('No installed dependency publishes it either.');
     expect(out).not.toContain('not known');
     expect(out).not.toContain('Members are read');
-  });
-
-  it('publishes the lexicon the answer for an absent name needs, and says no installed dependency publishes it', async () => {
-    const root = await indexed(false);
-    const { code, out, err } = await run(['ask', 'symbol', '--name', 'nowhereWritten']);
-    expect(lexiconFiles(root).map(existsSync)).toEqual([true, true]);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(err).toBe('');
-    expect(out).toContain('No installed dependency publishes it either.');
-    expect(out).not.toContain('not known');
   });
 
   it('names only the installed package it checked, when asked about one package', async () => {

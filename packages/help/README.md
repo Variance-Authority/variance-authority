@@ -47,12 +47,12 @@ The repository itself does not have to be built and no API site is required.
 Point it at any checkout with `--root`.
 
 Producing a generation scans the checkout; answering one does not. Ordinary
-commands reuse a generation for one hour before refreshing it, and a name a
-reused generation does not hold is looked for again in one made from the checkout
-now, so a function you just wrote is answered rather than reported missing. So
-is a `symbol` or `uses` whose files, the ones that declare the name, the entry
+commands reuse a generation for one hour before refreshing it. A name a reused
+generation does not hold is answered from it, and the answer says the checkout
+was not compared with it: a function written since is reported missing until
+`variance index` runs. A `symbol` or `uses` whose files, the ones that declare the name, the entry
 that publishes it and each row `uses` lists, or a server's `docs_search` whose
-printed files or the entry and barrels publishing them, changed after the generation, so a renamed export or a moved
+printed files or the entry and barrels publishing them, changed after the generation is asked again of one made now, so a renamed export or a moved
 declaration is not answered from its old lines.
 `--just-answer` uses the last published generation regardless of age, and every
 answer and refusal says when it was produced and that the checkout was not
@@ -552,15 +552,15 @@ UTC production time attached to a recorded value.
 `serveWorkspace` starts the stdio server and returns a function that stops it.
 `input` and `output` are the two streams the protocol is spoken over and default
 to this process's own; override them when the host owns the transport. It uses
-the same one-hour policy and asks a refused call, or a `docs_symbol`,
-`docs_uses` or `docs_search` whose files changed, again of a generation made now, or serves only the recorded generation when `justAnswer` is true. A host
-of its own asks `caughtUp` whether a refusal is worth asking again, and is
-handed what to ask again and, when the checkout could not be compared, the line
-its refusal ends with; `refusalFooter` is that line with the reason a look gave
-for the refusal itself; `snapshotLine` dates an answer. `outlived` says whether
-the files a found answer names changed after its generation, which sends that
-answer to `caughtUp` too. A name nothing declares
-is thrown as a `FoundNothing`, so it is asked again like a refusal, but its
+the same one-hour policy and asks a `docs_symbol`, `docs_uses` or `docs_search`
+whose files changed again of a generation made now, or serves only the recorded generation when `justAnswer` is true. A refused call answers from the generation it was refused from. A host
+of its own asks `outlived` whether the files a found answer names changed after
+its generation, and `caughtUp` to ask that answer again of a generation made
+now; it is handed what it asked again and, when the checkout could not be
+compared, why. `madeBefore` says whether a refusal's generation predates the
+question, so that the checkout was not compared with it; `refusalFooter` is the
+line a refusal then ends with; `snapshotLine` dates an answer. A name nothing declares
+is thrown as a `FoundNothing`, a refusal whose
 message is the answer: what was read, and where else the name may be written.
 `foundNothingAnswer` is that answer, under the lines `foundNothingFooter`
 gives: `variance ask` and `variance-authority-help` print it on stdout and exit

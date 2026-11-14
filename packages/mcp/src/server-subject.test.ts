@@ -142,7 +142,7 @@ describe('a call whose answer outlived what it stands on', () => {
 });
 
 describe('a refused call', () => {
-  /** A tool that knows a name only once the subject has been read again. */
+  /** A tool that knows a name only in a subject read fresh. */
   const named: Served<State> = {
     name: 'state',
     version: '1',
@@ -183,46 +183,32 @@ describe('a refused call', () => {
     }
   }
 
-  it('is asked again of the subject the host reads after it, with the refused one and when it started', async () => {
-    const handed: [string | undefined, string, number][] = [];
-    const before = Date.now();
-    const result = await asked(async (tool, refused, started) => {
-      handed.push([tool, refused.value, started]);
-      return { subject: { value: 'fresh' } };
+  it('answers from the subject it was refused from, and never asks the host to read it again', async () => {
+    const handed: unknown[] = [];
+    const result = await asked(async (tool) => {
+      handed.push(tool);
+      return { subject: { value: 'fresh' }, footer: 'not compared: the reading failed' };
     });
-    expect(result.content[0]!.text).toBe('found');
-    expect(handed).toHaveLength(1);
-    expect(handed[0]!.slice(0, 2)).toEqual(['named', 'reused']);
-    expect(handed[0]![2]).toBeGreaterThanOrEqual(before);
-  });
-
-  it('stands when the host reads nothing newer', async () => {
-    const result = await asked(async () => undefined);
     expect(result.isError).toBe(true);
-    expect(result.content[0]!.text).toContain('not in reused');
+    expect(result.content[0]!.text).toBe('not in reused');
+    expect(handed).toEqual([]);
   });
 
-  it('carries what the host says about a subject it could not read again', async () => {
-    const result = await asked(async () => ({ footer: 'not compared: the reading failed' }));
-    expect(result.isError).toBe(true);
-    expect(result.content[0]!.text).toBe('not in reused\n\nnot compared: the reading failed');
-  });
-
-  it('is an answer when the host reads what the tool threw as one, once it was asked again', async () => {
+  it('is an answer when the host reads what the tool threw as one, said of the subject it was refused from', async () => {
     const handed: [unknown, string, unknown][] = [];
     const result = await asked(
       async () => ({ subject: { value: 'still' }, footer: 'the lexicon was not refreshed' }),
       undefined,
       (refusal, subject, again) => {
-        handed.push([refusal, subject.value, again?.footer]);
+        handed.push([refusal, subject.value, again]);
         return `${(refusal as Error).message}, said as an answer`;
       },
     );
     expect(result.isError).toBeUndefined();
-    expect(result.content[0]!.text).toBe('not in still, said as an answer');
+    expect(result.content[0]!.text).toBe('not in reused, said as an answer');
     expect(handed).toHaveLength(1);
     expect(handed[0]![0]).toBeInstanceOf(Error);
-    expect(handed[0]!.slice(1)).toEqual(['still', 'the lexicon was not refreshed']);
+    expect(handed[0]!.slice(1)).toEqual(['reused', undefined]);
   });
 
   it('is an answer for a host that reads its subject fresh and passes no `again`', async () => {
@@ -246,10 +232,10 @@ describe('a refused call', () => {
     expect(handed).toEqual([]);
   });
 
-  it('stands, with what the host said, when the host does not read it as an answer', async () => {
+  it('stands when the host does not read it as an answer', async () => {
     const result = await asked(async () => ({ footer: 'not compared: the reading failed' }), undefined, () => undefined);
     expect(result.isError).toBe(true);
-    expect(result.content[0]!.text).toBe('not in reused\n\nnot compared: the reading failed');
+    expect(result.content[0]!.text).toBe('not in reused');
   });
 
   it('is not asked again for a tool the server does not have, or a call missing an argument', async () => {

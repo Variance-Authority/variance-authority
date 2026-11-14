@@ -6,7 +6,7 @@ import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
-import { caughtUp, foundNothingAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
+import { caughtUp, foundNothingAnswer, madeBefore, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, grep, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
@@ -268,51 +268,31 @@ export async function askSource(request: SourceRequest): Promise<string> {
   const read = await sourceAnswering(request, tool, input, reading);
   // A reading `--just-answer` asked for, or a published search opened at its
   // age, is not compared with the checkout, and every answer from it says so.
-  // Every other one is the checkout's as it is by the time it refuses.
   const unseen = request.justAnswer === true || read.unseen === true;
-  const again = (from: Answering): ReturnType<typeof caughtUp<Answering>> =>
-    caughtUp(
-      from.at,
-      started,
-      request.source === undefined ? process.cwd() : undefined,
-      (current) => sourceAnswering(request, tool, input, { ...reading, ...(current ? { current: true } : {}) }),
-      async (subject = from) => (await subject.outlived?.(started, from.help)) === true,
-    );
   // An answer whose named files changed since its generation is asked again
   // before it is given; one that could not be, or whose files moved again, says
   // so in the line that dates it.
-  const looked = !unseen && (await read.outlived?.(started)) === true ? await again(read) : undefined;
+  const looked = !unseen && (await read.outlived?.(started)) === true
+    ? await caughtUp(read.at, started, () => sourceAnswering(request, tool, input, { ...reading, current: true }), async (subject = read) => (await subject.outlived?.(started, read.help)) === true)
+    : undefined;
   const answering = looked?.subject ?? read;
   // A refusal is the answer here, not a crash. Every one of them names what is
   // there instead — the packages, the doors, the name one letter away — and it
   // is thrown because that is the contract the tool shares with the wire, where
   // the protocol layer turns it into `isError`. Printed as a defect with a stack
   // under it, the one useful line is the one a reader cannot find. A name not
-  // found is thrown the same way, so it is read again like a refusal, and is
-  // then printed as the answer it is.
+  // found is thrown the same way, and is printed as the answer it is.
   try {
     return rendered(request, answering, looked?.unseen ?? unseen);
   } catch (refusal) {
-    // A refusal from what the checkout was before the question is not yet a
-    // fact about it: it is read again, unless the look just did, and that answer
-    // stands. A reading not compared with the checkout says so, and why.
-    const caught = unseen ? undefined : (looked ?? (await again(answering)));
-    const dated = refusalFooter(caught, caught?.subject?.at ?? answering.at, unseen);
-    const footer = [dated, unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
-    const said = footer === '' ? '' : `\n\n${footer}`;
-    if (caught?.subject === undefined) {
-      // A name not found is an answer, dated like any other, once nothing newer can be read.
-      const found = foundNothingAnswer(refusal, caught, answering.at, unseen);
-      if (found !== undefined) return foundNothing(found, unopenedLine(answering.unopened, !unseen));
-      throw refused(refusal, said);
-    }
-    try {
-      return rendered(request, caught.subject, caught.unseen ?? false);
-    } catch (still) {
-      const found = foundNothingAnswer(still, caught, caught.subject.at, false);
-      if (found !== undefined) return foundNothing(found, unopenedLine(caught.subject.unopened, true));
-      throw refused(still, said);
-    }
+    // A refusal answers from the generation it was refused from: keeping that
+    // fresh is `variance index`'s job, not a question's. One made before the
+    // question was not compared with the checkout, and its date line says so.
+    const stale = unseen || madeBefore(answering.at, started);
+    const footer = [refusalFooter(looked, answering.at, stale), unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
+    const found = foundNothingAnswer(refusal, looked, answering.at, stale);
+    if (found !== undefined) return foundNothing(found, unopenedLine(answering.unopened, !unseen));
+    throw refused(refusal, footer === '' ? '' : `\n\n${footer}`);
   }
 }
 

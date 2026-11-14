@@ -2,7 +2,7 @@ import type { Readable, Writable } from 'node:stream';
 import { serve } from '@variance-authority/mcp';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { readOfferings, type Help } from '@variance-authority/package/help';
-import { caughtUp, foundNothingAnswer, outlived } from './caught-up.js';
+import { caughtUp, foundNothingAnswer, madeBefore, outlived } from './caught-up.js';
 import { readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
 import { workspaceGeneration } from './snapshot.js';
 import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
@@ -101,16 +101,17 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
         return caughtUp(
           workspaceGeneration(refused),
           started,
-          root,
-          async (current) => (current ? readNow(0) : refused),
+          () => readNow(0),
           (read = refused) => outlived(asked, read, input, { root, ...(tree === undefined ? {} : { tree }) }, started, refused),
         );
       },
       outlived: (asked: string | undefined, input: Readonly<Record<string, unknown>>, subject: Help, started: number) =>
         outlived(asked, subject, input, { root, ...(tree === undefined ? {} : { tree }) }, started),
     }),
-    // A name nothing declares is the answer once it has been read again, said as `variance ask` says it.
-    answered: (thrown: unknown, subject: Help, again) => foundNothingAnswer(thrown, again, workspaceGeneration(subject), justAnswer),
+    // A name nothing declares is the answer, said as `variance ask` says it: from
+    // the generation it was refused from, which says when it was made before the
+    // call and so not compared with the checkout. Keeping it fresh is `variance index`'s job.
+    answered: (thrown: unknown, subject: Help, again, started) => foundNothingAnswer(thrown, again, workspaceGeneration(subject), justAnswer || (again === undefined && madeBefore(workspaceGeneration(subject), started))),
     // No question here compares one call with the last, and a copy of the whole
     // reading, held beside the one a changed file asks for, is what ran a large
     // checkout's server out of heap.

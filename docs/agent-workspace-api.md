@@ -54,8 +54,10 @@ symbol` just did.
 The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
 ```
 
-A name the index does not hold is looked for again in the checkout as it is, so
-a function you just wrote is answered with no step from you. A name it does hold
+A name the index does not hold is answered from the index as it is: a function
+written since `variance index` ran is reported missing, and the answer's last
+line says the checkout was not compared with that index. Run `variance index`, or
+name the file with `--changed-file`, and ask again. A name the index does hold
 is answered from the index, which a question reuses for an hour, and read again
 when a file the answer rests on changed since. An edit anywhere else can leave
 that answer behind. Run `variance index` when the next answer has to match it:
