@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, openSync, readSync, realpathSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
@@ -252,7 +252,8 @@ export function publishedSearch(help: Help): SearchIndex | undefined {
 }
 
 async function writeReplacing(at: string, bytes: Uint8Array): Promise<void> {
-  const temporary = `${at}.${String(process.pid)}.tmp`;
+  // Its own name, so two replacements of one path never write the same file.
+  const temporary = `${at}.${randomUUID()}.tmp`;
   await writeFile(temporary, bytes);
   await rename(temporary, at);
 }

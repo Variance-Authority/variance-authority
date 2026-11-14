@@ -325,8 +325,11 @@ The producer on Kibana peaks at 2,702 MiB of resident memory, against 2,402 MiB
 on seven Material UIs.
 
 A question without a path costs about 100 ms at 2,500 paths, at 41,000 and at
-288,000: it opens the binary store the producer publishes beside the generation and
-decodes only the rows it prints, so nearly all of that 100 ms is Node starting.
+288,000: it opens the binary store the producer publishes beside the generation,
+whose search is read in place and whose value is decoded a field at a time, when
+a question first reads that field. A search that shows a published name decodes
+one field whole, the packages with every entry and its uses, to count who
+imports the names it shows. Nearly all of that 100 ms is Node starting.
 In the session that measured Kibana, `variance ask` with no question, which
 reads no index, takes 108 ms, so the search itself costs about 14 ms.
 
