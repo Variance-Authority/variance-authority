@@ -5,9 +5,9 @@ import type { Help } from '@variance-authority/package/help';
 import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
-import { caughtUp, foundNothingAnswer, foundNothingFooter, outlived, refusalFooter, snapshotLine } from './caught-up.js';
+import { caughtUp, foundNothingAnswer, foundNothingFooter, madeBefore, outlived, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspace, readWorkspaceForAnswer } from './read.js';
-import { workspaceGeneration, workspaceReadStarted } from './snapshot.js';
+import { readAgain, workspaceGeneration, workspaceReadStarted } from './snapshot.js';
 import { serveWorkspace, type WorkspaceOptions } from './server.js';
 import { FoundNothing } from './tools/find.js';
 import { search } from './tools/search.js';
@@ -15,9 +15,9 @@ import { uses } from './tools/uses.js';
 
 /**
  * A question about a name written after the last published generation, asked
- * of this package's server. A generation is reused for an hour, so the name was
- * refused as not published — an answer that reads as a real absence — while
- * `variance ask` read the checkout again first.
+ * of this package's server. A generation is reused for an hour, so the name is
+ * answered as not published, from that generation, with a date line that says
+ * the checkout was not compared with it, as `variance ask` answers it.
  */
 
 const fixture = publishing();
@@ -257,37 +257,37 @@ describe('a `docs_search` answer once a barrel stops publishing a name', () => {
 describe('caughtUp', () => {
   it('looks once more at what it read, and says a file moved during that read rather than reading again', async () => {
     const started = Date.now();
-    const reads: boolean[] = [];
-    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async (current) => {
-      reads.push(current);
+    let reads = 0;
+    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, async () => {
+      reads += 1;
       return 'asked again';
     }, async (subject) => subject === 'asked again');
     expect(caught).toEqual({ subject: 'asked again', unseen: 'a file it rests on changed while it was read' });
-    expect(reads).toEqual([true]);
+    expect(reads).toBe(1);
   });
 
   it('gives the caveat, and reads nothing more, of a generation made during the question whose file moved during that read', async () => {
     const started = Date.now();
     const at = new Date(started + 1).toISOString();
-    const reads: boolean[] = [];
-    const caught = await caughtUp(at, started, undefined, async (current) => {
-      reads.push(current);
+    let reads = 0;
+    const caught = await caughtUp(at, started, async () => {
+      reads += 1;
       return 'asked again';
     }, async () => true);
-    expect(reads).toEqual([]);
+    expect(reads).toBe(0);
     expect(caught).toEqual({ unseen: 'a file it rests on changed while it was read', footer: snapshotLine(at, 'a file it rests on changed while it was read') });
   });
 
   it('says nothing of the read when no file moved during it', async () => {
     const started = Date.now();
-    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async () => 'asked again', async () => false);
+    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, async () => 'asked again', async () => false);
     expect(caught).toEqual({ subject: 'asked again' });
   });
 
   it('gives the reason to a date line, with no look, when the read failed', async () => {
     const started = Date.now();
     const looked: unknown[] = [];
-    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async () => {
+    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, async () => {
       throw new Error('a manifest is half-written');
     }, async (subject) => {
       looked.push(subject);
@@ -297,14 +297,14 @@ describe('caughtUp', () => {
     expect(caught?.unseen).toBe('it could not be read again: a manifest is half-written');
   });
 
-  it('asks again, of a current generation, a refusal from one made before the question', async () => {
+  it('reads again an outlived answer from a generation made before the question', async () => {
     const started = Date.now();
-    expect(await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async (current) => current)).toEqual({ subject: true });
+    expect(await caughtUp(new Date(started - 1000).toISOString(), started, async () => 'asked again')).toEqual({ subject: 'asked again' });
   });
 
   it('says the checkout was not compared, and why, when reading it again fails', async () => {
     const started = Date.now();
-    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async () => {
+    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, async () => {
       throw new Error('a manifest is half-written');
     });
     expect(caught?.subject).toBeUndefined();
@@ -312,21 +312,11 @@ describe('caughtUp', () => {
     expect(caught?.footer).toContain('a manifest is half-written');
   });
 
-  it('says the installed packages were not compared, and why, when the dependency lexicon cannot be refreshed', async () => {
-    const started = Date.now();
-    // A directory git does not hold has no installed packages to list. The
-    // generation was made during the question, so its source was compared.
-    const caught = await caughtUp(new Date(started + 1).toISOString(), started, fixture.cache(), async () => 'asked again');
-    expect(caught?.subject).toBeUndefined();
-    expect(caught?.footer).toMatch(/^Installed packages not compared with the checkout: the dependency lexicon could not be refreshed \(.+\)\.$/u);
-    expect(caught?.footer).not.toMatch(/^Snapshot/u);
-  });
-
-  it('lets a refusal stand from a generation made during the question, or from none', async () => {
+  it('lets an answer stand from a generation made during the question, or from none', async () => {
     const started = Date.now();
     const again = async (): Promise<string> => 'asked again';
-    expect(await caughtUp(new Date(started + 1).toISOString(), started, undefined, again)).toBeUndefined();
-    expect(await caughtUp(undefined, started, undefined, again)).toBeUndefined();
+    expect(await caughtUp(new Date(started + 1).toISOString(), started, again)).toBeUndefined();
+    expect(await caughtUp(undefined, started, again)).toBeUndefined();
   });
 });
 
@@ -339,17 +329,9 @@ describe('foundNothingFooter', () => {
     expect(foundNothingFooter(undefined, undefined, false)).toBeUndefined();
   });
 
-  it('dates it as well when only the installed packages could not be compared', async () => {
-    const started = Date.now();
-    const caught = await caughtUp(new Date(started + 1).toISOString(), started, fixture.cache(), async () => 'asked again');
-    const footer = foundNothingFooter(caught, at, false);
-    expect(footer?.split('\n')[0]).toBe(`Snapshot ${at}.`);
-    expect(footer?.split('\n')[1]).toMatch(/^Installed packages not compared with the checkout/u);
-  });
-
   it('dates it once, and says why, when the checkout could not be read again', async () => {
     const started = Date.now();
-    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, undefined, async () => {
+    const caught = await caughtUp(new Date(started - 1000).toISOString(), started, async () => {
       throw new Error('a manifest is half-written');
     });
     const footer = foundNothingFooter(caught, at, false);
@@ -363,7 +345,7 @@ describe('refusalFooter', () => {
 
   it('dates a refusal only when the checkout was not compared with what it came from', () => {
     expect(refusalFooter(undefined, at, false)).toBeUndefined();
-    expect(refusalFooter({ subject: 'read', footer: 'the installed packages' }, at, false)).toBe('the installed packages');
+    expect(refusalFooter({ subject: 'read' }, at, false)).toBeUndefined();
     expect(refusalFooter(undefined, at, true)).toMatch(UNCOMPARED);
   });
 
@@ -391,26 +373,21 @@ describe('snapshotLine', () => {
 });
 
 describe('the help server about a name written after the published generation', () => {
-  it('reads the checkout again before refusing `docs_symbol`', async () => {
-    const answer = await served(await fixture.published(), false);
-    expect(answer.isError).toBeUndefined();
-    expect(answer.text).toContain('packages/kit/src/kept.ts');
-  });
-
-  it('answers under `justAnswer` that nothing declares it, with when the generation was published and that the checkout was not compared with it', async () => {
-    const answer = await served(await fixture.published(), true);
+  it.each([false, true])('answers `docs_symbol` from the published generation, `justAnswer` %s, that nothing declares it, and that the checkout was not compared with it', async (justAnswer) => {
+    const answer = await served(await fixture.published(), justAnswer);
     expect(answer.isError).toBeUndefined();
     expect(answer.text).toMatch(/^`keptOf` is not published by this workspace/u);
+    expect(answer.text).not.toContain('packages/kit/src/kept.ts');
     expect(answer.text).toMatch(UNCOMPARED);
-    // Dated once, as `variance ask --just-answer` dates it.
+    // Dated once, as `variance ask` dates it.
     expect(answer.text.match(/Snapshot/gu)).toHaveLength(1);
   });
 
-  it('answers a name nothing declares, read again, as `variance ask` answers it: what was read, then the generation it was read from', async () => {
+  it('answers a name nothing declares as `variance ask` answers it: what was read, then the generation it was read from', async () => {
     const answer = await served(await fixture.published(), false, 'writtenNowhere');
     expect(answer.isError).toBeUndefined();
     expect(answer.text).toMatch(/^`writtenNowhere` is not published by this workspace.*declares `writtenNowhere`/su);
-    expect(answer.text).toMatch(/\nSnapshot \d{4}-\d\d-\d\dT[\d:.]+Z\.$/u);
+    expect(answer.text).toMatch(/\nSnapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/u);
   });
 
   it('says why under a refusal, when the file the name was in moved during the read that found it gone', async () => {
@@ -426,6 +403,39 @@ describe('the help server about a name written after the published generation', 
     expect(answer.text).toMatch(/^`taxOf` is not published/u);
     expect(answer.text).toMatch(/not compared with the checkout \(a file it rests on changed while it was read\)/u);
     expect(answer.text.match(/Snapshot/gu)).toHaveLength(1);
+  });
+
+  it('reads again when it holds nothing, when a newer generation was published, or when the one it holds expired, and not otherwise', async () => {
+    const root = await fixture.published();
+    const held = await readWorkspaceForAnswer(root, { justAnswer: true });
+    const hour = { refreshAfterMs: 60 * 60 * 1000 };
+    expect(await readAgain(undefined, root, hour)).toBe(true);
+    expect(await readAgain(held, root, hour)).toBe(false);
+    expect(await readAgain(held, root, { ...hour, justAnswer: true })).toBe(false);
+    expect(await readAgain(held, root, { refreshAfterMs: -1 })).toBe(true);
+    expect(await readAgain(held, root, { refreshAfterMs: -1, justAnswer: true })).toBe(false);
+    await readWorkspace(root);
+    expect(await readAgain(held, root, { ...hour, justAnswer: true })).toBe(true);
+  });
+
+  it.each([false, true])('answers from a generation published since the one it holds, on the same connection, `justAnswer` %s', async (justAnswer) => {
+    const root = await fixture.published();
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const stop = serveWorkspace(root, { input, output, justAnswer });
+    const call = async (id: number): Promise<string> => {
+      const line = new Promise<string>((resolve) => output.once('data', (chunk: Buffer) => resolve(chunk.toString())));
+      input.write(`${JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'docs_symbol', arguments: { name: 'keptOf' } } })}\n`);
+      return (JSON.parse(await line) as { result: { content: { text: string }[] } }).result.content[0]!.text;
+    };
+    try {
+      expect(await call(1)).toMatch(/^`keptOf` is not published/u);
+      // `variance index`, publishing a generation that holds the name.
+      await readWorkspace(root);
+      expect(await call(2)).toContain('packages/kit/src/kept.ts');
+    } finally {
+      stop();
+    }
   });
 
   it('keeps no copy of a reading after a call: no help question compares one call with the last', async () => {
@@ -446,5 +456,14 @@ describe('a generation that could not be saved', () => {
     const help = await readWorkspace(root, { index: join(root, 'package.json', 'index') });
     expect(workspaceGeneration(help)).toBeDefined();
     expect(workspaceReadStarted(help)).toBeDefined();
+  });
+});
+
+describe('madeBefore', () => {
+  it('says a generation made before the question started predates it, and one made during it or with no date does not', () => {
+    const started = Date.parse('2026-11-14T08:00:00.000Z');
+    expect(madeBefore('2026-11-14T07:59:59.999Z', started)).toBe(true);
+    expect(madeBefore('2026-11-14T08:00:00.000Z', started)).toBe(false);
+    expect(madeBefore(undefined, started)).toBe(false);
   });
 });

@@ -233,19 +233,17 @@ status or refresh, refuse when no generation exists, and print when the value
 was produced, saying under an answer or a refusal that the checkout was not
 compared with it; `search --format json` carries `compared: false` instead.
 Without the flag a generation is reused for one hour before the next source
-question refreshes it. A question refused from a reused generation, on `ask`
-or `serve`, is asked again of one made now, with the dependency lexicon built
-when it is missing or behind, before the refusal is given; on `ask` that holds
-under `--changed-file` and `--taint-file` too. So is a `symbol` or `uses`
-whose files changed or went away after the generation, the ones that declare the
+question refreshes it. A question refused from a reused generation, a name not
+found among them, is answered from it, and says the checkout was not compared
+with it: `variance index` refreshes the generation and builds the dependency
+lexicon. A `symbol` or `uses` whose files changed or went away after the generation, the ones that declare the
 name or pass it on, the entry that publishes it and each row `uses` lists, and `serve`'s
-`docs_search` whose printed files, or the entry and barrels publishing them, did, which a stat of each decides: an answer whose files
+`docs_search` whose printed files, or the entry and barrels publishing them, did, which a stat of each decides, is asked again of a generation made now: an answer whose files
 are unchanged reads nothing more. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on
 is saved during the read that answers it, the answer or the refusal says it was not compared with the generation,
 and why, and gives what the generation recorded of a file written since, by name and with none of its
-text; when the lexicon cannot be built, it says the installed packages were not compared,
-and why. An injected
-`AskRequest.source` is read again with `current` set, and owns its own lexicon. When no changed files are
+text. An injected
+`AskRequest.source` is read again with `current` set when its answer outlived its generation. When no changed files are
 named, `search` is the exception: it reads the published generation, whatever
 its age, and says so on the same line. When nothing is published it reads the
 checkout and publishes the search, unless you passed `--just-answer`, which

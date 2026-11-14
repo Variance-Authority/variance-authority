@@ -24,8 +24,8 @@ import { limitOf, notShown, spellingOf, verbOf } from '@variance-authority/mcp/t
  *
  * A question about a name nothing declares answers no file, and says so beside
  * itself: no file is then in all of them, and that answer is thrown as a
- * {@link FoundNothing}, as its question's own is, so a surface reading a reused
- * generation asks it again before the empty set is believed.
+ * {@link FoundNothing}, as its question's own is, so every surface says the
+ * empty set as it says a name not found.
  */
 
 /** Files shown when `limit` is not said; every one is counted. */

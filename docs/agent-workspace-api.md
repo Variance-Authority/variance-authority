@@ -54,8 +54,10 @@ symbol` just did.
 The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
 ```
 
-A name the index does not hold is looked for again in the checkout as it is, so
-a function you just wrote is answered with no step from you. A name it does hold
+A name the index does not hold is answered from the index as it is: a function
+written since `variance index` ran is reported missing, and the answer's last
+line says the checkout was not compared with that index. Run `variance index`, or
+name the file with `--changed-file`, and ask again. A name the index does hold
 is answered from the index, which a question reuses for an hour, and read again
 when a file the answer rests on changed since. An edit anywhere else can leave
 that answer behind. Run `variance index` when the next answer has to match it:
@@ -346,16 +348,18 @@ that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
-Without `--just-answer`, a source question that a reused generation refuses is
-asked again, whichever command or server you ask through, except the command
-line's `search`: the name is looked for again in a generation made from the checkout as it is,
-and in what your installed packages export, with that list built first when it
-is missing or behind. A function you wrote a minute ago, or a package you just
-installed, is answered rather than reported missing, and that holds when you
-name changed files too.
+A name the generation does not hold is answered from that generation as it is,
+whichever command or server you ask through: the checkout is not read again. When
+the generation was made before the question, the answer's last line says the
+checkout was not compared with it. A function you wrote since, or a package you
+installed since, is reported missing until you run `variance index`, or name the
+file you changed with `--changed-file`. A server holding a generation reads the
+one `variance index` published on its next call, on the same connection, and with
+`--just-answer` too: each call reads the head of the published generation to see
+whether it is newer than the one held.
 
-A found `symbol` or `uses`, and a `docs_search` over either server, is read the
-same way when a file it rests on changed or went away after the generation: the
+A found `symbol` or `uses`, and a `docs_search` over either server, is asked again
+of a generation made from the checkout as it is when a file it rests on changed or went away after the generation: the
 rows `docs_search` prints with the entry and each barrel that publish them, and
 for the other two the files that declare the name or pass it on and the entry
 that publishes it, with each row `uses` lists. So an export you renamed is not
@@ -373,9 +377,7 @@ after the generation's read the answer gives what the generation recorded, a
 declaration and its members by name, and none of the file's text: its lines are
 no longer the ones that were read. A read that cannot be saved is dropped whole,
 because its names would meet the last read's lines. The next question reads
-again. When the list
-of installed exports cannot be built, the refusal says the installed packages
-were not compared, and why.
+again.
 
 Pass `--just-answer` when the caller owns freshness: no Git status, generation,
 or regeneration is performed, and every answer and refusal names the generation

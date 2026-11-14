@@ -88,15 +88,17 @@ export interface ServerOptions<Subject = RunReport, Again extends AskedAgain<Sub
    *
    * For a host whose subject is a reading it reuses, a workspace generation kept
    * for an hour, which can be older than the file that answers. A call to a tool
-   * the server has, with every argument it requires, that came back `isError` or
-   * that `outlived` says no longer holds, is handed here with its subject, when
-   * the request started and its arguments. Only those two pay for a second reading.
+   * the server has, with every argument it requires, whose answer `outlived` says
+   * no longer holds, is handed here with its subject, when the request started
+   * and its arguments. Only that answer pays for a second reading: a refusal,
+   * a name nothing declares among them, answers from the subject it was refused
+   * from.
    */
-  readonly again?: (asked: string | undefined, refused: Subject, started: number, input: Readonly<Record<string, unknown>>) => Promise<Again | undefined>;
+  readonly again?: (asked: string | undefined, subject: Subject, started: number, input: Readonly<Record<string, unknown>>) => Promise<Again | undefined>;
 
   /**
    * Whether an answer the call found stands on something that changed since
-   * `subject` was read, so that it goes to `again` as a refusal does.
+   * `subject` was read, so that it goes to `again`.
    *
    * Asked of a call to a tool the server has, with every argument it requires,
    * that did not come back `isError`, with the arguments it named. A host that
@@ -108,21 +110,19 @@ export interface ServerOptions<Subject = RunReport, Again extends AskedAgain<Sub
    * The answer a refused call gives instead of its refusal, or none to let the
    * refusal stand.
    *
-   * A tool says some answers by throwing them — a name nothing declares is
-   * thrown so that `again` reads the subject once more before the absence is
-   * believed — and only its host knows which. So a call to a tool the server
-   * has, with every argument it requires, still refused once `again` has had
-   * its turn, is handed here with what its tool threw, the subject that refused
-   * it last, and what `again` returned, as the host returned it; text returned
-   * is the call's result, not an error, and `again`'s footer is the host's to
-   * say in it. It runs whether or not the host passes `again`: a host that
-   * reads its subject fresh for every call has nothing to read again, and its
-   * thrown answers are answers all the same.
+   * A tool says some answers by throwing them — a name nothing declares among
+   * them — and only its host knows which. So a call to a tool the server has,
+   * with every argument it requires, that is refused is handed here with what
+   * its tool threw, the subject that refused it, and what `again` returned when
+   * an outlived answer was read again and then refused, as the host returned
+   * it, and when the request started; text returned is the call's result, not
+   * an error, and `again`'s footer is the host's to say in it. It runs whether
+   * or not the host passes `again`.
    */
-  readonly answered?: (thrown: unknown, subject: Subject, again: Again | undefined) => string | undefined;
+  readonly answered?: (thrown: unknown, subject: Subject, again: Again | undefined, started: number) => string | undefined;
 }
 
-/** What a host answers a refused call with: a fresher subject, and what a refusal that still stands says. */
+/** What a host answers an outlived answer with: a fresher subject, and what an answer it could not read again says. */
 export interface AskedAgain<Subject> {
   /** A subject read since: the same call is asked of it, and the tree asked for again with it. */
   readonly subject?: Subject;
@@ -181,8 +181,11 @@ export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Su
       let subject: Subject = await options.subject(asked, askedInput(request));
       let answered = await answer(subject);
       let response = answered.response;
-      if (wellFormed(request, options.served) && (!succeeded(response) || (await options.outlived?.(asked, askedInput(request) ?? {}, subject, started)) === true)) {
-        const fresher = await options.again?.(asked, subject, started, askedInput(request) ?? {});
+      if (wellFormed(request, options.served)) {
+        // Only a found answer the host says moved is read again: a refusal answers from the subject it was refused from.
+        const fresher = succeeded(response) && (await options.outlived?.(asked, askedInput(request) ?? {}, subject, started)) === true
+          ? await options.again?.(asked, subject, started, askedInput(request) ?? {})
+          : undefined;
         // An answer that stands was given before the host said why it does, so it is given once more to say so.
         const unseen = fresher?.unseen !== undefined && succeeded(response);
         if (fresher?.subject !== undefined || unseen) {
@@ -190,7 +193,7 @@ export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Su
           answered = await answer(subject, fresher?.unseen);
           response = answered.response;
         }
-        const said = response === null || answered.thrown === undefined ? undefined : options.answered?.(answered.thrown.value, subject, fresher);
+        const said = response === null || answered.thrown === undefined ? undefined : options.answered?.(answered.thrown.value, subject, fresher, started);
         if (said !== undefined) response = { ...response!, result: { content: [{ type: 'text', text: said }] } };
         // An answer found once the subject was read again, or dated with why it could not be, has nothing more to say of it.
         else if (fresher?.footer !== undefined && !(succeeded(response) && (fresher.subject !== undefined || unseen))) response = footed(response, fresher.footer);
