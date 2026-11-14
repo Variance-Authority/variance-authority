@@ -3056,6 +3056,7 @@
         "relationBetween": "function",
         "restrictedChains": "function",
         "restrictedImports": "function",
+        "ripgrepNative": "function",
         "runGraphOf": "function",
         "scanRelations": "function",
         "seedPaths": "function",
