@@ -87,9 +87,12 @@ export const ran: Tool<VantageState> = {
 
     return [
       `${count} execution(s)${where}.`,
-      ...(untold
-        ? ['', `No head here was started with ${STORY_VARIABLE}=1, so no execution has a story; what each ran is listed instead.`]
-        : []),
+      // A head tells an execution's story when it settles, so only a settled one untold says no head was asked.
+      ...(!untold
+        ? []
+        : shown.some((execution) => !execution.open)
+          ? ['', `No head here was started with ${STORY_VARIABLE}=1, so no execution has a story; what each ran is listed instead.`]
+          : ['', 'No execution listed has settled, and a head tells an execution\'s story when it settles; what each ran so far is listed instead.']),
       ...shown.flatMap((execution) => ['', ...listed(execution, cut, story)]),
       ...(elided === 0 ? [] : ['', `… ${elided} earlier execution(s) not listed; a higher \`${spell.input('limit')}\` lists them.`]),
       ...(forgotten === 0 ? [] : ['', `${forgotten} earlier execution(s) were dropped to keep this watcher bounded.`]),

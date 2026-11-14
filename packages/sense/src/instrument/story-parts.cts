@@ -47,6 +47,8 @@ interface Part {
   modules: Set<number>;
   // Whether the realm wrote to another bucket's part since this one's last visit.
   left: boolean;
+  // The key of the segment its next kept visit opens, when the realm activated it since.
+  opening: string | undefined;
 }
 
 /** One execution's part, as {@link Parts.take} hands it over. */
@@ -102,7 +104,7 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
     if (key === '') return undefined;
     let found = parts.get(key);
     if (found === undefined) {
-      found = { tape: [], at: [], keys: [], visits: 0, notes: [], unnoted: 0, spoken: 0, handed: 0, bytes: 0, modules: new Set(), left: false };
+      found = { tape: [], at: [], keys: [], visits: 0, notes: [], unnoted: 0, spoken: 0, handed: 0, bytes: 0, modules: new Set(), left: false, opening: undefined };
       parts.set(key, found);
     }
     return found;
@@ -122,13 +124,7 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
         if (part === undefined) return;
         if (last !== undefined && last !== part) last.left = true;
         last = part;
-        // A full part is counted, and its segments no longer grow with uptime.
-        if (part.tape.length < limit) {
-          const resumed = part.left && part.at.length > 0;
-          part.at.push(...Array<number>(resumed ? 2 : 1).fill(part.tape.length));
-          part.keys.push(...(resumed ? ['\u0000elsewhere', key] : [key]));
-          part.left = false;
-        }
+        part.opening = key;
       }
       if (part === undefined) return;
       part.visits += 1;
@@ -140,6 +136,14 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
         if (part.bytes + bytes > PART_TEXT_BYTES) return;
         part.bytes += bytes;
         part.modules.add(row);
+      }
+      // A segment opens with the first visit kept, so a part keeping none no longer grows with uptime.
+      if (part.opening !== undefined) {
+        const resumed = part.left && part.at.length > 0;
+        part.at.push(...Array<number>(resumed ? 2 : 1).fill(part.tape.length));
+        part.keys.push(...(resumed ? ['\u0000elsewhere', part.opening] : [part.opening]));
+        part.left = false;
+        part.opening = undefined;
       }
       part.tape.push(entry);
       open += 1;

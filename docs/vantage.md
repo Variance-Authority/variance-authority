@@ -411,7 +411,8 @@ taped apart, each under its own execution. A request whose promises run on
 after it settles is told again with what it ran since. The watcher keeps the
 first 8 tellings of an execution from each head, up to 1 MiB of them, and
 `--story` counts the rest. A head started without the variable tapes nothing,
-and `--story` then says so and lists the regions as before. A page that calls `reportPage` tells no story yet.
+and `--story` then says so and lists the regions as before. A request still
+open has told nothing yet: its story arrives when it settles. A page that calls `reportPage` tells no story yet.
 
 ## Reading it from an agent
 

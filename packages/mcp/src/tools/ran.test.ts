@@ -287,6 +287,15 @@ describe('variance_ran', () => {
       expect(ran.run(storied([told]), {}, { modules: WHOLE })).not.toContain('» handed');
     });
 
+    it('says an execution still open has not told its story yet, not that no head was started to tell one', () => {
+      const text = ran.run(state({
+        executions: [{ id: JOURNEY, ordinal: 0, open: true, heads: [{ head: 'web', instrumentation: PROBES, modules: [{ id: ACTIONS, entered: [1, 2] }] }] }],
+        common: [],
+      }), { story: true }, { modules: WHOLE });
+      expect(text).not.toContain('No head here was started');
+      expect(text).toContain('No execution listed has settled, and a head tells an execution\'s story when it settles');
+    });
+
     it('says no head was started to tell one when none did', () => {
       const text = ran.run(storied(), { story: true }, { modules: WHOLE });
       expect(text).toContain(`No head here was started with ${STORY_VARIABLE}=1`);
