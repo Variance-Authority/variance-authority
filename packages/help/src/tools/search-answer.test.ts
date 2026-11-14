@@ -5,7 +5,8 @@ import type { FileRecord } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { searchNames } from '../tools.js';
-import { answerSearch, searchIndexOf } from './search.js';
+import { answerSearch } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 
 /**
  * `search` as data: the fields the text is written from, and the difference

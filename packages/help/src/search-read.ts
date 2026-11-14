@@ -3,9 +3,8 @@ import type { Help } from '@variance-authority/package/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { operatorError } from './operator.js';
 import { UnsavedRead, readWorkspace, readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
-import { readWorkspaceSnapshot, workspaceSnapshotPath } from './snapshot.js';
+import { readWorkspaceSnapshot, searchIndexOf, workspaceSnapshotPath } from './snapshot.js';
 import type { SearchIndex } from './search-index.js';
-import { searchIndexOf } from './tools/search.js';
 
 /** A search, and whether it was read from the checkout as it is now. */
 export interface SearchReading {

@@ -4,7 +4,7 @@ import { readHelp } from '@variance-authority/package/help';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import type { SearchIndex } from '../search-index.js';
 import { searchNames } from './search-answer.js';
-import { searchIndexOf } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 
 /**
  * A word a doc holds is a doc's word, never a name's, however short the doc:

@@ -9,7 +9,8 @@ import { readHelp } from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { searchNames } from '../tools.js';
-import { answerSearch, searchIndexOf } from './search.js';
+import { answerSearch } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 import { symbol } from './symbol.js';
 
 /**

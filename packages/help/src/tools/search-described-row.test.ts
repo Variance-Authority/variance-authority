@@ -7,7 +7,8 @@ import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { areaOf, type Area } from './area.js';
 import { describedNames } from './described.js';
 import { searchNames, shownRowOrder } from './search-answer.js';
-import { answerSearch, searchIndexOf } from './search.js';
+import { answerSearch } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 
 /**
  * A name with more than one row — published by more than one package or

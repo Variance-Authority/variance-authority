@@ -167,8 +167,6 @@ const describedRow = (match: DescribedMatch): string =>
  * `search-answer.ts` builds.
  */
 
-export { searchIndexOf };
-
 /** The question `search` is asked by `input`, as its schema accepted it. */
 export function searchQuestionOf(input: Readonly<Record<string, unknown>>): SearchQuestion {
   return { query: stringArg(input, 'query'), from: startPointArg(input, 'from'), to: startPointArg(input, 'to') };

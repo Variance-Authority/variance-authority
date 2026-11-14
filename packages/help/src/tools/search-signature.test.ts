@@ -8,7 +8,7 @@ import { readWorkspaceSnapshot } from '../snapshot.js';
 import type { SearchIndex } from '../search-index.js';
 import { describedShown, type DescribedDeclaration } from './described.js';
 import { searchNames } from './search-answer.js';
-import { searchIndexOf } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 
 /**
  * A declaration's signature says what it takes and what it returns, so the
