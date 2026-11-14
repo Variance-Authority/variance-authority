@@ -90,6 +90,9 @@ impl<'a> Records<'a> {
         ])?;
         same_length(records.edge_to.len(), &[("edges.kind", records.edge_kind.len())])?;
         same_length(records.package_to.len(), &[("packages.kind", records.package_kind.len())])?;
+        if let Some(at) = (0..records.reverse_row.len()).find(|&at| records.reverse_row.at(at) as usize >= rows) {
+            return Err(format!("targets.reverse-row names row {} of {rows} records", records.reverse_row.at(at)));
+        }
         Ok(records)
     }
 
@@ -122,14 +125,6 @@ impl<'a> Records<'a> {
     pub fn witnesses_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> impl Iterator<Item = &'s str> + use<'s, 'a> {
         let (offsets, directory) = (self.witnesses, self.witness_directory);
         offsets.range(row).map(move |at| stored.text(directory.at(at)))
-    }
-
-    /// The specifiers, as written, the file at `row` imports and the index
-    /// resolved to no file; `None` when the record holds no such list.
-    pub fn unresolved_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> Option<impl Iterator<Item = &'s str> + use<'s, 'a>> {
-        if !flag(self.unresolved_present, row) { return None; }
-        let (offsets, value) = (self.unresolved, self.unresolved_value);
-        Some(offsets.range(row).map(move |at| stored.text(value.at(at))))
     }
 
     /// Why the file at `row` could not be read, when it could not.
