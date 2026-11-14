@@ -142,20 +142,6 @@ pub(crate) fn postings(lists: &[&[u32]]) -> (Vec<u32>, Vec<u32>) {
     (off, rows)
 }
 
-pub(crate) enum Section {
-    Words(Vec<u32>),
-    Bytes(Vec<u8>),
-}
-
-impl Section {
-    pub(crate) fn bytes(&self) -> std::borrow::Cow<'_, [u8]> {
-        match self {
-            Section::Bytes(bytes) => bytes.into(),
-            Section::Words(words) => words.iter().flat_map(|word| word.to_le_bytes()).collect::<Vec<u8>>().into(),
-        }
-    }
-}
-
 /// The export list as a set: each row's file, name, kind and type, in byte
 /// order, once.
 pub(crate) fn exported_digest(exported: &[NamedExport]) -> String {

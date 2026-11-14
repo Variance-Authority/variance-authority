@@ -8,6 +8,7 @@ import {
   type FileRecord,
   type Tree,
 } from '@variance-authority/mcp/tools';
+import { SegmentCutShort } from '@variance-authority/core/segment';
 import type { Help } from '@variance-authority/package/help';
 import {
   encodeHelpStore,
@@ -17,7 +18,7 @@ import {
 } from '@variance-authority/sense';
 import { openHelpStore, openSearchIndex, type SearchIndex } from './search-index.js';
 import { encodeStore, storeOf } from './store-encode.js';
-import { storeHeadLength, storeHeadOf, type StoreHead } from './store-layout.js';
+import { storeHeadOf, type StoreHead } from './store-layout.js';
 
 export interface SnapshotOptions {
   /** The source index this reading was published beside. */
@@ -108,11 +109,19 @@ export function publishedHead(index: string): StoreHead | undefined {
     return undefined;
   }
   try {
-    const start = Buffer.alloc(12);
-    if (readSync(file, start, 0, 12, 0) !== 12) return undefined;
-    const head = Buffer.alloc(storeHeadLength(start));
-    if (readSync(file, head, 0, head.length, 0) !== head.length) return undefined;
-    return storeHeadOf(head);
+    // The header's length, then the header, then the head: each read names the next.
+    let length = 4;
+    for (let read = 0; read < 3; read += 1) {
+      const held = Buffer.alloc(length);
+      if (readSync(file, held, 0, length, 0) !== length) return undefined;
+      try {
+        return storeHeadOf(held);
+      } catch (error) {
+        if (!(error instanceof SegmentCutShort) || error.needed <= length) return undefined;
+        length = error.needed;
+      }
+    }
+    return undefined;
   } catch {
     return undefined;
   } finally {

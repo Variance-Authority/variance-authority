@@ -147,6 +147,20 @@ export class OtherSegmentVersion extends Error {
 }
 
 /**
+ * A read of a segment's first bytes reached past them: `needed` is how many
+ * bytes from the start the read wants. Thrown only when the segment was opened
+ * as a prefix, so a caller that wants one leading column reads that much of the
+ * file and no more.
+ */
+export class SegmentCutShort extends Error {
+  override readonly name = 'SegmentCutShort';
+
+  constructor(readonly needed: number) {
+    super(`a segment read needs its first ${String(needed)} bytes`);
+  }
+}
+
+/**
  * Open a segment, refusing anything that is not one of the named format and
  * version. Another version of the named format is refused with
  * {@link OtherSegmentVersion}, so a caller can tell it from a damaged file.
@@ -154,14 +168,20 @@ export class OtherSegmentVersion extends Error {
  * `what` is the noun a rejection is phrased with — "source index", "suite index"
  * — because the one thing a caller of this can usefully be told is which reader
  * refused, and a shared message would name none of them.
+ *
+ * With `prefix`, `input` may be the segment's first bytes alone: a header or a
+ * column that lies past them throws {@link SegmentCutShort} with the length
+ * that holds it, where a whole segment would be refused.
  */
 export function openSegment(
   format: string,
   version: number,
   input: Uint8Array,
   what: string,
+  options: { readonly prefix?: boolean } = {},
 ): OpenSegment {
   const reject = (): Error => new Error(`not a variance-authority ${what}`);
+  const prefix = options.prefix === true;
   // Copied when it does not start on an alignment boundary, because the whole
   // point of the padding is that a `u32` column can be a view rather than a
   // parse, and a view is only legal at a multiple of its own width. A read that
@@ -170,7 +190,7 @@ export function openSegment(
   const raw = input.byteOffset % ALIGNMENT === 0 ? input : input.slice();
   if (raw.length < 4) throw reject();
   const headerLength = new DataView(raw.buffer, raw.byteOffset, raw.byteLength).getUint32(0, true);
-  if (headerLength > raw.length - 4) throw reject();
+  if (headerLength > raw.length - 4) throw prefix ? new SegmentCutShort(4 + headerLength) : reject();
 
   let header: Header;
   try {
@@ -183,14 +203,19 @@ export function openSegment(
   if (header.version !== version) {
     throw typeof header.version === 'number' ? new OtherSegmentVersion(what, header.version, version) : reject();
   }
-  if (!validSections(header.sections, raw.length - 4 - headerLength)) throw reject();
+  if (!validSections(header.sections, prefix ? Number.MAX_SAFE_INTEGER : raw.length - 4 - headerLength)) throw reject();
 
   const base = 4 + headerLength;
   const found = new Map(header.sections.map((section) => [section.name, section]));
+  const held = (section: Section): Section => {
+    const end = base + section.offset + section.length;
+    if (end > raw.length) throw new SegmentCutShort(end);
+    return section;
+  };
   const at = (name: string, width: 1 | 4): Section => {
     const section = found.get(name);
     if (section === undefined || section.width !== width) throw reject();
-    return section;
+    return held(section);
   };
 
   return {
@@ -212,6 +237,7 @@ export function openSegment(
       const section = found.get(name);
       if (section === undefined) return new Uint32Array();
       if (section.width !== 4 || section.length % 4 !== 0) throw reject();
+      held(section);
       return new Uint32Array(
         raw.buffer,
         raw.byteOffset + base + section.offset,

@@ -57,7 +57,7 @@ export function exported(
   openings?: ReadonlySet<number>,
   exact?: ReadonlyMap<number, number>,
 ): { readonly total: number; head(count: number): readonly ExportedMatch[]; rows(): readonly number[] } {
-  const found: { name: number; rank: number; count: number; field: number }[] = [];
+  const found: { name: number; count: number; field: number }[] = [];
   // The file that exports it, against the closure. A name exported from a
   // barrel inside the area and declared outside it arrives here twice, under
   // two paths, and the one in the area is the one a reader can open.
@@ -82,14 +82,14 @@ export function exported(
     // The field of the row it is shown through, the first by an order that
     // reads the field first: the least of its rows'.
     const field = reached(name).reduce((least, row) => Math.min(least, fieldOf(name)(row)), Number.MAX_SAFE_INTEGER);
-    found.push({ name, rank: index.rank(name), count, field });
+    found.push({ name, count, field });
   }
 
   return {
     total: found.length,
     rows: () => found.flatMap(({ name }) => reached(name)),
     head: (count) =>
-      first(found, count, (a, b) => a.field - b.field || b.count - a.count || a.rank - b.rank).flatMap(({ name, count: files }) => {
+      first(found, count, (a, b) => a.field - b.field || b.count - a.count || a.name - b.name).flatMap(({ name, count: files }) => {
         // `count` is the number of these rows, so one is always chosen.
         const chosen = exportedShown(index, reached(name), fieldOf(name));
         if (chosen === undefined) return [];

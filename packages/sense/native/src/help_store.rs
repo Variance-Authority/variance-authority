@@ -1,13 +1,12 @@
 //! The questions' store: one binary file beside the index holding the Help
 //! value and the search over it.
 //!
-//! `openHelpStore` in `packages/help/src/search-index.ts` reads it. A header —
-//! magic, version, the length of the head — is followed by the head: the
-//! generation it belongs to as length-prefixed strings, then the place of each
-//! section, in the order `SECTIONS` lists them on both sides. Sections are
-//! little-endian 32-bit columns or byte runs, each 4-aligned, counted from where
-//! the body starts, so a new head over the same body moves nothing in it
-//! (`restamp_help_store`). Every string lives once in one pool.
+//! `openHelpStore` in `packages/help/src/search-index.ts` reads it. It is a
+//! segment in the source index's framing (`segment::encode_as`), under its own
+//! format name. The head comes first: the generation it belongs to, as its own
+//! small dictionary (`head.blob`, `head.off`) and one id per field (`head`), so
+//! a reader asking whether a store is current reads the header and those three
+//! columns and nothing after them. Every other string lives once in one pool.
 //!
 //! A question reads the columns it prints. The export list, 249,214 rows on
 //! Kibana, is never printed as text: it was 162 MB of JSON parsed in front of
@@ -18,14 +17,17 @@
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
-use crate::help_search::exported_digest;
+use crate::help_search::{exported_digest, joined};
 use crate::help_usage::{DeepRequest, NameUse, NamedExport};
+use crate::segment::{self, Column};
+use crate::stored::Stored;
 
-const MAGIC: u32 = 0x5348_4156; // "VAHS", little-endian
-const VERSION: u32 = 6;
+/// `FORMAT` and `VERSION` in `packages/help/src/store-layout.ts`.
+const FORMAT: &str = "variance-authority-help-store";
+const VERSION: u8 = 7;
 pub(crate) const NONE: u32 = u32::MAX;
 pub(crate) const USE_KINDS: [&str; 3] = ["source", "test", "story"];
-/// The generation's fields, in the order the head writes them.
+/// The generation's fields, in the order `head` holds them.
 const META: usize = 9;
 const GENERATED_AT: usize = 3;
 
@@ -140,18 +142,48 @@ pub fn encode_help_store(store: HelpStore, exported: Vec<NamedExport>, meta: Opt
     EncodedStore { bytes: bytes.into(), exported: digest }
 }
 
-/// The same store with a new `generatedAt`: the body is copied as it is.
+/// The same store with a new `generatedAt`: every column but the head's is copied as it is.
 #[napi(catch_unwind)]
 pub fn restamp_help_store(bytes: Buffer, generated_at: String) -> napi::Result<Buffer> {
-    let (mut meta, table, start) = head(&bytes).map_err(napi::Error::from_reason)?;
+    restamped(&bytes, &generated_at).map(Into::into).map_err(napi::Error::from_reason)
+}
+
+fn restamped(bytes: &[u8], generated_at: &str) -> Result<Vec<u8>, String> {
+    let stored = Stored::open_as(bytes, FORMAT, VERSION)?;
+    let (blob, off, ids) = (stored.u8s("head.blob")?, stored.u32s("head.off")?, stored.u32s("head")?);
+    if ids.len() != META {
+        return Err(format!("a help store head of {} fields, not {META}", ids.len()));
+    }
+    let mut meta: Vec<Option<&str>> = Vec::with_capacity(META);
+    for field in 0..META {
+        let id = ids.at(field) as usize;
+        if ids.at(field) == NONE {
+            meta.push(None);
+            continue;
+        }
+        let text = (id + 1 < off.len()).then(|| blob.get(off.at(id) as usize..off.at(id + 1) as usize)).flatten();
+        meta.push(Some(text.and_then(|text| std::str::from_utf8(text).ok()).ok_or("a help store head field that is not a string")?));
+    }
     meta[GENERATED_AT] = Some(generated_at);
-    let fields: Vec<Option<&str>> = meta.iter().map(Option::as_deref).collect();
-    let written = header(&fields, &table);
-    let at = align(written.len());
-    let mut out = vec![0u8; at + bytes.len() - start];
-    out[..written.len()].copy_from_slice(&written);
-    out[at..].copy_from_slice(&bytes[start..]);
-    Ok(out.into())
+    let mut columns = Vec::from(head_columns(&meta));
+    columns.extend(stored.columns().into_iter().filter(|(name, _, _)| !is_head(name)).map(|(name, width, bytes)| segment::column(name.to_owned(), width, bytes.to_vec())));
+    Ok(segment::encode_as(FORMAT, VERSION, columns))
+}
+
+fn is_head(name: &str) -> bool {
+    name == "head" || name.starts_with("head.")
+}
+
+/// The generation as its own dictionary and one id per field, `NONE` for absent.
+fn head_columns(meta: &[Option<&str>]) -> [Column; 3] {
+    let present: Vec<&str> = meta.iter().flatten().copied().collect();
+    let (off, blob) = joined(&present, "");
+    let mut next = 0u32;
+    let ids = meta.iter().map(|field| field.map_or(NONE, |_| {
+        next += 1;
+        next - 1
+    })).collect();
+    [segment::u8s("head.blob", blob), segment::u32s("head.off", off), segment::u32s("head", ids)]
 }
 
 /// A use, borrowed from whichever side holds it.
@@ -218,12 +250,12 @@ pub(crate) struct StoreRef<'a> {
     pub unreadable: &'a [String],
 }
 
-use crate::help_store_encode::Body;
+use crate::help_store_encode::body_of;
 
 /// The store's bytes and the digest of `exported`: `digest` when the caller
 /// holds it, computed beside the body when not.
 pub(crate) fn encode(input: &StoreRef, exported: &[NamedExport], meta: Option<&StoreMeta>, digest: Option<&str>) -> (Vec<u8>, String) {
-    let (body, digest) = rayon::join(|| Body::of(input, exported), || digest.map_or_else(|| exported_digest(exported), str::to_owned));
+    let (body, digest) = rayon::join(|| body_of(input, exported),|| digest.map_or_else(|| exported_digest(exported), str::to_owned));
     let meta: [Option<&str>; META] = match meta {
         Some(held) => [
             Some(&held.root), Some(&held.graph_root), Some(&held.graph_digest), Some(&held.generated_at), Some(&held.read_started_at),
@@ -231,82 +263,9 @@ pub(crate) fn encode(input: &StoreRef, exported: &[NamedExport], meta: Option<&S
         ],
         None => [None, None, None, None, None, Some(&digest), None, None, None],
     };
-    let (table, bodies) = body.laid_out();
-    let written = header(&meta, &table);
-    let start = align(written.len());
-    let size = table.last().map_or(0, |&(off, len)| align(off as usize + len as usize));
-    let mut out = vec![0u8; start + size];
-    out[..written.len()].copy_from_slice(&written);
-    for (&(off, _), bytes) in table.iter().zip(&bodies) {
-        out[start + off as usize..start + off as usize + bytes.len()].copy_from_slice(bytes);
-    }
-    (out, digest)
-}
-
-/// Magic, version, the head's length, then the head: each field of `meta` as
-/// a length and its UTF-8, `NONE` for absent, then the sections' places.
-fn header(meta: &[Option<&str>], table: &[(u32, u32)]) -> Vec<u8> {
-    let mut head = Vec::new();
-    for field in meta {
-        match field {
-            Some(text) => {
-                head.extend_from_slice(&(text.len() as u32).to_le_bytes());
-                head.extend_from_slice(text.as_bytes());
-            }
-            None => head.extend_from_slice(&NONE.to_le_bytes()),
-        }
-    }
-    head.extend_from_slice(&(table.len() as u32).to_le_bytes());
-    for &(off, len) in table {
-        head.extend_from_slice(&off.to_le_bytes());
-        head.extend_from_slice(&len.to_le_bytes());
-    }
-    let mut out = Vec::with_capacity(12 + head.len());
-    out.extend_from_slice(&MAGIC.to_le_bytes());
-    out.extend_from_slice(&VERSION.to_le_bytes());
-    out.extend_from_slice(&(head.len() as u32).to_le_bytes());
-    out.extend_from_slice(&head);
-    out
-}
-
-type Head = (Vec<Option<String>>, Vec<(u32, u32)>, usize);
-
-/// The generation, the sections' places and where the body starts.
-fn head(bytes: &[u8]) -> Result<Head, String> {
-    let word = |at: usize| bytes.get(at..at + 4).map(|held| u32::from_le_bytes(held.try_into().expect("four bytes")));
-    if word(0) != Some(MAGIC) || word(4) != Some(VERSION) {
-        return Err(format!("not a help store v{VERSION}"));
-    }
-    let short = || "the help store's head is cut short".to_owned();
-    let length = word(8).ok_or_else(short)? as usize;
-    let mut at = 12;
-    let mut meta = Vec::with_capacity(META);
-    for _ in 0..META {
-        let size = word(at).ok_or_else(short)?;
-        at += 4;
-        if size == NONE {
-            meta.push(None);
-            continue;
-        }
-        let text = bytes.get(at..at + size as usize).ok_or_else(short)?;
-        meta.push(Some(String::from_utf8(text.to_vec()).map_err(|error| error.to_string())?));
-        at += size as usize;
-    }
-    let count = word(at).ok_or_else(short)?;
-    at += 4;
-    let mut table = Vec::with_capacity(count as usize);
-    for _ in 0..count {
-        table.push((word(at).ok_or_else(short)?, word(at + 4).ok_or_else(short)?));
-        at += 8;
-    }
-    if at != 12 + length {
-        return Err(short());
-    }
-    Ok((meta, table, align(12 + length)))
-}
-
-pub(crate) fn align(at: usize) -> usize {
-    (at + 3) & !3
+    let mut columns = Vec::from(head_columns(&meta));
+    columns.extend(body);
+    (segment::encode_as(FORMAT, VERSION, columns), digest)
 }
 
 /// The flags of one use: type, kind, how it is read through, and whether

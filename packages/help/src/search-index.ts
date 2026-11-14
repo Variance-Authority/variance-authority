@@ -81,6 +81,7 @@ export interface SearchIndex {
   docOpeningsContaining(query: string): readonly number[];
   /** Of {@link exportedDocsContaining}, the rows whose doc says `query` in its opening paragraph. */
   exportedDocOpeningsContaining(query: string): readonly number[];
+  /** The name `id` names; ids are in code-unit order of the names. */
   name(id: number): string;
   publishedOf(name: number): Uint32Array;
   exportedOf(name: number): Uint32Array;
@@ -89,8 +90,6 @@ export interface SearchIndex {
   publishedName(row: number): number;
   /** The bytes of one published row's doc, without decoding it; absent when it has none. */
   publishedDocLength(row: number): number | undefined;
-  /** A name's place in code-unit order among every name the index holds. */
-  rank(name: number): number;
   /** The package and import counts of one published row, read off their columns. */
   usedBy(row: number): number;
   uses(row: number): number;
@@ -156,7 +155,6 @@ export function openHelpStore(bytes: Uint8Array): OpenedStore {
   const stringBlob = bytesOf('strings.blob');
 
   const nameString = u32('names.name');
-  const nameRank = u32('names.rank');
   const namesLowerOff = u32('names.lowerOff');
   const namesLower = bytesOf('names.lower');
   const namesPubOff = u32('names.pubOff');
@@ -221,7 +219,6 @@ export function openHelpStore(bytes: Uint8Array): OpenedStore {
     },
     publishedName: (row) => pub.name[row] ?? NONE,
     publishedDocLength: (row) => docLength(pub.doc, docLowerOff, row),
-    rank: (id) => nameRank[id] ?? NONE,
     usedBy: (row) => usedByCount(row),
     uses: (row) => pub.uses[row] ?? 0,
     sites: (row) => [...slice(pub.sitesOff, useAt, row)].map(string),

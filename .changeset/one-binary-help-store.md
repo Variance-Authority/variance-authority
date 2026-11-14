@@ -1,4 +1,5 @@
 ---
+'@variance-authority/core': minor
 '@variance-authority/sense': minor
 '@variance-authority/help': minor
 '@variance-authority/package': minor
@@ -31,3 +32,8 @@ generation read off the store's head alone, and its `StoreHead`; an `Unopened`
 is always `published: 'value'`. A package's
 `Documented` in `@variance-authority/package/help` no longer carries `declared`:
 whether the manifests moved is compared by the digest the store keeps.
+
+`@variance-authority/core/segment` opens a segment's first bytes alone with
+`openSegment(…, { prefix: true })`: a header or column past them throws
+`SegmentCutShort` with the length that holds it. The store is a segment in that
+framing, so its head is read off its first bytes without reading the rest.

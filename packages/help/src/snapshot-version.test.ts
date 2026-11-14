@@ -39,14 +39,15 @@ const stored = (readStartedAt: string): Uint8Array => encodeHelpStore(EMPTY, [],
 describe('the workspace store version', () => {
   it('refuses the JSON value written before it', async () => {
     await writeFile(workspaceSnapshotPath(index), JSON.stringify({ format: 'variance-help-workspace', version: 13 }));
-    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow('not a help store v6');
+    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow('not a variance-authority help store');
   });
 
   it('refuses a store of another version', async () => {
     const bytes = Buffer.from(stored('2026-10-17T23:59:59.000Z'));
-    bytes.writeUInt32LE(5, 4);
+    const version = bytes.indexOf('"version":7');
+    bytes.write('"version":6', version);
     await writeFile(workspaceSnapshotPath(index), bytes);
-    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow('not a help store v6');
+    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow('written in format version 6, and this reader reads version 7');
   });
 
   it('refuses a store encoded in memory, which names no generation', async () => {
