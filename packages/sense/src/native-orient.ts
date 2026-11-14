@@ -373,6 +373,10 @@ export interface NativeDependencyLexicon {
   phraseOf(query: string, texts: string[]): (number | null)[];
   /** Each word's stem, in order. */
   wordStems(words: string[]): string[];
+  /** ripgrep's matching lines of `files` under `root`, as columns; throws `ripgrep refused the pattern: …` for an invalid one. */
+  ripgrep(root: string, pattern: string, files: string[]): {
+    readonly file: number[]; readonly line: number[]; readonly text: string[]; readonly errors: string[];
+  };
 }
 
 /** What the published index records of imports and exports, read by `readHelp`. */

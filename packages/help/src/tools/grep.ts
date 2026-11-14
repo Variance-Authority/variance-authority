@@ -7,11 +7,11 @@ import { ripgrep, type Hit } from './ripgrep.js';
  * `docs_grep` — ripgrep, over the files a start point reaches.
  *
  * Text is not ours to search. ripgrep owns it: the pattern language, the
- * encodings, the binary detection, the user's own `RIPGREP_CONFIG_PATH`. What
+ * encodings, the binary detection, through its crates in the native addon. What
  * ripgrep cannot know is which files are in reach of the one being edited, and
  * that is the fact `search --from` already resolves. So this hands the closure
- * to `rg` as its path list and reports what `rg` found, nearest first, and adds
- * nothing to the matching — a regex here means what it means at the shell.
+ * to ripgrep as its file list and reports what it found, nearest first, and adds
+ * nothing to the matching — a regex here means what it means to `rg`.
  *
  * ## A start point is required
  *
@@ -21,7 +21,7 @@ import { ripgrep, type Hit } from './ripgrep.js';
  *
  * ## Nearest first
  *
- * ripgrep searches in parallel and prints in whatever order the threads finish.
+ * ripgrep answers in the order the files were given, which is not distance.
  * The lines are regrouped by import distance from the start point, then by path
  * in code-unit order and line, so the same question gives the same bytes, and
  * the file one import away is read before the one nine away.
@@ -41,15 +41,15 @@ export const grep: Tool<unknown> = {
   description:
     'Run ripgrep over the files a start point reaches along the imports, and answer with the ' +
     'matching lines nearest first. `from` searches the files that path imports, at any depth; ' +
-    '`to` the files that import it. The pattern is passed to `rg` unchanged, so it is a ' +
-    'regular expression and your ripgrep config applies. A start point is required: name the file or ' +
+    '`to` the files that import it. The pattern is ripgrep\'s, unchanged: a ' +
+    'regular expression. A start point is required: name the file or ' +
     'folder you are working in, or a top folder at the widest.',
   inputSchema: {
     type: 'object',
     properties: {
       query: {
         type: 'string',
-        description: 'The pattern, exactly as `rg` takes it: a regular expression.',
+        description: 'The pattern, exactly as ripgrep takes it: a regular expression.',
       },
       from: START_POINT_SCHEMA.from,
       to: START_POINT_SCHEMA.to,

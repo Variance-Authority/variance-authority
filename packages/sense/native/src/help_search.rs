@@ -20,6 +20,9 @@ use rayon::prelude::*;
 use regex::Regex;
 use sha2::{Digest, Sha256};
 
+#[path = "help_grep.rs"]
+mod help_grep;
+
 use crate::help_usage::NamedExport;
 use crate::order::code_unit;
 

@@ -120,7 +120,7 @@ describe('what reaches the site', () => {
     ['a package nothing in the run loads', 'packages/tribunal/src/index.ts'],
     ['an example', 'examples/kitchen-sink/src/browser.ts'],
     ['another workflow', '.github/workflows/check.yml'],
-    ['an action the job does not use', '.github/actions/ripgrep/action.yml'],
+    ['an action the job does not use', '.github/actions/hand-on/action.yml'],
     ['a repository check', 'tools/site-packages.check.ts'],
     ['a changeset', '.changeset/a-change.md'],
   ])('not %s', async (_, file) => {

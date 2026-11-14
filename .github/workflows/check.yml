@@ -544,11 +544,6 @@ jobs:
           native-key: ${{ needs.base.outputs.native-key }}
           toolchain: ${{ needs.base.outputs.toolchain }}
 
-      # For `docs_grep`'s tests, which are unit tests and fail on CI without
-      # `rg` rather than skip. The other slices load none of them.
-      - uses: ./.github/actions/ripgrep
-        if: matrix.suite == 'unit'
-
       # The subjects the cases' chromium files observe. Without them every case
       # in those files fails on CI, and before it did they skipped: every
       # shard went green, and `publish` refused the record, since a file whose
@@ -1020,9 +1015,6 @@ jobs:
 
       - uses: ./.github/actions/build
 
-      # The unit slice holds `docs_grep`'s tests, as at the same step in `suite`.
-      - uses: ./.github/actions/ripgrep
-
       - name: run the unit slice on shared modules
         shell: bash
         run: yarn test:shared
@@ -1185,10 +1177,6 @@ jobs:
         with:
           native-key: ${{ needs.plan.outputs.native-key }}
           toolchain: ${{ needs.plan.outputs.toolchain }}
-
-      # The unit part only, for the reason written at the same step in `suite`.
-      - uses: ./.github/actions/ripgrep
-        if: matrix.part == 'unit'
 
       # The chromium part only, for the reason written at the same step in `suite`.
       - uses: ./.github/actions/case-subjects

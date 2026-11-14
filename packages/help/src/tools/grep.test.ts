@@ -4,12 +4,11 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FileRecord, Tree } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { RIPGREP_ON_PATH } from '../__fixtures__/ripgrep-on-path.js';
 import { grep } from './grep.js';
 
 /**
  * The closure decides which files ripgrep is given, and ripgrep decides what
- * matches in them. The checkout is written to disk because `rg` reads files,
+ * matches in them. The checkout is written to disk because ripgrep reads files,
  * and the tree is built from records so the closure is the rule and not a scan.
  *
  * `far.ts` and `outside.ts` say the same word. Only one of them is in reach,
@@ -19,7 +18,7 @@ import { grep } from './grep.js';
 /** More matching lines in one file than a call can take as arguments. */
 const CROWDED = 200_000;
 
-/** Paths long enough that the closure cannot go to `rg` as one command line. */
+/** A closure of thousands of files with long paths. */
 const MANY = 3000;
 const leaf = (at: number): string => `src/leaves/${'deep-folder-name/'.repeat(5)}leaf-${String(at).padStart(5, '0')}.ts`;
 
@@ -80,7 +79,7 @@ describe('grep refuses without a closure', () => {
   });
 });
 
-describe.skipIf(!RIPGREP_ON_PATH)('grep over a closure', () => {
+describe('grep over a closure', () => {
   it('answers from the files in reach, nearest first', () => {
     const text = ask({ query: 'needle', from: 'src/entry.ts' });
     expect(text).toContain('2 matching lines in 2 files, nearest first.');
@@ -96,7 +95,7 @@ describe.skipIf(!RIPGREP_ON_PATH)('grep over a closure', () => {
     expect(text).not.toContain('outside.ts');
   });
 
-  it('reaches the last of thousands of files, over more than one command line', () => {
+  it('reaches the last of thousands of files', () => {
     const text = ask({ query: 'haystack', from: 'src/entry.ts' });
     expect(text).toContain(`${leaf(MANY - 1)}:1:`);
     expect(text).toContain('3 imports away:');
@@ -114,15 +113,19 @@ describe.skipIf(!RIPGREP_ON_PATH)('grep over a closure', () => {
     expect(ask({ query: 'needle', from: 'src/leaves.ts' })).toContain('Nothing in those files matches `needle`.');
   });
 
+  it('anchors `^` at every line, as ripgrep does', () => {
+    expect(ask({ query: '^const needle', from: 'src/entry.ts' })).toContain('src/entry.ts:2:const needle = 0;');
+  });
+
   it("hands ripgrep's refusal back", () => {
     expect(() => ask({ query: '(', from: 'src/entry.ts' })).toThrow('ripgrep refused the pattern');
   });
 
-  it('says ripgrep is missing when it is not on PATH', () => {
+  it('answers with no `rg` on PATH', () => {
     const path = process.env.PATH;
     process.env.PATH = '';
     try {
-      expect(() => ask({ query: 'needle', from: 'src/entry.ts' })).toThrow('`grep` and `discover` run ripgrep on the files, and `rg` is not on PATH');
+      expect(ask({ query: 'needle', from: 'src/entry.ts' })).toContain('src/entry.ts:2:const needle = 0;');
     } finally {
       if (path === undefined) delete process.env.PATH;
       else process.env.PATH = path;

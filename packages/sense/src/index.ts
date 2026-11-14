@@ -25,6 +25,7 @@
 
 export { scanRelations, type ScanOptions } from './scan.js';
 export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, nearOfNative, phraseOfNative, wordStemsNative } from './dependency-lexicon.js';
+export { ripgrepNative } from './ripgrep.js';
 
 /**
  * Which languages this build reads, and every extension a scan will open.
