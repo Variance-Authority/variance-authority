@@ -14,7 +14,6 @@ import type { Tool } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, startPointArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { dependencyStack, type DependencySkill, type Stack, type StackRow } from '../dependency-lexicon.js';
-import { oneQuestion } from './one-question.js';
 
 /** Rows shown when the question names no limit. */
 const SHOWN = 40;
@@ -84,7 +83,7 @@ export function formatStack(stack: Stack, where: string): string {
   return out.join('\n');
 }
 
-export const stack: Tool<Help> = oneQuestion({
+export const stack: Tool<Help> = {
   name: 'docs_stack',
   description:
     'Every third-party package a location can already use, with no query: for each, its role ' +
@@ -118,4 +117,4 @@ export const stack: Tool<Help> = oneQuestion({
     if (answer === undefined) throw new Error('the dependency lexicon is not published; run `variance index` before asking what a path can use');
     return formatStack(answer, paths.join(', '));
   },
-});
+};

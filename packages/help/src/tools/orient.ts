@@ -32,7 +32,6 @@ import { basename } from 'node:path';
 import { codeMapPage, journeysAround, orientAround, recordedCases, type JourneysAsk } from '@variance-authority/sense';
 import { formatCodeMapPage } from './code-map-format.js';
 import { formatOrientation, type OrientReading } from './orient-format.js';
-import { oneQuestion } from './one-question.js';
 
 /** Other packages shown per side, and names shown per package. */
 const LIMITS = { rows: 5, names: 4 } as const;
@@ -64,7 +63,7 @@ export function asksOf(files: readonly string[]): readonly JourneysAsk[] {
  * none named it refuses, because the process's working directory is where the
  * host was launched and not necessarily the checkout it serves.
  */
-export const orient: Tool<unknown> = oneQuestion({
+export const orient: Tool<unknown> = {
   name: 'docs_orient',
   description:
     'With no files, prints the code map: the packages folded into a dozen or so areas per page, each with its size, ' +
@@ -123,7 +122,7 @@ export const orient: Tool<unknown> = oneQuestion({
       ...journeysOf(root, asks),
     });
   },
-});
+};
 
 /** The journeys part, or why it could not be read; the rest of the answer stands either way. */
 function journeysOf(root: string, asks: readonly JourneysAsk[]): Pick<OrientReading, 'journeys' | 'journeysUnread'> {

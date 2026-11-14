@@ -12,7 +12,6 @@ import { UNCOUNTED, exportedAt } from './unpublished.js';
 import { bracketed, keptLine, namesakeLine, narrowing, othersLines, publishedAt, renamed } from './uses-declarations.js';
 import { type Counted, apart, counted, spokenSplit } from './uses-count.js';
 import { type Answer, type Namesake, type Site, packageOf, usesOf } from './uses-of.js';
-import { oneQuestion } from './one-question.js';
 
 /**
  * `docs_uses` — how this repository actually writes a name.
@@ -172,7 +171,7 @@ function held(use: Use): string {
  * `docs_uses`: every place a name is imported or read, for each declaration of
  * it.
  */
-export const uses: Tool<Help> = oneQuestion({
+export const uses: Tool<Help> = {
   name: 'docs_uses',
   description:
     'Every file:line in the workspace that imports one exported name, including reads through ' +
@@ -226,7 +225,7 @@ export const uses: Tool<Help> = oneQuestion({
   },
 
   files: usesFiles,
-});
+};
 
 /**
  * Every file importing the name, at each line that does, or every file

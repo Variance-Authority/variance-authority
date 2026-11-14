@@ -18,7 +18,6 @@ import {
 } from './by-path.js';
 import { doorOf, specifierOf } from './find.js';
 import { line, mostUsed, narrower, openingRow, plural, shell } from './format.js';
-import { oneQuestion } from './one-question.js';
 
 /**
  * `docs_entrypoint` — what one import specifier opens, most-used first.
@@ -42,7 +41,7 @@ import { oneQuestion } from './one-question.js';
  * `exports` opens only subpaths has no names to list under its name, so the
  * specifiers it opens are listed in their place.
  */
-export const entrypoint: Tool<Help> = oneQuestion({
+export const entrypoint: Tool<Help> = {
   name: 'docs_entrypoint',
   description:
     'Every name one import specifier opens, ordered by how many packages import it, with its ' +
@@ -111,7 +110,7 @@ export const entrypoint: Tool<Help> = oneQuestion({
     if (past === undefined) return names.join('\n');
     return sites(help, { ...past, lines: [...names, '', ...past.lines] });
   },
-});
+};
 
 /** An answer's lines, and the commands that narrow it. */
 interface Sites {

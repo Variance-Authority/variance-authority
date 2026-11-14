@@ -2,7 +2,6 @@ import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tool
 import { START_POINT_SCHEMA, limitOf, notShown, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import { areaLine, areaOf, startPointNeeded } from './area.js';
 import { ripgrep, type Hit } from './ripgrep.js';
-import { oneQuestion } from './one-question.js';
 
 /**
  * `docs_grep` — ripgrep, over the files a start point reaches.
@@ -37,7 +36,7 @@ const byCodeUnit = (left: string, right: string): number => (left < right ? -1 :
  * Typed over nothing because it reads nothing of the workspace value: the tree
  * arrives on the invocation, and the text is ripgrep's.
  */
-export const grep: Tool<unknown> = oneQuestion({
+export const grep: Tool<unknown> = {
   name: 'docs_grep',
   description:
     'Run ripgrep over the files a start point reaches along the imports, and answer with the ' +
@@ -110,7 +109,7 @@ export const grep: Tool<unknown> = oneQuestion({
     }
     return { files, ...(errors.length === 0 ? {} : { unread: errors.map((error) => `ripgrep: ${error}`) }) };
   },
-});
+};
 
 /**
  * The files a `grep` answer rests on: every file of the area it searched, for

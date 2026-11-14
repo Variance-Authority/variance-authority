@@ -17,7 +17,6 @@ import { members } from '@variance-authority/package';
 import { firstParentChanges, trackedFiles, type CommitChanges } from '@variance-authority/sense';
 import { operatorError } from '../operator.js';
 import { countContainment, type ContainmentCount, type Share } from './containment-count.js';
-import { oneQuestion } from './one-question.js';
 
 /** The figures and what they were read over. */
 export interface Containment extends ContainmentCount {
@@ -101,7 +100,7 @@ export function formatContainment(figures: Containment): string {
 }
 
 /** Typed over nothing, like `docs_orient`: the checkout is the one the host names on the call. */
-export const containment: Tool<unknown> = oneQuestion({
+export const containment: Tool<unknown> = {
   name: 'docs_containment',
   description:
     'How far the commits of a window reached across package boundaries, counted from `git log`: the share that ' +
@@ -122,4 +121,4 @@ export const containment: Tool<unknown> = oneQuestion({
     if (root === undefined) throw new Error('`docs_containment` reads the history of a checkout, and this host named none');
     return formatContainment(containmentOf(root, input));
   },
-});
+};

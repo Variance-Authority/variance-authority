@@ -14,7 +14,6 @@ import { unreadStop } from './members.js';
 import { searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
 import { byPublishedPath, plural } from './format.js';
-import { oneQuestion } from './one-question.js';
 
 /**
  * `docs_search` — the name for a thing somebody can only describe.
@@ -350,7 +349,7 @@ function spoken({ answer, area }: Searched, root: string | undefined): string {
  * fifty thousand files' worth of names. Nothing here answers without a
  * question.
  */
-export const search: Tool<Help> = oneQuestion({
+export const search: Tool<Help> = {
   name: 'docs_search',
   description:
     'Find candidate names, not every match; `git grep -i <word>` prints every tracked line that writes a word. ' +
@@ -420,7 +419,7 @@ export const search: Tool<Help> = oneQuestion({
   files: (help, input, invocation): FileSet => ({
     files: searchedFiles(searchIndexOf(help), searchQuestionOf(input), invocation?.tree),
   }),
-});
+};
 
 /** The last search of each generation, and what it was asked. */
 const lastSearched = new WeakMap<Help, { readonly asked: string; readonly tree: Tree | undefined; readonly found: Searched }>();
