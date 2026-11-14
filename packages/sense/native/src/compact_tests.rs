@@ -87,6 +87,19 @@ fn a_layer_that_is_not_a_generation_is_refused_with_its_place() {
 }
 
 #[test]
+fn a_layer_whose_reverse_edge_names_a_row_it_does_not_hold_is_refused() {
+    let good = encoded(FULL);
+    let stored = crate::stored::Stored::open(&good).unwrap();
+    let columns = stored.columns().into_iter().map(|(name, width, bytes)| match name {
+        "targets.reverse-row" => crate::segment::u32s("targets.reverse-row", vec![999]),
+        _ => crate::segment::column(name.to_owned(), width, bytes.to_vec()),
+    });
+    let broken = crate::segment::encode(columns.collect());
+    let error = compacted(&[&broken]).unwrap_err();
+    assert!(error.contains("targets.reverse-row names row 999 of 2 records"), "{error}");
+}
+
+#[test]
 fn a_working_layer_writes_no_row_the_base_already_holds() {
     let base = encoded(FULL);
     // Everything again, as an update that read every file writes it: one record

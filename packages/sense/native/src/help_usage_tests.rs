@@ -10,6 +10,9 @@ use crate::compact::Layer;
 use crate::generation::Delta;
 use crate::graph_index::merged;
 
+#[path = "help_usage_reads_tests.rs"]
+mod reads;
+
 struct Fixture(PathBuf);
 
 impl Drop for Fixture {

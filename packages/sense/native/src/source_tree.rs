@@ -23,7 +23,8 @@ use std::sync::LazyLock;
 use rayon::prelude::*;
 use regex::Regex;
 
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::chain_lookup::fold;
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::NO_OWNER;
 use crate::resolve::{Resolvers, MODULE_EXTENSIONS};
 use crate::specifier::{is_relative, kind_for, request_of};

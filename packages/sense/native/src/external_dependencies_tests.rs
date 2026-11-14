@@ -3,10 +3,11 @@
 use std::collections::HashSet;
 
 use super::requests_of;
+use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::generation::Delta;
 use crate::graph_index::merged;
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::NO_OWNER;
 
 /// `import * as _ from 'lodash'` and `import * as React from 'react'`, with

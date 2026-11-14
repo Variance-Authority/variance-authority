@@ -34,7 +34,9 @@ fn every_column_the_decoder_names_is_written_in_its_order() {
     assert_eq!(names[..3], ["strings.blob", "strings.off", "index.config"]);
     assert_eq!(names.iter().position(|name| *name == "parses.deleted"), Some(8));
     assert_eq!(names.last(), Some(&"packages.kind"));
-    assert_eq!(names.len(), 124);
+    let path = names.iter().position(|name| *name == "targets.path").unwrap();
+    assert_eq!(names[path + 1..path + 4], ["targets.reverse-to", "targets.reverse", "targets.reverse-row"]);
+    assert_eq!(names.len(), 127);
 }
 
 #[test]

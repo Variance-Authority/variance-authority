@@ -37,6 +37,9 @@ pub(crate) struct Records<'a> {
     unresolved_value: U32s<'a>,
     package_to: U32s<'a>,
     package_kind: U32s<'a>,
+    reverse_to: U32s<'a>,
+    reverse: U32s<'a>,
+    reverse_row: U32s<'a>,
 }
 
 impl<'a> Records<'a> {
@@ -47,7 +50,11 @@ impl<'a> Records<'a> {
         let (edge_to, declare_name) = (u32s("edges.to")?, u32s("record-declares.name")?);
         let (package_to, unresolved_value) = (u32s("packages.to")?, u32s("unresolved.value")?);
         let (witness_directory, target_path) = (u32s("witnesses.directory")?, u32s("targets.path")?);
+        let (reverse_to, reverse_row) = (u32s("targets.reverse-to")?, u32s("targets.reverse-row")?);
         let records = Records {
+            reverse: stored.offsets("targets.reverse", reverse_to.len(), reverse_row.len())?,
+            reverse_to,
+            reverse_row,
             file,
             deleted: stored.maybe_u32s("records.deleted")?,
             digest: u32s("records.digest")?,
@@ -83,6 +90,9 @@ impl<'a> Records<'a> {
         ])?;
         same_length(records.edge_to.len(), &[("edges.kind", records.edge_kind.len())])?;
         same_length(records.package_to.len(), &[("packages.kind", records.package_kind.len())])?;
+        if let Some(at) = (0..records.reverse_row.len()).find(|&at| records.reverse_row.at(at) as usize >= rows) {
+            return Err(format!("targets.reverse-row names row {} of {rows} records", records.reverse_row.at(at)));
+        }
         Ok(records)
     }
 
@@ -93,18 +103,28 @@ impl<'a> Records<'a> {
         Some(offsets.range(row).map(move |at| (stored.text(to.at(at)), stored.text(kind.at(at)))))
     }
 
+    /// The rows of the records here whose imports resolve to `path`,
+    /// ascending: `targets.path` read backwards, from the columns the encoder
+    /// writes beside it.
+    pub fn importing(&self, stored: &Stored<'a>, path: &str) -> impl Iterator<Item = usize> + use<'a> {
+        let rows = stored.id_of(path).and_then(|id| self.reverse_to.search(id)).map_or(0..0, |at| self.reverse.range(at));
+        let reverse_row = self.reverse_row;
+        rows.map(move |at| reverse_row.at(at) as usize)
+    }
+
+    /// Every row whose record lists a specifier it resolved to no file, with
+    /// the dictionary ids of those specifiers: one id is one specifier.
+    pub fn with_unresolved(&self) -> impl Iterator<Item = (usize, impl Iterator<Item = u32> + use<'a>)> + use<'_, 'a> {
+        let (offsets, value) = (self.unresolved, self.unresolved_value);
+        (0..self.file.len())
+            .filter(move |&row| flag(self.unresolved_present, row) && !offsets.range(row).is_empty())
+            .map(move |row| (row, offsets.range(row).map(move |at| value.at(at))))
+    }
+
     /// The directories the record at `row` was answered from.
     pub fn witnesses_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> impl Iterator<Item = &'s str> + use<'s, 'a> {
         let (offsets, directory) = (self.witnesses, self.witness_directory);
         offsets.range(row).map(move |at| stored.text(directory.at(at)))
-    }
-
-    /// The specifiers, as written, the file at `row` imports and the index
-    /// resolved to no file; `None` when the record holds no such list.
-    pub fn unresolved_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> Option<impl Iterator<Item = &'s str> + use<'s, 'a>> {
-        if !flag(self.unresolved_present, row) { return None; }
-        let (offsets, value) = (self.unresolved, self.unresolved_value);
-        Some(offsets.range(row).map(move |at| stored.text(value.at(at))))
     }
 
     /// Why the file at `row` could not be read, when it could not.

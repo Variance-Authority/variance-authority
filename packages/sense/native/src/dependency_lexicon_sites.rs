@@ -21,9 +21,10 @@ use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 
 use super::codec::{In, Out};
+use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::external_dependencies::requests_of;
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::NO_OWNER;
 
 const MAGIC: &[u8] = b"variance-authority-dependency-sites\0";

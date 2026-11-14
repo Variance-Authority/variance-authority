@@ -62,6 +62,7 @@ mod grammar;
 mod graph_dominators;
 mod graph_index;
 mod harvest;
+mod chain_lookup;
 mod change_tree;
 mod held;
 #[cfg(unix)]

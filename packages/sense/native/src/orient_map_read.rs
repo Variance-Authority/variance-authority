@@ -17,9 +17,10 @@ use std::collections::{HashMap, HashSet};
 use rayon::prelude::*;
 use regex::Regex;
 
+use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::orient_map_closure::{closures, Closure, Nodes};
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::{owner_of, owners, parent, shown, NO_OWNER};
 use crate::resolve::Tsconfig;
 
