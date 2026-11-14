@@ -44,7 +44,7 @@ import {
   type ParseCache,
   type Progress,
 } from '@variance-authority/sense';
-import { taintRecords, type Taint } from '@variance-authority/sense/taint';
+import { mockTaint, taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
   everyEntry,
@@ -252,13 +252,17 @@ async function scanIndexed(
       usage.targets(file, targets);
     },
   }));
-  const tainted = await taintRecords(records, options.taints ?? [], { root: where, cache: index.cache });
-  if (tainted.shadows.size > 0) {
+  const given = await taintRecords(records, options.taints ?? [], { root: where, cache: index.cache });
+  if (given.shadows.size > 0) {
     throw new Error(
-      `Help source areas cannot apply subtractive taints: ${tainted.shadows.size} file(s) shadow a module. ` +
+      `Help source areas cannot apply subtractive taints: ${given.shadows.size} file(s) shadow a module. ` +
       'Pass addition-only taints for declarative module loads.',
     );
   }
+  // What a test loads for real beside its mocks joins the tree the way it joins
+  // every other graph of the checkout; a mock's cut is one test's run and stays
+  // out of it, as the native refresh leaves it (`source_tree.rs`).
+  const tainted = await taintRecords(given.records, [mockTaint()], { root: where, cache: index.cache });
   options.records?.(tainted.records, where);
 
   const joined = usage.read();

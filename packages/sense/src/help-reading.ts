@@ -16,6 +16,9 @@ import { native, nativeRefusal } from './addon.js';
 import type { NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import type { DeclaredNames, NameTerms } from './declared-names.js';
 import { sourceIndexPath } from './source-index.js';
+import { CODE_EXTENSIONS } from './language.js';
+import type { ResolveOptions } from './resolve.js';
+import { withDeclaredTsconfig } from './typescript.js';
 
 type NamedExport = NativeIndexedUsage['exported'][number];
 
@@ -208,7 +211,7 @@ export interface Alias {
 }
 
 export interface NativeHelp {
-  readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[]): Promise<HelpReading | null>;
+  readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[], tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   digestForwards?(forwards: string[]): string;
@@ -261,7 +264,9 @@ export function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<Na
  * packages in `targets.unentered`, which declare no entry, and the specifiers
  * in `targets.declared`, which a manifest names whether or not the reading
  * could follow them; `null` when none was published. `opened` and
- * `targets.declared` are `<package> .<subpath>` keys.
+ * `targets.declared` are `<package> .<subpath>` keys. Its graph carries what
+ * each test loads for real beside its mocks, resolved under the `tsconfig` the
+ * repository declares, as `mockTaint` joins them.
  */
 export function readHelp(
   root: string,
@@ -269,7 +274,8 @@ export function readHelp(
   targets: { readonly published: Iterable<string>; readonly unentered: Iterable<string>; readonly declared: Iterable<string> },
   index: string = sourceIndexPath(root),
 ): Promise<HelpReading | null> {
-  return entry('readHelp')(root, index, [...opened], [...targets.published], [...targets.unentered], [...targets.declared]);
+  const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
+  return entry('readHelp')(root, index, [...opened], [...targets.published], [...targets.unentered], [...targets.declared], tsconfig ?? null, [...CODE_EXTENSIONS]);
 }
 
 /** The store of `store` and `exported`, stamped with `meta` when it is published, and the digest of `exported`. */

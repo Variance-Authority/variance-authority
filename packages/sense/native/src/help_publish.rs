@@ -29,7 +29,7 @@ use crate::help_members::{indexed_extensions, member_declarations, members_on, C
 use crate::help_origin::{declaration_exported, ExportedDeclaration};
 use crate::help_usage::{importers, usage, DeepRequest, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
-use crate::source_tree::tree;
+use crate::source_tree::{tree, Mocking};
 
 /// What the chain says for a Help value, held on this side.
 #[napi]
@@ -81,15 +81,34 @@ pub struct HelpPublished {
 /// imports into the packages in `published` that no entry opens, the packages
 /// in `unentered`, which declare no entry, and the specifiers in `declared`,
 /// which a manifest names whether or not the reading could follow them;
-/// `None` when there is no index.
+/// `None` when there is no index. A test's loads beside its mocks join the
+/// graph resolved with `tsconfig`, as the scan resolves imports, and are code
+/// when they end in one of `code`.
 #[napi(ts_return_type = "Promise<HelpReading | null>")]
-pub fn read_help(root: String, index: String, opened: Vec<String>, published: Vec<String>, unentered: Vec<String>, declared: Vec<String>) -> AsyncTask<OffThread<Option<HelpReading>>> {
-    off_thread(move || reading(&root, &index, &opened, &published, &unentered, &declared))
+#[allow(clippy::too_many_arguments)]
+pub fn read_help(
+    root: String,
+    index: String,
+    opened: Vec<String>,
+    published: Vec<String>,
+    unentered: Vec<String>,
+    declared: Vec<String>,
+    tsconfig: Option<napi::Either<String, bool>>,
+    code: Vec<String>,
+) -> AsyncTask<OffThread<Option<HelpReading>>> {
+    let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
+    off_thread(move || {
+        let at = std::path::Path::new(&root);
+        let checkout = std::fs::canonicalize(at).unwrap_or_else(|_| at.to_path_buf());
+        let resolvers = crate::resolve::Resolvers::over(tsconfig, None, crate::emitted::Emitted::listed(&checkout, None));
+        let mocking = Mocking { root: checkout, resolvers, code: code.into_iter().collect() };
+        reading(&root, &index, &opened, &published, &unentered, &declared, &mocking)
+    })
 }
 
-fn reading(root: &str, index: &str, opened: &[String], published: &[String], unentered: &[String], declared: &[String]) -> napi::Result<Option<HelpReading>> {
+fn reading(root: &str, index: &str, opened: &[String], published: &[String], unentered: &[String], declared: &[String], mocking: &Mocking) -> napi::Result<Option<HelpReading>> {
     opened_chain(index, |layers| {
-        let (mut read, tree) = rayon::join(|| usage(root, layers, opened, published, unentered, declared), || tree(layers));
+        let (mut read, tree) = rayon::join(|| usage(root, layers, opened, published, unentered, declared), || tree(layers, Some(mocking)));
         let exported = std::mem::take(&mut read.exported);
         let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
         let digest = exported_digest(&exported);

@@ -5,6 +5,7 @@ import type { Help } from '@variance-authority/package/help';
 import { workspaceGeneration, workspaceReadStarted } from './snapshot.js';
 import { writtenSince } from './tools/as-read.js';
 import { FoundNothing } from './tools/find.js';
+import { grep, grepPrinted } from './tools/grep.js';
 import { printedFiles, search } from './tools/search.js';
 import { restsOn, symbol } from './tools/symbol.js';
 import { uses, usesPrinted } from './tools/uses.js';
@@ -14,6 +15,7 @@ type Printed = (help: Help, input: Readonly<Record<string, unknown>>, invocation
 
 /** What each answer that can say so rests on, by the question that gives it. */
 const PRINTED: ReadonlyMap<string, Printed> = new Map<string, Printed>([
+  [grep.name, grepPrinted],
   [symbol.name, restsOn],
   [search.name, printedFiles],
   [uses.name, usesPrinted],

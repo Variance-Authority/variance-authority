@@ -3,8 +3,8 @@
 Nine questions read a workspace's manifests and source: `packages`,
 `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `intersection`
 and `gaps`. Each answer
-read from a workspace generation names its UTC time; `variance ask grep` and
-`variance ask discover` read the checkout as it is, and name none. They describe source, not a
+read from a workspace generation names its UTC time; `variance ask discover`
+reads the checkout as it is, and names none. They describe source, not a
 build or a generated site, and they need no run and no config. For where a file
 sits and what runs it, read [orient](orient.md).
 
@@ -531,14 +531,17 @@ counts.
 
 Use it when there is no name to ask for: a local variable, a string literal, an
 error message, a comment. It needs `--from` or `--to`, and searches the files
-that start point names and reaches along the imports, so say the file or folder
+that start point names and reaches along the imports, and the modules a test
+loads for real beside its mocks, so say the file or folder
 you are working in, or a top folder at the widest. The root is no start point.
 A file outside the source is never searched, and a path that holds only such
 files is refused as not found: run `rg` on it. The query is a ripgrep regular expression: to match a literal, escape each of
 `\.+*?()|[]{}^$` with a backslash, as `--query 'a\(b'` matches `a(b`.
 
 Lines come grouped by how many imports away from the start point their
-file is, then by path and line, each as `path:line:text`.
+file is, then by path and line, each as `path:line:text`. The imports are the
+ones `variance index` resolved, so the answer names its generation; it is asked
+again of the checkout as it is when a file of the area changed since.
 
 ### `discover`
 

@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { countingShown, outlived, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
-import { answerSearch, containmentOf, discover, formatContainment, grep, importingOf, intersection, journeyMapTool, namesWanted, orient, retriedTests, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
-import { readTree, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { answerSearch, containmentOf, discover, formatContainment, importingOf, intersection, journeyMapTool, namesWanted, orient, retriedTests, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
+import type { Tool, Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
@@ -74,18 +74,6 @@ export async function searchSource(
     unseen: !compared,
     ...(unopened === undefined ? {} : { unopened }),
   };
-}
-
-/**
- * `grep` reads no name at all, only the tree. So it draws that through the scan
- * index a run's selection writes — the reading report questions take for a
- * start point — rather than a workspace generation, which it would never open.
- */
-export async function grepSource(root: string, input: Readonly<Record<string, unknown>>): Promise<Answering> {
-  // Unread is not fatal: `grep` refuses a start point it has no tree for, in
-  // the sentence that says so, and a call with no start point needs none.
-  const tree = grep.wants?.(input) === true ? await readTree({ root, index: sourceIndexPath(root) }).catch(() => undefined) : undefined;
-  return { answer: () => grep.run(undefined, input, invocationOf({ ...(tree === undefined ? {} : { tree }), root })), at: undefined };
 }
 
 /**
