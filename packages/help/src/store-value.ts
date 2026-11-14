@@ -80,7 +80,8 @@ export function helpOf(sections: Sections): Help {
   };
   const exported = (): Named[] => {
     const found: Named[] = [];
-    for (let row = 0; row < u32('exp.name').length; row += 1) found.push(decoders.named(row));
+    const count = u32('exp.name').length;
+    for (let row = 0; row < count; row += 1) found.push(decoders.named(row));
     return found;
   };
   return lazily<Help>({

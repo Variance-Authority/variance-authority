@@ -132,7 +132,8 @@ export function answers(help: Help, root: string | undefined, held: Pick<Named, 
  * as, or, for an anonymous default, by a local name an import gives it: so the
  * rows that can answer are the ones written under the name, the other rows of
  * their files, the rows bound as the name, and the rows of the files an import
- * of `default` bound to the name reaches. Asked by the slot, the defaults.
+ * of `default` bound to the name reaches. Asked by the slot, the defaults and
+ * the rows bound as it.
  */
 export function answering(help: Help, root: string | undefined, name: string): readonly Named[] {
   const rows = searchIndexOf(help).rows;
@@ -142,8 +143,8 @@ export function answering(help: Help, root: string | undefined, name: string): r
     const files = new Set([...spelled].map((row) => rows.named(row).at));
     for (const at of aliasedTo(help, root, name)) files.add(at);
     for (const at of files) for (const row of rows.exportedIn(at)) can.add(row);
-    for (const row of rows.exportedBinding(name)) can.add(row);
   }
+  for (const row of rows.exportedBinding(name)) can.add(row);
   return [...can].sort((left, right) => left - right).map(rows.named).filter((held) => answers(help, root, held, name));
 }
 

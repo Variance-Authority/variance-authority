@@ -20,7 +20,7 @@ import { entriesNamed, isPackage, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
 import { keyOf, SLOT } from './declaration-key.js';
-import { exportedNamed } from './rows.js';
+import { exportedIn } from './rows.js';
 import { importLine } from './declared.js';
 import { exportedRows } from './passed-on.js';
 import { thirdBlock } from './third-party.js';
@@ -92,7 +92,7 @@ export const localNames = askedOnce((
     const [first] = group;
     if (first === undefined) continue;
     // `import greet from` a file exporting `greet` as `default` too binds the declaration by its own name: no local name.
-    const held = first.to == null ? undefined : exportedNamed(help, first.imported).find((one) => one.at === first.to);
+    const held = first.to == null ? undefined : exportedIn(help, first.to).find((one) => one.name === first.imported);
     const declared = held === undefined ? undefined : keyOf(help, root, held).named;
     if (declared === local) continue;
     // The slot `default` is said by the name its declaration is keyed by.
@@ -137,7 +137,7 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
   }
   const to = alias.to ?? undefined;
   if (to !== undefined) {
-    const held = exportedNamed(help, name).find((one) => one.at === to);
+    const held = exportedIn(help, to).find((one) => one.name === name);
     if (held !== undefined) {
       if (wanted !== undefined && held.by !== wanted) return undefined;
       const { declared, rows } = exportedRows(help, root, said, held);

@@ -49,14 +49,17 @@ export function importsByPath(help: Help, within?: string): readonly (readonly [
   ];
   return within === undefined
     ? all
-    : all.filter(([held]) => ownerOf(held.specifier) === within || held.specifier === within);
+    : all.filter(([held]) => isWithin(held, within));
 }
+
+/** Whether an import by path is written into the package `within`, or as exactly `within`. */
+const isWithin = (held: Deep, within: string): boolean => ownerOf(held.specifier) === within || held.specifier === within;
 
 /** Every place `name` is taken by path. */
 export function sitesByPath(help: Help, name: string, within?: string): readonly PathSite[] {
   const sites: PathSite[] = [];
   for (const [held, kind] of pathsTaking(help, name)) {
-    if (within !== undefined && ownerOf(held.specifier) !== within && held.specifier !== within) continue;
+    if (within !== undefined && !isWithin(held, within)) continue;
     for (const taken of held.names) {
       if (taken.name === name) sites.push({ held, taken, kind, owner: ownerOf(held.specifier) });
     }
