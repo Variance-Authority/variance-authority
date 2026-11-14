@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { memoryLineCell, publishLine, type ShareEntry } from '@variance-authority/core/share';
 import type { Config } from '../config.js';
 import { EXIT_CLEAN, OperatorError } from '../exit.js';
-import { parseArgs } from '../bin.js';
+import { parseArgs } from '../parse.js';
 import { keptBehind, type Env } from '../share-lines.js';
 import { nearestHolding } from './mainline-entry.js';
 import { purgeLines, runSharePurge } from './share-purge.js';

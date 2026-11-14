@@ -166,8 +166,9 @@ down costs run time. Added to this repository's unit suite under Vitest:
 
 The other recording options:
 
-- `cadence` (on): the test line that first reached each region. `false`
-  leaves test files untransformed.
+- `cadence` (on): the test line that first reached each region, and each
+  case's slowest statement with its time. `false` leaves test files
+  untransformed and records neither.
 - `continuations` (off): a case keeps the asynchronous work it started after
   it returns. Turn it on for a concurrent suite, or one whose work outlives
   its cases.
@@ -193,7 +194,7 @@ its publish step holds the token itself:
 ```yaml
       - env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: npx variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
+        run: npx --no-install variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
 ```
 
 `share` hands that token to git for the remote on `GITHUB_SERVER_URL`'s host
@@ -208,7 +209,7 @@ holds what the base gained since too. Merge the head with the record's commit
 instead, before the install:
 
 ```bash
-npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
 ```
 
 `$COMMIT` is the `commit=` that `variance share --suite <name> --format github`
@@ -224,9 +225,10 @@ next push names it. Keep and take that record with `carry`, which carries the
 merge with it:
 
 ```bash
-npx variance carry keep                                 # after the run: the records, and the commits no remote holds
-npx variance carry take --format github >> "$GITHUB_OUTPUT"   # next push, before the run
-npx variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"   # each other job, over the directory the first take handed on
+variance carry keep                                 # after the run: the records, and the commits no remote holds
+variance carry take --format github >> "$GITHUB_OUTPUT"   # next push, before the run
+variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"   # each other job, over the directory the first take handed on
+variance carry take "$RUNNER_TEMP/carried" --as-base   # a shard, after `carry receive`: lays it as the read, so the shard's own record holds only what it runs
 ```
 
 `keep` writes `commits.bundle` beside the records, holding the commits they

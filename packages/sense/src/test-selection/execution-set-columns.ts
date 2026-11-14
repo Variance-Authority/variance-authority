@@ -30,6 +30,8 @@ export interface TestColumns {
   /** Absent in an index written before cases carried a duration. */
   readonly testDuration: Uint32Array | undefined;
   readonly testLimit: Uint32Array | undefined;
+  /** Two words a case, as {@link slowestColumn} lays them; absent in an index no case timed a statement in. */
+  readonly testSlowest: Uint32Array | undefined;
   /** What each case said, `undefined` where none listened; absent in an index that listened to no case. */
   readonly testSaid: readonly (Said | undefined)[] | undefined;
   /** The line that reached each region a case crossed; absent in an index written without cuts. */
@@ -98,18 +100,21 @@ export function testColumns(opened: OpenedSections, strings: number): TestColumn
   const testDuration = opened.found.has('tests.duration') ? columnWords(opened, 'tests.duration') : undefined;
   // Written since a case carries the limit it ran under; a file without it names none.
   const testLimit = opened.found.has(LAYOUT.cases.limit) ? columnWords(opened, LAYOUT.cases.limit) : undefined;
+  // Written where a cut case timed a statement; a file without it timed none.
+  const testSlowest = opened.found.has(LAYOUT.cases.slowest) ? columnWords(opened, LAYOUT.cases.slowest) : undefined;
   const testCount = testId.length;
   // Written since a case's said items are crossing sets; a file without it listened to none.
   const testSaid = Object.values(HEARD_SECTIONS).some((name) => opened.found.has(name)) ? saidOf(opened, testCount) : undefined;
   if (testFile.length !== testCount || testName.length !== testCount) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testCount) throw invalid();
   if (testLimit !== undefined && testLimit.length !== testCount) throw invalid();
+  if (testSlowest !== undefined && testSlowest.length !== testCount * 2) throw invalid();
   for (let test = 0; test < testCount && testStopped !== undefined; test += 1) {
     if ((testStopped[test] ?? 0) > STOPPED) throw invalid();
   }
   // Written since a cut case carries the line that reached each region; a file without it cut none.
   const testLines = opened.found.has(LINES_COLUMN) ? linesTable(opened, testCount) : undefined;
-  return { testId, testFile, testName, testStopped, testDuration, testLimit, testSaid, testLines };
+  return { testId, testFile, testName, testStopped, testDuration, testLimit, testSlowest, testSaid, testLines };
 }
 
 /** The section `case_said.rs` lays what each case said in. */
@@ -333,6 +338,35 @@ export function limitAcross(first: number | undefined, second: number | undefine
   if (first === undefined && second === undefined) return {};
   if (first === 0 || second === 0) return { limit: 0 };
   return { limit: Math.max(first ?? 0, second ?? 0) };
+}
+
+/**
+ * `tests.slowest` for `count` cases: two words a case, its slowest statement's
+ * line and its whole milliseconds, both zero where the case names none.
+ * Undefined where no case names one, so a record of uncut files gains no section.
+ */
+export function slowestColumn(count: number, of: (at: number) => ExecutionTest['slowest']): Uint32Array | undefined {
+  const column = new Uint32Array(count * 2);
+  let named = false;
+  for (let at = 0; at < count; at += 1) {
+    const slowest = of(at);
+    if (slowest === undefined) continue;
+    column[at * 2] = slowest.line;
+    column[at * 2 + 1] = slowest.time;
+    named = true;
+  }
+  return named ? column : undefined;
+}
+
+export function slowestFrom(column: Uint32Array | undefined, at: number): Pick<ExecutionTest, 'slowest'> {
+  const time = column?.[at * 2 + 1];
+  return time === undefined || time === 0 ? {} : { slowest: { line: column![at * 2]!, time } };
+}
+
+/** The slowest statement of one case across its frames: the one that took longer, the lower line of two equal, so no order of frames changes it. */
+export function slowestAcross(first: ExecutionTest['slowest'], second: ExecutionTest['slowest']): Pick<ExecutionTest, 'slowest'> {
+  const slowest = second !== undefined && (first === undefined || second.time > first.time || (second.time === first.time && second.line < first.line)) ? second : first;
+  return slowest === undefined ? {} : { slowest };
 }
 
 export function durationFrom(column: Uint32Array | undefined, at: number): { readonly duration?: number } {

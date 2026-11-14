@@ -16,7 +16,8 @@ import { digestString } from '@variance-authority/core/format';
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { covering, formatCovering } from './covering.js';
+import { covering } from './covering.js';
+import { formatCovering } from './covering-text.js';
 import { indexOutput } from './index-command.js';
 
 /**

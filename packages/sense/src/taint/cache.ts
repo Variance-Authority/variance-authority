@@ -39,8 +39,9 @@
 
 import type { EdgeKind } from '@variance-authority/core/relate';
 import type { ParseCache, Parsed } from '../cache.js';
-import { createRequire } from 'node:module';
-import { digestString, type Digest } from '../digest.js';
+import manifest from '../../package.json' with { type: 'json' };
+import { digestString } from '../digest.js';
+import type { Digest } from '@variance-authority/core/format';
 import type { ImportDiff } from './index.js';
 
 /** The reader's answer for these bytes, or nothing when it was never asked. */
@@ -71,7 +72,7 @@ export function rememberDiff(
   cache.set(keyFor(digest, name, '+'), entryOf(diff?.plus));
 }
 
-const { version: REVISION } = createRequire(import.meta.url)('../../package.json') as { version: string };
+const REVISION = manifest.version;
 
 function keyFor(digest: Digest, name: string, side: '-' | '+'): Digest {
   return digestString(`taint\u0000${REVISION}\u0000${digest}\u0000${name}\u0000${side}`);

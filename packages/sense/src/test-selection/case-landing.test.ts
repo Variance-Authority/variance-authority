@@ -18,6 +18,7 @@ import {
   type SetExecutionModule,
 } from './execution-set-format.js';
 import { writeTestCoverage } from './index.js';
+import { sectionOf, type ReadingsShape } from './__fixtures__/readings.js';
 
 /** The regions of `src/shared.ts`, which every run here loads whole. */
 const regions = ['alpha', 'beta', 'gamma'];
@@ -68,12 +69,12 @@ function commitOf(files: Readonly<Record<string, string>>): string {
 const whole = (file: string) => ({ file, complete: true });
 
 /** A shard's record, carrying the cases its seam kept. */
-async function shard(name: string, cases: Uint8Array, eyes?: EyesSection, readings?: unknown): Promise<string> {
+async function shard(name: string, cases: Uint8Array, eyes?: EyesSection, readings?: ReadingsShape): Promise<string> {
   const at = join(root, name);
   await writeTestCoverage(at, { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
     index: cases,
     ...(eyes === undefined ? {} : { eyes: encodeRecordedEyes(eyes) }),
-    ...(readings === undefined ? {} : { readings: Buffer.from(JSON.stringify(readings)) }),
+    ...(readings === undefined ? {} : { readings: sectionOf(readings) }),
   });
   return at;
 }
@@ -129,7 +130,7 @@ describe('landCases', () => {
 
   it('keeps the readings of a case a shard\'s seed carried without running it', async () => {
     // `a` passed once and threw once over this text; the shard ran only `b`, and its seed carries `a` as the index holds it.
-    const held = { ...previous, readings: Buffer.from(JSON.stringify({ cases: { 'a.test.ts > one': [{ count: 1, stopped: false }, { count: 1, stopped: true }] } })) };
+    const held = { ...previous, readings: sectionOf({ cases: { 'a.test.ts > one': [{ count: 1, stopped: false }, { count: 1, stopped: true }] } }) };
     const seeded = await shard('shard-1.bin', index({ 'a.test.ts > one': ['alpha'], 'b.test.ts > two': ['gamma'] }));
     const same = [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }];
 
@@ -143,7 +144,7 @@ describe('landCases', () => {
   it('keeps the readings of a case a shard ran again over the inputs its own landing named', async () => {
     // The index here records no outcome, so the newest reading stopped nowhere.
     const history = { 'a.test.ts > one': [{ count: 1 }, { count: 1, stopped: true }] };
-    const held = { ...previous, readings: Buffer.from(JSON.stringify({ cases: history, inputs: { 'a.test.ts': 'one' } })) };
+    const held = { ...previous, readings: sectionOf({ cases: history, inputs: { 'a.test.ts': 'one' } }) };
     const ran = (inputs: string) => shard(`shard-${inputs}.bin`, index({ 'a.test.ts > one': ['alpha'] }), undefined, { inputs: { 'a.test.ts': inputs } });
     const same = [{ file: 'src/shared.ts', sourceDigest: 'v1:base' }];
     const land = async (inputs: string) => landCases(record, held, root, [

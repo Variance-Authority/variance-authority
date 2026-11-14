@@ -188,15 +188,17 @@ finish green: a failed one, and one the run never reached.
 `carry save` names, and the host cache saves it under a key only that pull
 request restores, red or green, with the commits it names that no remote
 holds. On the next push `variance carry take` reads those commits and lays the
-record over the mainline's; a suite whose commits cannot be had reads the
-mainline's record instead, as a first push does. Each other job of the run
-takes the directory the first one handed on, and stops when it cannot take
-what that one took:
+record over the mainline's, re-based on any mainline record published since,
+and writes those bytes back to the directory; a suite whose commits cannot be
+had reads the mainline's record instead, as a first push does. Each other job
+of the run takes the directory the first one handed on, so it reads the same
+record, and stops when it cannot take what that one took:
 
 ```bash
-npx variance carry keep                     # after the tests, red or green
-npx variance carry take                     # next push, before the tests
-npx variance carry take "$RUNNER_TEMP/carried"   # another job, over the handed-on directory
+variance carry keep                     # after the tests, red or green
+variance carry take                     # next push, before the tests
+variance carry take "$RUNNER_TEMP/carried"   # another job, over the handed-on directory
+variance carry take "$RUNNER_TEMP/carried" --as-base   # a shard, which selects from it and records only what it runs
 ```
 
 [What the next job reads](../packages/cli/README.md#what-the-next-job-reads)
@@ -206,6 +208,89 @@ The carried record decides what runs, never what your change is compared
 with. `take` prints the path of the mainline's cases: the record it set aside,
 or the share's. `variance review --against` that path compares your change's
 cases with the mainline's, not with the last push's.
+
+## A pull request in the merge queue
+
+A merge queue tests a pull request again on top of the mainline it will land
+on. Both sides already passed: the pull request at its tested commit, the
+mainline at its tip. A test file only one side's change reaches ran on that
+side's tree with the other side's change out of its reach, so the queue need
+not run it again. A test file both sides reach is where the two changes meet,
+and it runs:
+
+```bash
+variance select --since origin/main --ran-at "$PR_HEAD_SHA"   # the pull request's last commit, whose checks passed
+```
+
+```text
+one pull request, tested at 3f2a9c1e0b7d, meets the mainline at 8e41d07a5c22, so 2 test files only one side reaches are skipped
+test/cart.test.ts: only the pull request reaches it; `--ran-at` names its tree 3f2a9c1e0b7d as tested
+test/total.test.ts: only the mainline reaches it; `--since` names its tree 8e41d07a5c22 as tested
+```
+
+Nothing checks that either run passed: the skip rests on your word. `--ran-at`
+must name the commit whose run of the suite passed, and `--since` the mainline
+commit the queue merges onto, whose run passed too — never the base of a queue
+that stacks one group on another, which no run tested.
+
+A side reaches a test through the record's lines, and through the imports HEAD
+holds, since the record predates the pull request's own. A lockfile or
+`package.json` change on either side runs every test it reaches, whatever the
+other side did. When the two sides reach no test in common, no test file runs,
+and the report says so.
+
+The pull request's check ran merged with the mainline of its day, which may
+have held a change the mainline has since taken back, so the net change since
+the merge base no longer shows it. A file two or more mainline commits changed
+since the merge base is therefore read as it stood after each of them too, and
+the tests its lines or packages there reach count as the mainline's.
+
+A pull request already up to date with the mainline merges nothing new: the
+merge's tree is the tested commit's tree. When HEAD's clean tree is the tree
+`--ran-at` names, every test file is skipped, and the note names
+the commit that ran them:
+
+```text
+`--ran-at 3f2a9c1e0b7d` skips every test file: HEAD's tree is the tree 3f2a9c1e0b7d ran its selection on
+```
+
+Otherwise the narrowing holds only for a group of one: HEAD's tree must be exactly the
+clean merge of the tested commit onto `--since`, by a merge commit or a squash,
+from one merge base, with nothing changed or added on top of it. Anything else
+— a group of two, a pull request pushed past its tested commit, a merge
+resolved by hand, a criss-cross history, a working tree that differs from HEAD,
+untracked files included — selects as without `--ran-at`. So does a side whose
+change alone selects the whole suite, touches a file the record holds nothing
+about or cannot place, such as a runner config no `before` names, or reaches a
+file whose imports HEAD's graph cannot all read, such as a name built at run
+time or a module the other side deleted; and so does a git or a record that
+cannot answer, or a [source index](source-index.md) that cannot be brought up
+to HEAD, whose graph may lack the import where the two sides meet. So does a
+side that changes a file the merge holds under another path, because the
+other side renamed it. A note names the reason. When
+the selection without `--ran-at` reads no record, or already runs every test
+file, `--ran-at` does nothing, and a note says so. These are among the
+[places selection widens](#where-selection-widens).
+
+A queue that runs its tests through the
+[runner's seam](../packages/sense/README.md#let-the-runner-skip-them) names the tested commit beside the
+base, and `variance shards` takes the same flag, so the plan counts the shards
+the narrowed selection needs, none when every file is skipped:
+
+```bash
+VARIANCE_AUTHORITY_SINCE="$BASE_SHA" VARIANCE_AUTHORITY_RAN_AT="$PR_HEAD_SHA" npx vitest run
+variance shards --since "$BASE_SHA" --ran-at "$PR_HEAD_SHA" --collected collected.txt
+```
+
+`VARIANCE_AUTHORITY_RAN_AT` beside an empty `VARIANCE_AUTHORITY_SINCE` is
+refused, as `--ran-at` is without `--since`: the base must be the commit the
+queue merged onto.
+
+A file a test reads at run time without importing it, such as a fixture or a
+snapshot, reaches only the tests a
+[`/// <depends>`](#where-sourcedirs-starts-the-answer) names. Undeclared, a
+change to it on one side reaches no test, and `--ran-at` skips what the other
+side reaches, as the selection without it does.
 
 ## What a change to a module's top level runs
 
@@ -685,6 +770,17 @@ with `"relations": false` declines the graph, this edge with it, so a file its
 tests read goes in its `before`, or in `preconditions` when every test of the run
 rests on it. A file the suite's `ignore` matches keeps the edge, and `before` does
 not move it.
+
+A test that runs a program in another process names the program's entry the same
+way, because the record sees only the process the test runs in:
+
+```ts
+/// <depends path="../src/bin.ts" />
+```
+
+The declaration covers what the named file loads, at any depth, whatever the
+record holds about those files: a change to a module `bin.ts` imports selects the
+test as surely as a change to `bin.ts` does.
 
 ## A change nothing has been seen rendering
 

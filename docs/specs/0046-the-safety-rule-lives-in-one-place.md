@@ -2,8 +2,8 @@
 
 **Missing:** an enforced contract between the record and its answer. The rule
 that keeps a skip list safe — subtract `entered` from `whole` and from nothing
-else, and never trust a row whose text has changed — is written four times, in
-four dialects, across four callers, and the library that owns the record
+else, and never trust a row whose text has changed — is written three times, in
+three dialects, across three callers, and the library that owns the record
 disclaims it. Two of its exported functions hand out `entered` with no `whole`
 beside it, which is the one shape from which a caller can build an unsafe
 answer without noticing.
@@ -22,12 +22,13 @@ little. This one is about the moment the record is believed.
 `entered`, and `unread` names the changed paths the record says nothing about,
 which select nothing and are reported. The library computes all four correctly and
 then leaves the subtraction to its callers, who have each written it
-themselves: `variance select`, `variance run --since`, tools/test-since.mjs,
-and the README (`packages/sense/README.md:717`). A fourth exported surface
-hands out `entered` alone. **The sentence the entire feature rests on is not a
+themselves: `variance select`, whose `selectSuite` the runner seams also read,
+`variance run --since`, and the README (`packages/sense/README.md:717`). The
+repository's own selection script was a fourth until ebff21a4f deleted it for
+the seams. Another exported surface hands out `entered` alone. **The sentence the entire feature rests on is not a
 line of shipped code anywhere.**
 
-That would be a tidiness complaint if the four agreed. They do not:
+That would be a tidiness complaint if the three agreed. They do not:
 
 - `variance select` always scans and passes `relations`; `variance run
   --since` passes them only when `source.relations` is set. Two callers of one
@@ -35,20 +36,18 @@ That would be a tidiness complaint if the four agreed. They do not:
   the same diff against the same snapshot yields two different skip lists
   depending on which command asked. Without the walk a changed stylesheet is
   `unread` rather than answered by its measured importers, and selects nothing.
-- `knownAs` is supplied only by tools/test-since.mjs. The CLI's reader passes
-  `sourceAt` and `relations` and nothing else.
-- Only tools/test-since.mjs intersects `whole` with the suite that was
-  actually collected. `variance select` subtracts from `whole` directly — so
-  deleted tests, renamed tests, and tests belonging to another project or
-  another config are all in the answer.
+- A seam acts only on the files its runner collected, so a skip that names a
+  deleted test drops nothing. `variance select` subtracts from `whole` directly —
+  so deleted tests, renamed tests, and tests belonging to another project or
+  another config are all in the answer it prints.
 
 And the frame check contradicts its own documentation in the direction that
 misleads an operator. `textAtRecording` returns `undefined` when the snapshot
 names no commit, with a docblock at `packages/sense/src/test-selection/recorded-text.ts:111-113` saying this
 avoids "reporting every module stale". `frameOf` at
 `packages/sense/src/test-selection/reading.ts:107` reads `undefined` under every name as
-disagreement and answers `stale`. tools/test-since.mjs withholds `sourceAt`
-from a commitless snapshot; the CLI does not. **Through `variance select` and
+disagreement and answers `stale`. The deleted script withheld `sourceAt` from
+a commitless snapshot; the CLI does not. **Through `variance select` and
 `variance run --since`, a commitless snapshot therefore reports exactly every
 changed module stale** — the widening is safe,
 and the operator is told N modules "were recorded from a different text" and
@@ -82,15 +81,7 @@ own answer, each widens as it must, and each produces advice an operator can
 act on. `readDiff` is guarded rather than letting every escape be misreported
 as a corrupt snapshot with destructive advice.
 
-**4. One translation between names and paths.** The frame check is one unit,
-`frameOf`, asked under every name `knownAs` gives a file, and a built twin's
-rows are in frame when the source's are. What is still written twice is the
-translation: tools/test-since.mjs rewrites a diff with `inSnapshotCoordinates`
-before the library sees it, and the CLI's reader supplies no `knownAs` at all.
-The name a row carries and the path a diff carries are two coordinate systems,
-and the translation between them belongs beside the check, once.
-
-**5. The record's own precision is used.** Per-region digests exist in the
+**4. The record's own precision is used.** Per-region digests exist in the
 format and selection reads none of them: the frame check is whole-module and
 all-or-nothing. A precondition's recorded digest is never compared at query
 time, so a file answered only by a declaration is never frame-checked.
@@ -108,7 +99,7 @@ the relation is interned per test, scanned, and never stored inverted. Narrowing
 there would be inventing evidence the record does not hold. Say so where the
 widening happens, so the next reader does not file it as a missed optimization.
 
-**6. The query re-asks what the write path already guards.** The
+**5. The query re-asks what the write path already guards.** The
 `instrumentation` recipe on the snapshot is never checked at query time, so a
 record made under a coarser mode is believed exactly as a branch-level one.
 Nothing distinguishes a snapshot whose `whole` set predates the diff base from
@@ -122,12 +113,12 @@ record carries nothing the query could compare it against. Generations guard the
 write path
 ([0044](0044-many-writers-one-record.md) item 3); the read path does not ask.
 
-**7. A narrowing that is truncated says so.** `--at-distance` cuts the run to a
+**6. A narrowing that is truncated says so.** `--at-distance` cuts the run to a
 hop band and drops tests the snapshot positively says the diff reached. That may
 be what an operator wants, and it is not a skip list — it is a selection *over*
 one, and the two must not be reported by the same channel or the same exit code.
 
-**8. The holes are marked at the site.** `bindsOnly` has a self-documented
+**7. The holes are marked at the site.** `bindsOnly` has a self-documented
 residual — added text is parsed with no frame, so a line inside a template
 literal that happens to parse as an erased construct charges nobody — and it is
 applied to added text only, so a *removal* of an erased construct still charges
@@ -136,7 +127,7 @@ carries an `it.todo` or a `// FIXME`, which is how this repository is supposed
 to say a thing is unfinished, and the answer stage has no row in
 `docs/instruments.md` at all.
 
-**9. The frame is checked against the frame the diff is in.** `frameOf`
+**8. The frame is checked against the frame the diff is in.** `frameOf`
 asks `sourceAt(name, coverage.commit)` (`packages/sense/src/test-selection/reading.ts:97`) — the
 text as of the *snapshot's* commit. The hunks it is deciding about are line
 ranges in the *diff base's* coordinates. The two coincide only while the
@@ -177,4 +168,4 @@ instrument is not a stale module.
 
 **Ranking is not selection.** `loadedBy`, hop distance and ordering explain and
 prioritize a run. Nothing in this spec permits any of them to remove a test from
-one ([the module-level rule](0029-what-a-run-remembers.md) is unchanged).
+one ([the module-level rule](../context/adr/0072-a-change-is-read-before-it-is-charged.md) is unchanged).

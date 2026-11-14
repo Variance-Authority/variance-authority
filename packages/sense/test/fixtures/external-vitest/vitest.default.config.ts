@@ -25,6 +25,8 @@ export default withTestSelection(
   }),
   {
     coverageFile,
+    // A test whose case is stopped while the file goes on asks for a scope per case.
+    ...(process.env['FIXTURE_CONTINUATIONS'] === 'on' ? { continuations: true } : {}),
     ...(skip === undefined
       ? {}
       : { selection: async () => ({ whole: new Set<string>(JSON.parse(skip)), skip: new Set<string>(JSON.parse(skip)), notes: [] }) }),

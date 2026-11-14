@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { caseDurations, caseLimits, finishedCase, taskCases, UNTIMED } from './case-durations.js';
+import { caseDurations, caseLimits, finishedCase, taskCases, UNTIMED, vitestAttempts } from './case-durations.js';
 
 const root = '/repo';
 const file = '/repo/test/a.test.ts';
@@ -79,5 +79,21 @@ describe('the limit each case ran under, joined to the case the scope recorded',
     const limits = caseLimits([{ filepath: file, cases: [{ name: 'reads', limit: 5000 }, { name: 'reads', limit: 6000 }] }], root);
 
     expect(limits(path, 'reads')).toBeUndefined();
+  });
+});
+
+describe('the attempts Vitest reports', () => {
+  it('are each its own state, first error and duration, a skip on the retry included', () => {
+    expect(vitestAttempts([
+      { state: 'failed', errors: [{ message: 'Test timed out in 100ms.', stack: 'Error\n    at /repo/a.test.ts:3:1' }, { message: 'second' }], duration: 104.6 },
+      { state: 'skipped', errors: undefined, duration: 0 },
+    ])).toEqual([
+      { attempt: 1, ended: 'failed', duration: 105, message: 'Test timed out in 100ms.', stack: 'Error\n    at /repo/a.test.ts:3:1' },
+      { attempt: 2, ended: 'skipped', duration: 0 },
+    ]);
+  });
+
+  it('are absent from a Vitest whose test case counts none', () => {
+    expect(vitestAttempts(undefined)).toBeUndefined();
   });
 });

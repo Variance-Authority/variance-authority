@@ -1,5 +1,76 @@
 # @variance-authority/sense
 
+## 0.32.1
+
+### Patch Changes
+
+- 12f59a7: A record keeps a case's newest reading as what it read otherwise than the record's case index holds the case, as it already keeps each earlier reading against the newest, rather than as every region it crossed. A test file that did not finish, laid over the case's earlier crossings, now costs the regions it did not cross instead of its whole reading. A reading the index holds as it ran still costs its count alone, and one whose difference would cost more than its regions keeps its regions. Combining shards lays a newest reading again over the combined index where that index holds the case's regions otherwise than the shard's did, so it reads back intact. Two regions a case crossed under the same name, path and lines, such as a callback's entry and its body, now both read back from an earlier reading.
+
+  Upgrade every checkout that reads a record together with the CI that writes it: 0.32.0 reads a newest reading kept as a difference as the regions the index holds.
+
+## 0.32.0
+
+### Minor Changes
+
+- 28723fc: A page used by hand reports what it ran. `reportPage(address)` from the new
+  `@variance-authority/sense/page` entry sends a probed page's executed regions to
+  the watcher `variance watch` started, as a head called `page`. Each load, click
+  and submit is one execution, and a server whose handler runs inside
+  `collectJourneys().enter` reports under the same one, so `variance ask ran`
+  lists a click with the page and the server together. Given no address, or one
+  that is not `http` on this machine, it installs nothing.
+
+  A page a test drives stays the test's: the Playwright recording claims each
+  page before it loads, `drainExecution` claims the page it drains, and a driver
+  of your own installs `claimPageSource()` from `@variance-authority/sense/journal`.
+- f621404: A push to a mainline can publish its merge queue's record of the same commit as soon as it lands. `variance share --publish --from-queue <artifact pattern>` finds the latest green `merge_group` run of the running workflow that tested `HEAD`, downloads its matching artifacts, folds them over the mainline's record and publishes the result marked partial. The whole run's publish at the same commit replaces a partial entry, and a partial publish keeps a whole one, saying so. A checkout that read a partial record asks the line again, and moves its own record onto the whole one when it lands.
+- 6ad2a9a: A merge queue's group of one now skips what its pull request already ran. `variance select --ran-at` skips every test file when HEAD's clean tree is the tree the tested commit ran, where it used to decline a pull request already up to date with the mainline. `variance shards --ran-at` counts shards from the same selection, and the runner seam reads `VARIANCE_AUTHORITY_RAN_AT` beside `VARIANCE_AUTHORITY_SINCE`.
+- 8bf0826: An application whose framework owns the request can be watched without wrapping a handler. A head handed the application's tracing as `trace` (`sentry(Sentry)` or `openTelemetry(api)`) and started with a watcher's address reports each traced flow to the watcher under its trace id, so `variance ask ran` lists it with no `enter` call. The listing is one execution per trace: where a browser SDK propagates its trace, that is one per page view. An id `enter` named still outranks the trace, and a head handed `trace` with neither a watcher's address nor a parts target still refuses to start.
+- 12e277d: `variance ask ran --at <address>` and the MCP tool `variance_ran` list what an application used by hand ran: one execution per request no test drove, each with the regions it ran as `file:line name`.
+
+  An application reports when its build places the probes, its request handler runs inside `collectJourneys().enter`, and it is started with `VARIANCE_AUTHORITY_JOURNEYS=1` and the watcher's address in `VARIANCE_AUTHORITY_VANTAGE`. A head given an address that is not an http address on this machine refuses to start; an empty address is read as none. `--name` and `--limit` narrow the listing, and `variance ask self` counts the executions a watcher holds.
+
+  A question only a watcher answers (`self`, `run-signals`, `test-signals`, `waiting`, `ran`) no longer reads `variance.config.json`, so it can be asked where no visual suite was configured.
+
+### Patch Changes
+
+- e57fdfb: A record keeps its cases' earlier readings as bytes rather than JSON: each module, name and path is written once per case, every number as a varint, each case id and test file path as what it shares with the one before it, and each inputs digest as its bytes. A record an earlier build wrote reads as holding no earlier readings, and the next run writes them again.
+- 7ba42c2: A case's readings now hold the regions its index names by the first set in the pool. A natively folded index can give id 0 to a set that holds cases, and those regions were dropped, so a rerun that read alike was stored in full and the record outgrew GitHub's 100 MB limit.
+- 9a011de: A checkout repinned to a newer mainline record keeps each test where that record's runs say it stands, rather than at the record's commit, so a record that did not run every test there can be laid without losing what changed since a test last ran.
+
+## 0.31.0
+
+### Minor Changes
+
+- b795b34: `VARIANCE_AUTHORITY_LOCAL=1` asks the runner integrations for `variance select --local`; any value other than `1` or `0` fails the run. The `selected none of M, so none of them runs` headline now says whether the change reached none of them, or how many test files a leg or `--local` left for a later run.
+
+### Patch Changes
+
+- c23010f: A module that loads through a function Node's `createRequire(import.meta.url)` made has that load read whatever the function is called: bound to a `const` of any name, or called where it is made. A literal specifier is an edge, so `ask discover` and test selection reach the loaded file, and a computed one is counted as a `require()` this cannot read. A function made for another file resolves from a place this cannot name, so its loads are counted the same way, even when it is named `require`.
+- 9d7fd93: `variance select --since <mainline> --ran-at <commit>` selects a merge queue's group of one by what both sides of its merge reach: a test file only the pull request's change or only the mainline's change reaches is skipped and named with the side that ran it, a lockfile change on either side runs what it reaches, and anything but a HEAD whose tree is that clean merge, by a merge commit or a squash, from one merge base and with a clean working tree, selects as without `--ran-at`, with a note saying why. A side reaches a test through the record's lines and through HEAD's imports; a side that changes a file the record holds nothing about or cannot place, reaches a file whose imports HEAD's graph cannot all read, or changes a file the merge holds under another path, selects as without `--ran-at`, as does a run whose source index cannot be brought up to HEAD. When the selection without it reads no record or already runs every test file, a note says `--ran-at` did nothing. `readByInstall` from `@variance-authority/sense/test-selection` says whether a path is a lockfile or a manifest.
+- e752445: A Vitest or Jest shard of a selected run that was handed a record, by `carry receive` or `carry take --as-base`, now records the test files it ran and nothing else, as a shard of a whole run does: it lays no base under its run, selects from the record it was handed, and a shard that runs no file leaves no record. A selected shard handed none records over the record its checkout holds, as before, and records for itself rather than for the share. A handed shard that runs in passes, such as near tests and then far ones, selects and places each pass from the record it was handed, beneath what its earlier passes ran, so a later pass neither re-runs nor skips what the first one decided. A run is a shard by the runner's resolved `shard`, whether `--shard` or the runner's API, such as `startVitest` or Jest's `runCLI`, set it. A later pass runs only the files the record placed in its range: a test new since the recording, and every file of a selection that declined to narrow, runs in the first pass alone, so no file runs in two passes or lands in two shards. A seam reads that set from the new `only` field of `SuiteSelection`, which `kept` honours. `VARIANCE_AUTHORITY_PLACE_AT_DISTANCE` names the hops of every pass a shard runs, such as `0-`: each pass then places the files of all of them as one and runs its own of that shard's part, so its passes together take the part the plan priced rather than the heaviest part of each pass. Unset, a pass is placed alone. A seam reads that placement from the new `placing` field of `SuiteSelection` through `placed`, and `selectSuite` takes it as `placeAtDistance`. `variance share` folds the parts over that record, and a test file or case no shard ran keeps the row it had. Before, a selected shard laid its run over the base it was seeded with, so two shards each carried the other's base rows and the fold refused them.
+
+  `variance carry take <dir> --as-base` lays a pull request's last push where `carry receive` laid the mainline's read, for a shard: it selects from the record the plan counted, and its own record still holds only what it runs. It refuses to run before `carry receive`. `carry take <dir>` without it now re-bases each record it takes on a mainline published since the push, as reading it would, and writes those bytes back to `<dir>`, so a shard that takes the same directory reads the record the plan priced.
+
+  An upgrader whose shards carry a pull request's last push adds `--as-base` to the shards' `carry take`. A run that is not sharded records as before, and a `share` that folds shards reads the new records as it reads a whole run's.
+
+## 0.30.0
+
+### Minor Changes
+
+- fd43167: `variance coverage --packages` gives each package one row of coverage over its own regions, parted into what its own tests ran within one import hop, what only its own tests further away ran, what only other packages' tests ran, and what nothing ran, with a column per kind of suite of what its own tests ran, an `all` row over every package, and a line counting the regions that ran before reach, which are in the coverage and in no part. A package's coverage no longer counts its test files as its code. `coverageByOwner` takes the walked hops and counts `kinds` and `near` per file over the file's own package's tests, and `kinds` is absent when a counted suite has no kind; `withoutTests` leaves out the modules a suite runs as tests.
+
+### Patch Changes
+
+- 4c3d5a5: A `/// <depends path>` now selects its declarer for a change to anything the named file loads, at any depth, however the record answers that change. A test that runs a program in another process declares the program's entry, and a change inside the program selects it.
+- def2003: A source index read while other processes write it is no longer reported as damaged. A reader that finds a segment missing follows the manifest the writer left; when writers keep moving it, the reader answers from the older whole generation it read instead of rebuilding. Only a segment missing under a manifest that stayed put counts as damage.
+- 6382f07: An index of a directory or a worktree no longer parses again the modules another root in the same cache has already read. The cache keeps one parse store, keyed by a module's bytes and how they are read, that every root reads before it parses, and the cache prune reclaims the parses no root names.
+- d3f353a: A parse of a tracked file enters the shared parse store only when the bytes it was made from are the blob git named for that file. A checkout whose file differs from its blob without git saying so — edited under `git update-index --assume-unchanged` or `--skip-worktree`, or changed after the listing was read — keeps that parse in its own index, so another checkout of the same blob no longer takes imports the blob does not have. A blob one checkout read as other bytes at any of its paths is not offered from that checkout at all, and a module read with `packs: false` is not offered. Parses read off disk whose bytes are the blob are still shared.
+
+  A worktree's source index is built from nothing instead of from a copy of its primary checkout's index, which carried records of bytes that were not the blob into a clean worktree. Its first update reads every file and still parses none the primary checkout's update put in the parse store. `updateSourceIndex` no longer takes `primary` or answers `from`, `primarySourceIndexPath` is removed, and `variance index` in a worktree prints `source index built:` as in any checkout. An index named in the checkout's own cache directory, such as the one `variance docs` keeps for a workspace whose member list reaches beside its root, now reads the parse store too.
+- 35d6599: An index of a directory inside a worktree reads its primary checkout's parse store under the default cache locations, as the worktree's top already did. A checkout where git writes a module as other bytes than its blob — a filter, `ident`, `working-tree-encoding`, `eol=crlf`, `core.autocrlf=true`, or `core.eol=crlf` over a `text` file (`native` on Windows) — reads no parse store and adds to none, so it never takes a parse of bytes it does not hold.
+- 7ee12a1: A checkout that is renamed or moved with its cache inside it keeps its recording: `variance covering` and `variance select` still read it there, and a prune leaves it. A worktree keeps its own when its primary checkout is still where it was as seen from the worktree, moved together with it or renamed beside it. The cache names a checkout by its path as seen from the cache directory, where it named it by its absolute path. A recording written before this release is not carried over, so the first run after the upgrade records afresh, and the directory the old recording sits in stays until you delete it or its checkout is gone.
+
 ## 0.29.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

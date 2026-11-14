@@ -92,8 +92,8 @@ It reads no config and no run, so it is the whole install check.
 | Command | `variance.config.json` | Other input |
 |---|---|---|
 | `ask` about a run (`summary`, `changes`, `composition`, `locate`, `describe`, …), `ask costs`, `ask decisions`, `ask concerns`, `adjudicate`, `report`, `changelog`, `accept` | required | the report a finished run left; for `costs`, the mainline's published costs unless you name a report; for `decisions` and `concerns`, and `changelog` on a `remote` store, the review deployment, read with the share token |
-| `ask` about a running suite (`self`, `run-signals`, `waiting`, `test-signals`, `diff --at`) | required, though never read | a watcher's address |
-| `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `intersection`, `gaps`, `orient`, `journey-map`, `test-composition`, `containment`, `stack`, `slowest-tests`) | none | the checkout |
+| `ask` about a running suite (`self`, `run-signals`, `waiting`, `test-signals`, `ran`, `diff --at`) | required, though never read | a watcher's address; for `ran`, the checkout the application was built from |
+| `ask` about the source (`packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`, `intersection`, `gaps`, `orient`, `journey-map`, `test-composition`, `containment`, `stack`, `slowest-tests`, `retried-tests`) | none | the checkout |
 | `watch`, `distill`, `reach` | none | see the reference that owns it |
 | `index` | none | the checkout; it writes what [test selection](references/test-selection.md) and [orient](references/orient.md) read |
 | `covering`, `story`, `select`, `coverage`, `review` | optional; only the root file's `suites` and `cacheRoot` are read | the test-selection recording; with more than one suite declared, `--suite <name>`; `variance --help` lists the flags of `coverage` and `review` |

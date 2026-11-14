@@ -28,7 +28,7 @@ npm install @variance-authority/tribunal
 ```bash
 VARIANCE_TRIBUNAL_PROJECT=todomvc \
 VARIANCE_TRIBUNAL_INGEST_TOKEN=ingest-token-0123456789 \
-npx variance-authority-tribunal
+variance-authority-tribunal
 ```
 
 ```
@@ -169,7 +169,7 @@ The package ships the deployable Worker, its review page and its migrations.
 
 ```bash
 npm install @variance-authority/tribunal wrangler
-npx variance-authority-tribunal-provision --config wrangler.jsonc
+variance-authority-tribunal-provision --config wrangler.jsonc
 ```
 
 When `wrangler.jsonc` is absent the command writes it, named for the repository:

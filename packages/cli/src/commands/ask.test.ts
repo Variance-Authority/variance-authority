@@ -7,8 +7,10 @@ import type { VantageState } from '@variance-authority/vantage';
 import type { VantageReading } from '@variance-authority/vantage/attach';
 import { HELP_TOOLS, type Help } from '@variance-authority/help/tools';
 import { TOOLS, VANTAGE_TOOLS, toolByName, vantageToolByName, verbOf } from '@variance-authority/mcp/tools';
-import { ASKED, ask, askSource, questions, type Sourced } from './ask.js';
-import type { CliRunReport } from './run.js';
+import { ask, askSource, type Sourced } from './ask.js';
+import { ASKED } from './ask-previous.js';
+import { questions } from './ask-questions.js';
+import type { CliRunReport } from './run-report.js';
 
 const IDENTITY: RenderIdentity = {
   renderer: 'playwright-chromium',
@@ -352,6 +354,7 @@ const RUNNING: VantageState = {
     },
   ],
   forgotten: 0,
+  ran: { executions: [], forgotten: 0, common: [], lost: 0 },
 };
 
 function about(question: string, reading: VantageReading, rest: Record<string, unknown> = {}) {
@@ -446,7 +449,7 @@ describe('a question about a suite that is still running', () => {
     const path = join(await directory(), 'report.json');
 
     await expect(ask(asking(path, 'run-signals'))).rejects.toThrow(
-      'is about a suite that is still running, and needs a watcher to ask',
+      'is about a suite or an application that is still running, and needs a watcher to ask',
     );
   });
 

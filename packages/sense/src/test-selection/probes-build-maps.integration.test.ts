@@ -12,7 +12,8 @@ import { createContext, runInContext } from 'node:vm';
 import { build, type BuildOptions, type Plugin } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deriveModules } from './captured-modules.js';
-import { EXECUTION_GLOBAL, type ExecutionJournal, testSelectionProbes } from './probes.js';
+import { EXECUTION_GLOBAL } from './execution-global.js';
+import { type ExecutionJournal, testSelectionProbes } from './probes.js';
 
 // Comments ahead of the code, which `vite:define` drops, so every line under them moves.
 const FLAG = [

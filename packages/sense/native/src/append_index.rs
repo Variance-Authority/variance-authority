@@ -72,25 +72,3 @@ fn named(chain: &Chain) -> Vec<LogSegment> {
         .map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 })
         .collect()
 }
-
-/// Start the chain at `path` from the committed chain at `from`, when `path`
-/// has none: a copy, not a reference, because the owner of `from` readies its
-/// chain and removes what it folded. Each segment is checked against its digest
-/// as it is read, the copy keeps which of them are the working layer, and one
-/// manifest commits it, so a reader of `path` sees the whole copy or nothing.
-/// Anything that stops the copy leaves `path` as it was and answers `false`.
-#[napi(catch_unwind)]
-pub fn seed_source_index(path: String, from: String) -> bool {
-    if !matches!(read_chain(&path), Ok(None)) {
-        return false;
-    }
-    let Ok(Some(source)) = read_chain(&from) else { return false };
-    if source.references.is_empty() || source.segments.is_empty() {
-        return false;
-    }
-    // A prefix cut inside the working layer keeps the part of it that read.
-    let base = source.references.len() - source.working;
-    let working = source.segments.len().saturating_sub(base);
-    let segments: Vec<&[u8]> = source.segments.iter().map(Vec::as_slice).collect();
-    matches!(written(&path, Over::Nothing, &[], &segments, &[], working), Ok(true))
-}

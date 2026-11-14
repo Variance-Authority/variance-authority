@@ -5,7 +5,7 @@
 **Extends:** ADR-0002 (absent is not empty), ADR-0009 (sessions detect instead
 of rinse), ADR-0030 (`again` and `alone`, one variable each), ADR-0055 (update
 initiators are structural attention)
-**Relates to:** [spec 0028](../../specs/0028-the-instrument.md) (the instrument),
+**Relates to:** spec 0028 (the instrument),
 [spec 0035](../../specs/0035-a-flake-is-what-the-run-did-not-execute.md) (the
 rung that reads the record), [spec 0036](../../specs/0036-a-journey-crosses-processes.md)
 (the record across a process), [spec 0038](../../specs/0038-a-journey-is-read-against-the-committed-tree.md)

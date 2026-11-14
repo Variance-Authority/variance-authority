@@ -1,8 +1,7 @@
 # Spec 0016 — CI that has run
 
-**Missing:** one execution. The workflow, the composite action and the Bitbucket
-recipe are written, reviewed and committed, and not one of them has ever fired on
-a real pull request.
+**Missing:** a check red because stories changed, the commit-back's three
+refusals, and the Bitbucket recipe.
 **Built on:** [ADR-0019](../context/adr/0019-one-comment-that-leads-with-causes.md),
 `variance comment` and its marker, `--exit-zero-on-changes`, and the commit-back
 that is built and off by default.
@@ -11,16 +10,12 @@ that is built and off by default.
 
 The exit code is the whole gate, so a CI that can run a command already has the
 verdict. What CI adds is delivery — a comment a reviewer reads, and baselines
-that come back to the branch — and delivery is the half with no evidence. The
-docket has been rendered against a real report;
-[`.github/workflows/variance.yml`](../../.github/workflows/variance.yml) and
-[`.github/actions/variance`](../../.github/actions/variance) have posted nothing,
-anywhere, ever.
+that come back to the branch — and delivery is the half only a real pull
+request shows.
 
-The gap is narrow and it is the kind that only closes by running: token scopes,
-the permissions block, the marker survived through GitHub's own markdown
-rendering, and what a merge-ref checkout does to the commit-back's branch
-detection.
+What is left closes only by running: a check that goes red for the reason it
+exists, and the commit-back's refusals, among them what a merge-ref checkout
+does to its branch detection.
 
 ## What would discharge it
 
@@ -36,9 +31,9 @@ detection.
    filter it out, and the filter does not distinguish the clean ones.
 4. The commit-back runs once on a pull request's branch where accepting is
    correct, and its three refusals are each provoked: no baselines to commit, no
-   head branch, and a workspace on a detached merge ref. The `lfs` job of
-   `variance.yml` runs the commit-back onto a pull request's branch when its
-   label is added; no refusal has been met.
+   head branch, and a workspace on a detached merge ref. The committed store in
+   `variance.yml`'s `variance` job runs the commit-back onto a pull request's branch on a
+   dispatch with `accept` ticked; no refusal has been met.
 
 **Then the second platform, on its own terms.** The Bitbucket recipe in
 [`packages/cli/README.md`](../../packages/cli/README.md#run-it-in-ci)

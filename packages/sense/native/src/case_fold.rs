@@ -137,7 +137,7 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
         landings.push(lands);
     }
     let rows: HashMap<&str, usize> = modules.iter().enumerate().map(|(at, module)| (module.file.as_str(), at)).collect();
-    let mut extras = CaseExtras { durations: vec![None; tests.len()], limits: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()], always_timed };
+    let mut extras = CaseExtras { durations: vec![None; tests.len()], limits: vec![None; tests.len()], slowest: vec![None; tests.len()], lines: vec![Vec::new(); tests.len()], always_timed };
     // The parts of one case each hold the lines of the regions they crossed, so
     // a case two shards hold at different lines is joined over its crossings
     // once the sets are read: `joining` names each holding by shard and case.
@@ -165,6 +165,12 @@ pub(crate) fn fold(mut shards: Vec<Shard>, inventories: HashMap<String, Vec<Inve
             if let Some(limit) = shard.limits[local] {
                 let held = &mut extras.limits[global];
                 *held = Some(held.map_or(limit, |known| known.max(limit)));
+            }
+            if let Some(slowest) = shard.slowest[local] {
+                // The run that waited longest names the statement, the lower
+                // line of two equal, so no order of shards changes it.
+                let held = &mut extras.slowest[global];
+                *held = Some(held.map_or(slowest, |known| if (slowest.1, known.0) > (known.1, slowest.0) { slowest } else { known }));
             }
             if shard.lines[local].is_empty() {
                 continue;

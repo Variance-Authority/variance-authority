@@ -608,7 +608,7 @@ a project's replaces the top level's. Playwright asks it about each file it
 finds, so the drop costs one lookup a file. The selection is read in a
 `globalSetup` the wrapper puts ahead of yours, so a record it cannot read fails
 the run with the reason before any test starts. A selection that drops every
-file prints `selected none of M, so none of them runs`, and the run passes
+file prints `selected none of M, so none of them runs` and why, and the run passes
 rather than failing on Playwright's "No tests found".
 
 Three runs do not select, and say so on stderr: watch and UI mode, and
@@ -742,6 +742,20 @@ operated and read, and the React component behind each one.
 The journal is kept under the same case id as the test's crossings, and under
 its attempt, `testInfo.retry + 1`, so a retried test keeps both.
 `variance distill --test '<case id>'` reads the two together.
+
+`varianceFixtures` alone keeps how each attempt of a retried test ended: its
+`testInfo.status`, its `testInfo.duration` and, when it did not pass, the error's
+message and its frame inside the checkout. A test that failed and passed on the
+retry is a pass in Playwright's report and two attempts in the record, and
+`variance ask retried-tests` lists it. Each repeat of `repeatEach` is a test of
+its own in the record, with its own attempts. A worker that dies under an
+attempt leaves no row for it.
+
+An attempt's status is the one Playwright held when the fixture from
+`varianceFixtures` was torn down. A failure in `afterAll`, or in a fixture torn
+down after that one, is not in the attempt's row: a test that only such a
+failure sent to a retry reads as passed twice, and `variance ask retried-tests`
+does not list it.
 
 ### Read what a snapshot was taken under
 

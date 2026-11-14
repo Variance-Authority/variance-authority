@@ -1,6 +1,7 @@
 import type { RunReport } from '@variance-authority/report';
 import type { Tree } from './tree.js';
 import type { SourceNames } from './names.js';
+import type { BlockKind } from '@variance-authority/sense/instrument';
 
 /**
  * The contract every tool implements, and the untyped boundary it sits behind.
@@ -61,7 +62,45 @@ export interface Tool<Subject = RunReport> {
     input: Readonly<Record<string, unknown>>,
     invocation?: ToolInvocation<Subject>,
   ): FileSet;
+
+  /**
+   * The modules this call names the regions of, by the probes that numbered
+   * them, for the host to cut again from its checkout ahead of the call.
+   *
+   * A region arrives as an ordinal in a module's build, and its name and line
+   * are in the file that build was made from. Reading that file is the host's,
+   * as the walk of the tree is, and only a call that names regions pays for it.
+   *
+   * Absent means the answer names no region.
+   */
+  cuts?(subject: Subject, input: Readonly<Record<string, unknown>>): ReadonlyMap<string, readonly string[]>;
 }
+
+/** One region of a module the host cut again: where it sits, what it is called, and the line it was written on, if any. */
+export interface CutRegion {
+  readonly ordinal: number;
+  /** The declaration's name path, `Cart/render`; empty on the module's own region. */
+  readonly name: string;
+  /** The structural path inside that declaration, `if#0/else`; empty on its entry. */
+  readonly path: string;
+  readonly startLine?: number;
+  readonly endLine?: number;
+  /** What the region is, where the host said: a story's route is drawn by it. */
+  readonly kind?: BlockKind;
+}
+
+/** A module cut again. `instrumented` is false where the file is no longer the text its probes were placed on. */
+export interface CutModule {
+  readonly instrumented: boolean;
+  readonly blocks: readonly CutRegion[];
+}
+
+/**
+ * Every module a call asked for through {@link Tool.cuts}, by the probes that
+ * numbered it and then by its id. Probes this build does not read have no
+ * entry, and neither has a module whose file is gone.
+ */
+export type CutModules = ReadonlyMap<string, ReadonlyMap<string, CutModule>>;
 
 /**
  * The files a question answers, each with the lines that put it there.
@@ -95,6 +134,12 @@ export interface ToolInvocation<Subject> {
    * that names a name is refused rather than answered as though no file had one.
    */
   readonly names?: SourceNames;
+  /**
+   * The modules the call asked to have cut, where the host had a checkout to
+   * cut them from. Absent means none was read, and a region is then listed by
+   * its file and counted, never named from a guess.
+   */
+  readonly modules?: CutModules;
   /**
    * Why the host could not compare this answer with what it is about, for the
    * line that dates it. Absent means nothing stood in the way.

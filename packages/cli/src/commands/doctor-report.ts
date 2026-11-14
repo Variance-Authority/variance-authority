@@ -1,15 +1,14 @@
 import { digestFileName } from '@variance-authority/core/format';
 import { EXIT_CLEAN, EXIT_OPERATOR, type ExitCode } from '../exit.js';
 import type {
-  BaselineFinding,
   CachedIdentity,
   Diagnosis,
   FontFinding,
-  Partition,
   RenderCacheFinding,
   RendererFinding,
   RenderlessDiagnosis,
 } from './doctor.js';
+import type { BaselineFinding, Partition } from './doctor-baselines.js';
 import { formatCache } from './doctor-cache.js';
 import { formatSkills } from './doctor-skills.js';
 import { formatSuites } from './doctor-suites.js';

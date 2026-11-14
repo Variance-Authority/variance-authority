@@ -2,8 +2,9 @@
  * A journey file read for one change, with the reading done by the addon.
  *
  * Two questions, and neither expands the file. `selectJourneyFile` answers the
- * one `variance select` asks — which test files — entirely in the addon, graph
- * walk included. `projectJourneyFile` answers the one a reader of regions asks,
+ * one `variance select` asks — which test files — in the addon, graph walk
+ * included; only what a `/// <depends>` declares is added after, in TypeScript,
+ * from the part of the file that holds its readers. `projectJourneyFile` answers the one a reader of regions asks,
  * by handing back the part of the file the change can see.
  *
  * `decodeExecutionIndex` expands every crossing into an object, which is the
@@ -20,7 +21,9 @@
 import { open, type FileHandle } from 'node:fs/promises';
 import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { native, type NativeJourneyChange, type NativeJourneyGraph } from '../native.js';
+import { native } from '../addon.js';
+import type { NativeJourneyChange, NativeJourneyGraph } from '../native-journey.js';
+import { declaredBehindFiles } from './declared.js';
 import type { LineRange } from './diff-lines.js';
 import { declaredReach, dependsReaders, type JourneySelectionOptions } from './execution-select.js';
 import { SET_EXECUTION_FORMAT } from './execution-set-format.js';
@@ -51,18 +54,20 @@ export async function selectJourneyFile(
   const selected = select(file, nativeChange(withoutPaths(changed, ignored), options.read), graph, declines);
   // An addon that cannot decline walked the graph anyway, and its answer is not this suite's.
   if (declines && selected.declined === undefined) return undefined;
-  // What a module declared of an ignored file is the record's, read off the part of it that holds the module.
-  const readers = dependsReaders(options.relations, ignored);
+  // What a module declared of an ignored file, or of a file whose run loads a changed one, is the record's,
+  // read off the part of it that holds the module.
+  const declared = declaredBehindFiles(options.relations, changed.keys());
+  const readers = dependsReaders(options.relations, [...ignored, ...declared]);
   const projected = readers.length === 0 ? undefined : await projectJourneyFile(file, new Map(readers.map((reader) => [reader, []])));
   if (readers.length > 0 && projected === undefined) return undefined;
   const index: ExecutionIndex = projected?.index ?? { tests: selected.whole.map((test) => ({ id: test, file: test, name: test })), modules: [] };
-  const declared = declaredReach(index, options.relations, ignored, options.unmeasured);
-  const unread = declines ? selected.unread : [...selected.unread, ...declared.unread];
+  const reach = declaredReach(index, options.relations, ignored, options.unmeasured, declared);
+  const unread = declines ? selected.unread : [...selected.unread, ...reach.unread];
   return {
     whole: [...selected.whole].sort(codeUnitOrder),
-    entered: [...new Set([...selected.entered, ...declared.entered])].sort(codeUnitOrder),
+    entered: [...new Set([...selected.entered, ...reach.entered])].sort(codeUnitOrder),
     unread: [...unread].sort(codeUnitOrder),
-    ...(declines ? { declined: [...selected.declined!, ...declared.unread].sort(codeUnitOrder) } : {}),
+    ...(declines ? { declined: [...selected.declined!, ...reach.unread].sort(codeUnitOrder) } : {}),
     ...(options.ignore === undefined ? {} : { ignored }),
     stale: [],
   };

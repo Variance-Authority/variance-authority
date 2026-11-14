@@ -46,6 +46,8 @@ export interface SuiteShareOptions {
    * against. A line naming no test in the record changes nothing.
    */
   readonly collected?: string;
+  /** The records are a run of part of the suite, such as the merge queue's: a mainline publishes them marked so. */
+  readonly partial?: boolean;
   /**
    * `github` prints the read as `commit=<sha>` for `$GITHUB_OUTPUT`, empty when
    * the mainline holds no record, and says the read beside it: the commit a
@@ -54,8 +56,10 @@ export interface SuiteShareOptions {
    */
   readonly format?: 'text' | 'github';
   /**
-   * Records this suite's jobs handed on, folded over the base before the read
-   * is told or the publish writes: a sharded or sliced run made one again.
+   * Records this suite's jobs handed on: a sharded or sliced run made one
+   * again, folded over the base before the read is told, or before a
+   * branch's or a `partial` publish writes. A mainline publish of the whole
+   * suite lands them over nothing.
    */
   readonly records?: readonly string[];
 }
@@ -72,7 +76,7 @@ export async function publishSuite(
   root: string,
   suite: string,
   here: Here = {},
-  options: Pick<SuiteShareOptions, 'collected'> = {},
+  options: Pick<SuiteShareOptions, 'collected' | 'partial'> = {},
 ): Promise<RunPublish> {
   return (await publishOnLine(root, suite, here, options)).done;
 }
@@ -82,7 +86,7 @@ async function publishOnLine(
   root: string,
   suite: string,
   here: Here,
-  options: Pick<SuiteShareOptions, 'collected'>,
+  options: Pick<SuiteShareOptions, 'collected' | 'partial'>,
 ): Promise<{ readonly done: RunPublish; readonly mainline: boolean }> {
   const env = here.env ?? process.env;
   const selection = await import('@variance-authority/sense/test-selection');
@@ -91,8 +95,7 @@ async function publishOnLine(
   if (declared.carry !== 'share') {
     return off({ none: `the suite "${suite}" is not given to the share; its "carry" in the root config is not "share"` });
   }
-  const share = rootShare(selection.rootConfig(root));
-  const place = { ...(share === undefined ? {} : { share }), cacheRoot: selection.cacheRootFor(root) };
+  const place = await placeOf(root);
   const cell = await lineCellOf(place, { cwd: root });
   if (cell === undefined) return off({ none: 'no share is configured' });
   const run = await lineOfRun(place, env, root);
@@ -108,6 +111,7 @@ async function publishOnLine(
   const entry = await suiteEntryOf(root, suite, at, {
     whole: run.line.kind === 'mainline',
     ...(collected === undefined ? {} : { collected }),
+    ...(options.partial === true ? { partial: true } : {}),
   });
   if (entry === undefined) return on({ none: `this checkout holds no record of "${suite}"` });
   if ('unpublished' in entry) return on({ none: `${suiteEntry(suite)} is left out: ${entry.unpublished}` });
@@ -126,6 +130,13 @@ async function publishOnLine(
   return on({ line: run.line, published, ...eyes, ...gone, ...noMainline });
 }
 
+/** Where `root` shares its records: the share in its root config, and the cache it reads them into. */
+async function placeOf(root: string) {
+  const selection = await import('@variance-authority/sense/test-selection');
+  const share = rootShare(selection.rootConfig(root));
+  return { ...(share === undefined ? {} : { share }), cacheRoot: selection.cacheRootFor(root) };
+}
+
 /** What `share` prints for one suite, and the code it exits with. `notes` are said beside `lines` when `lines` are a workflow's output. */
 export interface SuiteShare {
   readonly lines: readonly string[];
@@ -134,24 +145,30 @@ export interface SuiteShare {
 }
 
 /**
- * What `variance share --suite <name>` prints, and the code it exits with:
- * what the publish did, or the record the reader's mainline holds and where it
- * is kept. A mainline publish that wrote nothing exits `EXIT_OPERATOR`.
- *
- * The read lays the mainline's record into this checkout's own layer, where
- * the run it makes next lands on it, and says when the suite has no base to
- * run from. `records`, when given, are folded over that base, as `variance
- * journeys --suite` lands shards, before the read is told or the publish
- * writes; a publish given none publishes the record this checkout holds.
+ * What `variance share --suite <name>` prints, and the code it exits with: what
+ * the publish did, or the record the reader's mainline holds, laid into this
+ * checkout's own layer with `records` folded over it. A mainline publish that
+ * wrote nothing exits `EXIT_OPERATOR`.
  */
 export async function suiteShare(root: string, options: SuiteShareOptions, here: Here = {}): Promise<SuiteShare> {
   const selection = await import('@variance-authority/sense/test-selection');
   if (options.publish) {
-    const based = options.records === undefined ? undefined : await baseAndFold(root, options.suite, options.records, here);
-    const folded = based === undefined ? [] : [based.said, ...based.notices, ...based.landed];
-    const share = rootShare(selection.rootConfig(root));
-    const { done, mainline } = await publishOnLine(root, options.suite, here, options);
-    const lines = [...folded, ...describePublish(share === undefined ? {} : { share }, done)];
+    const { suite, records } = options;
+    const place = await placeOf(root);
+    const run = records === undefined || options.partial === true ? undefined : await lineOfRun(place, here.env ?? process.env, root);
+    // A mainline's whole run lands over nothing, so its record holds that run alone: earlier runs are git's history,
+    // pinned at their commits. A branch's or the queue's run folds over its base, where the tests it did not run stand.
+    const folded: string[] = [];
+    if (records === undefined) {
+      // nothing handed on to fold
+    } else if (run !== undefined && !('none' in run) && run.line.kind === 'mainline') {
+      folded.push(records.length === 0 ? `${suite}: nothing was handed on.` : (await laidAsLeft(root, suite, records)) ?? (await landSuite(root, records, suite, true)));
+    } else {
+      const { said, notices, landed } = await baseAndFold(root, suite, records, here);
+      folded.push(said, ...notices, ...landed);
+    }
+    const { done, mainline } = await publishOnLine(root, suite, here, options);
+    const lines = [...folded, ...describePublish(place.share === undefined ? {} : { share: place.share }, done)];
     return { lines, exit: (mainline && !('published' in done)) || unkept(done) ? EXIT_OPERATOR : EXIT_CLEAN };
   }
   const { read, said, notices, landed } = await baseAndFold(root, options.suite, options.records, here);

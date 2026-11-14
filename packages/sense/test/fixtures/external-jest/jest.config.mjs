@@ -51,6 +51,8 @@ export default withTestSelection(
     preconditions: ['jest.config.mjs'],
     // The recipe, when the test that runs this fixture names one.
     ...(process.env['FIXTURE_MODE'] === undefined ? {} : { mode: process.env['FIXTURE_MODE'] }),
+    // A test whose case is stopped while the file goes on asks for a scope per case.
+    ...(process.env['FIXTURE_CONTINUATIONS'] === 'on' ? { continuations: true } : {}),
     ...selection,
   },
 );

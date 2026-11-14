@@ -10,12 +10,13 @@ fn an_oversized_blob_is_declined_and_drained_without_losing_the_next_answer() {
     let mut stream = Cursor::new(b"one blob 4\nxxxx\ntwo blob 19\nexport const y = 1\n\n");
     let arenas = AllocatorPool::new(1);
 
-    let (oversized, _, outcome) = read_blob(Path::new("."), "large.ts", &mut stream, 1, false, &arenas, true);
-    let (_, _, next) = read_blob(Path::new("."), "next.ts", &mut stream, 1024, false, &arenas, true);
+    let ((oversized, _, outcome), _) = read_blob(Path::new("."), "large.ts", &[0; 20], &mut stream, 1, false, &arenas, true);
+    let ((_, _, next), named) = read_blob(Path::new("."), "next.ts", &[0; 20], &mut stream, 1024, false, &arenas, true);
 
     assert_eq!(outcome, Outcome::Declined);
     assert!(oversized.unknown.is_some());
     assert_eq!(next, Outcome::Parsed);
+    assert!(named, "bytes out of Git's object store are the blob asked for");
 }
 
 #[test]
@@ -24,7 +25,7 @@ fn bytes_that_are_not_utf8_are_declined_and_a_missing_file_failed() {
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("latin1.js"), b"export const e = '\xe9';\n").unwrap();
 
-    let outcome = |file| match open(&root, file, 1024, false).1 {
+    let outcome = |file| match open(&root, file, 1024, false, None).1 {
         Opened::Settled(read, outcome) => (outcome, read.unknown),
         Opened::Source(_) => (Outcome::Parsed, None),
     };
@@ -43,7 +44,7 @@ fn a_file_of_exactly_the_limit_is_opened_and_so_is_an_empty_one() {
     std::fs::write(root.join("exact.js"), b"export const e = 1;\n").unwrap();
     std::fs::write(root.join("empty.js"), b"").unwrap();
 
-    let opened = |file, largest| matches!(open(&root, file, largest, false).1, Opened::Source(_));
+    let opened = |file, largest| matches!(open(&root, file, largest, false, None).1, Opened::Source(_));
     let (exact, over, empty) = (opened("exact.js", 20), opened("exact.js", 19), opened("empty.js", 20));
     std::fs::remove_dir_all(&root).unwrap();
 
@@ -62,7 +63,7 @@ fn a_refusal_reached_through_a_link_failed_and_names_nothing() {
     std::os::unix::fs::symlink(root.join("target.js"), root.join("large.js")).unwrap();
     std::os::unix::fs::symlink(root.join("latin1.js"), root.join("linked.js")).unwrap();
 
-    let outcome = |file, largest| match open(&root, file, largest, false).1 {
+    let outcome = |file, largest| match open(&root, file, largest, false, None).1 {
         Opened::Settled(_, outcome) => outcome,
         Opened::Source(_) => Outcome::Parsed,
     };
@@ -100,8 +101,9 @@ fn a_blob_git_holds_as_an_lfs_pointer_is_read_from_the_checkout_that_smudged_it(
     let mut stream = Cursor::new(format!("oid blob {}\n{POINTER}\n", POINTER.len()).into_bytes());
     let arenas = AllocatorPool::new(1);
 
-    let (read, digest, outcome) = read_blob(&root, "a.ts", &mut stream, 1024, true, &arenas, true);
+    let ((read, digest, outcome), named) = read_blob(&root, "a.ts", &[0; 20], &mut stream, 1024, true, &arenas, true);
     std::fs::remove_dir_all(&root).unwrap();
+    assert!(!named, "the bytes parsed are the checkout's, not the blob's");
 
     assert_eq!(outcome, Outcome::Parsed);
     assert_eq!(digest, crate::digest::of_string("export const a = 1;\n"), "the content is read, not the pointer");
@@ -114,7 +116,7 @@ fn a_checkout_holding_an_lfs_pointer_fails_the_file_and_says_why() {
     std::fs::create_dir_all(&root).unwrap();
     std::fs::write(root.join("a.ts"), POINTER).unwrap();
 
-    let opened = open(&root, "a.ts", 1024, false).1;
+    let opened = open(&root, "a.ts", 1024, false, None).1;
     std::fs::remove_dir_all(&root).unwrap();
 
     let Opened::Settled(read, outcome) = opened else { panic!("a pointer is never parsed as source") };

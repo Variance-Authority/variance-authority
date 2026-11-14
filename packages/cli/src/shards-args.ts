@@ -7,6 +7,8 @@ export interface ParsedShards {
   readonly suite?: string;
   /** `--since <ref>`: the change whose skipped files ask for no shard. */
   readonly since?: string;
+  /** `--ran-at <commit>`: the pull request a merge queue merged onto `--since`, read as `select --ran-at` reads it. */
+  readonly ranAt?: string;
   /** `--at-distance <hops>`: count only the leg of the change's selection this many imports away; the text as typed, read by `parseAtDistance`. */
   readonly atDistance?: string;
   /** `--setup <seconds>`, in milliseconds: what each shard spends before its first test; absent, the count does not weigh it. */
@@ -50,12 +52,17 @@ export function parseShardsArgs(flags: Flags): ParsedShards {
   }
   const suite = flags.values.get('--suite');
   const since = flags.values.get('--since');
+  const ranAt = flags.values.get('--ran-at');
+  if (ranAt !== undefined && since === undefined) {
+    throw new OperatorError('`--ran-at` names the pull request a merge queue merged onto `--since`, and no `--since` was passed');
+  }
   const collected = flags.values.get('--collected');
   const atDistance = flags.values.get('--at-distance');
   return {
     command: 'shards',
     ...(suite === undefined ? {} : { suite }),
     ...(since === undefined ? {} : { since }),
+    ...(ranAt === undefined ? {} : { ranAt }),
     ...(collected === undefined ? {} : { collected }),
     ...(atDistance === undefined ? {} : { atDistance }),
     ...(setup === undefined ? {} : { setup }),

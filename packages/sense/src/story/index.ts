@@ -5,9 +5,14 @@
  * against reading.
  */
 
-export { askedForStories, storyDirectories, storyDirectory, STORY_VARIABLE } from './directory.js';
+export { askedForStories, storyDirectories, storyDirectory } from './directory.js';
+export { STORY_VARIABLE } from './asked.js';
 export { foldSteps, PERIOD, type Step } from './fold.js';
 export { compareOutcomes, recordedReadings, type Charge, type Moved, type OutcomeComparison, type OutcomeRegion, type RecordedCase } from './outcomes.js';
 export { compareReadings, type Comparison, type Moment, type Only, type Order, type PlaceDifference, type Side, type SideSummary } from './compare.js';
-export { drawRoute, listStories, readRoute, type Arm, type Place, type Region, type Route, type Stop, type StoryEntry, type Untaken } from './read.js';
-export { pageStories, storyPageSource, PAGE_STORY, type PageStories, type PageStory, type StoryCase } from './page.js';
+export { drawRoute, drawToldRoute, listStories, readRoute, toldModules, type Arm, type Place, type Region, type Route, type Stop, type StoryEntry, type Untaken } from './read.js';
+export { pageStories, storyPageSource, type PageStories, type StoryCase } from './page.js';
+export { PAGE_STORY, type PageStory } from './page-story.js';
+export { numbered, through, window, type Gap, type Line } from './view.js';
+export { BUDGET, drawings, pick, type Drawing, type Through } from './levels.js';
+export { armStarts, drawingText, routeText, saidText, unnotedText, unresolvedText, untapedText, type Starts } from './text.js';

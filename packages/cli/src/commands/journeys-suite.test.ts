@@ -4,8 +4,9 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.fixture.js';
+import { readTestCoverage, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { landSuite } from '../index.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { parseArgs } from '../parse.js';
@@ -83,6 +84,29 @@ describe('`variance journeys` and the project config', () => {
     expect(said.split('\n')[0]).toBe(`folded 2 snapshots into ${record}`);
     expect(said).not.toContain('journal');
     expect(said.split('\n').length).toBeLessThanOrEqual(4);
+  });
+
+  it('folds two shards over a record as it folds one serial run of the same files over it', async () => {
+    // The record a pull request selected from: every file its last run saw.
+    const selectedFrom = shard(['a.test.ts', 'b.test.ts', 'c.test.ts']);
+    async function landed(name: string, runs: readonly (readonly string[])[]): Promise<TestCoverage> {
+      const at = join(root, name);
+      execFileSync('git', ['init', '--quiet', at]);
+      await writeFile(join(at, 'variance.config.json'), JSON.stringify({ cacheRoot: '.cache', suites: { unit: { kind: 'unit' } } }));
+      const record = testCoverageFile(at, { suite: 'unit' });
+      await writeTestCoverage(record, selectedFrom);
+      const parts = runs.map((files, k) => join(at, `${String(k)}.bin`));
+      await Promise.all(runs.map((files, k) => writeTestCoverage(parts[k]!, shard(files))));
+      await landSuite(at, parts, 'unit');
+      return readTestCoverage(record);
+    }
+
+    const sharded = await landed('sharded', [['a.test.ts'], ['b.test.ts']]);
+    const serial = await landed('serial', [['a.test.ts', 'b.test.ts']]);
+
+    expect(sharded.tests.map((test) => test.file).sort()).toEqual(['a.test.ts', 'b.test.ts', 'c.test.ts']);
+    expect(sharded.tests).toEqual(serial.tests);
+    expect(sharded.modules).toEqual(serial.modules);
   });
 
   it('without `--suite`, is read, and the reading names the report it would narrow to', async () => {

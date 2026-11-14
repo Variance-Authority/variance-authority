@@ -10,7 +10,8 @@ import { declaredSuites, testCoverageFile } from '@variance-authority/sense/test
 import { readFlags } from '../args.js';
 import { parseCoveringArgs } from '../covering-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { covering, formatCovering } from './covering.js';
+import { covering } from './covering.js';
+import { formatCovering } from './covering-text.js';
 
 // One test file run by two Vitest projects, `plain` and `compiled`, recorded
 // through the real seam into a cache of its own for each run.

@@ -16,16 +16,17 @@ name: variance
 # photographed it. `site` observes variance-authority.dev, [`site/`](../../site):
 # its catalog and component pages, since every markdown page excludes itself.
 #
-# The case is observed once more: `lfs` commits its baselines to the pull
-# request's branch through git-LFS. It runs the arrangement an adopter would
-# choose, on this repository's own pull requests, rather than on a fixture of one.
+# The `variance` check observes the case twice: once against the CI cache, and
+# once against baselines committed to the pull request's branch through git-LFS.
+# The second runs the arrangement an adopter would choose, on this repository's
+# own pull requests, rather than on a fixture of one.
 #
 # ## Where the baselines come from, since nothing here is committed
 #
 # Where an accepted baseline lives decides who accepts a change and how;
 # `docs/placement.md` compares the answers. This section describes the CI
-# cache, which the `variance`, `tribunal` and `site` checks run. The `lfs` job
-# commits its baselines, and says how below.
+# cache, which the `variance`, `tribunal` and `site` checks run. The committed
+# store in the `variance` job commits its baselines, and says how below.
 #
 # `.variance/` is ignored, on purpose: a record changes whenever the document
 # does, so records beside their images would make a diff out of every edit that
@@ -105,8 +106,8 @@ on:
         description: >-
           Promote what this branch renders to the baseline store, and keep it
           for every run after. Off by default. On a pull request's branch, the
-          `lfs` job commits its images there; the cached checks accept on a
-          pull request by the docket's box.
+          committed store commits its images there; the cached stores accept
+          on a pull request by the docket's box.
         type: boolean
         default: false
 
@@ -117,8 +118,8 @@ on:
 # `refs/variance/project/<project>/images/<head>`, which holds the images a
 # project's comment shows and is deleted when the pull request closes, and the
 # share's lines, which hold the latest report of each mainline and each branch.
-# Only the `lfs` job writes to a branch, with its own token, and only on a
-# dispatch with `accept` ticked.
+# Only the `variance` job's committed store writes to a branch, with the push
+# token, and only on a dispatch with `accept` ticked.
 permissions:
   contents: write
   pull-requests: write
@@ -193,8 +194,17 @@ jobs:
 
     steps:
       # The merge of the pull request into its base, which is what `main`
-      # becomes.
+      # becomes; the branch itself on a dispatch, which the committed store's
+      # accept commits to, and on a push. `lfs: false` is the default, spelled
+      # out: the image carries git-lfs with its filter off, so the checkout
+      # holds pointers, and the committed store's first step asserts that. The
+      # token is `VARIANCE_PUSH_TOKEN` only on a dispatch with `accept`, so the
+      # commit-back starts the run that checks it; `GITHUB_TOKEN` otherwise,
+      # since no other run pushes to a branch.
       - uses: actions/checkout@v7
+        with:
+          token: ${{ (inputs.accept && secrets.VARIANCE_PUSH_TOKEN) || github.token }}
+          lfs: false
 
       # The CI image runs as a user that does not own the checkout, and
       # git refuses a directory it does not trust. Everything after this asks
@@ -221,7 +231,8 @@ jobs:
       #
       # `storybook-static/` is ignored, so this is not a cache miss to optimise
       # away: there is no committed copy for it to be stale against.
-      - name: build the Storybook this run observes
+      - id: storybook
+        name: build the Storybook this run observes
         shell: bash
         run: yarn workspace @variance-authority/case-storybook build-storybook
 
@@ -314,6 +325,101 @@ jobs:
           # a dotted directory, and this action skips hidden files by default —
           # so the upload would succeed and the reviewer would download a zip
           # with nothing in it.
+          include-hidden-files: true
+          if-no-files-found: warn
+
+      # A committed store, run here rather than described: the case's twelve
+      # stories again, under `variance.lfs.config.json`, whose baselines are
+      # committed to `cases/storybook-case/baselines` through git-LFS. It runs
+      # on the install, build and Storybook above, since a job of its own paid
+      # for all three again on every run. Each of its steps runs whatever the
+      # cached store found, so a change in one store hides nothing in the other.
+      #
+      # Its own comment and image ref, both keyed by the config's `project`. It
+      # accepts on a dispatch with `accept` ticked, on the pull request's branch:
+      # the action commits the accepted images to that branch, so they arrive in
+      # the diff a reviewer approves, and the merge takes them to `main` with the
+      # code. The box accepts into the CI cache, so this store has none. A push
+      # to `main` compares and promotes nothing, because the images arrived in
+      # the merge. Merging is the accept, so on `main` a change is a warning,
+      # never red: the pull request merged with what it committed, and `main`
+      # cannot commit the images it renders without a pull request of its own. A
+      # subject `main` could not observe stays red.
+      #
+      # It also asserts what a checkout that skipped the LFS fetch does, because
+      # that is the failure an adopter meets first: once baselines are committed,
+      # such a checkout holds pointers where images should be, and
+      # `doctor --baselines` must exit 2 on them before git-lfs fetches them.
+      # Exit 2 when a baseline is committed and exit 0 when none is. Either
+      # other answer fails the step, a 0 over pointers most of all, since that
+      # is a gate that passes until somebody edits a component. A refusing
+      # `ls-files` fails the step rather than reading as "nothing committed",
+      # which would expect the wrong code.
+      - id: pointers
+        if: ${{ !cancelled() && steps.storybook.outcome == 'success' }}
+        name: refuse the pointers a checkout that skipped the LFS fetch holds
+        shell: bash
+        run: |
+          set -uo pipefail
+          committed=$(git ls-files -- 'cases/storybook-case/baselines/*.webp' 'cases/storybook-case/baselines/*.png') || exit 1
+          if [ -n "$committed" ]; then expected=2; else expected=0; fi
+          # `shell: bash` runs with -e, so the exit is read in the condition.
+          if node packages/cli/dist/bin.js doctor \
+            --config cases/storybook-case/variance.lfs.config.json --baselines; then
+            code=0
+          else
+            code=$?
+          fi
+          if [ "$code" != "$expected" ]; then
+            echo "::error::doctor --baselines exited $code on a checkout that skipped the LFS fetch; $expected was expected"
+            exit 1
+          fi
+
+      # The bytes back through the smudge filter, and `fsck` checks each one
+      # against the digest its pointer names: what the commit-back cleaned is
+      # what this checkout reads.
+      - id: lfs-fetch
+        if: ${{ !cancelled() && steps.pointers.outcome == 'success' }}
+        name: fetch the baselines through git-lfs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull
+          git lfs fsck
+
+      - id: lfs
+        if: ${{ !cancelled() && steps.lfs-fetch.outcome == 'success' }}
+        uses: ./.github/actions/variance
+        with:
+          config: cases/storybook-case/variance.lfs.config.json
+          profile: chromium
+          command: node packages/cli/dist/bin.js
+          comment: ${{ github.event_name == 'pull_request' }}
+          adopt-unkeyed-comment: 'false'
+          intent: ${{ github.event.pull_request.title }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          report-page: 'true'
+          image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
+          to-accept: 'check the report, then run the **variance** workflow on this branch with **accept** ticked. The accepted images are committed to this branch through git-LFS, and the next run compares against them.'
+          # Only on a dispatch with `accept` ticked, never on every run:
+          # without a person behind it, `accept --all` promotes the regression
+          # the check was added to catch, and the next run is green. The run
+          # itself stays red, because it found the change it then committed;
+          # the push starts the run that checks the new commit, when
+          # `VARIANCE_PUSH_TOKEN` made it. Not on `main`: a dispatch there
+          # with `accept` records the cached checks' first baseline, and the
+          # images reach `main` with the merge of the branch that changed them.
+          commit-baselines: ${{ inputs.accept == true && github.ref_name != github.event.repository.default_branch }}
+          exit-zero-on-changes: ${{ github.event_name == 'push' }}
+
+      - if: ${{ always() && steps.lfs.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: lfs-files
+          path: |
+            ${{ steps.lfs.outputs.report }}
+            ${{ steps.lfs.outputs.images }}
           include-hidden-files: true
           if-no-files-found: warn
 
@@ -413,8 +519,9 @@ jobs:
 
       # What the site's job read and wrote, recorded under `site-job` from the
       # build to the last photograph, so selection can answer by what the job
-      # touched rather than by the list in `tools/site-reach.mjs`. Off a pull
-      # request only: a record is what `main` ran, and a pull request reads it.
+      # touched rather than by the list in `tools/site-reach.mjs`. Recorded on
+      # a dispatch of the default branch, not on every push to it.
+      # TODO: record on every push to `main` once selection reads the record — #1109.
       #
       # The recorder is `variance` itself, which the job also builds, so the
       # first build above makes the recorder, a copy keeps it out of the way,
@@ -429,7 +536,7 @@ jobs:
       # a hole fails the verdict and no record is uploaded.
       - name: build again, recorded
         id: job
-        if: matrix.project == 'site' && github.event_name != 'pull_request'
+        if: matrix.project == 'site' && github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch
         shell: bash
         run: |
           set -euo pipefail
@@ -566,151 +673,6 @@ jobs:
         with:
           name: site-job-record
           path: ${{ steps.record.outputs.dir }}
-          include-hidden-files: true
-          if-no-files-found: warn
-
-  # A committed store, run here rather than described: the case's twelve
-  # stories again, under `variance.lfs.config.json`, whose baselines are
-  # committed to `cases/storybook-case/baselines` through git-LFS. A pull
-  # request is the same one every other job here judges, so the commit-back
-  # lands on a real contributor's branch, through the real clean filter, and the
-  # merge takes the images to `main` with the code.
-  #
-  # Its own comment and image ref, both keyed by the config's `project`. It
-  # accepts on a dispatch with `accept` ticked, on the pull request's branch:
-  # the action commits the accepted images to that branch, so they arrive in
-  # the diff a reviewer approves. The box accepts into the CI cache, so this
-  # job has none. A push to `main` compares and promotes nothing, because the
-  # images arrived in the merge. Merging is the accept, so on `main` a change
-  # is a warning, never red: the pull request merged with what it committed,
-  # and `main` cannot commit the images it renders without a pull request of
-  # its own. A subject `main` could not observe stays red.
-  #
-  # It also asserts what a checkout that skipped the LFS fetch does, because
-  # that is the failure an adopter meets first: once baselines are committed,
-  # such a checkout holds pointers where images should be, and
-  # `doctor --baselines` must exit 2 on them before git-lfs fetches them.
-  lfs:
-    if: github.event.action != 'closed'
-
-    permissions:
-      contents: write
-      pull-requests: write
-
-    concurrency:
-      group: variance-lfs-${{ github.ref }}
-      cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', github.event.repository.default_branch) }}
-
-    runs-on: ubuntu-24.04
-    container:
-      image: ghcr.io/variance-authority/ci:33602dc5866e9770c88223131f3057d61611d121
-      options: --ipc=host
-
-    steps:
-      # The pull request's own branch on its events, since the action refuses
-      # to push a merge commit onto somebody's branch; the dispatched branch on
-      # a dispatch, which the accept commits to; `main` on a push. `lfs:
-      # false` is the default, spelled out: the image carries git-lfs with its
-      # filter off, so the checkout holds pointers, and the step after the
-      # build asserts what that checkout holds. The token is
-      # `VARIANCE_PUSH_TOKEN` when it is set, so the commit-back starts the run
-      # that checks it; `GITHUB_TOKEN` otherwise, whose push lands and starts
-      # nothing.
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.head_ref || '' }}
-          token: ${{ secrets.VARIANCE_PUSH_TOKEN || github.token }}
-          lfs: false
-
-      # The CI image runs as a user that does not own the checkout, and
-      # git refuses a directory it does not trust. Everything after this asks
-      # git something: the build names the native scanner's tree by it, and a
-      # tree it cannot name restores another commit's scanner.
-      - name: trust the workspace
-        shell: bash
-        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
-
-      # Node 24, for the reason written at the same step in `variance`.
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-
-      - shell: bash
-        run: corepack enable && yarn install --immutable
-
-      - uses: ./.github/actions/build
-
-      # Exit 2 when a baseline is committed and exit 0 when none is: a checkout
-      # that skipped the LFS fetch holds pointers, and doctor names them before anything
-      # compares. Either other answer fails the job, a 0 over pointers most of
-      # all, since that is a gate that passes until somebody edits a component.
-      # A refusing `ls-files` fails the step rather than reading as "nothing
-      # committed", which would expect the wrong code.
-      - name: refuse the pointers a checkout that skipped the LFS fetch holds
-        shell: bash
-        run: |
-          set -uo pipefail
-          committed=$(git ls-files -- 'cases/storybook-case/baselines/*.webp' 'cases/storybook-case/baselines/*.png') || exit 1
-          if [ -n "$committed" ]; then expected=2; else expected=0; fi
-          # `shell: bash` runs with -e, so the exit is read in the condition.
-          if node packages/cli/dist/bin.js doctor \
-            --config cases/storybook-case/variance.lfs.config.json --baselines; then
-            code=0
-          else
-            code=$?
-          fi
-          if [ "$code" != "$expected" ]; then
-            echo "::error::doctor --baselines exited $code on a checkout that skipped the LFS fetch; $expected was expected"
-            exit 1
-          fi
-
-      # The bytes back through the smudge filter, and `fsck` checks each one
-      # against the digest its pointer names: what the commit-back cleaned is
-      # what this checkout reads.
-      - name: fetch the baselines through git-lfs
-        shell: bash
-        run: |
-          set -euo pipefail
-          git lfs install --local
-          git lfs pull
-          git lfs fsck
-
-      - name: build the Storybook this run observes
-        shell: bash
-        run: yarn workspace @variance-authority/case-storybook build-storybook
-
-      - id: variance
-        uses: ./.github/actions/variance
-        with:
-          config: cases/storybook-case/variance.lfs.config.json
-          profile: chromium
-          command: node packages/cli/dist/bin.js
-          comment: ${{ github.event_name == 'pull_request' }}
-          adopt-unkeyed-comment: 'false'
-          intent: ${{ github.event.pull_request.title }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          report-page: 'true'
-          image-ref-prefix: ${{ env.VARIANCE_IMAGES }}
-          to-accept: 'check the report, then run the **variance** workflow on this branch with **accept** ticked. The accepted images are committed to this branch through git-LFS, and the next run compares against them.'
-          # Only on a dispatch with `accept` ticked, never on every run:
-          # without a person behind it, `accept --all` promotes the regression
-          # the check was added to catch, and the next run is green. The run
-          # itself stays red, because it found the change it then committed;
-          # the push starts the run that checks the new commit, when
-          # `VARIANCE_PUSH_TOKEN` made it. Not on `main`: a dispatch there
-          # with `accept` records the cached checks' first baseline, and the
-          # images reach `main` with the merge of the branch that changed them.
-          commit-baselines: ${{ inputs.accept == true && github.ref_name != github.event.repository.default_branch }}
-          exit-zero-on-changes: ${{ github.event_name == 'push' }}
-
-      - if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: lfs-files
-          path: |
-            ${{ steps.variance.outputs.report }}
-            ${{ steps.variance.outputs.images }}
           include-hidden-files: true
           if-no-files-found: warn
 

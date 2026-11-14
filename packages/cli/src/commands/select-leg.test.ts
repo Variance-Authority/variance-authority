@@ -6,12 +6,16 @@ import { sourceIndexPath } from '@variance-authority/sense';
 import {
   atDistance,
   type ExecutionNarrowing,
+  kept,
+  placed,
   type TestDistance,
 } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { parseArgs } from '../parse.js';
 import { followUpsLogPath, holdFollowUps, releaseFollowUps } from './index-follow-ups.js';
 import { inLeg, parseAtDistance } from './select-leg.js';
+import { suiteOf } from './select-suite.js';
 import { formatSelection, selectionNotes, skippableTests, type SelectInput } from './select.js';
 
 /**
@@ -105,6 +109,13 @@ describe('one leg of the selection', () => {
     expect(selection.left).toEqual([FAR, GHOST]);
     expect(selection.leg).toEqual({ from: 0, to: 2 });
     expect(selection.widened).toBeUndefined();
+  });
+
+  it('hands a seam the tests the leg left, so a headline over none does not say the change reached none', () => {
+    const suite = suiteOf(read(), { from: 0, to: 0 });
+
+    expect([...suite.skip]).toEqual(WHOLE);
+    expect([...(suite.left ?? [])]).toEqual([FAR, GHOST, MID, NEAR]);
   });
 
   it('skips the tests nearer than an open leg, and runs the unplaced with it', () => {
@@ -429,6 +440,53 @@ describe('one leg of the selection', () => {
 
     expect(selection.skip).toEqual([]);
     expect(selection.left).toEqual([]);
+  });
+
+  describe("as the waves of one shard, which read the same record and must not run a file twice", () => {
+    const NEW = 'test/new.test.ts';
+    const discovered = [...WHOLE, NEW, PARTIAL];
+    const waves = (input: SelectInput) =>
+      [{ from: 0, to: 2 }, { from: 3, to: Number.MAX_SAFE_INTEGER }].map((leg) => kept(suiteOf(input, { ...leg, partition: true }), discovered));
+
+    it('runs a file the record never saw in the leg that starts at 0 hops alone', () => {
+      const [near, far] = waves(read(DISTANCES, [PARTIAL]));
+
+      expect(near).toEqual([MID, NEAR, NEW]);
+      expect(far).toEqual([FAR, GHOST, PARTIAL]);
+    });
+
+    it('runs every file of a reading that could not narrow in the leg that starts at 0 hops alone', () => {
+      const [near, far] = waves({ at: '/cache/coverage.bin', ground: { kind: 'no-journal' } });
+
+      expect(near).toEqual(discovered);
+      expect(far).toEqual([]);
+    });
+
+    it('runs no nearer test in a later leg, whatever stands before HEAD', () => {
+      const input = read(DISTANCES, [PARTIAL]);
+      const after: SelectInput = input.ground.kind === 'read' ? { ...input, ground: { ...input.ground, unrunAtHead: [GHOST, MID] } } : input;
+      const [near, far] = waves(after);
+
+      expect([...near, ...far].sort()).toEqual([...new Set([...near, ...far])].sort());
+      expect(far).toEqual([FAR, GHOST, PARTIAL]);
+    });
+
+    it('places the same files in every wave it was told the shard runs, so its waves take the one part the plan priced', () => {
+      const input = read(DISTANCES, [PARTIAL]);
+      const placing = { from: 0, to: Number.MAX_SAFE_INTEGER };
+      const [near, far] = [{ from: 0, to: 2 }, { from: 3, to: Number.MAX_SAFE_INTEGER }].map((leg) =>
+        placed(suiteOf(input, { ...leg, partition: true, placing }), discovered),
+      );
+
+      expect(near).toEqual(far);
+      expect([...near!].sort()).toEqual(waves(input).flat().sort());
+    });
+
+    it('places a wave alone when the shard was not told which waves it runs, as a plan that priced that wave alone placed it', () => {
+      const input = read(DISTANCES, [PARTIAL]);
+
+      expect(placed(suiteOf(input, { from: 0, to: 2, partition: true }), discovered)).toEqual(waves(input)[0]);
+    });
   });
 
   it('refuses a leg over a journey file, which measures no hops', () => {

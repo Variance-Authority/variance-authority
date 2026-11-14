@@ -2,7 +2,7 @@
 import { digestValue, type CanonicalValue, type EnvironmentInputs, type Viewport } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Plan } from './collector.js';
-import type { NotObserved, NotObservedKind } from './run-report.js';
+import type { NotObserved, NotObservedKind } from '@variance-authority/report';
 import { openSuitePart, type SuitePart } from './suite-part.js';
 
 /**

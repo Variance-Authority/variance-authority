@@ -38,6 +38,12 @@ the second command is for.
 is the other shipped adapter, for served routes, a sitemap or a static build.
 Anything else is a module you write, and step 1 has its shape.
 
+The package installs one command, `variance`. Run it through your package
+manager (`yarn variance`, `pnpm exec variance`, or a `package.json` script),
+which finds the installed copy and never fetches another. A workflow step has no
+package manager in front, so the steps on this page run `npx --no-install
+variance`.
+
 ## Integrate the CLI
 
 ### 1. Write the collector module
@@ -154,8 +160,8 @@ ids are the safe default after initial setup.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
-variance select  [--since <ref>] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--format plain|json|vitest|jest] [--no-git]
-variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
+variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest] [--no-git]
+variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
 variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]
@@ -163,7 +169,7 @@ variance layers  [--against <index>] [--root <path>] [--format text|markdown|jso
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
-variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
+variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--story] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
 variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
 variance watch
@@ -176,9 +182,9 @@ variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
 variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
-variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
+variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
-variance carry   restore | save | take [<dir>] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
+variance carry   restore | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared
 ```
 
@@ -278,6 +284,7 @@ variance ask describe --subject story:card
 variance ask search --query viewport    # the code, and the cases the last run recorded: no report and no config needed
 variance ask costs --from src           # where the suite's time goes under src, from the mainline's published times
 variance ask slowest-tests --over 3s --from src   # the cases under src that ran at least 3 s, closest to their limit first
+variance ask retried-tests              # the cases the runner retried whose attempts ended differently: failed, then passed
 variance ask containment --after 2026-01-01    # how far commits since that day reached across package boundaries
 variance ask decisions --subject story:card   # what reviewers decided on it, read with the share token
 variance ask concerns --build ci-42           # what reviewers flagged as suspect on the subjects that build showed, and why
@@ -1216,23 +1223,14 @@ its own denominator and baseline; a missing record or baseline is named rather t
 The coverage readings travel in `review.json`, so `--from-run` prints the same
 evidence without reading the laptop’s recordings.
 
-In CI, restore the recording directory your base branch saved to the runner
-cache (the directory [the cache](https://variance-authority.dev/docs/cache) describes), run the
-suite, and review after it:
-
-```yaml
-- run: yarn test
-- if: ${{ !cancelled() }}
-  run: |
-    npx variance index
-    npx variance review --since "$BASE" --out review --format markdown >> "$GITHUB_STEP_SUMMARY"
-```
-
-On GitHub, `Variance-Authority/action/review` replaces the cache steps, the
-tests and the review: it runs your command between the carry that restores the
-mainline's record and the carry that saves what it ran, runs the same two
-commands with `--coverage`, puts the review on the pull request as one comment
-updated in place, and marks each changed function no case covered on the diff.
+In CI the review runs after the suite, over the recording your base branch saved
+to the runner cache (the directory [the cache](https://variance-authority.dev/docs/cache)
+describes). On GitHub, `Variance-Authority/action/review` is that job: it runs
+your command between the carry that restores the mainline's record and the carry
+that saves what it ran, runs `variance index` and `variance review --coverage`
+after it, writes the review to the step summary and to the pull request as one
+comment updated in place, and marks each changed function no case covered on the
+diff.
 [Review coverage on every pull request](https://variance-authority.dev/docs/review-coverage)
 has the whole job:
 
@@ -1703,6 +1701,7 @@ what one that does reports. Start the suite in one shell and ask from another:
 ```bash
 variance ask self --at http://127.0.0.1:54321
 variance ask run-signals --at http://127.0.0.1:54321
+variance ask ran --at http://127.0.0.1:54321
 variance ask test-signals --test 'checkout settles' --at http://127.0.0.1:54321
 ```
 
@@ -2374,7 +2373,9 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- vitest run
 
 A leg is still a skip list. A selection that declines to narrow skips nothing
 in any leg, and a test new since the recording is on no skip list, so it runs in
-both. A test the change entered by no import it executed has no hop count, and
+both. The passes of one `--shard` run are the exception: a later pass runs only
+what the record placed in its range, so a new file, and every file of a
+selection that declined, runs in the pass that starts at 0 hops alone. A test the change entered by no import it executed has no hop count, and
 runs in the *end leg*: the one leg that holds the furthest hop measured, so
 `0-2` is the end leg when something is placed and nothing past two hops, and
 `3-` then is not. With nothing placed, the end leg is the *open leg*, the one
@@ -2393,6 +2394,15 @@ It declines to narrow, out loud on stderr and with an empty stdout, whenever the
 journal holds no answer: no record of the suite, neither this checkout's nor the
 mainline's, a diff git would not produce, a lockfile that cannot be compared at the diff's base, or a journal
 with no whole observation in it.
+
+`--local` answers each of those, and a diff that moves what the suite rests on,
+with a smaller selection instead: the test files that import a changed file, by
+the [source index](#index-publish-the-file-graph-once), or every test file in a
+changed file's package when the index does not list it. stderr names which one
+ran and the test files it left, which stay on the skip list, and `--format json`
+gives them under `fell`, with its `rung`, `importers` or `package`, and `left`.
+It is for a laptop's edit loop, never a gate, and `VARIANCE_AUTHORITY_LOCAL=1`
+asks the same of a runner's seam.
 
 A changed file the journal records nothing about is not one of those. Prose, a
 workflow, or a fixture your tests read with `fs` keeps no test in the run, and
@@ -2460,6 +2470,23 @@ numbers are coordinates in that commit's text. `--since <ref>` names a base only
 for a journal recorded outside a checkout, which names no commit of its own.
 No `variance.config.json` is read, so a repository that uses this tool for
 nothing else can still ask.
+
+#### Selecting a merge queue's group of one
+
+`--ran-at <commit>` names the commit whose run a pull request passed at, which
+a merge queue merged onto `--since`, the mainline commit whose run passed too;
+nothing checks either run, so name only commits that passed. A test file only one side's change reaches is
+skipped, a file both reach runs, and a lockfile change on either side runs what
+it reaches. Each skip is named with the side that ran it. A HEAD whose clean
+tree is the tree `--ran-at` names skips every test file, since
+that commit's run already ran them there. Otherwise, anything but a HEAD
+whose tree is the clean merge of that one pull request, by a merge commit or a
+squash, selects as without `--ran-at`, with a note saying why.
+`variance shards --ran-at` counts shards from the same selection, and the
+runner reads it from `VARIANCE_AUTHORITY_RAN_AT` beside
+`VARIANCE_AUTHORITY_SINCE`;
+[a pull request in the merge queue](https://variance-authority.dev/docs/selecting#a-pull-request-in-the-merge-queue)
+walks through it.
 
 #### Selecting from a journey file
 
@@ -2544,10 +2571,10 @@ under `before`.
 It needs `strace`, so it records on Linux. On a Mac, start from Docker rather than
 waiting for CI: run the same commands in a Linux container with `strace`, in a
 clean clone of the commit placed at the primary checkout's own path, with that
-checkout's cache directory mounted and named by `VARIANCE_AUTHORITY_CACHE`. A
+checkout's cache directory mounted at its own path and named by `VARIANCE_AUTHORITY_CACHE`. A
 config that names `cacheRoot` wins over the variable, so there the mount goes
 where that `cacheRoot` resolves inside the container. The cache is keyed by the
-path, so the record lands where the checkout and its worktrees read, and
+checkout's path as seen from the cache directory, so the record lands where the checkout and its worktrees read, and
 `variance select` answers from it at once. The clone builds the commit, not your
 edits, and the record holds what the Linux build read, as CI's does.
 
@@ -2625,10 +2652,10 @@ plan:
     - id: count
       run: |
         set -o pipefail
-        npx variance carry hand "$RUNNER_TEMP/base"
-        npx variance index
+        npx --no-install variance carry hand "$RUNNER_TEMP/base"
+        npx --no-install variance index
         npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
-        shards=$(npx variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)
+        shards=$(npx --no-install variance shards --suite unit --setup 90 --since origin/main --collected "$RUNNER_TEMP/collected.txt" --format json | jq -c .matrix)
         echo "shards=$shards" >> "$GITHUB_OUTPUT"
     - uses: actions/upload-artifact@v7
       with:
@@ -2647,8 +2674,8 @@ test:
       with:
         name: variance-base
         path: ${{ runner.temp }}/base
-    - run: npx variance carry receive "$RUNNER_TEMP/base"
-    - run: npx variance index
+    - run: npx --no-install variance carry receive "$RUNNER_TEMP/base"
+    - run: npx --no-install variance index
     - run: VARIANCE_AUTHORITY_SINCE= npx vitest run --shard ${{ matrix.shard }}
 ```
 
@@ -3018,7 +3045,7 @@ owns its own collector, renderer, storage, or review surface:
   `imageRoot` for where the report's images are published, and `limits` when a
   caller needs smaller docket bounds. Limits merge
   over `DEFAULT_LIMITS`; the renderer still states what it omitted.
-- `suiteBase(root, { suite, cacheRoot, env, fetch })` answers which execution record a
+- `suiteBase(root, { suite, cacheRoot, env, fetch, beneath })` answers which execution record a
   runner of your own measures a change from: the checkout's own, else the
   `suite-v1/<suite>` your mainline published to the share, or the one fetched on
   this machine earlier when the remote does not answer, else, in a worktree that
@@ -3036,12 +3063,16 @@ owns its own collector, renderer, storage, or review surface:
   `undefined` for a landing that lays no coverage. `env` stands in for
   `process.env` when the line is read, `cacheRoot` for the cache, and `fetch`
   says whether the remote is asked: `'never'` makes a read that fetches nothing
-  and rewrites no record, `'always'` asks it whatever was fetched. After the shards ran,
-  `landSuite(cwd, shards, suite)` lands their records on `suite`'s record in the
-  checkout, as `variance journeys <shards> --suite` does, and returns what the
-  landing said without the reading. A CI fan-in does not compose these:
+  and rewrites no record, `'always'` asks it whatever was fetched. `beneath`
+  passes over the checkout's own record, as one shard of a run does, so a shard
+  measures from the record it was handed, not from what it already ran. After the shards ran,
+  `landSuite(cwd, shards, suite, alone?)` lands their records on `suite`'s record
+  in the checkout, as `variance journeys <shards> --suite` does, and returns what
+  the landing said without the reading; `alone` lands them over nothing, reading
+  no record already there. A CI fan-in does not compose these:
   `variance share <record>...` lays the mainline's record and lands the records
-  over it, and `share --publish <record>...` publishes what they make.
+  over it, and `share --publish <record>...` publishes the run they make: alone
+  to a mainline, over the mainline's record to a branch.
 - `recordedExecutionFile(root, suite)` names the record `distill` and `review`
   read for a suite, and refuses as `unrecorded` when no run kept
   its cases. A script that reads a record with the sense readers starts here,
@@ -3253,7 +3284,7 @@ has the gate. On GitHub Actions that is one step:
 
 ```yaml
 - run: npx playwright install --with-deps chromium
-- run: npx variance run --config variance.config.json
+- run: npx --no-install variance run --config variance.config.json
 ```
 
 `run` exits `0` when nothing needs review, `1` when it found something a person
@@ -3328,19 +3359,15 @@ each with its own `carry`:
 
 `variance carry restore` and `variance carry save` print what `actions/cache`
 takes: each file's paths, its key and, on a restore, the keys to fall back
-to. With `--format github` the lines are step outputs, so the workflow names
-no path the config already names:
+to. With `--format github` the lines are step outputs, such as `baselines-path`,
+`baselines-key` and `baselines-restore-keys`. `Variance-Authority/action` reads
+them itself: it restores the baselines before its run and saves the ones an
+accept wrote, so the workflow names no path and no key:
 
 ```yaml
-- id: carry
-  run: npx variance carry restore --config variance.config.json --format github >> "$GITHUB_OUTPUT"
-- if: steps.carry.outputs.baselines-key != ''
-  uses: actions/cache/restore@v6
+- uses: Variance-Authority/action@v1
   with:
-    path: ${{ steps.carry.outputs.baselines-path }}
-    key: ${{ steps.carry.outputs.baselines-key }}
-    restore-keys: ${{ steps.carry.outputs.baselines-restore-keys }}
-- run: npx variance run --config variance.config.json
+    config: variance.config.json
 ```
 
 A suite with `"carry": "share"` gets no key: its record travels through
@@ -3350,7 +3377,7 @@ mainline's record of every such suite into the checkout, or of the one
 `shared-suites=<name> <name>`, separated by spaces, for a matrix of suite jobs:
 
 ```yaml
-- run: npx variance share
+- run: npx --no-install variance share
 ```
 
 `variance share --suite <name> --format github` prints `commit=<sha>`, the
@@ -3366,7 +3393,7 @@ from the record alone, and `variance carry merge <commit>` makes that merge:
   if: github.event_name == 'pull_request'
   env:
     COMMIT: ${{ steps.record.outputs.commit }}
-  run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+  run: npx --no-install variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
 ```
 
 It reads the head from the pull request's event, or from `--head <sha>`, and
@@ -3415,8 +3442,8 @@ ran, red or green:
 
 ```yaml
 - id: carry
-  run: npx variance carry restore --format github >> "$GITHUB_OUTPUT"
-# … restore the suites' caches, or read the share, as above …
+  run: npx --no-install variance carry restore --format github >> "$GITHUB_OUTPUT"
+# … restore suite-unit-path from suite-unit-key and suite-unit-restore-keys with actions/cache/restore, or read the share when the suite is shared …
 - if: steps.carry.outputs.pushed-key != ''
   uses: actions/cache/restore@v6
   with:
@@ -3425,17 +3452,17 @@ ran, red or green:
     restore-keys: ${{ steps.carry.outputs.pushed-restore-keys }}
 - id: take
   if: steps.carry.outputs.pushed-key != ''
-  run: npx variance carry take --format github >> "$GITHUB_OUTPUT"
-- run: npx variance run --since "${{ steps.carry.outputs.base }}" --suite unit
+  run: npx --no-install variance carry take --format github >> "$GITHUB_OUTPUT"
+- run: npx --no-install variance run --since "${{ steps.carry.outputs.base }}" --suite unit
 - if: ${{ !cancelled() }}
   env:
     AGAINST: ${{ steps.take.outputs.against-unit }}
-  run: npx variance review --since "${{ steps.carry.outputs.base }}" --suite unit ${AGAINST:+--against "$AGAINST"}
+  run: npx --no-install variance review --since "${{ steps.carry.outputs.base }}" --suite unit ${AGAINST:+--against "$AGAINST"}
 - id: keep
   if: ${{ !cancelled() }}
-  run: npx variance carry save --format github >> "$GITHUB_OUTPUT"
+  run: npx --no-install variance carry save --format github >> "$GITHUB_OUTPUT"
 - if: ${{ !cancelled() && steps.keep.outputs.pushed-key != '' }}
-  run: npx variance carry keep
+  run: npx --no-install variance carry keep
 - if: ${{ !cancelled() && steps.keep.outputs.pushed-key != '' }}
   uses: actions/cache/save@v6
   with:
@@ -3471,7 +3498,10 @@ prints `kept=<suite> <suite>`; the lines saying why go to stderr.
 took there, in `taken.json`, so one job can take the last push and hand the
 directory to the run's other jobs as an artifact. Each of them runs
 `variance carry take <dir>` over it, and it exits 2 when it cannot take a suite
-the first job took, so no job reads another record than the rest. The bundle
+the first job took, so no job reads another record than the rest. A shard runs
+`variance carry take <dir> --as-base` after `carry receive` instead: it lays the
+last push where the received read sits, so the shard selects from the record the
+plan read, and its own record holds only what it runs. The bundle
 reads only in a clone that holds `origin/<base>` where `keep` cut it, so check
 out with `fetch-depth: 0`; elsewhere `take` says it did not read and fetches by
 name:
@@ -3493,7 +3523,7 @@ name:
     path: ${{ runner.temp }}/carried
 - id: take
   if: needs.base.outputs.carried == 'true'
-  run: npx variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"
+  run: npx --no-install variance carry take "$RUNNER_TEMP/carried" --format github >> "$GITHUB_OUTPUT"
 ```
 
 Jobs of one run read one record, and a re-run of one of them reads it too. The

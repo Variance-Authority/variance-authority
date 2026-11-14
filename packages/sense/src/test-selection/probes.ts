@@ -19,15 +19,7 @@ import probeLog from '../instrument/probe-log.cjs';
 import preconditions from './case-preconditions.cjs';
 import { PAGE_STORY, type PageStory } from '../story/page-story.js';
 import { CARRIED_SOURCE } from './carried.js';
-
-/**
- * Where a page hands its journal over.
- *
- * Deliberately not a short name: this shares a global namespace with whatever
- * application the page already loaded, and a collision would be discovered as a
- * confusing selection rather than as an error.
- */
-export const EXECUTION_GLOBAL = '__variance_authority_execution__';
+import { EXECUTION_GLOBAL } from './execution-global.js';
 
 /** What one module reported: the ordinals it entered, deduplicated. */
 export interface ExecutedModule {

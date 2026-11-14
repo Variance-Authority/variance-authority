@@ -9,6 +9,10 @@
  * breach: the run spans hooks and attempts, the limit one attempt, so a passing
  * case can read above it.
  *
+ * A case that names its slowest statement carries it on one more line: the
+ * file line, its time, and its share of the case, never above the whole of it:
+ * two clocks time them, and a case stopped beside others ends with its file.
+ *
  * A scope that matched nothing says which half matched nothing, and a `to`
  * path the record holds no row for is named as unrecorded: a table with no
  * rows would read as *no test is slow here*, which is a claim nobody measured.
@@ -70,8 +74,13 @@ export function formatSlowest(
   return lines.join('\n');
 }
 
+/** What an answer holds of the record it read, or why it read none. */
+type RecordRead =
+  | { readonly suite?: string; readonly recording: string; readonly origin: RecordOrigin; readonly commit?: string; readonly landed?: string }
+  | { readonly unread: string };
+
 /** Which record this suite's answer read: whose run, at which commit, how old. An unread one says why where it is listed. */
-function recordLine(suite: RecordedDurations, now: number): string[] {
+export function recordLine(suite: RecordRead, now: number): string[] {
   if ('unread' in suite) return [];
   const named = suite.suite === undefined ? 'Read' : `Suite ${suite.suite} read`;
   return [`${named} ${WHOSE[suite.origin]}${takenAt(suite, now)}, ${suite.recording}.`];
@@ -83,7 +92,7 @@ function takenAt({ commit, landed }: { readonly commit?: string; readonly landed
   return commit === undefined ? at : `${at}, landed at a time the record does not hold`;
 }
 
-/** The cases that ran the largest share of their limit, each as its run and its limit. */
+/** The cases that ran the largest share of their limit, each as its run and its limit, over its slowest statement. */
 function closestSection(cases: RecordedCaseDurations, named: string): string[] {
   if ('unread' in cases || cases.timed === 0) return [];
   if (cases.limited === 0) return [`${named}: none of the ${cases.timed} timed case(s) has a recorded limit, so they are listed by time alone.`];
@@ -96,7 +105,10 @@ function closestSection(cases: RecordedCaseDurations, named: string): string[] {
   const unlimited = cases.timed - cases.limited;
   return [
     `${named}, each as run and limit:`,
-    ...cases.closest.map((row) => `  ${pair(row).padStart(wide)}  ${row.file}  ${row.name}`),
+    ...cases.closest.flatMap((row) => [
+      `  ${pair(row).padStart(wide)}  ${row.file}  ${row.name}`,
+      ...statementLine(row, wide + 4),
+    ]),
     `${cases.closest.length} of ${cases.limited} limited case(s) shown` +
       `${unlimited === 0 ? '.' : `; ${unlimited} timed case(s) have no recorded limit.`}`,
   ];
@@ -110,7 +122,16 @@ function placeOf(scope: DurationScope): string {
 }
 
 type Read = RecordedDurations | RecordedCaseDurations;
-type Row = { readonly file: string; readonly duration: number; readonly name?: string };
+type Row = { readonly file: string; readonly duration: number; readonly name?: string; readonly slowest?: TimedTestCase['slowest'] };
+
+const WHOLE = 100;
+
+/** The line under a case that names its slowest statement, indented to the case's label. */
+function statementLine({ file, duration, slowest }: Row, indent: number): string[] {
+  if (slowest === undefined) return [];
+  const share = Math.min(WHOLE, Math.round((slowest.time / duration) * WHOLE));
+  return [`${' '.repeat(indent)}slowest statement ${file}:${slowest.line}, ${spent(slowest.time)}, ${share}% of the case`];
+}
 
 function section(
   read: Read,
@@ -150,7 +171,7 @@ function section(
   const wide = Math.max(...rows.map((row) => spent(row.duration).length));
   return [
     `${named}, as their runner timed them:`,
-    ...rows.map((row) => `  ${spent(row.duration).padStart(wide)}  ${label(row)}`),
+    ...rows.flatMap((row) => [`  ${spent(row.duration).padStart(wide)}  ${label(row)}`, ...statementLine(row, wide + 4)]),
     `${rows.length} of ${read.timed} timed ${noun}(s) shown` +
       `${faster === 0 ? '' : `; ${faster} ran faster`}` +
       `${read.untimed === 0 ? '.' : `; ${read.untimed} recorded ${noun}(s) have no duration.`}`,

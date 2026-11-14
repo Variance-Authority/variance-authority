@@ -27,17 +27,17 @@
  */
 
 import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
+import manifest from '../package.json' with { type: 'json' };
 import { relative, resolve } from 'node:path';
 import remapping, { type SourceMapInput } from '@jridgewell/remapping';
 import {
-  isTestFile,
   jestCacheKey,
   loadTransformer,
   type JestTransformer as Transformer,
   type JestTransformOptions,
   type TransformerEntry,
 } from './jest-transformer.js';
+import { isTestFile } from './jest-test-files.js';
 import { skipper } from './skips.js';
 import { isolate, type Isolated } from './transform.js';
 
@@ -59,7 +59,7 @@ interface JestTransformedSource {
 /** The shape of a transformer as Jest loads one. */
 export type JestTransformer = Transformer<JestTransformOptions, JestTransformedSource>;
 
-const VERSION = (createRequire(import.meta.url)('../package.json') as { version: string }).version;
+const VERSION = manifest.version;
 
 /**
  * Build the transformer Jest will call. Async because the wrapped transformer

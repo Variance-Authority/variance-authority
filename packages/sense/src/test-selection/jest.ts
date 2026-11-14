@@ -34,8 +34,9 @@ import { mergedTransform } from './jest-preset.js';
 import { SELECTION_RUNTIME, selecting } from './jest-runtime-config.js';
 import { placingSequencer } from './jest-placing.js';
 import { projectNamed } from './jest-projects.js';
-import { selectingFilter } from './jest-selection.js';
-import { recordFileFor } from './record-location.js';
+import { placingPaths, selectingFilter } from './jest-selection.js';
+import { handedRecord, recordFileFor } from './record-location.js';
+import { recordsAlone } from './mainline-layer.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedSelection, landingTimes } from './selection-environment.js';
 import type { SuiteSelection } from './suite-selection.js';
@@ -354,22 +355,30 @@ export function withTestSelection(
     ...(mode === undefined ? {} : { mode }),
     ...(options.continuations === true ? { continuations: true } : {}),
   };
-  const suite = options.suite === undefined ? {} : { suite: options.suite };
-  const selection = askedSelection(options.selection, () => coverageFile, { root, from: rootDir, ...suite });
-  const times = landingTimes(coverageFile, { root, from: rootDir, ...suite, byFile: options.coverageFile !== undefined });
+  // A shard handed a read reads it, beneath what it or its earlier wave ran.
+  // Whether the run is one is Jest's resolved `shard`, which the sequencer is
+  // made with before anything asks for the selection.
+  let alone = false;
+  const request = { root, from: rootDir, ...(options.suite === undefined ? {} : { suite: options.suite }) };
+  const own = askedSelection(options.selection, () => coverageFile, request);
+  const handed = askedSelection(options.selection, () => coverageFile, { ...request, beneath: true });
+  const selection = own && handed && (() => (alone ? handed : own)());
+  const asked = { ...request, byFile: options.coverageFile !== undefined };
+  const times = () => landingTimes(coverageFile, { ...asked, ...(alone ? { beneath: true } : {}) })();
 
   return {
     ...(projects === undefined ? selecting(instrumented(config, root, ownRoot(config, rootDir), placing, declared, cadence), root, undefined) : config),
     rootDir: config.rootDir ?? rootDir,
     ...(projects === undefined ? {} : { projects }),
-    ...placingSequencer(config, { root, rootDir, times }),
+    ...placingSequencer(config, {
+      root, rootDir, times,
+      ...(selection === undefined ? {} : { placing: placingPaths }),
+      sharded: (asked) => { alone = recordsAlone(asked, selection !== undefined, handedRecord(root, coverageFile)); },
+    }),
     ...(selection === undefined ? {} : selectingFilter(config, {
       root, rootDir, selection, cutFile: resolve(dirname(coverageFile), `.cut-${process.pid}-${randomUUID()}.json`),
     })),
-    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, {
-      ...reporter,
-      ...(selection === undefined ? {} : { selected: true }),
-    }]],
+    reporters: [...(config.reporters ?? ['default']), [SELECTION_REPORTER, { ...reporter, ...(selection === undefined ? {} : { selected: true }) }]],
   };
 }
 

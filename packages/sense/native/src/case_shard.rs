@@ -20,6 +20,9 @@ pub(crate) struct Shard {
     pub durations: Vec<Option<u32>>,
     /// Each case's limit in milliseconds, where the record names one.
     pub limits: Vec<Option<u32>>,
+    /// Each case's slowest statement as its line and whole milliseconds, where
+    /// the record names one.
+    pub slowest: Vec<Option<(u32, u32)>>,
     /// Each case's lines as stored, its modules named by their row in this
     /// shard; empty where the case recorded none.
     pub lines: Vec<Vec<u8>>,
@@ -66,11 +69,13 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let projects = optional_words(case_id::PROJECT_COLUMN)?;
     let durations = optional_words(&cases.duration)?;
     let limits = optional_words(&cases.limit)?;
+    let slowest = optional_words(&cases.slowest)?;
     let lines = if decoded.has(&cases.lines) { Some((decoded.bytes(&cases.lines)?, decoded.words(&cases.lines_offsets)?)) } else { None };
     if files.len() != count
         || names.len() != count
         || settled.len() != count
         || [&runners, &projects, &durations, &limits].into_iter().flatten().any(|column| column.len() != count)
+        || slowest.as_ref().is_some_and(|column| column.len() != count * 2)
         || lines.as_ref().is_some_and(|(_, offsets)| offsets.len() != count + 1)
     {
         return Err("test columns disagree".to_owned());
@@ -90,6 +95,8 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let no_duration = LAYOUT.coverage.no_duration;
     let durations = (0..count).map(|at| durations.as_ref().map(|column| column[at]).filter(|word| *word != no_duration)).collect();
     let limits = (0..count).map(|at| limits.as_ref().map(|column| column[at]).filter(|word| *word != no_duration)).collect();
+    // A pair with no time is a case that names no statement.
+    let slowest = (0..count).map(|at| slowest.as_ref().map(|column| (column[at * 2], column[at * 2 + 1])).filter(|(_, time)| *time != 0)).collect();
     let lines = match &lines {
         None => vec![Vec::new(); count],
         Some((blob, offsets)) => offsets
@@ -173,6 +180,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
         tests,
         durations,
         limits,
+        slowest,
         lines,
         modules,
         set_bytes,
@@ -316,6 +324,20 @@ impl<'a> Varints<'a> {
             }
         }
         Err("case lines hold a number too long".to_owned())
+    }
+
+    /// The next `length` bytes, as they are.
+    pub(crate) fn bytes(&mut self, length: u64) -> Result<&'a [u8], String> {
+        let end = usize::try_from(length).ok().and_then(|length| self.at.checked_add(length)).filter(|end| *end <= self.bytes.len())
+            .ok_or_else(|| "case lines end early".to_owned())?;
+        let held = &self.bytes[self.at..end];
+        self.at = end;
+        Ok(held)
+    }
+
+    /// How many bytes are left to read.
+    pub(crate) fn left(&self) -> usize {
+        self.bytes.len() - self.at
     }
 
     pub(crate) fn end(&self) -> Result<(), String> {

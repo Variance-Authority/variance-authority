@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { memoryParseCache } from './cache.js';
 import { digestString } from './digest.js';
-import { declinedForSize, recordFor, stillTooLarge, type RecordSubject } from './record.js';
+import { keyFor, parseWay } from './files.js';
+import { declinedForSize, parsedOnce, recordFor, stillTooLarge, type RecordSubject } from './record.js';
 import { resolversFor } from './resolve.js';
 
 /**
@@ -100,5 +101,22 @@ describe('recordFor', () => {
 
     await writeFile(join(root, 'wide.css'), '.a{}\n', 'utf8');
     expect(await stillTooLarge(join(root, 'linked.css'), 8)).toBe(false);
+  });
+});
+
+describe('parsedOnce', () => {
+  // A parse is kept whatever limit read it: the one it holds answers only under the limit asked now, by the bytes it measured.
+  it('answers a held parse by its measured size against the limit it is asked under, without opening the file', () => {
+    const digest = digestString('export const held = 1;\n');
+    const cache = memoryParseCache();
+    const held = { requests: [], size: { bytes: 24, lines: 1 } };
+    cache.set(keyFor(digest, parseWay('held.ts')), held);
+    let parses = 0;
+    const asked = (largestFile: number) =>
+      parsedOnce({ root: '/nowhere', file: 'held.ts', cache, digest, largestFile, counted: () => { parses += 1; } });
+
+    expect(asked(8)).toBeUndefined();
+    expect(asked(24)).toBe(held);
+    expect(parses).toBe(0);
   });
 });

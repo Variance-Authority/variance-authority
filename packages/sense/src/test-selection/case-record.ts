@@ -1,4 +1,5 @@
 import { closeSync, openSync } from 'node:fs';
+import { decodeRecordedAttempts, readableAttempts, type RecordedAttempt } from './attempts-record.js';
 import { isMissing } from './instrumented-modules.js';
 import { descriptor } from './coverage-file.js';
 import { decodeRecordedEyes, readableEyes, type EyesSection } from './eyes-record.js';
@@ -25,9 +26,11 @@ export interface CaseSections {
   readonly last?: Uint8Array;
   /** `eyes`: the Eyes journals of the cases that kept one, by case and attempt (`eyes-record.ts`). */
   readonly eyes?: Uint8Array;
+  /** `cases.attempts`: how each attempt of a retried case ended (`attempts-record.ts`); absent, attempts were not kept. */
+  readonly attempts?: Uint8Array;
   /** `run.base`: the record the run started from (`record-base.ts`), so shards of one build that restored two records refuse to combine. */
   readonly base?: Uint8Array;
-  /** `cases.readings`: the earlier readings of cases run again over the code they read before, as JSON (`case-readings.ts`). */
+  /** `cases.readings`: the earlier readings of cases run again over the code they read before, as bytes (`readings-bytes.ts`). */
   readonly readings?: Uint8Array;
 }
 
@@ -144,6 +147,17 @@ export function recordedEyesAt(coverageFile: string): EyesSection | undefined {
 }
 
 /**
+ * How each attempt of a retried case ended in the record at `coverageFile`
+ * (`attempts-record.ts`): no row when no case was retried, and `undefined` when
+ * the record kept no attempts — a record written before attempts were kept, or
+ * no record at all.
+ */
+export function recordedAttemptsAt(coverageFile: string): readonly RecordedAttempt[] | undefined {
+  const { attempts } = caseSectionsAt(coverageFile, ['attempts']);
+  return attempts === undefined ? undefined : decodeRecordedAttempts(attempts);
+}
+
+/**
  * What the record held in `bytes` keeps of Eyes; `undefined` when it kept none,
  * as a case index on its own keeps none. A reader that also takes the index
  * reads both off the same bytes, so they are one run's even when a landing
@@ -250,8 +264,8 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
 }
 
 /**
- * `record` as another checkout takes it: the case index, its earlier readings
- * and its Eyes journals kept, and the parts that name this checkout's last run and the record it
+ * `record` as another checkout takes it: the case index, its earlier readings,
+ * its Eyes journals and how its retried cases' attempts ended kept, and the parts that name this checkout's last run and the record it
  * started from dropped, because that run is not the taker's. Every crossing — a seed, a fetch, a share — goes
  * through here.
  *
@@ -259,15 +273,18 @@ export function withCaseSections(record: Uint8Array, cases: CaseSections): Buffe
  * the same machine's worktree, and a share or a carry names the Eyes section
  * among what it uploads before it does (spec 0094). A section this build
  * cannot read is dropped at the crossing, as an index that does not read is,
- * so no run over the taken record meets it.
+ * so no run over the taken record meets it. The attempts cross on the same
+ * terms: they say what the index's cases did in the run that recorded them.
  */
 export function sharedRecord(record: Uint8Array): Uint8Array {
-  const { index, before, last, eyes, base, readings } = caseSectionsOf(record);
+  const { index, before, last, eyes, attempts, base, readings } = caseSectionsOf(record);
   const readable = eyes !== undefined && readableEyes(eyes) !== undefined;
-  if (before === undefined && last === undefined && base === undefined && (eyes === undefined || readable)) return record;
+  const tried = attempts !== undefined && readableAttempts(attempts) !== undefined;
+  if (before === undefined && last === undefined && base === undefined && (eyes === undefined || readable) && (attempts === undefined || tried)) return record;
   return withCaseSections(record, {
     ...(index === undefined ? {} : { index }),
     ...(readable ? { eyes } : {}),
+    ...(tried ? { attempts } : {}),
     ...(readings === undefined ? {} : { readings }),
   });
 }

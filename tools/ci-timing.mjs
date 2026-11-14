@@ -33,7 +33,7 @@ export function timingSummary(jobs, created, now) {
       totals[key] = duration === undefined || totals[key] === undefined ? undefined : totals[key] + duration;
     }
     const escaped = job.name.replaceAll('|', '\\|').replaceAll('\n', ' ');
-    const name = ['cases', 'publish'].includes(job.name) ? `${escaped} (non-gating)` : escaped;
+    const name = ['publish'].includes(job.name) ? `${escaped} (non-gating)` : escaped;
     lines.push(`| ${name} | ${Object.values(totals).map(display).join(' | ')} | ${display(seconds(job.started_at, job.completed_at))} |`);
   }
   lines.push('', 'Stage times come from Actions step timestamps. Parallel job times are not added to elapsed gate time. The gate is still running while this summary is written; its final duration is in Actions.', '');

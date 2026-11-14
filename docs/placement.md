@@ -50,7 +50,7 @@ descends:
 !.variance/baselines/
 ```
 
-`npx variance doctor` is the readback. It lists each renderer identity the
+`variance doctor` is the readback. It lists each renderer identity the
 root's records name, with a count of baselines, and says whether this machine's
 identity is one of them — an empty root on a clean checkout is a store nobody committed, and it reads exactly the
 same as a store nobody has written to yet.
@@ -240,13 +240,13 @@ An excerpt of the same `baselines` key. `endpoint` is the deployment you run and
 Nothing is committed and nothing is cloned, which is the point: unlike
 `directory` or `lfs`, there is no CI bot pushing updated baseline images back
 onto the pull-request branch, and no hosted-storage quota sized for a growing
-corpus — this store can outgrow what anyone wants in a work tree. `npx variance
+corpus — this store can outgrow what anyone wants in a work tree. `variance
 accept` writes through, so approval stops being a commit.
 
 The bill is round trips. Most subjects settle from the sidecar alone — 32 hex
 characters, no image fetched — and across a network that saving is spent
 straight back on one request per subject. So the run declares its working set:
-after selection, `npx variance run` names the subjects it is going to look up,
+after selection, `variance run` names the subjects it is going to look up,
 and the store fetches their sidecars for this machine's identity in **one**
 request. Subjects a filter ruled out are not named, and a subject with no
 baseline comes back as an answer rather than as a miss, so a first run costs one
@@ -434,9 +434,12 @@ catch.
 
 To show the leading change's before and after on the comment's first screen as
 well, give the action `image-ref-prefix: refs/variance/project` and the job
-`contents: write`. The action pushes the pictures to a ref per project and branch,
-outside `refs/heads/`, and they stay there until a second workflow deletes them
-when the pull request closes, merged or not:
+`contents: write`. That write reaches every step of the job, the install and the
+build included: a pull request from a branch of this repository runs its own
+code with it, while a fork's pull request gets a read-only token. The action
+pushes the pictures to a ref per project and branch, outside `refs/heads/`, and
+they stay there until a second workflow deletes them when the pull request
+closes, merged or not:
 
 ```yaml
 name: variance images
@@ -589,6 +592,12 @@ and in the job's steps:
     to-accept: 'run the **variance** workflow on this branch with **accept** ticked'
 ```
 
+`contents: write` reaches every step of the job, the install and the build
+included, and so does the checkout's token, which stays in the clone for the
+action's push: `VARIANCE_PUSH_TOKEN` when it is set, whose push starts
+workflows. A pull request from a branch of this repository runs its own code
+with both, while a fork's pull request gets no secrets and a read-only token.
+
 The box accepts into the CI cache, so a committed store leaves `tick-to-accept`
 off.
 
@@ -631,7 +640,7 @@ Three things this needs from the repository:
 
 `remote`, pointed at a [Tribunal](../packages/tribunal/README.md) deployment: a
 review service you host, with a database of builds and decisions and a review
-page. Every run's report and images are sent there with `npx variance push`, and a person approves or
+page. Every run's report and images are sent there with `variance push`, and a person approves or
 rejects each subject on the service's review page. Approving makes that build's
 image the baseline in the service, so the next run compares against it. Nothing
 in git or in the CI cache changes, and neither a tick nor a dispatch accepts
@@ -688,7 +697,7 @@ when the run closes.
 An entry survives on two conditions. It must have been requested in the last
 fortnight — a hit refreshes its timestamp, so this is time since something
 wanted the image and not time since it was painted — and what is left is cut
-oldest-first to 512 MiB across the whole cache. `npx variance doctor` prints the same
+oldest-first to 512 MiB across the whole cache. `variance doctor` prints the same
 size on demand, split by the renderer identity that painted each part, so a
 browser you upgraded away from shows up as the entries it left behind.
 
@@ -756,7 +765,7 @@ A root written before `baselines.path` existed is the one exception. A run
 still finds a baseline kept under a directory per renderer identity, such as
 `v1-6c1f…/primary.png`, whether that directory sat at the root or beside the
 declaring file, and compares against it, unchanged or changed as the pixels say, with the move from
-the old path to the new one named as the cause. `npx variance accept` writes the
+the old path to the new one named as the cause. `variance accept` writes the
 template's path and deletes the old pair, so the pull request shows each one as
 a rename. A config that still sets `baselines.layout` is refused with the path
 that comes closest: for `"beside"` that is

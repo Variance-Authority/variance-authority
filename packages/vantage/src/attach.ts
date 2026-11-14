@@ -19,6 +19,7 @@
  */
 
 import { listen, type Wire } from '@variance-authority/wire/listen';
+import { isHeadAccount } from './executions.js';
 import { createObservatory, type Observatory, type ObservatoryOptions } from './observatory.js';
 import { isVantageReport } from './report.js';
 import type { VantageState } from './state.js';
@@ -97,6 +98,11 @@ export async function attachVantage(options: AttachOptions = {}): Promise<Attach
   wire.on('run', (test, body) => {
     if (test === undefined || !isVantageReport(body)) return;
     observatory.took(test, body);
+  });
+  // A head speaks on the same address: a request no test drove has nobody else to answer.
+  wire.on('journeys', (execution, body) => {
+    if (execution === undefined || !isHeadAccount(body)) return;
+    observatory.ran(execution, body);
   });
 
   return { address: wire.origin, observatory, close: () => wire.close() };

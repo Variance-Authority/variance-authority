@@ -1,0 +1,24 @@
+name: hand-on
+description: >-
+  Uploads the part of one suite's record this job ran, as it stands in this
+  checkout's layer, as `variance-shard-<suite>-<job index>`, for the job that
+  folds or publishes the shards.
+
+inputs:
+  suite:
+    description: The suite whose record the job ran.
+    required: true
+  index:
+    description: The job's index in its matrix, which keeps shard names apart.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/upload-artifact@v7
+      with:
+        name: variance-shard-${{ inputs.suite }}-${{ inputs.index }}
+        path: node_modules/.cache/variance-authority/test-selection/*/suites/${{ inputs.suite }}
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 30

@@ -42,7 +42,7 @@ Run the suite the way you already run it, then ask about the line you are
 considering:
 
 ```bash
-npx variance covering --file src/cart/total.ts --line 14
+variance covering --file src/cart/total.ts --line 14
 ```
 
 ```text
@@ -109,8 +109,8 @@ gap is the answer's `gap`.
 When the list is long, narrow it to the tests that sit near the code:
 
 ```bash
-npx variance covering --file src/cart/total.ts --line 14 --at-distance 0-3
-npx variance covering --file src/cart/total.ts --line 14 --in-package
+variance covering --file src/cart/total.ts --line 14 --at-distance 0-3
+variance covering --file src/cart/total.ts --line 14 --in-package
 ```
 
 `--at-distance` counts import hops from the file to the test's own file, and
@@ -148,7 +148,7 @@ command reads the same per-case index `withTestSelection` writes, from
 [the section above](#ask-which-tests-cover-a-line):
 
 ```bash
-npx variance ask test-composition --file src/cart/flow.test.tsx --name 'checks out'
+variance ask test-composition --file src/cart/flow.test.tsx --name 'checks out'
 ```
 
 ```text
@@ -231,7 +231,7 @@ the same per-case [execution index](execution-record.md) the first section
 records, and parts each workspace package's coverage:
 
 ```bash
-npx variance coverage --packages
+variance coverage --packages
 ```
 
 The table parts each package's coverage over its own regions into what its
@@ -269,8 +269,8 @@ that ran it, in any suite, measured in import hops from that test's own file
 (`0`) and the modules it imports directly (`1`) outward:
 
 ```bash
-npx variance coverage --at-distance 0-1
-npx variance coverage --at-distance 2-
+variance coverage --at-distance 0-1
+variance coverage --at-distance 2-
 ```
 
 ```text
@@ -290,7 +290,7 @@ too. The hops are measured on the tree as it is now, so a count under a range
 is not compared with the count the suite recorded on the base branch.
 
 The range composes with `--packages`, which is how you find the files:
-`npx variance coverage --packages --at-distance 2-` lists, per package and then
+`variance coverage --packages --at-distance 2-` lists, per package and then
 file by file, the regions only another package's far tests ran. Neither reading
 says a test is missing. Before you write one, change a region the tree names and
 rerun the package's own tests: if none fails, nothing near pins that code. To
@@ -386,7 +386,7 @@ unrelated failure in those tests blocks the change. `--fan-in` reads both ends
 from the same per-case [execution index](execution-record.md):
 
 ```bash
-npx variance coverage --fan-in
+variance coverage --fan-in
 ```
 
 ```text

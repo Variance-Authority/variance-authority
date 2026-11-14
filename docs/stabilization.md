@@ -2,7 +2,7 @@
 
 A spinner caught mid-turn, a web font that arrived late, a scrollbar one machine
 draws and another does not: any of them reports a change your code did not make.
-A run, one execution of `npx variance run` or one observation in your test,
+A run, one execution of `variance run` or one observation in your test,
 holds your page still before it reads it, so that two readings of an unchanged
 UI agree. Read on for what it does to get your page there, what you
 can change about it, and how far into your page it goes.
@@ -150,11 +150,11 @@ If you have not installed the CLI yet:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/route-collector
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
-`npx variance doctor` prints which **tier** the run will use before the first
+`variance doctor` prints which **tier** the run will use before the first
 expensive run. A tier is a level of observation: the structure-and-style reading
 of a document, which any DOM host produces without a browser, and the painted
 image, which only a browser can produce. Stabilization is filtered by tier, so a
@@ -318,7 +318,7 @@ fonts, whose advances change every metric on the page; waited for images to
 decode, since their intrinsic size participates in layout
 ```
 
-Printed near the top of `npx variance report`, before the docket — the report's
+Printed near the top of `variance report`, before the docket — the report's
 list of root causes, one entry per cause even when it reached three hundred
 subjects — because it changes how every image below it should be read. A
 fade-in captured at its first frame is a correct observation of a page that was

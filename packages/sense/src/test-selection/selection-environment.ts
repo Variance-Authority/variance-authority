@@ -1,13 +1,11 @@
 /**
  * The selection a run asks for through its environment.
  *
- * `VARIANCE_AUTHORITY_SINCE` turns selection on and means what `--since` means:
- * the base to measure from when the record names no commit of its own. Set and
- * empty, it turns selection on with no fallback base. `VARIANCE_AUTHORITY_AT_DISTANCE`
- * cuts the selection to one leg by import hops, as `--at-distance` does, and is
- * read only beside it. `VARIANCE_AUTHORITY_GRAIN=case` also skips, inside each
- * file that runs, the cases that ran none of the change; the file is the grain
- * otherwise.
+ * `VARIANCE_AUTHORITY_SINCE` turns selection on and is `--since`; set and
+ * empty, it has no fallback base. Beside it, `_AT_DISTANCE`, `_LOCAL=1` and
+ * `_RAN_AT` are `--at-distance`, `--local` and `--ran-at`, the last only beside
+ * a base that is not empty, and `_GRAIN=case` also skips the cases of a kept
+ * file that ran none of the change.
  *
  * The reading is `selectSuite` from `@variance-authority/cli`, the function
  * `variance select` prints. It parses the execution journal through
@@ -38,6 +36,12 @@ export interface SelectionRequest {
    * it. The checkout when absent.
    */
   readonly from?: string;
+  /**
+   * One shard of a run: read the record under the checkout's own, the one the
+   * run was handed, never what this shard or an earlier wave of it ran, so
+   * every shard and wave select and place from the same record.
+   */
+  readonly beneath?: boolean;
 }
 
 /** What `@variance-authority/cli` is asked for; its own types stay on its side of the cycle. */
@@ -47,10 +51,16 @@ interface Selector {
     readonly since?: string;
     readonly suite?: string;
     readonly atDistance?: { readonly from: number; readonly to: number; readonly by?: 'environment' };
+    /** Absent from a cli older than placing a shard's waves as one. */
+    readonly placeAtDistance?: { readonly from: number; readonly to: number };
     readonly grain?: 'case';
+    readonly local?: boolean;
+    readonly beneath?: boolean;
+    /** Ignored by a cli older than `selectSuite` taking it, which selects as without it. */
+    readonly ranAt?: string;
   }): Promise<SuiteSelection>;
   /** Absent from a cli older than placement by time. */
-  suiteTimes?(request: { readonly root: string; readonly suite?: string }): Promise<SuiteTimes>;
+  suiteTimes?(request: { readonly root: string; readonly suite?: string; readonly beneath?: boolean }): Promise<SuiteTimes>;
 }
 
 const CLI = '@variance-authority/cli';
@@ -80,11 +90,28 @@ export function selectionFrom(
   if (grain !== undefined && grain !== 'file' && grain !== 'case') {
     throw new Error(`VARIANCE_AUTHORITY_GRAIN=${grain} is not a grain: write \`case\` to skip the cases a change did not reach, or \`file\``);
   }
+  const local = env['VARIANCE_AUTHORITY_LOCAL'];
+  if (local !== undefined && local !== '1' && local !== '0') {
+    throw new Error(`VARIANCE_AUTHORITY_LOCAL=${local} is not 1 or 0: write \`1\` to fall to the changed files' importers or packages when the record cannot narrow`);
+  }
+  const ranAt = env['VARIANCE_AUTHORITY_RAN_AT'];
+  if (ranAt !== undefined && ranAt !== '' && since === '') {
+    throw new Error(`VARIANCE_AUTHORITY_RAN_AT=${ranAt} names the pull request a merge queue merged onto VARIANCE_AUTHORITY_SINCE, which is empty: set it to the base the queue merged onto`);
+  }
   const leg = distance === undefined ? undefined : distanceRange(distance);
   if (distance !== undefined && leg === undefined) {
     throw new Error(
       `VARIANCE_AUTHORITY_AT_DISTANCE=${distance} is not a range of hop counts: ` +
         'write `0-2` for everything within two imports, `2` for exactly two, or `3-` for the rest',
+    );
+  }
+  // The hops of every wave the shard runs, which each wave places as one; read only beside a distance.
+  const placing = env['VARIANCE_AUTHORITY_PLACE_AT_DISTANCE'];
+  const span = placing === undefined ? undefined : distanceRange(placing);
+  if (placing !== undefined && span === undefined) {
+    throw new Error(
+      `VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=${placing} is not a range of hop counts: ` +
+        'write the hops of every wave the shard runs, such as `0-` for a near and a far wave',
     );
   }
   return async () => {
@@ -94,7 +121,11 @@ export function selectionFrom(
       ...(since === '' ? {} : { since }),
       ...(request.suite === undefined ? {} : { suite: request.suite }),
       ...(leg === undefined ? {} : { atDistance: { ...leg, by: 'environment' } }),
+      ...(leg === undefined || span === undefined ? {} : { placeAtDistance: span }),
       ...(grain === 'case' ? { grain } : {}),
+      ...(local === '1' ? { local: true } : {}),
+      ...(request.beneath === true ? { beneath: true } : {}),
+      ...(ranAt === undefined || ranAt === '' ? {} : { ranAt }),
     });
   };
 }
@@ -137,7 +168,11 @@ export function timesFrom(request: SelectionRequest & { readonly recording?: str
         const why = cli === undefined ? `which ${from} does not resolve` : 'and the one installed predates them';
         return { unread: `the times are read by ${CLI}, ${why}` };
       }
-      return await cli.suiteTimes({ root: request.root, ...(request.suite === undefined ? {} : { suite: request.suite }) });
+      return await cli.suiteTimes({
+        root: request.root,
+        ...(request.suite === undefined ? {} : { suite: request.suite }),
+        ...(request.beneath === true ? { beneath: true } : {}),
+      });
     } catch (error) {
       throw new Error(
         'variance-authority: the times this shard is placed by could not be read, and a shard placed without them ' +

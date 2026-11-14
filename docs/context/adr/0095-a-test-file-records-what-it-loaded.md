@@ -2,7 +2,7 @@
 
 **Status:** accepted
 **Date:** 2026-10-19
-**Amends:** [spec 0028](../../specs/0028-the-instrument.md) §5 (identity)
+**Amends:** spec 0028 §5 (identity)
 **Relates to:** [ADR-0093](0093-probes-are-placed-after-the-transforms.md),
 [`packages/sense/src/test-selection/captured-modules.ts`](../../../packages/sense/src/test-selection/captured-modules.ts),
 [`packages/sense/src/test-selection/collectors.cts`](../../../packages/sense/src/test-selection/collectors.cts),

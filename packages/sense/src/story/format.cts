@@ -51,12 +51,18 @@
  * for the reason `journal-format.cts` is.
  */
 
-import crypto = require('node:crypto');
-import fs = require('node:fs');
-import path = require('node:path');
+import type crypto = require('node:crypto');
+import type fs = require('node:fs');
+import type path = require('node:path');
 import caseOwner = require('../test-selection/case-owner.cjs');
 import type { ModuleId } from '../instrument/index.js';
 import type storyTap = require('../instrument/story-tap.cjs');
+
+// Builtins are required where a file is named, read or written: a live head
+// only encodes, and an ES module bundle of it can require no builtin.
+const builtins = (): { crypto: typeof crypto; fs: typeof fs; path: typeof path } => ({
+  crypto: require('node:crypto'), fs: require('node:fs'), path: require('node:path'),
+});
 
 type Tape = ReturnType<ReturnType<typeof storyTap.createTap>['read']>;
 
@@ -133,6 +139,7 @@ const READINGS = 16;
 /** The one case a story is of, as the start of every reading's file name. */
 function caseStem(file: string, name: string, project?: string): string {
   const named = project === undefined ? `${file}\u0000${name}` : `${file}\u0000${name}\u0000${project}`;
+  const { crypto } = builtins();
   return crypto.createHash('sha256').update(named).digest('hex').slice(0, 32);
 }
 
@@ -354,6 +361,7 @@ function storyHeader(file: string): {
   readonly stopped?: boolean;
   readonly lost?: boolean;
 } {
+  const { fs } = builtins();
   const damaged = (): Error => new Error(`variance-authority: ${file} is not a story this build writes`);
   const descriptor = fs.openSync(file, 'r');
   try {
@@ -391,6 +399,7 @@ function storyWriter(
   directory: string,
   label: string | undefined = labelOf(process.env.VARIANCE_AUTHORITY_STORY),
 ): (key: string, bytes: Uint8Array) => void {
+  const { fs, path } = builtins();
   let written = 0;
   return (key, bytes) => {
     const { file, name, project } = caseOwner.unpackCase(key);

@@ -207,6 +207,31 @@ pub(crate) fn decode_set(bytes: &[u8], tests: usize) -> Result<Vec<u32>, String>
     Err("journey set has an invalid encoding".to_owned())
 }
 
+/// Whether one stored set over `tests` tests holds `member`, read off its
+/// bytes without laying out its members.
+pub(crate) fn set_holds(bytes: &[u8], tests: usize, member: u32) -> Result<bool, String> {
+    let (&kind, body) = bytes.split_first().ok_or_else(|| "journey set is empty".to_owned())?;
+    let sets = &LAYOUT.sets;
+    let width = sets.width(tests);
+    let number = |bytes: &[u8]| -> u32 {
+        if width == 2 { u32::from(u16::from_le_bytes([bytes[0], bytes[1]])) } else { u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) }
+    };
+    if kind == sets.list && body.len() % width == 0 {
+        return Ok(body.chunks_exact(width).any(|held| number(held) == member));
+    }
+    if kind == sets.bits && body.len() == tests.div_ceil(32) * 4 {
+        let at = member as usize / 32 * 4;
+        return Ok(body.get(at..at + 4).is_some_and(|word| u32::from_le_bytes([word[0], word[1], word[2], word[3]]) & (1 << (member % 32)) != 0));
+    }
+    if kind == sets.runs && body.len() % (width * 2) == 0 {
+        return Ok(body.chunks_exact(width * 2).any(|run| {
+            let first = u64::from(number(run));
+            (first..first + u64::from(number(&run[width..]))).contains(&u64::from(member))
+        }));
+    }
+    Err("journey set has an invalid encoding".to_owned())
+}
+
 #[cfg(test)]
 #[path = "crossing_sets_tests.rs"]
 mod tests;

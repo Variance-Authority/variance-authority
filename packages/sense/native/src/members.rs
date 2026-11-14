@@ -138,7 +138,7 @@ pub fn members_and_loads_in<'l>(program: &Program, scoping: &Scoping, lines: &'l
         aliases: typed::aliases(program),
         typed_at: HashMap::new(),
         stated: requests.len() as u32,
-        loads: Loads::new(lines),
+        loads: Loads::new(lines, crate::loads::Requires::of(program, scoping)),
         found: BTreeSet::new(),
         mock_factory: None,
         taken: HashSet::new(),

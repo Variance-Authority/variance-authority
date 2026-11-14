@@ -74,13 +74,30 @@ export async function constantAnswer(
   streams: { out(text: string): void },
 ): Promise<ExitCode | undefined> {
   if (parsed.command !== 'ask') return undefined;
-  const [{ askSource, questions }, { questionFor }] = await Promise.all([import('./ask.js'), import('./asking.js')]);
+  const [{ askSource }, { questions }, { questionFor }] = await Promise.all([
+    import('./ask.js'),
+    import('./ask-questions.js'),
+    import('./asking.js'),
+  ]);
   if (parsed.question === undefined) {
     streams.out(questions());
     return EXIT_CLEAN;
   }
   if (questionFor(parsed.question).source !== undefined) {
     streams.out(await askSource({ ...parsed, question: parsed.question }));
+    return EXIT_CLEAN;
+  }
+  // A question only a watcher answers reads no project either: the watcher
+  // holds its whole subject, and an application used by hand has no visual
+  // suite to have configured. It has no `report` arm, so `read` is never called.
+  const question = questionFor(parsed.question);
+  if (question.live !== undefined && question.report === undefined) {
+    const [{ ask }, { VANTAGE_VARIABLE }] = await Promise.all([import('./ask.js'), import('@variance-authority/vantage')]);
+    const at = parsed.at ?? process.env[VANTAGE_VARIABLE];
+    const read = (): never => {
+      throw new OperatorError(`\`${parsed.question}\` reads no report`);
+    };
+    streams.out(await ask({ ...parsed, ...(at === undefined ? {} : { at }), report: '', read }));
     return EXIT_CLEAN;
   }
   return undefined;
@@ -206,9 +223,10 @@ export async function answerConfigless(
     // them. `--out` keeps the answer as files, because a workflow uploads it and
     // comments with it in steps that do not share this process's output.
     case 'review': {
-      const [{ reviewWithCoverage }, { REVIEW_ARTIFACT, reviewFromRun }, { formatReview, reviewPieces }, { uncoveredVerdict }, { lostVerdict }] = await Promise.all([
+      const [{ reviewWithCoverage }, { reviewFromRun }, { REVIEW_ARTIFACT }, { formatReview, reviewPieces }, { uncoveredVerdict }, { lostVerdict }] = await Promise.all([
         import('./review-evidence.js'),
         import('./review-from-run.js'),
+        import('../review-args.js'),
         import('./review-text.js'),
         import('./review-scope.js'),
         import('./review-coverage.js'),
@@ -291,11 +309,13 @@ export async function answerConfigless(
         cwd: process.cwd(),
         format: parsed.format,
         ...(parsed.since === undefined ? {} : { since: parsed.since }),
+        ...(parsed.ranAt === undefined ? {} : { ranAt: parsed.ranAt }),
         ...(parsed.noGit ? { noGit: true } : {}),
         ...(parsed.execution === undefined ? {} : { execution: parsed.execution }),
         ...(parsed.suite === undefined ? {} : { suite: parsed.suite }),
         ...(parsed.diff === undefined ? {} : { diff: parsed.diff }),
         ...(atDistance === undefined ? {} : { atDistance }),
+        ...(parsed.local === true ? { local: true } : {}),
       });
       streams.err(said.err);
       streams.out(said.out);

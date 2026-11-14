@@ -26,7 +26,6 @@ import { parseCommentArgs, type ParsedComment } from './comment-args.js';
 import { parseShard, type Shard } from './shard-args.js';
 import { parseJourneysArgs, type ParsedJourneys } from './journeys-args.js';
 
-export { USAGE } from './usage.js';
 /**
  * The command line, parsed by hand.
  *

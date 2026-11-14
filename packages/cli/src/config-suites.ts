@@ -1,8 +1,6 @@
 import { parseBefore, parseSuites, SuitesError, type DeclaredSuite } from '@variance-authority/sense/test-selection';
 import { fail, type ParseOptions } from './config-values.js';
 
-export type { DeclaredSuite };
-
 /** What the repository runs, and what each run rests on before reach. */
 export interface RestsOn {
   /** The suites the repository runs, and their kinds; read from the root file only. */

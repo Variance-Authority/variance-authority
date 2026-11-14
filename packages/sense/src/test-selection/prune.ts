@@ -4,9 +4,9 @@
  * Everything under `test-selection` is keyed by a digest of a checkout's path,
  * and until the checkouts started naming themselves nothing could say which of
  * those directories still had a checkout behind them. So nothing was ever
- * removed: a worktree deleted this morning, a checkout moved last month and a
- * temporary directory a test made and dropped all left a directory behind, and
- * a machine that runs a few suites a day held thousands of them within a week.
+ * removed: a worktree deleted this morning, a checkout moved away from its
+ * cache last month and a temporary directory a test dropped all left a
+ * directory, and a machine running a few suites a day held thousands in a week.
  *
  * Each rule below removes something only on the word of the party that owns
  * the answer:
@@ -36,10 +36,11 @@
 // compass: variance-authority.retention
 
 import { execFile } from 'node:child_process';
-import { realpathSync, existsSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { lstat, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { checkoutKey, readCheckoutMarker, workDirectory } from './cache-layers.js';
+import { pruneParseStore } from '../parse-store.js';
+import { checkoutKey, directoriesIn, readCheckoutMarker, workDirectory } from './cache-layers.js';
 
 /** How long a dead run's scratch waits, in case its process id was reused. */
 export const RUN_FLOOR_MS = 60 * 60 * 1000;
@@ -142,7 +143,7 @@ export async function planPrune(
 
   for (const name of await directoriesIn(root)) {
     const repository = join(root, name);
-    const marker = readCheckoutMarker(repository);
+    const marker = readCheckoutMarker(repository, cacheRoot);
     if (marker !== undefined && !owners.exists(marker.checkout)) {
       await drop(repository, 'gone');
       continue;
@@ -159,11 +160,11 @@ export async function planPrune(
     const work = workDirectory(repository);
     const layers = await directoriesIn(work);
     if (layers.length === 0) continue;
-    const primary = marker?.checkout ?? layers.map((key) => readCheckoutMarker(join(work, key))?.primary).find(Boolean);
-    const listed = primary === undefined ? undefined : await listedKeys(primary, owners);
+    const primary = marker?.checkout ?? layers.map((key) => readCheckoutMarker(join(work, key), cacheRoot)?.primary).find(Boolean);
+    const listed = primary === undefined ? undefined : await listedKeys(primary, owners, cacheRoot);
     for (const key of layers) {
       const path = join(work, key);
-      const own = readCheckoutMarker(path);
+      const own = readCheckoutMarker(path, cacheRoot);
       if (own !== undefined) {
         if (owners.exists(own.checkout)) await layer(path, owners, drop);
         else await drop(path, 'gone');
@@ -227,6 +228,13 @@ export async function applyPrune<Reason extends string>(plan: PrunePlan<Reason>)
   return { root: plan.root, removed, unremoved, freed: removed.reduce((total, entry) => total + entry.bytes, 0) };
 }
 
+/** Prune the selection half of the cache at `cacheRoot` now: the chains first, then the parses only they named. */
+export async function pruneSelection(cacheRoot: string, owners: PruneOwners = machineOwners()): Promise<Pruned> {
+  const pruned = await applyPrune(await planPrune(cacheRoot, owners));
+  await pruneParseStore(cacheRoot).catch(() => undefined);
+  return pruned;
+}
+
 /**
  * Prune, when the last prune of this cache was more than a day ago.
  *
@@ -249,7 +257,7 @@ export async function pruneWhenDue(
     if (!existsSync(join(cacheRoot, 'test-selection'))) return undefined;
     await writeFile(stamp, '');
     await utimes(stamp, owners.now / 1000, owners.now / 1000);
-    return await applyPrune(await planPrune(cacheRoot, owners));
+    return await pruneSelection(cacheRoot, owners);
   } catch {
     return undefined;
   }
@@ -349,15 +357,12 @@ export function scratchPid(name: string): number | undefined | null {
   return name.endsWith('.tmp') ? undefined : null;
 }
 
-async function listedKeys(primary: string, owners: PruneOwners): Promise<ReadonlySet<string> | undefined> {
+async function listedKeys(primary: string, owners: PruneOwners, cacheRoot: string): Promise<ReadonlySet<string> | undefined> {
   const paths = await owners.worktrees(primary);
   if (paths === undefined) return undefined;
   const keys = new Set<string>();
   for (const path of paths) {
-    keys.add(checkoutKey(path));
-    try {
-      keys.add(checkoutKey(realpathSync(path)));
-    } catch { /* gone from disk; git will call it prunable */ }
+    keys.add(checkoutKey(path, cacheRoot));
   }
   return keys;
 }
@@ -428,15 +433,6 @@ async function mtimeOf(path: string): Promise<number | undefined> {
 async function namesIn(directory: string): Promise<readonly string[]> {
   try {
     return await readdir(directory);
-  } catch {
-    return [];
-  }
-}
-
-async function directoriesIn(directory: string): Promise<readonly string[]> {
-  try {
-    const found = await readdir(directory, { withFileTypes: true });
-    return found.filter((entry) => entry.isDirectory() && !entry.name.startsWith('.')).map((entry) => entry.name);
   } catch {
     return [];
   }

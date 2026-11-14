@@ -15,6 +15,7 @@ the answer. Run them from the checkout you are asking about.
 | a history, and the question of how far its commits reached | `containment`, with `--after <date>` for another window than the last two weeks |
 | a place, and the question of what it may import | `stack --from <path>` |
 | a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran at least 3s |
+| a suite whose runner retries, and the question of which passes failed first | `retried-tests` |
 
 ## `orient`
 
@@ -141,5 +142,35 @@ refused. `--over 3s` keeps the cases that ran at least that long, in both
 rankings, leaves the files out and counts what ran faster; `500ms` and `1.5s`
 read too.
 
+A listed case that recorded its slowest statement carries one more line:
+`slowest statement <file>:<line>, <time>, <share>% of the case`. The time is
+that statement's on the real clock, summed over a loop's runs, and never a
+hook's. Read that line of the test before the rest of the case. Vitest, Jest
+and Rstest record it unless `cadence: false`; a case without one lists on one
+line, and says nothing about where its time went.
+
 For the time each visual subject takes, ask `variance ask costs`, which needs
 the config.
+
+## `retried-tests`
+
+A runner that retries a case reports its last attempt, so a case that failed and
+then passed is a pass in the runner's report. The record keeps every attempt of
+a retried case, and the answer lists the cases whose attempts ended differently
+in the recorded run. It opens with the record it read: whose it is, at which
+commit, and how long ago its latest run landed.
+
+Each case comes with its limit and every attempt: how it ended as the runner
+says it and, where the runner says them, how long it ran, the frame inside the
+checkout and the message. Start from that frame. Jest and Rstest time no single
+attempt, and a limit reads `timedOut` only under Playwright: elsewhere it is
+`failed`, told from a failure by its message where the attempt has one. Jest
+gives an earlier attempt a message only under `logErrorsBeforeRetry`. `ended unreported` is an attempt whose
+worker died first. The retried cases whose attempts all ended the same way are
+counted and not listed.
+
+The answer is about one run. It does not say how often the case fails. A case
+the record holds that the answer lacks was not reported as retried in that run;
+a case the record does not hold, as every case of a file recorded as a whole,
+is unknown. A record that kept no attempts says so: read that as unknown, not
+as no retries. `--limit` lists more cases.

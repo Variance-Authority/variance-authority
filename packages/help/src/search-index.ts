@@ -3,8 +3,6 @@ import { everyEntry, PARAGRAPH_BREAK } from '@variance-authority/package/help';
 import { encodeSearch, type PublishedRows, type SearchGeneration } from '@variance-authority/sense';
 import { specifierOf } from './tools/find.js';
 
-export type { SearchGeneration };
-
 /**
  * What `docs_search` reads, laid out so a question reads only what it matches.
  *

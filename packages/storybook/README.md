@@ -181,9 +181,10 @@ not found and that story cost a reload, which also lands in `warnings`.
   object). An index declaring a different `v`, or none, is read by whichever key
   is present, with a warning. Refusal is reserved for a file with neither key,
   or an entry missing a required field.
-- The preview driver is written against **Storybook 7 and 8**: the story mounts
-  into `#storybook-root`, the channel hangs on `window.__STORYBOOK_PREVIEW__`,
-  and the fatal-error overlay is `sb-show-errordisplay`. `#root` (before 7) and
+- This repository's tests run the preview driver on **Storybook 10**, where the
+  story mounts into `#storybook-root`, the channel hangs on
+  `window.__STORYBOOK_PREVIEW__`, and the fatal-error overlay is
+  `sb-show-errordisplay`. `#root` (before 7) and
   `window.__STORYBOOK_ADDONS_CHANNEL__` with `removeListener` (Storybook 5) are
   also handled. Every one of these is an option you can override if a build
   renamed it.

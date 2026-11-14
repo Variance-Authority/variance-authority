@@ -4,9 +4,9 @@ import { createAbsentStore, type Approval, type HistoryStore } from '@variance-a
 import type { BaselineKey, RasterStore } from '@variance-authority/raster';
 import { createEphemeralStore } from '@variance-authority/raster';
 import type { ObservationRecord } from '@variance-authority/report';
-import { parseArgs } from '../bin.js';
+import { parseArgs } from '../parse.js';
 import { accept, formatAcceptance } from './accept.js';
-import type { CliRunReport } from './run.js';
+import type { CliRunReport } from './run-report.js';
 
 const IDENTITY: RenderIdentity = {
   renderer: 'playwright-chromium',

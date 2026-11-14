@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import { relationsOfFiles } from '@variance-authority/core/relate';
-import type { Collected, Plan } from './run.js';
+import type { Collected, Plan } from './collector.js';
 import { narrowingFor } from './narrowing.js';
 import {
   collectorOf,

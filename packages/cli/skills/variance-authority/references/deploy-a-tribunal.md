@@ -10,7 +10,7 @@ npm install --save-dev @variance-authority/tribunal wrangler
 ```
 
 ```bash
-npx variance-authority-tribunal-provision --config deploy/wrangler.jsonc
+variance-authority-tribunal-provision --config deploy/wrangler.jsonc
 ```
 
 Do not ask the person for an id, a token, a client id or a secret. The command
@@ -40,8 +40,8 @@ deploy: anybody can read, and only a person with write access can decide.
 the working directory. A run refuses a repository the deployment does not already
 name; widening who may push is a change to `GITHUB_ACTIONS_REPOSITORIES` in
 `vars`, made on purpose. `--mount /api` is where a deployment serves the API when not at
-the root. `--skip-deploy` leaves publishing to a deployment with its own build,
-such as the console. `--rotate` replaces the session key, which signs everybody
+the root. `--skip-deploy` leaves publishing to a deployment with its own build.
+`--rotate` replaces the session key, which signs everybody
 out, and the ingest token where `token` is declared. The run needs `gh` authenticated; `wrangler` is logged in by the run itself.
 
 The run asks before it makes anything, so a second run changes nothing and says

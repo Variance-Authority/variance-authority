@@ -1,7 +1,9 @@
 import { createRequire } from 'node:module';
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import type { D1Like, D1PreparedLike, D1ResultLike, D1Value } from '../bindings.js';
-import { INITIAL_VERSION, MIGRATIONS, SCHEMA_VERSION, applySchema } from '../schema.js';
+import { SCHEMA_VERSION, applySchema } from '../schema.js';
+import { INITIAL_VERSION } from '../migrations.js';
+import { MIGRATIONS } from '../migration-steps.js';
 
 /**
  * D1, as a file on a disk somebody owns.
@@ -34,6 +36,8 @@ import { INITIAL_VERSION, MIGRATIONS, SCHEMA_VERSION, applySchema } from '../sch
  * downgrade quietly writes rows the newer build then misreads.
  */
 
+// Loaded at run time: `node:sqlite` is not in `module.builtinModules` yet, so a
+// static import is bundled as a package; `server`'s `backend-sqlite.ts` says why.
 const { DatabaseSync: Database } = createRequire(import.meta.url)('node:sqlite') as {
   DatabaseSync: new (path: string) => DatabaseSync;
 };

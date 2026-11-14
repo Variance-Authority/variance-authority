@@ -1,6 +1,6 @@
 # ADR-0070 — a journey travels as trace context, carried by the system itself
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-09-23
 **Extends:** [ADR-0056](0056-a-journey-is-the-places-visited.md) (a journey is
 the places visited), [ADR-0069](0069-every-answer-has-an-owner.md) (every answer
@@ -134,7 +134,8 @@ browsers mangle or drop non-ASCII and semicolons in cookies differently.
    head before the application initialized its tracing is told the trace when
    the application calls `collectJourneys({ trace })`.
 3. **A reporting head refuses a trace.** It has no way home for journeys it did
-   not enter, so it throws instead of recording ids nothing will claim.
+   not enter, so it throws instead of recording ids nothing will claim. Amended
+   below: a watcher's address is a way home.
 4. **An unclaimed journey is common.** A trace no case started (a `beforeAll`
    call, a scheduler) folds to every case the part served, as the no-journey
    frame does. It widens and never narrows.
@@ -146,3 +147,33 @@ in, and the propagation is the application's own. The cookie and `baggage`
 carriers stay for applications without tracing. A JVM head reads only the
 cookie and `baggage`; it gains an `enter(String journey)` fed by the service's
 own tracer (FIXME at `Journey.enter`).
+
+## Amendment — a watcher's address is a way home
+
+Item 3 above stood on the premise that a reporting head learns where to report
+from the request alone: the cookie `enter` reads. A head told a watcher's
+address (`watcher`, or `VARIANCE_AUTHORITY_VANTAGE`) holds a way home that no
+request has to carry, and that removes the premise for exactly that head.
+
+**A head handed a `trace` and a watcher's address reports a journey the trace
+named, where no `enter` ran, to the watcher under the trace id.** A framework
+that owns the request leaves no handler to wrap, and tracing the application
+already runs is the only thing that knows which flow a probe belongs to.
+
+- The order in item 2 holds: the scope `enter` named, else `trace.current()`,
+  else unattributed. What a request a case drove runs inside `enter` still
+  answers that case, and the watcher hears nothing of it. What the traced flow
+  runs before `enter` is reached, a middleware, goes to the watcher under the
+  trace id, for a request a case drove as for any other.
+- The refusal stays where its premise does: a `trace` with neither a watcher's
+  address nor a parts target still throws. Only a parts head a build installed
+  is told the trace later; a reporting one still refuses it.
+- A parts target is read first, as before: a head with `parts` writes parts and
+  tells a watcher nothing.
+- The listing is one execution per trace, not per request. A browser SDK that
+  propagates its trace makes that one per page view. The head adds no boundary
+  of its own, because the only one it could add is a wrapped handler.
+- A trace has no end the head sees, so a traced journey reports as a scope the
+  head opens at its first crossing and settles on the next turn of the loop,
+  the path a promise left running after its request already takes. The watcher
+  joins the accounts on the id.

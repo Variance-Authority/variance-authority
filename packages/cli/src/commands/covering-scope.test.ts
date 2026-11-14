@@ -7,7 +7,8 @@ import { parseCoveringArgs } from '../covering-args.js';
 import { OperatorError } from '../exit.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { encodeExecutionIndex, writeTestCoverage } from '@variance-authority/sense/test-selection';
-import { covering, formatCovering } from './covering.js';
+import { covering } from './covering.js';
+import { formatCovering } from './covering-text.js';
 import { keepCases } from './covering-scope.js';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 

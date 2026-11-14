@@ -30,7 +30,7 @@ you want the nearest snapshot a worktree can actually read:
 ```
 
 `<cache>` is [your cache](cache.md).
-`<repository-digest>` is a digest of the checkout's absolute path, so two
+`<repository-digest>` is a digest of the checkout's path as seen from the cache directory, so two
 checkouts never write one another's records. The only files both write are
 `.work/index-turn` and `.work/index-turn.holder`, the lock that lets
 [one checkout of a repository index at a time](source-index.md) and the file that names its
@@ -577,6 +577,80 @@ limit of 5 s, and a retried case more. A case with no limit is absent from the
 column, never `0`, and a case index written before the column opens with every
 case's limit absent.
 
+A `tests.slowest` section beside them is the statement of the case's own body
+that took longest, as two entries per case: its line in the test file, and the
+whole milliseconds between the moment it began and the moment the next
+statement began, or the case ended. A statement in a loop counts as the sum of
+its runs, and the time is read on the real clock, so a case under fake timers
+is timed as any other. Vitest, Jest and Rstest record it for a case whose test
+file [cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
+transforms; hooks are not timed. A case its runner stopped, at a timeout, ends
+where that attempt ended, so its statement in flight is timed up to there.
+Where attempts of a file overlap, by cases running at the same time or a retry
+begun before the attempt before it was closed, a stopped case ends where the
+file does, as does every case stopped in that file after it, and can read
+longer than the case; a case that finishes is timed whole either way. A retry
+adds to the attempt before it. A case whose statements all took under a
+millisecond, a case whose file was not transformed and every case of an index
+written before the section are absent from it, never `0`. No selection, key or
+digest reads the section.
+
+**Attempts.** A runner that retries a case reports one outcome for it, the last,
+so a case that failed and then passed reads as a pass. The record keeps what
+that outcome folds away, in a `cases.attempts` section beside the case index:
+one row for each attempt of a retried case, in order, with how the attempt
+ended and, where the runner says them, how long it ran and, for an attempt that
+did not pass, the failure's message cut at five hundred characters and its
+nearest frame inside the checkout as `path:line`. Every field is the runner's
+own report of the attempt. Nothing watches the case's body, because a runner
+ends an attempt for reasons the body never sees: its limit, a soft assertion, a
+failing hook.
+
+| Runner | How an attempt ended | Message and frame | Duration |
+|---|---|---|---|
+| Vitest 4.1 and newer | `passed`, `failed` or `skipped`; a limit reads `failed` | every attempt that did not pass | every attempt |
+| Jest | the last attempt as Jest reports it, each earlier one `failed`; a limit reads `failed` | the last attempt; an earlier one only under `jest.retryTimes(n, { logErrorsBeforeRetry: true })` | none |
+| Rstest | the last attempt as `passed`, `failed` or `skipped`, each earlier one `failed`; a limit reads `failed` | every attempt that did not pass | none |
+| Playwright | `testInfo.status`, `timedOut` included | `testInfo.error` | `testInfo.duration` |
+
+Under Playwright an attempt's ending is the status Playwright held when the
+recorder's fixture was torn down, so a failure in `afterAll`, or in a fixture
+torn down after the recorder's, is not in the row.
+
+Vitest counts a repeat as an attempt, like a retry. Under Playwright each
+repeat of `repeatEach` is a case of its own in the index, the second named with
+a trailing `#1`, and has its own rows. Rstest adds the retries of every repeat
+of `repeats` into one count and says nowhere that the case was repeated: a
+repeat that passed at once is no attempt, and a case whose count cannot be one
+run of retries, because two of its failures carry one retry number, has no
+rows. If two shards of one run both hand over a row for one attempt of one
+case, the record keeps the row whose JSON text sorts first. A Vitest older than 4.1 reports no
+attempts, and its record has no section. A case you pass to
+`startRecording().finish()` carries its own `attempts`. The case's `stopped`,
+duration and limit are what they are without the section.
+
+Only a case whose runner reported more than one attempt has rows, so a suite
+nobody retried pays 28 bytes for an empty section, and a retried case between
+about 150 and 450 bytes for a failed and a passed attempt. A record without the
+section says that attempts were not kept, never that no case was retried: a
+build older than attempts wrote it, or its runner reports none, or a shard of
+its run kept none, because shards of one run keep the section only when every
+shard that ran cases kept it. A run laid over an older record writes the
+section only when the run kept attempts and every case it carries from that
+record had its attempts kept there: a run that kept none drops the section,
+and a run that carries cases from a record without the section writes none.
+The carried cases keep their rows, and the cases that ran again take the
+run's. Shards landed together are one run here: a case any of them ran is not
+carried. A record with the section speaks of the cases it
+holds and the runner could name. A case the index lacks, as every case of a file
+recorded as a whole is, has no rows, and neither has a Jest or Rstest case
+whose name its file declares twice. An attempt whose worker died before the
+runner said how it ended has no row either, and the case keeps the rows of its
+other attempts. No selection reads the section and no digest a selection compares takes it
+in, so a record with attempts selects the tests the same record without them
+selects. `variance ask retried-tests` lists the cases whose attempts ended
+differently.
+
 The case index also carries what each case said, its
 [case preconditions](case-preconditions.md), in a `tests.said` section. Each
 distinct `(name, value, site, level)` is one item, and the cases that said it are
@@ -597,6 +671,7 @@ was read, and a story the run did not time is recorded without one.
 `variance ask slowest-tests` opens with whose record it read, at which commit and
 how old, then lists the cases closest to their limit and the slowest recorded
 files and cases, anywhere or under the paths you name. `--over` lists cases alone.
+A listed case that recorded its slowest statement carries it on one more line.
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —
@@ -1013,7 +1088,11 @@ both off the request's `Cookie` header, runs the handler inside an
 delivers the account as a JSON `POST` to `<return>/journeys`, three attempts,
 or through the `__VAW__` sink function when the driver is in the same realm.
 The head installs nothing unless `VARIANCE_AUTHORITY_JOURNEYS` is set, and
-names itself from `VARIANCE_AUTHORITY_HEAD` when no name is passed.
+names itself from `VARIANCE_AUTHORITY_HEAD` when no name is passed. Turned on
+and given a watcher's address in `VARIANCE_AUTHORITY_VANTAGE`, it delivers a
+request carrying no journey to that watcher as an execution of its own, and
+what ran outside every request apart from all of them. The address alone turns
+nothing on.
 `stitchJourneys` joins every account bearing one id to the subject the driver
 minted it for, counts an account under an id the driver never minted as
 unclaimed, and marks the whole run incomplete when a declared head stayed

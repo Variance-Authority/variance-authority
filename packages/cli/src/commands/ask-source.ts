@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { countingShown, outlived, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type Unopened } from '@variance-authority/help';
-import { answerSearch, containmentOf, discover, formatContainment, grep, importingOf, intersection, journeyMapTool, namesWanted, orient, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
+import { answerSearch, containmentOf, discover, formatContainment, grep, importingOf, intersection, journeyMapTool, namesWanted, orient, retriedTests, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
 import { readTree, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { taintFile as readTaintFile, type Taint } from '@variance-authority/sense/taint';
@@ -137,6 +137,11 @@ export function orientSource(root: string, input: Readonly<Record<string, unknow
  */
 export function slowestSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
   return { answer: () => slowestTests.run(undefined, input, invocationOf({ root })), at: undefined };
+}
+
+/** `retried-tests` opens the same recording `slowest-tests` does, and dates nothing for the same reason. */
+export function retriedSource(root: string, input: Readonly<Record<string, unknown>>): Answering {
+  return { answer: () => retriedTests.run(undefined, input, invocationOf({ root })), at: undefined };
 }
 
 export async function readSource(root: string, options: SourceReadOptions = {}): Promise<Sourced> {

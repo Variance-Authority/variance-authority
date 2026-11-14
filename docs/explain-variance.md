@@ -34,10 +34,10 @@ A completed run writes a report, and the CLI answers these questions from it
 without an MCP client or a browser:
 
 ```bash
-npx variance ask summary
-npx variance ask changes --component Toggle
-npx variance ask describe --subject story:checkout--empty
-npx variance ask explain-verdict --subject story:checkout--empty
+variance ask summary
+variance ask changes --component Toggle
+variance ask describe --subject story:checkout--empty
+variance ask explain-verdict --subject story:checkout--empty
 ```
 
 Start at `summary`: it accounts for the subjects that were planned and never

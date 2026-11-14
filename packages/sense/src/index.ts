@@ -64,7 +64,6 @@ export {
 
 export {
   openSourceIndex,
-  primarySourceIndexPath,
   readSourceRecords,
   sourceIndexPath,
   type PersistentSourceIndex,
@@ -87,7 +86,7 @@ export { readySourceIndex } from './ready-index.js';
 export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 export type { SourceIndexState } from './source-index-file.js';
 
-export { firstParentChanges, trackedFiles, type CommitChange, type CommitChanges } from './commit-changes.js';
+export { firstParentChanges, firstParentChangesBetween, trackedFiles, type CommitChange, type CommitChanges } from './commit-changes.js';
 export { packageOwner } from './package-owner.js';
 export { isTestPath } from './test-path.js';
 export { fileSizes, matchesGlob, sourceScope, type FileSize, type SourceScope } from './source-scope.js';
@@ -97,31 +96,33 @@ export {
   dependenciesAround,
   orientAround,
   recordedCases,
-  type CasesEntered,
-  type Orientation,
-  type ExternalOrientation,
-  type OrientFlow,
-  type OrientFlows,
   type OrientLimits,
-  type OrientPackage,
-  type OrientShare,
   type PackagesAround,
   type RecordedCases,
 } from './orient.js';
+export {
+  type NativeCasesEntered as CasesEntered,
+  type NativeOrientation as Orientation,
+  type NativeExternalOrientation as ExternalOrientation,
+  type NativeOrientFlow as OrientFlow,
+  type NativeOrientFlows as OrientFlows,
+  type NativeOrientPackage as OrientPackage,
+  type NativeOrientShare as OrientShare,
+} from './native-orient.js';
 export { recordedCaseNames, type RecordedCaseName, type RecordedCaseNames } from './recorded-case-names.js';
 export {
   fileCases,
   recordedDurations,
   recordedPaths,
   recordedTimes,
-  type DurationScope,
   type RecordedCaseDurations,
-  type ScopeCounts,
   type RecordedDurations,
-  type RecordOrigin,
   type TimedTestCase,
   type TimedTestFile,
 } from './recorded-durations.js';
+export { recordedAttempts, type RecordedAttempts, type RetriedCase } from './recorded-attempts.js';
+export { type DurationScope, type ScopeCounts } from './recorded-scope.js';
+export { type RecordOrigin } from './test-selection/record-location.js';
 export { layerMoves, type LayerCause, type LayerHeld, type LayerMoves, type LayerPresence } from './layer-moves.js';
 export { tierMoves, type TierCause, type TierMoves } from './tier-moves.js';
 export { declaredTiers, parseTiers, tierLabel, tierOf, TiersError, type TierPlace, type Tiers } from './tiers.js';
@@ -150,20 +151,23 @@ export {
   packageLayers,
   prepareCodeMap,
   shippedFiles,
-  type PackageLayer,
-  type PackageLayers,
-  type CodeMapAnswer,
-  type CodeMapMade,
-  type CodeMapPage,
-  type CodeMapPrepared,
   type CodeMapRead,
-  type CodeMapRow,
-  type CodeMapShare,
-  type DeclaredRoleCheck,
-  type DeclaredRoleFinding,
   type PreparedCodeMap,
-  type ShippedFiles,
 } from './code-map.js';
+export {
+  type NativeOrientPackageLayer as PackageLayer,
+  type NativeOrientLayers as PackageLayers,
+  type NativeOrientMapAnswer as CodeMapAnswer,
+  type NativeOrientMapMade as CodeMapMade,
+  type NativeOrientMapPage as CodeMapPage,
+  type NativeOrientMapPrepared as CodeMapPrepared,
+  type NativeOrientMapRow as CodeMapRow,
+  type NativeOrientMapShare as CodeMapShare,
+  type NativeDeclaredRoleCheck as DeclaredRoleCheck,
+  type NativeDeclaredRoleFinding as DeclaredRoleFinding,
+  type NativeOrientShipped as ShippedFiles,
+} from './native-orient.js';
+export { loadedUnprobed, modulePath } from './module-path.js';
 export { checkoutListing, checkoutPath, existedAt, existingAt, type CheckoutListing, type CheckoutPath } from './checkout-path.js';
 export {
   forksBetween,
@@ -175,38 +179,40 @@ export {
   pathsThrough,
   prepareJourneys,
   testCompositions,
-  type ForksBetween,
-  type JourneyBlock,
-  type JourneyCase,
-  type JourneyEnd,
-  type JourneyFork,
-  type JourneyFunction,
-  type JourneyMap,
-  type JourneyMapBranch,
-  type JourneyMapFunction,
-  type JourneyMapPlace,
   type SuiteJourneyMap,
-  type JourneyPath,
-  type JourneyPiece,
-  type JourneySide,
-  type PathsThrough,
-  type JourneysAmong,
-  type JourneysAnswer,
   type JourneysAround,
-  type JourneysAsk,
-  type JourneysBlock,
-  type JourneysCall,
-  type JourneysFile,
-  type JourneysFlow,
-  type JourneysFlows,
-  type JourneysPlace,
-  type JourneysPlaced,
-  type JourneysPrepared,
-  type JourneysRegion,
   type PreparedJourneys,
   type SuiteTestComposition,
-  type TestComposition,
 } from './journeys.js';
+export {
+  type NativeForksBetween as ForksBetween,
+  type NativeJourneyBlock as JourneyBlock,
+  type NativeJourneyCase as JourneyCase,
+  type NativeJourneyEnd as JourneyEnd,
+  type NativeJourneyFork as JourneyFork,
+  type NativeJourneyFunction as JourneyFunction,
+  type NativeJourneyMap as JourneyMap,
+  type NativeJourneyMapBranch as JourneyMapBranch,
+  type NativeJourneyMapFunction as JourneyMapFunction,
+  type NativeJourneyMapPlace as JourneyMapPlace,
+  type NativeJourneyPath as JourneyPath,
+  type NativeJourneyPiece as JourneyPiece,
+  type NativeJourneySide as JourneySide,
+  type NativePathsThrough as PathsThrough,
+  type NativeJourneysAmong as JourneysAmong,
+  type NativeJourneysAnswer as JourneysAnswer,
+  type NativeJourneysAsk as JourneysAsk,
+  type NativeJourneysBlock as JourneysBlock,
+  type NativeJourneysCall as JourneysCall,
+  type NativeJourneysFile as JourneysFile,
+  type NativeJourneysFlow as JourneysFlow,
+  type NativeJourneysFlows as JourneysFlows,
+  type NativeJourneysPlace as JourneysPlace,
+  type NativeJourneysPlaced as JourneysPlaced,
+  type NativeJourneysPrepared as JourneysPrepared,
+  type NativeJourneysRegion as JourneysRegion,
+  type NativeTestComposition as TestComposition,
+} from './native-journeys.js';
 
 export { gitDigests } from './tree.js';
 export { seedPaths } from './files.js';
@@ -227,6 +233,7 @@ export {
   membersOn,
   outsideSourcesOf,
   readHelp,
+  ripgrepNative,
   type Alias,
   type ContainerMember,
   type DeclaredName,
@@ -234,6 +241,7 @@ export {
   type DescribedFile,
   type EncodedSearch,
   type ExportedDeclaration,
+  type Grepped,
   type HelpPublish,
   type HelpReading,
   type MemberDeclarations,

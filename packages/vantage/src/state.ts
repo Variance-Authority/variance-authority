@@ -16,7 +16,6 @@ import type { RecordedEvent } from '@variance-authority/event/collect';
  * {@link WatchedTest} needs the type of the things in it, and reaching past this
  * package for it would make every such reader depend on the announcing half too.
  */
-export type { RecordedEvent };
 
 /**
  * Where a test got to.
@@ -87,6 +86,58 @@ export interface WatchedTest {
   readonly error?: string;
 }
 
+/** One module an execution entered, by the name its build gave it: `path@digest`. */
+export interface EnteredModule {
+  readonly id: string;
+  /** The ordinals of the regions entered, ascending, as the module's own build numbered them. */
+  readonly entered: readonly number[];
+}
+
+/** What one head — one process of the application — entered. */
+export interface HeadRan {
+  readonly head: string;
+  /** Which build of the probes numbered the regions, so a reader numbers them the same way. */
+  readonly instrumentation: string;
+  /** In the order each was first entered. */
+  readonly modules: readonly EnteredModule[];
+  /**
+   * What the execution's functions were handed, in the story format, base64:
+   * one story each time the head told it, in the order told. Absent unless the
+   * head was started with `VARIANCE_AUTHORITY_STORY=1`. A watcher keeps the
+   * first 8 tellings, up to 1 MiB of them.
+   */
+  readonly stories?: readonly string[];
+  /** How many tellings past that bound the watcher counted and did not keep; absent when it kept every one. */
+  readonly untold?: number;
+}
+
+/** One request nobody drove, and the code it entered in every head it reached. */
+export interface WatchedExecution {
+  /** The id its head reported it under. */
+  readonly id: string;
+  /** Arrival order in this vantage, from 0. */
+  readonly ordinal: number;
+  /** Whether a head still holds a scope open for it, so more may arrive. */
+  readonly open: boolean;
+  readonly heads: readonly HeadRan[];
+}
+
+/** What the heads of an application used by hand reported. */
+export interface WatchedRan {
+  /** Newest last, which is the order they arrived in. */
+  readonly executions: readonly WatchedExecution[];
+  /** Executions dropped from the front of {@link executions} to stay bounded. */
+  readonly forgotten: number;
+  /**
+   * What each process entered outside any execution, or while a module
+   * evaluated: every execution's, so it is held once and not under whichever
+   * request happened to be first.
+   */
+  readonly common: readonly HeadRan[];
+  /** Accounts the heads said they could not deliver. */
+  readonly lost: number;
+}
+
 /** A run, as it stood the moment somebody asked. */
 export interface VantageState {
   /**
@@ -98,4 +149,6 @@ export interface VantageState {
   readonly tests: readonly WatchedTest[];
   /** Tests dropped from the front of {@link tests} to stay bounded. */
   readonly forgotten: number;
+  /** What an application's heads reported of requests no test drove. */
+  readonly ran: WatchedRan;
 }

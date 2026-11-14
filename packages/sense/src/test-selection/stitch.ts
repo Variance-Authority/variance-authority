@@ -61,6 +61,12 @@ export interface JourneyAccount {
   /** How many of this head's opened scopes of this journey the account closes. */
   readonly settled?: number;
   readonly modules: readonly ExecutedModule[];
+  /**
+   * What the execution ran, in order, and what its functions were handed: the
+   * story format, base64. Told to a watcher by a head started with
+   * `VARIANCE_AUTHORITY_STORY=1`, and absent everywhere else.
+   */
+  readonly story?: string;
 }
 
 /** One account, once the driver has said which execution it arrived on. */

@@ -182,6 +182,13 @@ Playwright records which spec statement ran each region of the page. Its
 explains recording across navigation. A case recorded without statement lines
 has no attribution to read; it is not a case whose statements ran nothing.
 
+Under Vitest, Jest and Rstest the same recording times the case's own
+statements on the real clock and keeps the slowest: its line and how long it
+took, with a loop's runs summed and hooks left out. `variance ask
+slowest-tests` prints it under each case it lists, with its share of the case,
+so a slow test points at the line to read first. A case whose statements all
+took under a millisecond records none.
+
 Use those lines to connect the regions in [coverage
 composition](own-fewer-tests.md#connect-the-regions-to-test-statements) to the
 actions of a flow test. To read every visit in order, including repeats, record
@@ -255,9 +262,9 @@ case axis — so whatever reads it in CI does not change.
 **Ask.** From a shell, about a place:
 
 ```bash
-npx variance covering --file src/cart/total.ts --line 14
-npx variance covering --file src/cart/total.ts --function applyDiscount
-npx variance covering --since main
+variance covering --file src/cart/total.ts --line 14
+variance covering --file src/cart/total.ts --function applyDiscount
+variance covering --since main
 ```
 
 **Re-record when the tree moves.** A region is a range of lines in the text the

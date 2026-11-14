@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { encodeTestCoverage, withCaseSections } from '@variance-authority/sense/test-selection';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 
 const temporary: string[] = [];
 afterEach(async () => {

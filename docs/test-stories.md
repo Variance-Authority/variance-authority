@@ -494,7 +494,7 @@ arguments, one test or one file:
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn playwright test tests/cart.spec.ts -g "removes the last item"
-VARIANCE_AUTHORITY_STORY=1 npx variance run --subjects "story:cart--*"
+VARIANCE_AUTHORITY_STORY=1 variance run --subjects "story:cart--*"
 ```
 
 Under Playwright, Storybook and the browser modes of Vitest and Rstest, the

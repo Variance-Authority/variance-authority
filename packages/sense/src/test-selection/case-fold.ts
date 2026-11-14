@@ -4,9 +4,10 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FreshCases, LaidRun } from './case-landing.js';
 import type { ModuleId } from '../instrument/index.js';
 import { FoldLines, fileStarts, linedCases, writtenPlaces } from './case-fold-lines.js';
+import { collect, markRange, moduleOf } from './case-fold-bits.js';
 import { CrossingSets } from './crossing-sets.js';
 import { scanJournal, type JournalVisitor } from './crossing-fold.js';
-import { limitAcross } from './execution-set-columns.js';
+import { limitAcross, slowestAcross } from './execution-set-columns.js';
 import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import {
   isMissing,
@@ -24,6 +25,8 @@ import {
   unpackFrames,
   type CaseCoordinate,
 } from './cases.js';
+import type { RecordedAttempt } from './attempts-record.js';
+import { triedAttempts, type CaseAttempts } from './case-attempts.js';
 import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
 import eyesFrames from './eyes-frame.cjs';
 import type { EyesSection, RecordedEyes } from './eyes-record.js';
@@ -46,6 +49,8 @@ export interface CaseRun {
   readonly testsByFile: ReadonlyMap<string, readonly [number, number]>;
   /** The cases that opened Eyes journals and what they handed over; absent when none did. */
   readonly eyes?: EyesSection;
+  /** How each attempt of a retried case ended, none when none was; absent when the runner's report counted no attempts. */
+  readonly attempts?: readonly RecordedAttempt[];
   /** 1 for each test with lines, by `linedCases`; absent when no frame was cut. */
   readonly lined?: Uint8Array;
 }
@@ -63,6 +68,8 @@ interface Coordinate extends CaseCoordinate {
   stopped?: boolean;
   /** The limit it ran under, by `limitAcross`. */
   limit?: number;
+  /** Its slowest statement, by `slowestAcross`. */
+  slowest?: ExecutionTest['slowest'];
   /** What each of its frames said it arranged, as the realm wrote it; absent where a frame's writer never listened. */
   readonly said: (Said | undefined)[];
   /** Every frame written under this coordinate, in replay order. */
@@ -85,6 +92,7 @@ export async function inspectCaseRun(
   root: string,
   durations: CaseDurations = UNTIMED,
   limits: CaseLimits = UNLIMITED,
+  tried?: CaseAttempts,
 ): Promise<CaseRun> {
   let names: readonly string[];
   try {
@@ -131,6 +139,7 @@ export async function inspectCaseRun(
                 ...caseOf(located),
                 ...settledAcross(coordinate.stopped, undefined),
                 ...limitAcross(coordinate.limit, undefined),
+                ...slowestAcross(coordinate.slowest, undefined),
                 said: [said],
                 frames: [frame],
               };
@@ -140,7 +149,7 @@ export async function inspectCaseRun(
               held.frames.push(frame);
               const settled = settledAcross(held.stopped, coordinate.stopped).stopped;
               if (settled !== undefined) held.stopped = settled;
-              Object.assign(held, limitAcross(held.limit, coordinate.limit));
+              Object.assign(held, limitAcross(held.limit, coordinate.limit), slowestAcross(held.slowest, coordinate.slowest));
               held.said.push(said);
             }
             frame += 1;
@@ -174,6 +183,7 @@ export async function inspectCaseRun(
       ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
       ...(duration === undefined ? {} : { duration }),
       ...limitAcross(coordinate.limit, limits(coordinate.file, coordinate.name)),
+      ...slowestAcross(coordinate.slowest, undefined),
       ...(said === undefined ? {} : { said }),
     };
   });
@@ -185,6 +195,7 @@ export async function inspectCaseRun(
     first = last;
   }
   const lined = linedCases(ordered, cutFiles);
+  const attempts = triedAttempts(ordered, ids, tried, root);
   const eyes = looked.size === 0 ? undefined : {
     watched: [...looked.keys()].map((key) => ids.get(key)!),
     journals: [...looked].flatMap(([key, rows]) => rows.map((row) => ({ case: ids.get(key)!, ...row }))),
@@ -192,6 +203,7 @@ export async function inspectCaseRun(
   return {
     root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile,
     ...(eyes === undefined ? {} : { eyes }),
+    ...(attempts === undefined ? {} : { attempts }),
     ...(lined === undefined ? {} : { lined }),
   };
 }
@@ -239,12 +251,16 @@ export async function freshCases(
   readings: ReadonlyMap<ModuleId, Reading> = new Map(),
 ): Promise<FreshCases | undefined> {
   const finished = run.tests.some((test) => test.complete);
-  const inspected = await inspectCaseRun(directory, root, run.durations, run.limits);
+  const inspected = await inspectCaseRun(directory, root, run.durations, run.limits, run.tried);
   if (inspected.tests.length === 0 && !finished) return undefined;
   const fresh = (await foldCaseRun(inspected, modules, DEFAULT_BUDGET, readings)).bytes;
   return {
     fresh,
-    run: { tests: run.tests, ...(run.commit === undefined ? {} : { commit: run.commit }) },
+    run: {
+      tests: run.tests,
+      ...(run.commit === undefined ? {} : { commit: run.commit }),
+      ...(inspected.attempts === undefined ? {} : { attempts: inspected.attempts }),
+    },
     ...(inspected.eyes === undefined ? {} : { eyes: inspected.eyes }),
   };
 }
@@ -255,6 +271,8 @@ export interface CaseRunTests extends LaidRun {
   readonly durations?: CaseDurations;
   /** Each case's limit, where the runner reports it only outside the case. */
   readonly limits?: CaseLimits;
+  /** Each case's attempts as the runner reported them; absent, the run keeps none. */
+  readonly tried?: CaseAttempts | undefined;
 }
 
 /**
@@ -437,59 +455,4 @@ export async function foldCaseRun(
     passes,
     crossings,
   };
-}
-
-function markRange(
-  bits: Uint32Array,
-  at: number,
-  words: number,
-  first: number,
-  last: number,
-): void {
-  if (first >= last) return;
-  const firstWord = first >>> 5;
-  const lastWord = (last - 1) >>> 5;
-  if (firstWord === lastWord) {
-    const end = last & 31;
-    const high = end === 0 ? 0xffff_ffff : (2 ** end - 1) >>> 0;
-    bits[at + firstWord] = bits[at + firstWord]! | (high & (0xffff_ffff << (first & 31)));
-    return;
-  }
-  bits[at + firstWord] = bits[at + firstWord]! | (0xffff_ffff << (first & 31));
-  bits.fill(0xffff_ffff, at + firstWord + 1, at + lastWord);
-  const end = last & 31;
-  bits[at + lastWord] = bits[at + lastWord]! | (end === 0 ? 0xffff_ffff : (2 ** end - 1) >>> 0);
-  // `words` is part of the address contract; keep an impossible range from
-  // silently writing into the next block if a corrupt coordinate reaches here.
-  if (lastWord >= words) throw new Error('case journal names a test outside the run');
-}
-
-/** Collect one block's set bits as test ordinals. */
-function collect(bits: Uint32Array, at: number, words: number, out: Uint32Array): number {
-  let held = 0;
-  for (let word = 0; word < words; word += 1) {
-    let value = bits[at + word]!;
-    while (value !== 0) {
-      const low = 31 - Math.clz32(value & -value);
-      out[held++] = (word << 5) + low;
-      value &= value - 1;
-    }
-  }
-  return held;
-}
-
-function moduleOf(
-  offsets: Uint32Array,
-  first: number,
-  last: number,
-  block: number,
-): number {
-  let low = first;
-  let high = last;
-  while (low + 1 < high) {
-    const middle = (low + high) >>> 1;
-    if (offsets[middle]! <= block) low = middle;
-    else high = middle;
-  }
-  return low;
 }

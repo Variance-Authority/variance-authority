@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { importTargets, landing } from './entry.js';
-import { requested } from './manifest.js';
+import { requested } from './exports.js';
 
 /**
  * Where an import between packages lands, the one rule both usage readers

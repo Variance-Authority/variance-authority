@@ -19,7 +19,8 @@
 
 // compass: variance-authority.reach.source-index
 
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import type { FileRecord, Uses } from '@variance-authority/core/relate';
 import type { Digest } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -30,10 +31,11 @@ import type { RecordCache } from './reuse.js';
 import { scanCount } from './scan.js';
 import { realPath } from './resolve.js';
 import { placesOf, stepped, type Progress } from './progress.js';
-import { openSourceIndex, primarySourceIndexPath, sourceIndexPath } from './source-index.js';
+import { openSourceIndex, sourceIndexPath } from './source-index.js';
 import { updateNatively } from './native-update.js';
+import { fillParseStore, parseStoresFor } from './parse-store.js';
 import { markCheckout } from './test-selection/cache-layers.js';
-import { openSourceIndexFile, seedSourceIndex, type SourceIndexState } from './source-index-file.js';
+import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
 import { SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { usesOf } from './uses.js';
 
@@ -123,11 +125,6 @@ export interface SourceUpdateOptions {
    * them: what they hold and what it reaches. The whole of `root` when absent.
    */
   readonly dirs?: readonly string[];
-  /**
-   * The generation a missing `index` starts from, when it names one of its own.
-   * The primary checkout's, from `primarySourceIndexPath`, when `index` is absent.
-   */
-  readonly primary?: string;
 }
 
 /** What one update read and what it published. */
@@ -147,16 +144,16 @@ export interface SourceUpdate {
   /** Files whose record this update rebuilt, because the published one no longer described them. */
   readonly reread: number;
   /**
+   * Modules this update parsed: the files it reread that neither its index nor
+   * the cache's parse store answered.
+   */
+  readonly parsed: number;
+  /**
    * When this update began, before it read anything of the checkout: what it
    * holds is the checkout at this time or later, so what is published from it
    * says this and not when it was published.
    */
   readonly readStartedAt: string;
-  /**
-   * The primary checkout's index this one started from, when this checkout is a
-   * worktree that had none of its own.
-   */
-  readonly from?: string;
   /**
    * The listing of the checkout git gave this update's scan, for a step after
    * it — the code map — to carry rather than ask git again. Absent when git
@@ -184,31 +181,31 @@ export async function updateSourceIndex(
   // The addon answers from the chain in place; only what it declines is decoded here.
   // It reads Git's object store, so a caller that asked for the working tree is not its to answer.
   const dirs = options.dirs ?? ['.'];
-  const natively = options.packs === false ? undefined : await updateNatively(realPath(where), path, options.progress, dirs);
+  const missing = !existsSync(path);
+  // An index kept in the checkout's own cache, its own or one beside it, reads the cache's parse store before it opens a file.
+  const stores = dirname(path) === dirname(sourceIndexPath(where)) ? parseStoresFor(where) : undefined;
+  const everything = `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
+  const natively = options.packs === false
+    ? undefined
+    : await updateNatively(realPath(where), path, options.progress, dirs, stores, ...(existsSync(path) ? [] : [everything]));
   if (natively !== undefined) {
     if (options.index === undefined) markCheckout(realPath(where));
     return {
       path,
-      was: 'published',
+      was: missing ? 'missing' : 'published',
       ...(natively.refused === undefined ? {} : { refused: natively.refused }),
       files: natively.files,
       reread: natively.reread,
+      parsed: natively.parsed,
       readStartedAt,
       listing: natively.listing,
     };
   }
   // Opened once: the open decodes the whole chain, and the state is read off
   // that same open rather than off a second one.
-  let source = await openSourceIndex(path);
-  const was = source.state;
+  const source = await openSourceIndex(path, stores === undefined ? {} : { stores });
+  const was = missing ? 'missing' : source.state;
   const written = source.written;
-  // A worktree's first update starts from the primary checkout's generation and
-  // pays only for what differs between the two checkouts.
-  const primary = was !== 'missing' ? undefined : options.index === undefined
-    ? primarySourceIndexPath(where)
-    : options.primary;
-  const from = primary !== undefined && seedSourceIndex(path, primary) ? primary : undefined;
-  if (from !== undefined) source = await openSourceIndex(path);
   // Counted on the record cache, not the parse cache: a cold scan attaches its
   // native parse layer to the parse cache object itself, and a wrapper there
   // would publish without it.
@@ -242,16 +239,18 @@ export async function updateSourceIndex(
   // Counted rather than collected: the update publishes the records through
   // `reuse` and reports how many, and a cold closure the addon holds is never
   // turned into objects for either.
-  const { files, listing } = await stepped(options.progress, `reading every file of ${placesOf(where, dirs)}, ${
-    was === 'missing' ? 'because there is no index to update' : 'because the index could not be updated in place'
-  }`, () => scanCount({
+  const { files, parsed, listing } = await stepped(options.progress, was === 'missing'
+    ? everything
+    : `reading every file of ${placesOf(where, dirs)}, because the index could not be updated in place`, () => scanCount({
     root: where,
     dirs,
     cache: source.cache,
     reuse,
+    ...(stores === undefined ? {} : { stores }),
     ...(options.packs === undefined ? {} : { packs: options.packs }),
   }));
   const refused = await source.save();
+  if (refused === undefined && stores !== undefined) fillParseStore(listing, stores, path);
   // The checkout's own index names its checkout, so the cache can tell when it is gone.
   if (options.index === undefined) markCheckout(realPath(where));
   return {
@@ -261,8 +260,8 @@ export async function updateSourceIndex(
     ...(refused === undefined ? {} : { refused }),
     files,
     reread: files - reused.size,
+    parsed,
     readStartedAt,
-    ...(from === undefined ? {} : { from }),
     ...(listing === undefined ? {} : { listing }),
   };
 }

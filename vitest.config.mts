@@ -205,15 +205,15 @@ export const whole = mergeConfig(shared, {
 });
 
 /**
- * The unit slice without the recording, exported so it can be run without it.
+ * The unit slice without the recording.
  *
- * `tools/uninstrumented.config.mts` is this and nothing else, and it is the arm
- * [journal 0027](docs/context/journal/0027-what-instrumentation-costs.md)
+ * `tools/uninstrumented.config.mts` asks `slice` for the same slice, and it is
+ * the arm [journal 0027](docs/context/journal/0027-what-instrumentation-costs.md)
  * compares against — the one measurement that has to be able to take the probes
- * away. Exported rather than restated, so the two arms cannot drift into
- * measuring different suites.
+ * away. One function builds both, so the two arms cannot drift into measuring
+ * different suites.
  */
-export const suite = slice('unit');
+const suite = slice('unit');
 
 /**
  * What the instrument is pointed at in one slice, exported so a second arm can

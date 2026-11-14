@@ -26,6 +26,7 @@ mod batch;
 mod case_fold;
 mod case_id;
 mod case_lines;
+mod case_readings;
 mod case_owner;
 mod case_said;
 mod case_said_napi;
@@ -65,16 +66,8 @@ mod change_tree;
 mod held;
 #[cfg(unix)]
 mod held_listing;
-mod help_aliases;
-mod help_declared;
-mod help_in_file;
-mod help_member_uses;
-mod help_members;
-mod help_origin;
-mod help_own_uses;
-mod help_publish;
-mod help_search;
-mod help_usage;
+mod help;
+use help::*;
 mod index;
 mod index_chain;
 mod index_turn;
@@ -137,9 +130,12 @@ mod package_flows;
 mod package_graph;
 mod package_owners;
 mod parse_columns;
+mod parse_origin;
+mod parse_store;
 mod path;
 mod promisor;
 mod read;
+mod read_napi;
 mod ready_index;
 mod record;
 mod record_combine;
@@ -153,6 +149,7 @@ mod record_coverage_recut;
 #[cfg(test)]
 mod record_fixture;
 mod record_layout;
+mod record_attempts;
 mod record_parts;
 mod record_start;
 mod resolve;
@@ -175,57 +172,6 @@ mod witness_aliases;
 
 pub use seed::seed_files;
 
-/// One module's parse, as JSON: the value `readBatch` answers for a file on
-/// disk, for source text the caller already holds.
-#[napi(catch_unwind)]
-pub fn read_source(file: String, source: String) -> String {
-    let read = read::read_module(&file, &source, &oxc_allocator::Allocator::default(), true);
-    serde_json::to_string(&read).unwrap_or_default()
-}
-
-/// What one file of a tree-sitter language asks for and publishes, as JSON.
-///
-/// The AST does not cross — a `Read` is a handful of specifiers and names, the
-/// same object graph every reader answers with, and no more. `null` means no
-/// reader here claims that language, and the caller records the file as unknown.
-#[cfg(feature = "grammars")]
-#[napi(catch_unwind)]
-pub fn read_language(language: String, file: String, source: String) -> Option<String> {
-    let read = languages::read(&language, &file, &source)?;
-    serde_json::to_string(&read).ok()
-}
-
-/// The same method on a build whose grammars did not compile: it claims nothing.
-///
-/// The method stays rather than disappearing, so `record.ts` has one branch for
-/// it: `null` makes every file in the five languages *unknown*, with a reason
-/// that names the missing grammars. Everything else this crate does — git
-/// identity, the path set, the oxc parse, resolution, the journey fold — is here
-/// and is what it was.
-#[cfg(not(feature = "grammars"))]
-#[napi(catch_unwind)]
-pub fn read_language(_language: String, _file: String, _source: String) -> Option<String> {
-    None
-}
-
-/// The targets a `Package.swift` declares, as JSON `[{ name, path }]`.
-///
-/// `null` when the manifest does not parse, or on a build without the grammars;
-/// either way `swift.ts` keeps the conventional `Sources/<name>` layout.
-#[cfg(feature = "grammars")]
-#[napi(catch_unwind)]
-pub fn swift_targets(source: String) -> Option<String> {
-    let targets = languages::swift_targets(&source)?;
-    serde_json::to_string(&targets).ok()
-}
-
-/// The same method on a build whose grammars did not compile: it claims nothing.
-#[cfg(not(feature = "grammars"))]
-#[napi(catch_unwind)]
-pub fn swift_targets(_source: String) -> Option<String> {
-    None
-}
-
 /// Every tracked path under a root, and the digest of the bytes on disk.
 ///
 /// The paths are held here, sorted by code unit, and the object names as twenty
@@ -246,6 +192,10 @@ pub struct GitTree {
     /// The package manifests and `tsconfig*.json` files in each directory, made
     /// the first time a scan asks where built output comes from.
     listing: OnceLock<Arc<emitted::Listing>>,
+    /// The parse stores the last scan named, read once for every frontier of it.
+    stores: std::sync::Mutex<Option<(Vec<String>, Arc<parse_store::Stores>)>>,
+    /// The parses this tree's reads made from the blob each is kept under.
+    from_blob: parse_origin::FromBlob,
     /// How the tree was come by, when a change source other than git had a say.
     #[cfg(unix)]
     change: Option<held_listing::Change>,
@@ -266,7 +216,7 @@ pub fn git_tree(root: String) -> Option<GitTree> {
 #[napi(catch_unwind)]
 pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
     let snapshot = git::snapshot(&root)?;
-    let seeds = seed::seed_paths(&root, &dirs, &snapshot.paths);
+    let seeds = seed::seeds_of(&root, &dirs, &snapshot);
     Some(tree_from_snapshot(snapshot, seeds))
 }
 
@@ -282,6 +232,21 @@ impl GitTree {
             Arc::new(emitted::Listing::of(at, regular, &self.unhashed))
         };
         Arc::clone(self.listing.get_or_init(made))
+    }
+
+    /// The stores at `paths`, read the first time a scan names them: a scan
+    /// asks once per frontier, and what it adds is published after it.
+    fn stores(&self, paths: Option<Vec<String>>) -> Option<Arc<parse_store::Stores>> {
+        let paths = paths.filter(|paths| !paths.is_empty())?;
+        let mut held = self.stores.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((named, stores)) = held.as_ref() {
+            if *named == paths {
+                return Some(Arc::clone(stores));
+            }
+        }
+        let stores = Arc::new(parse_store::Stores::read(&paths));
+        *held = Some((paths, Arc::clone(&stores)));
+        Some(stores)
     }
 }
 
@@ -299,6 +264,8 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
         unhashed: snapshot.unhashed,
         seeds,
         listing: OnceLock::new(),
+        stores: std::sync::Mutex::new(None),
+        from_blob: parse_origin::FromBlob::default(),
         #[cfg(unix)]
         change: None,
     }
@@ -359,11 +326,15 @@ impl GitTree {
         readers: Option<u32>,
         tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
+        stores: Option<Vec<String>>,
     ) -> batch::ScanBatch {
         let oids = files
             .iter()
             .map(|file| self.at.get(file).map(|index| self.oids[*index as usize]))
             .collect();
+        let stores = self.stores(stores);
+        let opened = stores.as_deref().map(parse_store::Stores::open);
+        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
         batch::scan_batch_with_oids(
             batch::ScanOptions {
                 root,
@@ -377,7 +348,19 @@ impl GitTree {
             Some(oids),
             Some(self.at.as_ref()),
             Some(self.listing()),
+            &kept,
+            &self.from_blob,
         )
+    }
+
+    /// The parses the stores at `stores` hold for `files` at `digests`, from the
+    /// reading the scan answered `kept` from, so a row it kept is handed over
+    /// even when another root has published the stores since.
+    #[napi]
+    pub fn kept_parses(&self, stores: Vec<String>, files: Vec<String>, digests: Vec<String>) -> napi::bindgen_prelude::Buffer {
+        let Some(stores) = self.stores(Some(stores)) else { return Vec::new().into() };
+        let wanted = digests.into_iter().zip(&files).map(|(digest, file)| (digest, index::way(file)));
+        stores.open().segment(wanted).into()
     }
 
     /// Follow every module reachable from `seeds` in one native operation.
@@ -395,7 +378,11 @@ impl GitTree {
         tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
         include_parses: Option<bool>,
+        stores: Option<Vec<String>>,
     ) -> batch::ScanBatch {
+        let stores = self.stores(stores);
+        let opened = stores.as_deref().map(parse_store::Stores::open);
+        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
         batch::scan_graph_with_tree(
             batch::GraphOptions {
                 root,
@@ -409,14 +396,18 @@ impl GitTree {
             &self.at,
             &self.oids,
             self.listing(),
+            &kept,
+            &self.from_blob,
         )
     }
 
     /// Walk the module closure of `seeds` and keep it here as records and a
     /// parse layer, for a cold build that publishes from this side.
     #[napi(catch_unwind)]
-    pub fn index_graph(&self, options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
-        graph_index::index_graph(options, &self.at, &self.oids, self.listing())
+    pub fn index_graph(&self, mut options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
+        let stores = self.stores(options.stores.take());
+        let opened = stores.as_deref().map(parse_store::Stores::open);
+        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), opened.as_ref(), &self.from_blob)
     }
 
     /// Bring the source index at `options.index` up to this tree, on this
@@ -435,6 +426,7 @@ impl GitTree {
                 listing: self.listing(),
                 regular: &self.regular,
                 unhashed: &self.unhashed,
+                from_blob: &self.from_blob,
                 #[cfg(unix)]
                 carry,
             },

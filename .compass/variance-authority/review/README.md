@@ -41,7 +41,6 @@ Workers over D1, R2 and Access, and a process on a machine somebody owns over
 - `packages/tribunal/src/ui/` — the review surface and its JSON client
 - `packages/tribunal/src/node/` — the file-and-socket deployment
 - `packages/tribunal/migrations/` — the stored shape, generated from the schema
-- `tribunal-cloudflare/app/` — the deployed console: identity, the mount, the page
 
 ## Communicates with
 

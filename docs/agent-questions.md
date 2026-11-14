@@ -29,6 +29,7 @@ A missing domain is unavailable, never an empty measurement.
 | current workspace source | Which third-party packages can this file already use, does the code import them, and which [agent skills](tech-stack.md#read-the-skills-a-package-ships) do they ship? | `variance ask stack --from <path> [--limit <n>] [--offset <n>]` | `docs_stack` on the workspace API server |
 | a recorded test run | Which test has this title, however its file registers it? | `variance ask search --query <words>` | `docs_search` on the workspace API server |
 | a recorded test run | Which test cases are closest to their limit, and which test files and cases did the runner spend longest in, under these tests or in the tests that ran this code? | `variance ask slowest-tests [--from <path>[,...]] [--to <path>[,...]] [--over <time>] [--limit <n>]` | `docs_slowest_tests` on the workspace API server |
+| a recorded test run | Which test cases did the runner retry in the recorded run, and which of them failed on one attempt and passed on another? | `variance ask retried-tests [--limit <n>]` | `docs_retried_tests` on the workspace API server |
 
 For [source orientation](orientation.md), ask three questions in this order:
 
@@ -122,8 +123,9 @@ reading with the preceding successful one.
 
 A suite in flight has no completed artifact. Its lifecycle and application
 announcements go to `variance watch` or `variance-authority-mcp --watch`.
-`self`, `run-signals`, `test-signals` and `diff` are available through both
-entrances. The connection, address model and lifetime boundary are in
+`self`, `run-signals`, `test-signals`, `ran` and `diff` are available through
+both entrances. `ran` answers about an application used by hand rather than a
+suite: one execution per request, with the regions it ran. The connection, address model and lifetime boundary are in
 [inspect a live run](agent-live-run.md).
 
 `variance_waiting` and `variance_continue` are MCP-only, and answer about a test

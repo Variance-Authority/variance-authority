@@ -83,18 +83,18 @@ nothing published, so every answer comes from what the source exports.
 
 ## Ask one question
 
-The binary is `variance-authority-help`. Installed as a devDependency it is on
-the path under `npx`:
+The binary is `variance-authority-help`. Installed as a devDependency, it runs
+through your package manager:
 
 ```bash
 npm install --save-dev @variance-authority/help
-npx variance-authority-help search viewport
-npx variance-authority-help search viewport --from packages/app/ --just-answer
+variance-authority-help search viewport
+variance-authority-help search viewport --from packages/app/ --just-answer
 ```
 
 The verbs each take the same arguments as the tool of the same name below:
 `packages`, `entrypoint`, `symbol`, `uses`, `search`, `grep`, `discover`,
-`intersection`, `orient`, `slowest-tests`, `journey-map`, `test-composition`, `containment`, `stack`, `gaps`. An entrypoint is
+`intersection`, `orient`, `slowest-tests`, `retried-tests`, `journey-map`, `test-composition`, `containment`, `stack`, `gaps`. An entrypoint is
 one import specifier a package's `exports` map opens — `@scope/pkg` and
 `@scope/pkg/deep` are two of them. Add `--root <dir>` when you are not standing
 in the repository you are asking about.
@@ -105,7 +105,7 @@ answer over MCP says `limit` and `docs_symbol`.
 
 The same questions are on `variance ask` wherever
 [`@variance-authority/cli`](https://variance-authority.dev/reference/packages/cli)
-is installed — `npx variance ask search --query viewport` — and, with a
+is installed — `variance ask search --query viewport` — and, with a
 `variance.config.json`, the same tools are on `variance serve`, beside the ones
 about a run. A workspace that runs the visual suite needs nothing from this
 package over either transport. This package is for the workspace that does not
@@ -146,7 +146,7 @@ A published name is API and comes with the specifier you would import it from.
 An exported name shows a file and a line, because nothing else was read for it.
 
 `symbol` answers with the one thing you asked about, in full.
-Run `npx variance-authority-help symbol Viewport`:
+Run `variance-authority-help symbol Viewport`:
 
 ```
 Viewport [interface]
@@ -182,11 +182,12 @@ and the rows on a page are reordered by that label.
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it, then the members of an interface, a type alias or a class, one line each; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on, and the declaration an `export … from` passes on; the files that import it under another name with `as`. For a name an import binds with `as`, that import and the original it names, followed to its declaration and its members the same way |
 | `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Then the lines of a TypeScript, JavaScript or Rust file that use a name it declares, by its scope rules. Then the files whose import the source index resolved to no file and could take the name, since a use there is not listed: the first three, and how many more, whatever `limit` says. For a name no file here declares that a file imports from a package outside the workspace or a runtime module, each source and the `discover --imports <source>#<name>` question that lists those files. Twelve rows of each list, unless `limit` says more |
 | `search` / `docs_search` | a string, optionally a path to answer from | candidates, not every match: published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding most of its words by stem, the rarer words counting for more, and the names only a looser reading finds |
-| `grep` / `docs_grep` | a pattern, and a path to answer from | the lines `rg` matches in the files that path imports, or that import it, nearest first |
-| `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line `rg` matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
+| `grep` / `docs_grep` | a pattern, and a path to answer from | the lines ripgrep matches in the files that path imports, or that import it, nearest first |
+| `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line ripgrep matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
 | `intersection` / `docs_intersection` | two or more whole questions whose answers are sets of files — `symbol`, `uses`, `search`, `grep`, `discover` — each with its own input; on a shell, each one quoted word | the files every question answers, each question read whole, with the lines that put each file in each question |
 | `orient` / `docs_orient` | nothing, an area id, or files you already have as paths from the root | with no files, the code map `variance index` keeps beside the source index: areas of packages with their size, dependency layers, most-imported packages and the areas they import from. With files, the package each file is in with the names it imports from other packages and the names they import from it, the recorded test cases that ran each file, the functions in other files that call into it and those it calls, with how each call is known, the [package flows](https://variance-authority.dev/docs/orientation#choose-the-entrance-from-what-you-have) those cases take through it, and the narrower questions to ask next; `path:line` narrows the calls to the function holding that line |
 | `slowest-tests` / `docs_slowest_tests` | optionally test paths to keep (`from`), code paths the tests must have run (`to`), a time the cases ran at least (`over`), and how many rows to list | the record it read, whose run, at which commit and how old; the cases closest to their limit, each as its run and its limit; then the test files and cases that run spent longest in, a file by what running it cost before and during its cases, and how many recorded files and cases have no duration or limit; with `over`, cases alone |
+| `retried-tests` / `docs_retried_tests` | optionally how many cases to list (`limit`) | the record it read, whose run, at which commit and how old; the cases the runner retried whose attempts ended differently, each with its limit and every attempt: how it ended as its runner said and, where the runner says them, how long it ran and, for one that did not pass, the frame inside the checkout and the message; how many retried cases ended the same way every attempt; a record that kept no attempts says so, which is not that no case was retried |
 | `journey-map` / `docs_journey_map` | one file, optionally words of the task | how many recorded tests entered that file, the paths through each of its functions, then the code beyond it those tests entered, nearest first |
 | `test-composition` / `docs_test_composition` | a test file, optionally the test's name or a word of it | the smaller tests whose recorded regions sit inside this test's (its pieces), the larger tests holding it (its wholes), and the regions no piece entered: modules only it enters, and paths through a piece's modules only it takes. Regions more than half the suite entered are counted apart as structure. [Ask what one test is made of](https://variance-authority.dev/docs/own-fewer-tests#ask-what-one-test-is-made-of) |
 | `containment` / `docs_containment` | optionally the first day counted (`after`), two weeks ago when left out | from `git log` and the workspace list: the share of source-changing commits that touched one package, that edited a test in another package, among commits that did and did not edit their own tests, and that edited a test in a test-only tree, each as a count over its denominator, with what was left out counted by reason |
@@ -232,7 +233,7 @@ docs_search  query: order  from: src/fulfilment/
 Spelled `--from` on the command line, and the same on `variance ask search`:
 
 ```bash
-npx variance-authority-help search order --from src/fulfilment/
+variance-authority-help search order --from src/fulfilment/
 ```
 
 `from` follows the imports at any depth, then answers with published names those
@@ -309,7 +310,7 @@ labelled with the file and line it was read from. The passage is never presented
 as the symbol's documentation, and it never removes the name from `gaps`.
 
 `gaps` turns the same ranking into a work queue.
-Run `npx variance-authority-help gaps`, abridged to the first three lines:
+Run `variance-authority-help gaps`, abridged to the first three lines:
 
 ```
 111 names cross a package boundary with nothing written above the declaration:
@@ -332,7 +333,7 @@ above: it is not a start point, it filters nothing, and every site of the name
 still comes back. It only decides which of them you read first.
 
 ```bash
-npx variance-authority-help uses collect --from packages/cli/src/index.ts
+variance-authority-help uses collect --from packages/cli/src/index.ts
 ```
 
 ```
@@ -384,7 +385,7 @@ With no verb, the binary speaks the protocol on stdio:
 
 ```bash
 npm install --save-dev @variance-authority/help
-npx variance-authority-help .
+variance-authority-help .
 ```
 
 ```json
@@ -399,7 +400,7 @@ npx variance-authority-help .
 ```
 
 The tools are named `docs_packages`, `docs_entrypoint`, `docs_symbol`,
-`docs_uses`, `docs_search`, `docs_grep`, `docs_discover`, `docs_intersection`, `docs_orient`, `docs_slowest_tests`,
+`docs_uses`, `docs_search`, `docs_grep`, `docs_discover`, `docs_intersection`, `docs_orient`, `docs_slowest_tests`, `docs_retried_tests`,
 `docs_journey_map`, `docs_test_composition`, `docs_containment`, `docs_stack` and `docs_gaps`, and they answer in the same
 words as the verbs above. `docs_orient` with no files needs the code map `variance
 index` makes, so install the CLI beside this package: [connect your
@@ -416,7 +417,7 @@ person:
 
 ```bash
 npm install --save-dev @variance-authority/help
-npx variance-authority-help write . --out docs/api
+variance-authority-help write . --out docs/api
 ```
 
 Four files, and the command prints each with its size:

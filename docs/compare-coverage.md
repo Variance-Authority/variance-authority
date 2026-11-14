@@ -132,12 +132,14 @@ Nothing here replaces the upload step. Declare your suites in the root
 the job summary after the suite:
 
 ```bash
-npx variance coverage --format markdown >> "$GITHUB_STEP_SUMMARY"
+variance coverage --format markdown >> "$GITHUB_STEP_SUMMARY"
 ```
 
 For a badge in a public repository's `README.md`, set `badge: 'true'` on the
 [review action](https://github.com/Variance-Authority/action#publishing-a-badge)
-and give its job `contents: write`. On every push to your default branch it
+in the job that runs the tests, and give `contents: write` only to the job with
+`from`, which pushes the badge and runs no code from the pull request. On every
+push to your default branch it
 publishes the share of regions run by every suite the job's record holds, the
 figure `variance coverage` prints first, from `variance coverage --format
 badge`. The badge reads `regions run`, not `coverage`, because the number is

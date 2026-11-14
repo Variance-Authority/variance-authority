@@ -67,6 +67,13 @@ export const JOURNEY_COOKIE = 'variance-authority-journey';
 export const RETURN_COOKIE = 'variance-authority-return';
 
 /**
+ * The variable naming where a watcher listens, which is the address
+ * `variance watch` prints. A run reads it to say what its tests are doing, and
+ * a head reads it to say what a request nobody drove entered.
+ */
+export const WATCHER_VARIABLE = 'VARIANCE_AUTHORITY_VANTAGE';
+
+/**
  * Which instrument is speaking. The driver routes on this and nothing else.
  *
  * `run` is the one that talks the other way. A run is a participant too when

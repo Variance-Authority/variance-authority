@@ -7,7 +7,8 @@ import { updateSourceIndex } from '@variance-authority/sense';
 import { INSTRUMENTATION_ID } from '@variance-authority/sense/instrument';
 import { commitRunsFile, encodeExecutionIndex, landRun, NO_BLOB, openTestCoverage, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { digestString } from '@variance-authority/core/format';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { hashObject } from './review-fixture.js';
 
 /** `charge` on lines 1-3 and `refund` on 5-7. */

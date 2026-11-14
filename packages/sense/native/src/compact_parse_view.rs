@@ -9,6 +9,7 @@
 // compass: variance-authority.reach.source-index
 
 use crate::parse_columns::{ParseColumns, ParseRow};
+use crate::read::{Binding, Kind, Read, Request};
 use crate::segment::{Collected, Strings};
 use crate::stored::{Stored, U32s};
 
@@ -16,10 +17,55 @@ use super::parses::Parses;
 use super::{flag, span};
 
 /// One row of one layer, the newest for its key.
-pub(super) struct ParseView<'s, 'a> {
-    pub stored: &'s Stored<'a>,
-    pub columns: &'s Parses<'a>,
-    pub row: usize,
+pub(crate) struct ParseView<'s, 'a> {
+    pub(crate) stored: &'s Stored<'a>,
+    pub(crate) columns: &'s Parses<'a>,
+    pub(crate) row: usize,
+}
+
+impl<'s, 'a> ParseView<'s, 'a> {
+    /// The row `row` of `layer`'s parses.
+    pub(crate) fn of(layer: &'s super::Layer<'a>, row: usize) -> Self {
+        ParseView { stored: &layer.stored, columns: &layer.parses, row }
+    }
+
+    /// The row as the walk reads a parse: its requests, the names it declares
+    /// and why it is unknown — what a record is built and resolved from. `None`
+    /// for a row this reader did not write, whose requests are derived (a
+    /// nonzero flag), so it is read again rather than answered as one.
+    pub(crate) fn read(&self) -> Option<Read> {
+        let (stored, columns, row) = (self.stored, self.columns, self.row);
+        let mut requests = Vec::new();
+        for request in columns.requests.range(row) {
+            if columns.request_flags[request] != 0 {
+                return None;
+            }
+            let kind = stored.text(columns.request_kind.at(request));
+            requests.push(Request {
+                value: stored.text(columns.request_value.at(request)).to_owned(),
+                kind: Kind::ALL.into_iter().find(|known| known.as_str() == kind)?,
+                bindings: columns
+                    .request_bindings
+                    .range(request)
+                    .map(|binding| Binding {
+                        imported: stored.text(columns.binding_imported.at(binding)).to_owned(),
+                        local: stored.text(columns.binding_local.at(binding)).to_owned(),
+                        type_only: flag(columns.binding_type, binding),
+                        line: columns.binding_line.at(binding),
+                    })
+                    .collect(),
+                line: columns.request_line.at(request),
+                republishes: flag(columns.request_republishes, request),
+            });
+        }
+        Some(Read {
+            requests,
+            declares: self.declares().map(|at| stored.text(columns.declare_name.at(at)).to_owned()).collect(),
+            unknown: self.unknown().map(str::to_owned),
+            size: self.size(),
+            ..Read::default()
+        })
+    }
 }
 
 impl ParseView<'_, '_> {

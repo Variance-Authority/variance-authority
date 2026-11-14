@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
-import { parseArgs } from '../bin.js';
+import { parseArgs } from '../parse.js';
 import { shardsOutput } from './shards-command.js';
 
 describe('variance shards', () => {
@@ -81,6 +81,12 @@ describe('parsing variance shards', () => {
     expect(parseArgs(['shards', '--setup', '1', '--since', 'origin/main'])).toMatchObject({ since: 'origin/main' });
     expect(parseArgs(['shards', '--setup', '1', '--since', 'origin/main', '--collected', 'files.txt']))
       .toMatchObject({ since: 'origin/main', collected: 'files.txt' });
+  });
+
+  it('counts from the selection a merge queue narrows by its tested commit, which needs a base', () => {
+    expect(parseArgs(['shards', '--since', 'main', '--ran-at', 'abc123'])).toMatchObject({ since: 'main', ranAt: 'abc123' });
+    expect(() => parseArgs(['shards', '--ran-at', 'abc123']))
+      .toThrow('`--ran-at` names the pull request a merge queue merged onto `--since`, and no `--since` was passed');
   });
 
   it('takes --at-distance without --since, which the answer says cuts nothing', () => {

@@ -1,7 +1,8 @@
 //! `combineRecords`: N shards' records as the one record an unsharded run
 //! would have written, and nothing more. Every way the product folds shards
 //! comes here: the coverage through `record_coverage_fold`, the case index
-//! through `case_fold`, the last-run layer and the Eyes through `record_parts`.
+//! through `case_fold`, the last-run layer and the Eyes through `record_parts`,
+//! the attempts through `record_attempts`.
 //!
 //! Nothing is read but the shards: no checkout, no source, no index of the
 //! project. The shards are taken in code-unit order of their paths, and every
@@ -17,6 +18,7 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
 use crate::case_fold;
+use crate::case_readings;
 use crate::case_shard::{self, Inventory};
 use crate::journey_columns::{self, Column};
 use crate::journey_output;
@@ -24,6 +26,7 @@ use crate::order;
 use crate::record_coverage::{self, Parts};
 use crate::record_coverage_fold::Fold;
 use crate::record_layout::LAYOUT;
+use crate::record_attempts;
 use crate::record_parts;
 use crate::record_start::{self, Starts};
 
@@ -180,7 +183,8 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
         let empty = !tested
             && index.as_ref().is_none_or(|index| index.tests.is_empty())
             && last.as_ref().is_none_or(|(_, files)| files.is_empty())
-            && record.parts.eyes.is_none();
+            && record.parts.eyes.is_none()
+            && record.parts.attempts.is_none();
         let covered = match &record.coverage {
             Some(coverage) => {
                 let strings = coverage.strings()?;
@@ -241,6 +245,7 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
     let mut rows = HashMap::new();
     let mut combined_rows = Vec::new();
     let mut files_of: HashMap<String, HashMap<String, String>> = HashMap::new();
+    let mut laid = HashMap::new();
     if let Some(cased) = observed.iter().map(shard).find(|shard| shard.index.is_some()) {
         if let Some(uncased) = observed.iter().map(shard).find(|shard| shard.index.is_none()) {
             return Err(format!(
@@ -263,15 +268,28 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
                 .collect::<Result<Vec<_>, _>>()?;
             before_layer = Some(fold_index(layers, inventories, false)?.bytes);
         }
+        // A newest a shard stored over its own index's regions of a case is read now, before the fold takes the index.
+        let owed = held
+            .iter()
+            .filter_map(|(_, shard)| shard.index.as_ref().zip(shard.parts.readings.as_deref()).map(|(index, section)| (shard, index, section)))
+            .map(|(shard, index, section)| {
+                // An earlier build's JSON holds no readings, and bytes this build cannot read are `fold_readings`' to refuse.
+                let Some(read) = (!section.starts_with(b"{\"")).then(|| record_parts::read_readings(section).ok()).flatten() else {
+                    return Ok((shard.path.clone(), Vec::new()));
+                };
+                Ok((shard.path.clone(), case_readings::owed(index, &inventories, &read.cases).map_err(|error| format!("{}: {error}", shard.path))?))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
         let indexes: Vec<case_shard::Shard> = held.iter_mut().filter_map(|(_, shard)| shard.index.take()).collect();
         let names: Vec<String> = indexes.iter().map(|index| index.name.clone()).collect();
         files_of = indexes.iter().map(|index| (index.name.clone(), index.tests.iter().map(|test| (test.id.clone(), test.file.clone())).collect())).collect();
         rows = indexes.iter().map(|index| (index.name.clone(), index.tests.iter().map(|test| test.id.clone()).collect())).collect();
         let index = fold_index(indexes, inventories, true)?;
+        renamed = names.into_iter().zip(index.renamed).collect();
+        laid = case_readings::laid_again(owed, &index.bytes, &renamed)?;
         columns.push(Column::Plain(LAYOUT.coverage.part("index"), index.bytes));
         cases = Some(index.tests);
         renumbered = index.renumbered;
-        renamed = names.into_iter().zip(index.renamed).collect();
         ids = index.ids.iter().cloned().collect();
         combined_rows = index.ids;
     }
@@ -294,24 +312,29 @@ fn combined<'a>(paths: &[String], cut: Option<&[u8]>, load: impl Fn(usize, Optio
     if !eyes.is_empty() {
         columns.push(Column::Plain(LAYOUT.coverage.part("eyes"), record_parts::fold_eyes(&eyes, cases.is_some().then_some(&ids))?));
     }
+    let attempts = parts(|parts| parts.attempts.as_deref());
     let readings = parts(|parts| parts.readings.as_deref());
+    // What each shard ran, by its last-run layer, so what it carried from its seed yields to the shard that ran it.
+    let unfiled = HashMap::new();
+    let ran = if attempts.is_empty() && readings.is_empty() { Vec::new() } else { last.clone() }
+        .iter()
+        .map(|(name, bytes, renames)| {
+            let files = files_of.get(*name).unwrap_or(&unfiled);
+            let own = record_parts::last_cases(bytes, rows.get(*name)).map_err(|error| format!("{name}: {error}"))?;
+            let files_ran = own.iter().filter_map(|id| files.get(id).cloned()).collect();
+            let cases_ran = own.iter().map(|id| renames.get(id).cloned().unwrap_or_else(|| id.clone())).collect();
+            Ok(((*name).to_owned(), record_parts::Ran { cases: cases_ran, files: files_ran }))
+        })
+        .collect::<Result<HashMap<_, _>, String>>()?;
+    // Attempts are kept by the combined run only when every shard that ran cases kept them: absent is not "none retried".
+    if !attempts.is_empty() && attempts.len() == last.len() {
+        columns.push(Column::Plain(LAYOUT.coverage.part("attempts"), record_attempts::fold_attempts(&attempts, cases.is_some().then_some(&ids), &ran)?));
+    }
     if !readings.is_empty() {
         if cases.is_none() {
             return Err("a shard holds readings of its cases, and no shard kept cases, so the combined record has no case index to name them.".to_owned());
         }
-        // What each shard ran, by its last-run layer, so a value it carried from its seed yields to the shard that ran it.
-        let unfiled = HashMap::new();
-        let ran = last
-            .iter()
-            .map(|(name, bytes, renames)| {
-                let files = files_of.get(*name).unwrap_or(&unfiled);
-                let own = record_parts::last_cases(bytes, rows.get(*name)).map_err(|error| format!("{name}: {error}"))?;
-                let files_ran = own.iter().filter_map(|id| files.get(id).cloned()).collect();
-                let cases_ran = own.iter().map(|id| renames.get(id).cloned().unwrap_or_else(|| id.clone())).collect();
-                Ok(((*name).to_owned(), record_parts::Ran { cases: cases_ran, files: files_ran }))
-            })
-            .collect::<Result<HashMap<_, _>, String>>()?;
-        columns.push(Column::Plain(LAYOUT.coverage.part("readings"), record_parts::fold_readings(&readings, &ids, &ran)?));
+        columns.push(Column::Plain(LAYOUT.coverage.part("readings"), record_parts::fold_readings(&readings, &ids, &ran, &laid)?));
     }
     if let Some(base) = starts.base() {
         columns.push(Column::Plain(LAYOUT.coverage.part("base"), base.as_bytes().to_vec()));

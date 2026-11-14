@@ -18,7 +18,7 @@ done*, *the thing that uses the accent token*. Search turns that description
 into ids. It does not grep your source, and it is not a code search tool.
 
 New here? Start with [your first run](start.md). The CLI is a devDependency, so
-every invocation below runs through `npx`:
+every invocation below runs through your package manager:
 
 ```bash
 npm install --save-dev @variance-authority/cli
@@ -40,7 +40,7 @@ npm install --save-dev @variance-authority/cli
 
 ## What you need
 
-**One run, with nothing extra switched on.** `npx variance run` renders your
+**One run, with nothing extra switched on.** `variance run` renders your
 subjects and compares them against their baselines; a run that read the markup,
 the CSS that applied and the component boundaries writes the record search
 reads. Every question below is asked against the report that run left behind —
@@ -82,7 +82,7 @@ alike](#three-answers-that-look-alike).
 Hand the description over as it stands:
 
 ```bash
-npx variance ask locate --query "footer chips"
+variance ask locate --query "footer chips"
 ```
 
 ```text
@@ -193,7 +193,7 @@ Most of the time you have one: it is open in front of you, or the ticket names
 it, or a stack trace just handed it to you. Paste it.
 
 ```bash
-npx variance ask locate --query "the contract warning" --from "app/dispatch/page.tsx"
+variance ask locate --query "the contract warning" --from "app/dispatch/page.tsx"
 ```
 
 ```text
@@ -268,7 +268,7 @@ the screens that show it. Name it as `--to` and the walk runs against the
 imports.
 
 ```bash
-npx variance ask locate --query "settings page" --to "components/user-select.tsx"
+variance ask locate --query "settings page" --to "components/user-select.tsx"
 ```
 
 A file is in that scope when it *reaches* what you named, at any depth — the
@@ -332,7 +332,7 @@ A start point narrows a relation question the same way, where it is removing
 surfaces before any of them is read:
 
 ```bash
-npx variance ask locate --query "warning" --under "Carrier field" --from "app/dispatch/"
+variance ask locate --query "warning" --under "Carrier field" --from "app/dispatch/"
 ```
 
 Over MCP all of it is one call: `variance_locate {query, under, on, from, to}`.
@@ -348,7 +348,7 @@ where the warning sits *above* the field matches equally well.
 Name each of the three separately and the arrangement is read instead:
 
 ```bash
-npx variance ask locate --query "warning" --under "Carrier" --on "dispatch drawer"
+variance ask locate --query "warning" --under "Carrier" --on "dispatch drawer"
 ```
 
 ```text

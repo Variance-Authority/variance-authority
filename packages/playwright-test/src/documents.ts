@@ -28,8 +28,9 @@ import type {
   TestInfo,
 } from '@playwright/test';
 import { format } from 'node:util';
+import { claimPageSource } from '@variance-authority/sense/journal';
 import type { RecorderFixture } from './completed.js';
-import { testOf } from './execution.js';
+import { testOf } from './test-coordinate.js';
 
 export interface VarianceDocumentFixtures {
   /**
@@ -175,6 +176,9 @@ interface Adopted {
  */
 const taped = new WeakSet<BrowserContext>();
 
+/** The contexts whose pages are claimed for this run, each once for the same reason. */
+const claimed = new WeakSet<BrowserContext>();
+
 /**
  * The documents of one test, drained before each statement the cadence plugin
  * ([`cadence-babel.cts`](./cadence-babel.cts)) marks with `__VA__.c`, so each
@@ -284,7 +288,12 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
         return;
       }
       const adoption = (async (): Promise<Adopted> => {
-        // Before any page loads, so the collector a page evaluates finds the tape.
+        // Before any page loads: an application that reports itself would drain what this run reads.
+        if (!claimed.has(context)) {
+          claimed.add(context);
+          await context.addInitScript(claimPageSource());
+        }
+        // And so the collector a page evaluates finds the tape.
         if (recorder.storyPage !== undefined && !taped.has(context)) {
           taped.add(context);
           await context.addInitScript(recorder.storyPage);

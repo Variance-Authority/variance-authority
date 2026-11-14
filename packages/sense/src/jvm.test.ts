@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { resolveJvm } from './jvm.js';
-import { native } from './native.js';
+import { native } from './addon.js';
 import type { Read } from './read.js';
 import { worldOn, type TreeWorld } from './world.js';
 

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { RenderIdentity } from '@variance-authority/core/format';
 import type { LexiconReport, RunReport } from '@variance-authority/report';
-import { indexed, locate, locateSubjects, tokensOf } from './locate.js';
+import { indexed, locate, locateSubjects } from './locate.js';
+import { tokensOf } from './locate-index.js';
 
 /**
  * The lookup, asserted where the ranking would otherwise be taken on trust.

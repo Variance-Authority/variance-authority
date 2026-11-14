@@ -31,8 +31,6 @@ export type ToolKind =
   | 'judge'
   | 'record';
 
-export type { Tier };
-
 /**
  * What a tool contributes to the identity of what it produces.
  *

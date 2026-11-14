@@ -1,6 +1,6 @@
 import type { RenderIdentity } from '@variance-authority/core/format';
 import { reportHtml as pieces } from './report-html.js';
-import type { CliRunReport } from './run.js';
+import type { CliRunReport } from './run-report.js';
 
 /** The page as the reader gets it, its pieces joined. */
 export const reportHtml = (report: CliRunReport): string => [...pieces(report)].join('');

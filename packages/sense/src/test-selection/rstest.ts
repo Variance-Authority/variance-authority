@@ -39,6 +39,7 @@ import { testFilesAt } from './test-files.js';
 import { repositoryRoot } from './repository-root.js';
 import { askedForStories } from '../story/directory.js';
 import { finishedCase } from './case-durations.js';
+import { rstestAttempts, type RstestAttempts } from './rstest-attempts.js';
 import { refuseUnreadable } from './precondition-entries.js';
 import { buildingPlugin, buildsTestFile, declareEntries, isBuilding, joinEntries, noteBuilding } from './rstest-entries.js';
 import { governingPreconditions } from './governing-config.js';
@@ -144,8 +145,7 @@ export interface RstestFileResult {
   readonly testPath: string;
   readonly status: string;
   /** Each case: its names are what `currentTestName` joins with ` > `. */
-  readonly results?: ReadonlyArray<{
-    readonly status: string;
+  readonly results?: ReadonlyArray<RstestAttempts & {
     readonly name?: string;
     readonly parentNames?: readonly string[];
     readonly duration?: number;
@@ -314,7 +314,7 @@ export function withTestSelection(
         complete: statusesComplete(file.status, (file.results ?? []).map((test) => test.status), named),
         ...reportedDuration(file.duration),
         ...(file.results === undefined ? {} : {
-          cases: file.results.map((test) => finishedCase(caseNameOf(test), undefined, test.duration, limits.get(`${file.testPath}\0${caseNameOf(test)}`))),
+          cases: file.results.map((test) => finishedCase(caseNameOf(test), undefined, test.duration, limits.get(`${file.testPath}\0${caseNameOf(test)}`), rstestAttempts(test))),
         }),
         ...carriedJournal(file.testPath, file.meta),
         ...(file.project === undefined ? {} : { configs: [projectKey(file.project)] }),

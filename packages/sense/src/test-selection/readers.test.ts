@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { native, nativeAvailable } from '../native.js';
+import { native, nativeAvailable } from '../addon.js';
 
 /**
  * Where one file observes a changed value, asked of the addon directly: in the

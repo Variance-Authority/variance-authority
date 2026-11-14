@@ -64,6 +64,7 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'libs/gamma/src/config.ts': "a reader's own module, quoted from a sample answer of a name",
   'cart.ts': "a reader's own module, quoted from a sample test story",
   'price.ts': "a reader's own module, quoted from a sample test story",
+  'pricing.mjs': 'the short name a live story gives cases/journey-tracing-case/src/pricing.mjs, quoted from a sample answer of ran --story',
   'format.ts': "a reader's own module, quoted from a sample test story",
   'packages/price/src/index.ts': "a reader's own module, quoted from a sample answer of symbol",
   'theme.tsx': "a reader's own component, quoted from a sample test story",
@@ -99,6 +100,8 @@ const FOREIGN: Readonly<Record<string, string>> = {
   'src/flags.ts': "a reader's own module, quoted from a sample answer about case preconditions",
   'test/cleanup.test.ts': "a reader's own test file, quoted from a sample warning about case preconditions",
   'test/misplaced.test.ts': "a reader's own test file, quoted from a sample error about case preconditions",
+  'shop.js': "a reader's own page script, quoted from a watcher's listing of one click",
+  'pricing.js': "a reader's own server module, quoted from a watcher's listing of one click",
 };
 
 

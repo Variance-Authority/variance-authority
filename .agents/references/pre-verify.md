@@ -271,7 +271,7 @@ recording has a whole observation.
 
 **The recording is not in git.** It sits in [the cache](../../docs/cache.md),
 under `<cache>/test-selection/`, in a directory keyed by a digest of this
-checkout's absolute path — a worktree's own under `.work/`, layered over the
+checkout's path as seen from the cache — a worktree's own under `.work/`, layered over the
 primary checkout's, which it reads and never writes. Every `yarn test` folds its
 run into it, and that is the whole of the invalidation. Nothing expires and
 nothing is checked for age, so an answer the snapshot gets wrong stays wrong

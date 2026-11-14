@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { Repeats, SubjectView } from '../review.js';
 import { createReviewClient } from './client.js';
-import { SubjectPanel } from './review.js';
+import { SubjectPanel } from './subject.js';
 
 /**
  * The line on a subject page that names an earlier build with the same image.

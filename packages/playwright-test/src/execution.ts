@@ -2,8 +2,8 @@
  * What a Playwright run executed, recorded for the next run's selection.
  *
  * The instrument is the one `@variance-authority/sense` already uses; only the
- * transport differs, which is the rule
- * [spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states. The adopter's
+ * transport differs, so this host writes the structures every host writes
+ * ([the execution record](https://variance-authority.dev/docs/execution-record#what-each-host-records)). The adopter's
  * application build carries `testSelectionProbes()`, the page counts block
  * crossings, and this drains those counters around each observation.
  *
@@ -30,6 +30,7 @@ import {
   stagingDirectory,
   type CasePrecondition,
   type EvaluatingPage,
+  type ObservedAttempt,
   type ObservedCase,
   type ObservedEyes,
   type ObservedSubject,
@@ -46,8 +47,6 @@ import { quietly } from './quiet.js';
 import { reachedLines } from './reached-lines.js';
 import { caseKey, ownerOf, type ObservedTest } from './test-coordinate.js';
 
-export { ownerOf, testOf, type ObservedTest } from './test-coordinate.js';
-export type { ExecutionRecording } from './execution-recording.js';
 
 /** One worker's accumulation, drained per observation and written once. */
 export interface ExecutionRecorder {
@@ -125,6 +124,8 @@ export interface ExecutionRecorder {
    * the id the index gives the case; see `case-scope.ts`.
    */
   readonly eyes: (owner: string, subject: ObservedTest, attempt: number, journal?: Readonly<Record<string, unknown>>) => void;
+  /** Keep how one attempt of a case ended, as the runner said it when the attempt's fixtures tore down. */
+  readonly ended: (owner: string, subject: ObservedTest, attempt: ObservedAttempt) => void;
   /** What the case has said so far, or nothing where no listener runs; see `arranged.ts`. */
   readonly arranged: (owner: string, subject: ObservedTest) => readonly CasePrecondition[] | undefined;
   /** The checkout every path this recorder writes is named against. */
@@ -180,6 +181,8 @@ export function createExecutionRecorder(
   const limits = new Map<string, number>();
   // Each case's Eyes journals, one per attempt that handed one over.
   const looked = new Map<string, ObservedEyes[]>();
+  // How each attempt of each case ended, one per attempt this worker ran.
+  const tried = new Map<string, ObservedAttempt[]>();
   const add = (key: string, duration: number): void => void spent.set(key, (spent.get(key) ?? 0) + duration);
   // The medium is opened on the first execution that could use it, and only when
   // a head was named: a suite with one realm has nothing to reach it from
@@ -208,6 +211,11 @@ export function createExecutionRecorder(
       caseOf(owner, subject);
       const key = caseKey(owner, subject.id);
       looked.set(key, [...(looked.get(key) ?? []), ...(journal === undefined ? [] : [{ attempt, journal }])]);
+    },
+    ended: (owner, subject, attempt) => {
+      caseOf(owner, subject);
+      const key = caseKey(owner, subject.id);
+      tried.set(key, [...(tried.get(key) ?? []), attempt]);
     },
     note: async (page, owner, subject, line, hook) => {
       const journal = await quietly(page, () => drainExecution(page));
@@ -320,6 +328,7 @@ export function createExecutionRecorder(
       const duration = spent.get(key);
       const limit = limits.get(key);
       const eyes = looked.get(key);
+      const attempts = tried.get(key);
       const listened = listener === undefined ? undefined : (heard.get(key) ?? listener.nothing);
       const said = listened !== undefined && unheard.has(key) ? withoutEmptyReads(listened) : listened;
       const lines = reached.of(key);
@@ -330,6 +339,7 @@ export function createExecutionRecorder(
         ...(duration === undefined ? {} : { duration }),
         ...(limit === undefined ? {} : { limit }),
         ...(eyes === undefined ? {} : { eyes }),
+        ...(attempts === undefined ? {} : { attempts }),
         ...(lines === undefined ? {} : { lines }),
         journal: journalOf(held.hits),
       };

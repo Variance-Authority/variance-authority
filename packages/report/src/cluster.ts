@@ -1,4 +1,5 @@
-import type { ObservationRecord, RegionRecord } from './format.js';
+import type { ObservationRecord } from './format.js';
+import type { RegionRecord } from './region-record.js';
 
 /**
  * A run's changes, grouped into the *distinct things that happened*.

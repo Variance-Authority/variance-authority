@@ -12,6 +12,7 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { INSTRUMENTATION_ID, type ModuleId } from '../instrument/index.js';
 import { AMBIENT, type CaseJournal } from './cases.js';
+import type { ObservedAttempt } from './attempts-record.js';
 import type { ObservedEyes } from './eyes-record.js';
 import type { CoveragePrecondition } from './index.js';
 import type { ExecutedModule, ExecutionJournal } from './probes.js';
@@ -104,6 +105,11 @@ export interface ObservedCase {
    * that recorded nothing.
    */
   readonly eyes?: readonly ObservedEyes[];
+  /**
+   * How each attempt this source saw ended, as its runner said it. Absent when
+   * the driver does not hear attempts end, which is not a case that ran once.
+   */
+  readonly attempts?: readonly ObservedAttempt[];
 }
 
 /**

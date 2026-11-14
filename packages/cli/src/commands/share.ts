@@ -24,9 +24,6 @@ import { mainlineEntry, type MainlineAt, type MainlineMiss, type MainlineMissed 
 import { suiteIndexRoot } from './resources.js';
 import { isSlice, readCliRunReport, suitePartPath, type CliRunReport } from './run-report.js';
 
-export { mainlinesOf, type Mainlines } from '../share-lines.js';
-export { lineEntry, mainlineEntry, type LineEntry, type MainlineAt, type MainlineMiss, type MainlineMissed } from './mainline-entry.js';
-
 /**
  * Publishing a run to its line, and reading a mainline's suite index back — the
  * CLI half of ADR-0077.
@@ -367,7 +364,9 @@ export function describePublish(config: Pick<Config, 'share'>, done: RunPublish)
     ...kept.map((held) =>
       held.because === 'newer-commit'
         ? `kept ${held.name}: the line holds it at ${held.commit}, which descends from this run's commit.`
-        : `kept ${held.name}: the line holds it in a newer format, at ${held.commit}.`,
+        : held.because === 'whole'
+          ? `kept ${held.name}: the line holds the whole run at ${held.commit}, and this run ran part of it.`
+          : `kept ${held.name}: the line holds it in a newer format, at ${held.commit}.`,
     ),
     ...(unanswered.length === 0
       ? []

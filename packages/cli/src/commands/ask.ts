@@ -7,22 +7,19 @@ import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
 import { caughtUp, foundNothingAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
-import { containment, discover, grep, intersection, journeyMapTool, orient, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
+import { containment, discover, grep, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
-import { readTree, verbOf, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { cutFor, readTree, verbOf, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
 import { questions } from './ask-questions.js';
-import { type Answering, containmentSource, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
+import { type Answering, containmentSource, discoverSource, grepSource, intersectionSource, journeyMapSource, orientSource, readChanged, readSource, readTaint, retriedSource, searchSource, slowestSource, testCompositionSource, wholeSource } from './ask-source.js';
 import { readingFor } from './report-source.js';
 import type { Here } from './share.js';
 import { readVantage } from './watch.js';
-
-export { questions };
-export { costsSubject } from './ask-costs.js';
 
 /**
  * `variance ask` — every answer `variance serve` gives an agent, with no agent
@@ -55,7 +52,7 @@ export { costsSubject } from './ask-costs.js';
  * The checkout is the third. The tools `@variance-authority/help` serves read
  * the source tree under the working directory: what each package publishes,
  * who imports a name, where a thing somebody can only describe is declared.
- * `orient` and `slowest-tests` also read the latest recording. No config has
+ * `orient`, `slowest-tests` and `retried-tests` also read the latest recording. No config has
  * to exist, which is why they answer before one is read. They are here because `locate` is here:
  * a reader with a description and no name should not have to know whether the
  * names live in a report or in the code before they can ask.
@@ -82,8 +79,6 @@ export { costsSubject } from './ask-costs.js';
  * an agent asking a dozen questions in a row would read a dozen failures. Every
  * answer here exits `0`; the run's verdict stays where it was decided.
  */
-
-export { ASKED } from './ask-previous.js';
 
 export interface AskRequest extends Crossing {
   /** The question. Absent asks for the list of them, which is the MCP handshake. */
@@ -127,6 +122,8 @@ export interface AskRequest extends Crossing {
   readonly taintFile?: string;
   /** Use the last published source generation without inspecting the checkout. */
   readonly justAnswer?: boolean;
+  /** `--story`: what each execution's functions were handed, for `ran`. */
+  readonly story?: boolean;
   /** `--over <time>`: only the cases that ran at least that long. */
   readonly over?: string;
   /** `--after <date>`: the first day `containment` counts, as `YYYY-MM-DD`. */
@@ -340,6 +337,7 @@ async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: 
     : tool.name === intersection.name ? await intersectionSource(process.cwd(), input, reading)
     : tool.name === orient.name ? orientSource(process.cwd(), input)
     : tool.name === slowestTests.name ? slowestSource(process.cwd(), input)
+    : tool.name === retriedTests.name ? retriedSource(process.cwd(), input)
     : tool.name === journeyMapTool.name ? journeyMapSource(process.cwd(), input)
     : tool.name === testCompositionTool.name ? testCompositionSource(process.cwd(), input)
     : tool.name === containment.name ? containmentSource(process.cwd(), input)
@@ -382,9 +380,12 @@ async function live(
   // `file` is a path, and a terminal, unlike the watcher, has a directory `./x` is read from.
   const file = input['file'];
   const asked = typeof file === 'string' && file !== '' ? { ...input, file: resolve(file) } : input;
+  const root = repositoryRoot(process.cwd());
+  const modules = await cutFor(tool, reading.state, asked, root);
   return tool.run(reading.state, asked, invocationOf({
     ...(reading.previous === undefined ? {} : { previous: reading.previous }),
-    root: repositoryRoot(process.cwd()),
+    ...(modules === undefined ? {} : { modules }),
+    root,
   }));
 }
 
@@ -450,8 +451,8 @@ async function sourceTree(): Promise<Tree | undefined> {
  */
 function noWatcher(question: Question): OperatorError {
   return new OperatorError(
-    `\`${verbOf(question.tool)}\` is about a suite that is still running, and needs a ` +
-      'watcher to ask. Start one with `variance watch`, start the suite with the ' +
+    `\`${verbOf(question.tool)}\` is about a suite or an application that is still running, and needs a ` +
+      'watcher to ask. Start one with `variance watch`, start what it watches with the ' +
       `\`${VANTAGE_VARIABLE}\` line it prints, then ask again — with \`--at <address>\`, or ` +
       `with \`${VANTAGE_VARIABLE}\` set in this shell too.`,
   );

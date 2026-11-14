@@ -1,7 +1,8 @@
 import type { DurationScope, RecordedCaseDurations, RecordedDurations } from '@variance-authority/sense';
 import { describe, expect, it } from 'vitest';
 import { spellingOf } from '@variance-authority/mcp/tools';
-import { formatSlowest, overOf, scopeOf, slowestTests, spent } from './slowest-tests.js';
+import { overOf, scopeOf, slowestTests } from './slowest-tests.js';
+import { formatSlowest, spent } from './slowest-format.js';
 
 const ANYWHERE = { unrecorded: [] };
 const NO_CASES = { recording: '/cache/coverage.bin', unread: 'nothing is recorded there' };
@@ -217,6 +218,48 @@ describe('how many rows it lists', () => {
     expect(slowestTests.inputSchema['properties']).toHaveProperty('from.type', 'array');
     expect(slowestTests.inputSchema['properties']).toHaveProperty('to.type', 'array');
     expect(slowestTests.inputSchema['properties']).toHaveProperty('over.type', 'string');
+  });
+});
+
+describe('the slowest statement of a listed case', () => {
+  it('is one more line under the case: the file line, its time and its share of the case', () => {
+    const slowest = [
+      { file: 'test/a.test.ts', name: 'waits', duration: 1_400, slowest: { line: 12, time: 1_204 } },
+      { file: 'test/a.test.ts', name: 'uncut', duration: 250 },
+      { file: 'test/b.test.ts', name: 'stopped', duration: 200, slowest: { line: 7, time: 230 } },
+    ];
+
+    const answer = printed([suite(read({ slowest, timed: 3 }))]).split('\n');
+
+    // A case stopped among cases running at once is timed to where its file ended: never more than the whole case.
+    expect(answer.slice(-7)).toEqual([
+      'Slowest recorded test cases, as their runner timed them:',
+      '   1.4 s  test/a.test.ts  waits',
+      '          slowest statement test/a.test.ts:12, 1.2 s, 86% of the case',
+      '  250 ms  test/a.test.ts  uncut',
+      '  200 ms  test/b.test.ts  stopped',
+      '          slowest statement test/b.test.ts:7, 230 ms, 100% of the case',
+      '3 of 3 timed case(s) shown.',
+    ]);
+  });
+
+  it('is under the case in each list that names it, when different cases top the two', () => {
+    const near = { file: 'test/a.test.ts', name: 'near', duration: 900, limit: 1_000, slowest: { line: 4, time: 800 } };
+    const long = { file: 'test/b.test.ts', name: 'long', duration: 3_000, limit: 30_000, slowest: { line: 9, time: 1_500 } };
+    const bare = { file: 'test/c.test.ts', name: 'bare', duration: 500, limit: 1_000 };
+
+    const answer = printed([suite(read({ closest: [near, bare, long], slowest: [long, near, bare], limited: 3, timed: 3 }))]);
+
+    expect(answer.split('\n').slice(2, 9)).toEqual([
+      'Closest to their limit, each as run and limit:',
+      '  900 ms of 1.0 s  test/a.test.ts  near',
+      '                   slowest statement test/a.test.ts:4, 800 ms, 89% of the case',
+      '  500 ms of 1.0 s  test/c.test.ts  bare',
+      '  3.0 s of 30.0 s  test/b.test.ts  long',
+      '                   slowest statement test/b.test.ts:9, 1.5 s, 50% of the case',
+      '3 of 3 limited case(s) shown.',
+    ]);
+    expect(answer).toContain('   3.0 s  test/b.test.ts  long\n          slowest statement test/b.test.ts:9, 1.5 s, 50% of the case');
   });
 });
 

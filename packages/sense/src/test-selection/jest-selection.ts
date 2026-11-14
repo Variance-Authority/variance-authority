@@ -21,7 +21,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CUT_VARIABLE, cutOf, writeCut } from './case-cut.js';
 import { projectPath } from './instrumented-modules.js';
-import { kept, selectedLines, type SuiteSelection } from './suite-selection.js';
+import { kept, placed, selectedLines, type SuiteSelection } from './suite-selection.js';
 
 /** The filter module a selecting configuration names, by absolute path. */
 export const SELECTION_FILTER = fileURLToPath(new URL('./jest-filter.cjs', import.meta.url));
@@ -34,6 +34,8 @@ interface Handed {
   readonly filter: (testPaths: readonly string[]) => Promise<{ filtered: string[] }>;
   /** Whether no project found a file and nothing the run was told lets that pass. */
   readonly unfound: () => boolean;
+  /** What every project's filter left a shard to place (`placed`), by absolute path; `undefined` when it places what it runs. */
+  readonly placing: () => readonly string[] | undefined;
 }
 
 type Filtered = { readonly filtered: ReadonlyArray<string | { readonly test: string }> };
@@ -94,6 +96,7 @@ export function selectingFilter(
   let told = false;
   let seen = 0;
   const cut = new Map<string, readonly string[]>();
+  let placing: string[] | undefined;
   const filter = async (testPaths: readonly string[]): Promise<{ filtered: string[] }> => {
     const found = own === undefined ? [...testPaths] : await own(testPaths);
     seen += found.length;
@@ -102,6 +105,7 @@ export function selectingFilter(
     for (const line of told ? lines.slice(0, 1) : lines) say(line);
     told = true;
     const filtered = [...kept(selection, found, (path) => projectPath(options.root, path))];
+    if (selection.placing !== undefined) (placing ??= []).push(...placed(selection, found, (path) => projectPath(options.root, path)));
     // Called once per project: what each keeps is added to the one cut, which
     // is on disk, and named in the environment, before any worker forks.
     const cases = options.cutFile === undefined ? new Map() : cutOf(selection, filtered, options.root);
@@ -112,8 +116,17 @@ export function selectingFilter(
     }
     return { filtered };
   };
-  (globalThis as { [HANDED]?: Handed })[HANDED] = { filter, unfound: () => seen === 0 && !passes };
+  (globalThis as { [HANDED]?: Handed })[HANDED] = { filter, unfound: () => seen === 0 && !passes, placing: () => placing };
   return { filter: SELECTION_FILTER, passWithNoTests: !replaced || config.passWithNoTests === true };
+}
+
+/**
+ * The test files a Jest shard places, by absolute path, when the selection is
+ * one wave of a shard: what every project's filter found that some wave runs.
+ * `undefined` when the run did not select, or the shard places what it runs.
+ */
+export function placingPaths(): readonly string[] | undefined {
+  return (globalThis as { [HANDED]?: Handed })[HANDED]?.placing();
 }
 
 /** What Jest's frozen global configuration says about a run with no file to run. */
@@ -152,6 +165,7 @@ const SUPPORTED = 30;
 
 /** Refuses a Jest the filter's answer would be read as no files by, or none at all, by name. */
 function supported(rootDir: string): void {
+  // The project's Jest, not ours: resolved and read from its root.
   const from = createRequire(resolve(rootDir, 'package.json'));
   let version: string;
   try {
@@ -174,6 +188,7 @@ function supported(rootDir: string): void {
  * Jest 30 asks for paths, so either shape is read.
  */
 function ownFilter(spelled: string, rootDir: string): (testPaths: readonly string[]) => Promise<string[]> {
+  // The project's own filter, at the path its configuration names, from its root.
   const from = createRequire(resolve(rootDir, 'package.json'));
   const path = spelled.startsWith('<rootDir>') ? resolve(rootDir, spelled.replace(/^<rootDir>\/?/, '')) : spelled;
   let loaded: Promise<OwnFilter> | undefined;

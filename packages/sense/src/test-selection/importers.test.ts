@@ -85,6 +85,25 @@ describe('a changed file no probe can sit in, asked of the module that imports i
     ]);
   });
 
+  it('walks on from a declarer of an asset that no row holds, as from a declarer of any other file', () => {
+    // `src/rules.css` is carried by `src/decide.ts`, and `src/legacy.js`, which
+    // no test measured, declares it reads the file. A declaration charges its
+    // declarer however the file is otherwise answered, so legacy's importer runs.
+    const relations = relationsOf({
+      relations: [
+        asset('src/decide.ts', 'src/rules.css'),
+        { from: file('src/legacy.js'), to: file('src/rules.css'), kind: 'depends' },
+        imports('test/aaa.test.ts', 'src/legacy.js'),
+      ],
+    });
+
+    expect(narrowByExecutionFromView(view(), diff('src/rules.css'), { relations }).entered).toEqual([
+      'test/aaa.test.ts',
+      'test/alpha.test.ts',
+      'test/beta.test.ts',
+    ]);
+  });
+
   it('counts a row with probes and no crossings as measured: nobody entered it', () => {
     // An instrumented module nobody ran is an answer — the build carried
     // probes into it and no test crossed them — where a module with no row

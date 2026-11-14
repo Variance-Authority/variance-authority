@@ -64,12 +64,12 @@ runner drops the files the record proves your edit did not reach before it
 starts any of them, and prints one line to stderr first:
 
 - `selected 12 of 340` — twelve test files run.
-- `selected none of 340, so none of them runs` — your edit reached no recorded
-  test.
+- `selected none of 340, so none of them runs: the change reached none of
+  them` — your edit reached no recorded test.
 - `declined:` and a reason — the record could not answer this edit, and every
   file runs.
 
-To check the wrap took, run `npx variance doctor --config variance.config.json`
+To check the wrap took, run `variance doctor --config variance.config.json`
 after one run. For each of the
 [`suites`](../packages/cli/README.md#configuration) the repository's root
 `variance.config.json` declares, it names the record a run left and its file. A
@@ -230,7 +230,7 @@ reads the same change with nothing run, given the same range, and `--suite` with
 the name of the suite when `variance.config.json` declares suites:
 
 ```bash
-npx variance select --suite unit --at-distance 0-1
+variance select --suite unit --at-distance 0-1
 ```
 
 Its stdout lists every test file it skips, one path per line, so a test missing
@@ -266,7 +266,10 @@ in it.
 A new test file runs until a run records it, and every doubt about the record
 prints `declined:` and runs every file;
 [what a skipped test promises](selection-safety.md) lists each doubt, and the
-changed files that keep no test. If a test reads a fixture with `fs`, name it in
+changed files that keep no test. On a laptop, `VARIANCE_AUTHORITY_LOCAL=1` runs
+the tests that import a changed file, or its package, in place of every file,
+and names the files it left; it is
+[`--local`](selection-safety.md#ask-for-a-local-answer-with---local). If a test reads a fixture with `fs`, name it in
 the module that reads it, as `/// <depends path="…" />`, and a change to it runs
 the tests that load that module.
 

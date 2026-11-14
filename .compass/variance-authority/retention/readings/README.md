@@ -89,7 +89,6 @@ and *no runs are recorded in this window* is never said as *stable*.
 denominator and the recency count; `packages/history/src/token-drift.ts` —
 `detectDrift`, the quantity parse and its refusals;
 `packages/history/src/sentences.ts` — one line per answer;
-`packages/history/src/drift.ts` — the single import path over the three;
 `packages/server/src/answers.ts` — the slices, assembled;
 `packages/cli/src/commands/history-report.ts` — the three states a run can be in
 about its own record.

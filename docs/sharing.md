@@ -275,7 +275,7 @@ checks are all read from it.
 
 ## Publishing
 
-Every `npx variance run` keeps its suite index in [your cache](cache.md), under
+Every `variance run` keeps its suite index in [your cache](cache.md), under
 the commit the run report names, and prints where:
 
 ```text
@@ -290,7 +290,7 @@ names a commit. You publish after the run, from each job whose entries the line
 should include:
 
 ```bash
-npx variance share --publish
+variance share --publish
 ```
 
 It reads the run report `report` names, or the path you give as the last
@@ -321,7 +321,7 @@ run report that names no commit publishes nothing, prints
 | a push, or any other event, on a branch that is not a mainline | `branch/<name>` |
 | a `pull_request` or `pull_request_target` from this repository | `branch/<head branch>` at `GITHUB_SHA`, the merge commit under `pull_request` and the base branch's tip under `pull_request_target`, with the head commit beside it |
 | a pull request from a fork, under either event | nothing, whatever its token may write |
-| a merge queue: a `merge_group` event, or a `gh-readonly-queue/` branch | nothing: *a merge-queue run publishes nothing; its branch is temporary* |
+| a merge queue: a `merge_group` event, or a `gh-readonly-queue/` branch | nothing: *a merge-queue run publishes nothing; its branch is temporary*. The push that lands its commit can publish it with [`--from-queue`](#the-merge-queues-record-as-soon-as-the-commit-lands) |
 | any other event on a mainline, such as `schedule` | nothing: *only a push to main publishes its record, and this run is a schedule* |
 | a tag, or any other ref that is not a branch | nothing: *this run is not on a branch* |
 
@@ -368,10 +368,10 @@ left out 2 image(s) the report names and this machine could not read, the first 
 ```
 
 The same publish gives the line `subject-costs-v1`: what each subject took to
-collect, under the same commit. `npx variance run --shard k/n` reads it back
+collect, under the same commit. `variance run --shard k/n` reads it back
 from the mainline to split the suite evenly, and a run reads it to give its
 slowest files to its [workers](../packages/cli#configuration) first.
-`npx variance ask costs` reads the same line to show you, or an agent, which
+`variance ask costs` reads the same line to show you, or an agent, which
 files and subjects the suite spends its time on;
 see [the command-line questions](agent-cli.md#find-where-the-suites-time-goes).
 
@@ -410,7 +410,7 @@ census, the same lexicon, counted across every shard — keeps it, and publishes
 it with the costs of the merged run report:
 
 ```bash
-npx variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
+variance share --publish shard-1/report.json shard-2/report.json shard-3/report.json
 ```
 
 ```text
@@ -430,7 +430,7 @@ not shard publishes from its own run and needs no extra job.
 ## Looking up mainline's record
 
 ```bash
-npx variance share
+variance share
 ```
 
 reads the suite index of the mainline your checkout is measured against:
@@ -733,7 +733,7 @@ record](#a-suite-your-checkout-has-not-recorded).
 
 Apart from those last two cases, `variance share` exits 0 on a miss, so a publish
 that stopped working does not turn CI red.
-Watch the distance `npx variance share` prints: a mainline record forty commits
+Watch the distance `variance share` prints: a mainline record forty commits
 behind your merge base is one nothing has published to since.
 
 ## Configuring one
@@ -946,7 +946,7 @@ On a laptop, then read CI's latest run on your mainline, as
 [looking up mainline's record](#looking-up-mainlines-record) describes:
 
 ```bash
-npx variance share
+variance share
 ```
 
 It prints `mainline <name> evaluated at <commit>…`, or a line that says why it
@@ -954,7 +954,7 @@ found nothing. Then read what review settled, which only the share token and a
 signed-in reviewer can do. Your machine reads with the share token:
 
 ```bash
-npx variance ask decisions --subject cart/empty
+variance ask decisions --subject cart/empty
 ```
 
 Name any subject your project reviews. The command reads the deployment that
@@ -967,11 +967,11 @@ subject, a line saying there are none, or why the deployment refused: a 403 that
 names the ingest token when the variable holds CI's token, or a 404 when the
 deployment serves an API older than 5.
 
-`npx variance ask concerns --build <id>` reads, the same way, which renders
+`variance ask concerns --build <id>` reads, the same way, which renders
 reviewers flagged as suspect on the subjects that build showed:
 
 ```bash
-npx variance ask concerns --build ci-42
+variance ask concerns --build ci-42
 ```
 
 ```text
@@ -1026,8 +1026,8 @@ jobs:
       - run: npm ci
       - run: npx storybook build
       - run: npx playwright install --with-deps chromium
-      - run: npx variance run
-      - run: npx variance share --publish
+      - run: npx --no-install variance run
+      - run: npx --no-install variance share --publish
         if: always()
 ```
 
@@ -1036,8 +1036,12 @@ jobs:
 - **`if: always()` publishes a run that exits 1** because it found changes, and
   that is the run your checkout most needs to read. A run that exits 2 without
   writing a run report makes the publish step exit 2 too.
-- **A pull request from a fork and a merge-queue run publish nothing**, and the
-  step prints that and exits 0.
+- **A pull request from a branch of this repository publishes to its branch
+  line. A pull request from a fork and a merge-queue run publish nothing**, and
+  the step prints that and exits 0.
+- **`contents: write` reaches every step of the job**, the tests included: a
+  pull request from a branch of this repository runs its own code with it,
+  while a fork's pull request gets a read-only token.
 - **`suite-v1/stories` is published only when an earlier step ran the `stories`
   suite** under its [runner
   integration](execution-record.md#one-record-for-each-suite), and only to a
@@ -1121,7 +1125,7 @@ jobs:
       - name: publish the records
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: npx variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
+        run: npx --no-install variance share --publish "$RUNNER_TEMP/records" --collected "$RUNNER_TEMP/collected.txt"
 ```
 
 ```text
@@ -1132,10 +1136,11 @@ kept the record at 3f1c9a2… beside the latest.
 - **The artifact path is the [cache](cache.md)'s default location**, or
   `cacheRoot` when you set it. Each record in it sits at
   `suites/<name>/coverage.bin`, which says the suite it is of. The publish
-  takes the records as they were downloaded: it fetches the mainline's record
-  of each suite, lands the records over it as
+  takes the records as they were downloaded, lands them as
   [`variance journeys <shard>... --suite`](../packages/cli/README.md#sharding-journeys-takes-more-than-one-file-too)
-  does, and publishes the result. A suite's one record that its job laid over
+  does, and publishes the result: this run's record alone. The mainline's last
+  record is not read, so nothing of it is carried in; each earlier run's record
+  stays kept at its commit, as below. A suite's one record that its job laid over
   a base, as its runs record says, is put in place as the job left it, so a test that
   only the base ran is not counted as run again. A test job split into
   [shards](sharding.md) uploads one artifact per shard, and the same step folds
@@ -1186,6 +1191,55 @@ nothing published: suite-v1/unit is left out: its record at <path> is not a whol
 A branch line takes the record whatever ran, because nothing measures from it
 but that branch.
 
+#### The merge queue's record, as soon as the commit lands
+
+A merge queue tests the exact commit that lands on the mainline, so its run's
+record of that commit can be read before the push's whole run publishes. On a
+push to a mainline, `--from-queue` publishes it:
+
+```yaml
+  publish-queue:
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      # checkout with fetch-depth: 0 and persist-credentials: false, setup, install
+      - run: npx vitest list --filesOnly > "$RUNNER_TEMP/collected.txt"
+      - name: publish the merge queue's records
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+        run: npx --no-install variance share --publish --from-queue 'variance-records-*' --collected "$RUNNER_TEMP/collected.txt"
+```
+
+- **The `merge_group` run uploads its records** under names the pattern
+  matches, as the push run's test job does above, with `merge_group` added to
+  that step's `if:`.
+- **The run is the latest green `merge_group` run of the same workflow** whose
+  head is `HEAD`, found and downloaded with `gh`, which reads `GH_TOKEN`.
+- **The entry is marked partial.** What the queue ran stands at this commit,
+  and every other test keeps the stand the mainline's record gave it. The whole
+  run's publish at the same commit replaces it. A test file no run has listed,
+  such as one the group added, stands nowhere, so a checkout runs it. A suite the
+  queue ran none of is skipped with a line, and a group whose tests had already
+  run on the pull request's head may have run none, so it publishes nothing.
+- **A newer commit's entry wins.** When the next push's partial entry lands
+  before this commit's whole run publishes, the whole one is kept off the line as
+  older. A partial publish never replaces a whole entry at its own commit, and
+  says so:
+
+```text
+kept suite-v1/unit: the line holds the whole run at 3f1c…, and this run ran part of it.
+```
+
+A push with no such run publishes nothing, exits 0, and says why:
+
+```text
+nothing published from the merge queue: no green merge-queue run of .github/workflows/check.yml tested 3f1c…; the whole run at this commit publishes its record.
+```
+
 Without `--publish` it reads the mainline's record the way `select` does, and
 prints the [`record of "unit":` line](#a-suite-your-checkout-has-not-recorded).
 `--suite` takes no `--config`, `--mainline` or report, because those name the
@@ -1226,12 +1280,12 @@ received.
       - run: npm ci
       - id: record
         if: github.event_name == 'pull_request'
-        run: npx variance share --suite unit --format github >> "$GITHUB_OUTPUT"
+        run: npx --no-install variance share --suite unit --format github >> "$GITHUB_OUTPUT"
       - id: merge
         if: github.event_name == 'pull_request'
         env:
           COMMIT: ${{ steps.record.outputs.commit }}
-        run: npx variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
+        run: npx --no-install variance carry merge "$COMMIT" --on-conflict stay --format github >> "$GITHUB_OUTPUT"
       - if: steps.merge.outputs.merged == 'true'
         run: npm ci
       - run: npx vitest run
@@ -1248,7 +1302,14 @@ runs again after a merge, because the merge can take a different lockfile.
   date before it merges: the merge queue, the required up-to-date branch or the
   rebase. A merge queue checks it only as far as the tests it runs; one that runs
   part of the suite leaves the rest to the whole run on the mainline after the
-  merge.
+  merge. For a group of one, `variance select --since <mainline> --ran-at
+  <commit>` drops the tests exactly one side reaches where no lockfile or
+  `package.json` change reaches them, and otherwise keeps the ordinary
+  selection, as
+  [a pull request in the merge queue](selecting.md#a-pull-request-in-the-merge-queue)
+  explains. In a `merge_group` run, `--since` is the queue's base,
+  `github.event.merge_group.base_sha`, not the commit `carry merge` printed,
+  and `--ran-at` is the pull request's last commit, whose checks passed.
 - **A head that conflicts with the record's commit stays on GitHub's merge**
   under `--on-conflict stay`, and the run measures what the mainline gained
   since the record as well. Without it, a conflict fails the step. A merge
@@ -1266,52 +1327,26 @@ runs again after a merge, because the merge can take a different lockfile.
 
 A bucket in S3 or Google Cloud Storage needs signed requests, and an `http`
 share signs nothing. Put a service that takes a bearer token and signs for the
-bucket in front of it, use a Tribunal deployment in place of the bucket, or sync
-a directory share with it:
-
-```yaml
-      - run: aws s3 sync s3://example-variance/share .variance-share
-      - run: npx variance run
-      - run: npx variance share --publish
-        if: always()
-      - run: aws s3 sync .variance-share s3://example-variance/share
-        if: always()
-```
-
-The config says `{ "kind": "directory", "root": ".variance-share" }`, and the
-credentials stay out of it. For Google Cloud Storage, the two steps are
-`gcloud storage rsync --recursive` in each direction.
-
-- **The sync fits one publishing job per line at a time.** Each job locks only
-  its own copy, and the last upload's `manifest.json` wins, so a matrix that
-  publishes to one line needs `git`, or an `http` store with conditional
-  writes.
-- **On a runner that starts empty, every sync downloads everything under the
-  prefix**, which grows with every branch: nothing deletes, and a bucket
-  lifecycle rule is the collector.
-- **A mainline publish queries git about descent**, so the job needs fetch
-  access to `share.remote`, which git gets as it does [for a `git`
-  share](#the-repositorys-own-refs). Without it, the publish prints *replaced …
-  git could not answer*.
+bucket in front of it, or use a [Tribunal deployment](#a-tribunal-deployment)
+in place of the bucket.
 
 ## Locally
 
 A lookup on your checkout needs only the config CI uses:
 
 - **With `kind: "git"`**, it fetches from the remote you already push to.
-- **With a directory**, `root` is the same `.variance-share`: run the
-  `aws s3 sync` download step before you ask, or make `.variance-share` a link
-  to a mount your team shares.
+- **With a directory**, `root` is the same `.variance-share`: make it a link to
+  a mount your team shares.
 - **With `kind: "http"`**, set the environment variable your `token` setting
   names to a token that reads: on a [Tribunal
   deployment](#a-tribunal-deployment), the share token. The share token cannot
   publish, so the publish below needs a store your machine may write to.
 
-`npx variance share --publish` from a branch writes that branch's line, and a
+`variance share --publish` from a branch writes that branch's line, and a
 colleague's `variance ask` on the same branch reads it when their checkout has
 no run report of its own. Off CI, the run report needs a commit:
 
 ```bash
-npx variance run --run local-1 --commit "$(git rev-parse HEAD)"
-npx variance share --publish
+variance run --run local-1 --commit "$(git rev-parse HEAD)"
+variance share --publish
 ```

@@ -21,15 +21,26 @@ describe('the files a seam keeps', () => {
     expect(kept(selection(['a.test.ts']), files, (file) => file.path.slice('/repo/'.length))).toEqual([files[1]]);
   });
 
+  it('are only the files a leg names, when it names them, so a file the record never saw runs in no such leg', () => {
+    expect(kept({ ...selection(['a.test.ts']), only: new Set(['b.test.ts']) }, ['a.test.ts', 'b.test.ts', 'new.test.ts'])).toEqual(['b.test.ts']);
+  });
+
   it('are what the headline counts', () => {
     expect(selectedLines(selection(['a.test.ts']), ['a.test.ts', 'b.test.ts'])[0]).toBe('variance-authority: selected 1 of 2');
   });
 });
 
 describe('the headline of a selection that keeps no file', () => {
-  it('says no file runs', () => {
+  it('says no file runs, because the change reached none', () => {
     expect(selectedLines(selection(['a.test.ts', 'b.test.ts']), ['a.test.ts', 'b.test.ts'])[0]).toBe(
-      'variance-authority: selected none of 2, so none of them runs',
+      'variance-authority: selected none of 2, so none of them runs: the change reached none of them',
+    );
+  });
+
+  it('says how many a leg or a local selection left for a later run', () => {
+    const local = { ...selection(['a.test.ts', 'b.test.ts']), left: new Set(['a.test.ts', 'b.test.ts']) };
+    expect(selectedLines(local, ['a.test.ts', 'b.test.ts'])[0]).toBe(
+      'variance-authority: selected none of 2, so none of them runs: 2 test files are left for a later run',
     );
   });
 });

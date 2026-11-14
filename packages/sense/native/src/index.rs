@@ -20,18 +20,22 @@ use crate::segment::{Collected, Strings};
 /// rejects the segment that omits it, and a rejected segment rejects the whole
 /// chain it was committed with — the records of the generation published beside
 /// it included.
+///
+/// A row `kept` names is left out: its parse is the store's, whole, and the
+/// read beside it holds only what a record needs.
 pub fn parse_segment(
     files: &[String],
     digests: &[String],
     reads: &[Answer],
+    kept: &[bool],
 ) -> Vec<u8> {
     let mut rows: Vec<(String, usize)> = files
         .iter()
         .zip(digests)
         .zip(reads)
         .enumerate()
-        .filter(|(_, (_, (_, _, outcome)))| outcome.parsed())
-        .map(|(index, ((file, digest), _))| (format!("{digest}\0{}", way(file)), index))
+        .filter(|(index, (_, (_, _, outcome)))| outcome.parsed() && !kept.get(*index).copied().unwrap_or(false))
+        .map(|(index, ((file, digest), _))| (crate::parse_store::key(digest, &way(file)), index))
         .collect();
     rows.sort_unstable_by(|left, right| order::code_unit(&left.0, &right.0));
     rows.dedup_by(|left, right| left.0 == right.0);

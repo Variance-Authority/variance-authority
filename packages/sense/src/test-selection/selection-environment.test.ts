@@ -58,6 +58,43 @@ describe('the selection the environment asks for', () => {
     }
   });
 
+  it('asks the cli to fall to the local rungs when VARIANCE_AUTHORITY_LOCAL is 1, and refuses another value', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-local-'));
+    try {
+      const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
+      await mkdir(cli, { recursive: true });
+      await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+      await writeFile(resolve(cli, 'index.js'), 'export async function selectSuite(request) { return { notes: [JSON.stringify(request.local ?? null)] }; }');
+      const asked = async (env: NodeJS.ProcessEnv) => (await selectionFrom({ VARIANCE_AUTHORITY_SINCE: '', ...env }, { root }, () => {})!()).notes;
+
+      expect(await asked({ VARIANCE_AUTHORITY_LOCAL: '1' })).toEqual(['true']);
+      expect(await asked({ VARIANCE_AUTHORITY_LOCAL: '0' })).toEqual(['null']);
+      expect(await asked({})).toEqual(['null']);
+      expect(() => selectionFrom({ VARIANCE_AUTHORITY_SINCE: '', VARIANCE_AUTHORITY_LOCAL: 'yes' }, { root }, () => {}))
+        .toThrow('VARIANCE_AUTHORITY_LOCAL=yes is not 1 or 0');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('asks the cli to narrow by the tested commit beside a base, and refuses one without a base', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-tested-'));
+    try {
+      const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
+      await mkdir(cli, { recursive: true });
+      await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+      await writeFile(resolve(cli, 'index.js'), 'export async function selectSuite(request) { return { notes: [JSON.stringify(request.ranAt ?? null)] }; }');
+      const asked = async (env: NodeJS.ProcessEnv) => (await selectionFrom({ VARIANCE_AUTHORITY_SINCE: 'main', ...env }, { root }, () => {})!()).notes;
+
+      expect(await asked({ VARIANCE_AUTHORITY_RAN_AT: 'abc123' })).toEqual(['"abc123"']);
+      expect(await asked({})).toEqual(['null']);
+      expect(() => selectionFrom({ VARIANCE_AUTHORITY_SINCE: '', VARIANCE_AUTHORITY_RAN_AT: 'abc123' }, { root }, () => {}))
+        .toThrow('VARIANCE_AUTHORITY_RAN_AT=abc123 names the pull request a merge queue merged onto VARIANCE_AUTHORITY_SINCE, which is empty');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('tells the cli the leg was read from the environment, so its notes name the variable', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-leg-'));
     try {
@@ -68,6 +105,26 @@ describe('the selection the environment asks for', () => {
       const env = { VARIANCE_AUTHORITY_SINCE: '', VARIANCE_AUTHORITY_AT_DISTANCE: '0-1' };
 
       expect((await selectionFrom(env, { root }, () => {})!()).notes).toEqual(['{"from":0,"to":1,"by":"environment"}']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('asks the cli to place every wave the shard was told it runs, beside a distance only, and refuses a span that is not a range', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-placing-'));
+    try {
+      const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
+      await mkdir(cli, { recursive: true });
+      await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+      await writeFile(resolve(cli, 'index.js'), 'export async function selectSuite(request) { return { notes: [JSON.stringify(request.placeAtDistance ?? null)] }; }');
+      const asked = async (env: NodeJS.ProcessEnv) => (await selectionFrom({ VARIANCE_AUTHORITY_SINCE: '', ...env }, { root }, () => {})!()).notes;
+
+      expect(await asked({ VARIANCE_AUTHORITY_AT_DISTANCE: '3-', VARIANCE_AUTHORITY_PLACE_AT_DISTANCE: '0-' }))
+        .toEqual([`{"from":0,"to":${Number.MAX_SAFE_INTEGER}}`]);
+      expect(await asked({ VARIANCE_AUTHORITY_AT_DISTANCE: '0-2' })).toEqual(['null']);
+      expect(await asked({ VARIANCE_AUTHORITY_PLACE_AT_DISTANCE: '0-' })).toEqual(['null']);
+      expect(() => selectionFrom({ VARIANCE_AUTHORITY_SINCE: '', VARIANCE_AUTHORITY_PLACE_AT_DISTANCE: 'all' }, { root }, () => {}))
+        .toThrow('VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=all is not a range of hop counts');
     } finally {
       await rm(root, { recursive: true, force: true });
     }

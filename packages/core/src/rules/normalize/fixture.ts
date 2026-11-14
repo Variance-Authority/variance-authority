@@ -5,7 +5,7 @@ import type {
   RawNode,
   Rect,
 } from '../../format/capture.js';
-import { CHROMIUM_PROFILE, JSDOM_PROFILE, type ObservationProfile } from '../../format/profile.js';
+import { JSDOM_PROFILE, type ObservationProfile } from '../../format/profile.js';
 import type { Holding } from '../../format/holding.js';
 import { propsDigest, type SourceLocation, type StackFrame } from '../../format/provenance.js';
 
@@ -174,5 +174,3 @@ export function capture(spec: CaptureSpec): RawCapture {
     diagnostics: [],
   };
 }
-
-export { JSDOM_PROFILE, CHROMIUM_PROFILE };

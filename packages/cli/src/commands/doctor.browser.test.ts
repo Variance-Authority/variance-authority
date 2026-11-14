@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rendererOptionsFor } from './doctor.js';
+import { rendererOptionsFor } from './doctor-probes.js';
 import type { Config } from '../config.js';
 
 /**

@@ -71,6 +71,19 @@ describe('a file added after the record, read off a snapshot', () => {
     expect(narrowing).toMatchObject({ entered: [], because: [], unread: [], declined: ['src/added.ts'] });
   });
 
+  it('still runs the declarer of a program that loads it in a suite that declines relations, and names it declined', () => {
+    const declared = relationsOfFiles([
+      { file: 'src/added.ts' },
+      { file: 'src/entry.ts', edges: [{ to: 'src/added.ts', kind: 'imports' }] },
+      { file: 'test/beta.test.ts', edges: [{ to: 'src/entry.ts', kind: 'depends' }] },
+    ]);
+
+    expect(narrowByExecutionFromView(view(), added, { relations: declared, unmeasured: 'nothing' })).toMatchObject({
+      entered: ['test/beta.test.ts'],
+      declined: ['src/added.ts'],
+    });
+  });
+
   it('declines a path nothing knows rather than reporting it unread, because the graph was not asked', () => {
     expect(narrowByExecutionFromView(view(), edit('README.md'), { relations, unmeasured: 'nothing' })).toMatchObject({
       unread: [],
@@ -336,5 +349,35 @@ describe('a file the suite ignores, read off a journey file', () => {
       unread: [],
       ignored: ['src/card.css'],
     });
+  });
+});
+
+describe('a test that declares a program it runs in another process, read off a journey file', () => {
+  const index: ExecutionIndex = {
+    tests: [
+      { id: 'card > a', file: 'test/card.test.ts', name: 'a' },
+      { id: 'spawn > a', file: 'test/spawn.test.ts', name: 'a' },
+    ],
+    modules: [
+      {
+        file: 'src/deep.ts',
+        blocks: [
+          { kind: 'function', name: 'deep', path: 'deep', startLine: 1, endLine: 3, source: true, crossings: [{ test: 0, distance: 0 }] },
+        ],
+      },
+    ],
+  };
+  const relations = relationsOfFiles([
+    { file: 'src/deep.ts' },
+    { file: 'src/entry.ts', edges: [{ to: 'src/deep.ts', kind: 'imports' }] },
+    { file: 'test/card.test.ts', edges: [{ to: 'src/entry.ts', kind: 'imports' }] },
+    { file: 'test/spawn.test.ts', edges: [{ to: 'src/entry.ts', kind: 'depends' }] },
+  ]);
+
+  it('selects it for a change to a module the program loads, which its row alone answers', () => {
+    expect(narrowByJourneys(index, new Map([['src/deep.ts', [{ start: 2, end: 2 }]]]), { relations }).entered).toEqual([
+      'test/card.test.ts',
+      'test/spawn.test.ts',
+    ]);
   });
 });

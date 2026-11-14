@@ -16,7 +16,6 @@ import {
   writeTestCoverage,
   type CoverageBlock,
   type ExecutionBlock,
-  type ExecutionIndex,
   type TestCoverage,
 } from '@variance-authority/sense/test-selection';
 import { readFlags } from '../args.js';
@@ -137,6 +136,17 @@ export async function published(
 /** A share on the checkout's own `origin`, whose mainline is `main`, as GitHub carries it. */
 export const GIT_SHARE = { kind: 'git', mainlines: ['main'] } as const;
 
+/** A bare `origin` under `home`, and an empty `ci` checkout beside it that commits as the fixture. */
+export async function originAndCi(home: string): Promise<{ origin: string; ci: string }> {
+  const origin = join(home, 'origin.git');
+  const ci = join(home, 'ci');
+  await git(home, 'init', '--quiet', '--bare', '--initial-branch', 'main', origin);
+  await git(home, 'init', '--quiet', '--initial-branch', 'main', ci);
+  await git(ci, 'config', 'user.email', 'fixture@example.test');
+  await git(ci, 'config', 'user.name', 'Fixture');
+  return { origin, ci };
+}
+
 /**
  * The CI checkout for {@link GIT_SHARE}: `unit` given to it, one commit pushed
  * to a bare `origin`, and the record a run of the whole suite made there, in
@@ -147,14 +157,9 @@ export const GIT_SHARE = { kind: 'git', mainlines: ['main'] } as const;
  */
 export async function gitPublished(
   home: string,
-  options: { readonly publish?: boolean; readonly instrumentation?: string; readonly suites?: Readonly<Record<string, unknown>> } = {},
+  options: { readonly publish?: boolean; readonly instrumentation?: string; readonly suites?: Readonly<Record<string, unknown>>; readonly readings?: Uint8Array } = {},
 ): Promise<{ ci: string; origin: string; first: string; record: Buffer }> {
-  const origin = join(home, 'origin.git');
-  const ci = join(home, 'ci');
-  await git(home, 'init', '--quiet', '--bare', '--initial-branch', 'main', origin);
-  await git(home, 'init', '--quiet', '--initial-branch', 'main', ci);
-  await git(ci, 'config', 'user.email', 'fixture@example.test');
-  await git(ci, 'config', 'user.name', 'Fixture');
+  const { origin, ci } = await originAndCi(home);
   await mkdir(join(ci, 'src'));
   await mkdir(join(ci, 'test'));
   await writeFile(join(ci, 'src/total.ts'), BEFORE);
@@ -170,7 +175,7 @@ export async function gitPublished(
   await git(ci, 'fetch', '--quiet', 'origin');
 
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
-  await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS], options.instrumentation);
+  await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS], options.instrumentation, options.readings);
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
   const record = await readFile(testCoverageFile(ci, { suite: 'unit' }));
   if (options.publish !== false) {
@@ -278,14 +283,23 @@ export async function collectedBoth(home: string): Promise<string> {
  * writer that does not check a record before publishing it would: an older CLI,
  * or another tool. `publishTo` goes through the CLI's own publish, which leaves
  * out a record that does not read or names another commit, so a test about a
- * reader meeting one of those puts it on the line this way.
+ * reader meeting one of those puts it on the line this way. `withRuns` puts the
+ * runs record beside it, `partial` marks the entry as the merge queue's publish
+ * of part of the suite does, and `share: 'git'` publishes to the share
+ * `gitPublished` configures.
  */
-export async function publishRaw(home: string, dir: string, commit: string): Promise<void> {
-  const cell = await lineCellOf(shareConfig(home));
+export async function publishRaw(
+  home: string,
+  dir: string,
+  commit: string,
+  options: { readonly withRuns?: boolean; readonly partial?: true; readonly share?: 'git' } = {},
+): Promise<void> {
+  const cell = options.share === 'git' ? await lineCellOf({ share: GIT_SHARE } as unknown as Config, { cwd: dir }) : await lineCellOf(shareConfig(home));
   if (cell === undefined || !('load' in cell)) throw new Error(`the share in ${home} is not a line cell: ${JSON.stringify(cell)}`);
   const record = testCoverageFile(dir, { suite: 'unit' });
-  const bytes = frame([['coverage.bin', await readFile(record)]]);
-  const done = await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: suiteEntry('unit'), commit, bytes }], {
+  const runs: [string, Uint8Array][] = options.withRuns === true ? [['coverage.runs.json', await readFile(commitRunsFile(record))]] : [];
+  const bytes = frame([['coverage.bin', await readFile(record)], ...runs]);
+  const done = await publishLine(cell, { kind: 'mainline', name: 'main' }, [{ name: suiteEntry('unit'), commit, bytes, ...(options.partial ? { partial: true as const } : {}) }], {
     descends: async () => undefined,
     image: async (digest) => { throw new Error(`no image ${digest}`); },
   });
@@ -320,6 +334,7 @@ export async function recordIn(
   covering: readonly string[],
   cases: readonly (typeof DISCOUNTS)[],
   instrumentation = 'fixture',
+  readings?: Uint8Array,
 ): Promise<void> {
   const record = testCoverageFile(dir, { suite: 'unit' });
   await mkdir(dirname(record), { recursive: true });
@@ -328,7 +343,7 @@ export async function recordIn(
     startLine: 1, endLine: 3, source: true, testFiles: [...covering],
   }];
   await writeTestCoverage(record, { ...totalCoverage(commit, ['test/total.test.ts', 'test/other.test.ts'], blocks), instrumentation });
-  await keepCases(record, casesOf(cases));
+  await keepCases(record, casesIndex(cases), readings);
 }
 
 /** What a run of `tests`, each whole, records at `commit` over `src/total.ts` as `BEFORE` holds it: `blocks`, the module first. */
@@ -421,7 +436,7 @@ export async function ranHere(dir: string, at: string): Promise<void> {
       }],
     }],
   });
-  await keepCases(record, casesOf([DISCOUNTS, ROUNDS]));
+  await keepCases(record, casesIndex([DISCOUNTS, ROUNDS]));
   const landed = '2026-09-26T00:00:00.000Z';
   await writeFile(commitRunsFile(record), JSON.stringify({
     commit: at, latest: landed, runs: 1, landings: [{ files: ['test/total.test.ts'], first: landed, latest: landed, runs: 1 }],
@@ -430,17 +445,18 @@ export async function ranHere(dir: string, at: string): Promise<void> {
   await updateSourceIndex(dir);
 }
 
-/** `index`, kept in the record at `record` the way a run keeps its cases. */
-async function keepCases(record: string, index: ExecutionIndex): Promise<void> {
-  await writeFile(record, withCaseSections(await readFile(record), { index: encodeAsSetExecutionIndex(index) }));
+/** `index`, kept in the record at `record` the way a run keeps its cases, with `readings` beside it when given. */
+async function keepCases(record: string, index: Uint8Array, readings?: Uint8Array): Promise<void> {
+  await writeFile(record, withCaseSections(await readFile(record), { index, ...(readings === undefined ? {} : { readings }) }));
 }
 
-function casesOf(tests: readonly (typeof DISCOUNTS)[]): ExecutionIndex {
+/** The case index a run that ran `tests` keeps, each entering `applyDiscount`. */
+export function casesIndex(tests: readonly (typeof DISCOUNTS)[]): Uint8Array {
   const block: ExecutionBlock = {
     kind: 'function', name: 'applyDiscount', path: 'applyDiscount', startLine: 1, endLine: 3, source: true,
     crossings: [{ test: 0, distance: 0 }],
   };
-  return { tests, modules: [{ file: 'src/total.ts', blocks: [block] }] };
+  return encodeAsSetExecutionIndex({ tests, modules: [{ file: 'src/total.ts', blocks: [block] }] });
 }
 
 async function reportAt(home: string, commit: string): Promise<string> {

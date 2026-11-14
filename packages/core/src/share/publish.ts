@@ -34,7 +34,7 @@ export interface Published {
   /** Entries this publish wrote. */
   readonly written: readonly string[];
   /** Entries the line kept instead, and why. */
-  readonly kept: readonly { readonly name: string; readonly commit: string; readonly because: 'newer-commit' | 'newer-format' }[];
+  readonly kept: readonly { readonly name: string; readonly commit: string; readonly because: 'newer-commit' | 'newer-format' | 'whole' }[];
   /**
    * Entries written although nobody could say whether the held one was newer.
    * Replacing is the answer then, because a line that refuses when it cannot
@@ -64,7 +64,8 @@ export interface PublishOptions {
  * Each entry replaces the held entry in its slot — same family, same qualifier,
  * any version — except on a mainline, where the held one is kept when its
  * commit strictly descends from the offered one: a slow run of an older commit
- * finishing last. A held entry in a newer format is kept on any line, so an old
+ * finishing last. A whole entry is kept against a partial one at its own
+ * commit, on any line. A held entry in a newer format is kept on any line, so an old
  * CLI cannot take a line back a version. Other held entries stay, which is how
  * suites published by different jobs land on one line. A losing write reads
  * the line again and decides again.
@@ -197,6 +198,10 @@ async function decide(
     // last one's `suite-index-v1` and `report-v1`, and the line keeps the index
     // and report of whichever shard published last, covering its subjects only.
     // Nothing here merges two entries of one slot.
+    if (occupant.commit === entry.commit && entry.partial === true && occupant.partial !== true) {
+      kept.push({ name: occupant.name, commit: occupant.commit, because: 'whole' });
+      continue;
+    }
     if (line.kind === 'branch' || occupant.commit === entry.commit) {
       write.push(entry);
       continue;
@@ -222,6 +227,7 @@ function nextManifest(held: LineManifest, write: readonly ShareEntry[]): LineMan
     commit: entry.commit,
     ...(entry.head !== undefined ? { head: entry.head } : {}),
     ...(entry.images !== undefined ? { images: [...new Set(entry.images)] } : {}),
+    ...(entry.partial === true ? { partial: true as const } : {}),
     digest: entryDigest(entry.bytes),
     size: entry.bytes.length,
   }));

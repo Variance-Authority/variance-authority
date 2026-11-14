@@ -6,7 +6,7 @@ import {
 } from '@variance-authority/core/format';
 import { packSnapshot } from '@variance-authority/observe';
 import type { Found, Renderer } from '@variance-authority/raster';
-import type { Plan } from './run.js';
+import type { Plan } from './collector.js';
 import {
   VIEWPORT,
   collectorOf,

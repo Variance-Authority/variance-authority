@@ -2,8 +2,6 @@ import { CLI_VERSION } from '../version.js';
 import type { PushProgress, PushResult } from './push.js';
 import { REAL, seconds, wholeSeconds, type TickerClock } from './ticker-clock.js';
 
-export type { TickerClock } from './ticker-clock.js';
-
 /**
  * The two ways a push is read while it happens and after it is over.
  *

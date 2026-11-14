@@ -90,14 +90,12 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         let path = &path[1..];
         let relative = path.strip_prefix(prefix).unwrap_or(path);
         if mode == Some(b"120000".as_slice()) {
-            // FIXME: a module parsed through a link keeps the link's object name,
-            // the path it holds, so an update does not see its target change.
             links.insert(relative.to_vec());
         }
         listed.push((relative.to_vec(), oid));
     }
 
-    let (moved, unhashed) = match overlay(root, prefix, status) {
+    let (moved, unhashed) = match overlay(root, prefix, status, &links) {
         Some((moved, unhashed)) => (Some(moved), unhashed),
         None => (None, Vec::new()),
     };
@@ -227,7 +225,7 @@ type Moved = HashMap<Vec<u8>, Option<Oid>>;
 /// Failure removes the disagreeing paths rather than leaving them: a stale
 /// digest on an edited file is a subject nobody observes, and no digest at all
 /// is a file the scan hashes for itself.
-fn overlay(root: &str, prefix: &[u8], status: Option<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)> {
+fn overlay(root: &str, prefix: &[u8], status: Option<Vec<u8>>, links: &std::collections::HashSet<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)> {
     let status = status?;
 
     let fields: Vec<&[u8]> = status.split(|byte| *byte == 0).collect();
@@ -294,6 +292,9 @@ fn overlay(root: &str, prefix: &[u8], status: Option<Vec<u8>>) -> Option<(Moved,
         }
     }
 
+    // A link's object is the path it holds, not the bytes behind it, so a link is named as an edited file is.
+    let unlisted: Vec<Vec<u8>> = links.iter().filter(|link| !moved.contains_key(*link) && !dirty.contains(link)).cloned().collect();
+    dirty.extend(unlisted);
     if dirty.is_empty() {
         return Some((moved, Vec::new()));
     }
@@ -395,7 +396,7 @@ fn trim(line: &[u8]) -> &[u8] {
     &line[..end]
 }
 
-fn parse_oid(hex: &[u8]) -> Option<Oid> {
+pub(crate) fn parse_oid(hex: &[u8]) -> Option<Oid> {
     if hex.len() != 40 {
         return None;
     }

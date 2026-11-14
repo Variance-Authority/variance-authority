@@ -22,9 +22,9 @@ read the code map:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/help
-npx variance index
-npx variance ask symbol --name price
-npx variance ask orient
+variance index
+variance ask symbol --name price
+variance ask orient
 ```
 
 The index lives in `node_modules/.cache`, so it adds no tracked file. `ask symbol`
@@ -66,7 +66,7 @@ is over an hour old, and a `variance index` that read a changed file restarts
 that hour, so read the file itself for those. `ask search` answers from the last
 index at any age, and its last line says so.
 
-Your agent can now run any `npx variance ask` question, and one step is left:
+Your agent can now run any `variance ask` question, and one step is left:
 [point it at them](#point-an-agent-at-it). A client that reaches tools only
 through a server adds the server first.
 
@@ -109,12 +109,12 @@ npx @modelcontextprotocol/inspector@1 --cli --config .mcp.json --server workspac
 
 Version 2 of the Inspector needs Node 22.19, so this line stays on version 1, which
 runs on every Node these packages do. It prints a notice that version 1 is
-deprecated, then the answer, which lists these fifteen:
+deprecated, then the answer, which lists these sixteen:
 
 ```text
 docs_packages docs_entrypoint docs_symbol docs_uses docs_search docs_grep
-docs_discover docs_intersection docs_orient docs_slowest_tests docs_journey_map
-docs_test_composition docs_containment docs_stack docs_gaps
+docs_discover docs_intersection docs_orient docs_slowest_tests docs_retried_tests
+docs_journey_map docs_test_composition docs_containment docs_stack docs_gaps
 ```
 
 Then start the client, approve the server if it asks, and have your agent call
@@ -131,7 +131,7 @@ manager runs a local binary:
 ```markdown
 ## Finding your way in the code
 
-Ask before you grep: `npx variance ask uses --name <name>` lists who imports a
+Ask before you grep: `variance ask uses --name <name>` lists who imports a
 name, `ask symbol --name <name>` prints what it is and where it is declared, and
 `ask search --query <words>` finds a name by what it does. They answer from the
 code its index parses; YAML, JSON, Markdown and shell are `rg`'s, run beside
@@ -416,9 +416,9 @@ A workspace with `@variance-authority/cli` installed asks these questions on
 working directory:
 
 ```bash
-npx variance ask search --query viewport
-npx variance ask symbol --name Viewport
-npx variance ask search --query viewport --from packages/app/ --just-answer
+variance ask search --query viewport
+variance ask symbol --name Viewport
+variance ask search --query viewport --from packages/app/ --just-answer
 ```
 
 The flags are the tool arguments, spelled `--name`, `--package`, `--subpath`,

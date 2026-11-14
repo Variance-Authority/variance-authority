@@ -10,7 +10,8 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { caseSectionsAt } from '../test-selection/case-record.js';
 import { lineOf } from '../test-selection/case-lines.js';
-import { readingsOf, type ReadRegion, type Reading } from '../test-selection/case-readings.js';
+import { readingsOf, type Reading } from '../test-selection/case-readings.js';
+import type { ReadRegion } from '../test-selection/readings-bytes.js';
 import { openSetExecutionIndex } from '../test-selection/execution-set-format.js';
 import { steady } from './steady.js';
 import { checkoutRecords } from './directory.js';

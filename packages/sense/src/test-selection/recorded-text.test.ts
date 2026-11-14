@@ -6,7 +6,7 @@ import { delimiter, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
-import { nativeAvailable } from '../native.js';
+import { nativeAvailable } from '../addon.js';
 import { gitReads } from './__fixtures__/git-reads.js';
 import { gitStarted } from './__fixtures__/git-started.js';
 import { changedLines } from './diff-lines.js';

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatCovering, type Covering } from './covering.js';
+import type { Covering } from './covering.js';
+import { formatCovering } from './covering-text.js';
 
 const RESET = 'packages/ioc/src/reset/reset.test.ts';
 const at = (name: string, extra: { readonly loaded?: true } = {}) =>

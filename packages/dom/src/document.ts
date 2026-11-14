@@ -6,9 +6,10 @@ import type {
   SubjectRef,
   Viewport,
 } from '@variance-authority/core/format';
-import { detectProfile } from './collect.js';
+import { detectProfile } from './profile.js';
 import { inheritedSeed } from './inherit.js';
-import { indexStyleSheets, matchRulesFor, type StyleIndex } from './css.js';
+import { indexStyleSheets, type StyleIndex } from './css-index.js';
+import { matchRulesFor } from './css-match.js';
 import { deviceProbe, type ConditionEnvironment } from './media.js';
 import { elements } from './dom-list.js';
 import { formState } from './form-state.js';

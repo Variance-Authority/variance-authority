@@ -2,11 +2,11 @@ import {
   mergeSourceIndexes,
   type SourceIndex,
 } from '@variance-authority/core/attribute';
-import type { BeforeReach, Relations } from '@variance-authority/core/relate';
+import { type BeforeReach, type Relations, within } from '@variance-authority/core/relate';
 import { indexDeclarations } from '@variance-authority/sense';
 import { ignoredBy } from '@variance-authority/sense/test-selection';
 import type { InstallDiff } from './installed.js';
-import { affectedComponents, ignoredSaid, refused, within, type MovedExports } from './reach.js';
+import { affectedComponents, ignoredSaid, refused, type MovedExports } from './reach.js';
 import { listed, many } from './prose-counts.js';
 
 /**

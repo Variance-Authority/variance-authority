@@ -17,7 +17,7 @@ default, and nothing in the MCP package writes it. The CLI does:
 ```bash
 npm install --save-dev @variance-authority/cli
 npx playwright install chromium
-npx variance run --config variance.config.json
+variance run --config variance.config.json
 ```
 
 `variance run` writes the report at the path your config's `report` key names,

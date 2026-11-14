@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { commitRunsFile, testCoverageFile } from '@variance-authority/sense/test-selection';
-import { parseArgs } from '../bin.js';
+import { parseArgs } from '../parse.js';
 import { suiteEntry } from '../share-entries.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { PUSH, collectedBoth, gitPublished } from './mainline-fixture.js';

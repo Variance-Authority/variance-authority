@@ -154,9 +154,19 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
    * after the mainline's record was fetched into that cache: what reading the
    * suite's times through the cli leaves there. The record is at the path a
    * run of this repository's `unit` suite lands in, a suite given to the share.
+   * `carried` lays the last push's record there instead, as `carry take
+   * --as-base` does, and leaves the checkout's own layer empty. `wave` names
+   * a cache an earlier wave of the same shard already ran in.
    */
-  async function shard(k: number, selected: boolean, flags: readonly string[] = []) {
-    const cache = resolve(directory, `alone-${k}-${String(selected)}-${flags.join('')}`);
+  async function shard(
+    k: number,
+    selected: boolean,
+    flags: readonly string[] = [],
+    carried?: { readonly skip: readonly string[] },
+    wave?: string,
+    killed = false,
+  ) {
+    const cache = resolve(directory, wave ?? `alone-${k}-${String(selected)}-${flags.join('')}-${String(carried?.skip.length)}`);
     const commit = 'a'.repeat(40);
     const fetched = resolve(mainlineReadRoot(cache, 'unit'), commit, 'coverage.bin');
     await mkdir(dirname(fetched), { recursive: true });
@@ -167,24 +177,36 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
       tests: [
         { file: at('unit/unit.case.ts'), complete: true, preconditions: [] },
         { file: at('dom/dom.case.ts'), complete: true, preconditions: [] },
-        { file: at('elsewhere/only.case.ts'), complete: true, preconditions: [] },
+        { file: at(carried === undefined ? 'elsewhere/only.case.ts' : 'elsewhere/pushed.case.ts'), complete: true, preconditions: [] },
       ],
       modules: [],
     });
-    await writeFetchedMainline(cache, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString() });
+    const read = await readFile(fetched);
+    await writeFetchedMainline(cache, 'unit', {
+      mainline: 'main',
+      commit,
+      fetched: new Date().toISOString(),
+      ...(carried === undefined ? {} : { handed: true as const }),
+    });
     const coverageFile = testCoverageFile(repository, { cacheRoot: cache, suite: 'unit' });
     // A selection the run of this test was handed is not the fixture's.
     const { VARIANCE_AUTHORITY_SINCE: _since, VARIANCE_AUTHORITY_AT_DISTANCE: _distance, ...inherited } = process.env;
-    await execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts', '--shard', `${k}/2`, ...flags], {
+    const ran = execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts', '--shard', `${k}/2`, ...flags], {
       cwd: fixture,
       env: {
         ...inherited,
         VARIANCE_AUTHORITY_COVERAGE: coverageFile,
         VARIANCE_AUTHORITY_CACHE: cache,
-        ...(selected ? { FIXTURE_SKIP: '[]' } : {}),
+        ...(selected ? { FIXTURE_SKIP: JSON.stringify(carried?.skip ?? []) } : {}),
+        ...(killed ? { FIXTURE_KILL: '1' } : {}),
       },
     });
+    if (killed) await expect(ran).rejects.toMatchObject({ signal: 'SIGKILL' });
+    else await ran;
+    // A shard that runs nothing records nothing: its part of the fold is empty.
+    if (!existsSync(coverageFile)) return { ran: [], layer: undefined, read: (await readFile(fetched)).equals(read) };
     return {
+      read: (await readFile(fetched)).equals(read),
       ran: decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort(),
       layer: await readOwnLayer(coverageFile),
     };
@@ -207,10 +229,47 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
     expect(first.layer?.pinned).toBeUndefined();
   });
 
-  it('records over the mainline it was laid on when it selects', async () => {
+  // Its later wave selects from this record, so a part here would hide every
+  // test the earlier wave did not run.
+  it('records over the mainline it was laid on when it selects and was handed no read', async () => {
     const { ran, layer } = await shard(1, true);
 
     expect(ran).toContain(at('elsewhere/only.case.ts'));
     expect(layer?.pinned).toEqual({ mainline: 'main', commit: 'a'.repeat(40) });
+  });
+
+  it('reads the last push\'s record and records only what it ran, so the shards fold over that record', async () => {
+    const skip = { skip: [at('unit/unit.case.ts')] };
+    const first = await shard(1, true, [], skip);
+    const second = await shard(2, true, [], skip);
+
+    expect([...first.ran, ...second.ran]).toEqual([at('dom/dom.case.ts')]);
+    expect(first.read && second.read).toBe(true);
+  });
+
+  it('lands its later wave over its earlier one, so its part holds what both ran and nothing it was handed', async () => {
+    await shard(1, true, [], { skip: [at('dom/dom.case.ts')] }, 'waves');
+    const far = await shard(1, true, [], { skip: [at('unit/unit.case.ts')] }, 'waves');
+
+    expect(far.ran).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
+    expect(far.layer?.pinned).toBeUndefined();
+    expect(far.read).toBe(true);
+  });
+
+  it('leaves no part when it is killed after it selected and before it landed, so the fold is the one without it', async () => {
+    const carried = { skip: [at('dom/dom.case.ts')] };
+    const killed = await shard(1, true, [], carried, 'killed', true);
+
+    expect(killed.ran).toEqual([]);
+    expect(killed.layer).toBeUndefined();
+    // The directory CI uploads as the shard's part: nothing in it, so nothing is handed on.
+    expect(existsSync(dirname(testCoverageFile(repository, { cacheRoot: resolve(directory, 'killed'), suite: 'unit' })))).toBe(false);
+    expect(killed.read).toBe(true);
+  });
+
+  it('keeps none of the last push\'s record when its selection skips every file', async () => {
+    const first = await shard(1, true, [], { skip: [at('unit/unit.case.ts'), at('dom/dom.case.ts')] });
+
+    expect(first.ran).toEqual([]);
   });
 });

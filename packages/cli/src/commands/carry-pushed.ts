@@ -17,11 +17,23 @@ import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import { instrumentationId } from '@variance-authority/sense/instrument';
-import { declaredSuites, foreignProbes, keepsCases, namedCommits, testCoverageFile } from '@variance-authority/sense/test-selection';
+import {
+  cacheRootFor,
+  declaredSuites,
+  foreignProbes,
+  keepsCases,
+  mainlineHanded,
+  mainlineReadRoot,
+  namedCommits,
+  readCommitRuns,
+  readFetchedMainline,
+  testCoverageFile,
+} from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
 import { EXIT_CLEAN, OperatorError, type ExitCode } from '../exit.js';
 import type { Env } from '../share-lines.js';
 import { BUNDLE, git, holds, keepCommits, succeeds, takeCommits, type KeptCommits } from './carry-bundle.js';
+import { readMissedMainline, standOnHanded } from './mainline-base.js';
 import { suiteBase } from './suite-base.js';
 
 /** Where `carry` keeps and takes the pushed records, under the checkout. */
@@ -102,7 +114,9 @@ async function setAside(root: string, suite: string): Promise<string | undefined
  * Lay each suite under `dir` into the checkout at `root` as its own record,
  * replacing one a restore laid from the mainline: the last push was laid on a
  * mainline record, so it is that record plus what the pull request ran since.
- * `left` names the rest: the commits not had, `unlisted`, `undeclared`, or
+ * Each is read once as it is laid, so a mainline published since re-bases it
+ * then, and the bytes read are written back under `dir`: whatever takes `dir`
+ * next reads the record this take read. `left` names the rest: the commits not had, `unlisted`, `undeclared`, or
  * the probes it was written under when they are not `instrumentation`, the
  * run's next (`foreignProbes`); `undefined` takes any probes. The left are
  * removed from `dir` and the taken named there; a take over a directory an
@@ -111,7 +125,12 @@ async function setAside(root: string, suite: string): Promise<string | undefined
 export async function takePushed(
   root: string,
   dir: string,
-  options: { readonly env?: Env; readonly instrumentation?: string } = {},
+  options: {
+    readonly env?: Env;
+    readonly instrumentation?: string;
+    /** Lay each suite where `carry receive` laid the read, and set nothing aside: a shard selects from it, and its own record holds only what it runs. */
+    readonly asBase?: boolean;
+  } = {},
 ): Promise<PushedTaken> {
   let entries: Dirent[];
   try {
@@ -129,8 +148,8 @@ export async function takePushed(
   // A shallow clone fetches each commit alone: a diff reads two trees, not history.
   const depth = git(root, 'rev-parse', '--is-shallow-repository') === 'true' ? ['--depth=1'] : [];
   const declared = declaredNames(root);
-  // Every declared suite: what `take` leaves in place, the run writes over.
-  for (const suite of [...declared].sort()) {
+  // Every declared suite: what `take` leaves in place, the run writes over. A base is not written over.
+  for (const suite of options.asBase === true ? [] : [...declared].sort()) {
     const aside = await setAside(root, suite);
     if (aside !== undefined) against[suite] = aside;
   }
@@ -167,6 +186,11 @@ export async function takePushed(
       left.push({ suite, missing });
       continue;
     }
+    if (options.asBase === true) {
+      await layAsRead(root, suite, from);
+      taken.push(suite);
+      continue;
+    }
     const record = testCoverageFile(root, { suite });
     if (!existsSync(record)) {
       // Nothing laid here, and the last push's record is about to read as the suite's own: only the share still has the mainline's.
@@ -176,6 +200,11 @@ export async function takePushed(
     const own = dirname(record);
     await rm(own, { recursive: true, force: true });
     await cp(from, own, { recursive: true });
+    // Read once here, so a mainline published since the push re-bases it now, and hand
+    // those bytes on: every shard taking them `--as-base` reads the record the plan priced.
+    await suiteBase(root, { suite, ...(options.env === undefined ? {} : { env: options.env }) });
+    await rm(from, { recursive: true, force: true });
+    await cp(own, from, { recursive: true });
     taken.push(suite);
   }
   const result: PushedTaken = {
@@ -202,6 +231,36 @@ export async function takePushed(
     await writeFile(join(dir, TAKEN), `${JSON.stringify({ taken })}\n`);
   }
   return result;
+}
+
+/**
+ * Lay the last push's record of `suite` at `from` where the read `carry
+ * receive` laid sits, as the run's read: the mainline's record with what the
+ * pull request ran since. No reader here asks the line past it, and the
+ * checkout's own record stays empty.
+ */
+async function layAsRead(root: string, suite: string, from: string): Promise<void> {
+  const cacheRoot = cacheRootFor(root);
+  const readRoot = mainlineReadRoot(cacheRoot, suite);
+  if (!mainlineHanded(root, suite, cacheRoot)) {
+    throw new OperatorError(`no read of "${suite}" was received here, so the last push has nothing to stand in for: run \`carry receive\` first.`);
+  }
+  // Readers take a read for the mainline they select; a run that names none reads no read at all.
+  const mainline = readFetchedMainline(readRoot)?.mainline ?? readMissedMainline(readRoot)?.mainline;
+  if (mainline === undefined) {
+    throw new OperatorError(`the read of "${suite}" received here names no mainline, so no reader would read the last push laid as it.`);
+  }
+  const coverage = join(from, 'coverage.bin');
+  const commit = (await readCommitRuns(coverage))?.commit;
+  if (commit === undefined) throw new OperatorError(`the last push's record of "${suite}" names no commit it was recorded at.`);
+  await rm(readRoot, { recursive: true, force: true });
+  await cp(from, join(readRoot, commit), { recursive: true });
+  await standOnHanded(
+    root,
+    suite,
+    { mainline, commit, fetched: new Date().toISOString() },
+    `the last push's record of "${suite}", made at ${commit}, does not read in this build. Stopping rather than select from another record than the run's.`,
+  );
 }
 
 /** The suites an earlier take over `dir` took, or absent when none took from it. */
@@ -280,7 +339,7 @@ export async function movePushed(
   let outputs: string[];
   let lines: readonly string[];
   if (parsed.direction === 'take') {
-    const taken = await takePushed(root, dir, { instrumentation: instrumentationId() });
+    const taken = await takePushed(root, dir, { instrumentation: instrumentationId(), ...(parsed.asBase === true ? { asBase: true } : {}) });
     outputs = [
       `taken=${taken.taken.join(' ')}`,
       `left=${taken.left.map((one) => one.suite).join(' ')}`,

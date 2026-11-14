@@ -72,7 +72,7 @@ import {
   type WaitOptions,
 } from '@variance-authority/vantage';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
-import { ownerOf } from './execution.js';
+import { ownerOf } from './test-coordinate.js';
 
 /** What a test author calls to be seen. */
 export interface VarianceDesk {

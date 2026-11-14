@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module';
+import layout from '../../record-layout.json' with { type: 'json' };
 
 import type { BlockKind } from '../instrument/index.js';
 
@@ -56,9 +56,11 @@ export interface RecordLayout {
     readonly loadedSets: number;
     readonly duration: string;
     readonly limit: string;
+    readonly slowest: string;
     readonly lines: string;
     readonly linesOffsets: string;
   };
 }
 
-export const LAYOUT = createRequire(import.meta.url)('../../record-layout.json') as RecordLayout;
+// The JSON's tuples read as arrays of strings, so the shape is stated rather than inferred.
+export const LAYOUT = layout as unknown as RecordLayout;

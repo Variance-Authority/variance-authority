@@ -111,5 +111,5 @@ let attempts = 0;
 it('retries', { retry: 1 }, () => {
   attempts += 1;
   variancePrecondition('fixture', { attempt: attempts }); // retried
-  expect(attempts).toBe(2);
+  expect(attempts).toBe(2); // first attempt fails
 });

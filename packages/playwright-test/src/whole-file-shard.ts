@@ -101,6 +101,7 @@ export function playwrightFrom(minor: number, version: string): boolean {
  * only when `from` resolves none.
  */
 export function installedPlaywright(from: string): string {
+  // Read through the project's resolution: an import would answer our own copy's version.
   const read = (require: NodeJS.Require) => (require('@playwright/test/package.json') as { version: string }).version;
   try {
     return read(createRequire(resolve(from, 'package.json')));

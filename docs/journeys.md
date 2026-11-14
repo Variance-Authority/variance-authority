@@ -84,7 +84,11 @@ Told neither which build it belongs to nor that anyone is listening,
 `collectJourneys` installs nothing and `enter` is the identity function. The
 same call ships to production and costs an `if`. Under a run, `head` names the
 build that minted the service's probes and `VARIANCE_AUTHORITY_JOURNEYS` turns
-the head on; the wiring between the driver and a head is
+the head on. A head that is on and given a watcher's address also reports a
+request no test drove, which is then listed as [its own
+execution](vantage.md#watch-an-application-you-use-by-hand). Handed the
+application's tracing as `trace` too, it lists a request nothing wrapped in
+`enter` under its trace id, one execution per trace. The wiring between the driver and a head is
 [`@variance-authority/wire`](../packages/wire/README.md)'s, and the join is set
 out in the [sense package](../packages/sense/README.md#follow-one-execution-into-a-service).
 [Testing across dimensions](across-dimensions.md) follows the same id from a

@@ -15,8 +15,6 @@ import { limitOf, spellingOf, type Spelling } from '@variance-authority/mcp/tool
 import { formatSlowest } from './slowest-format.js';
 import { recordedOnce, refuseUnknownPath } from './unknown-path.js';
 
-export { formatSlowest, spent } from './slowest-format.js';
-
 /** Files, and cases, listed per suite when the question names no limit. */
 export const SLOWEST = 10;
 
@@ -70,6 +68,8 @@ export const slowestTests: Tool<unknown> = {
     'each as its run and its limit; then the test files and the test cases that took longest in that run, slowest ' +
     'first, with what each took as its test runner timed it, a file\'s time including its environment, setup files ' +
     'and import before its first case; a case row names its file and its declaration path. ' +
+    'A case that recorded its slowest statement carries it on one more line: the file line, its time on the real ' +
+    'clock, and its share of the case. ' +
     'A run spans hooks and attempts and a limit one attempt, so a passing case can read above its limit. ' +
     '`from` keeps the tests declared under the paths given, `to` the tests the recording says entered code ' +
     'in them, and the two combine. `over` keeps only the cases that ran at least that long, and leaves the files ' +

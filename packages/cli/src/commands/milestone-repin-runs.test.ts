@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -65,6 +65,118 @@ describe('the runs record under a repinned checkout', () => {
     const runs = await readCommitRuns(own);
     expect(runs).toMatchObject({ over: next, landings: [] });
     expect(runs!.standing).toEqual([{ commit: next, files: ['test/other.test.ts', 'test/total.test.ts'], first: '2026-01-01T00:00:00.000Z', latest: '2026-01-01T00:00:00.000Z', runs: 1 }]);
+  });
+
+  it('stands a milestone test where the published runs record stood it, not at the milestone', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    // The record at the new milestone ran `total` alone; `other` stands where it last ran, as a partial run's record says.
+    const read = join(home, 'laptop-cache');
+    const fetched = (await readdir(read, { recursive: true })).filter((path) => path.includes(next) && path.endsWith('.runs.json'));
+    expect(fetched).toHaveLength(1);
+    const at = '2026-01-01T00:00:00.000Z';
+    const partial = { commit: next, latest: at, runs: 1, landings: [{ files: ['test/total.test.ts'], first: at, latest: at, runs: 1 }], standing: [{ commit: first, files: ['test/other.test.ts'], first: at, latest: at, runs: 1 }] };
+    await writeFile(join(read, fetched[0]!), JSON.stringify(partial));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    expect((await readCommitRuns(own))!.standing!.map((stand) => [stand.commit, stand.files])).toEqual([[first, ['test/other.test.ts']], [next, ['test/total.test.ts']]]);
+  });
+
+  it('keeps a run the published record ran in part beside its stand, and stands a test it places nowhere at the milestone', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    // `other` ran in part at the older commit, and neither of the record's stands names it whole; `gone` the milestone no longer records.
+    const read = join(home, 'laptop-cache');
+    const fetched = (await readdir(read, { recursive: true })).filter((path) => path.includes(next) && path.endsWith('.runs.json'));
+    const at = '2026-01-01T00:00:00.000Z';
+    const partial = { commit: next, latest: at, runs: 1, landings: [{ files: ['test/total.test.ts'], first: at, latest: at, runs: 1 }], standing: [{ commit: first, files: [], partly: ['test/gone.test.ts', 'test/other.test.ts'], first: at, latest: at, runs: 1 }] };
+    await writeFile(join(read, fetched[0]!), JSON.stringify(partial));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    const standing = (await readCommitRuns(own))!.standing!;
+    expect(standing.filter((stand) => stand.files.includes('test/other.test.ts')).map((stand) => stand.commit)).toEqual([next]);
+    expect(standing.filter((stand) => stand.partly !== undefined).map((stand) => [stand.commit, stand.partly])).toEqual([[first, ['test/other.test.ts']]]);
+  });
+
+  it('keeps the part a published stand ran when this checkout holds a stand of the same run', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    // Both records inherit one earlier run at the older commit, which ran `other` in part.
+    const at = '2026-01-01T00:00:00.000Z';
+    const earlier = { commit: first, files: [], partly: ['test/other.test.ts'], first: at, latest: at, runs: 1 };
+    const held = (await readCommitRuns(own))!;
+    await writeFile(commitRunsFile(own), JSON.stringify({ ...held, standing: [...(held.standing ?? []), earlier] }));
+    const read = join(home, 'laptop-cache');
+    const fetched = (await readdir(read, { recursive: true })).filter((path) => path.includes(next) && path.endsWith('.runs.json'));
+    const partial = { commit: next, latest: at, runs: 1, landings: [{ files: ['test/total.test.ts'], first: at, latest: at, runs: 1 }], standing: [earlier] };
+    await writeFile(join(read, fetched[0]!), JSON.stringify(partial));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    const standing = (await readCommitRuns(own))!.standing!;
+    expect(standing.filter((stand) => stand.partly !== undefined).map((stand) => [stand.commit, stand.partly])).toEqual([[first, ['test/other.test.ts']]]);
+  });
+
+  it('keeps the published order of stands this checkout holds one of, earliest first', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    // Two runs at the older commit each ran a case of `other`; this checkout holds only the later.
+    const at = '2026-01-01T00:00:00.000Z';
+    const later = '2026-01-02T00:00:00.000Z';
+    const stand = (time: string) => ({ commit: first, files: [], partly: ['test/other.test.ts'], cases: { 'test/other.test.ts': ['one'] }, first: time, latest: time, runs: 1 });
+    const held = (await readCommitRuns(own))!;
+    await writeFile(commitRunsFile(own), JSON.stringify({ ...held, standing: [...(held.standing ?? []), stand(later)] }));
+    const read = join(home, 'laptop-cache');
+    const fetched = (await readdir(read, { recursive: true })).filter((path) => path.includes(next) && path.endsWith('.runs.json'));
+    const partial = { commit: next, latest: later, runs: 1, landings: [{ files: ['test/total.test.ts'], first: later, latest: later, runs: 1 }], standing: [stand(at), stand(later)] };
+    await writeFile(join(read, fetched[0]!), JSON.stringify(partial));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    const standing = (await readCommitRuns(own))!.standing!;
+    expect(standing.filter((one) => one.partly !== undefined).map((one) => one.latest)).toEqual([at, later]);
+  });
+
+  it('keeps a run the published record landed in part at the milestone beside where the test stands, earliest stand first', async () => {
+    const { ci, first, worktree, own } = await laidWorktree(home);
+    const next = await publishedNext(home, ci);
+    await git(worktree, 'fetch', '--quiet', 'origin');
+    await git(worktree, 'checkout', '--quiet', '--detach', next);
+    await refetch(home, worktree, next);
+    // `other` last finished at the older commit, and one of its cases ran again at the milestone.
+    const read = join(home, 'laptop-cache');
+    const fetched = (await readdir(read, { recursive: true })).filter((path) => path.includes(next) && path.endsWith('.runs.json'));
+    const at = '2026-01-01T00:00:00.000Z';
+    const later = '2026-01-02T00:00:00.000Z';
+    const landings = [
+      { files: ['test/total.test.ts'], first: at, latest: at, runs: 1 },
+      { files: [], partly: ['test/other.test.ts'], cases: { 'test/other.test.ts': ['one'] }, first: later, latest: later, runs: 1 },
+    ];
+    const partial = { commit: next, latest: later, runs: 2, landings, standing: [{ commit: first, files: ['test/other.test.ts'], first: at, latest: at, runs: 1 }] };
+    await writeFile(join(read, fetched[0]!), JSON.stringify(partial));
+
+    expect(await suiteBase(worktree, { env: LOCAL })).toMatchObject({ repin: { repinned: true, to: next, kept: [] } });
+
+    const standing = (await readCommitRuns(own))!.standing!;
+    expect(standing.map((stand) => [stand.commit, stand.files, stand.partly, stand.cases])).toEqual([
+      [first, ['test/other.test.ts'], undefined, undefined],
+      [next, ['test/total.test.ts'], undefined, undefined],
+      [next, [], ['test/other.test.ts'], { 'test/other.test.ts': ['one'] }],
+    ]);
   });
 
   it('writes no runs record for a record that holds none, which does not say where its tests stand', async () => {

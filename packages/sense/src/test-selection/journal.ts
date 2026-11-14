@@ -1,8 +1,8 @@
 /**
  * `@variance-authority/sense/journal` — the same instrument, over a wire.
  *
- * [Spec 0028](https://github.com/Variance-Authority/variance-authority/blob/main/docs/specs/0028-the-instrument.md) states the rule this
- * file discharges: *a browser needs a different transport, not a different
+ * The hosts in [the execution record](https://variance-authority.dev/docs/execution-record#what-each-host-records) write
+ * the same structures, by the rule this file follows: *a browser needs a different transport, not a different
  * instrument.* A browser is the case that exists, and not the boundary this
  * draws. What the Vitest seam has and this does not is a recorder that ran the
  * instrumentation itself: there, the transform, the counters and the runner's
@@ -48,6 +48,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import { instrumentationId, type InstrumentMode, type ModuleId } from '../instrument/index.js';
 import { ownedExecutionIndexFrom } from './cases.js';
+import { attemptsOfCases } from './attempts-record.js';
 import { eyesOfCases } from './eyes-record.js';
 import { encodeOwnedSetExecutionIndex } from './execution-set-format.js';
 import {
@@ -76,8 +77,8 @@ import {
   type TestCoverage,
 } from './index.js';
 
+export { EXECUTION_GLOBAL } from './execution-global.js';
 export {
-  EXECUTION_GLOBAL,
   executionCollectorSource,
   testSelectionProbes,
   type ExecutedModule,
@@ -119,6 +120,7 @@ export {
   type ObservedSubject,
 } from './observed.js';
 export type { ObservedEyes } from './eyes-record.js';
+export type { ObservedAttempt } from './attempts-record.js';
 export { listenForPreconditions, type PreconditionListener, type PreconditionStanding } from './precondition-listener.js';
 export { preconditionText, saidAcross, type CasePrecondition, type Said } from './case-said.js';
 export {
@@ -130,7 +132,7 @@ export {
   stagingDirectory,
   type StagedExecution,
 } from './stage.js';
-export { drainExecution, type EvaluatingPage } from './drain.js';
+export { claimPageSource, drainExecution, type EvaluatingPage } from './drain.js';
 // The driver's half of a journey. It opens a socket, so it is here, beside the
 // recorders, and not on the bundle-safe `journey` entry a Worker imports.
 export {
@@ -405,13 +407,14 @@ export async function recordExecution(
   // laid over by id and never replaced by file.
   const observed = options.cases ?? [];
   const eyes = eyesOfCases(observed);
+  const attempts = attemptsOfCases(observed, root);
   const owned = observed.length === 0 ? undefined : ownedExecutionIndexFrom(caseJournals(observed), byId);
   const cases =
     owned === undefined
       ? undefined
       : {
           fresh: encodeOwnedSetExecutionIndex(owned.index, owned.owners, owned.lines),
-          run: { tests, ...(commit === undefined ? {} : { commit }) },
+          run: { tests, ...(commit === undefined ? {} : { commit }), ...(attempts === undefined ? {} : { attempts }) },
           ...(eyes === undefined ? {} : { eyes }),
         };
   // Read-modify-write, and more than one process does it. A Playwright suite

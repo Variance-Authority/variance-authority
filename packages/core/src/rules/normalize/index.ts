@@ -1,6 +1,6 @@
 import type { Diagnostic, RawCapture, RawNode } from '../../format/capture.js';
 import { environmentKey } from '../../format/environment.js';
-import { digestCombine, digestValue, type Digest } from '../../format/hash.js';
+import { digestCombine, digestValue } from '../../format/hash.js';
 import { pageOrigin } from '../../format/origin.js';
 import { relativizeSource, type Provenance } from '../../format/provenance.js';
 import { ALLOWLIST_VERSION, RULESET_VERSION, admitsAttribute } from '../ruleset.js';
@@ -14,19 +14,6 @@ import {
   type InheritContext,
 } from './cascade.js';
 
-export { buildAliasMap, aliasAttributeValue, aliasStyleValue } from './alias.js';
-export type { AliasMap, AliasResult } from './alias.js';
-export {
-  declaredValue,
-  resolveStyle,
-  resolveVariables,
-  INHERITED_PROPERTIES,
-  EMPTY_CONTEXT,
-} from './cascade.js';
-export type { InheritContext, ResolvedStyle, DeclarationOrigin } from './cascade.js';
-export { canonicalizeValue, canonicalizeTokens, canonicalizeDimension, matchingParen } from './value.js';
-export { canonicalizeColor, parseColor, formatColor } from './color.js';
-export { expandDeclaration, SHORTHAND_PROPERTIES } from './shorthand.js';
 
 /**
  * The normalization pipeline: `RawCapture` in, `SemanticSnapshot` out.
@@ -386,5 +373,3 @@ function customPropertiesOf(seed: Readonly<Record<string, string>>): Record<stri
   }
   return custom;
 }
-
-export type { Digest };

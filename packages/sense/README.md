@@ -39,7 +39,7 @@ one.
 npm install --save-dev @variance-authority/sense
 ```
 
-Node 22.15 or newer. Vitest (`^2.1.9 || ^3.0.0 || ^4.0.0 || ^5.0.0`) and Jest
+Node 22.15 or newer. Vitest (`^4.1.0 || ^5.0.0`) and Jest
 (`^30.0.0`, with the `@jest/globals` and `jest-circus` it installs) are
 optional peer dependencies: install the runner whose seam you use, and your own
 copy is the one that runs. Under an older Jest, a
@@ -100,8 +100,18 @@ Set to a ref, it also names the base for a snapshot that names no commit.
 one range of hop counts at a time](#take-one-range-of-hop-counts-at-a-time), and
 a value that is not a range fails the run. Before the first file starts, stderr
 shows one line: `selected 12 of 340`, `selected none of 340, so none of them
-runs`, or `declined:` and the reason the selection could not be read, in which
-case every file runs. A test file the snapshot has never seen runs. A run the
+runs` and whether the change reached none of them or a leg or `--local` left them
+for a later run, or
+`declined:` and the reason the selection could not be read, in which case every
+file runs. `VARIANCE_AUTHORITY_LOCAL=1` is `variance select --local`: where the
+record cannot narrow, the files that import a changed file run, or a changed
+file's package, instead of every file; any value other than `1` or `0` fails
+the run. `VARIANCE_AUTHORITY_RAN_AT=<commit>` is `variance select --ran-at`:
+in a merge queue's group of one, it names the pull request's tested commit,
+and `VARIANCE_AUTHORITY_SINCE` the base the queue merged onto; beside an empty
+`VARIANCE_AUTHORITY_SINCE` it fails the run
+([a pull request in the merge queue](https://variance-authority.dev/docs/selecting#a-pull-request-in-the-merge-queue)).
+A test file the snapshot has never seen runs. A run the
 selection leaves nothing to run — `selected none`, or a shard that took none of
 the files kept — passes: the seam sets `passWithNoTests` for that run. A run
 that drops nothing keeps your setting.
@@ -308,7 +318,7 @@ a run records is operational state rather than source.
 ```
 
 `<cache>` is [your cache](https://variance-authority.dev/docs/cache).
-`<digest>` is taken from the checkout's absolute path, so two checkouts write no
+`<digest>` is taken from the checkout's path as seen from the cache directory, so two checkouts write no
 file in common but `.work/index-turn` and `.work/index-turn.holder`, the lock that lets
 [one checkout of a repository index at a time](https://variance-authority.dev/docs/source-index)
 and the file that names its holder. `testCoverageFile(root)` returns that path,
@@ -316,8 +326,8 @@ and `sourceIndexPath(root)` the source index beside it. A git worktree gets
 `.work/<its own digest>/` in its own cache, which is inside the worktree at the
 default location. Its coverage reads both layers and writes only its own, so a
 worktree cut this morning inherits what the repository already recorded. Its source index is its own too,
-and the first update in it starts from a copy of the primary checkout's and reads
-only the files that differ between the two. Pass `coverageFile` in the options to put
+and the first update in it builds that index from nothing: it reads every file and
+parses only those whose parse the cache's parse store does not hold. Pass `coverageFile` in the options to put
 it somewhere you name instead — a CI job that uploads the file as an artifact
 needs that.
 
@@ -470,7 +480,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them. `'loads'` records which files each test file loaded and nothing inside them: no module is probed, each one runs with one line added after its own text, and a change to a file selects every test file that loaded it. A record made so has no cases, so `continuations` and stories do not apply to it ([below](#record-only-what-each-test-file-loaded)). Which `precision` each mode answers, and what each costs: [record as finely as you select](https://variance-authority.dev/docs/selecting#record-as-finely-as-you-select) |
 | `placement` | `'after-transforms'` | `'before-transforms'` places the probes in the file as read, ahead of your transforms, for a run whose transforms only strip types or JSX ([below](#place-the-probes-ahead-of-your-transforms)) |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
-| `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region ([below](#record-which-test-line-reached-a-region)) |
+| `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region and without each case's slowest statement ([below](#record-which-test-line-reached-a-region)) |
 | `selection` | read from `@variance-authority/cli` when `VARIANCE_AUTHORITY_SINCE` is set | you compute the selection yourself: a function returning the `SuiteSelection` whose `skip` the run removes |
 
 The config file Vite loaded, the local modules it imports and the configured
@@ -1313,7 +1323,9 @@ half alone: it listens for the heads' reports, mints, and waits for every
 request a subject started to settle.
 
 To drive it yourself: evaluate `executionCollectorSource()` in the page if the
-build does not hoist it, call `drainExecution(page)` to close one **subject**'s
+build does not hoist it, install `claimPageSource()` to run before the page
+where the application may call `reportPage`, which would otherwise drain what
+you read, call `drainExecution(page)` to close one **subject**'s
 window — one named UI state you asked for and can ask for again, such as
 `cart/empty` — and hand the journals to `recordExecution`. It takes the same
 `root`, plus `cacheRoot`, `suite`, `coverageFile` and `subjects`: one entry
@@ -1368,14 +1380,29 @@ export function handled<Result>(cookie: string | undefined, run: () => Result): 
 `head` is the name this service reports under, the name a driver lists in
 `heads`, and defaults to `VARIANCE_AUTHORITY_HEAD`; `enabled` defaults to whether
 `VARIANCE_AUTHORITY_JOURNEYS` is set, so one `env` block configures a service
-that names neither. Told neither, `collectJourneys` installs nothing and `enter`
+that names neither. `watcher` is the address of a watcher, defaults to
+`VARIANCE_AUTHORITY_VANTAGE`, and is read only by an enabled head; an address
+the head cannot report to is refused when it starts. Not enabled,
+`collectJourneys` installs nothing and `enter`
 is the identity, so the call above ships to production unconditionally.
 
 `enter` takes the request's `Cookie` header;
 [`@variance-authority/wire`](https://variance-authority.dev/reference/packages/wire)
 handles where the account goes from there. Nothing in the head writes a file. A
 request carrying no journey is one the run did not drive; its crossings join the
-process's rather than the nearest subject's.
+process's rather than the nearest subject's. With a watcher named, that request
+is reported to the watcher as an execution of its own, which `variance ask ran`
+lists. Handed `trace` as well, the head reports a request nothing wrapped in
+`enter` under its trace id: one execution per trace, which is one per page view
+where a browser SDK propagates its trace. A `trace` with neither a watcher nor
+`parts` is refused when the head starts.
+
+Started with `VARIANCE_AUTHORITY_STORY=1` as well, a head with a watcher tapes
+each execution it reports there, and the account carries its story: the steps
+it took and the arguments each function was handed, which `variance ask ran
+--story` prints. It shows no local or module variable. Concurrent requests are
+taped apart, by the journey each runs under. Without the variable nothing is
+taped.
 
 A journey's scope ends when what the body returned *settles*, not when the body
 returns, which is the only arrangement under which the code after an `await` is
@@ -1604,6 +1631,7 @@ never touch a disk.
 | `changed` | absent | supplying the complete scan-root-relative file list already known to have changed; present, including empty, skips `git status` |
 | `cache` | in-memory parse cache | reusing parsed module records between calls |
 | `reuse` | off unless `digests` is available | reusing resolved `FileRecord`s; sound only with content and layout digests |
+| `stores` | absent | naming parse stores to look a tracked module up in before it is read; pass the same list to `openSourceIndex`, whose `cache` holds what a store answered |
 | `largestFile` | one megabyte | reading source files larger than that; anything over the cap is recorded `unknown` instead of parsed |
 | `indexed` | absent | receiving each cached parse with the resolved target corresponding to every request |
 
@@ -1685,9 +1713,10 @@ again only the files whose blob changed. Its result names the state it found
 (`was`), the files it holds, and how many it read again (`reread`). Pass
 `packs: false` to read bytes from the working tree, as `scanRelations` does.
 Pass `dirs` for an index that covers some directories of the checkout and what
-they import, rather than all of it, and `primary` to name the index a missing
-one starts from. Without `index`, a worktree's index starts from the primary
-checkout's. `progress` is told each step's name as it starts, the git listing
+they import, rather than all of it. A missing index is built from nothing, in a
+worktree too: no record is copied from another checkout's index, and the parse
+store is what a second checkout reuses. An `index` you name in the checkout's
+own cache directory reads that store as the checkout's own index does. `progress` is told each step's name as it starts, the git listing
 and then the read of what changed, and returns the function to call when that
 step ends.
 
@@ -1726,7 +1755,11 @@ await source.save();
 ```
 
 `sourceIndexPath(root)` puts it beside the coverage snapshot under your cache
-root, cached in CI the same way. See [the source index](https://variance-authority.dev/docs/source-index)
+root, cached in CI the same way. `variance index` also keeps one parse store per
+cache, keyed by a module's bytes and how they are read, so a directory or a
+worktree does not parse again what another root in the same cache has read. A
+parse of a tracked file is offered to other roots only when the bytes read are
+the blob git named for it; the cache prune reclaims the parses no index names. See [the source index](https://variance-authority.dev/docs/source-index)
 for the on-disk layout and the cache recipe. The parse section is keyed by
 content digest; the record section additionally by the repository path layout
 and resolution settings, because resolution can change while file bytes stay the
@@ -2037,7 +2070,12 @@ first. `nearestRecord(root, options)` finds the same one and says whose it is:
 `own`, `mainline` or `primary`. A record fetched for another mainline is no
 layer: a reader that knows the selected mainline passes it as `selected`, here
 and to `lastFetchedMainline` and `prepareRecord`. A caller with none to pass, such
-as a runner seam, takes what was fetched.
+as a runner seam, takes what was fetched. A shard passes `beneath`: the
+checkout's own record is passed over, so every pass of the shard selects from
+the record it was handed, not from what an earlier pass of it ran. The Vitest and
+Jest seams read whether a run is a shard from the runner's resolved `shard`,
+whether the command line or the runner's API, such as `startVitest` or Jest's
+`runCLI`, set it.
 
 ### Read where the loads drift from the walk
 
@@ -2590,8 +2628,21 @@ suite's duration stays inside its run-to-run spread on both, over three runs
 each with and without them: 48.9–51.9 s against 48.8–56.3 s here, 16.2–16.5 s
 against 16.0–17.2 s on MUI.
 
-Pass `cadence: false` to leave test files as you wrote them and write no lines.
-A Jest journey run leaves test files as they are either way.
+The same call times the case's own statements under Vitest, Jest and Rstest.
+Each call reads a clock taken before a test can fake its timers, and adds the
+time since the call before it to that statement's line; the end of the case
+closes the last one. A case the runner stops at its timeout ends where that
+attempt ends, hooks included, so the statement it was waiting in holds the
+wait; where attempts overlap the runner's signal names no case, and a stopped
+one is closed where its file ends, never short of what it took. A statement in a loop holds the sum of its runs, and a
+hook's statements are not timed. The record keeps one statement per case: the
+line that took longest and its whole milliseconds, which
+[`variance ask slowest-tests`](https://variance-authority.dev/agents/cli#find-the-tests-close-to-their-limit)
+prints under the case. A case whose statements all took under a millisecond
+records none, which is not a time of zero. Selection reads none of it.
+
+Pass `cadence: false` to leave test files as you wrote them and write neither
+the lines nor the times. A Jest journey run leaves test files as they are either way.
 
 ### Record the state each test ran under
 
@@ -2703,7 +2754,7 @@ same under every host:
 
 | import | Use it for | Requires |
 |---|---|---|
-| `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^2.1.9` and product tests |
+| `@variance-authority/sense/vitest` | adding instrumentation, collection, and persistence to Vitest | Vitest `^4.1.0 \|\| ^5.0.0` and product tests |
 | `@variance-authority/sense/jest` | the same around the transformer your project already uses | Jest 30 and product tests |
 | `@variance-authority/sense/jest-transform`, `/jest-globals`, `/jest-setup`, `/jest-reporter` | the four modules `withTestSelection` names by path, for a configuration assembled by hand | Jest 30 |
 | `@variance-authority/sense/precondition` | `variancePrecondition`, to record the state the running case ran under | nothing; a call outside a recording does nothing |
@@ -2722,6 +2773,7 @@ same under every host:
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/journal` | instrumenting your own build and recording what a driven page executed | a Vite-compatible build, and a driver that can evaluate in the page |
 | `@variance-authority/sense/journey` | carrying one execution across processes, so a service's crossings join the subject that caused them | a service running Node, its own instrumented build, and a driver that sets a cookie |
+| `@variance-authority/sense/page` | `reportPage(address)`, a page used by hand reporting what it ran to a watcher, one execution per load, click and submit | a browser, a build that placed the probes, and the address `variance watch` printed; without one it installs nothing |
 
 ## Related contracts
 

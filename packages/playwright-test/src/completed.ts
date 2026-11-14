@@ -16,7 +16,8 @@ import type {
 } from '@playwright/test';
 import { enterCase } from './case-scope.js';
 import { enterDescribes } from './preconditions.js';
-import { testOf, type ExecutionRecorder } from './execution.js';
+import type { ExecutionRecorder } from './execution.js';
+import { testOf } from './test-coordinate.js';
 
 /** The worker fixture the recorder lives on, for the halves that report to it. */
 export interface RecorderFixture {
@@ -81,6 +82,16 @@ export const varianceCompletedFixtures: Fixtures<
       if (varianceRecorder === undefined) return;
       // Playwright has already set `duration` for the body, its `beforeEach`
       // hooks and the fixtures set up for it; `afterEach` and teardown are not in it.
+      // What the runner folds into one outcome when it retries: this attempt's own.
+      if (testInfo.status !== undefined) {
+        varianceRecorder.ended(varianceRecorder.owner(testInfo), testOf(testInfo), {
+          attempt: testInfo.retry + 1,
+          ended: testInfo.status,
+          duration: Math.round(testInfo.duration),
+          ...(testInfo.error?.message === undefined ? {} : { message: testInfo.error.message }),
+          ...(testInfo.error?.stack === undefined ? {} : { stack: testInfo.error.stack }),
+        });
+      }
       varianceRecorder.mark(
         varianceRecorder.owner(testInfo),
         usableOutcome(testInfo.status),

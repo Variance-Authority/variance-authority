@@ -47,22 +47,18 @@ import { access } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Digest } from './digest.js';
+import type { Digest } from '@variance-authority/core/format';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, type RecordCache } from './reuse.js';
-import { native, nativeFrontier, nativeGraph, nativeRefusal, type NativeBuilt, type NativeGitTree } from './native.js';
+import { nativeFrontier, nativeGraph, type NativeBuilt, type NativeGitTree } from './native.js';
+import { native, nativeRefusal } from './addon.js';
 import { adoptNativeParses } from './source-index.js';
 import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
 import type { IndexedRecord } from './source-index-format.js';
-import {
-  READABLE,
-  keyFor,
-  languageFor,
-  parseWay,
-  seedPaths,
-  type ParseWay,
-} from './files.js';
+import { handOverKept, type Unheld } from './parse-store.js';
+import { keyFor, languageFor, parseWay, seedPaths, type ParseWay } from './files.js';
+import { READABLE } from './language.js';
 import { worldIn, worldOn } from './world.js';
 import { declinedForSize, parsedOnce, recordFor, stillTooLarge } from './record.js';
 import { onlyListed } from './repo-path.js';
@@ -130,6 +126,14 @@ export interface ScanOptions extends ResolveOptions {
 
   /** Where parses are remembered between runs. In memory when absent. */
   readonly cache?: ParseCache;
+
+  /**
+   * The cache's parse stores, read for a tracked module before it is opened
+   * ([`parse-store.ts`](./parse-store.ts)). A module one answers is resolved
+   * here as if it were read, and its parse is `cache`'s to keep from the store:
+   * `cache` has to read the same stores.
+   */
+  readonly stores?: readonly string[];
 
   /**
    * The largest file this scan will open, in bytes. `LARGEST_FILE` when absent.
@@ -221,6 +225,8 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
 /** What {@link scanCount} counted, and the listing it took of the checkout. */
 export interface ScanCounted {
   readonly files: number;
+  /** The modules whose bytes the scan parsed: neither a record nor a parse store answered them. */
+  readonly parsed: number;
   /** The listing git gave the scan; absent when git could not list the checkout, or the addon did not hold it. */
   readonly listing?: NativeGitTree;
 }
@@ -234,12 +240,14 @@ export interface ScanCounted {
  * publishes the index never turns the closure into objects just to count them.
  */
 export async function scanCount(options: ScanOptions): Promise<ScanCounted> {
-  const { built, graph, listing } = await scanning(options);
-  const counted = (files: number): ScanCounted => (listing === undefined ? { files } : { files, listing });
-  if (graph === undefined) return counted(built.size);
+  const { built, graph, listing, parsed } = await scanning(options);
+  const counted = (files: number, read: number): ScanCounted =>
+    (listing === undefined ? { files, parsed: read } : { files, parsed: read, listing });
+  if (graph === undefined) return counted(built.size, parsed);
   let both = 0;
   for (const file of built.keys()) if (graph.has(file)) both += 1;
-  return counted(built.size + graph.size - both);
+  // A closure the addon holds read every module it names.
+  return counted(built.size + graph.size - both, parsed + graph.parsed);
 }
 
 interface Scanned {
@@ -249,6 +257,8 @@ interface Scanned {
   readonly graph?: NativeIndexGraph;
   /** The listing of the checkout the scan took, when the addon holds it. */
   readonly listing?: NativeGitTree;
+  /** The modules whose bytes the scan had parsed, but for a closure the addon holds. */
+  readonly parsed: number;
 }
 
 async function scanning(asked: ScanOptions): Promise<Scanned> {
@@ -281,7 +291,9 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
   // scan already holds the answer for every path it knows, and every parse.
   const largestFile = options.largestFile ?? LARGEST_FILE;
-  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, digest: tree?.getAll([file])[0] });
+  let parsed = 0; // counted where JavaScript parses, whichever of a resolver and the scan asks first
+  const counted = (file: string, contents: string): void => { parsed += 1; tree?.native?.parsedFrom(file, contents); };
+  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, counted, digest: tree?.getAll([file])[0] });
   const world = tree === undefined ? worldOn(root, parse) : worldIn(tree.paths(), root, parse);
   resolvers.tree = world;
 
@@ -327,45 +339,41 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
 
   let nativeGraphUsed = false;
   let graph: NativeIndexGraph | undefined;
+  const unheld: Unheld[] = []; // kept by the scan, after the cache read the stores without it
+
+  const follow = (record: FileRecord): void => {
+    for (const edge of record.edges ?? []) {
+      if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
+    }
+  };
+  // A parse the cache holds and the answer does not — a reused record's, or one
+  // a store kept — is read back only for a caller that asked to be handed it.
+  const handOver = (file: string, read: Parsed | undefined, key: string | undefined, targets?: readonly (string | undefined)[]): void => {
+    const asked = options.parsed !== undefined || options.indexed !== undefined;
+    const parse = read ?? (key !== undefined && asked ? cache.get(key) : undefined);
+    if (parse === undefined) return;
+    options.parsed?.(file, parse);
+    if (targets !== undefined) options.indexed?.(file, parse, targets);
+  };
 
   const accept = (file: string, way: ParseWay, fresh: NativeBuilt): void => {
     built.set(file, fresh.record);
     reuse?.set(fresh.record, fresh.witnesses, fresh.targets);
-    const heldDigest = fresh.record.digest;
-    if (fresh.read !== undefined && heldDigest !== undefined) {
-      cache.set(keyFor(heldDigest, way), fresh.read);
-    }
-    if (fresh.read !== undefined) options.parsed?.(file, fresh.read);
-    if (fresh.read !== undefined && fresh.targets !== undefined) {
-      options.indexed?.(file, fresh.read, fresh.targets);
-    }
-    for (const edge of fresh.record.edges ?? []) {
-      if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
-    }
+    if (fresh.parsed === true) parsed += 1;
+    const key = fresh.record.digest === undefined ? undefined : keyFor(fresh.record.digest, way);
+    if (fresh.read !== undefined && key !== undefined) cache.set(key, fresh.read);
+    // A kept parse crossed as what its record needs; the whole one is the store's.
+    if (fresh.kept === true && key !== undefined) cache.keep?.(key);
+    if (fresh.kept === true && key !== undefined && cache.keep !== undefined && cache.get(key) === undefined) unheld.push({ file, key, fresh });
+    else handOver(file, fresh.read, fresh.kept === true ? key : undefined, fresh.targets);
+    follow(fresh.record);
   };
 
-  const acceptRemembered = (
-    file: string,
-    digest: Digest,
-    way: ParseWay,
-    held: IndexedRecord,
-  ): void => {
-    const record = held.record;
-    built.set(file, record);
+  const acceptRemembered = (file: string, digest: Digest, way: ParseWay, held: IndexedRecord): void => {
+    built.set(file, held.record);
     cache.keep?.(keyFor(digest, way));
-    if (options.parsed !== undefined) {
-      const read = cache.get(keyFor(digest, way));
-      if (read !== undefined) {
-        options.parsed(file, read);
-        if (held.targets !== undefined) options.indexed?.(file, read, held.targets);
-      }
-    } else if (options.indexed !== undefined) {
-      const read = cache.get(keyFor(digest, way));
-      if (read !== undefined && held.targets !== undefined) options.indexed(file, read, held.targets);
-    }
-    for (const edge of record.edges ?? []) {
-      if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
-    }
+    handOver(file, undefined, keyFor(digest, way), held.targets);
+    follow(held.record);
   };
 
   // One frontier per call: every file currently known is parsed and resolved on
@@ -411,6 +419,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         directories: shape?.shape.directories ?? new Map(),
         largestFile,
         remembering: reuse !== undefined,
+        counted,
         ...(digest === undefined ? {} : { digest }),
       });
       accept(file, way, fresh);
@@ -429,6 +438,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         aliases: shape?.aliases,
         directories: shape?.shape.directories ?? new Map(),
         remembering: reuse !== undefined,
+        ...(options.stores === undefined ? {} : { stores: options.stores }),
         ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
         ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
       };
@@ -464,6 +474,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
       for (const [index, file] of answeredFiles.entries()) {
         accept(file, parseWay(file), answers[index]!);
       }
+      if (packed !== undefined) handOverKept(packed, options.stores, cache, unheld.splice(0), handOver);
       if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
         process.stderr.write(`sense accept native: ${(performance.now() - accepting).toFixed(1)} ms\n`);
       }
@@ -475,7 +486,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   }
 
   const listing = tree?.native;
-  return { built, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
+  return { built, parsed, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
 }
 
 /** Whether a path is there to be opened, without opening it. */

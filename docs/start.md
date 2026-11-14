@@ -100,7 +100,10 @@ For a Playwright-owned loop the comparison lives inside the existing test. Its
 first assertion fails with `new`; `npx playwright test --update-snapshots=all`
 promotes the candidate that run produced, and the next run reports `unchanged`.
 
-For Storybook, route, unit-capture, and custom collectors the CLI owns the loop:
+For Storybook, route, unit-capture, and custom collectors the CLI owns the loop.
+Run `variance` through your package manager (`yarn variance`, `pnpm exec
+variance`, or a `package.json` script), which finds the installed copy and never
+fetches another:
 
 ```bash
 variance doctor --config variance.config.json

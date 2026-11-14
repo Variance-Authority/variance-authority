@@ -24,6 +24,12 @@ process that runs your suite, as the collector — but the traced thing is a tes
 execution rather than a user request, the retention is a file rather than a
 backend, and the consumer is the next run rather than a dashboard.
 
+One case is wider than a test run. A service built with the probes on and used
+by hand reports each request no test drove to a watcher, which holds it in
+memory while it runs and writes nothing: see [an application you use by
+hand](vantage.md#watch-an-application-you-use-by-hand). Nothing on this page
+promises anything about those requests. The contracts below are a test run's.
+
 The **contracts** in the title are the promises attached to that retained data,
 and there are two parties:
 
@@ -284,7 +290,9 @@ export function handled(cookie, run) {
 
 `collectJourneys` takes its name from `VARIANCE_AUTHORITY_HEAD` and turns itself
 on from `VARIANCE_AUTHORITY_JOURNEYS`, so that `env` block is the whole of the
-configuration on the service side. With neither set, it installs nothing and
+configuration on the service side. Turned on, it also reads a watcher's address
+from `VARIANCE_AUTHORITY_VANTAGE`, for [an application you use by
+hand](vantage.md#watch-an-application-you-use-by-hand). Turned off, it installs nothing and
 `enter` is the identity function — which is why the call above ships to
 production rather than sitting behind a build flag. Each module the head
 reports names its file and the digest of the text its probes were placed on, and
@@ -384,7 +392,7 @@ tree:
 ```
 
 `<cache>` is [your cache](cache.md), and
-`<repository-digest>` is a digest of the checkout's absolute path, so two
+`<repository-digest>` is a digest of the checkout's path as seen from the cache directory, so two
 checkouts never write one another's records. The only files both write are the
 lock that lets [one checkout of a repository index at a time](source-index.md) and the file that
 names its holder. At the default location `git status`
@@ -399,9 +407,9 @@ A fresh runner has no record, so the first `--since` there runs everything. Two
 ways to give the next job something to read:
 
 - **Cache the directory.** Cache and restore the directory the snapshot sits in,
-  and restore it to the same absolute path it was written from — the digest in
-  the path is the checkout's absolute path, so a record restored under a
-  different working directory is read as absent. Key it by that path rather than
+  and restore it to the same place in the checkout it was written from — the
+  digest in the path is the checkout's path as seen from the cache directory, so
+  a record restored elsewhere in the checkout is read as absent. Key it by that path rather than
   by the branch or the commit; the contents are content-addressed, so a record
   restored from another branch costs a slower run and cannot produce a wrong
   answer. [The source index](source-index.md) states the same four rules for the

@@ -82,6 +82,8 @@ export class SkippedFiles extends RegExp {
  * through and a project's `testMatch` takes, matched as Playwright matches it.
  */
 export function keptFiles(asked: FileSelection, testMatches: readonly unknown[]): readonly string[] {
+  // The `playwright` installed beside the adopter's `@playwright/test`, not
+  // ours, and an internal no export of it opens: only a load from there reaches it.
   const playwright = createRequire(createRequire(import.meta.url).resolve('@playwright/test/package.json'));
   const { createFileMatcher } = playwright('playwright/lib/util') as {
     createFileMatcher: (patterns: unknown) => (file: string) => boolean;

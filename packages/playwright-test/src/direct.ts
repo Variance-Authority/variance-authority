@@ -8,10 +8,8 @@ import { observeLocator } from './fixture.js';
 import { regionOf } from './in-place.js';
 import { checkoutStore } from './render-cache.js';
 import type { MaterializationOptions, VarianceOptions } from './options.js';
-import {
-  createExecutionRecorder,
-  type ExecutionRecording,
-} from './execution.js';
+import { createExecutionRecorder } from './execution.js';
+import type { ExecutionRecording } from './execution-recording.js';
 import { AGENT } from './page-agent.js';
 import { asRun, type VarianceRun } from './run.js';
 

@@ -65,18 +65,6 @@ import { Reading, SignIn } from './reading.js';
 import { hrefOf, type Route } from './route.js';
 import { Nowhere } from './shell.js';
 
-export { RegionOverlay, RegionTable, Viewer, modesFor, type ViewerMode } from './viewer.js';
-export { ChangelogEntries, ChangelogPage, ChurnLine, StabilityLine, SubjectHistory } from './history.js';
-export { ReachPanel, crossReach, type Crossing } from './reach.js';
-export { JourneysPanel, familiesOf, type JourneyFamily, type JourneyRow } from './journeys.js';
-export { BuildList, CoverageLine } from './builds.js';
-export { OriginsPanel } from './origins.js';
-export { SubjectPanel } from './subject.js';
-export { type Pictures, Variations } from './variations.js';
-export { Prose } from './shell.js';
-export { originsOf, type Appearance, type Origin, type Origins } from './grouping.js';
-export { Look, frameOf, sightings, type Frame, type Sighting } from './look.js';
-
 export interface ReviewAppProps {
   readonly client: ReviewClient;
   /**

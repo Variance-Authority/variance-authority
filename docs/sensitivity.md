@@ -66,7 +66,8 @@ scope or spelling error rather than a policy whose reason no longer applies.
 
 ## Declaring one
 
-The CLI is a devDependency, so every invocation goes through `npx`:
+The CLI is a devDependency, so every invocation goes through your package
+manager:
 
 ```bash
 npm install --save-dev @variance-authority/cli
@@ -94,7 +95,7 @@ file](start-cli.md):
 }
 ```
 
-Run the suite with `npx variance run`; the rules are read from the config on
+Run the suite with `variance run`; the rules are read from the config on
 every run.
 
 The last matching rule wins. Sensitivities answer how much of one subject is
@@ -113,7 +114,7 @@ duplicate is refused.
 ## How it decides, and what it costs
 
 When both revisions were captured in full, the comparison reads the two
-documents directly. `npx variance run` usually has only an image and a stored
+documents directly. `variance run` usually has only an image and a stored
 baseline instead, and it makes the same absorb-or-report decision from the
 per-component hashes the baseline stores, split by band:
 

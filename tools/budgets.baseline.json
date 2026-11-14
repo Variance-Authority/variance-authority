@@ -577,9 +577,6 @@
     12,
     8
   ],
-  "packages/cli/src/commands/land.ts docblock": [
-    35
-  ],
   "packages/cli/src/commands/layers-command.ts overview": [
     16
   ],
@@ -718,7 +715,7 @@
     6
   ],
   "packages/cli/src/commands/run.ts overview": [
-    30
+    29
   ],
   "packages/cli/src/commands/runs-base.ts overview": [
     19
@@ -730,12 +727,6 @@
   ],
   "packages/cli/src/commands/select-command.ts overview": [
     30
-  ],
-  "packages/cli/src/commands/select-journey.ts docblock": [
-    13
-  ],
-  "packages/cli/src/commands/select-leg.ts overview": [
-    44
   ],
   "packages/cli/src/commands/select.ts block": [
     6
@@ -762,10 +753,10 @@
   "packages/cli/src/commands/step-progress.ts docblock": [
     13
   ],
-  "packages/cli/src/commands/story-levels.ts overview": [
+  "packages/sense/src/story/levels.ts overview": [
     20
   ],
-  "packages/cli/src/commands/story-tree.ts overview": [
+  "packages/sense/src/story/tree.ts overview": [
     19
   ],
   "packages/cli/src/commands/suite-base.ts docblock": [
@@ -824,7 +815,7 @@
     11
   ],
   "packages/cli/src/config.ts overview": [
-    32
+    31
   ],
   "packages/cli/src/covering-args.ts docblock": [
     19
@@ -864,10 +855,6 @@
   "packages/cli/src/renderer.ts docblock": [
     13,
     12
-  ],
-  "packages/cli/src/share-entries.ts docblock": [
-    24,
-    15
   ],
   "packages/cli/src/share-entries.ts overview": [
     20
@@ -2626,7 +2613,7 @@
     11
   ],
   "packages/sense/src/test-selection/cache-layers.ts overview": [
-    33
+    31
   ],
   "packages/sense/src/test-selection/captured-modules.ts docblock": [
     13,
@@ -2967,9 +2954,6 @@
   "packages/sense/src/test-selection/observed.ts docblock": [
     14,
     11
-  ],
-  "packages/sense/src/test-selection/operations.ts docblock": [
-    13
   ],
   "packages/sense/src/test-selection/operations.ts overview": [
     16

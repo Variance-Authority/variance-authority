@@ -8,23 +8,14 @@ import { withLiveIgnores } from './ignores.js';
 import { pruneWhenDueLines } from './prune-cache.js';
 import { renderCacheLine, sweepRenders } from './renders.js';
 import { formatReport } from './report.js';
-import {
-  affectedProjects,
-  collectorPath,
-  historyFor,
-  identityOf,
-  loadCollector,
-  narrowingFor,
-  planFor,
-  recordedJourneys,
-  relationsFor,
-  run,
-  scanSourceDirs,
-  storeFor,
-  suiteJourney,
-  writeArtifactToDisk,
-  writeCliRunReport,
-} from './run.js';
+import { run } from './run.js';
+import { affectedProjects } from './changes.js';
+import { collectorPath, loadCollector, planFor } from './collector.js';
+import { historyFor, recordedJourneys, storeFor, suiteJourney, writeArtifactToDisk } from './resources.js';
+import { identityOf } from './history.js';
+import { narrowingFor } from './narrowing.js';
+import { relationsFor, scanSourceDirs } from './source-graph.js';
+import { writeCliRunReport } from './run-report.js';
 import { suiteIgnore } from './select-before.js';
 import { publishedLine } from './share.js';
 import { refiningRecord } from './suite-record.js';

@@ -56,7 +56,7 @@ npm install @variance-authority/server
 
 ```bash
 VARIANCE_HISTORY_TOKEN=$(node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))") \
-  npx variance-authority-server
+  variance-authority-server
 ```
 
 It refuses to start without that token, and refuses one shorter than 16
@@ -69,7 +69,7 @@ interface it binds (`127.0.0.1`). The
 has the HTTP surface and the backend interface.
 
 Then give `variance.config.json` — the file
-[`npx variance run`](start-cli.md) reads — a `history` key naming that endpoint:
+[`variance run`](start-cli.md) reads — a `history` key naming that endpoint:
 
 ```json
 {
@@ -96,7 +96,7 @@ A run also has to be able to **name itself**, because a row that cannot be
 joined to a build is a row no query can find:
 
 ```bash
-npx variance run --config variance.config.json --run "$GITHUB_RUN_ID" --commit "$GITHUB_SHA"
+variance run --config variance.config.json --run "$GITHUB_RUN_ID" --commit "$GITHUB_SHA"
 ```
 
 Inside GitHub Actions, GitLab CI or Bitbucket Pipelines you can leave both off:
@@ -187,7 +187,7 @@ answers.
 
 **Only approved changes count.** A rejected change was caught; counting it would
 describe your review process rather than your product. A run cannot observe
-whether anybody approved, so it writes every row unapproved and `npx variance
+whether anybody approved, so it writes every row unapproved and `variance
 accept` records the approval separately — one row per `(subject, run)`, which is
 exactly the decision a reviewer makes. Until a subject is accepted, its change
 is counted as rejected.

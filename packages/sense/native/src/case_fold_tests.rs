@@ -128,6 +128,15 @@ fn joins_a_case_two_shards_ran_at_its_longest_limit_and_names_none_where_no_shar
 }
 
 #[test]
+fn joins_a_case_two_shards_ran_at_the_statement_that_waited_longest_and_writes_no_column_where_none_did() {
+    let one = |slowest| shard(&[case("a.test.ts", "adds", "1", FINISHED), case("a.test.ts", "drops", "2", FINISHED)], &CaseExtras { slowest: vec![slowest, None], ..CaseExtras::default() }, &[]);
+    let joined = read(&folded(&[&one(Some((7, 40))), &one(Some((9, 210))), &one(Some((8, 210))), &one(None)]).unwrap().bytes);
+    assert_eq!(joined.slowest, [Some((8, 210)), None]);
+    let untimed = folded(&[&one(None)]).unwrap().bytes;
+    assert!(!crate::journey_columns::decode_any(&untimed).unwrap().1.has(&crate::record_layout::LAYOUT.cases.slowest));
+}
+
+#[test]
 fn joins_a_case_two_shards_ran_at_its_longest_duration_and_how_it_settled() {
     let one = |duration, settled| shard(&[case("a.test.ts", "adds", "1", settled)], &CaseExtras { durations: vec![Some(duration)], lines: Vec::new(), ..CaseExtras::default() }, &[]);
     let joined = read(&folded(&[&one(3, STOPPED), &one(8, FINISHED)]).unwrap().bytes);

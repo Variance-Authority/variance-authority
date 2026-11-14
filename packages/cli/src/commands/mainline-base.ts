@@ -14,13 +14,22 @@
 import { readFileSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import type { DeclaredSuite, LastFetched } from '@variance-authority/sense/test-selection';
+import {
+  cacheRootFor,
+  lastFetchedMainline,
+  writeFetchedMainline,
+  type DeclaredSuite,
+  type FetchedMainline,
+  type LastFetched,
+} from '@variance-authority/sense/test-selection';
 import { messageOf } from '../config-values.js';
+import { OperatorError } from '../exit.js';
 import { distanceFrom, keepsByCommit, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
 import { selectMainline, type MainlineSelection } from './mainline-selected.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
-import { describeDistance, describeMiss, mainlineSuite, type MainlineMiss } from './share.js';
+import { describeDistance, describeMiss, mainlineSuite } from './share.js';
+import type { MainlineMiss } from './mainline-entry.js';
 
 /**
  * How long the line's answer that it gave no record stands without asking the
@@ -54,6 +63,8 @@ export interface MainlineRecord {
   readonly runs?: string;
   /** When it was fetched, as an ISO time: now, unless it is the record fetched earlier. */
   readonly fetched: string;
+  /** The mainline's entry was partial: a whole one at the same commit replaces it. */
+  readonly partial?: true;
   /**
    * Present when it is the record fetched earlier: reused without asking
    * because the line holds nothing nearer `HEAD`'s merge base with the mainline
@@ -116,9 +127,11 @@ export interface MainlineAsk {
  * share that keeps by commit can still gain a record at the merge base, so only
  * one already there stands. A share that keeps the latest only can hold nothing
  * nearer once its record is past the merge base, and is asked once per merge
- * base behind it.
+ * base behind it. A partial record is asked again wherever it stands: the
+ * line replaces it with the whole run's at the same commit.
  */
-function reuseOf(distance: number | undefined, keptByCommit: boolean, askedHere: boolean): 'nearest' | 'asked' | undefined {
+function reuseOf(distance: number | undefined, keptByCommit: boolean, askedHere: boolean, partial: boolean): 'nearest' | 'asked' | undefined {
+  if (partial) return undefined;
   if (distance === 0) return 'nearest';
   if (keptByCommit) return undefined;
   return distance !== undefined && distance < 0 ? 'nearest' : askedHere ? 'asked' : undefined;
@@ -178,7 +191,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
     const mainline = named?.name;
     if (held !== undefined && named !== undefined) {
       const distance = await distanceFrom(place, held.mainline, held.commit, root, named?.base);
-      const reused = reuseOf(distance, keepsByCommit(share), held.base === named?.base);
+      const reused = reuseOf(distance, keepsByCommit(share), held.base === named?.base, held.partial === true);
       if (reused !== undefined) return earlier(held, { reused }, distance);
     }
     if (noted !== undefined && noted.mainline === mainline && now - Date.parse(noted.at) < MISS_STANDS_MS) {
@@ -250,7 +263,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
   // name finds them.
   const fetched = asked;
   const base = baseOf(found.mainline);
-  await selection.writeFetchedMainline(cacheRoot, suite, { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }) });
+  await selection.writeFetchedMainline(cacheRoot, suite, { mainline: found.mainline, commit: found.commit, fetched, ...(base === undefined ? {} : { base }), ...(found.partial === true ? { partial: true } : {}) });
   await rm(join(readRoot, MISSED), { force: true });
   // Each fetch of a new commit adds a directory here, and a fetch is where
   // they are made, so it is where they are taken back: once a day, by the rule
@@ -266,6 +279,7 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
     ...(casesUnread !== undefined ? { casesUnread } : {}),
     ...(runs === undefined ? {} : { runs }),
     fetched,
+    ...(found.partial === true ? { partial: true } : {}),
     ...(pruned === '' ? {} : { pruned }),
   };
 }
@@ -302,6 +316,7 @@ async function earlier(
     ...(keepsCases(last.coverage) ? { cases: last.coverage } : {}),
     ...(last.runs === undefined ? {} : { runs: last.runs }),
     fetched: last.fetched,
+    ...(last.partial === true ? { partial: true } : {}),
     earlier: why,
   };
 }
@@ -458,4 +473,15 @@ export function primaryRead(suite: string, file: string, missed: MainlineMissed 
   const why = missed === undefined ? '' : `; ${mainlineMissed(missed).slice(`record of "${suite}": `.length)}`;
   return `record of "${suite}": read from the primary checkout's, at ${file}, as the offline fallback: ` +
     `this worktree has recorded none, and no mainline record of it was fetched on this machine${why}`;
+}
+
+/**
+ * Marks the record laid in `suite`'s read root as the read this run was handed,
+ * and refuses with `refusal` when no reader here would take it: passing it over
+ * would be asking the line.
+ */
+export async function standOnHanded(root: string, suite: string, pointer: FetchedMainline, refusal: string): Promise<void> {
+  const cacheRoot = cacheRootFor(root);
+  await writeFetchedMainline(cacheRoot, suite, { ...pointer, handed: true });
+  if (lastFetchedMainline(root, suite, cacheRoot, pointer.mainline)?.commit !== pointer.commit) throw new OperatorError(refusal);
 }

@@ -3,9 +3,9 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { readFlags } from '../args.js';
 import { OperatorError } from '../exit.js';
-import { parseReviewArgs } from '../review-args.js';
+import { REVIEW_ARTIFACT, parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
-import { REVIEW_ARTIFACT, reviewFromRun, runOf } from './review-from-run.js';
+import { reviewFromRun, runOf } from './review-from-run.js';
 import { reviewPieces } from './review-text.js';
 import type { Review } from './review.js';
 
@@ -56,18 +56,18 @@ describe('the review a CI run kept', () => {
 
   it('downloads the artifact with gh and reads the review.json it holds', async () => {
     const calls: (readonly string[])[] = [];
-    const answer = await reviewFromRun({ run: 'https://github.com/acme/shop/actions/runs/7', artifact: REVIEW_ARTIFACT, root: process.cwd() }, async (file, args) => {
-      calls.push([file, ...args]);
+    const answer = await reviewFromRun({ run: 'https://github.com/acme/shop/actions/runs/7', artifact: REVIEW_ARTIFACT, root: process.cwd() }, async (args) => {
+      calls.push(args);
       await writeFile(join(args[args.indexOf('--dir') + 1]!, 'review.json'), JSON.stringify({ files: [] }));
     });
     expect(answer).toEqual({ files: [] });
-    expect(calls).toEqual([['gh', 'run', 'download', '7', '--name', 'variance-review', '--dir', expect.any(String), '--repo', 'acme/shop']]);
+    expect(calls).toEqual([['run', 'download', '7', '--name', 'variance-review', '--dir', expect.any(String), '--repo', 'acme/shop']]);
   });
 
   it('reads a review.json past the longest string V8 holds, which `review --out` writes for a large change', async () => {
     tooLong.now = true;
     try {
-      const read = await reviewFromRun({ run: '7', artifact: REVIEW_ARTIFACT, root: process.cwd() }, async (_file, args) => {
+      const read = await reviewFromRun({ run: '7', artifact: REVIEW_ARTIFACT, root: process.cwd() }, async (args) => {
         await kept(args[args.indexOf('--dir') + 1]!, ran);
       });
       expect(read).toEqual(ran);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ObservationRecord } from '@variance-authority/report';
 import { bulkBlocks } from './comment-blocks.js';
 import { DEFAULT_LIMITS } from './comment.js';
-import type { CliRunReport } from './run.js';
+import type { CliRunReport } from './run-report.js';
 
 const SHAPE = 'v1:brand-accent';
 

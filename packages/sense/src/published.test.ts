@@ -148,7 +148,7 @@ describe('the published source index', () => {
       .toEqual(['app/index.ts', 'app/lens.ts', 'lib/alone.ts', 'lib/unit.ts']);
   });
 
-  it('keeps an index over the directories it is given, warm, cold or started from another', async () => {
+  it('keeps an index over the directories it is given, warm or cold', async () => {
     const at = index('dirs');
     const cold = await updateSourceIndex(root, { index: at, dirs: ['lib'] });
     expect(cold).toMatchObject({ was: 'missing', files: 2, reread: 2 });
@@ -157,10 +157,6 @@ describe('the published source index', () => {
     // A wider scope over the same index reads only what the narrower one had not.
     expect(await updateSourceIndex(root, { index: at, dirs: ['app'] })).toMatchObject({ files: 4, reread: 3 });
     expect((await readPublishedSources(at)).records).toEqual(await scanRelations({ root, dirs: ['app'] }));
-
-    const started = index('dirs-started');
-    expect(await updateSourceIndex(root, { index: started, dirs: ['app'], primary: at }))
-      .toMatchObject({ was: 'missing', from: at, files: 4, reread: 0 });
   });
 
   it('keeps one index for a checkout, however the path to it is spelled', async () => {
@@ -170,7 +166,7 @@ describe('the published source index', () => {
     expect(sourceIndexPath(link, cache)).toBe(sourceIndexPath(root, cache));
   });
 
-  it("starts a worktree's first update from the primary checkout's, reading only what differs", async () => {
+  it("starts a worktree's index from nothing, parsing only what its primary checkout's update did not", async () => {
     const layers = await mkdtemp(join(tmpdir(), 'variance-published-layers-'));
     const worktree = join(layers, 'worktree');
     const cacheHome = process.env['VARIANCE_AUTHORITY_CACHE'];
@@ -182,13 +178,12 @@ describe('the published source index', () => {
       await writeFile(join(worktree, 'lib/alone.ts'), 'export const alone = 3;\n');
 
       const first = await updateSourceIndex(worktree);
-      expect(first).toMatchObject({ was: 'missing', from: primary.path, files: 5, reread: 1 });
+      expect(first).toMatchObject({ was: 'missing', files: 5, reread: 5, parsed: 1 });
+      expect(first).not.toHaveProperty('from');
       expect(first.path).not.toBe(primary.path);
       expect((await readPublishedSources(first.path)).records)
         .toEqual(await scanRelations({ root: worktree, dirs: ['.'] }));
       expect((await openImmutableLog(primary.path)).digests).toEqual(published.digests);
-
-      expect(await updateSourceIndex(worktree)).not.toHaveProperty('from');
     } finally {
       if (cacheHome === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
       else process.env['VARIANCE_AUTHORITY_CACHE'] = cacheHome;

@@ -8,7 +8,7 @@ import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 import { chromium } from '@playwright/test';
 import { moduleId } from '@variance-authority/sense/journal';
-import { caseIndexOf, decodeExecutionIndex, openSetColumns } from '@variance-authority/sense/test-selection';
+import { caseIndexOf, decodeExecutionIndex, openSetColumns, recordedAttemptsAt } from '@variance-authority/sense/test-selection';
 import { afterAll, describe, expect, it } from 'vitest';
 // A case's lines are read by sense's selection, which publishes no reader of
 // them, so this reads them the way it does.
@@ -215,6 +215,23 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     ]);
     const [failed, passed] = [readings.find(({ stopped }) => stopped)!, readings.find(({ stopped }) => !stopped)!];
     expect(failed.visits.length).toBeLessThan(passed.visits.length);
+  }, 120_000);
+
+  it('keeps how each attempt of that case ended, as Playwright said it, beside the one outcome it reported', async () => {
+    const coverageFile = resolve(await runWith({ FIXTURE_RETRIED: '1' }), 'coverage.bin');
+    const [retried] = decodeExecutionIndex((await caseIndexOf(coverageFile))!).tests;
+    const attempts = recordedAttemptsAt(coverageFile);
+    const source = (await readFile(resolve(fixture, 'tests/retried.spec.ts'), 'utf8')).split('\n');
+    expect(attempts?.map(({ duration: _duration, message: _message, ...rest }) => rest)).toEqual([
+      { case: retried!.id, attempt: 1, ended: 'failed', frame: `${at('tests/retried.spec.ts')}:${source.findIndex((text) => text.includes('toBe(1)')) + 1}` },
+      { case: retried!.id, attempt: 2, ended: 'passed' },
+    ]);
+    expect(attempts![0]!.message).toContain('toBe');
+    for (const attempt of attempts!) expect(Number.isInteger(attempt.duration) && attempt.duration! >= 0).toBe(true);
+    // What Playwright said of the case is what it was: it finished, in a time, under the runner's limit.
+    expect(retried).toMatchObject({ name: 'pays on its second attempt', stopped: false });
+    expect(retried!.duration).toBeGreaterThanOrEqual(0);
+    expect(retried!.limit).toBeGreaterThan(0);
   }, 120_000);
 
   it('writes none when the run did not ask', async () => {

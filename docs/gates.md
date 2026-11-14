@@ -24,10 +24,10 @@ npm install --save-dev @variance-authority/cli
 
 ```yaml
 - run: npx playwright install --with-deps chromium
-- run: npx variance run --config variance.config.json
+- run: npx --no-install variance run --config variance.config.json
 ```
 
-`npx variance run` exits `0` when nothing needs review, `1` when it found
+`variance run` exits `0` when nothing needs review, `1` when it found
 something a person must look at, and `2` when the run did not happen as
 configured — a missing browser, a store it cannot open. A finding and a crash
 never share a code, so a red build shows which of the two it is before anybody
@@ -65,7 +65,7 @@ case ran, and `--fail-on-lost` exits `1` when the change stopped running regions
 its mainline ran. The [CLI reference](../packages/cli/README.md#review-what-a-change-did-for-the-person-merging-it)
 has what each counts.
 
-Posting the result to the pull request is not part of the gate. `npx variance
+Posting the result to the pull request is not part of the gate. `variance
 comment` writes a comment body and posts nothing. On GitHub,
 `Variance-Authority/action` posts it as one comment updated in place; the
 [CLI reference](../packages/cli/README.md#run-it-in-ci) has the step, and
@@ -82,7 +82,7 @@ same three jobs run as a library and a CLI inside your own build. A
 served application — finds the **subjects** that host has. A subject is one
 named UI state you asked for and can ask for again, identified by a stable id
 like `story:checkout--empty`.
-`npx variance run` captures each one, compares it against its baseline, and
+`variance run` captures each one, compares it against its baseline, and
 writes a report you review where you like.
 
 ## 1. Percy route workflow
@@ -102,7 +102,7 @@ gated in CI.
 | Several widths | **yes** — each width is a distinct planned subject |
 | Local or remote deferred render | **yes** — `portable: true` closes the collected document over the bytes the wire served |
 | Vendor-hosted device and rendering fleet | **no** — engines and capacity are operator-owned |
-| Hosted review UI | **partial** — `@variance-authority/tribunal` provides self-hosted review with per-subject decisions; [`npx variance push`](https://variance-authority.dev/reference/packages/cli) uploads runs using an operator-supplied review endpoint and ingest token |
+| Hosted review UI | **partial** — `@variance-authority/tribunal` provides self-hosted review with per-subject decisions; [`variance push`](https://variance-authority.dev/reference/packages/cli) uploads runs using an operator-supplied review endpoint and ingest token |
 
 **Summary:** Good fit when the suite has explicit routes or static pages and
 the team runs its own renderer and its own review instead of Percy's

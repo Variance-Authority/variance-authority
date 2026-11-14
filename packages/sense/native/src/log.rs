@@ -47,6 +47,26 @@ struct Manifest<'a> {
     /// is, so a chain with no working layer is written as it always was.
     #[serde(skip_serializing_if = "is_zero")]
     working: usize,
+    /// One more than the manifest this one replaced, so no two publishes leave
+    /// the same bytes: a reader that compares bytes to learn whether the chain
+    /// held still is never fooled by a writer republishing what it read, after
+    /// another removed a segment it named.
+    generation: u64,
+}
+
+/// The `generation` a manifest carries, or none: a legacy or malformed file.
+#[derive(serde::Deserialize)]
+struct Generation {
+    #[serde(default)]
+    generation: u64,
+}
+
+fn generation_of(bytes: &[u8]) -> u64 {
+    bytes
+        .strip_prefix(MAGIC)
+        .and_then(|rest| rest.get(4..))
+        .and_then(|json| serde_json::from_slice::<Generation>(json).ok())
+        .map_or(0, |manifest| manifest.generation)
 }
 
 fn is_zero(count: &usize) -> bool {
@@ -58,7 +78,7 @@ fn scratch(path: &str) -> String {
     format!("{path}.{}.{at}.tmp", std::process::id())
 }
 
-fn file_name(directory: &str, digest: &str) -> String {
+pub(crate) fn file_name(directory: &str, digest: &str) -> String {
     format!("{directory}/{}.bin", digest.replacen(':', "-", 1))
 }
 
@@ -116,6 +136,7 @@ pub(crate) fn written(path: &str, over: Over, kept: &[LogSegment], segments: &[&
         version: 1,
         segments: &next,
         working,
+        generation: now.as_deref().map_or(0, generation_of) + 1,
     })
     .map_err(io::Error::other)?;
     let mut scratch_files = Scratch(Vec::new());

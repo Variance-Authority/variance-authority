@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
-import { nativeAvailable, nativeRefusal, refusal } from './native.js';
+import { nativeAvailable, nativeRefusal, refusal } from './addon.js';
 import { seedPaths } from './files.js';
 import { scanRelations } from './scan.js';
 import { gitDigests, gitTreeOf, treeOf, type Tree } from './tree.js';
@@ -200,6 +200,17 @@ describe('the native tree against the JavaScript one', () => {
     expect(nativeRecords).toEqual(oracleRecords);
     expect(nativeRecords.map((record) => record.file)).toContain('src/untracked.ts');
     expect(nativeRecords.map((record) => record.file)).not.toContain('src/generated/built.ts');
+  });
+
+  it.runIf(native)('charges a tracked link to nothing as unknown, rather than dropping it', async () => {
+    const root = await repository();
+    await symlink('missing.ts', join(root, 'src/entry.ts'));
+    await git(root, ['add', '.']);
+    await git(root, ['commit', '--quiet', '-m', 'link']);
+
+    const entry = (await scanRelations({ root, dirs: ['src'] })).find((record) => record.file === 'src/entry.ts');
+
+    expect(entry?.unknown).toContain('src/entry.ts could not be read');
   });
 
   it.runIf(native)('agrees on a tree whose only configuration is gone', async () => {

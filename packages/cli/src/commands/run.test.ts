@@ -20,13 +20,9 @@ import {
 } from '@variance-authority/raster';
 import type { Config } from '../config.js';
 import { EXIT_CLEAN, EXIT_REVIEW, OperatorError, exitFor } from '../exit.js';
-import {
-  matchesGlob,
-  readCliRunReport,
-  storeFor,
-  type Collected,
-  type Plan,
-} from './run.js';
+import { matchesGlob, type Collected, type Plan } from './collector.js';
+import { readCliRunReport } from './run-report.js';
+import { storeFor } from './resources.js';
 import {
   DANGLING,
   IDENTITY,

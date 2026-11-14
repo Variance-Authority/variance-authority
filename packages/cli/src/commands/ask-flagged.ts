@@ -7,7 +7,7 @@ export type Flagged = Crossing & Pick<
   | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'build' | 'file' | 'files' | 'area'
   | 'name' | 'package' | 'subpath' | 'query'
   | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
-  | 'from' | 'to' | 'over' | 'after' | 'limit' | 'offset'
+  | 'from' | 'to' | 'over' | 'after' | 'limit' | 'offset' | 'story'
 >;
 
 /**
@@ -47,6 +47,7 @@ export function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     after: request.after,
     limit: request.limit,
     offset: request.offset,
+    story: request.story,
     ...crossingOf(request),
   };
 }

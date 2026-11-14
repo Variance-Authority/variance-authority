@@ -12,17 +12,14 @@
  * time, so one weighing more than a string holds is read too.
  */
 
-import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { OperatorError } from '../exit.js';
 import { jsonOfBytes } from '../json-pieces.js';
+import { gh, ghFailed, type Gh } from './gh.js';
 import type { Review } from './review.js';
 import { reviewOfJson, type ReviewJson } from './review-json.js';
-
-export { REVIEW_ARTIFACT } from '../review-args.js';
 
 export interface RunRequest {
   /** A run id, or the URL of a run or of one of its jobs. */
@@ -39,20 +36,16 @@ export function runOf(text: string): { readonly id: string; readonly repo?: stri
   throw new OperatorError(`--from-run takes a run id or the URL of a run, not \`${text}\``);
 }
 
-type Exec = (file: string, args: readonly string[], options: { readonly cwd: string }) => Promise<unknown>;
-
-const run: Exec = (file, args, options) => promisify(execFile)(file, [...args], options);
-
 /** Downloads the run's review artifact with `gh` and reads the review it holds. */
-export async function reviewFromRun(request: RunRequest, exec: Exec = run): Promise<Review> {
+export async function reviewFromRun(request: RunRequest, exec: Gh = gh): Promise<Review> {
   const { id, repo } = runOf(request.run);
   const into = await mkdtemp(join(tmpdir(), 'variance-review-'));
   try {
     const args = ['run', 'download', id, '--name', request.artifact, '--dir', into, ...(repo === undefined ? [] : ['--repo', repo])];
     try {
-      await exec('gh', args, { cwd: request.root });
+      await exec(args, { cwd: request.root });
     } catch (error) {
-      throw new OperatorError(downloadFailed(error, `gh ${args.slice(0, 5).join(' ')}`));
+      throw new OperatorError(ghFailed(error, `gh ${args.slice(0, 5).join(' ')}`, '--from-run'));
     }
     let bytes: Buffer;
     try {
@@ -73,9 +66,3 @@ export async function reviewFromRun(request: RunRequest, exec: Exec = run): Prom
   }
 }
 
-function downloadFailed(error: unknown, command: string): string {
-  const code = (error as { code?: unknown }).code;
-  if (code === 'ENOENT') return '--from-run downloads the artifact with the GitHub CLI, `gh`, and `gh` is not on the PATH. Install it from https://cli.github.com and run `gh auth login`.';
-  const stderr = String((error as { stderr?: unknown }).stderr ?? '').trim();
-  return `\`${command}\` failed${stderr === '' ? '.' : `: ${stderr}`}`;
-}

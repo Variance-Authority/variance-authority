@@ -11,15 +11,25 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
+/**
+ * A readings section, as `readings-bytes.ts` in the sense package lays it out,
+ * keeping of each case one run per entry of `stopped`, each crossing nothing;
+ * each id shares no bytes with the one before it.
+ */
+function readingsOf(ids: readonly string[], stopped: readonly (boolean | undefined)[]): Buffer {
+  const text = (value: string) => [value.length, ...Buffer.from(value)];
+  const own = [0, stopped.length, ...stopped.flatMap((one) => [1, (one === undefined ? 0 : one ? 3 : 1) | 4, 0])];
+  return Buffer.from([ids.length, ...ids.flatMap((id) => [0, ...text(id), own.length, ...own]), 0]);
+}
+
 /** A checkout whose one record keeps, of the case `clicks` in each of `files`, a reading for each outcome in `stopped`, undefined where the run could not say how it ended. */
 async function checkout(files: readonly string[], stopped: readonly (boolean | undefined)[]): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), 'variance-authority-outcomes-'));
   roots.push(root);
   const tests = files.map((file) => ({ id: `${file} > clicks`, file, name: 'clicks', stopped: stopped[0]! }));
-  const readings = Object.fromEntries(tests.map(({ id }) => [id, stopped.map((one) => ({ count: 1, stopped: one, regions: [] }))]));
   await writeTestCoverage(testCoverageFile(root), { version: 3, instrumentation: 'fixture', tests: [], modules: [] }, {
     index: encodeAsSetExecutionIndex({ tests, modules: [] }),
-    readings: Buffer.from(JSON.stringify({ cases: readings })),
+    readings: readingsOf(tests.map(({ id }) => id), stopped),
   });
   return root;
 }

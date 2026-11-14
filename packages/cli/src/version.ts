@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module';
+import manifest from '../package.json' with { type: 'json' };
 import type { ShareConfig } from './config-share.js';
 import type { BaselinesConfig } from './config-baselines.js';
 
@@ -31,11 +31,8 @@ import type { BaselinesConfig } from './config-baselines.js';
  */
 export const NEEDS_API = 8;
 
-const require = createRequire(import.meta.url);
-
 /** This package's own version, from the manifest rather than from a copy of it. */
-export const CLI_VERSION: string =
-  (require('../package.json') as { version?: string }).version ?? '0.0.0-unpublished';
+export const CLI_VERSION: string = manifest.version;
 
 /** What a deployment answered `GET /version` with, as much of it as this reads. */
 export interface ServiceVersion {

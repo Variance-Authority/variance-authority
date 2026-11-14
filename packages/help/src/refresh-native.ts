@@ -2,7 +2,6 @@ import { resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import {
   forwardsDigest,
-  primarySourceIndexPath,
   readHelp,
   sourceIndexPath,
   stepped,
@@ -21,14 +20,12 @@ import {
   type Use,
   type WorkspaceManifests,
 } from '@variance-authority/package/help';
-import { joinUsage, readWorkspaceOver, readWorkspaceSnapshot, sameExportedSurface, samePackages } from './read.js';
-import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
-import { publishedRows } from './search-index.js';
-import { type NativeUsage, useOf } from './native-use.js';
+import { joinUsage, readWorkspaceOver, sameExportedSurface, samePackages } from './read.js';
 import {
   SNAPSHOT_FORMAT,
   SNAPSHOT_VERSION,
   indexManifestDigest,
+  readWorkspaceSnapshot,
   workspaceExportedDigest,
   workspaceForwardsDigest,
   workspaceGeneration,
@@ -37,6 +34,9 @@ import {
   workspaceSnapshotPath,
   workspaceTreePrefix,
 } from './snapshot.js';
+import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
+import { publishedRows } from './search-index.js';
+import { type NativeUsage, useOf } from './native-use.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -100,12 +100,9 @@ async function refreshOver(
   const index = scopeSourceIndexPath(own, scope.dirs);
   // A member list reaching beside the root keeps its own index, which only the list can update.
   if (!coversWhole(scope.dirs)) {
-    // A worktree's starts from the primary checkout's, as the root's own does.
-    const primary = own === sourceIndexPath(where) ? primarySourceIndexPath(where) : undefined;
     await updateSourceIndex(scope.root, {
       index,
       dirs: scope.dirs,
-      ...(primary === undefined ? {} : { primary: scopeSourceIndexPath(primary, scope.dirs) }),
       ...(options.packs === undefined ? {} : { packs: options.packs }),
       ...(options.progress === undefined ? {} : { progress: options.progress }),
     });

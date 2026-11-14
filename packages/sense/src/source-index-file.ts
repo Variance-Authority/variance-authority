@@ -15,8 +15,6 @@ import {
 import type { NativeIndexGraph } from './native-index-graph.js';
 import type { NativeScanner } from './native.js';
 
-export type { IndexedRecord, StoredSourceIndex } from './source-index-format.js';
-
 const EMPTY: StoredSourceIndex = { parses: new Map(), records: new Map(), directories: new Map() };
 
 /**
@@ -182,17 +180,6 @@ async function append(
 
 function appended(log: ImmutableLog, layers: readonly Uint8Array[]): string | null {
   return writer().appendSourceIndex(log.path, [...log.digests], log.legacy && log.segments.length > 0, [...layers]);
-}
-
-/**
- * Start the index at `path` as a copy of the one at `from`, when `path` has
- * none: a worktree's first update then pays only for what differs between the
- * two checkouts. The addon copies it (`native/src/append_index.rs`), checking
- * each segment against its digest; anything that stops the copy leaves `path`
- * as it was and answers `false`.
- */
-export function seedSourceIndex(path: string, from: string): boolean {
-  return addon()?.seedSourceIndex(path, from) ?? false;
 }
 
 function writer(): NativeScanner {

@@ -2,10 +2,13 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { caseSectionsOf, keepsCases, keepsEyes, recordedCases, recordedEyesOf, sharedRecord, withCaseSections } from './case-record.js';
+import { encodeRecordedAttempts } from './attempts-record.js';
+import { caseSectionsOf, keepsCases, keepsEyes, recordedAttemptsAt, recordedCases, recordedEyesOf, sharedRecord, withCaseSections } from './case-record.js';
 import { decodeExecutionIndex, encodeExecutionIndex } from './execution-format.js';
 import { decodeRecordedEyes, encodeRecordedEyes } from './eyes-record.js';
 import { decodeTestCoverage, encodeTestCoverage } from './format.js';
+import { openTestCoverage } from './format-view.js';
+import { selectTestFilesFromView } from './select.js';
 import type { ExecutionIndex } from './execution-format.js';
 import type { TestCoverage } from './index.js';
 
@@ -75,6 +78,39 @@ describe('a record that carries its cases', () => {
   it('keeps its Eyes journals when it crosses, because a crossing is the same person\'s or one they made', () => {
     expect(Buffer.from(caseSectionsOf(record).eyes ?? [])).toEqual(eyes);
     expect(Buffer.from(caseSectionsOf(sharedRecord(record)).eyes ?? [])).toEqual(eyes);
+  });
+
+  describe('with how its retried cases\' attempts ended', () => {
+    const rows = [
+      { case: 'test/total.test.ts > discounts', attempt: 1, ended: 'failed', duration: 4, message: 'expected 1 to be 2', frame: 'test/total.test.ts:7' },
+      { case: 'test/total.test.ts > discounts', attempt: 2, ended: 'passed', duration: 3 },
+    ];
+    const attempts = Buffer.from(encodeRecordedAttempts(rows));
+    const retried = withCaseSections(record, { ...caseSectionsOf(record), attempts });
+
+    it('reads them back in order', () => {
+      expect(recordedAttemptsAt(at(retried))).toEqual(rows);
+    });
+
+    it('reads a record no such run wrote as attempts not kept, never as no case retried', () => {
+      expect(recordedAttemptsAt(at(record))).toBeUndefined();
+    });
+
+    it('keeps them when it crosses, with the index they name their cases in', () => {
+      expect(Buffer.from(caseSectionsOf(sharedRecord(retried)).attempts ?? [])).toEqual(attempts);
+    });
+
+    it('selects what the same record without them selects', () => {
+      const edit = (path: string): string => [
+        `diff --git a/${path} b/${path}`, `--- a/${path}`, `+++ b/${path}`, '@@ -2,1 +2,1 @@', '-  was();', '+  is();', '',
+      ].join('\n');
+      for (const diff of ['', edit('src/total.ts'), edit('test/total.test.ts')]) {
+        expect(selectTestFilesFromView(openTestCoverage(retried), diff)).toEqual(selectTestFilesFromView(openTestCoverage(record), diff));
+      }
+      expect(selectTestFilesFromView(openTestCoverage(retried), edit('test/total.test.ts'))).toEqual(['test/total.test.ts']);
+      expect(decodeTestCoverage(retried)).toEqual(decodeTestCoverage(record));
+      expect(decodeExecutionIndex(retried)).toEqual(decodeExecutionIndex(record));
+    });
   });
 
   it('is refused by a fold when it holds a section this build does not know, rather than losing it', () => {

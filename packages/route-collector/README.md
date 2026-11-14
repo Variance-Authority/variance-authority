@@ -134,8 +134,8 @@ somebody reviews.
 ### 5. Check the machine, then run
 
 ```bash
-npx variance doctor --config variance.config.json
-npx variance run --config variance.config.json
+variance doctor --config variance.config.json
+variance run --config variance.config.json
 ```
 
 `npx` because you installed the CLI as a devDependency, so `variance` is not on
@@ -152,7 +152,7 @@ Write the report as HTML beside its JSON source, so its relative image links
 still work, and open it:
 
 ```bash
-npx variance report --config variance.config.json --format html > .variance/report.html
+variance report --config variance.config.json --format html > .variance/report.html
 ```
 
 `report` uses the same exit codes as `run`: it writes the whole report and
@@ -163,8 +163,8 @@ in a CI step — and read the code from `run` instead.
 ### 7. Approve what you meant
 
 ```bash
-npx variance accept --config variance.config.json checkout/empty checkout/one-item
-npx variance run --config variance.config.json
+variance accept --config variance.config.json checkout/empty checkout/one-item
+variance run --config variance.config.json
 ```
 
 `accept` promotes exactly the image the run under review produced; it never
@@ -173,7 +173,7 @@ renders a replacement. The rerun exits `0` and reports `unchanged`.
 The full signature:
 
 ```
-npx variance accept [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--message-file <path> [--message <text>]]
+variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--by <name>] [--message-file <path> [--message <text>]]
 ```
 
 `--shape` takes a **fingerprint** — the shape digest the report attaches to each
@@ -485,7 +485,7 @@ Record one run against the probed build, and from then on narrow each run by
 its diff:
 
 ```bash
-npx variance run --config variance.config.json --since origin/main --suite site
+variance run --config variance.config.json --since origin/main --suite site
 ```
 
 A changed line selects the pages that ran it. A changed file a page named
@@ -528,7 +528,7 @@ console.log(routesFrom(xml));
 
 ## When integration fails
 
-- **The server does not answer:** start the application before `npx variance run`
+- **The server does not answer:** start the application before `variance run`
   and verify the exact URLs from the machine running CI.
 - **A subject is missing:** for `kind: "list"`, match every config id to a key in
   `routes`. For discovery, inspect the sitemap or built `.html` files that are

@@ -14,6 +14,8 @@ import { INSTRUMENTATION_ID } from '../instrument/index.js';
 import { combineRecords, readTestCoverage, sourceCut, writeTestCoverage } from './index.js';
 import { notingRead } from './record-base.js';
 import { timesFrom } from './selection-environment.js';
+import { readingsOf } from './case-readings.js';
+import { sectionOf, shapeOf } from './__fixtures__/readings.js';
 
 const source = 'export function greet() { return "hello"; }\n';
 const durations: Readonly<Record<string, number>> = { 'a.test.ts': 120, 'b.test.ts': 340 };
@@ -42,7 +44,7 @@ afterEach(async () => {
  * The cases of `overwritten` ran `greet` in a text an edit wrote over, as a
  * layering cut to the edited text keeps them (`landedThrough`).
  */
-async function recordOf(name: string, files: readonly string[], overwritten: readonly string[] = []): Promise<string> {
+async function recordOf(name: string, files: readonly string[], overwritten: readonly string[] = [], retried: readonly string[] | undefined = undefined): Promise<string> {
   const tests = files.map((file) => ({ id: `${file} > greets`, file, name: 'greets', stopped: false }));
   const blocks = [
     { ordinal: 0, kind: 'module' as const, digest: 'module', name: '', path: '', startLine: 1, endLine: 1, source: true, testFiles: [], loadedBy: [...files] },
@@ -61,7 +63,12 @@ async function recordOf(name: string, files: readonly string[], overwritten: rea
     watched: tests.map((test) => test.id),
     journals: tests.map((test) => ({ case: test.id, attempt: 1, journal: { shots: [`${test.file}.png`], closed: true } })),
   };
-  const run = { commit: 'c0ffee', tests: files.map((file) => ({ file, complete: true })), modules };
+  // A shard whose runner retried `greets` of a file kept both of its attempts.
+  const attempts = retried?.filter((file) => files.includes(file)).flatMap((file) => [
+    { case: `${file} > greets`, attempt: 1, ended: 'failed', duration: 2, message: 'expected hello', frame: `${file}:1` },
+    { case: `${file} > greets`, attempt: 2, ended: 'passed', duration: 1 },
+  ]);
+  const run = { commit: 'c0ffee', tests: files.map((file) => ({ file, complete: true })), modules, ...(attempts === undefined ? {} : { attempts }) };
   const cases = layCases({}, fresh, root, run, eyes);
   const path = join(root, name);
   await writeTestCoverage(path, {
@@ -76,7 +83,7 @@ async function recordOf(name: string, files: readonly string[], overwritten: rea
 function readable(record: Buffer): Record<string, string> {
   return Object.fromEntries(Object.entries(caseSectionsOf(record)).map(([part, bytes]) => {
     const held = Buffer.from(bytes!);
-    return [part, part === 'last' || part === 'eyes' ? held.toString() : held.toString('hex')];
+    return [part, part === 'last' || part === 'eyes' || part === 'attempts' ? held.toString() : held.toString('hex')];
   }));
 }
 
@@ -94,6 +101,35 @@ describe('combineRecords against the TypeScript writers', () => {
       expect(readable(combined)).toEqual(readable(whole));
       expect(Buffer.compare(combined, whole)).toBe(0);
     }
+  });
+
+  it('folds how the attempts of a retried case ended into the bytes the unsharded run writes', async () => {
+    const retried = ['b.test.ts'];
+    const whole = await readFile(await recordOf('whole.bin', ['a.test.ts', 'b.test.ts'], [], retried));
+    const shards = [await recordOf('a.bin', ['a.test.ts'], [], retried), await recordOf('b.bin', ['b.test.ts'], [], retried)];
+    expect(readable(whole)['attempts']).toContain('"ended":"failed"');
+
+    for (const named of [shards, [...shards].reverse()]) {
+      const into = join(root, `attempts-${named[0]!.endsWith('a.bin') ? 'ab' : 'ba'}.bin`);
+      combineRecords(named, into, root);
+      const combined = await readFile(into);
+      expect(readable(combined)).toEqual(readable(whole));
+      expect(Buffer.compare(combined, whole)).toBe(0);
+    }
+  });
+
+  it('says attempts were not kept when one shard of the run kept none, rather than that its cases ran once', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'], [], ['b.test.ts'])];
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    expect(caseSectionsOf(await readFile(into)).attempts).toBeUndefined();
+  });
+
+  it('keeps the attempts of a run one of whose shards ran no case, and so had none to keep', async () => {
+    const shards = [await recordOf('idle.bin', []), await recordOf('b.bin', ['b.test.ts'], [], ['b.test.ts'])];
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    expect(readable(await readFile(into))['attempts']).toContain('"ended":"failed"');
   });
 
   it('carries a case a shard ran over another text of a region as overwritten, never as absent', async () => {
@@ -159,12 +195,71 @@ describe('combineRecords against the TypeScript writers', () => {
     const kept = (file: string) => ({ cases: { [`${file} > greets`]: [{ count: 1, stopped: false }, { count: 2, stopped: true, gone: [0] }] } });
     for (const [shard, file] of [[shards[0]!, 'a.test.ts'], [shards[1]!, 'b.test.ts']] as const) {
       const bytes = await readFile(shard);
-      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: Buffer.from(JSON.stringify(kept(file))) }));
+      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: sectionOf(kept(file)) }));
     }
     const into = join(root, 'combined.bin');
     combineRecords(shards, into, root);
 
-    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: { ...kept('a.test.ts').cases, ...kept('b.test.ts').cases } });
+    expect(shapeOf(caseSectionsOf(await readFile(into)).readings!)).toEqual({ cases: { ...kept('a.test.ts').cases, ...kept('b.test.ts').cases } });
+  });
+
+  it('reads back, over the combined index, the newest reading each shard kept as what it read otherwise than its own index', async () => {
+    const shards = [await recordOf('a.bin', ['a.test.ts']), await recordOf('b.bin', ['b.test.ts'])];
+    const extra = ['src/greet.ts', 'wave', 'wave', 1, 1, null] as const;
+    const differing = { count: 1, stopped: true, values: [[0, 7]] as [number, number][], added: [[1, extra]] as [number, typeof extra][] };
+    const before = new Map<string, unknown>();
+    for (const [shard, file] of [[shards[0]!, 'a.test.ts'], [shards[1]!, 'b.test.ts']] as const) {
+      const bytes = await readFile(shard);
+      const readings = sectionOf({ cases: { [`${file} > greets`]: [differing] } });
+      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings }));
+      before.set(file, readingsOf(readings, caseSectionsOf(bytes).index, `${file} > greets`));
+    }
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    const combined = caseSectionsOf(await readFile(into));
+
+    for (const file of ['a.test.ts', 'b.test.ts']) {
+      const read = readingsOf(combined.readings, combined.index, `${file} > greets`);
+      expect(read).toEqual([{ count: 1, stopped: true, regions: [['src/greet.ts', 'greet', 'greet', 1, 1, 7], extra] }]);
+      expect(read).toEqual(before.get(file));
+    }
+  });
+
+  it('reads back, over a combined index that reconciled a region of the case into its enclosing one, the readings a shard kept against its own index', async () => {
+    const greet = { kind: 'function' as const, digest: 'greet', name: 'greet', path: 'greet', startLine: 1, endLine: 3, source: true };
+    const inner = { kind: 'function' as const, digest: 'inner', name: '', path: 'greet/0', startLine: 2, endLine: 2, source: true };
+    /** A shard that ran `file` over a cut of `src/greet.ts` into `regions`, its case crossing every one. */
+    const cutOf = async (file: string, regions: readonly (typeof greet | typeof inner)[]) => {
+      const tests = [{ id: `${file} > greets`, file, name: 'greets', stopped: false }];
+      const blocks = [
+        { ordinal: 0, kind: 'module' as const, digest: 'module', name: '', path: '', startLine: 1, endLine: 10, source: true, testFiles: [], loadedBy: [file] },
+        ...regions.map((region, at) => ({ ordinal: at + 1, owner: at, ...region, testFiles: [file] })),
+      ];
+      const fresh = encodeAsSetExecutionIndex({ tests, modules: [{ file: 'src/greet.ts', blocks: blocks.map((block) => ({
+        ...block, crossings: block.kind === 'module' ? [] : [{ test: 0, distance: 0 }],
+      })) }] });
+      const modules = [{ file: 'src/greet.ts', sourceDigest: digestString(source), instrumented: true, blocks }];
+      const path = join(root, `${file}.bin`);
+      await writeTestCoverage(path, { version: 3, instrumentation: 'fixture', commit: 'c0ffee', tests: [{ file, complete: true, preconditions: [], duration: 1 }], modules },
+        layCases({}, fresh, root, { commit: 'c0ffee', tests: [{ file, complete: true }], modules }, { watched: [], journals: [] }));
+      return path;
+    };
+    const shards = [await cutOf('a.test.ts', [greet, inner]), await cutOf('b.test.ts', [greet])];
+    const bytes = await readFile(shards[0]!);
+    const outer = ['src/greet.ts', 'greet', 'greet', 1, 3, null] as const;
+    // The newest crossed the callback alone, the earlier one the function and the callback, as the shard's index holds the case.
+    const readings = sectionOf({ cases: { 'a.test.ts > greets': [{ count: 1, stopped: false, gone: [0] }, { count: 2, stopped: false, added: [[0, outer]] }] } });
+    await writeFile(shards[0]!, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings }));
+    const before = readingsOf(readings, caseSectionsOf(bytes).index, 'a.test.ts > greets');
+    expect(before!.map(({ regions }) => regions)).toEqual([[['src/greet.ts', '', 'greet/0', 2, 2, null]], [outer, ['src/greet.ts', '', 'greet/0', 2, 2, null]]]);
+    const into = join(root, 'combined.bin');
+    combineRecords(shards, into, root);
+    const combined = caseSectionsOf(await readFile(into));
+
+    expect(readingsOf(combined.readings, combined.index, 'a.test.ts > greets')).toEqual(before);
+    // The newest is laid again over the combined index as laying would lay it: whole, being smaller than its difference there.
+    const laid = sectionOf({ cases: { 'a.test.ts > greets': [{ count: 1, stopped: false, regions: [['src/greet.ts', '', 'greet/0', 2, 2, null]] }, { count: 2, stopped: false, added: [[0, outer]] }] } });
+    expect(Buffer.from(combined.readings!)).toEqual(Buffer.from(laid));
   });
 
   it('takes a case its readings and its file its inputs from the shard that ran it, over what another carried from its seed', async () => {
@@ -173,12 +268,12 @@ describe('combineRecords against the TypeScript writers', () => {
     const carried = { cases: { 'a.test.ts > greets': [{ count: 1, stopped: false }] }, inputs: { 'a.test.ts': 'one', 'b.test.ts': 'one' } };
     for (const [shard, section] of [[shards[0]!, ran], [shards[1]!, carried]] as const) {
       const bytes = await readFile(shard);
-      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: Buffer.from(JSON.stringify(section)) }));
+      await writeFile(shard, withCaseSections(bytes, { ...caseSectionsOf(bytes), readings: sectionOf(section) }));
     }
     const into = join(root, 'combined.bin');
     combineRecords(shards, into, root);
 
-    expect(JSON.parse(Buffer.from(caseSectionsOf(await readFile(into)).readings!).toString())).toEqual({ cases: ran.cases, inputs: { 'a.test.ts': 'two', 'b.test.ts': 'one' } });
+    expect(shapeOf(caseSectionsOf(await readFile(into)).readings!)).toEqual({ cases: ran.cases, inputs: { 'a.test.ts': 'two', 'b.test.ts': 'one' } });
   });
 
   // Each shard restores the cached record and runs over it; a shard's record

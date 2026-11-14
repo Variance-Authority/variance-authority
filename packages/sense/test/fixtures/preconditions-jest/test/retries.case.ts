@@ -6,5 +6,5 @@ let attempts = 0;
 it('retries', () => {
   attempts += 1;
   variancePrecondition('fixture', { attempt: attempts }); // retried
-  expect(attempts).toBe(2);
+  expect(attempts).toBe(2); // first attempt fails
 });

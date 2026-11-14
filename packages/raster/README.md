@@ -389,7 +389,7 @@ packages named in the table above.
   could not look must never be read as a store that found nothing. `identityFrom`
   and `recordFrom` are the checks a stored record passes before it is believed,
   wherever it arrived from. The CLI writes through this contract when you run
-  `npx variance accept <subject>`, which promotes an image the run already
+  `variance accept <subject>`, which promotes an image the run already
   produced and never re-renders.
 - **`createEphemeralStore({ heldBytes })`** — returns a `RasterStore` with
   `retention: 'ephemeral'`. `find` and `describe` always return `null` and `put`

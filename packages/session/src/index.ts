@@ -37,7 +37,9 @@
 // compass: variance-authority.stability
 
 export { createSession, Session } from './session.js';
-export type { SessionOptions, SubjectRun, Finding, SessionStats } from './session.js';
+export type { SessionOptions, SessionStats } from './session.js';
+export type { SubjectRun } from './ledger.js';
+export type { Finding } from './findings.js';
 
 export { probe, diffProbes, SheetRegistry } from './state.js';
 export type { StateKey, StateProbe, StateDelta, ProbeOptions } from './state.js';

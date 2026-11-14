@@ -1,10 +1,10 @@
 // compass: variance-authority.reach
 
 import { loadRenderless } from '../config-load.js';
-import type { DeclaredSuite, Precision, Unmeasured } from '@variance-authority/sense/test-selection';
+import type { DeclaredSuite, Precision, RecordOrigin, Unmeasured } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { messageOf } from '../config-values.js';
-import { selectedMainline, selectedRecord } from './mainline-selected.js';
+import { selectedMainline, selectedRecordOf } from './mainline-selected.js';
 
 /**
  * The one record a command scoped to one runner reads: `--suite`'s, or the only
@@ -111,13 +111,18 @@ export async function selectingRecord(
 /**
  * {@link suiteRecord}, with the declaration the path was resolved from: a
  * reader that falls back to the record a share holds asks the declaration
- * whether the share holds one.
+ * whether the share holds one. `origin` says whose record it is, absent when
+ * no layer holds one; `beneath` reads under this checkout's own, as a shard does.
  */
-export async function recordedSuite(root: string, suite?: string): Promise<{ readonly file: string; readonly declared?: DeclaredSuite }> {
+export async function recordedSuite(
+  root: string,
+  suite?: string,
+  options: { readonly beneath?: boolean } = {},
+): Promise<{ readonly file: string; readonly declared?: DeclaredSuite; readonly origin?: RecordOrigin }> {
   const { name, declared } = await namedSuite(root, suite);
   try {
-    const file = await selectedRecord(root, name, declared);
-    return declared === undefined ? { file } : { file, declared };
+    const { file, origin } = await selectedRecordOf(root, name, declared, options);
+    return { file, ...(declared === undefined ? {} : { declared }), ...(origin === undefined ? {} : { origin }) };
   } catch (error) {
     if (error instanceof OperatorError) throw error;
     throw new OperatorError(messageOf(error), { cause: error });

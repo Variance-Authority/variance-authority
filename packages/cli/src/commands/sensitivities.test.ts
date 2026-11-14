@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sensitivityLedgerOf, summarizeSensitivities } from './sensitivities.js';
 import type { CliObservationRecord } from './run-report.js';
 import type { PlannedSubject } from './collector.js';
-import type { SensitivityConfig } from '../config.js';
+import type { SensitivityConfig } from '../config-sensitivity.js';
 
 /**
  * The accounting, which is the half that keeps a declaration from becoming a

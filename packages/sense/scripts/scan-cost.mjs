@@ -29,7 +29,7 @@ import { cpuUsage } from 'node:process';
 import { cpus } from 'node:os';
 import { resolve } from 'node:path';
 import { promisify } from 'node:util';
-import { native } from '../dist/native.js';
+import { native } from '../dist/addon.js';
 
 const MODULES = /\.(m|c)?[jt]sx?$/u;
 const GLOB = '*.{js,jsx,ts,tsx,mjs,cjs,mts,cts}';

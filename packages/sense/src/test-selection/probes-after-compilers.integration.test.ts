@@ -6,7 +6,8 @@ import MagicString from 'magic-string';
 import { build, createServer, type Plugin } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
 import { deriveModules } from './captured-modules.js';
-import { EXECUTION_GLOBAL, type ExecutionJournal, testSelectionProbes } from './probes.js';
+import { EXECUTION_GLOBAL } from './execution-global.js';
+import { type ExecutionJournal, testSelectionProbes } from './probes.js';
 
 /**
  * A build-time compiler that reads syntax, the way a CSS-in-JS extractor

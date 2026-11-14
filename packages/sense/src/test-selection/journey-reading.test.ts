@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nativeAvailable } from '../native.js';
+import { nativeAvailable } from '../addon.js';
 import { readJourneyChange } from './journey-reading.js';
 
 /**

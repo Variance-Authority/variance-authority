@@ -136,7 +136,17 @@ variance reach --since origin/main              # files a diff reaches over impo
   the root config declares more than one suite. `--since <ref>` is the base when
   the recording names no commit. `--execution <journey file>` reads that file
   instead of the record, and `--diff <patch>|-` hands it the change; `--diff`
-  needs `--execution` and is refused beside `--since`. `--no-git` reads file
+  needs `--execution` and is refused beside `--since`. `--ran-at <commit>`,
+  beside `--since`, names the commit a merge queue's one pull request passed
+  at, and `--since` must name the mainline commit that passed, not a stacked
+  queue base; nothing checks either. A test file only one side of the merge reaches is skipped and named with
+  that side, and a file two or more mainline commits changed since the merge
+  base is read as it stood after each of them, since the check may have run
+  with a line the mainline took back; a HEAD whose clean tree is the tested commit's tree
+  skips every test file; otherwise anything but a HEAD whose tree is that
+  clean merge selects as without it, with a note why. `shards --ran-at` counts
+  from the same selection, and the runner reads `VARIANCE_AUTHORITY_RAN_AT`
+  beside `VARIANCE_AUTHORITY_SINCE`. `--no-git` reads file
   contents from the working tree, not git's object store. `--at-distance <hops>`
   cuts the run to one leg of the selection and skips the selected files outside
   it; `0-2` then `3-` runs every selected file in one of the two. An edited test
@@ -183,9 +193,11 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 
 - **Read the first stderr line.** `variance-authority: selected N of M` is the
   run you asked for. `declined:` means the selection could not be read and every
-  file ran; the reason follows it. `selected none of M, so none of them runs`
-  means the edit reached no recorded test: a type or comment edit, or a file no
-  test ran. That run passes under Vitest and Jest, with nothing run. A run that
+  file ran; the reason follows it. `selected none of M, so none of them runs:
+  the change reached none of them` means the edit reached no recorded test: a
+  type or comment edit, or a file no test ran. Ending `N test files are left for
+  a later run` instead, a leg or `VARIANCE_AUTHORITY_LOCAL=1` left them, and
+  the lines below name the run that takes them. That run passes under Vitest and Jest, with nothing run. A run that
   found no test file at all has nothing to select from and fails: check
   `testMatch` and the working directory.
 - **Each run lands.** The next edit is measured from what each test last ran,
@@ -195,6 +207,11 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
   before you call the change done.
 - **Do not put paths on the command line.** The configuration drops the files
   itself; `variance select --format vitest|jest` is deprecated.
+- **Get a smaller answer when the record cannot narrow.** On a laptop, add
+  `VARIANCE_AUTHORITY_LOCAL=1`: in place of `declined:` and every file, the
+  tests that import a changed file run, or a changed file's package. stderr
+  names the test files it left; run once without it before you call the change
+  done. Never set it in CI.
 - **Skip cases, too, under Jest and Vitest.** `VARIANCE_AUTHORITY_GRAIN=case`
   also skips the cases of each selected file that entered none of the changed
   regions; the first stderr line then ends `skipping N cases in K of them`. A

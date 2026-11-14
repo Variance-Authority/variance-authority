@@ -5,7 +5,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { D1Like, D1PreparedLike } from './bindings.js';
-import { INITIAL, INITIAL_VERSION, MIGRATIONS, SCHEMA, SCHEMA_VERSION, applySchema } from './schema.js';
+import { SCHEMA, SCHEMA_VERSION, applySchema } from './schema.js';
+import { INITIAL, INITIAL_VERSION } from './migrations.js';
+import { MIGRATIONS } from './migration-steps.js';
 
 /**
  * The migrations `wrangler` applies and the arrays the tests run against are one

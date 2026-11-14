@@ -1,9 +1,10 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { EXIT_CLEAN } from '../exit.js';
 import { askSource } from './ask.js';
 
@@ -15,8 +16,6 @@ import { askSource } from './ask.js';
  * agree on exactly one file, and an answer holding the other dropped one of
  * them.
  */
-
-const RG = spawnSync('rg', ['--version']).error === undefined;
 
 const cwd = process.cwd();
 let root: string;
@@ -70,13 +69,13 @@ describe('ask intersection over a checkout', () => {
     expect(text).not.toContain('src/old/selectors.ts —');
   });
 
-  it.skipIf(!RG)('reads the names a question needs, and the tree another needs', async () => {
+  it('reads the names a question needs, and the tree another needs', async () => {
     const text = await ask("discover --declares '^selectBalance$'", 'grep --query state --from src/Wallet.ts');
     expect(text).toContain('1 file in all of them.');
     expect(text).toContain('src/store/selectors.ts — 1: line 1 · 2: line 1');
   });
 
-  it.skipIf(!RG)('keeps every line a grep matched in one file', async () => {
+  it('keeps every line a grep matched in one file', async () => {
     const text = await ask('grep --query selectBalance --from src/Wallet.ts', 'discover --path ^src/Wallet');
     expect(text).toContain('src/Wallet.ts — 1: lines 1, 2 · 2: the file');
   });

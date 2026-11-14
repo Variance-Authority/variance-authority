@@ -3,13 +3,17 @@ import { CaseLinesBuilder, lineValue } from './case-lines.js';
 import { inputsOf, layReadings, readingsOf, READINGS } from './case-readings.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
+import { shapeOf } from './__fixtures__/readings.js';
 
 const ID = 'a.test.ts > clicks';
 
-/** One case over `src/page.ts`'s regions `wire` and `handle`, each crossed at the spec line given, or not crossed, beside the cases `also` names, which cross nothing. */
-function run(stopped: boolean, lines: { readonly wire?: number; readonly handle?: number }, also: readonly string[] = []): Buffer {
+/**
+ * One case over `src/page.ts`'s regions `wire` and `handle`, each crossed at the spec line given, or not crossed, beside the cases `also` names, which cross nothing.
+ * `emptyFirst` lays the empty set first, as `Translation` does; a native fold lays the sets in the order it meets them.
+ */
+function run(stopped: boolean, lines: { readonly wire?: number; readonly handle?: number }, also: readonly string[] = [], emptyFirst = true): Buffer {
   const sets = new CrossingSets(1);
-  sets.intern([]);
+  if (emptyFirst) sets.intern([]);
   const regions = (['wire', 'handle'] as const);
   const builder = new CaseLinesBuilder();
   regions.forEach((name, block) => {
@@ -67,6 +71,16 @@ describe('layReadings', () => {
     expect(layReadings(section, run(false, { wire: 2, handle: 4 }), run(true, { handle: 3 }), cases, over(run(true, { handle: 3 }), () => false))).toBeUndefined();
   });
 
+  it('reads a region its index names by the first set in its pool', () => {
+    const { section, index } = laid([run(true, { wire: 2, handle: 3 }, [], false), run(false, { wire: 2, handle: 3 }, [], false)]);
+    const regions = [['src/page.ts', 'wire', 'wire', 1, 1, lineValue(2, false)], ['src/page.ts', 'handle', 'handle', 2, 2, lineValue(3, false)]];
+
+    expect(readingsOf(section, index, ID)).toEqual([
+      { count: 1, stopped: false, regions },
+      { count: 1, stopped: true, regions },
+    ]);
+  });
+
   it('counts a reading it already holds rather than storing it again', () => {
     const { section, index } = laid([run(true, { handle: 3 }), run(false, { wire: 2 }), run(false, { wire: 2 })]);
 
@@ -76,11 +90,19 @@ describe('layReadings', () => {
     ]);
   });
 
+  it('writes the section as bytes, not text', () => {
+    const { section } = laid([run(true, { handle: 3 }), run(false, { wire: 2 })]);
+
+    expect(() => JSON.parse(section!.toString('utf8'))).toThrow();
+    expect(section!.includes('src/page.ts')).toBe(true);
+    expect(section!.indexOf('src/page.ts')).toBe(section!.lastIndexOf('src/page.ts'));
+  });
+
   it('holds a case read alike every run as its count alone', () => {
     expect(laid([run(false, { wire: 2 })]).section).toBeUndefined();
     const { section } = laid([run(false, { wire: 2 }), run(false, { wire: 2 }), run(false, { wire: 2 })]);
 
-    expect(JSON.parse(section!.toString('utf8'))).toEqual({ cases: { [ID]: [{ count: 3, stopped: false }] } });
+    expect(shapeOf(section!)).toEqual({ cases: { [ID]: [{ count: 3, stopped: false }] } });
   });
 
   it('keeps the count of runs read alike once a run reads otherwise', () => {
@@ -106,7 +128,7 @@ describe('layReadings', () => {
 
     const moved = laid([run(true, { handle: 3 }), run(false, { wire: 2 })], unchanged, [at('one'), at('two')]);
     expect(readingsOf(moved.section, moved.index, ID)).toBeUndefined();
-    expect(JSON.parse(moved.section!.toString('utf8'))).toEqual({ inputs: { 'a.test.ts': 'two' } });
+    expect(shapeOf(moved.section!)).toEqual({ inputs: { 'a.test.ts': 'two' } });
   });
 
   it('keeps a case its readings where the index it is laid over holds fewer cases', () => {
@@ -119,7 +141,7 @@ describe('layReadings', () => {
   it('stores an earlier reading as what it read otherwise than the newest', () => {
     const { section, index } = laid([run(true, { handle: 3 }), run(true, { wire: 1, handle: 3 }), run(false, { wire: 2, handle: 4 })]);
 
-    expect(JSON.parse(section!.toString('utf8'))).toEqual({
+    expect(shapeOf(section!)).toEqual({
       cases: { [ID]: [{ count: 1, stopped: false }, { count: 1, stopped: true, values: [[0, lineValue(1, false)], [1, lineValue(3, false)]] }, { count: 1, stopped: true, gone: [0], values: [[1, lineValue(3, false)]] }] },
     });
     expect(readingsOf(section, index, ID)!.map(({ regions }) => regions.map(([, name, , , , value]) => [name, value]))).toEqual([
@@ -129,11 +151,23 @@ describe('layReadings', () => {
     ]);
   });
 
-  it('refuses a section that is not the readings it writes', () => {
+  it('reads a section an earlier build wrote as JSON as holding no readings, and lays a run over it as over none', () => {
     const index = run(false, { wire: 2 });
+    const fresh = run(true, { wire: 2 });
+    const json = Buffer.from('{"cases":{"a.test.ts > clicks":[{"count":1}]}}');
 
-    expect(() => readingsOf(Buffer.from('{"cases":'), index, ID)).toThrow(/readings section/);
-    expect(() => readingsOf(Buffer.from('[]'), index, ID)).toThrow(/readings section/);
+    expect(readingsOf(json, index, ID)).toBeUndefined();
+    expect(layReadings(json, index, fresh, cases, over(fresh))).toEqual(layReadings(undefined, index, fresh, cases, over(fresh)));
+  });
+
+  it('refuses a section of bytes cut short rather than reading it as none', () => {
+    const index = run(false, { wire: 2 });
+    const fresh = run(true, { wire: 2 });
+    const { section } = laid([run(true, { wire: 2 }), index]);
+    const cut = section!.subarray(0, section!.length - 1);
+
+    expect(() => readingsOf(cut, index, ID)).toThrow('not one this build reads');
+    expect(() => layReadings(cut, index, fresh, cases, over(fresh))).toThrow('not one this build reads');
   });
 
   it('drops the oldest distinct reading past the bound', () => {
@@ -179,13 +213,93 @@ describe('layReadings', () => {
     ]);
   });
 
-  it('stores the newest reading of a case run once where the landed index holds it otherwise', () => {
+  it('stores the newest reading of a case run once as what it read otherwise than the landed index holds it', () => {
     const threw = run(true, { handle: 3 });
-    const section = layReadings(undefined, undefined, run(true, { wire: 2, handle: 3 }), cases, over(threw));
+    const union = run(true, { wire: 2, handle: 3 });
+    const section = layReadings(undefined, undefined, union, cases, over(threw));
 
-    expect(readingsOf(section, run(true, { wire: 2, handle: 3 }), ID)).toEqual([
+    expect(shapeOf(section!)).toEqual({ cases: { [ID]: [{ count: 1, stopped: true, gone: [0] }] } });
+    expect(readingsOf(section, union, ID)).toEqual([
       { count: 1, stopped: true, regions: [['src/page.ts', 'handle', 'handle', 2, 2, lineValue(3, false)]] },
     ]);
+  });
+
+  it('stores the newest reading as the values it charged otherwise than the landed index', () => {
+    const fresh = run(false, { wire: 2, handle: 3 });
+    const landed = run(false, { wire: 2, handle: 4 });
+    const section = layReadings(undefined, undefined, landed, cases, over(fresh));
+
+    expect(shapeOf(section!)).toEqual({ cases: { [ID]: [{ count: 1, stopped: false, values: [[1, lineValue(3, false)]] }] } });
+    expect(readingsOf(section, landed, ID)).toEqual([{ count: 1, stopped: false, regions: [
+      ['src/page.ts', 'wire', 'wire', 1, 1, lineValue(2, false)],
+      ['src/page.ts', 'handle', 'handle', 2, 2, lineValue(3, false)],
+    ] }]);
+  });
+
+  it('reads back each of two regions the index names alike, whichever reading crossed them', () => {
+    /** Two blocks of one line under one name and path, as a callback's entry and its body are, both crossed, and `handle` where `handled`. */
+    const twice = (handled: boolean): Buffer => {
+      const sets = new CrossingSets(1);
+      sets.intern([]);
+      const blocks = [
+        { kind: 'function', name: 'map.arg0', path: 'entry', startLine: 1, endLine: 1, source: true },
+        { kind: 'statement', name: 'map.arg0', path: 'entry', startLine: 1, endLine: 1, source: true },
+        { kind: 'function', name: 'handle', path: 'handle', startLine: 2, endLine: 2, source: true },
+      ];
+      const crossed = [true, true, handled];
+      const builder = new CaseLinesBuilder();
+      crossed.forEach((held, block) => held && builder.add(0, block, lineValue(block + 1, false)));
+      return encodeSetExecutionIndex({
+        tests: [{ id: ID, file: 'a.test.ts', name: 'clicks', stopped: false }],
+        modules: [{ file: 'src/page.ts', blocks, called: Uint32Array.from(crossed, (held) => sets.intern(held ? [0] : [])), loaded: new Uint8Array(3) }],
+        sets: sets.pool(),
+        lines: [builder.finish()],
+      });
+    };
+    const entry = (value: number) => ['src/page.ts', 'map.arg0', 'entry', 1, 1, lineValue(value, false)] as const;
+    const handle = ['src/page.ts', 'handle', 'handle', 2, 2, lineValue(3, false)] as const;
+    const { section, index } = laid([twice(true), twice(false)]);
+    const newest = layReadings(undefined, undefined, twice(true), cases, over(twice(false)));
+
+    expect(readingsOf(section, index, ID)!.map(({ regions }) => regions)).toEqual([[entry(1), entry(2)], [entry(1), entry(2), handle]]);
+    expect(readingsOf(newest, twice(true), ID)!.map(({ regions }) => regions)).toEqual([[entry(1), entry(2)]]);
+  });
+
+  it('reads back a newest reading crossed in another order than the landed index lists its regions, and an earlier reading laid over it', () => {
+    /** `src/page.ts` with `blocks` in this order, each `[kind, name, line, value]` crossed by the case at that value. */
+    const listing = (blocks: readonly (readonly [string, string, number, number])[]): Buffer => {
+      const sets = new CrossingSets(1);
+      sets.intern([]);
+      const builder = new CaseLinesBuilder();
+      blocks.forEach(([, , , value], block) => builder.add(0, block, lineValue(value, false)));
+      return encodeSetExecutionIndex({
+        tests: [{ id: ID, file: 'a.test.ts', name: 'clicks', stopped: false }],
+        modules: [{
+          file: 'src/page.ts',
+          blocks: blocks.map(([kind, name, line]) => ({ kind, name, path: name, startLine: line, endLine: line, source: true })),
+          called: Uint32Array.from(blocks, () => sets.intern([0])),
+          loaded: new Uint8Array(blocks.length),
+        }],
+        sets: sets.pool(),
+        lines: [builder.finish()],
+      });
+    };
+    const a = ['src/page.ts', 'a', 'a', 1, 1, lineValue(1, false)] as const;
+    const b = ['src/page.ts', 'b', 'b', 2, 2, lineValue(2, false)] as const;
+    const first = listing([['function', 'b', 2, 2]]);
+    const fresh = listing([['function', 'b', 2, 2], ['function', 'a', 1, 1]]);
+    const landed = listing([['function', 'a', 1, 1], ['function', 'b', 2, 2], ['statement', 'a', 1, 1]]);
+    const section = layReadings(layReadings(undefined, undefined, first, cases, over(first)), first, landed, cases, over(fresh));
+
+    expect(readingsOf(section, landed, ID)!.map(({ regions }) => regions)).toEqual([[b, a], [b]]);
+  });
+
+  it('keeps the newest reading in full where its difference from the landed index would cost more', () => {
+    const fresh = run(false, { handle: 3 });
+    const landed = run(false, { wire: 2 });
+    const section = layReadings(undefined, undefined, landed, cases, over(fresh));
+
+    expect(shapeOf(section!)).toEqual({ cases: { [ID]: [{ count: 1, stopped: false, regions: [['src/page.ts', 'handle', 'handle', 2, 2, lineValue(3, false)]] }] } });
   });
 });
 

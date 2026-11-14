@@ -257,6 +257,16 @@ describe('the projects the workflow observes', () => {
     expect(rows.find((row) => row['project'] === 'tribunal')?.['exit-zero-on-changes']).toBeUndefined();
   });
 
+  it('records the site\'s whole job only on a dispatch of the default branch', async () => {
+    const workflow = parse(await readFile(WORKFLOW, 'utf8')) as {
+      jobs: { project: { steps: ReadonlyArray<{ id?: string; if?: string }> } };
+    };
+
+    expect(workflow.jobs.project.steps.find((step) => step.id === 'job')?.if).toBe(
+      "matrix.project == 'site' && github.event_name == 'workflow_dispatch' && github.ref_name == github.event.repository.default_branch",
+    );
+  });
+
   it('hands each row\'s choice to the action', async () => {
     expect(await readFile(WORKFLOW, 'utf8')).toContain("exit-zero-on-changes: ${{ matrix['exit-zero-on-changes'] || 'false' }}");
   });
@@ -264,26 +274,56 @@ describe('the projects the workflow observes', () => {
 
 // A committed store accepts by a dispatch with `accept` on the pull request's
 // branch: the action commits the images there, which the commit-back's own
-// checks run for a dispatch. Nothing but that input turns it on.
-describe('the lfs job', () => {
-  const lfs = async (): Promise<{ steps: ReadonlyArray<Record<string, unknown>> }> =>
-    (parse(await readFile(WORKFLOW, 'utf8')) as { jobs: { lfs: { steps: ReadonlyArray<Record<string, unknown>> } } }).jobs.lfs;
+// checks run for a dispatch. Nothing but that input turns it on. It runs in the
+// `variance` job, on the install, build and Storybook the cached store paid for.
+describe('the committed store', () => {
+  type Step = Record<string, unknown>;
+  const jobs = async (): Promise<Record<string, { steps: ReadonlyArray<Step> }>> =>
+    (parse(await readFile(WORKFLOW, 'utf8')) as { jobs: Record<string, { steps: ReadonlyArray<Step> }> }).jobs;
+  const LFS = 'cases/storybook-case/variance.lfs.config.json';
+  const isAction = (step: Step) => step['uses'] === './.github/actions/variance';
+
+  it('runs in the variance job, not a job that installs and builds again', async () => {
+    const all = await jobs();
+
+    expect(all['variance']?.steps.filter(isAction).map((step) => (step['with'] as Step)['config'])).toEqual([
+      'cases/storybook-case/variance.config.json',
+      LFS,
+    ]);
+    expect(Object.keys(all).filter((name) => all[name]!.steps.some((step) => isAction(step) && (step['with'] as Step)['config'] === LFS))).toEqual(['variance']);
+  });
+
+  it('runs whatever the cached store found, so a change there hides nothing here', async () => {
+    const steps = (await jobs())['variance']!.steps;
+    const from = steps.findIndex((step) => step['id'] === 'pointers');
+
+    const first = steps.findIndex((step) => isAction(step));
+    const cached = steps.slice(first, from).flatMap((step) => (typeof step['id'] === 'string' ? [step['id']] : []));
+
+    expect(from).toBeGreaterThan(first);
+    expect(cached).not.toEqual([]);
+    for (const step of steps.slice(from)) {
+      expect(String(step['if'])).toMatch(/!cancelled\(\)|always\(\)/);
+      for (const id of cached) expect(String(step['if'])).not.toContain(`steps.${id}.`);
+    }
+  });
 
   it('commits the images on a dispatch with accept, and on no other run', async () => {
-    const action = (await lfs()).steps.find((step) => step['uses'] === './.github/actions/variance');
+    const action = (await jobs())['variance']!.steps.find((step) => isAction(step) && (step['with'] as Step)['config'] === LFS);
 
     expect(action?.['with']).toMatchObject({
       'commit-baselines': '${{ inputs.accept == true && github.ref_name != github.event.repository.default_branch }}',
     });
     expect(action?.['with']).not.toHaveProperty('accept');
     expect(action?.['with']).not.toHaveProperty('tick-to-accept');
-    expect(action).not.toHaveProperty('if');
+    expect(action?.['if']).toBe("${{ !cancelled() && steps.lfs-fetch.outcome == 'success' }}");
   });
 
-  it('checks out the branch it commits to', async () => {
-    const checkout = (await lfs()).steps.find((step) => String(step['uses']).startsWith('actions/checkout@'));
+  it('checks out the branch a dispatch commits to, with the token whose push starts a run only then', async () => {
+    const checkout = (await jobs())['variance']!.steps.find((step) => String(step['uses']).startsWith('actions/checkout@'));
 
-    expect(checkout?.['with']).toMatchObject({ ref: "${{ github.head_ref || '' }}" });
+    expect(checkout?.['with']).not.toHaveProperty('ref');
+    expect(checkout?.['with']).toMatchObject({ token: '${{ (inputs.accept && secrets.VARIANCE_PUSH_TOKEN) || github.token }}', lfs: false });
   });
 });
 

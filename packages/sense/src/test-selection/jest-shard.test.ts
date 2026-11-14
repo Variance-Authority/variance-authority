@@ -24,8 +24,9 @@ afterEach(async () => {
  * One Jest shard of this repository's `unit` suite, a suite given to the share,
  * recording into a cache of its own that holds a fetched mainline: what reading
  * the suite's times through the cli leaves there. It ran this file alone.
+ * `handed` marks that mainline as the read `carry receive` handed the shard.
  */
-async function shard(selected: boolean): Promise<readonly string[]> {
+async function shard(selected: boolean, handed = false): Promise<readonly string[]> {
   const cache = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-shard-'));
   temporary.push(cache);
   process.env[CACHE_VARIABLE] = cache;
@@ -39,14 +40,14 @@ async function shard(selected: boolean): Promise<readonly string[]> {
     tests: [{ file: 'elsewhere/only.test.ts', complete: true, preconditions: [] }],
     modules: [],
   });
-  await writeFetchedMainline(cache, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString() });
+  await writeFetchedMainline(cache, 'unit', { mainline: 'main', commit, fetched: new Date().toISOString(), ...(handed ? { handed: true as const } : {}) });
   const coverageFile = testCoverageFile(repository, { cacheRoot: cache, suite: 'unit' });
 
   const reporter = new SelectionReporter({ shard: { shardIndex: 1, shardCount: 2 } }, {
     root: repository,
     coverageFile,
     preconditions: [],
-    ...(selected ? { selected: true } : {}),
+    ...(selected ? { selected: true as const } : {}),
   });
   reporter.onRunStart({ numTotalTestSuites: 1 });
   await reporter.onRunComplete([], {
@@ -59,6 +60,12 @@ it('records the files a Jest shard ran and nothing else when its run selects not
   expect(await shard(false)).toEqual(['packages/sense/src/test-selection/jest-shard.test.ts']);
 });
 
-it('records a selected Jest shard over the mainline it was laid on', async () => {
+it('records the files a selected Jest shard ran and nothing else when it was handed a read, so its parts fold over that read', async () => {
+  expect(await shard(true, true)).toEqual(['packages/sense/src/test-selection/jest-shard.test.ts']);
+});
+
+// Its later wave selects from this record, so a part here would hide every
+// test the earlier wave did not run.
+it('records a selected Jest shard handed no read over the mainline it was laid on', async () => {
   expect(await shard(true)).toContain('elsewhere/only.test.ts');
 });

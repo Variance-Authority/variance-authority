@@ -4,7 +4,8 @@ import type { EnvironmentDelta } from '../format/environment.js';
 import { BANDS, type Band } from './band.js';
 import type { Observability } from './observability.js';
 import type { AggregateImpact } from './impact.js';
-import { compareTrees, type ChangedComponent, type Delta, type Root } from './diff/index.js';
+import { compareTrees } from './diff/index.js';
+import type { ChangedComponent, Delta, Root } from './diff/delta.js';
 
 /**
  * One subject read as a variation of another.

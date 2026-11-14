@@ -1,4 +1,5 @@
 import type { BrowserContext, Frame, Page, TestInfo } from '@playwright/test';
+import { claimPageSource } from '@variance-authority/sense/journal';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ExecutionRecorder } from './execution.js';
 import { varianceDocumentFixtures } from './documents.js';
@@ -16,12 +17,16 @@ type DocumentsFixture = (
 
 const SPEC = '/repo/tests/shop.spec.ts';
 
+/** The scripts a context was given to run before each of its pages. */
+const installed: string[] = [];
+
 /** A context of one page with one frame, whose events nothing fires. */
 function contextOfOneFrame(navigations = 0): BrowserContext {
   const frame = {} as Frame;
   const page = { frames: () => [frame], mainFrame: () => frame, on: () => page, off: () => page } as unknown as Page;
   const request = { isNavigationRequest: () => true, redirectedFrom: () => null, frame: () => frame };
   const context = {
+    addInitScript: async (script: string) => void installed.push(script),
     pages: () => [page],
     on: (event: string, listener: (request: unknown) => void) => {
       if (event === 'request') for (let count = 0; count < navigations; count += 1) queueMicrotask(() => listener(request));
@@ -75,9 +80,15 @@ function contextFixture(recorder: ExecutionRecorder, use: (context: BrowserConte
 
 afterEach(() => {
   vi.useRealTimers();
+  installed.length = 0;
 });
 
 describe('the `context` fixture', () => {
+  it('claims every page of the context before it loads, though the run tells no story and names no head', async () => {
+    await contextFixture(recorderCarrying(0), async () => {});
+    expect(installed).toEqual([claimPageSource()]);
+  });
+
   it('ends a teardown whose statement drain the page holds, and marks the case incomplete', async () => {
     vi.useFakeTimers();
     const recorder = recorderHeld();

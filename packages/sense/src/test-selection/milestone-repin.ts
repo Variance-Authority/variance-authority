@@ -38,10 +38,10 @@ import { openTestCoverage, wholeCoverage } from './format-view.js';
 import { editsBetween, type EditOf } from './region-edit.js';
 import { withIndexLock } from './index-lock.js';
 import type { TestCoverage } from './index.js';
-import { partlyIn, whatLanded, type Landing } from './landings.js';
+import { partlyIn, partOf, whatLanded, type Landing } from './landings.js';
 import { landedOf, ranOn, standKey } from './standing-after.js';
 import { opensFetched, type LastFetched } from './mainline-layer.js';
-import { readOwnLayer, writeOwnLayer, type OwnLayer } from './own-layer.js';
+import { pinOf, readOwnLayer, writeOwnLayer, type OwnLayer } from './own-layer.js';
 import { writeCoverageBytes } from './record-location.js';
 
 /** What {@link repinOwnLayer} did, and why it left the pin when it did. */
@@ -85,7 +85,8 @@ export async function repinOwnLayer(coverageFile: string, record: LastFetched, r
 function refusal(layer: OwnLayer | undefined, record: LastFetched, root: string): RepinRefusal | undefined {
   const pinned = layer?.pinned;
   if (pinned === undefined) return 'unpinned';
-  if (pinned.commit === record.commit) return 'current';
+  // A whole record at the pinned commit replaces the partial one the pin stands on.
+  if (pinned.commit === record.commit && (pinned.partial !== true || record.partial === true)) return 'current';
   if (pinned.mainline !== record.mainline) return 'other-mainline';
   const contained = ancestor(root, record.commit, 'HEAD');
   if (contained === undefined) return 'unknown';
@@ -161,7 +162,7 @@ async function repin(coverageFile: string, record: LastFetched, root: string, la
   }));
   if (runs === undefined) await rm(commitRunsFile(coverageFile), { force: true });
   else await writeCommitRuns(commitRunsFile(coverageFile), runs);
-  await writeOwnLayer(coverageFile, { pinned: { mainline: record.mainline, commit: record.commit }, ran: states });
+  await writeOwnLayer(coverageFile, { pinned: pinOf(record), ran: states });
   return { repinned: true, from: layer.pinned!.commit, to: record.commit, kept: [...kept], dropped };
 }
 
@@ -266,11 +267,12 @@ function repinnedEyes(
  * The runs record once the record stands on `record`: the runs at its commit
  * as they were, for the tests it keeps, its change now starting at the new
  * milestone, each kept test standing where the record placed it, beside the
- * runs that ran it in part since, and every other test at the milestone, as
- * the run that published it landed there (`published`, which a fetch keeps
- * beside the snapshot). A kept test the record places nowhere stands where its
- * runs started, assumed, and with no start either the record says nothing of
- * where its tests stand.
+ * runs that ran it in part since, and every other test where the run that
+ * published the record left it (`published`, which a fetch keeps beside the
+ * snapshot): landed at the milestone, or standing where that record says, and
+ * at the milestone where it says nothing. A kept test the record places
+ * nowhere stands where its runs started, assumed, and with no start either the
+ * record says nothing of where its tests stand.
  */
 function repinnedRuns(
   held: CommitRuns | undefined,
@@ -301,25 +303,39 @@ function repinnedRuns(
   });
   const here = new Set(whatLanded(landings).files);
   // One entry per stand; a stand's time is the one run's that put it there.
-  const groups = new Map<string, { readonly stand: StandingEntry; readonly files: string[] }>();
-  const standAt = (stand: StandingEntry, files: readonly string[]): void => {
-    const group = groups.get(standKey(stand)) ?? { stand, files: [] };
+  // Two records may hold a stand of one run: its files and what it ran in part are both kept.
+  type Group = { readonly stand: StandingEntry; readonly files: string[]; readonly partly: Map<string, readonly string[] | undefined> };
+  const groups = new Map<string, Group>();
+  const standAt = ({ partly, cases, ...stand }: StandingEntry, files: readonly string[]): void => {
+    const group: Group = groups.get(standKey(stand)) ?? { stand, files: [], partly: new Map() };
     group.files.push(...files);
+    for (const file of partly ?? []) group.partly.set(file, cases?.[file]);
     groups.set(standKey(stand), group);
   };
   // The ledger says which tests are this checkout's, and the runs record where
   // each stands and what it ran on there: a run that ran one in part left it
   // where it stood, and stays beside it.
-  const placed = new Set<string>();
-  for (const entry of held.standing ?? []) {
-    const { files: its, partly: _part, cases: _cases, ...stand } = entry;
-    const files = its.filter((file) => kept.has(file));
-    for (const file of files) placed.add(file);
-    standAt({ ...stand, files: [], ...partlyIn(entry, (file) => kept.has(file)) }, files);
-  }
-  const milestone = new Set(recorded.filter((file) => !kept.has(file)));
-  for (const landing of published?.landings ?? []) {
-    standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing) }, landing.files.filter((one) => milestone.delete(one)));
+  const carry = (standing: readonly StandingEntry[] | undefined, take: (file: string) => boolean, ours: (file: string) => boolean): string[] =>
+    (standing ?? []).flatMap((entry) => {
+      const { files: its, partly: _part, cases: _cases, ...stand } = entry;
+      const files = its.filter(take);
+      standAt({ ...stand, files: [], ...partlyIn(entry, ours) }, files);
+      return files;
+    });
+  const placed = new Set(carry(held.standing, (file) => kept.has(file), (file) => kept.has(file)));
+  const others = new Set(recorded.filter((file) => !kept.has(file)));
+  const milestone = new Set(others);
+  // A test the record landed stands at its commit, whatever its standing says;
+  // the landings are laid after the standing all the same, being later runs, so
+  // the stands stay earliest first.
+  const landed = (published?.landings ?? []).map((landing) => [landing, landing.files.filter((one) => milestone.delete(one))] as const);
+  // A record that did not run every test says where the others stand, and
+  // they keep that stand: moved to its commit, the change since would be
+  // charged to nobody.
+  carry(published?.standing, (one) => milestone.delete(one), (one) => others.has(one));
+  for (const [landing, files] of landed) {
+    // A run that landed a test in part at the milestone stays beside wherever the test stands.
+    standAt({ commit: record.commit, files: [], ...ranOn(landing), ...landedOf(landing), ...partlyIn(landing, (one) => others.has(one)) }, files);
   }
   standAt({ commit: record.commit, files: [] }, [...milestone]);
   // Where the record cannot place a kept test, it stands where the runs started,
@@ -327,9 +343,26 @@ function repinnedRuns(
   const unplaced = [...kept].filter((file) => !here.has(file) && !placed.has(file));
   if (held.over !== undefined) standAt({ commit: held.over, files: [], assumed: true }, unplaced);
   const known = unplaced.length === 0 || held.over !== undefined;
-  const standing = [...groups.values()]
-    .filter(({ stand, files: its }) => its.length > 0 || stand.partly !== undefined)
-    .map(({ stand, files: its }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder) }));
+  // Both records list their stands earliest first; where they share one, the
+  // published order holds, and a stand only this checkout holds keeps its place
+  // before the next one they share.
+  const shared = new Set((published?.standing ?? []).map(standKey));
+  const heldOrder = (held.standing ?? []).map(standKey);
+  const order: string[] = [];
+  let next = 0;
+  for (const key of shared) {
+    const at = heldOrder.indexOf(key, next);
+    if (at >= 0) {
+      order.push(...heldOrder.slice(next, at).filter((one) => !shared.has(one)));
+      next = at + 1;
+    }
+    order.push(key);
+  }
+  order.push(...heldOrder.slice(next).filter((one) => !shared.has(one)));
+  const standing = [...new Set([...order, ...groups.keys()])]
+    .map((key) => groups.get(key)!)
+    .filter(({ files: its, partly }) => its.length > 0 || partly.size > 0)
+    .map(({ stand, files: its, partly }) => ({ ...stand, files: [...new Set(its)].sort(codeUnitOrder), ...partOf(partly) }));
   const at = commit ?? held.commit;
   return {
     ...(at === undefined ? {} : { commit: at }),

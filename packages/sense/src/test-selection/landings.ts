@@ -85,6 +85,18 @@ export function observedBy(prior: RecordedTests | undefined, current: RanTests):
 }
 
 /**
+ * The files runs ran in part, gathered from every run at one stand: sorted,
+ * with their cases only when each file names them, since a stand's cases are
+ * known for every file it ran in part, or none.
+ */
+export function partOf(ran: ReadonlyMap<string, readonly string[] | undefined>): Pick<Landing, 'partly' | 'cases'> {
+  const files = [...ran].sort(([one], [other]) => codeUnitOrder(one, other));
+  if (files.length === 0) return {};
+  const cases = files.every(([, ids]) => ids !== undefined) ? { cases: Object.fromEntries(files) as Record<string, readonly string[]> } : {};
+  return { partly: files.map(([file]) => file), ...cases };
+}
+
+/**
  * The files of `of`'s `partly` that `keep` keeps, with the cases it names of
  * them, or nothing when none is left.
  */

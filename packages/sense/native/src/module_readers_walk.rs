@@ -8,14 +8,22 @@ use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
 use oxc_syntax::scope::ScopeFlags;
 
-use crate::loads::requires;
+use oxc_semantic::SemanticBuilder;
+
+use crate::loads::{factories, Requires};
 use crate::module_shape::{plain_class, pure, Lines};
 
 use super::{declared, Erased, Import, Read, Reading, Reexport, Where};
 
 pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
+    // A scope is built only for a module that imports `createRequire`, the one load it needs a binding for.
+    let requires = match factories(program).next() {
+        Some(_) => Requires::of(program, SemanticBuilder::new().build(program).semantic.scoping()),
+        None => Requires::default(),
+    };
     let mut walker = Walker {
         lines,
+        requires,
         reading: Reading {
             reads: Vec::new(),
             exports: BTreeMap::new(),
@@ -61,6 +69,7 @@ pub(super) fn reading_of(program: &Program, lines: &Lines) -> Reading {
 }
 
 struct Walker<'l> {
+    requires: Requires,
     lines: &'l Lines,
     reading: Reading,
     namespaces: BTreeSet<String>,
@@ -314,7 +323,7 @@ impl<'a> Visit<'a> for Walker<'_> {
     }
 
     fn visit_call_expression(&mut self, it: &CallExpression<'a>) {
-        if requires(&it.callee) {
+        if self.requires.load(&it.callee).is_some() {
             self.reading.untraced = true;
         }
         walk::walk_call_expression(self, it);

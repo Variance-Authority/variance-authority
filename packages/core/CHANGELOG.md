@@ -1,5 +1,23 @@
 # @variance-authority/core
 
+## 0.32.1
+
+No changes in this release.
+
+## 0.32.0
+
+### Minor Changes
+
+- f621404: A push to a mainline can publish its merge queue's record of the same commit as soon as it lands. `variance share --publish --from-queue <artifact pattern>` finds the latest green `merge_group` run of the running workflow that tested `HEAD`, downloads its matching artifacts, folds them over the mainline's record and publishes the result marked partial. The whole run's publish at the same commit replaces a partial entry, and a partial publish keeps a whole one, saying so. A checkout that read a partial record asks the line again, and moves its own record onto the whole one when it lands.
+
+## 0.31.0
+
+No changes in this release.
+
+## 0.30.0
+
+No changes in this release.
+
 ## 0.29.0
 
 No changes in this release.

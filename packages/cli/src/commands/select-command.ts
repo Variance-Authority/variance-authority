@@ -49,7 +49,9 @@ import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
 import { handedChange, isHanded, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
+import { localAnswer, type Held } from './select-local.js';
 import { suiteOf, type SuiteReading, type SuiteRequest } from './select-suite.js';
+import { testedSuite } from './select-tested.js';
 import { probesGap, probesNote } from './probes-gap.js';
 import { fetchable } from './execution-input.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
@@ -81,6 +83,10 @@ export interface SelectRequest {
   readonly suite?: string;
   /** `--at-distance <hops>`: one leg of the selection, by import hops from the change. */
   readonly atDistance?: Leg;
+  /** `--ran-at <commit>`: the pull request's tested tree, which a merge queue merged onto `since`. */
+  readonly ranAt?: string;
+  /** `--local`: a reading that cannot narrow falls to the changed files' importers or packages. */
+  readonly local?: boolean;
 }
 
 /**
@@ -123,15 +129,34 @@ function deprecated(format: SelectFormat): string {
  * drops the files in `skip` inside its runner.
  */
 export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> {
+  const { ranAt, ...asked } = request;
+  const full = await untested(asked);
+  if (ranAt === undefined || asked.since === undefined) return full;
+  return await testedSuite({ root: asked.root, since: asked.since, ranAt, suite: asked.suite, noGit: asked.noGit }, full, selectSuite);
+}
+
+/** The selection of everything `since` and the working tree change, before `ranAt` narrows it. */
+async function untested(request: SuiteRequest): Promise<SuiteReading> {
   const selection = await import('@variance-authority/sense/test-selection');
   // A snapshot handed in by path — the JVM agent's `coverage.va` — is read the
   // way this checkout's own is. Anything else `--execution` names is a journey
   // file.
+  // Under `--local`, a reading that cannot narrow falls to the changed files the caller already holds, or reads them.
+  // The waves of one shard read one record, so each runs only what it placed in them.
+  const leg = request.atDistance !== undefined && request.beneath === true
+    ? { ...request.atDistance, partition: true as const, ...(request.placeAtDistance === undefined ? {} : { placing: request.placeAtDistance }) }
+    : request.atDistance;
+  const fall = async (input: SelectInput, held?: Held, record?: string): Promise<SuiteReading> => {
+    const narrowed = suiteOf(input, leg);
+    return request.local === true && narrowed.declined !== undefined
+      ? suiteOf(input, leg, await localAnswer(request, input.ground, held, record))
+      : narrowed;
+  };
   if (
     request.execution !== undefined &&
     !((await recordHeld(request.execution)) && selection.isTestCoverageFile(request.execution))
   ) {
-    return await journeyReading({ ...request, execution: request.execution });
+    return await journeyReading({ ...request, execution: request.execution }, fall);
   }
   // A snapshot named by path is the record, and so is the one `--suite` names.
   oneRecord(request.suite, request.execution, '--execution');
@@ -140,8 +165,8 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const { at, source } = found;
   // The record the selection reads, which a shard's record names; a skip list alone does not say which.
   const read = found.held ? selection.recordDigestAt(at) : undefined;
-  const said = (input: SelectInput) => {
-    const reading = suiteOf(source === undefined ? input : { ...input, source }, request.atDistance);
+  const said = async (input: SelectInput, held?: Held): Promise<SuiteReading> => {
+    const reading = await fall(source === undefined ? input : { ...input, source }, held, at);
     return read === undefined ? reading : { ...reading, read };
   };
 
@@ -204,6 +229,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
     ...(stood === undefined ? [] : 'unread' in stood ? [stood.unread] : handed ? handedNotes(stood.reading, commit!) : standingNotes(stood.reading, commit!)),
   ];
   const stands = handed || stood === undefined || 'unread' in stood ? [] : stood.stands;
+  const standsChanged = stands.flatMap((stand) => stand.changed);
   const recorded = { at, ...(commit === undefined ? {} : { commit }), ...(standing.length === 0 ? {} : { standing }) };
   if (!handed && reading?.widened !== undefined) {
     return said({ ...recorded, ground: { kind: 'no-diff', from: reading.from! } });
@@ -262,7 +288,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   for (const installed of installs.values()) {
     if (installed !== undefined && 'whole' in installed) {
       const ground: SelectGround = { kind: 'no-install', whole: installed.whole };
-      return said({ ...recorded, ground });
+      return said({ ...recorded, ground }, { changed: [...new Set([...changed, ...standsChanged])] });
     }
   }
 
@@ -274,14 +300,15 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
   const { declared } = await namedSuite(here, request.suite);
   const suite = declared?.name;
   const beyondFiles = [...beyond.values()].flatMap((one) => one.files);
-  const { whole, ...rest } = await restingOf(here, suite, relations, [...new Set([...changed, ...stands.flatMap((s) => s.changed), ...beyondFiles])], declared?.ignore);
+  const moved = [...new Set([...changed, ...standsChanged, ...beyondFiles])];
+  const { whole, ...rest } = await restingOf(here, suite, relations, moved, declared?.ignore);
   // What the install changed whole is named whichever way the answer goes: a test it entered was entered by no line.
   const install = installReached(installs, beyond, (stand) =>
     handed ? 'before the patch' : `${ranOver.has(stand) ? 'the install recorded ' : ''}at ${(stand ?? commit)?.slice(0, 12) ?? base}`,
   );
   const notes = unkept.size === 0 ? {} : { standing: [...(recorded.standing ?? []), ...unkept] };
   const rested = { ...recorded, ...notes, ...rest, ...(install === undefined ? {} : { install }) };
-  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole: whole.says, rests: whole.rests } });
+  if (whole !== undefined) return said({ ...rested, ground: { kind: 'before', whole: whole.says, rests: whole.rests } }, { changed: moved, relations });
   // Each group is charged the install that moved since it ran, and the files
   // a stand reads whole leave the hunk diff, so none is also read by its hunks.
   // What changed between a stand and the journal's commit is the diff between
@@ -327,7 +354,7 @@ export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> 
           }),
         };
 
-  const answer = said({ ...rested, ground });
+  const answer = await said({ ...rested, ground }, { changed: moved, relations });
   // FIXME: a stand's tests were read against their own diff, and the case cut
   // reads the journal's alone, so a selection with stands runs its files whole.
   if (request.grain !== 'case' || ground.kind !== 'read' || stands.length > 0) return answer;

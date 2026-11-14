@@ -28,15 +28,10 @@ import type { InstallDiff } from './installed.js';
 import type { Shard } from '../shard-args.js';
 import type { Costs } from './shard.js';
 import type { SuitePart } from './suite-part.js';
-import {
-  run,
-  type CliRunReport,
-  type Collected,
-  type Collector,
-  type Plan,
-  type PlannedSubject,
-  type RunIdentity,
-} from './run.js';
+import { run } from './run.js';
+import type { CliRunReport } from './run-report.js';
+import type { Collected, Collector, Plan, PlannedSubject } from './collector.js';
+import type { RunIdentity } from './history.js';
 
 /**
  * Fixture builders for a run: a viewport, an identity, a document, a store that

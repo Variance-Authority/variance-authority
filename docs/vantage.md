@@ -5,8 +5,13 @@ than it should. [Variance Authority](README.md) can show you what that
 test has heard, and from whom, while it is still in flight rather than after
 teardown has thrown all of it away.
 
-This page covers a different half of the same problem: what a Playwright suite
-reports while it is still running. Read it when a test hangs, when you want to
+No suite, and an application you click through by hand? The same watcher lists
+the code each of your clicks ran, in the page and in the server: go to [watch an application you use by
+hand](#watch-an-application-you-use-by-hand), which needs nothing else on this
+page.
+
+The rest of this page covers what a Playwright suite reports while it is still
+running. Read it when a test hangs, when you want to
 see which work a test started and never finished, or when you want to stop a
 test and look at the browser it left open. New here? Start with [your first
 run](start.md).
@@ -21,7 +26,7 @@ Start the watcher first, in its own terminal:
 
 ```bash
 npm install --save-dev @variance-authority/cli @variance-authority/playwright-test
-npx variance watch
+variance watch
 ```
 
 It takes an ephemeral port and prints the one line the suite needs:
@@ -51,12 +56,12 @@ VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 npx playwright test
 ```
 
 ```bash
-npx variance ask run-signals --at http://127.0.0.1:53393
-npx variance ask test-signals --test f8a1c2d3e4b5 --at http://127.0.0.1:53393
+variance ask run-signals --at http://127.0.0.1:53393
+variance ask test-signals --test f8a1c2d3e4b5 --at http://127.0.0.1:53393
 ```
 
-`npx variance ask` reads `variance.config.json` from the working directory before
-it answers, so run it from your project root. With
+A question only the watcher answers reads no `variance.config.json`; `diff`
+also reads a finished run, so ask it from your project root. With
 `VARIANCE_AUTHORITY_VANTAGE` unset, `varianceFixtures` costs one environment read
 per worker and reports nothing, so the fixtures stay in place in CI.
 
@@ -144,13 +149,270 @@ One watcher keeps:
 - the 200 newest tests
 - per test, the 500 newest announcements
 - per test, the 100 newest notes
+- the 200 newest [executions](#watch-an-application-you-use-by-hand) of an
+  application used by hand, one per request, or per load and click of a page
+  that reports
 
 Past those, entries drop from the front and are counted in `forgotten` and
 `forgottenNotes`, so an empty list is never mistaken for a beginning that was
-dropped.
+dropped. Dropped executions are counted in the answer that lists the rest.
 
 `pending` is exact regardless: what is bounded is the list of announcements, not
 the tally of work that opened and never closed.
+
+## Watch an application you use by hand
+
+You click through an application running on your machine, then ask which code
+answered. The watcher lists each thing you did as its own **execution**, with
+the functions and branches it ran. For a server alone an execution is one
+request. For a page that reports as well, it is one load or one click, and
+[the click's listing](#one-click-the-page-and-the-server) holds the page and
+the server together. Use the application, then run `variance ask ran` from
+the repository it was built from. This is the answer after two requests to a
+pricing service:
+
+```bash
+variance ask ran --at http://127.0.0.1:53393
+```
+
+```
+2 execution(s) at http://127.0.0.1:53393.
+
+  b4128c59-ac7c-45d3-abdd-882e39f0e906
+  head pricing
+      cases/journey-tracing-case/src/pricing.mjs:1 module
+      cases/journey-tracing-case/src/pricing.mjs:6 quote entry
+      cases/journey-tracing-case/src/pricing.mjs:7 quote if#0/then
+
+  8f7fffec-33b8-4205-978f-ee5209482314
+  head pricing
+      cases/journey-tracing-case/src/pricing.mjs:1 module
+      cases/journey-tracing-case/src/pricing.mjs:6 quote entry
+      cases/journey-tracing-case/src/pricing.mjs:10 quote if#0/else
+      cases/journey-tracing-case/src/pricing.mjs:11 quote if#0/after
+
+Ran outside any request, or while a module loaded, and so listed under none of them:
+  head pricing
+      cases/journey-tracing-case/src/pricing.mjs:1 module
+```
+
+Executions are listed oldest first, so the request you just made is the last
+one. `head pricing` is the process that ran it, under the name that
+process chose. Each line below it is a **region** the request ran: a file, a
+line, the function declared there, and the branch inside it. Both requests ran
+`quote`, and each took a different side of its first `if`. What the process ran
+before any request arrived is listed once, at the end.
+
+Four steps get you there: three for the server, and one more for the page.
+A **watcher** is a small process on your machine that the application reports
+to as it runs, and that you ask from any other shell. Start it in its own
+terminal; it prints the address the later steps use:
+
+```bash
+npm install --save-dev @variance-authority/cli @variance-authority/sense
+variance watch
+```
+
+```
+  VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393
+```
+
+Build the application with the probes on. A probe is a counter the build puts
+at the start of each function and each branch, which is how a request can say
+what it ran. Under Vite that is one plugin, and it needs no test to exist. It
+probes what that Vite build compiles: the page's bundle, and the server too
+when Vite builds it. A server built another way takes the probes from its own
+build;
+[the build change](observability.md#journeys-the-flag-and-the-build-change)
+has the Rspack and webpack form:
+
+```ts
+// vite.config.ts
+import { testSelectionProbes } from '@variance-authority/sense/journal';
+
+export default {
+  plugins: [testSelectionProbes()],
+};
+```
+
+Run the request handler inside `enter`, and start the process with two
+variables: `VARIANCE_AUTHORITY_JOURNEYS=1` turns the reporting on, and the
+address the watcher printed says where it goes. `enter` is what makes one
+request one execution. It reads the request's cookies to recognise a request a
+test drove, or one a reporting page sent for a click. You set no cookie
+yourself, and a request without one is an execution of its own. `head` is the
+name this process is listed under:
+
+```ts
+import { createServer } from 'node:http';
+import { collectJourneys } from '@variance-authority/sense/journey';
+
+const journeys = collectJourneys({ head: 'pricing' });
+
+createServer((request, response) => {
+  journeys.enter(request.headers.cookie, () => handle(request, response));
+}).listen(3000);
+```
+
+```bash
+VARIANCE_AUTHORITY_JOURNEYS=1 VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 node dist/server.js
+```
+
+A framework that owns the request leaves no handler to wrap. Where the
+application already runs Sentry or OpenTelemetry, hand that SDK to the head as
+`trace` and leave `enter` out. `openTelemetry(api)` takes the place of
+`sentry(Sentry)` for an OpenTelemetry provider:
+
+```ts
+import * as Sentry from '@sentry/node';
+import { collectJourneys, sentry } from '@variance-authority/sense/journey';
+
+collectJourneys({ head: 'pricing', trace: sentry(Sentry) });
+```
+
+The listing is then one execution per trace, named by the trace id, and not
+one per request. A browser SDK that propagates its trace to the server makes
+that one execution per page view: every request the page made is listed
+together. A head handed a `trace` refuses to start without the watcher's
+address, unless it [writes parts](across-dimensions.md) for a test run.
+
+### One click, the page and the server
+
+A page built with the same plugin lists what it ran once it calls `reportPage`
+with the watcher's address. Each load is then one execution, and so is each
+click or submit, with the page listed as `head page`. The page leaves that
+execution in a cookie, which the browser sends with each request, so one click
+lists the page and the server under one id. Under Vite the address reaches the
+page through a `VITE_` variable:
+
+```ts
+// src/main.ts
+import { reportPage } from '@variance-authority/sense/page';
+
+reportPage(import.meta.env.VITE_VARIANCE_AUTHORITY_VANTAGE);
+```
+
+```bash
+VITE_VARIANCE_AUTHORITY_VANTAGE=http://127.0.0.1:53393 npx vite
+```
+
+`reportPage` takes any address as a string, so another bundler passes it its own
+way. This is the answer after a shop page loaded and its one button was
+clicked:
+
+```bash
+variance ask ran --at http://127.0.0.1:61427
+```
+
+```
+2 execution(s) at http://127.0.0.1:61427.
+
+  487f52532da13319b43de5752b33e60b
+  head page
+      shop.js:1 module
+      shop.js:1 render entry
+      shop.js:10 addEventListener.arg1 entry
+
+  2672c02f017077310098b5896d03354e
+  head pricing
+      pricing.js:1 module
+      pricing.js:1 quote entry
+  head page
+      shop.js:1 module
+      shop.js:1 render entry
+      shop.js:4 ask entry
+      shop.js:5 ask await#0
+      shop.js:5 ask await#1
+
+Ran outside any request, or while a module loaded, and so listed under none of them:
+  head pricing
+      pricing.js:1 module
+  head page
+      shop.js:1 module
+```
+
+The first execution is the load. The second is the click: the page ran `ask`,
+which sent a request, and the server answered it in `quote`. A click and the
+submit it causes are one execution.
+
+`variance ask ran` needs no `variance.config.json`. Rebuild after you edit a
+file: a file changed since the build is listed with a count of its regions and no
+names, because the names are read from your checkout and would no longer match
+what ran.
+
+These limits keep the listing honest:
+
+- A request a test drove is reported to that test's run, and is not listed here.
+- Code that runs in the browser is listed only on a page that calls
+  `reportPage`. Without it, only a process that calls `collectJourneys` reports.
+- A request the page sends after the next click is listed under that later
+  click. The click is a boundary and nothing more: the control clicked is not
+  recorded.
+- A handler the application put on `window` for the capture phase before
+  `reportPage` was called runs ahead of the boundary, so what it runs is
+  listed under the execution before its click.
+- A server joins a click only when the browser sends it the page's cookies. A
+  server on another origin that receives none lists its requests as executions
+  of their own. A browser keeps cookies per host and not per port, so every
+  application on `127.0.0.1` shares them, as two tabs of one application do: a
+  request from one can be listed under a click in another.
+- A page a test drives is that test's, with everything its collector holds.
+  The Playwright recording claims each page before it loads, so `reportPage`
+  installs nothing there; a helper that attaches to a page already reporting
+  claims it at its first drain, and `reportPage` stops from then on. What the
+  page sent before that drain is the watcher's and not the test's.
+- The request for a document is listed apart from the load it starts: under
+  the last execution of the page it replaces, whether a click led to it or a
+  reload or a typed address did. A page the back button restores sends its
+  requests unjoined until its next click.
+- What a click ran is sent as the page starts to leave. What the page runs
+  after that is reported by the next page of the same origin as part of its
+  load, and is lost when the tab closes.
+- A page that leaves with more than about 64 KiB unsent, which takes a few
+  hundred modules run in its last half second, can lose it.
+- An application started without either variable reports nothing, and
+  `reportPage` given no address, or one that is not `http` on this machine,
+  installs nothing. Both calls stay in place in production.
+
+`--name <function>` and `--limit <n>` narrow the listing.
+The agent skill
+[installed with the CLI](agent-workspace-api.md)
+has each of them, and what to do about a region that was not named.
+
+### What each function was handed
+
+Start a server with `VARIANCE_AUTHORITY_STORY=1` beside the two variables it
+reports with, and `--story` prints each of its executions as a
+[story](test-stories.md): the functions it entered in the order it entered
+them, the branches each took, and the arguments each was handed, spelled as
+[a test story spells them](test-stories.md#what-each-function-was-handed).
+
+```bash
+variance ask ran --at http://127.0.0.1:53393 --story
+```
+
+```
+1 execution(s) at http://127.0.0.1:53393.
+
+  b4128c59-ac7c-45d3-abdd-882e39f0e906
+  head pricing
+      in cases/journey-tracing-case/src: pricing.mjs
+      1  quote  pricing.mjs:6-13
+           if 7  then ×1
+           » handed locale='de'
+```
+
+A step reads as it does in `variance story`: the function, where it is, the
+branches it took under it, and what it was handed under those.
+
+A live story shows arguments only: no variable a function declares, and
+nothing a module holds at its top level. Two requests that run at once are
+taped apart, each under its own execution. A request whose promises run on
+after it settles is told again with what it ran since. The watcher keeps the
+first 8 tellings of an execution from each head, up to 1 MiB of them, and
+`--story` counts the rest. A head started without the variable tapes nothing,
+and `--story` then says so and lists the regions as before. A request still
+open has told nothing yet: its story arrives when it settles. A page that calls `reportPage` tells no story yet.
 
 ## Reading it from an agent
 
@@ -159,8 +421,9 @@ the tally of work that opened and never closed.
 for an agent, and answers from the same snapshot: `variance_run_signals` lists
 tests in opening order and marks the one still running, `variance_test_signals`
 reads one test's announcements, the realm that sent each, and its unclosed work,
-`variance_waiting` lists the tests that have stopped, and `variance_diff` answers
-what changed since the preceding call.
+`variance_waiting` lists the tests that have stopped, `variance_ran` lists what an
+application used by hand ran, and `variance_diff` answers what changed since the
+preceding call.
 The workflow is in [inspect a live run](agent-live-run.md).
 
 ## Stop a test where you want to look at it
@@ -189,7 +452,7 @@ While a test stands still the runner's clock is stopped, and when it goes on it
 has exactly the time it had before. Find the stopped tests from a shell:
 
 ```bash
-npx variance ask waiting --at http://127.0.0.1:53393
+variance ask waiting --at http://127.0.0.1:53393
 ```
 
 Releasing is the one thing a one-shot shell command cannot do, because the run

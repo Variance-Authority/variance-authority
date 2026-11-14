@@ -211,6 +211,23 @@ describe('selecting off a journey file in the addon', () => {
     expect(selected).toMatchObject({ entered: ['test/other.test.ts', 'test/plain.test.ts'], ignored: ['src/card.ts', 'src/logo.png'] });
   });
 
+  // `other.test.ts` runs the program `card.ts` starts in another process, so it declares it and the journey shows it entering none of it.
+  const spawning = relationsOfFiles(
+    RECORDS.map((record) =>
+      record.file === 'test/other.test.ts' ? { ...record, edges: [...(record.edges ?? []), { to: 'src/card.ts', kind: 'depends' as const }] } : record,
+    ),
+    { depends },
+  );
+
+  it('charges the declarer of a program for a module the program loads, which its row alone answers, as narrowByJourneys does', async () => {
+    const changed = new Map<string, readonly LineRange[]>([['src/http.ts', [{ start: 2, end: 2 }]]]);
+    const options = { relations: spawning };
+    const selected = await selectJourneyFile(FILE, changed, options);
+
+    expect(selected).toEqual(narrowByJourneys(index, changed, options));
+    expect(selected?.entered).toContain('test/other.test.ts');
+  });
+
   it('declines a file the journey has no row for when the suite declines relations', async () => {
     const changed = new Map<string, readonly LineRange[]>([['src/solo.ts', []], ['test/other.test.ts', []], ['nowhere.ts', []]]);
     expect(await selectJourneyFile(FILE, changed, { relations: plain, unmeasured: 'nothing' })).toMatchObject({

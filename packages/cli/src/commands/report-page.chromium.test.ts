@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 import { chromium, type Browser, type Page } from '@playwright/test';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 
 /**
  * The page `report --format html --embed-images` writes, opened in a browser.

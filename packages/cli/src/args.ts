@@ -73,6 +73,9 @@ export const BOOLEAN = new Set([
   '--fail-on-uncovered',
   '--fail-on-lost',
   '--fan-in',
+  '--local',
+  '--as-base',
+  '--story',
 ]);
 
 /**

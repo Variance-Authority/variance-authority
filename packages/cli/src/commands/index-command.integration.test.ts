@@ -1,3 +1,4 @@
+/// <depends path="../bin.ts" />
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -7,7 +8,8 @@ import { encodeSegment } from '@variance-authority/core/segment';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { encodeAsSetExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 import { indexOutput } from './index-command.js';
 import { awaitFollowUps, followUpsLockPath, followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, reserveFollowUps } from './index-follow-ups.js';
@@ -254,7 +256,7 @@ describe('variance index', () => {
     expect((await run(['ask', 'search', '--query', 'widget'])).code).toBe(EXIT_CLEAN);
   });
 
-  it("names the primary checkout's index a worktree's first update built on", async () => {
+  it("builds a worktree's index as any checkout's, naming no other", async () => {
     const root = checkout();
     await indexOutput({ cwd: root });
     const worktree = join(realpathSync(mkdtempSync(join(tmpdir(), 'va-index-worktree-'))), 'worktree');
@@ -262,7 +264,7 @@ describe('variance index', () => {
     writeFileSync(join(worktree, 'src/unit.ts'), 'export const unit = 2;\n');
 
     expect(await indexOutput({ cwd: worktree })).toBe(
-      `source index built on ${sourceIndexPath(root)}: 2 files, 1 read again, at ${sourceIndexPath(worktree)}\n${unprepared(worktree)}`,
+      `source index built: 2 files, at ${sourceIndexPath(worktree)}\n${unprepared(worktree)}`,
     );
   });
 

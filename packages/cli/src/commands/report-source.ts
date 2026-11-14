@@ -13,7 +13,8 @@ import { headPast, lineOfReader } from '../share-lines.js';
 import { AbsentReport } from './report-read.js';
 import { sharedReportRoot } from './resources.js';
 import { readCliRunReport, type CliRunReport } from './run-report.js';
-import { describeDistance, describeMiss, lineEntry, mainlineEntry, type Here, type LineEntry } from './share.js';
+import { describeDistance, describeMiss, type Here } from './share.js';
+import { lineEntry, mainlineEntry, type LineEntry } from './mainline-entry.js';
 
 /**
  * The report a reader answers from when this checkout has none of its own

@@ -105,10 +105,15 @@ over it, so a repository that names its cache keeps one answer for everyone.
 ```
 
 `<repository>` is the first 32 hexadecimal characters of the SHA-256 of the
-checkout's absolute path, with links resolved:
+checkout's path as seen from the cache directory, with the links in both
+resolved. At the default location that path is `../../..` in every checkout,
+so a primary checkout renamed or moved with its cache inside it keeps its
+recording, and a worktree does when its primary checkout is still where it was
+as seen from the worktree: moved together with it, or renamed beside it. In a
+primary checkout the name is:
 
 ```bash
-printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
+printf %s ../../.. | shasum -a 256 | cut -c1-32
 ```
 
 The [execution record](execution-record.md) page describes `coverage.bin`, the
@@ -169,7 +174,7 @@ jobs:
             variance-${{ runner.os }}-${{ runner.arch }}-
       - run: |
           if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
-            npx variance index
+            npx --no-install variance index
             export VARIANCE_AUTHORITY_SINCE=
           fi
           npx vitest run
@@ -200,14 +205,15 @@ things in the workflow decide that line:
   this directory is inside it.
 - **A pull request builds the source index.** Selection reads the
   [source index](source-index.md), and in CI a run that finds none fails and names
-  the missing step. `npx variance index` builds it after the restore.
+  the missing step. `variance index` builds it after the restore.
 - **Only a pull request sets the variable.** `VARIANCE_AUTHORITY_SINCE` selects
   whenever it is set, even empty, so the shell exports it for a pull request and
   your main branch runs the whole suite.
-- **The checkout path is the same on every run.** `<repository>` is a digest of
-  the absolute path of the checkout. A GitHub-hosted runner keeps that path from
-  run to run. If yours changes it, the run finds no recording and every test file
-  runs.
+- **The cache sits in the same place in the checkout on every run.**
+  `<repository>` is a digest of the checkout's path as seen from the cache
+  directory. At the default location that is the same wherever the runner
+  checks out. With a cache directory outside the checkout, a run that moves one
+  and not the other finds no recording and every test file runs.
 
 With `cacheRoot` set, the path is the one it names. The
 [source index](source-index.md#caching-it-in-ci) page explains why the commit is
@@ -319,7 +325,7 @@ nothing uses it any more, or when it is older than a fixed age:
 
 | What | Removed when | Checked against |
 |---|---|---|
-| `test-selection/<repository>/` | the checkout named in its `checkout.json` is no longer on disk | the file system |
+| `test-selection/<repository>/` | the path in its `checkout.json`, read from the cache directory, is no longer on disk | the file system |
 | `.work/<worktree>/` | `git worktree list` in the primary checkout no longer lists it | git |
 | `.run-<pid>-*/`, and the `.tmp` files a run writes beside a record | it was last written more than an hour ago, and the process that wrote it has exited: no process has that id, or the one that has it started later | the process table |
 | a test story | it was written more than 14 days ago | its modification time |

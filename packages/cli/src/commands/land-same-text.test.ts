@@ -1,9 +1,13 @@
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  caseSectionsOf,
   encodeAsSetExecutionIndex,
+  readCommitRuns,
+  recordBase,
+  recordOfCases,
   testCoverageFile,
   writeTestCoverage,
   type CoverageBlock,
@@ -12,7 +16,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { readExecutionIndex } from './execution-input.js';
 import { landJourneys } from './land.js';
-import { published } from './mainline-fixture.js';
+import { published, ranWhole } from './mainline-fixture.js';
 
 /**
  * A shard that cut one module's unchanged text into one region more than the
@@ -60,6 +64,7 @@ async function recordOf(
   ran: string,
   cases: readonly ExecutionTest[],
   entered: readonly Region[],
+  readings?: Uint8Array,
 ): Promise<void> {
   const blocks = regions.map((region, ordinal): CoverageBlock => ({
     ...region,
@@ -85,6 +90,7 @@ async function recordOf(
         })),
       }],
     }),
+    ...(readings === undefined ? {} : { readings }),
   });
 }
 
@@ -114,5 +120,39 @@ describe('landJourneys and a shard that cut the same text into one region more',
       'await#1': [STANDS.id],
       'await#2': [DISCOUNTS.id],
     });
+  });
+});
+
+describe('landJourneys alone', () => {
+  it('keeps no runs record of an earlier run beside a landing of shards that measured nothing', async () => {
+    const { dir, first } = await published(home, { publish: false });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    await recordOf(record, first, [MODULE, FIRST, THIRD], TOTAL, [DISCOUNTS], [FIRST, THIRD]);
+    await ranWhole(record, first);
+    const shard = join(home, 'shard-1.bin');
+    await writeFile(shard, recordOfCases({ index: encodeAsSetExecutionIndex({ tests: [DISCOUNTS], modules: [] }), base: recordBase(undefined, first, undefined) }));
+
+    await landJourneys(dir, [shard], record, undefined, true);
+
+    // `ranWhole` names both test files; this landing ran `test/total.test.ts` alone.
+    expect((await readCommitRuns(record))?.landings.flatMap((landing) => landing.files) ?? []).not.toContain(OTHER);
+  });
+
+  it('keeps no reading the record at the target held of a case the shards ran again', async () => {
+    const { dir, first } = await published(home, { publish: false });
+    const record = testCoverageFile(dir, { suite: 'unit' });
+    // An earlier run read `discounts` once passing and once throwing, over this text.
+    const earlier = { cases: { [DISCOUNTS.id]: [{ count: 1, stopped: false }, { count: 1, stopped: true }] } };
+    await recordOf(record, first, [MODULE, FIRST, THIRD], TOTAL, [DISCOUNTS], [FIRST, THIRD], Buffer.from(JSON.stringify(earlier)));
+    const shard = join(home, 'shard-1.bin');
+    await recordOf(shard, first, [MODULE, FIRST, THIRD], TOTAL, [DISCOUNTS], [FIRST]);
+
+    await landJourneys(dir, [shard], record, undefined, true);
+
+    const { index, readings } = caseSectionsOf(await readFile(record));
+    // The section keeps a case's earlier readings; the newest is its index's.
+    expect(readings === undefined || !Buffer.from(readings).includes(DISCOUNTS.id)).toBe(true);
+    expect(index).toBeDefined();
+    expect(await casesByRegion(record)).toEqual({ 'await#0': [DISCOUNTS.id], 'await#2': [] });
   });
 });

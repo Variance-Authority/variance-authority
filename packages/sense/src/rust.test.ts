@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { native } from './native.js';
+import { native } from './addon.js';
 import type { Read } from './read.js';
 import { isRustRelative, resolveRust, topLevelItems } from './rust.js';
 import { worldIn, worldOn } from './world.js';

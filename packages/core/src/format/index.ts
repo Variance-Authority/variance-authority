@@ -56,8 +56,6 @@ export {
   hideCaret,
   hideScrollbars,
   hidePresentationalImages,
-  waitForFonts,
-  waitForImages,
   forTier,
   conflicts,
   interventionById,
@@ -69,13 +67,9 @@ export {
   settleRecipe,
   describeRecipe,
 } from './stabilize.js';
-export type {
-  Intervention,
-  Recipe,
-  Trick,
-  ScreenshotOptions,
-  SettleTarget,
-} from './stabilize.js';
+export { waitForFonts, waitForImages } from './waits.js';
+export type { Recipe } from './stabilize.js';
+export type { Intervention, Trick, ScreenshotOptions, SettleTarget } from './intervention.js';
 export type { Step, StepClock, StepTotal } from './steps.js';
 export { stepClock, timeOn, totalsOf } from './steps.js';
 

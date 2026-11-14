@@ -1,15 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import {
-  hashComponents,
-  movedBands,
-  movedBandsBetween,
-  UNATTRIBUTED,
-  type BandDigests,
-  type ComponentHash,
-} from './component-hash.js';
+import { hashComponents, movedBands, movedBandsBetween, type BandDigests } from './component-hash.js';
+import { UNATTRIBUTED } from './boundary.js';
+import type { ComponentHash, SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 import { CHROMIUM_PROFILE, JSDOM_PROFILE } from '../format/profile.js';
 import type { Rect } from '../format/capture.js';
-import type { SemanticNode, SemanticSnapshot } from '../format/snapshot.js';
 
 /**
  * Per-component hashing, tested on hand-written trees.

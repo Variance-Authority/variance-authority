@@ -81,6 +81,10 @@
         "eyes"
       ],
       [
+        "attempts",
+        "cases.attempts"
+      ],
+      [
         "base",
         "run.base"
       ],
@@ -126,6 +130,7 @@
     "loadedSets": 2,
     "duration": "tests.duration",
     "limit": "tests.limit",
+    "slowest": "tests.slowest",
     "lines": "lines.blob",
     "linesOffsets": "lines.off"
   }

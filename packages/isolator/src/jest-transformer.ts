@@ -18,8 +18,6 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { JestTestFiles } from './jest-test-files.js';
 
-export { globMatcher, isTestFile, slashed, type JestTestFiles } from './jest-test-files.js';
-
 /** The fields of Jest's `TransformOptions` a wrapping transformer reads. */
 export interface JestTransformOptions {
   readonly config: JestTestFiles;
@@ -126,11 +124,8 @@ async function load(root: string, name: string, options: Record<string, unknown>
   const path = resolveTransformer(root, name);
   let loaded: TransformerModule;
   try {
-    // Jest awaits a CommonJS transformer's export before it asks whether that
-    // value is a transformer or a factory. Jira's Babel transformer uses that
-    // contract: `module.exports` is the Promise returned by its asynchronous
-    // configuration load. Inspecting the Promise itself reports that a valid
-    // transformer has neither `process` nor `createTransformer`.
+    // The project's CommonJS transformer, loaded as Jest loads it, and awaited as
+    // Jest awaits it: Jira's Babel transformer exports a Promise of itself.
     loaded = (await createRequire(path)(path)) as TransformerModule;
   } catch (error) {
     const code = error instanceof Error && 'code' in error ? error.code : undefined;

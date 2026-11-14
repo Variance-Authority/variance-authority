@@ -22,9 +22,9 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 ```
 
 The runner's own inventory is the other half of that join, so every selected
-file runs in one of the two legs. A test new since the recording runs in
-both. A test recorded incomplete runs in the leg of the shortest import path it
-ran to a changed file it loaded, or in the second when it ran none.
+file runs in one of the two legs. A test new since the recording runs in both,
+or in the first alone in a [shard](sharding.md). One recorded incomplete runs by
+the shortest import path it ran to a changed file it loaded, or the second if none.
 [Run the tests an edit needs](test-an-edit.md) is the page about that loop. The
 rest of this page is for a repository that composes the legs itself, across
 several test hosts, from the API in `@variance-authority/sense/test-selection`.
@@ -84,7 +84,9 @@ tests, files another host owns, and files absent from the snapshot. `unread` is
 a report, not an input to the join: it lists a README, a fixture a test reads
 with `fs`, a script a test spawns. When a test depends on one of those, name it
 in the module that reads it, as `/// <depends path="…" />`; it then selects the
-tests that load that module and leaves `unread`. The integration's
+tests that load that module and leaves `unread`. The declaration also covers
+every module the named file loads, so a script a test spawns is covered with
+everything it runs. The integration's
 `preconditions` option names files too, and
 [a change to one selects every test of the run](changes-before-and-beyond.md#how-a-change-before-reach-is-declared).
 The state a test ran under, such as what a mock returns, is recorded as a [case

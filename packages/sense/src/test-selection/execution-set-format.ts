@@ -19,6 +19,8 @@ import {
   SAID_SECTION,
   sectionsOf,
   setColumns,
+  slowestColumn,
+  slowestFrom,
   stoppedColumn,
   stoppedFrom,
   stringTable,
@@ -31,9 +33,6 @@ import {
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 import { LAYOUT } from './record-layout.js';
 import { EMPTY } from './set-translation.js';
-
-/** What `openSetColumns` hands back, for a reader that walks every case of a large record without decoding it. */
-export type { SetColumns, StringTable, TestColumns } from './execution-set-columns.js';
 
 /**
  * A journey-only execution index: every crossing has measured distance zero.
@@ -159,6 +158,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     testStopped: stoppedColumn(index.tests),
     testDuration: durationColumn(index.tests),
     testLimit: limitColumn(index.tests),
+    testSlowest: slowestColumn(index.tests.length, (at) => index.tests[at]!.slowest),
     testSaid: index.tests.map((test) => test.said),
     moduleFile,
     moduleBlocks,
@@ -187,10 +187,12 @@ function renamed(lines: readonly (CaseLines | undefined)[], order: readonly numb
 }
 
 /** The columns an index is written from: every one {@link SetColumns} reads, none optional but the owner, overwritten and lines columns. */
-export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testLimit' | 'testSaid' | 'testLines'> {
+export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testLimit' | 'testSlowest' | 'testSaid' | 'testLines'> {
   readonly testStopped: Uint8Array;
   readonly testDuration: Uint32Array;
   readonly testLimit: Uint32Array;
+  /** Each case's slowest statement; no column where no case timed one. */
+  readonly testSlowest?: Uint32Array | undefined;
   /** What each case said; `undefined` where none listened. */
   readonly testSaid: readonly (Said | undefined)[];
   /** Each case's lines, its modules named by their row; no column where no case recorded any. */
@@ -214,6 +216,7 @@ export function writeSetColumns(columns: WrittenSetColumns, pool: CrossingSetsPo
     'tests.stopped': column(columns.testStopped),
     'tests.duration': column(columns.testDuration),
     [LAYOUT.cases.limit]: column(columns.testLimit),
+    ...(columns.testSlowest === undefined ? {} : { [LAYOUT.cases.slowest]: column(columns.testSlowest) }),
     ...(laid?.said === undefined ? {} : { [SAID_SECTION]: column(laid.said) }),
     ...(laid?.read === undefined ? {} : { [READ_SECTION]: column(laid.read) }),
     ...(laid?.misused === undefined ? {} : { [MISUSED_SECTION]: column(laid.misused) }),
@@ -431,6 +434,7 @@ export function testAt(columns: TestColumns, at: number, string: (id: number) =>
     ...stoppedFrom(columns.testStopped, at),
     ...durationFrom(columns.testDuration, at),
     ...limitFrom(columns.testLimit, at),
+    ...slowestFrom(columns.testSlowest, at),
     ...(columns.testSaid?.[at] === undefined ? {} : { said: columns.testSaid[at] }),
   };
 }

@@ -80,10 +80,11 @@ export async function journeysOutput(request: JourneysRequest): Promise<string> 
  * The shards at `shards` landed on `suite`'s record in the checkout at `cwd`,
  * as `variance journeys <shards> --suite` lands them, and the landing said
  * without the reading: a CI fan-in folds for the jobs after it, and nobody
- * reads a whole journal in its log.
+ * reads a whole journal in its log. `alone` lands them over nothing, as
+ * `landJourneys` says.
  */
-export async function landSuite(cwd: string, shards: readonly string[], suite: string): Promise<string> {
-  return formatLanding(await landJourneys(cwd, shards, undefined, suite));
+export async function landSuite(cwd: string, shards: readonly string[], suite: string, alone = false): Promise<string> {
+  return formatLanding(await landJourneys(cwd, shards, undefined, suite, alone));
 }
 
 /** The reading `variance journeys` takes, without a fold-only operation. */

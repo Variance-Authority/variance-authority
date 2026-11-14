@@ -1,5 +1,6 @@
 import { loudestBand, type Band } from '../compare/band.js';
-import type { ChangedComponent, Delta, Root, RootKind, SemanticDiff } from '../compare/diff/index.js';
+import type { SemanticDiff } from '../compare/diff/index.js';
+import type { ChangedComponent, Delta, Root, RootKind } from '../compare/diff/delta.js';
 import { aggregateImpact, type AggregateImpact, type PropertyImpact } from '../compare/impact.js';
 
 /**

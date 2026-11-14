@@ -31,6 +31,8 @@ per **subject** covering every process it reached.
 
 - [`crossings`](../crossings/README.md) — one row per **subject**, folded
   together with what the driven realm itself reported
+- [`watched run`](../../runtime/watched-run/README.md) — a request no test
+  drove, reported as an execution of its own to a watcher the head was told of
 
 ## Boundary
 
@@ -42,10 +44,16 @@ after an `await` is attributed.
 
 The **subject**'s name never leaves the driver. A participant reports counts
 under an id and writes nothing down; the driver mints, holds the mapping, and is
-the only party that persists anything. Told neither which build it is part of
+the only party that persists anything. A participant told a watcher's address
+mints an id itself for a request nobody drove, which names no **subject**; what
+that request entered stays every driver's, settled or still open. Told neither which build it is part of
 nor that anyone is listening, a participant installs nothing and the entry point
 is the identity function, which is what lets the call ship to production rather
 than be conditional on a build flag.
+
+A page used by hand is the one participant with no execution to be bounded by:
+it is bounded by interactions, a load and then each click or submit. Its
+account goes only to a watcher and never reaches a selection.
 
 Every participant a run declares must report at least once. Silence does not
 narrow: a declared participant that reported nothing all run, or one reporting a
@@ -66,6 +74,9 @@ first.
 
 - `packages/sense/src/test-selection/journey.ts` — `collectJourneys`,
   `mintJourney`, and the per-execution factory behind the probe's global
+- `packages/sense/src/test-selection/page.ts` — `reportPage`, a page used by
+  hand as its own driver: it names an execution per load and per click or
+  submit, leaves the two cookies, and reports itself as a head
 - `packages/sense/src/test-selection/stitch.ts` — `stitchJourneys`, the driver's
   join, and the name unattributed regions report under
 - `packages/sense/src/test-selection/journey-driver.ts` — `driveJourneys`, the

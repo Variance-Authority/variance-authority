@@ -1,6 +1,6 @@
 {
   "name": "@variance-authority/sense",
-  "version": "0.29.0",
+  "version": "0.32.1",
   "description": "Which components and tests a source change reaches: test selection and impact analysis from a versioned index of a checkout.",
   "keywords": [
     "variance-authority",
@@ -68,6 +68,10 @@
     "./journey": {
       "types": "./dist/test-selection/journey.d.ts",
       "default": "./dist/test-selection/journey.js"
+    },
+    "./page": {
+      "types": "./dist/test-selection/page.d.ts",
+      "default": "./dist/test-selection/page.js"
     },
     "./precondition": {
       "types": "./dist/test-selection/precondition.d.ts",

@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { caseSectionsOf, commitRunsFile, decodeTestCoverage, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { caseSectionsOf, commitRunsFile, decodeTestCoverage, recordOfCases, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { report } from './commands/push-fixture.js';
 import {
   REPORT_ENTRY,
@@ -217,6 +217,20 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
     });
   });
 
+  it('is published as partial for a mainline that takes part of a run, a test no run lists among those it did not run', async () => {
+    const older = 'c'.repeat(40);
+    const { root, commit } = await ranAt('queued', (at) => ({ ...ran(at, [{ commit: older, files: ['test/other.test.ts'] }]) }));
+    const both = new Set(['test/kept.test.ts', 'test/other.test.ts']);
+
+    const entry = await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: both, partial: true });
+
+    expect(entry).toMatchObject({ name: 'suite-v1/unit', commit, partial: true });
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected, partial: true })).not.toHaveProperty('partial');
+    expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/kept.test.ts', 'test/new.test.ts']), partial: true })).toMatchObject({
+      partial: true,
+    });
+  });
+
   it('is not published for a mainline when a test file the runner collects is in no run the record lists, and names it', async () => {
     const { root, coverage, commit } = await ranAt('unlisted', (at) => ran(at, []));
     const more = new Set(['test/kept.test.ts', 'test/new.test.ts']);
@@ -268,6 +282,20 @@ describe('a mainline\'s `suite-v1/<suite>` entry', () => {
     expect(await suiteEntryOf(root, 'unit', { commit }, { whole: true, collected: new Set(['test/kept.test.ts', 'test/new.test.ts']) })).toMatchObject({
       name: 'suite-v1/unit',
     });
+  });
+
+  it('marks a run of part of the suite that instrumented no module partial, so a whole one replaces it', async () => {
+    const root = join(dir, 'caseless-queue');
+    await mkdir(root, { recursive: true });
+    execFileSync('git', ['init', '--quiet', root]);
+    await writeFile(join(root, 'variance.config.json'), JSON.stringify({ suites: { unit: { kind: 'unit' } } }));
+    const coverage = testCoverageFile(root, { suite: 'unit' });
+    await mkdir(dirname(coverage), { recursive: true });
+    const last = { commit: AT.commit, at: '2026-01-01T00:00:00.000Z', files: ['test/total.test.ts'], began: true, cases: [] };
+    await writeFile(coverage, recordOfCases({ index: Buffer.from('cases'), last: Buffer.from(JSON.stringify(last)) }));
+
+    expect(await suiteEntryOf(root, 'unit', { commit: AT.commit }, { whole: true, partial: true })).toMatchObject({ commit: AT.commit, partial: true });
+    expect(await suiteEntryOf(root, 'unit', { commit: AT.commit }, { whole: true })).not.toHaveProperty('partial');
   });
 
   it('is not published for a mainline when nothing says the whole suite ran, and says what was missing', async () => {

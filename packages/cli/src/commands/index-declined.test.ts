@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
-import { main } from '../bin.fixture.js';
+import '../bin.fixture.js';
+import { main } from '../bin.js';
 import { indexOutput } from './index-command.js';
 
 /**
@@ -187,15 +188,15 @@ describe('variance index, over a file it declines', () => {
 
   // A read that fails is tried again on the next update, and a record of one
   // names no bytes: `acquire.rs`, `record_tests.rs` and `record.test.ts` hold
-  // that. Through `variance index` a file whose bytes cannot be read never
-  // reaches a read: Git cannot hash it either, and the listing leaves it out.
+  // that. A file Git cannot hash is still listed, without a digest: what
+  // cannot be read is charged as unknown, never dropped from the index.
   // A mode takes nothing from root, and win32 has no mode for `chmod` to take.
-  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('leaves out a file it cannot read, which Git cannot hash to list', async () => {
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('charges a file it cannot read, which Git cannot hash, and reads it again', async () => {
     const root = checkout({ 'src/locked.js': 'export const locked = 1;\n' }, false);
     chmodSync(join(root, 'src/locked.js'), 0o000);
     onTestFinished(() => { chmodSync(join(root, 'src/locked.js'), 0o644); });
 
-    expect(await indexed(root)).toBe('source index built: 2 files,');
-    expect(await updated(root)).toBe('source index updated: 2 files, 0 read again,');
+    expect(await indexed(root)).toBe('source index built: 3 files,');
+    expect(await updated(root)).toBe('source index updated: 3 files, 1 read again,');
   });
 });

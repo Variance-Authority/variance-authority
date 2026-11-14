@@ -80,7 +80,7 @@ between the green one and the glass one? Neither of those extends the other, so 
 rule above sees two unrelated subjects.
 
 Add a `names` section to `variance.config.json`, the file you pass to
-`npx variance run --config`, to say what the words are:
+`variance run --config`, to say what the words are:
 
 ```json
 {
@@ -248,7 +248,7 @@ after the run is outside this surface.
 
 ## Read it
 
-`npx variance report --config variance.config.json` prints a run's variations, as
+`variance report --config variance.config.json` prints a run's variations, as
 pairs, when it has any.
 
 The same content is in the run artifact — the machine-readable record a run writes —

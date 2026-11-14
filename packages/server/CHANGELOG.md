@@ -1,5 +1,23 @@
 # @variance-authority/server
 
+## 0.32.1
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.32.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.31.0
+
+Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
+
+## 0.30.0
+
+### Patch Changes
+
+- edc6d7d: The README and the skill print `variance`, the command a package manager runs from the install, where they printed a runner that fetches another package when the install is missing.
+
 ## 0.29.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

@@ -29,9 +29,9 @@ export {
   type ExecutionIndex,
   type ExecutionModule,
   type ExecutionTest,
-  type SourceTestTarget,
   type SourceTestRange,
 } from './reverse.js';
+export { type SourceTestTarget } from './source-target.js';
 export { overwrittenIn, overwrittenOn, type OverwrittenOn } from './overwritten.js';
 export { anyStopped } from './stopped.js';
 export { unenteredSentence, whyUnentered, type Unentered } from './unentered.js';
@@ -59,16 +59,28 @@ export {
 export { byRelations, PRECISION_STEPS, type Precision } from './precision.js';
 export { importReferences, type FileReferences } from './references.js';
 export { readJourneyChange, type JourneyReading, type JourneyReadingOptions } from './journey-reading.js';
-export { rankDistillCauses, readDistillRecords, type DistillRecords, type NativeDistillCause, type NativeDistillFile, type NativeDistillRegion, type NativeDistillScope } from './distill-native.js';
+export { rankDistillCauses, readDistillRecords, type DistillRecords } from './distill-native.js';
+export {
+  type NativeDistillCause,
+  type NativeDistillFile,
+  type NativeDistillRegion,
+  type NativeDistillScope,
+} from '../native-distill.js';
 export { projectJourneyFile, selectJourneyFile, type JourneyProjection } from './journey-native.js';
 export { absentText, formatCoveringChange, lostText, type CoveringChangeHeading } from './covering-change-text.js';
 export { limitAcross } from './execution-set-columns.js';
 export { EXECUTION_FORMAT, decodeExecutionIndex, encodeExecutionIndex, isEncodedExecutionIndex } from './execution-format.js';
-export { combineRecords, type CombinedRecord, type CombinedShard } from './record-combine.js';
+export { combineRecords } from './record-combine.js';
+export {
+  type NativeCombinedRecord as CombinedRecord,
+  type NativeCombinedShard as CombinedShard,
+} from '../native-record.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
-export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps, type SetColumns, type StringTable, type TestColumns } from './execution-set-format.js';
+export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps } from './execution-set-format.js';
+export { type SetColumns, type StringTable, type TestColumns } from './execution-set-columns.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
-export { readingLines, withEveryReading, type FileReading } from './reading-lines.js';
+export { readingLines, withEveryReading } from './reading-lines.js';
+export { type FileReading } from './reading.js';
 export { atDistance, distanceRange, groupByDistance, remaining, type DistanceGroup } from './at-distance.js';
 export { distanceFromView, nearestFirst, type Bearing, type DistanceOptions, type TestDistance } from './distance.js';
 export { testsReaching, testsReachingFromView, distanceToSource } from './at-source.js';
@@ -82,13 +94,14 @@ export { hunksOf } from './patch.js';
 // `sourceAt` gets `stale` empty, which reads exactly like frames that agree.
 export { blobsAt, readBlobsAt, readTextsAt, textAtRecording, textsAt } from './recorded-text.js';
 export { keptDigests, keptTexts, type KeptTexts } from './kept-texts.js';
-// A landing of shards reads the install each shard's own landing kept.
-export { shardsInstall, shardsTexts, type KeptInstall, type ShardRuns } from './kept-install.js';
+// A landing of shards reads the install each shard's own landing kept, and
+// `select --ran-at` splits a side's change by the same files.
+export { readByInstall, shardsInstall, shardsTexts, type KeptInstall, type ShardRuns } from './kept-install.js';
 // A text cut as a seam records it, so rows written by hand stand where a
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
-export { kept, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
+export { kept, placed, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { askedSelection, landingTimes } from './selection-environment.js';
 export { shardArgument, shardOf, type ShardAsked, type ShardPart } from './shard-placement.js';
 export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
@@ -98,6 +111,7 @@ export {
   CACHE_CONFIG,
   cacheLayers,
   cacheRootFor,
+  directoriesIn,
   layeredFiles,
   repositoryLayers,
   rootConfig,
@@ -145,6 +159,8 @@ export {
   type SuiteKind,
 } from './suites.js';
 export { defaultInclude } from './instrumented-modules.js';
+// The join's cut of a module from its id, for a reader that holds ids and no record.
+export { deriveModules } from './captured-modules.js';
 export { declaredEntrypoints, parseEntrypoints, EntrypointsError, type Entrypoints } from './entrypoints.js';
 export { repositoryRoot } from './repository-root.js';
 export {
@@ -154,6 +170,7 @@ export {
   counted,
   machineOwners,
   planPrune,
+  pruneSelection,
   mib,
   prunedLine,
   pruneWhenDue,
@@ -190,9 +207,10 @@ export { casesRan, landCases, lastCaseRunOf, textsOf, type CaseLanding, type Lai
 export { casesCutApart, type IndexedCut } from './case-index-cut.js';
 export { followRows, followRowsIn } from './case-cuts.js';
 export { editsBetween, regionTouched, type Edit, type TextNames } from './region-edit.js';
-export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordStorageAt, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections, type RecordStorage } from './case-record.js';
+export { caseIndexOf, caseSectionsAt, caseSectionsOf, keepsCases, keepsEyes, recordOfCases, recordStorageAt, recordedAttemptsAt, recordedCases, recordedEyesAt, recordedEyesOf, sharedRecord, withCaseSections, withoutCoverage, type CaseSections, type RecordStorage } from './case-record.js';
 export { collectedRecord } from './collected-record.js';
 export { type EyesSection, type ObservedEyes, type RecordedEyes } from './eyes-record.js';
+export { type ObservedAttempt, type RecordedAttempt } from './attempts-record.js';
 export { RecordWithoutCoverage } from './format-validation.js';
 export { commitRunsAfter, commitRunsFile, heldCommitRuns, landRun, namedCommits, readCommitRuns, writeCommitRuns, type CommitRuns, type RecordedTests, type StandingEntry } from './commit-runs.js';
 export { commitRunsIn } from './commit-runs-text.js';

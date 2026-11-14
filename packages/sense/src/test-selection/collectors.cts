@@ -19,8 +19,10 @@ import caseOwner = require('./case-owner.cjs');
 import journals = require('./journal-format.cjs');
 import eyesFrames = require('./eyes-frame.cjs');
 import preconditions = require('./case-preconditions.cjs');
+import presence = require('./presence.cjs');
 import probeCuts = require('../instrument/probe-cuts.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
+import storyListen = require('../instrument/story-listen.cjs');
 import storyTap = require('../instrument/story-tap.cjs');
 import stories = require('../story/format.cjs');
 import type { ModuleId } from '../instrument/index.js';
@@ -29,7 +31,8 @@ import type { JourneyTrace } from './journey.js';
 type Engine = ReturnType<typeof probeLog.createEngine>;
 type Bucket = ReturnType<Engine['open']>;
 type View = ReturnType<Engine['read']>;
-type Presence = Map<ModuleId, Uint32Array>;
+type Presence = ReturnType<typeof presence.presenceOf>;
+const { presenceOf, foldInto } = presence;
 /** Where a case's story goes once the case settles; see `story/format.cts`. */
 type StoryWriter = (key: string, bytes: Uint8Array) => void;
 
@@ -79,47 +82,6 @@ const CASE_SCOPE = Symbol.for('variance-authority.test-selection.cases');
 
 /** Where a runner's environment leaves the application's tracing; mirrors `TRACE` in `jest-runtime.cts`. */
 const TRACE = Symbol.for('variance-authority.test-selection.trace');
-
-/** Mirrors `EVALUATING` in `../instrument/index.ts`, with the entered bit beside it. */
-const ENTERED_EVALUATING = 0x80000001;
-
-/**
- * A read-out as one array per module, 1 for entered and the evaluating bit
- * beside it: what `encodeJournal` reads, and all it reads.
- */
-function presenceOf(view: View): Presence {
-  const out: Presence = new Map();
-  for (const row of view.rows) {
-    const counters = new Uint32Array(view.counts[row]!);
-    for (let at = view.start[row]!; at < view.end[row]!; at += 1) {
-      const value = view.sorted[at]!;
-      counters[value >>> 1] = value & 1 ? ENTERED_EVALUATING : 1;
-    }
-    out.set(view.ids[row]!, counters);
-  }
-  return out;
-}
-
-/**
- * Or a bucket into the file's union. A module whose block count changed
- * restarts from this bucket: its old ordinals name regions the new text does
- * not have.
- */
-function foldInto(union: Presence, view: View): void {
-  for (const row of view.rows) {
-    const id = view.ids[row]!;
-    const count = view.counts[row]!;
-    let counters = union.get(id);
-    if (counters === undefined || counters.length !== count) {
-      counters = new Uint32Array(count);
-      union.set(id, counters);
-    }
-    for (let at = view.start[row]!; at < view.end[row]!; at += 1) {
-      const value = view.sorted[at]!;
-      counters[value >>> 1]! |= value & 1 ? ENTERED_EVALUATING : 1;
-    }
-  }
-}
 
 /**
  * The realm's engine, made and installed if this is the first collector in it.
@@ -250,7 +212,8 @@ function scoped(
 ): Collector {
   const engine = attach(holder, continuations, story !== undefined);
   const tap = story === undefined ? undefined : storyTap.tapOf(holder.__VA__);
-  if (tap !== undefined) storyTap.listen(tap, holder);
+  const { cuts } = engine;
+  if (tap !== undefined) storyListen.listen(tap, holder);
   const buckets = new Map<string, Bucket>();
   const late = new Set<string>();
   // A bucket is written the moment its case settles and then dropped, so a
@@ -307,6 +270,8 @@ function scoped(
   );
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
+    // Read before the bucket closes: the case's end is its last statement's.
+    const slowest = cuts?.slowest(bucket);
     const view = engine.close(bucket);
     const settled = stopped.get(bucket.key);
     const journey = journeys.get(bucket.key);
@@ -319,7 +284,8 @@ function scoped(
     // has nothing to write when it entered nothing.
     if (view.rows.length === 0 && settled === undefined && journey === undefined && !spoke) return undefined;
     const settledOwner = settled === undefined ? name : caseOwner.settledCase(name, settled);
-    const owner = journey === undefined ? settledOwner : caseOwner.packJourney(settledOwner, journey);
+    const timedOwner = slowest === undefined ? settledOwner : caseOwner.slowestCase(settledOwner, slowest);
+    const owner = journey === undefined ? timedOwner : caseOwner.packJourney(timedOwner, journey);
     frames.push(journals.encodeLog(heard === undefined ? owner : caseOwner.packHeard(owner, heard), view));
     foldInto(union, view);
     return view;
@@ -366,8 +332,29 @@ function scoped(
     });
   }
 
+  // The case bodies in flight, the attempts the runner has open, and whether
+  // two of either have overlapped since the file last had none. Only an edge
+  // that closes the one open attempt, with one body in flight and no overlap,
+  // names its case: the runner gave up on it, and its statement in flight
+  // ends there. Any other leaves the case to the file's end.
+  const inFlight = new Set<Bucket>();
+  let attempts = 0;
+  let crowded = false;
+  const attempted = (): void => {
+    if (attempts === 0 && inFlight.size === 0) crowded = false;
+    else crowded = true;
+    attempts += 1;
+  };
+  const givenUp = (): void => {
+    if (!crowded && attempts === 1 && inFlight.size === 1) {
+      for (const bucket of inFlight) cuts?.stop(bucket);
+      inFlight.clear();
+    }
+    if (attempts > 0) attempts -= 1;
+  };
   const release = (bucket: Bucket): void => {
     bucket.open = false;
+    inFlight.delete(bucket);
     if (current === bucket) {
       current = ambient;
       engine.use(ambient);
@@ -427,6 +414,9 @@ function scoped(
     }
     const bucket = bucketFor(key);
     bucket.open = true;
+    cuts?.time(bucket);
+    if (inFlight.size > 0) crowded = true;
+    inFlight.add(bucket);
     attention?.entered(key);
     const carried = trace;
     const run = carried === undefined
@@ -450,12 +440,13 @@ function scoped(
   // that never ran is forgotten, and Eyes attends the attempt from here. One
   // the runner never said was over ends as the next begins.
   const begin = (token?: unknown): void => {
+    attempted();
     ended();
     owed = [];
     recorder.begin(token);
     attention?.scope.begin();
   };
-  const leave = (): void => { ended(); attention?.scope.leave(); };
+  const leave = (): void => { givenUp(); ended(); attention?.scope.leave(); };
   (holder as { [CASE_SCOPE]?: unknown })[CASE_SCOPE] = {
     enter, journey, phase, within, where, ...attention?.scope, begin, leave,
   };

@@ -49,7 +49,7 @@ describe('the manifest', () => {
   const manifest: LineManifest = {
     format: 1,
     entries: [
-      { name: 'suite-v1/web', commit: 'c0ffee', images: [IMAGE, DIGEST], digest: DIGEST, size: 3 },
+      { name: 'suite-v1/web', commit: 'c0ffee', images: [IMAGE, DIGEST], partial: true, digest: DIGEST, size: 3 },
       { name: 'report-v1', commit: 'c0ffee', head: 'beef', digest: DIGEST, size: 3 },
     ],
   };
@@ -60,7 +60,7 @@ describe('the manifest', () => {
       format: 1,
       entries: [
         { name: 'report-v1', commit: 'c0ffee', head: 'beef', digest: DIGEST, size: 3 },
-        { name: 'suite-v1/web', commit: 'c0ffee', images: [DIGEST, IMAGE], digest: DIGEST, size: 3 },
+        { name: 'suite-v1/web', commit: 'c0ffee', images: [DIGEST, IMAGE], partial: true, digest: DIGEST, size: 3 },
       ],
     });
   });
