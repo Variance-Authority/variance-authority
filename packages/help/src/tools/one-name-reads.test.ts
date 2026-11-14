@@ -8,6 +8,7 @@ import { updateSourceIndex } from '@variance-authority/sense';
 import { publishWorkspaceFromIndex } from '../refresh-native.js';
 import { readWorkspaceSnapshot } from '../snapshot.js';
 import { answering, answers } from './declaration-key.js';
+import { exportedAmong, exportedIn } from './rows.js';
 import { symbol } from './symbol.js';
 import { uses } from './uses.js';
 
@@ -87,4 +88,18 @@ it.each(['clamp', 'mount', 'limit', 'gauge', 'default', 'other', 'nothing'])('fi
   const found = answering(help, root, name);
   expect(found).toEqual(help.exported.filter((held) => answers(help, root, held, name)));
   if (name !== 'nothing') expect(found.length).toBeGreaterThan(0);
+});
+
+it('reads the exports of several files in the order the whole list holds them, whatever order the files are asked in', async () => {
+  const { help } = await published();
+  const among = ['packages/kit/src/internal/other.ts', 'packages/kit/src/internal/clamp.ts', 'packages/kit/src/internal/limit.ts'];
+  const found = exportedAmong(help, among);
+  expect(found).toEqual(help.exported.filter((held) => among.includes(held.at)));
+  expect(found.length).toBe(4);
+});
+
+it('reads no export for a file the store does not hold', async () => {
+  const { help } = await published();
+  expect(exportedIn(help, 'packages/kit/src/internal/absent.ts')).toEqual([]);
+  expect(exportedAmong(help, ['packages/kit/src/internal/absent.ts'])).toEqual([]);
 });
