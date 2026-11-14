@@ -66,16 +66,8 @@ mod change_tree;
 mod held;
 #[cfg(unix)]
 mod held_listing;
-mod help_aliases;
-mod help_declared;
-mod help_in_file;
-mod help_member_uses;
-mod help_members;
-mod help_origin;
-mod help_own_uses;
-mod help_publish;
-mod help_search;
-mod help_usage;
+mod help;
+use help::*;
 mod index;
 mod index_chain;
 mod index_turn;

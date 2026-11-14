@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -15,8 +14,6 @@ import { discover, readsNames } from './discover.js';
  * asked for, are in the answer — and each of the other three fails exactly one
  * operand, so an answer holding any of them dropped that operand.
  */
-
-const RG = spawnSync('rg', ['--version']).error === undefined;
 
 const reads = (file: string, ...to: readonly (string | readonly [string, EdgeKind])[]): FileRecord =>
   to.length === 0
@@ -245,7 +242,7 @@ describe('discover says how a file reaches what it was asked of', () => {
   });
 });
 
-describe.skipIf(!RG)('text, inside the files the other operands kept', () => {
+describe('text, inside the files the other operands kept', () => {
   it('answers only files with a matching line', () => {
     const text = ask({ ...CONTEXTS, text: 'dark' });
     expect(text).toContain("src/state/theme.ts:2  export const ThemeContext = createContext('dark');");

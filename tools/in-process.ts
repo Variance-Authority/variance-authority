@@ -21,8 +21,6 @@ import { afterAll, afterEach } from 'vitest';
 const ALLOWED = new Set([
   // How a fixture repository is made, and what the product reads it with.
   'git',
-  // The search `packages/help/src/tools/grep.ts` shells out to.
-  'rg',
   // When a process started, which `packages/sense/src/test-selection/prune.ts` asks.
   'ps',
   // Asked by the Sentry SDK for the context it attaches to an event.
