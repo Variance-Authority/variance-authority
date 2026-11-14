@@ -33,18 +33,18 @@
 
 import { relative, resolve } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
-import { treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
+import type { FileRecord, Tree } from '@variance-authority/mcp/tools';
 import {
   openSourceIndex,
   placesOf,
   forwardsDigest,
   scanRelations,
   sourceIndexPath,
+  sourceTreeOf,
   stepped,
-  type ParseCache,
   type Progress,
 } from '@variance-authority/sense';
-import { taintRecords, type Taint } from '@variance-authority/sense/taint';
+import { mockTaint, taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   assembleHelp,
   everyEntry,
@@ -64,6 +64,7 @@ import { indexedNames, type IndexedSource } from './indexed-surface.js';
 import { operatorError } from './operator.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
 import {
+  publishedTree,
   readWorkspaceSnapshot,
   republishWorkspaceSnapshot,
   tryPublishWorkspaceSnapshot,
@@ -200,7 +201,7 @@ export interface IndexedUsageOptions {
    * handed a graph it has to ignore.
    */
   readonly records?: (records: readonly FileRecord[], graphRoot: string) => void;
-  /** Handed the queryable graph when a caller asks a path-shaped question. */
+  /** Handed the queryable graph when a caller asks a path-shaped question: the tree this reading publishes. */
   readonly tree?: (tree: Tree) => void;
   /** Told each step as it starts and ends: the manifests, the source, the names, the publish. */
   readonly progress?: Progress;
@@ -216,14 +217,14 @@ async function scanIndexed(
 ): Promise<{
   readonly usage: Usage;
   readonly sources: Map<string, IndexedSource>;
-  readonly records: readonly FileRecord[];
-  readonly cache: ParseCache;
   /** Whether the index is the one the reading keeps for itself, beside its root's, which nobody else saves. */
   readonly ownIndex: boolean;
   /** The digest of every `export … from` this scan read, as `forwardsDigest` states it. */
   readonly forwards: string;
   /** Save what this scan read, or throw {@link UnsavedRead}. */
   save(): Promise<void>;
+  /** The tree to publish once the index is saved: the addon's, or the records when only this side holds them. */
+  published(): Promise<readonly FileRecord[] | Uint8Array>;
 }> {
   const where = resolve(root);
   const index = await openSourceIndex(at);
@@ -252,15 +253,25 @@ async function scanIndexed(
       usage.targets(file, targets);
     },
   }));
-  const tainted = await taintRecords(records, options.taints ?? [], { root: where, cache: index.cache });
-  if (tainted.shadows.size > 0) {
+  const given = await taintRecords(records, options.taints ?? [], { root: where, cache: index.cache });
+  if (given.shadows.size > 0) {
     throw new Error(
-      `Help source areas cannot apply subtractive taints: ${tainted.shadows.size} file(s) shadow a module. ` +
+      `Help source areas cannot apply subtractive taints: ${given.shadows.size} file(s) shadow a module. ` +
       'Pass addition-only taints for declarative module loads.',
     );
   }
+  // What a test loads for real beside its mocks joins the published tree. The
+  // addon resolves it from the saved index, as the native refresh does; only a
+  // caller's taints, which the index never holds, keep the published tree on
+  // this side, and then this side joins the mocks the same way. A mock's cut is
+  // one test's run and stays out of either.
+  const tainted = options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: where, cache: index.cache });
   options.records?.(tainted.records, where);
 
+  // The index holds what this scan read once it is saved: here, or by a caller
+  // that wrote it a moment ago and says so with `saveIndex: false`.
+  let saved = options.saveIndex === false && coversWhole(dirs);
+  let drawing: Promise<readonly FileRecord[] | Uint8Array> | undefined;
   const joined = usage.read();
   const recordUnknown = records.flatMap((record) => record.unknown === undefined ? [] : [record.unknown]);
   return {
@@ -268,17 +279,23 @@ async function scanIndexed(
       ? joined
       : { ...joined, unreadable: [...joined.unreadable, ...recordUnknown] },
     sources,
-    records: tainted.records,
-    cache: index.cache,
     // A save keeps only the records this scan touched, and the index at `at`
     // covers exactly what this scan reads: the root's own, or the scope's.
     ownIndex: !coversWhole(dirs),
     forwards: forwardsDigest(usage.forwards()),
     save: async () => {
       const refused = await index.save();
+      saved = refused === undefined;
       // An index that is not there, or does not open, holds no lines to pair with.
       if (refused !== undefined && index.state !== 'missing' && index.state !== 'damaged') throw new UnsavedRead(refused);
     },
+    // Drawn once, off the saved index by the addon; an unsaved index leaves it to
+    // the records, as a caller's taints do, and they join the mocks here.
+    published: () => (drawing ??= (async () => {
+      const drawn = saved && options.taints === undefined ? await sourceTreeOf(where, at) : null;
+      if (drawn !== null) return drawn;
+      return tainted === given ? (await taintRecords(given.records, [mockTaint()], { root: where, cache: index.cache })).records : tainted.records;
+    })()),
   };
 }
 
@@ -328,12 +345,7 @@ export async function refreshWorkspace(
   const kept = options.changed === undefined ? undefined : workspaceReadStarted(documented);
   const read = await scanWorkspace(root, options, kept === undefined ? undefined : { readStartedAt: new Date(kept).toISOString() });
   if (!sameSurface(read, documented)) return documentWorkspace(read, options);
-  const help = joinUsage(documented, read.offerings, read.scanned.usage);
-  if (options.save !== false) {
-    if (options.saveIndex !== false || read.scanned.ownIndex) await read.scanned.save();
-    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, read.readStartedAt, read.scanned.forwards, packagesDigest(read.root, read.offerings), options.index);
-  }
-  return help;
+  return publishRead(read, joinUsage(documented, read.offerings, read.scanned.usage), options);
 }
 
 interface WorkspaceScan {
@@ -366,7 +378,6 @@ async function scanWorkspace(
 
   const at = scopeSourceIndexPath(options.index ?? sourceIndexPath(where), scope.dirs);
   const scanned = await scanIndexed(scope.root, opened, targets, options, scope.dirs, at);
-  options.tree?.(treeAtWorkspace(treeOf(scanned.records, scope.root), where));
   return {
     workspace: where,
     root: scope.root,
@@ -387,12 +398,24 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
   // parse alive while two large artifacts are encoded turns a cold publication
   // into garbage-collection work proportional to the repository.
   scanned.sources.clear();
+  return publishRead(read, help, options);
+}
+
+/**
+ * Save the index and publish `help` beside it, unless the caller said not to,
+ * then hand a caller asking a path-shaped question the tree published: a fresh
+ * read and the next question over its generation walk the same edges, mocks
+ * among them.
+ */
+async function publishRead(read: WorkspaceScan, help: Help, options: ReadingOptions): Promise<Help> {
+  const { scanned } = read;
   if (options.save !== false) {
     await stepped(options.progress, 'publishing the questions', async () => {
       if (options.saveIndex !== false || scanned.ownIndex) await scanned.save();
-      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, read.readStartedAt, scanned.forwards, packagesDigest(root, offerings), options.index);
+      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, await scanned.published(), read.readStartedAt, scanned.forwards, packagesDigest(read.root, read.offerings), options.index);
     });
   }
+  if (options.tree !== undefined) options.tree(publishedTree(await scanned.published(), read.root, read.workspace));
   return help;
 }
 

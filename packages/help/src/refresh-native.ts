@@ -27,6 +27,7 @@ import {
   workspaceGeneration,
   workspaceIndexDigest,
   workspaceSnapshotPath,
+  workspaceTreeOpens,
   workspaceTreePrefix,
 } from './snapshot.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
@@ -105,8 +106,9 @@ async function refreshOver(
   const indexDigest = await indexManifestDigest(index);
   if (indexDigest === undefined) return undefined;
   const kept = workspaceGeneration(documented);
-  // A value refreshed from this very manifest is what this refresh would write: an index that did not move costs nothing.
-  if (kept !== undefined && workspaceIndexDigest(documented) === indexDigest) return kept;
+  // A value refreshed from this very manifest is what this refresh would write: an index that did not move costs nothing,
+  // while the tree beside it still opens.
+  if (kept !== undefined && workspaceIndexDigest(documented) === indexDigest && await workspaceTreeOpens(documented, own)) return kept;
   let reading: Awaited<ReturnType<typeof readHelp>>;
   try {
     reading = await stepped(options.progress, 'reading what each file imports and exports, from the index', () =>
