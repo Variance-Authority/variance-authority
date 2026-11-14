@@ -541,7 +541,9 @@ files is refused as not found: run `rg` on it. The query is a ripgrep regular ex
 Lines come grouped by how many imports away from the start point their
 file is, then by path and line, each as `path:line:text`. The imports are the
 ones `variance index` resolved, so the answer names its generation; it is asked
-again of the checkout as it is when a file of the area changed since.
+again of the checkout as it is when a file of the area changed since. A file
+written since, under a folder it starts from or importing into its area, waits
+for the next `variance index`.
 
 ### `discover`
 

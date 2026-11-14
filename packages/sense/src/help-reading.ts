@@ -212,6 +212,7 @@ export interface Alias {
 
 export interface NativeHelp {
   readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[], tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
+  sourceTreeOf?(root: string, index: string, tsconfig: string | boolean | null, code: string[]): Promise<Uint8Array | null>;
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   digestForwards?(forwards: string[]): string;
@@ -274,8 +275,21 @@ export function readHelp(
   targets: { readonly published: Iterable<string>; readonly unentered: Iterable<string>; readonly declared: Iterable<string> },
   index: string = sourceIndexPath(root),
 ): Promise<HelpReading | null> {
+  return entry('readHelp')(root, index, [...opened], [...targets.published], [...targets.unentered], [...targets.declared], ...mocking(root));
+}
+
+/**
+ * The source tree `readHelp` publishes for the index at `index`, for a reading
+ * whose usage was drawn on this side; `null` when none was published.
+ */
+export function sourceTreeOf(root: string, index: string = sourceIndexPath(root)): Promise<Uint8Array | null> {
+  return entry('sourceTreeOf')(root, index, ...mocking(root));
+}
+
+/** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */
+function mocking(root: string): [string | boolean | null, string[]] {
   const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
-  return entry('readHelp')(root, index, [...opened], [...targets.published], [...targets.unentered], [...targets.declared], tsconfig ?? null, [...CODE_EXTENSIONS]);
+  return [tsconfig ?? null, [...CODE_EXTENSIONS]];
 }
 
 /** The store of `store` and `exported`, stamped with `meta` when it is published, and the digest of `exported`. */

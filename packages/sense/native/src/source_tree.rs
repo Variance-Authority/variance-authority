@@ -102,9 +102,9 @@ fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>,
         .collect()
 }
 
-pub(crate) fn tree(layers: &[Layer], mocking: Option<&Mocking>) -> Vec<u8> {
+pub(crate) fn tree(layers: &[Layer], mocking: &Mocking) -> Vec<u8> {
     let folded = fold(layers);
-    let added = mocking.map(|mocking| additions(layers, &folded, mocking)).unwrap_or_default();
+    let added = additions(layers, &folded, mocking);
     let mut files: Collected = Collected::default();
     for (&path, &(layer, row)) in &folded {
         files.insert(path);

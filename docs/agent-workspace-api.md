@@ -371,8 +371,9 @@ given under its old name, a name a barrel stopped passing on is not called
 published, a declaration you moved is given at the line it holds today, and a use
 is given at its line. An edit anywhere
 else waits for the hour: `uses` does not see an import you just added to a file
-it does not list, and `grep --to` does not see a file that just began importing
-into its area. The look is a stat of each file.
+it does not list, and `grep` does not see a file that just began importing into
+its area, or one written under a folder it starts from. The look is a stat of
+each file.
 
 When the checkout cannot be read again, or the new read cannot be saved, or a
 file the answer rests on is saved during the read that answers it, the answer or

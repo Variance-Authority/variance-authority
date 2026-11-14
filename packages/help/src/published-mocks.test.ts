@@ -92,4 +92,13 @@ describe('the published tree', () => {
     expect([...tree.reachedFrom([TEST])]).toContain(MOCKED);
     expect(tree.unknownAmong([TEST])).toEqual([TEST]);
   });
+
+  it('reaches the module a test loads for real when a caller\'s taints keep the tree on the JavaScript side', async () => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: '2026-11-14T00:00:00.000Z' });
+    await read.readWorkspaceForAnswer(root, { index, taints: [] });
+    const tree = await publishedTree();
+
+    expect([...tree.reachedFrom([TEST])]).toContain(MOCKED);
+    expect(tree.unknownAmong([TEST])).toEqual([TEST]);
+  });
 });

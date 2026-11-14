@@ -239,6 +239,7 @@ export {
   readHelp,
   restampHelpStore,
   ripgrepNative,
+  sourceTreeOf,
   type Alias,
   type ContainerMember,
   type EncodedStore,

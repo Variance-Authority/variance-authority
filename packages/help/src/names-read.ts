@@ -13,8 +13,7 @@ export interface NamedTree {
  * The reading `discover` answers from, for a shell that asks it once.
  *
  * Names are not in the published workspace value, so this is a scan through
- * the source index a run's selection writes — the reading `grep` takes for a
- * start point — with the names taken off the parses that draw the tree when
+ * the source index a run's selection writes, with the names taken off the parses that draw the tree when
  * the question names an operand that reads them, or crosses a question that
  * does.
  */

@@ -98,17 +98,34 @@ pub fn read_help(
 ) -> AsyncTask<OffThread<Option<HelpReading>>> {
     let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
     off_thread(move || {
-        let at = std::path::Path::new(&root);
-        let checkout = std::fs::canonicalize(at).unwrap_or_else(|_| at.to_path_buf());
-        let resolvers = crate::resolve::Resolvers::over(tsconfig, None, crate::emitted::Emitted::listed(&checkout, None));
-        let mocking = Mocking { root: checkout, resolvers, code: code.into_iter().collect() };
+        let mocking = mocking_at(&root, tsconfig, code);
         reading(&root, &index, &opened, &published, &unentered, &declared, &mocking)
     })
 }
 
+/// The source tree of the chain at `index`, as [`read_help`] publishes it, for
+/// a reading that drew its usage on the JavaScript side; `None` when there is
+/// no index.
+#[napi(ts_return_type = "Promise<Buffer | null>")]
+pub fn source_tree_of(root: String, index: String, tsconfig: Option<napi::Either<String, bool>>, code: Vec<String>) -> AsyncTask<OffThread<Option<napi::bindgen_prelude::Buffer>>> {
+    let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
+    off_thread(move || {
+        let mocking = mocking_at(&root, tsconfig, code);
+        opened_chain(&index, |layers| tree(layers, &mocking).into())
+    })
+}
+
+/// A test's loads beside its mocks, resolved from the checkout at `root`.
+fn mocking_at(root: &str, tsconfig: crate::resolve::Tsconfig, code: Vec<String>) -> Mocking {
+    let at = std::path::Path::new(root);
+    let checkout = std::fs::canonicalize(at).unwrap_or_else(|_| at.to_path_buf());
+    let resolvers = crate::resolve::Resolvers::over(tsconfig, None, crate::emitted::Emitted::listed(&checkout, None));
+    Mocking { root: checkout, resolvers, code: code.into_iter().collect() }
+}
+
 fn reading(root: &str, index: &str, opened: &[String], published: &[String], unentered: &[String], declared: &[String], mocking: &Mocking) -> napi::Result<Option<HelpReading>> {
     opened_chain(index, |layers| {
-        let (mut read, tree) = rayon::join(|| usage(root, layers, opened, published, unentered, declared), || tree(layers, Some(mocking)));
+        let (mut read, tree) = rayon::join(|| usage(root, layers, opened, published, unentered, declared), || tree(layers, mocking));
         let exported = std::mem::take(&mut read.exported);
         let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
         let digest = exported_digest(&exported);

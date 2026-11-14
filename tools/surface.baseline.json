@@ -3074,6 +3074,7 @@
         "shippedFiles": "function",
         "sourceIndexPath": "function",
         "sourceScope": "function",
+        "sourceTreeOf": "function",
         "sourcesWithin": "function",
         "stepped": "function",
         "taintFile": "function",

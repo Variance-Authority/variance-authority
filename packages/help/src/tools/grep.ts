@@ -114,7 +114,8 @@ export const grep: Tool<unknown> = {
 /**
  * The files a `grep` answer rests on: every file of the area it searched, for
  * a line in any of them may start or stop matching. A file that began importing
- * into the area after the generation is the one thing a look at them cannot see.
+ * into the area after the generation, or was written under a folder the start
+ * point names, is what a look at them cannot see.
  */
 export function grepPrinted(_help: unknown, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<unknown>): Iterable<string> {
   const area = areaOf(startPointArg(input, 'from'), startPointArg(input, 'to'), invocation?.tree);
