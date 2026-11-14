@@ -42,7 +42,7 @@ runs them one after another, so each has the machine to itself:
 
 | Slice | Files | What a test may start | Workers | Config |
 | --- | --- | --- | --- | --- |
-| `unit` | `*.test.*` | `git`, `rg`, `ps`, `sw_vers`, `esbuild` | one per core | [`vitest.config.mts`](vitest.config.mts) |
+| `unit` | `*.test.*` | `git`, `ps`, `sw_vers`, `esbuild` | one per core | [`vitest.config.mts`](vitest.config.mts) |
 | `integration` | `*.integration.test.*` | the CLI out of `dist`, or a test runner over a fixture | a quarter of the cores | [`vitest.integration.config.mts`](vitest.integration.config.mts) |
 | `chromium` | `*.chromium.test.*` | Chromium, directly or through Playwright | an eighth of the cores | [`vitest.chromium.config.mts`](vitest.chromium.config.mts) |
 
