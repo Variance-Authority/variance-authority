@@ -293,8 +293,13 @@ async function scanIndexed(
       if (refused !== undefined && index.state !== 'missing' && index.state !== 'damaged') throw new UnsavedRead(refused);
     },
     // The addon reads the tree off the saved index, so an index that did not
-    // save leaves it to the records, as a caller's taints do.
-    published: async () => (saved && options.taints === undefined ? await sourceTreeOf(where, at) : null) ?? tainted.records,
+    // save leaves it to the records, as a caller's taints do, and the records
+    // join the mocks here, so no tree of this version lacks them.
+    published: async () => {
+      const drawn = saved && options.taints === undefined ? await sourceTreeOf(where, at) : null;
+      if (drawn !== null) return drawn;
+      return tainted === given ? (await taintRecords(given.records, [mockTaint()], { root: where, cache: index.cache })).records : tainted.records;
+    },
   };
 }
 

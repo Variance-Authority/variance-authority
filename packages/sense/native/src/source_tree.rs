@@ -25,7 +25,7 @@ use regex::Regex;
 
 use crate::package_graph::{fold, join_parses, Crossing};
 use crate::package_owners::NO_OWNER;
-use crate::resolve::Resolvers;
+use crate::resolve::{Resolvers, MODULE_EXTENSIONS};
 use crate::specifier::{is_relative, kind_for, request_of};
 use crate::segment::{encode_as, u32s, u8s, Collected, Strings, NONE};
 use crate::compact::Layer;
@@ -44,13 +44,21 @@ pub(crate) struct Mocking {
     pub code: HashSet<String>,
 }
 
+impl Mocking {
+    /// A test's loads beside its mocks, resolved from the checkout at `root`.
+    pub(crate) fn at(root: &str, tsconfig: crate::resolve::Tsconfig, code: Vec<String>) -> Self {
+        let at = std::path::Path::new(root);
+        let checkout = std::fs::canonicalize(at).unwrap_or_else(|_| at.to_path_buf());
+        let resolvers = Resolvers::over(tsconfig, None, crate::emitted::Emitted::listed(&checkout, None));
+        Mocking { root: checkout, resolvers, code: code.into_iter().collect() }
+    }
+}
+
 /// `isTestLike` in `sense/src/taint/mocks.ts`: where a mock is expected to be written.
 static TEST_LIKE: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\.(test|spec|stories)\.[cm]?[jt]sx?$|(^|/)(setup|setupTests|test-setup|vitest\.setup|jest\.setup)\.[cm]?[jt]sx?$|(^|/)\.storybook/").expect("a valid pattern")
 });
 
-/// `MODULE_EXTENSIONS` in `sense/src/taint/index.ts`: the files a mock is read from.
-const MODULE_EXTENSIONS: [&str; 8] = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 
 /// What one test adds: its edges, and the reason its relative misses make it unknown.
 struct Added {
