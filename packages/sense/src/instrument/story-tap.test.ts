@@ -297,7 +297,7 @@ describe('what a case says on the way', () => {
     engine.use(engine.open('case'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
     const scope = {};
-    storyTap.listen(tap, scope);
+    listen(tap, scope);
     const say = (scope as Record<symbol, (strings: readonly string[], ...values: unknown[]) => void>)[
       Symbol.for('variance-authority.story.note')
     ]!;
