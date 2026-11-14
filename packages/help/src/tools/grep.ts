@@ -139,7 +139,8 @@ function grepped(input: Readonly<Record<string, unknown>>, invocation: ToolInvoc
         'everything under it.',
     );
   }
-  const root = invocation.tree.root;
+  // The walk names files from the graph's root, which a nested workspace sits below.
+  const root = invocation.tree.graphRoot ?? invocation.tree.root;
 
   const distanceOf = (file: string): number => area.distance.get(file) ?? Number.POSITIVE_INFINITY;
   const ordered = [...area.files].sort((left, right) => distanceOf(left) - distanceOf(right) || byCodeUnit(left, right));

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FileRecord, Tree } from '@variance-authority/mcp/tools';
-import { treeOf } from '@variance-authority/mcp/tools';
+import { treeAtWorkspace, treeOf } from '@variance-authority/mcp/tools';
 import { grep } from './grep.js';
 
 /**
@@ -115,6 +115,17 @@ describe('grep over a closure', () => {
 
   it('anchors `^` at every line, as ripgrep does', () => {
     expect(ask({ query: '^const needle', from: 'src/entry.ts' })).toContain('src/entry.ts:2:const needle = 0;');
+  });
+
+  it('reads the files of a workspace nested below the graph from where the graph names them', () => {
+    write('app/src/entry.ts', "import './far';\n");
+    write('app/src/far.ts', 'export const needle = 3;\n');
+    const nested = treeAtWorkspace(treeOf([reads('app/src/entry.ts', 'app/src/far.ts'), reads('app/src/far.ts')], root), join(root, 'app'));
+
+    const answer = grep.run(undefined, { query: 'needle', from: 'src/entry.ts' }, { tree: nested });
+
+    expect(answer).toContain('app/src/far.ts:1:export const needle = 3;');
+    expect(answer).not.toContain('ripgrep reported');
   });
 
   it("hands ripgrep's refusal back", () => {
