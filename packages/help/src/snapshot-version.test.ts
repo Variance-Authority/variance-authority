@@ -59,4 +59,52 @@ describe('the workspace store version', () => {
     await writeFile(workspaceSnapshotPath(index), stored('2026-10-17T23:59:59.000Z'));
     await expect(readWorkspaceSnapshot(root, { index })).resolves.toMatchObject({ packages: [] });
   });
+
+  it('refuses a store whose offset column runs short of the rows it points into', async () => {
+    const bytes = Buffer.from(encodeHelpStore(ONE_ENTRY, [], meta('2026-10-17T23:59:59.000Z')).bytes);
+    await writeFile(workspaceSnapshotPath(index), bytes);
+    await expect(readWorkspaceSnapshot(root, { index })).resolves.toMatchObject({
+      packages: [{ name: 'kept', openings: [{ entries: [{ name: 'keptOf' }] }] }],
+    });
+
+    // `open.entryOff` reads [0, 1]: the opening owns the one entry. As [0, 0] it
+    // would own none, and the value would say `keptOf` is not published.
+    bytes.writeUInt32LE(0, columnAt(bytes, 'open.entryOff') + 4);
+    await writeFile(workspaceSnapshotPath(index), bytes);
+    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow('not a variance-authority help store');
+  });
 });
+
+const meta = (readStartedAt: string) => ({
+  root,
+  graphRoot: root,
+  graphDigest: 'digest',
+  generatedAt: '2026-10-18T00:00:00.000Z',
+  readStartedAt,
+});
+
+const ONE_ENTRY = {
+  ...EMPTY,
+  packages: [{
+    name: 'kept',
+    entry: true,
+    openings: [{
+      subpath: '.',
+      source: 'src/index.ts',
+      spec: 'kept',
+      entries: [{ name: 'keptOf', kind: 'function', at: 'src/index.ts', declared: 'src/index.ts', line: 1, usedBy: [], uses: 0, sites: [], throughDefault: [] }],
+      whole: [],
+    }],
+  }],
+};
+
+/** Where the named column's bytes start, read off the segment's header. */
+function columnAt(bytes: Buffer, name: string): number {
+  const headerLength = bytes.readUInt32LE(0);
+  const header = JSON.parse(bytes.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
+    sections: { name: string; offset: number }[];
+  };
+  const section = header.sections.find((held) => held.name === name);
+  if (section === undefined) throw new Error(`no column ${name}`);
+  return 4 + headerLength + section.offset;
+}

@@ -1,4 +1,4 @@
-import { openSegment, stringReader, type OpenSegment } from '@variance-authority/core/segment';
+import { openSegment, stringReader, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
 import type { UseKind } from '@variance-authority/package/help';
 
 /**
@@ -106,9 +106,55 @@ export function sectionsOf(bytes: Uint8Array): Sections {
     const held = segment.u8(name);
     return Buffer.from(held.buffer, held.byteOffset, held.byteLength);
   };
+  checkOffsets(segment);
   const { text, optional } = stringReader(segment.u8('strings.blob'), segment.u32('strings.off'), segment.reject);
   const maybe = (id: number | undefined): string | undefined => (id === undefined ? undefined : optional(id));
   const slice = (off: Uint32Array, rows: Uint32Array, key: number): Uint32Array =>
     rows.subarray(off[key] ?? 0, off[key + 1] ?? 0);
   return { fields: fieldsOf(segment), bytesOf, u32: (name) => segment.u32(name), string: text, maybe, slice };
+}
+
+/**
+ * Every offset column, checked against the rows it is read for and the column
+ * it points into, so a damaged store is refused when it opens rather than read
+ * as a plausible value: an opening whose entry range ran short would say a
+ * published name is not published. The dictionaries' offsets are checked by
+ * `stringReader`.
+ */
+function checkOffsets(segment: OpenSegment): void {
+  const { u8, u32, reject } = segment;
+  const rows = (name: string): number => u32(name).length;
+  const into = (off: string, target: number, count: number): void => validateOffsets(u32(off), target, count, reject);
+  const names = rows('names.name');
+  const pub = rows('pub.name');
+  const exp = rows('exp.name');
+  const openings = rows('open.subpath');
+  const deep = rows('deep.specifier');
+  // A lowercase blob holds its rows with a NUL between them, and its offsets
+  // count one after the last row too, which the blob does not write.
+  const separated = (off: string, blob: string, count: number): void =>
+    into(off, u8(blob).length + (count === 0 ? 0 : 1), count);
+  separated('names.lowerOff', 'names.lower', names);
+  into('names.pubOff', rows('names.pub'), names);
+  into('names.expOff', rows('names.exp'), names);
+  into('pub.usedByOff', rows('pub.usedByList'), pub);
+  separated('pub.docLowerOff', 'pub.docLower', pub);
+  separated('exp.docLowerOff', 'exp.docLower', exp);
+  into('pkg.openOff', openings, rows('pkg.name'));
+  into('open.entryOff', pub, openings);
+  validateOffsets(Uint32Array.of(0, ...u32('deep.groups')), deep, 3, reject);
+  const terms = u32('terms.off').length - 1;
+  into('terms.off', u8('terms.blob').length, terms);
+  for (const list of ['name', 'pub', 'exp', 'pubSig', 'expSig']) into(`terms.${list}Off`, rows(`terms.${list}`), terms);
+  // The use rows are written in four runs, each starting where the one before
+  // ended: the sites, the uses through a default, an opening's whole uses, and
+  // the names a deep import takes.
+  let start = 0;
+  for (const [off, count] of [['pub.sitesOff', pub], ['pub.tdOff', pub], ['open.wholeOff', openings], ['deep.namesOff', deep]] as const) {
+    const column = u32(off);
+    const end = column[column.length - 1] ?? start;
+    validateOffsets(column.map((at) => at - start), end - start, count, reject);
+    start = end;
+  }
+  if (start !== rows('use.by')) throw reject();
 }
