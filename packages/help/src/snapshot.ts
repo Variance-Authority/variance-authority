@@ -5,6 +5,8 @@ import { dirname, resolve } from 'node:path';
 import {
   decodeSourceTree,
   encodeSourceTree,
+  treeAtWorkspace,
+  treeOf,
   type FileRecord,
   type Tree,
 } from '@variance-authority/mcp/tools';
@@ -83,7 +85,7 @@ export async function readWorkspaceSnapshot(
     if (digest(tree) !== held.graphDigest) {
       throw new Error(`the workspace source tree beside ${at} does not belong to that generation`);
     }
-    options.tree(decodeSourceTree(tree, held.graphRoot, held.root));
+    options.tree(publishedTree(tree, held.graphRoot, held.root));
   }
   if (options.records !== undefined) {
     options.records(await readSourceRecords(index), held.graphRoot);
@@ -221,6 +223,11 @@ export async function republishWorkspaceSnapshot(help: Help, index: string): Pro
   } catch {
     // The previously committed generation remains answerable and keeps its time.
   }
+}
+
+/** The tree published from `graph`, drawn over `graphRoot` and answered for `root`: the encoded bytes, or the records they encode. */
+export function publishedTree(graph: readonly FileRecord[] | Uint8Array, graphRoot: string, root: string): Tree {
+  return graph instanceof Uint8Array ? decodeSourceTree(graph, graphRoot, root) : treeAtWorkspace(treeOf(graph, graphRoot), root);
 }
 
 /** Publish one complete answerable value without making publication its success. */

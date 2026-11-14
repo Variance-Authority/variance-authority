@@ -33,7 +33,7 @@
 
 import { relative, resolve } from 'node:path';
 import { digestString } from '@variance-authority/core/format';
-import { decodeSourceTree, treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
+import type { FileRecord, Tree } from '@variance-authority/mcp/tools';
 import {
   openSourceIndex,
   placesOf,
@@ -42,7 +42,6 @@ import {
   sourceIndexPath,
   sourceTreeOf,
   stepped,
-  type ParseCache,
   type Progress,
 } from '@variance-authority/sense';
 import { mockTaint, taintRecords, type Taint } from '@variance-authority/sense/taint';
@@ -65,6 +64,7 @@ import { indexedNames, type IndexedSource } from './indexed-surface.js';
 import { operatorError } from './operator.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
 import {
+  publishedTree,
   readWorkspaceSnapshot,
   republishWorkspaceSnapshot,
   tryPublishWorkspaceSnapshot,
@@ -217,8 +217,6 @@ async function scanIndexed(
 ): Promise<{
   readonly usage: Usage;
   readonly sources: Map<string, IndexedSource>;
-  readonly records: readonly FileRecord[];
-  readonly cache: ParseCache;
   /** Whether the index is the one the reading keeps for itself, beside its root's, which nobody else saves. */
   readonly ownIndex: boolean;
   /** The digest of every `export … from` this scan read, as `forwardsDigest` states it. */
@@ -281,8 +279,6 @@ async function scanIndexed(
       ? joined
       : { ...joined, unreadable: [...joined.unreadable, ...recordUnknown] },
     sources,
-    records: tainted.records,
-    cache: index.cache,
     // A save keeps only the records this scan touched, and the index at `at`
     // covers exactly what this scan reads: the root's own, or the scope's.
     ownIndex: !coversWhole(dirs),
@@ -293,10 +289,8 @@ async function scanIndexed(
       // An index that is not there, or does not open, holds no lines to pair with.
       if (refused !== undefined && index.state !== 'missing' && index.state !== 'damaged') throw new UnsavedRead(refused);
     },
-    // The addon reads the tree off the saved index, so an index that did not
-    // save leaves it to the records, as a caller's taints do, and the records
-    // join the mocks here, so no tree of this version lacks them.
-    // Drawn once: the tree published is the tree a caller asking a path-shaped question is handed.
+    // Drawn once, off the saved index by the addon; an unsaved index leaves it to
+    // the records, as a caller's taints do, and they join the mocks here.
     published: () => (drawing ??= (async () => {
       const drawn = saved && options.taints === undefined ? await sourceTreeOf(where, at) : null;
       if (drawn !== null) return drawn;
@@ -351,13 +345,7 @@ export async function refreshWorkspace(
   const kept = options.changed === undefined ? undefined : workspaceReadStarted(documented);
   const read = await scanWorkspace(root, options, kept === undefined ? undefined : { readStartedAt: new Date(kept).toISOString() });
   if (!sameSurface(read, documented)) return documentWorkspace(read, options);
-  const help = joinUsage(documented, read.offerings, read.scanned.usage);
-  if (options.save !== false) {
-    if (options.saveIndex !== false || read.scanned.ownIndex) await read.scanned.save();
-    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, await read.scanned.published(), read.readStartedAt, read.scanned.forwards, packagesDigest(read.root, read.offerings), options.index);
-  }
-  await handTree(read, options);
-  return help;
+  return publishRead(read, joinUsage(documented, read.offerings, read.scanned.usage), options);
 }
 
 interface WorkspaceScan {
@@ -410,27 +398,25 @@ async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): 
   // parse alive while two large artifacts are encoded turns a cold publication
   // into garbage-collection work proportional to the repository.
   scanned.sources.clear();
-  if (options.save !== false) {
-    await stepped(options.progress, 'publishing the questions', async () => {
-      if (options.saveIndex !== false || scanned.ownIndex) await scanned.save();
-      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, await scanned.published(), read.readStartedAt, scanned.forwards, packagesDigest(root, offerings), options.index);
-    });
-  }
-  await handTree(read, options);
-  return help;
+  return publishRead(read, help, options);
 }
 
 /**
- * The tree a caller asking a path-shaped question is handed: the one this
- * reading publishes, after the index is saved, so a fresh read and the next
- * question over its generation walk the same edges, mocks among them.
+ * Save the index and publish `help` beside it, unless the caller said not to,
+ * then hand a caller asking a path-shaped question the tree published: a fresh
+ * read and the next question over its generation walk the same edges, mocks
+ * among them.
  */
-async function handTree(read: WorkspaceScan, options: ReadingOptions): Promise<void> {
-  if (options.tree === undefined) return;
-  const published = await read.scanned.published();
-  options.tree(published instanceof Uint8Array
-    ? decodeSourceTree(published, read.root, read.workspace)
-    : treeAtWorkspace(treeOf(published, read.root), read.workspace));
+async function publishRead(read: WorkspaceScan, help: Help, options: ReadingOptions): Promise<Help> {
+  const { scanned } = read;
+  if (options.save !== false) {
+    await stepped(options.progress, 'publishing the questions', async () => {
+      if (options.saveIndex !== false || scanned.ownIndex) await scanned.save();
+      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, await scanned.published(), read.readStartedAt, scanned.forwards, packagesDigest(read.root, read.offerings), options.index);
+    });
+  }
+  if (options.tree !== undefined) options.tree(publishedTree(await scanned.published(), read.root, read.workspace));
+  return help;
 }
 
 function sameSurface(read: WorkspaceScan, documented: Help): boolean {
