@@ -229,14 +229,14 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
     // generation it was refused from. `--just-answer` reads only what was
     // published, so its answer stands.
     ...(options.justAnswer === true ? {} : {
-      again: async (asked: string | undefined, refused: Bench, started: number, input: Readonly<Record<string, unknown>>) => {
-        const at = refused.help === undefined ? undefined : workspaceGeneration(refused.help);
+      again: async (asked: string | undefined, subject: Bench, started: number, input: Readonly<Record<string, unknown>>) => {
+        const at = subject.help === undefined ? undefined : workspaceGeneration(subject.help);
         if (asked === undefined || !SOURCE_QUESTIONS.has(asked)) return undefined;
         return caughtUp(
           at,
           started,
-          async (): Promise<Bench> => ({ ...refused, help: await readHelp(0) }),
-          async (read = refused) => read.help !== undefined && await outlived(asked, read.help, input, { root, ...(tree === undefined ? {} : { tree }) }, started, refused.help),
+          async (): Promise<Bench> => ({ ...subject, help: await readHelp(0) }),
+          async (read = subject) => read.help !== undefined && await outlived(asked, read.help, input, { root, ...(tree === undefined ? {} : { tree }) }, started, subject.help),
         );
       },
       outlived: async (asked: string | undefined, input: Readonly<Record<string, unknown>>, bench: Bench, started: number) =>

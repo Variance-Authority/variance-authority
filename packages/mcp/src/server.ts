@@ -94,7 +94,7 @@ export interface ServerOptions<Subject = RunReport, Again extends AskedAgain<Sub
    * a name nothing declares among them, answers from the subject it was refused
    * from.
    */
-  readonly again?: (asked: string | undefined, refused: Subject, started: number, input: Readonly<Record<string, unknown>>) => Promise<Again | undefined>;
+  readonly again?: (asked: string | undefined, subject: Subject, started: number, input: Readonly<Record<string, unknown>>) => Promise<Again | undefined>;
 
   /**
    * Whether an answer the call found stands on something that changed since

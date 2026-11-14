@@ -75,7 +75,7 @@ export async function caughtUp<Answer>(
   still?: (subject?: Answer) => Promise<boolean>,
 ): Promise<CaughtUp<Answer> | undefined> {
   if (answeredAt === undefined) return undefined;
-  const reused = Date.parse(answeredAt) < started;
+  const reused = madeBefore(answeredAt, started);
   const unread = (unseen: string): CaughtUp<Answer> => ({ footer: snapshotLine(answeredAt, unseen), unseen });
   // A file saved during a read may or may not be in it. It is not read again, so
   // one read is what a request costs at most, and the next question reads.
@@ -91,9 +91,9 @@ export async function caughtUp<Answer>(
 }
 
 /**
- * Whether a refusal from the generation dated `at` was made before the question
- * that began at `started`, so that the checkout was not compared with it: a
- * refusal is not read again, and says so in its date line.
+ * Whether the generation dated `at` was made before the question that began at
+ * `started`. A found answer from it is looked at again when `outlived`; a
+ * refusal from it is not read again, and says so in its date line.
  */
 export function madeBefore(at: string | undefined, started: number): boolean {
   return at !== undefined && Date.parse(at) < started;
