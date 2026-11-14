@@ -22,6 +22,7 @@ import {
   STORY_VARIABLE,
   through,
   unnotedText,
+  unresolvedText,
   untapedText,
   window,
   type Comparison,
@@ -243,12 +244,7 @@ function header(route: Route, steps: number, reading: Extract<StoryAnswer, { rou
     if (said === undefined) continue;
     lines.push(`  said as ${part} began, before its first step:`, ...saidText(said, '    '));
   }
-  if (route.unresolved.length > 0) {
-    lines.push(
-      `  ${route.unresolved.length} ${route.unresolved.length === 1 ? 'file is' : 'files are'} drawn as the file alone:`
-        + ` the recording holds no regions for ${route.unresolved.length === 1 ? 'it' : 'them'} at this text`,
-    );
-  }
+  lines.push(...unresolvedText(route).map((line) => `  ${line}`));
   return lines;
 }
 

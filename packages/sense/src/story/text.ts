@@ -32,6 +32,13 @@ export function unnotedText(route: Route): string[] {
   return route.unnoted === undefined ? [] : [`the recording kept its first lines said, and ${route.unnoted} later ones are not on this route`];
 }
 
+/** The files a route is drawn through as the file alone, said when there are any. */
+export function unresolvedText(route: Route): string[] {
+  const files = route.unresolved.length;
+  if (files === 0) return [];
+  return [`${files} ${files === 1 ? 'file is' : 'files are'} drawn as the file alone: the recording holds no regions for ${files === 1 ? 'it' : 'them'} at this text`];
+}
+
 /** A drawing as the lines of text it reads as, blank line first. */
 export function drawingText(drawing: Drawing, sections: boolean, width: number, untaken: readonly Untaken[], starts: Starts): string[] {
   const text: string[] = [];

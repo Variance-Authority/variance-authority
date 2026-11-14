@@ -1,4 +1,4 @@
-import { drawToldRoute, routeText, toldModules, unnotedText, untapedText, type Region, type Route } from '@variance-authority/sense/story';
+import { drawToldRoute, routeText, toldModules, unnotedText, unresolvedText, untapedText, type Region, type Route } from '@variance-authority/sense/story';
 import type { HeadRan } from '@variance-authority/vantage';
 import { cappedRows } from './capped.js';
 import type { CutModules } from './tool.js';
@@ -51,5 +51,5 @@ export function toldRows(head: HeadRan, cut: CutModules | undefined): string[] {
 
 /** A told route as `variance story` draws every step of one, after what the tape lost of it. */
 function routeRows(route: Route): string[] {
-  return [...untapedText(route), ...unnotedText(route), ...routeText(route).filter((row) => row !== '')];
+  return [...untapedText(route), ...unnotedText(route), ...unresolvedText(route), ...routeText(route).filter((row) => row !== '')];
 }

@@ -3754,6 +3754,7 @@
         "through": "function",
         "toldModules": "function",
         "unnotedText": "function",
+        "unresolvedText": "function",
         "untapedText": "function",
         "window": "function"
       },

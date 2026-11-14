@@ -254,6 +254,11 @@ describe('variance_ran', () => {
       expect(text).toContain('    the recording kept its first lines said, and 2 later ones are not on this route\n');
     });
 
+    it('says a file whose regions could not be named is drawn as the file alone, as `variance story` does', () => {
+      const text = ran.run(storied([told]), { story: true }, { modules: new Map([[PROBES, new Map()]]) });
+      expect(text).toContain('    1 file is drawn as the file alone: the recording holds no regions for it at this text\n');
+    });
+
     it('says how many tellings of an execution the watcher counted and did not keep', () => {
       const text = ran.run(state({
         executions: [{ id: JOURNEY, ordinal: 0, open: false, heads: [{ head: 'web', instrumentation: PROBES, modules: [], stories: [told], untold: 2 }] }],
