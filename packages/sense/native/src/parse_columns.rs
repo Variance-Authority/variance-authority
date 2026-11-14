@@ -34,10 +34,8 @@ pub trait ParseRow {
     /// The module's own doc comment, inside its marks; absent when it writes none.
     fn doc(&self) -> Span;
     /// The words of the doc of the `at`-th row of `item` this row writes, as
-    /// [`Words::at`] gives them; unknown unless the row held its source.
-    fn words(&self, _item: Item, _at: usize) -> Option<Option<&str>> {
-        None
-    }
+    /// [`Words::at`] gives them; `None`, unknown, when the row did not hold its source.
+    fn words(&self, item: Item, at: usize) -> Option<Option<&str>>;
 }
 
 /// A text span's two ends, or `NONE` twice when there is no span.

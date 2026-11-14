@@ -59,6 +59,10 @@ const DESCRIPTION: &[&str] = &["use", "using", "used", "library", "package", "mo
 /// four letters left, so `comment` stays apart from `come` and `generation`
 /// from `gene`; a plural `s` stays on after `s` or `u`, so `process` is not
 /// `proces`, and `ed` stays on after `e`, so `proceed` is not `proc`.
+///
+/// A stem is the lowered word with endings cut off, so it is always a prefix of
+/// that word: the name table's candidates find a stem as a substring of a doc's
+/// words, and a rewrite that changes a letter would drop answers there.
 pub(super) fn stem(word: &str) -> String {
     let mut stem = word.to_lowercase();
     for suffix in ["ings", "ing", "ies", "ed", "es", "s"] {
