@@ -2,28 +2,15 @@
  * Jest's transform cache, filled before a selected run's workers start, with
  * what its tests load late.
  *
- * Jest transforms a module the first time a test worker requires it. A module
- * a test file requires at its top is transformed as the file loads, before any
- * case, and costs a case nothing. A module a test requires lazily — inside a
- * case or a hook, as SWC's `module.lazy` or a `require` in a body does — is
- * transformed there, on a cold cache, and the case's own time pays for it,
- * again in each worker that loads it. A selected run already holds the record,
- * and the record names, per test, the files it loaded only after its first case
- * began, so the sequencer's `sort`, which Jest awaits in the main process after
- * every filter and before its global setup and its workers, transforms those
- * files first through Jest's own transformer, in parallel across `maxWorkers`.
- * A run whose tests load nothing late starts no worker and says nothing.
- *
- * Only a CommonJS load is warmed: a project that treats files as ES modules, an
- * `.mjs` test, and coverage over only the changed files ask Jest's runtime for
- * options this warm-up does not copy, so their tests are left as Jest runs them.
- * Vitest and Rstest are not warmed, on purpose: Vite transforms in one main
- * thread, and a Vitest warm-up made TanStack's suite slower, 16.0 s to 16.7 s
- * (issue #1402).
- *
- * Nothing here decides what a test runs. A run with no record, a test the
- * record holds no row for, and a file whose transform fails are left to Jest
- * exactly as they were.
+ * A module a test requires inside a case or a hook, as SWC's `module.lazy` or a
+ * `require` in a body does, is transformed there on a cold cache, on the case's
+ * time; one required at import is transformed before any case and costs none.
+ * The record names, per test, the files it loaded only after its first case, so
+ * the sequencer's `sort`, which Jest awaits before its global setup and workers,
+ * transforms those through Jest's own transformer across `maxWorkers`. Nothing
+ * here decides what a test runs. Vitest and Rstest are not warmed on purpose:
+ * Vite transforms in one main thread, and a Vitest warm-up made TanStack's suite
+ * slower, 16.0 s to 16.7 s (issue #1402).
  */
 
 // compass: variance-authority.reach
@@ -77,8 +64,10 @@ export interface WarmingOptions {
 
 /**
  * Transform, into Jest's cache, every file the record says one of `tests`
- * loaded late, before Jest starts a worker. Resolves once they are all in it,
- * and never rejects: a warm-up that could not run leaves the run as Jest runs it.
+ * loaded late, before Jest starts a worker; with none, start no worker and say
+ * nothing. An ES module project, an `.mjs` test and coverage over only the
+ * changed files take options the copied CommonJS ones are not, and are left to
+ * Jest. Never rejects: a warm-up that could not run leaves the run as it was.
  */
 export async function warmRecorded(tests: readonly Test[], globalConfig: GlobalConfig, options: WarmingOptions): Promise<void> {
   // A run that lists or collects its tests transforms none of them.
