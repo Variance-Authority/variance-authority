@@ -26,7 +26,7 @@ pub(crate) const ALIGNMENT: usize = 8;
 pub(crate) const FORMAT: &str = "variance-authority-source-index";
 /// `VERSION` in `source-index-format.ts`: a layer the reader refuses is a layer
 /// thrown away, which `native-read.test.ts` catches.
-pub(crate) const VERSION: u8 = 43;
+pub(crate) const VERSION: u8 = 44;
 
 pub struct Column {
     name: Cow<'static, str>,
@@ -122,6 +122,7 @@ pub type Collected<'s> = HashSet<&'s str, FxBuildHasher>;
 pub struct Strings<'s> {
     blob: Vec<u8>,
     off: Vec<u32>,
+    sorted: Vec<&'s str>,
     ids: HashMap<&'s str, u32, FxBuildHasher>,
 }
 
@@ -137,8 +138,8 @@ impl<'s> Strings<'s> {
             off.push(blob.len() as u32);
         }
         let mut ids = HashMap::with_capacity_and_hasher(sorted.len(), FxBuildHasher);
-        ids.extend(sorted.into_iter().enumerate().map(|(index, value)| (value, index as u32)));
-        Self { blob, off, ids }
+        ids.extend(sorted.iter().enumerate().map(|(index, &value)| (value, index as u32)));
+        Self { blob, off, sorted, ids }
     }
 
     /// A collected string's id. A string nobody collected is a defect in the
@@ -149,6 +150,11 @@ impl<'s> Strings<'s> {
             Some(id) => *id,
             None => panic!("source index: {value:?} was never collected into the dictionary"),
         }
+    }
+
+    /// The string under a written id: the name table writes a name's text where its columns write its id.
+    pub fn text(&self, id: u32) -> &'s str {
+        self.sorted[id as usize]
     }
 
     pub fn optional(&self, value: Option<&str>) -> u32 {

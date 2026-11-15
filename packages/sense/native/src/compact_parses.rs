@@ -3,6 +3,7 @@
 
 // compass: variance-authority.reach.source-index
 
+use crate::name_table::{Item, Names};
 use crate::stored::{same_length, Stored, U32s};
 
 use super::span;
@@ -93,6 +94,9 @@ pub(crate) struct Parses<'a> {
     pub binding_member_within: U32s<'a>,
     pub binding_within_name: U32s<'a>,
     pub declare_name: U32s<'a>,
+    /// Each table's names and doc words, in [`Item`]'s order, so a
+    /// question about a name scans them rather than decode a row.
+    pub names: [Names<'a>; 4],
 }
 
 impl<'a> Parses<'a> {
@@ -193,6 +197,12 @@ impl<'a> Parses<'a> {
             binding_within_name,
             binding_member_name,
             declare_name,
+            names: [
+                Names::open(stored, Item::Module, rows)?,
+                Names::open(stored, Item::Symbol, symbol_name.len())?,
+                Names::open(stored, Item::Nested, nested_name.len())?,
+                Names::open(stored, Item::Member, member_declaration_name.len())?,
+            ],
         };
         parses.lengths()?;
         Ok(parses)

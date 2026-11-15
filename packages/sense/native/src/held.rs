@@ -308,4 +308,9 @@ impl ParseRow for HeldParse {
     fn doc(&self) -> Span {
         span(self.doc)
     }
+
+    /// Unknown: JavaScript hands the parse over without its source, so no doc's words were cut (#1341).
+    fn words(&self, _item: crate::name_table::Item, _at: usize) -> Option<Option<&str>> {
+        None
+    }
 }

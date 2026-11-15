@@ -156,6 +156,7 @@ impl ParseRow for Parse<'_, '_, '_> {
     fn harvested(&self) -> bool { either!(self, row => row.harvested()) }
     fn size(&self) -> Option<crate::source_size::Size> { either!(self, row => row.size()) }
     fn doc(&self) -> Span { either!(self, row => row.doc()) }
+    fn words(&self, item: crate::name_table::Item, at: usize) -> Option<Option<&str>> { either!(self, row => row.words(item, at)) }
 }
 
 impl<'c> Opened<'c> {
