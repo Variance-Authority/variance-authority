@@ -1,5 +1,5 @@
 # The name questions asked of this workspace, in the line format of
-# `tools/name-questions/kibana.questions`.
+# `tools/name-questions/kibana.queries`.
 name exported freeze
 name re-exported Clock
 name renamed count
