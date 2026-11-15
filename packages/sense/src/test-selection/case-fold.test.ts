@@ -19,7 +19,7 @@ import type { ExecutionIndex } from './reverse.js';
 import caseOwner from './case-owner.cjs';
 import preconditions from './case-preconditions.cjs';
 import journalFormat from './journal-format.cjs';
-import { nativeModule } from './jest-journey-artifact.js';
+import { nativeModule } from './native-modules.js';
 
 const temporary: string[] = [];
 

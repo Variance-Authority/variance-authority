@@ -7,7 +7,7 @@ import type { RecordedAttempt } from './attempts-record.js';
 import { triedAttempts, type CaseAttempts } from './case-attempts.js';
 import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
 import type { EyesSection } from './eyes-record.js';
-import { nativeModule, whyAbsent } from './jest-journey-artifact.js';
+import { nativeModule, whyAbsent } from './native-modules.js';
 import type { Reading } from './readings.js';
 
 /** A run's case journals, folded into the case index's bytes. */
