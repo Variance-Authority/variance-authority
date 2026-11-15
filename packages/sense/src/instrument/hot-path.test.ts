@@ -41,6 +41,11 @@ describe('the emitted probe', () => {
     expect(made).toMatch(/if \(\(gate\[i\] & passing\[0\]\) === 0\) slow\(i\);/);
   });
 
+  it('asks the scope only where there is one, and appends a new hit inline', () => {
+    expect(made).toMatch(/if \(root\.s !== null\) root\.s\(\);/);
+    expect(made).toMatch(/root\.L\[n\] = /);
+  });
+
   it('carries no type check and no message', () => {
     for (const text of [code(), made]) {
       expect(text).not.toContain('typeof ');
