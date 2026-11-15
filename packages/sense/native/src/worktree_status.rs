@@ -383,8 +383,14 @@ fn excludes_file(config: &Config, top: &Path) -> Option<Option<PathBuf>> {
             None if named.starts_with(b"%(prefix)/") => None,
             None => Some(Some(top.join(gix_path::from_bstr(named.as_bstr()).ok()?))),
         },
-        None => Some(gix_path::env::xdg_config("ignore", &mut |name| std::env::var_os(name))),
+        None => Some(user_excludes(&mut |name| std::env::var_os(name))),
     }
+}
+
+/// Git's default excludes file, under `XDG_CONFIG_HOME` or `HOME`; an empty
+/// `XDG_CONFIG_HOME` is unset to git.
+pub(crate) fn user_excludes(env: &mut dyn FnMut(&str) -> Option<std::ffi::OsString>) -> Option<PathBuf> {
+    gix_path::env::xdg_config("ignore", &mut |name| env(name).filter(|value| name != "XDG_CONFIG_HOME" || !value.is_empty()))
 }
 
 /// The root as a literal pathspec, or none at the top of the checkout.

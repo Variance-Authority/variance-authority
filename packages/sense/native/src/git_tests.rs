@@ -233,6 +233,18 @@ fn an_excludes_file_under_the_git_prefix_hands_the_comparison_to_status() {
 }
 
 #[test]
+fn an_empty_xdg_config_home_reads_the_excludes_under_home_as_git_does() {
+    let env = |empty: &'static str| move |name: &str| match name {
+        "XDG_CONFIG_HOME" => Some(std::ffi::OsString::from(empty)),
+        "HOME" => Some(std::ffi::OsString::from("/h")),
+        _ => None,
+    };
+    let read = |xdg| crate::git::worktree_status::user_excludes(&mut env(xdg));
+    assert_eq!(read(""), Some(std::path::PathBuf::from("/h/.config/git/ignore")));
+    assert_eq!(read("/x"), Some(std::path::PathBuf::from("/x/git/ignore")));
+}
+
+#[test]
 fn an_excludes_file_in_another_users_home_hands_the_comparison_to_status() {
     let root = git_fixture::repository("status-excludes-user", &[("a.ts", b"a\n")]);
     git_fixture::git(&root, &["config", "core.excludesFile", "~root/.va-ignore"]);
