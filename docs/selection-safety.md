@@ -141,7 +141,9 @@ reaches, never every test file:
 
 - **The tests that import a changed file.** The
   [source index](source-index.md) lists the importers of each changed file, and
-  the test files among them run. Every other test file is on the skip list.
+  the test files among them run, and no other: one the record holds is on the
+  skip list, and one your runner finds that neither the index nor the record
+  holds does not run either.
 - **Nothing for a file the index does not hold.** A lockfile, a fixture read
   with `fs`, or prose selects no test file, and stderr names it. A file your
   tests read without importing it is declared with `/// <depends path="…" />` in

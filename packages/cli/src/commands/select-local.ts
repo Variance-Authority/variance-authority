@@ -182,7 +182,9 @@ export function fellTo(selection: TestSelection, answer: LocalAnswer): TestSelec
   return {
     ...rest,
     skip: answer.left,
-    fell: { rung: answer.rung, from: widened!, left: answer.left },
+    // No evidence, no test: a file the seam discovers that neither the index nor the record holds is not selected.
+    only: answer.selected,
+    fell: { rung: answer.rung, from: widened!, left: answer.left, only: answer.selected },
     because: `${widened}, so \`--local\` selected the test files that import the changed files, by the source index: ${answer.selected.length} of ${many(total, 'test file')}`,
     notes: [
       ...(answer.unheld.length === 0

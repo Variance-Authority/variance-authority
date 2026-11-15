@@ -221,18 +221,21 @@ export interface TestSelection {
   readonly left?: readonly string[];
   /**
    * The only test files this leg runs, present when it is a later wave of one
-   * shard (`Leg.partition`): those the record placed in its range. Absent,
-   * every file not in `skip` runs, a file the record never saw included.
+   * shard (`Leg.partition`): those the record placed in its range; or under
+   * `--local`, the importers it fell to. Absent, every file not in `skip`
+   * runs, a file the record never saw included.
    */
   readonly only?: readonly string[];
   /** How far the change travelled to each test it entered. Present when a leg cut a narrowed selection. */
   readonly distances?: readonly TestDistance[];
   /**
    * Under `--local`, the rung a reading the record could not answer fell to
-   * (the changed files' importers), the reason, and the test files that rung
-   * left, which `skip` holds. Absent otherwise.
+   * (the changed files' importers), the reason, the test files that rung
+   * left, which `skip` holds, and `only`, the test files that run: a file a
+   * runner discovers outside it, one no index or record holds included, does
+   * not. Absent otherwise.
    */
-  readonly fell?: { readonly rung: 'importers'; readonly from: string; readonly left: readonly string[] };
+  readonly fell?: { readonly rung: 'importers'; readonly from: string; readonly left: readonly string[]; readonly only: readonly string[] };
 }
 
 /**

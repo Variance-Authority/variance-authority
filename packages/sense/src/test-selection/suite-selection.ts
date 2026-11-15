@@ -40,7 +40,8 @@ export interface SuiteSelection {
   /**
    * The only test files that run, when a later wave of one shard was asked: a
    * file outside it, one the record never saw included, runs in an earlier
-   * wave. Absent, every file not in `skip` runs.
+   * wave. A local selection names its importers here, and a file outside them
+   * runs in no wave. Absent, every file not in `skip` runs.
    */
   readonly only?: ReadonlySet<string>;
   /**

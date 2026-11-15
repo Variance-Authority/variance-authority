@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
-import { encodeExecutionIndex, recordOfCases, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, kept, recordOfCases, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { indexOutput } from './index-command.js';
@@ -66,6 +66,16 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect([...local.skip]).toEqual([B]);
     expect(local.reading.fell).toMatchObject({ rung: 'importers', left: [B] });
     expect([...(local.left ?? [])]).toEqual([B]);
+  });
+
+  it('runs no test file the seam discovers that neither the index nor the record holds', async () => {
+    const { root } = checkout();
+    const { local, gate } = await both(root, editA(root));
+    const unseen = 'packages/c/test/c.test.ts';
+
+    expect(kept(gate, [A, B, unseen])).toEqual([A, B, unseen]);
+    expect(kept(local, [A, B, unseen])).toEqual([A]);
+    expect(local.reading.fell).toMatchObject({ only: [A] });
   });
 
   it('reads the change from the merge base with the mainline when the edit is committed and the tree clean', async () => {
