@@ -162,7 +162,8 @@ describe('a compiler that reads the syntax it compiles', () => {
     });
     const [bundle] = Array.isArray(output) ? output : [output];
     const code = 'output' in bundle! ? bundle.output.find((file) => file.type === 'chunk')?.code : undefined;
-    expect(code).toMatch(/cls\(["']tone["'], \(props\) => \(__va\(\d+\),/);
+    // Every bundled module declares `__va`, so the bundler may rename this one.
+    expect(code).toMatch(/cls\(["']tone["'], \(props\) => \(__va(?:\$\d+)?\(\d+\),/);
   });
 
   it('places the probes in the file as read with `placement: \'before-transforms\'`, where the extractor reads them', async () => {
