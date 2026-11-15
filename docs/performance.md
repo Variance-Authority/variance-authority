@@ -490,6 +490,26 @@ of the 6,757 ms sampled is one native call, the one that reads, parses and
 resolves the whole module closure. Against 1,543.8 ms, that leaves about four
 seconds of the call for resolving specifiers and walking the closure.
 
+`ask grep` reads the same store without a `cat-file` process, in the addon's own
+process through gitoxide's object database, and it needs one proof more than the
+scan does, because a search holds no blob id: git's index. A file the index
+holds as an unconflicted regular file, with none of skip-worktree,
+assume-unchanged or intent-to-add set, whose `lstat` still matches the entry to
+the nanosecond and is not racy against the index, and whose blob is its size and
+no git-lfs pointer, is that blob, and is searched out of the store; every other
+file is opened. Opening the store asks git five questions and loads the index,
+about 18 ms on Kibana and on Material UI, and a search from disk costs as much at
+about 3,000 files on both, which is `STORE_CROSSOVER`; a shorter list opens
+nothing. Over Kibana's `x-pack`, 93,966 files, the search from disk takes 988 ms
+and the one from the store 217 ms, where `rg` over the same folder takes 1,027;
+over its `src`, 38,463 files, 354 ms and 99; over one copy of Material UI, 28,395
+files, 226 ms and 69, where `rg` takes 369. A repository whose blobs may not be
+the bytes on disk is searched from disk whole: one with a replace ref, a smudge
+or process filter other than git-lfs's, a `working-tree-encoding` or `ident`
+attribute in any attribute file git reads, an object format other than SHA-1,
+more than fifty packs and no multi-pack index, or a git too old to name its
+attribute files.
+
 ## After the first read, you do not read it again
 
 Everything above is the cold path, and you pay it on a fresh clone and on a CI
@@ -826,6 +846,11 @@ the ripgrep comparison are each the **best of three**, which is the run least
 disturbed by the rest of the machine. On Kibana the pack-table row and the
 one-stream `cat-file` figures are the best of five, `cat-file` start-up is the
 median of 21, and the pack-against-disk cold scans are the median of three.
+The `ask grep` figures are each the **median of seven**, the search from the
+store and the one from disk run back to back on Kibana at `2df7209048` and
+Material UI at `37663aaa43`, under a load average between 4 and 13 on sixteen
+cores; the crossover is the median of eight per list size, from 100 files to
+the whole folder, the two paths interleaved, under a load between 4 and 5.
 **Every other row of the incremental table is one timing of one run**: read
 Material UI's column for its shape and not for a difference of a few tens of
 milliseconds, because a single sample is worth about that much either way. On
@@ -837,7 +862,8 @@ a clone of either checkout: `source-index.mjs` for the floor table, the
 incremental table and Material UI's git rows, `read-width.mjs` for the width
 sweep, `scan-cost.mjs` for ripgrep. The rest come from harnesses that are not
 in the repository. On both repositories, that is the probes, the chunk sweep,
-the pack table, the `cat-file` start-up and the pack-against-disk scans. On
+the pack table, the `cat-file` start-up, the pack-against-disk scans, the
+store's crossover and the `ask grep` figures. On
 Kibana it is also the publish figures, the `status` figures and the profiled
 cold run. The TypeScript figure is the
 module reader Sense replaced with the addon, timed against it on the same files

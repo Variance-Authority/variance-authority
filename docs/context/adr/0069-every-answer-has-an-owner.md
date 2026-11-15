@@ -95,6 +95,16 @@ reader replacing the `cat-file` subprocess — is worth about forty percent of a
 already cheap number, and the rule says so plainly rather than leaving it as an
 open invitation.
 
+That bound was the scan's, and it does not carry over to search (amended
+2026-11, #1355). The scan held every blob's id and asked git for it; `ask grep`
+held none and opened every file, ignoring an owner that already answered *is
+this file the blob*: git's index, whose stat data proves a tracked file
+unchanged since it was recorded. Asking it, and reading the proven files out of
+the object store in-process, takes a search over Kibana's 93,966 `x-pack` files
+from 988 ms to 217 ms. The scan keeps its `cat-file` processes: the bound above
+still stands for it, and whether it moves onto the same reader is its own
+question, measured on its own.
+
 It puts a cost on our own configuration surface. A flag sense passes to a tool it
 does not own is now a claim that sense knows better than the repository, and it
 has to be argued at the call site. The two overrides removed here had no argument

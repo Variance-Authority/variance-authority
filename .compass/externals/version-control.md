@@ -27,8 +27,12 @@ run over an unobserved surface.
 ## How you talk to it
 
 Read-only plumbing: `git ls-tree`, `git ls-files`, `git status --porcelain`,
-`git hash-object`, `git log`, and a three-dot diff against a merge base. Nothing in the
-system commits, and nothing in it rewrites history.
+`git hash-object`, `git log`, and a three-dot diff against a merge base. Blobs
+come out of the object store two ways: `git cat-file --batch` for the ids a scan
+already holds, and, for a search over thousands of files, the index and the
+packs read in the addon's own process, after git has said where they are and
+that no filter, attribute or replace ref could make a blob differ from its
+checkout. Nothing in the system commits, and nothing in it rewrites history.
 
 ## Their chart
 
