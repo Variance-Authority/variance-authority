@@ -45,7 +45,7 @@ import { beyondOf, compared, installReached, withWhole } from './select-beyond.j
 import { journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
 import { many } from './prose-counts.js';
-import { restingOf, restsSaid } from './select-before.js';
+import { restingOf } from './select-before.js';
 import { withCases } from './select-cases.js';
 import { handedChange, isHanded, journeyReading } from './select-journey.js';
 import type { Leg } from './select-leg.js';
@@ -150,8 +150,8 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
     const narrowed = suiteOf(input, leg);
     if (request.local !== true || narrowed.declined === undefined || input.ground.kind === 'before') return narrowed;
     const answer = await localAnswer(request, input.ground, held, record);
-    return 'rests' in answer
-      ? suiteOf({ ...input, ground: { kind: 'before', whole: restsSaid(request.suite, answer.rests), rests: answer.rests } }, leg)
+    return 'whole' in answer
+      ? suiteOf({ ...input, ground: { kind: 'before', whole: answer.whole.says, rests: answer.whole.rests } }, leg)
       : suiteOf(input, leg, answer);
   };
   if (

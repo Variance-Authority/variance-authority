@@ -78,6 +78,13 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect(local.reading.fell).toMatchObject({ only: [A] });
   });
 
+  it('runs a changed test file that nothing imports, as its own evidence', async () => {
+    const { root } = checkout();
+    const { local } = await both(root, () => write(root, B, "import { b } from '../src/b';\nexport const seen = b + 1;\n"));
+
+    expect(kept(local, [A, B])).toEqual([B]);
+  });
+
   it('reads the change from the merge base with the mainline when the edit is committed and the tree clean', async () => {
     const { root } = checkout();
     const git = (args: readonly string[]) => execFileSync('git', args, { cwd: root });
@@ -214,6 +221,15 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     expect(local.reading.widened).toContain('packages/a/setup.ts');
     expect([...local.skip]).toEqual([]);
     expect(local.reading.fell).toBeUndefined();
+  });
+
+  it('runs no whole suite for a file the suite rests on that its `ignore` matches, as the gate does not', async () => {
+    const unit = { kind: 'unit', before: ['packages/a/setup.ts'], ignore: ['packages/a/setup.ts'] };
+    const { root } = checkout({ 'variance.config.json': JSON.stringify({ suites: { unit } }) });
+    const { local } = await both(root, () => write(root, 'packages/a/setup.ts', 'export const ready = 2;\n'), { suite: 'unit' });
+
+    expect(local.reading.ground).not.toBe('before');
+    expect([...local.skip]).toEqual([A, B]);
   });
 
   it('runs the whole suite when a journey file reads a change to what the suite rests on', async () => {

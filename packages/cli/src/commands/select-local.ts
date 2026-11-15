@@ -25,7 +25,7 @@ import { isTestPath } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 import { diffSince, topLevel } from './since.js';
 import { selectMainline } from './mainline-selected.js';
-import { restsOf } from './select-before.js';
+import { restingOf, suiteIgnore, type Resting } from './select-before.js';
 import { handedChange, isHanded } from './select-journey.js';
 import { indexUpToCheckout, relationsFor } from './source-graph.js';
 import type { SuiteRequest } from './select-suite.js';
@@ -92,7 +92,7 @@ export async function localAnswer(
   ground: SelectGround,
   held?: Held,
   record?: string,
-): Promise<LocalAnswer | { readonly rests: readonly string[] }> {
+): Promise<LocalAnswer | Required<Pick<Resting, 'whole'>>> {
   const root = (await topLevel(request.root)) ?? request.root;
   const diff = held !== undefined ? undefined : isHanded(request) ? await handedChange(request) : await changeSince(root, request.since);
   const changed = held?.changed ?? (diff === undefined ? undefined : [...changedLines(diff).keys()]);
@@ -107,9 +107,9 @@ export async function localAnswer(
     await indexUpToCheckout(root, undefined, !request.noGit);
     relations = await relationsFor(root, ['.'], [], [], request.noGit);
   }
-  // A reading that declined before it looked at what the suite rests on has not said, so the ladder asks.
-  const rests = ground.kind === 'before' ? ground.rests : (await restsOf(root, request.suite, relations, changed)).rests;
-  if (rests.length > 0) return { rests };
+  // A reading that declined before it looked at what the suite rests on has not said, so the ladder asks, as the gate does.
+  const { whole } = await restingOf(root, request.suite, relations, changed, await suiteIgnore(root, request.suite));
+  if (whole !== undefined) return { whole };
   return localLadder({
     relations,
     changed,

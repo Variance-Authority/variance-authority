@@ -47,7 +47,7 @@
  *
  * Each of the four is a reading that could not be made. A reading that was
  * made and found nothing is an answer, and it is given.
- * *
+ *
  * ## An unread path is named, and keeps nothing in the run
  *
  * `unread` is a changed path the journal, the declared preconditions and the
