@@ -1,20 +1,17 @@
-//! The Help value `variance index` publishes, refreshed from the chain it just
-//! wrote without its export list or its imports by path ever reaching
-//! JavaScript.
+//! The Help value every publish writes, read from the chain the index just
+//! saved without its export list, its imports by path or a parse row ever
+//! reaching JavaScript.
 //!
-//! `publishWorkspaceFromIndex` in `packages/help/src/refresh-native.ts` drives
-//! it. A reading holds what the chain says — the uses JavaScript joins against
-//! the documented surface, and the export list, the imports by path and the
-//! path graph it has nothing to add to — and publishing writes the two files
-//! beside the index that `tryPublishWorkspaceSnapshot` in `snapshot.ts` writes
-//! for a value read the long way: the graph, and the store (`help_store.rs`).
+//! `publishHelp` in `packages/help/src/refresh-native.ts` drives it. A reading
+//! holds what the chain says — the uses and the names each published entry
+//! hands out, which JavaScript joins into the documented surface, and the
+//! export list, the imports by path and the path graph it has nothing to add
+//! to — and encoding turns it into the two files written beside the index: the
+//! graph, and the store (`help_store.rs`).
 
 // compass: variance-authority.report.agent-surface
 
-use std::collections::HashSet;
-use std::sync::Arc;
-
-use napi::bindgen_prelude::AsyncTask;
+use napi::bindgen_prelude::{AsyncTask, Buffer};
 use napi_derive::napi;
 use rayon::prelude::*;
 use sha2::{Digest, Sha256};
@@ -23,105 +20,104 @@ use crate::compact::Layer;
 use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
-use crate::help_search::{exported_digest, set_digest};
 use crate::help_store::{encode, DeepRef, StoreMeta, StorePackage, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
+use crate::help_names::{published_names, HelpEntry, PublishedName};
 use crate::help_origin::{declaration_exported, export_line, ExportedDeclaration};
 use crate::help_usage::{importers, usage, Asked, DeepRequest, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::{tree, Mocking};
 
-/// What the chain says for a Help value, held on this side.
+/// What the chain says for a Help value, held on this side, each part handed
+/// over once.
 #[napi]
 pub struct HelpReading {
-    held: Arc<Held>,
-    /// What `usage` hands over once, with its export list and imports by path left empty.
+    /// What encoding reads; `None` once it was encoded.
+    held: Option<Held>,
+    /// What `usage` hands over, with its export list and imports by path left empty.
     usage: Option<IndexedUsage>,
+    /// What `names` hands over, or the first export the reading cannot say.
+    names: Option<Result<Vec<Vec<PublishedName>>, String>>,
 }
 
-/// What publishing reads, shared with the thread that writes it.
+/// What encoding reads, moved to the thread that encodes it.
 struct Held {
     exported: Vec<NamedExport>,
     /// The deep imports, those of packages that declare no entry, and those unfollowed.
     deep: [Vec<DeepRequest>; 3],
-    tree: Vec<u8>,
-    digest: String,
+    /// `None` when the caller draws the tree it publishes.
+    tree: Option<Vec<u8>>,
 }
 
 /// The value's own fields, joined by JavaScript: they are the documented
 /// surface and are small.
 #[napi(object)]
-pub struct HelpPublish {
-    /// Where the store and the graph are written: `snapshot`, and the graph at
-    /// `graph` followed by its digest and `.bin`.
-    pub snapshot: String,
-    pub graph: String,
+pub struct HelpEncode {
     pub root: String,
     pub graph_root: String,
     pub generated_at: String,
     /// When the read behind the value began, before any of it was read.
     pub read_started_at: String,
     /// The digest of the index manifest the reading was made from, which a
-    /// later refresh over the same manifest keeps the value by.
-    pub index_digest: String,
-    /// What `digest_forwards` states of the reading's `export … from` rows.
-    pub forwards_digest: String,
+    /// later refresh over the same manifest keeps the value by; absent when
+    /// the value holds what no manifest says, such as a caller's taints.
+    pub index_digest: Option<String>,
     /// What `workspacePackagesDigest` states of the manifests the value was joined against.
     pub packages_digest: String,
     pub packages: Vec<StorePackage>,
     pub unreadable: Vec<String>,
+    /// The digest of the tree the caller publishes, when the reading drew none.
+    pub graph_digest: Option<String>,
 }
 
+/// The store's bytes, and the tree's when the reading drew it, under its digest.
 #[napi(object)]
-pub struct HelpPublished {
+pub struct HelpEncoded {
+    pub store: Buffer,
+    pub tree: Option<Buffer>,
     pub graph_digest: String,
 }
 
-/// The reading of the chain at `index` for the entrypoints in `opened`, the
+/// The reading of the chain at `index` for the openings in `entries`, by their
+/// `<package> .<subpath>` key and the repo-relative file each is read from, the
 /// imports into the packages in `published` that no entry opens, the packages
 /// in `unentered`, which declare no entry, and the specifiers in `declared`,
 /// which a manifest names whether or not the reading could follow them;
-/// `None` when there is no index. A test's loads beside its mocks join the
-/// graph resolved with `tsconfig`, as the scan resolves imports, and are code
-/// when they end in one of `code`.
+/// `None` when there is no index. With `drawn`, the reading draws the source
+/// tree too: a test's loads beside its mocks join the graph resolved with
+/// `tsconfig`, as the scan resolves imports, and are code when they end in one
+/// of `code`.
 #[napi(ts_return_type = "Promise<HelpReading | null>")]
 #[allow(clippy::too_many_arguments)]
 pub fn read_help(
     root: String,
     index: String,
-    opened: Vec<String>,
+    entries: Vec<HelpEntry>,
     published: Vec<String>,
     unentered: Vec<String>,
     declared: Vec<String>,
+    drawn: bool,
     tsconfig: Option<napi::Either<String, bool>>,
     code: Vec<String>,
 ) -> AsyncTask<OffThread<Option<HelpReading>>> {
     let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
     off_thread(move || {
-        let mocking = Mocking::at(&root, tsconfig, code);
-        reading(&root, index, &opened, &published, &unentered, &declared, &mocking)
-    })
-}
-
-/// The source tree of the chain at `index`, as [`read_help`] publishes it, for
-/// a reading that drew its usage on the JavaScript side; `None` when there is
-/// no index.
-#[napi(ts_return_type = "Promise<Buffer | null>")]
-pub fn source_tree_of(root: String, index: String, tsconfig: Option<napi::Either<String, bool>>, code: Vec<String>) -> AsyncTask<OffThread<Option<napi::bindgen_prelude::Buffer>>> {
-    let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
-    off_thread(move || {
-        let mocking = Mocking::at(&root, tsconfig, code);
-        opened_chain(&open_index(index)?, |layers| tree(layers, &mocking).into())
-    })
-}
-
-fn reading(root: &str, index: String, opened: &[String], published: &[String], unentered: &[String], declared: &[String], mocking: &Mocking) -> napi::Result<Option<HelpReading>> {
-    opened_chain(&open_index(index)?, |layers| {
-        let (mut read, tree) = rayon::join(|| usage(root, layers, opened, published, unentered, declared), || tree(layers, mocking));
-        let exported = std::mem::take(&mut read.exported);
-        let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
-        let digest = exported_digest(&exported);
-        HelpReading { held: Arc::new(Held { exported, deep, tree, digest }), usage: Some(read) }
+        let mocking = drawn.then(|| Mocking::at(&root, tsconfig, code));
+        let mut opened: Vec<String> = Vec::new();
+        for entry in &entries {
+            if !opened.contains(&entry.key) {
+                opened.push(entry.key.clone());
+            }
+        }
+        opened_chain(&open_index(index)?, |layers| {
+            let (mut read, (tree, names)) = rayon::join(
+                || usage(&root, layers, &opened, &published, &unentered, &declared),
+                || rayon::join(|| mocking.as_ref().map(|mocking| tree(layers, mocking)), || published_names(layers, &entries)),
+            );
+            let exported = std::mem::take(&mut read.exported);
+            let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
+            HelpReading { held: Some(Held { exported, deep, tree }), usage: Some(read), names: Some(names) }
+        })
     })
 }
 
@@ -291,81 +287,59 @@ fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> na
     Ok(opened.opened.as_ref().map(|held| read(held.borrow_dependent())))
 }
 
-/// The `export … from` rows of a reading as a set, which the export list does
-/// not hold: `export *` names nothing, and a named row does not say where it leads.
-#[napi(catch_unwind)]
-pub fn digest_forwards(forwards: Vec<String>) -> String {
-    set_digest(forwards)
-}
-
 #[napi]
 impl HelpReading {
-    /// The export list as a set, as the store's `exportedDigest` states it.
-    #[napi(getter)]
-    pub fn exported_digest(&self) -> String {
-        self.held.digest.clone()
-    }
-
-    /// The rows of the export list that `files` write, for the few a caller
-    /// compares: the list itself stays here.
-    #[napi]
-    pub fn exported_of(&self, files: Vec<String>) -> Vec<NamedExport> {
-        let files: HashSet<String> = files.into_iter().collect();
-        self.held.exported.iter().filter(|named| files.contains(&named.at)).cloned().collect()
-    }
-
     /// The uses and unreadable files, handed over once: the export list and
     /// the imports by path are left empty, and stay here.
     #[napi]
     pub fn usage(&mut self) -> IndexedUsage {
         self.usage.take().unwrap_or_else(|| IndexedUsage {
-            exported: Vec::new(), forwards: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new(),
+            exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new(),
         })
     }
 
-    /// Write the graph and the store. A graph already written under its
-    /// digest is the same bytes, and is not written again.
-    #[napi(ts_return_type = "Promise<HelpPublished>")]
-    pub fn publish(&self, o: HelpPublish) -> AsyncTask<OffThread<HelpPublished>> {
-        let held = Arc::clone(&self.held);
-        off_thread(move || held.publish(o))
+    /// The names each entry hands out, in the order the entries were given,
+    /// handed over once; refused with the first export whose declaration the
+    /// reading cannot say.
+    #[napi]
+    pub fn names(&mut self) -> napi::Result<Vec<Vec<PublishedName>>> {
+        match self.names.take() {
+            Some(Ok(names)) => Ok(names),
+            Some(Err(refused)) => Err(napi::Error::from_reason(refused)),
+            None => Err(napi::Error::from_reason("the names of this reading were handed over already")),
+        }
+    }
+
+    /// The store's bytes and the tree's, once: the export list and the
+    /// imports by path go into the store from here.
+    #[napi(ts_return_type = "Promise<HelpEncoded>")]
+    pub fn encode(&mut self, o: HelpEncode) -> napi::Result<AsyncTask<OffThread<HelpEncoded>>> {
+        let held = self.held.take().ok_or_else(|| napi::Error::from_reason("this reading was encoded already"))?;
+        Ok(off_thread(move || held.encode(o)))
     }
 }
 
 impl Held {
-    fn publish(&self, o: HelpPublish) -> napi::Result<HelpPublished> {
-        let fail = |error: std::io::Error| napi::Error::from_reason(error.to_string());
-        let graph_digest: String = Sha256::digest(&self.tree).iter().map(|byte| format!("{byte:02x}")).collect();
+    fn encode(self, o: HelpEncode) -> napi::Result<HelpEncoded> {
+        let graph_digest = match (&self.tree, o.graph_digest) {
+            (Some(tree), _) => Sha256::digest(tree).iter().map(|byte| format!("{byte:02x}")).collect(),
+            (None, Some(digest)) => digest,
+            (None, None) => return Err(napi::Error::from_reason("a reading that drew no tree is encoded under the digest of the caller's")),
+        };
         let meta = StoreMeta {
             root: o.root,
             graph_root: o.graph_root,
             graph_digest: graph_digest.clone(),
             generated_at: o.generated_at,
             read_started_at: o.read_started_at,
-            forwards_digest: Some(o.forwards_digest),
-            index_digest: Some(o.index_digest),
+            index_digest: o.index_digest,
             packages_digest: Some(o.packages_digest),
         };
         let deep = [&self.deep[0], &self.deep[1], &self.deep[2]].map(|held| held.iter().map(DeepRef::from).collect());
         let input = StoreRef { packages: &o.packages, deep, unreadable: &o.unreadable };
-        let (store, _) = encode(&input, &self.exported, Some(&meta), Some(&self.digest));
-        if let Some(parent) = std::path::Path::new(&o.snapshot).parent() {
-            std::fs::create_dir_all(parent).map_err(fail)?;
-        }
-        let graph = format!("{}{graph_digest}.bin", o.graph);
-        if !std::path::Path::new(&graph).exists() {
-            replace(&graph, &self.tree).map_err(fail)?;
-        }
-        replace(&o.snapshot, &store).map_err(fail)?;
-        Ok(HelpPublished { graph_digest })
+        let (store, _) = encode(&input, &self.exported, Some(&meta), None);
+        Ok(HelpEncoded { store: store.into(), tree: self.tree.map(Buffer::from), graph_digest })
     }
-}
-
-/// Write beside `path` and rename over it, so a reader sees one whole file.
-fn replace(path: &str, bytes: &[u8]) -> std::io::Result<()> {
-    let written = format!("{path}.{}.tmp", std::process::id());
-    std::fs::write(&written, bytes)?;
-    std::fs::rename(&written, path)
 }
 
 #[cfg(test)]

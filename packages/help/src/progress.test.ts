@@ -42,6 +42,8 @@ describe('a workspace read with progress', () => {
     expect(steps).toEqual([
       expect.stringMatching(/^reading the package manifests of /),
       expect.stringMatching(/^reading what each file imports and exports, under /),
+      'saving the source index',
+      'reading what each file imports and exports, from the index',
       'reading the signatures and comments of the exported names',
       'publishing the questions',
     ]);
