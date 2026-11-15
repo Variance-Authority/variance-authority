@@ -6,19 +6,20 @@
 //! hundred megabytes on a repository the size of Kibana, and handing those
 //! bytes over as buffers only for them to come straight back would be a round
 //! trip with nothing to add. So the manifest is read here, and each segment is
-//! checked against the length and digest the manifest published for it, in
-//! parallel, because hashing is most of what reading a warm chain costs.
+//! checked against the length the manifest published for it. The digest is not
+//! computed again: it names the file, the writer computed it from the bytes it
+//! renamed into place, and hashing every byte was most of what one question's
+//! open cost.
 //!
 //! The answers are the log's own. A missing manifest is no chain. A file
 //! without the magic is one legacy segment. A malformed manifest is refused,
-//! and a segment that is missing or fails its digest ends the chain there, with
+//! and a segment that is missing or of another length ends the chain there, with
 //! `dropped` counting what that cost.
 
 // compass: variance-authority.reach.source-index
 
 use rayon::prelude::*;
 use serde::Deserialize;
-use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8] = b"VAIDXLSM";
 const HEADER_BYTES: usize = MAGIC.len() + 4;
@@ -33,7 +34,7 @@ struct Manifest {
     working: usize,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub(crate) struct Reference {
     pub(crate) digest: String,
     pub(crate) length: u64,
@@ -126,9 +127,7 @@ fn read_chain_once(path: &str) -> Result<Option<Chain>, String> {
         .map(|reference| {
             let name = format!("{directory}/{}.bin", reference.digest.replacen(':', "-", 1));
             let segment = std::fs::read(name).ok()?;
-            let holds = segment.len() as u64 == reference.length
-                && crate::digest::of_sha256(Sha256::digest(&segment).as_slice()) == reference.digest;
-            holds.then_some(segment)
+            (segment.len() as u64 == reference.length).then_some(segment)
         })
         .collect();
     let count = read.iter().position(Option::is_none).unwrap_or(read.len());
@@ -153,34 +152,34 @@ fn manifest(bytes: &[u8]) -> Option<(Vec<Reference>, usize)> {
     (parsed.format == "variance-authority-immutable-log" && parsed.version == 1 && digests).then_some((parsed.segments, working))
 }
 
-/// The digests of the segments the manifest at `path` names, oldest first: the chain's identity, read
+/// The segments the manifest at `path` names, oldest first: their digests are the chain's identity, read
 /// without opening a segment, with how many of the last are the working layer. A missing file, a legacy
 /// single-segment file and a malformed manifest have none, and a refresh that finds none reads the chain.
-pub(crate) fn manifest_digests(path: &str) -> Option<(Vec<String>, usize)> {
-    manifest_digests_of(&std::fs::read(path).ok()?)
+pub(crate) fn manifest_references(path: &str) -> Option<(Vec<Reference>, usize)> {
+    manifest_references_of(&std::fs::read(path).ok()?)
 }
 
-/// `manifest_digests` over manifest bytes a caller already read.
-pub(crate) fn manifest_digests_of(bytes: &[u8]) -> Option<(Vec<String>, usize)> {
+/// `manifest_references` over manifest bytes a caller already read.
+pub(crate) fn manifest_references_of(bytes: &[u8]) -> Option<(Vec<Reference>, usize)> {
     if !bytes.starts_with(MAGIC) { return None; }
-    let (references, working) = manifest(bytes)?;
-    Some((references.into_iter().map(|reference| reference.digest).collect(), working))
+    manifest(bytes)
 }
 
-/// The segments of `chain` past its first `known`, read and checked against the digests they are named by,
-/// for a reader that already holds the first `known`. Content addressing is the check: a segment is its
-/// digest or it is not used, and `None` says one was missing or did not match, so the caller reads it all.
-pub(crate) fn read_tail(path: &str, chain: &[String], known: usize) -> Option<Vec<Vec<u8>>> {
+/// The segments of `chain` past its first `known`, for a reader that already holds the first `known`, each
+/// checked against the length it is named with, as [`read_chain_once`] checks them. `None` says one was
+/// missing or of another length, so the caller reads it all.
+pub(crate) fn read_tail(path: &str, chain: &[Reference], known: usize) -> Option<Vec<Vec<u8>>> {
     let directory = format!("{path}.segments");
-    chain.get(known..)?.par_iter().map(|digest| {
-        let segment = std::fs::read(format!("{directory}/{}.bin", digest.replacen(':', "-", 1))).ok()?;
-        (crate::digest::of_sha256(Sha256::digest(&segment).as_slice()) == *digest).then_some(segment)
+    chain.get(known..)?.par_iter().map(|reference| {
+        let segment = std::fs::read(format!("{directory}/{}.bin", reference.digest.replacen(':', "-", 1))).ok()?;
+        (segment.len() as u64 == reference.length).then_some(segment)
     }).collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sha2::{Digest, Sha256};
 
     fn chain(manifest: &[u8], dropped: u32) -> Chain {
         Chain { segments: vec![Vec::new()], dropped, moved: false, manifest: Some(manifest.to_vec()), references: Vec::new(), working: 0 }
@@ -239,6 +238,59 @@ mod tests {
             || Ok(std::fs::read(path).ok()),
         ).unwrap().unwrap();
         assert_eq!((read.damaged(), read.segments), (0, vec![b"a".to_vec()]));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    /// A chain of one index segment written as the writer writes it, in a fresh directory.
+    fn published(name: &str) -> (std::path::PathBuf, String, Vec<u8>) {
+        let directory = std::env::temp_dir().join(format!("va-chain-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&directory);
+        std::fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("index.bin").to_str().unwrap().to_owned();
+        let segment = crate::graph_index::merged(&[], &crate::generation::Delta::of(vec![
+            r#"{"config":"v1:c","directories":[],"records":[],"parses":[]}"#.to_owned(),
+        ]).unwrap());
+        assert!(crate::log::written(&path, crate::log::Over::Nothing, &[], &[&segment], &[], 0).unwrap());
+        (directory, path, segment)
+    }
+
+    fn segment_file(path: &str) -> std::path::PathBuf {
+        let (references, _) = manifest_references(path).unwrap();
+        std::path::PathBuf::from(format!("{path}.segments/{}.bin", references[0].digest.replacen(':', "-", 1)))
+    }
+
+    #[test]
+    fn a_segment_of_the_published_length_is_read_without_hashing_it() {
+        let (directory, path, segment) = published("unhashed");
+        let mut changed = segment.clone();
+        *changed.last_mut().unwrap() ^= 1;
+        std::fs::write(segment_file(&path), &changed).unwrap();
+        let (references, _) = manifest_references(&path).unwrap();
+        let read = read_chain_once(&path).unwrap().unwrap();
+        assert_eq!((read.dropped, read.segments), (0, vec![changed.clone()]));
+        assert_eq!(read_tail(&path, &references, 0), Some(vec![changed]));
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_segment_of_another_length_ends_the_chain() {
+        let (directory, path, segment) = published("short");
+        std::fs::write(segment_file(&path), &segment[1..]).unwrap();
+        let (references, _) = manifest_references(&path).unwrap();
+        assert_eq!(read_chain_once(&path).unwrap().unwrap().dropped, 1);
+        assert_eq!(read_tail(&path, &references, 0), None);
+        std::fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn a_segment_whose_header_was_damaged_is_refused_not_a_crash() {
+        let (directory, path, mut segment) = published("damaged");
+        for byte in &mut segment[4..12] {
+            *byte = 0xff;
+        }
+        std::fs::write(segment_file(&path), &segment).unwrap();
+        let read = read_chain_once(&path).unwrap().unwrap();
+        assert!(crate::compact::Layer::open(&read.segments[0]).is_err());
         std::fs::remove_dir_all(directory).unwrap();
     }
 

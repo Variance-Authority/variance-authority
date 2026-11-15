@@ -39,7 +39,7 @@ describe('the immutable segment log', () => {
     expect((await openImmutableLog(file)).segments.map(String)).toEqual(['one', 'two']);
   });
 
-  it('keeps the chain up to the first segment that fails its digest', async () => {
+  it('keeps the chain up to the first segment of another length', async () => {
     const file = await path();
     expect(native()!.appendSourceIndex(file, [], false, ['one', 'two', 'three'].map(index))).toBeNull();
     const [, second] = (await openImmutableLog(file)).digests;
@@ -54,6 +54,18 @@ describe('the immutable segment log', () => {
     const next = await openImmutableLog(file);
     expect(next.segments.map((segment) => decodeSourceIndex(segment).config)).toEqual(['one', 'four']);
     expect(next.dropped).toBe(0);
+  });
+
+  it('reads a segment of the published length without hashing it', async () => {
+    const file = await path();
+    publish(file, 'one', 'two');
+    const [, second] = (await openImmutableLog(file)).digests;
+    await writeFile(join(`${file}.segments`, `${second!.replace(':', '-')}.bin`), 'TWO');
+
+    // The digest is checked where bytes cross a boundary, not on every open.
+    const opened = await openImmutableLog(file);
+    expect(opened.segments.map(String)).toEqual(['one', 'TWO']);
+    expect(opened.dropped).toBe(0);
   });
 
   it('treats a missing segment as the end of the chain', async () => {
