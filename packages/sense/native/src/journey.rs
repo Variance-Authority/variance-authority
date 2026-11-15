@@ -115,6 +115,7 @@ fn answer(
         silent,
     };
     let placed = found.into_values().map(|module| Placed { module, ordinals: None }).collect();
+    // FIXME: the Jest journey artifact folds without a `CaseShape`, so it drops each case's lines (spec 0100).
     let folded = fold(
         &run,
         placed,

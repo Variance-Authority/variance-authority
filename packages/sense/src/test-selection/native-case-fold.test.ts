@@ -172,7 +172,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
       ),
     ]));
 
-    const oracle = foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
+    const caseIndex = foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
     const answered = native()!.foldJourney!(
       cases,
       '/repo',
@@ -180,7 +180,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
       1,
     );
 
-    expect(decodeExecutionIndex(answered.bytes)).toEqual(decodeExecutionIndex(oracle.bytes));
+    expect(decodeExecutionIndex(answered.bytes)).toEqual(decodeExecutionIndex(caseIndex.bytes));
     const tests = decodeExecutionIndex(answered.bytes).tests;
     expect(tests).toMatchObject([
       { id: 'test/branch.test.ts > alpha', stopped: true },
@@ -212,9 +212,9 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
 
     native()!.foldJourneyTo!(cases, '/repo', [nativeModule(module)], output);
     const owners = (bytes: Uint8Array) => openSetExecutionIndex(bytes)!.modules.map((row) => [...row.owner ?? []]);
-    const oracle = foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
+    const caseIndex = foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
 
-    expect(owners(await readFile(output))).toEqual(owners(oracle.bytes));
+    expect(owners(await readFile(output))).toEqual(owners(caseIndex.bytes));
     expect(owners(await readFile(output))).toEqual([[NO_OWNER, 0, 1, 1]]);
     const stitched = resolve(cases, '..', 'stitched.bin');
     native()!.stitchJourneysTo!([output, output], stitched);

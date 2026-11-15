@@ -123,8 +123,6 @@ export type NativeJourneyStitchResult = Omit<NativeJourneyStitch, 'bytes'>;
 export interface NativeCaseJournals {
   /** Every case, in the case index's order; `runner` is the id its runner gave it. */
   cases(): { id: string; file: string; name: string; runner: string; project?: string | null }[];
-  /** Every module a case frame names, for the caller to load its record. */
-  wanted(): string[];
   /** What Eyes handed the cases that watched, each journal as JSON text; `null` when none did. */
   eyes(): { watched: string[]; journals: { case: string; attempt: number; journal: string }[] } | null;
   /**

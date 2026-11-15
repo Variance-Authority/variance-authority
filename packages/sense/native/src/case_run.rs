@@ -95,12 +95,6 @@ impl CaseJournals {
             .collect()
     }
 
-    /// Every module a case frame names, for the caller to load its record.
-    #[napi(catch_unwind)]
-    pub fn wanted(&self) -> Vec<String> {
-        self.run.wanted.iter().cloned().collect()
-    }
-
     /// What Eyes handed the cases that watched; `None` where none did.
     #[napi(catch_unwind)]
     pub fn eyes(&self) -> Option<CaseEyes> {
