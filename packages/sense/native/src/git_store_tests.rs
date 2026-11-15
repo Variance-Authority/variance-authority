@@ -167,12 +167,20 @@ fn a_replace_ref_even_packed_keeps_the_store_shut() {
 #[test]
 fn a_custom_smudge_filter_keeps_the_store_shut_and_lfs_does_not() {
     let root = repository("git-store-filter", &[("a.ts", A)]);
+    git(&root, &["config", "filter.lfs.clean", "git-lfs clean -- %f"]);
     git(&root, &["config", "filter.lfs.smudge", "git-lfs smudge -- %f"]);
     git(&root, &["config", "filter.lfs.process", "git-lfs filter-process"]);
     assert!(Store::open(&root).is_some(), "git-lfs smudges into the bytes a pointer stands for, which the pointer check refuses");
 
     git(&root, &["config", "filter.same.smudge", "tr a b"]);
     assert!(Store::open(&root).is_none(), "a smudge that keeps the length is caught by nothing per file");
+}
+
+#[test]
+fn a_custom_clean_filter_alone_keeps_the_store_shut() {
+    let root = repository("git-store-clean-filter", &[("a.ts", A)]);
+    git(&root, &["config", "filter.canonical.clean", "tr b a"]);
+    assert!(Store::open(&root).is_none(), "a clean filter commits other bytes than the checkout holds, at the same length");
 }
 
 #[test]

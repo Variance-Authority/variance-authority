@@ -13,8 +13,8 @@
 //! blob, so `ask grep` inflates it out of a pack instead of opening it. On
 //! Kibana an open costs about four times what an inflate does, because a
 //! worktree read pays for the descriptor, not the bytes. [`Store::open`] refuses
-//! too a smudge or process filter other than git-lfs's, which can rewrite a
-//! checkout and keep its length, and more packs than a lookup should walk
+//! too a clean, smudge or process filter other than git-lfs's, which can make a
+//! checkout and its blob differ at one length, and more packs than a lookup should walk
 //! without a multi-pack index. Every rewrite that changes the length — `eol`,
 //! `core.autocrlf`, `ident`, an encoding that is not one byte a character — is
 //! caught per file, by the blob's size against the file's, whenever it happened.
@@ -78,7 +78,7 @@ struct Answers {
     /// `--show-prefix`, `--show-object-format` and the git paths of the index
     /// and the objects, a line each.
     located: Option<String>,
-    /// Whether no filter but git-lfs's smudges or processes a checkout.
+    /// Whether no filter but git-lfs's cleans, smudges or processes a checkout.
     unfiltered: Option<bool>,
     /// The first replace ref, or nothing.
     replaced: Option<String>,
@@ -232,11 +232,11 @@ fn replaced(root: &Path) -> Option<String> {
     git(root, &["for-each-ref", "--count=1", "--format=%(refname)", &base])
 }
 
-/// Whether no filter but git-lfs's smudges or processes a checkout; `None` when
+/// Whether no filter but git-lfs's cleans, smudges or processes a checkout; `None` when
 /// the configuration could not be read.
 fn unfiltered(root: &Path) -> Option<bool> {
     let output = Command::new("git")
-        .args(["config", "--null", "--name-only", "--get-regexp", r"^filter\..*\.(smudge|process)$"])
+        .args(["config", "--null", "--name-only", "--get-regexp", r"^filter\..*\.(clean|smudge|process)$"])
         .current_dir(root)
         .output()
         .ok()?;
