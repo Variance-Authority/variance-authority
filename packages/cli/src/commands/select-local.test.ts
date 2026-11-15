@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '@variance-authority/core/format';
-import { encodeExecutionIndex, kept, recordOfCases, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
+import { encodeExecutionIndex, kept, recordOfCases, selectedLines, testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { parseArgs } from '../parse.js';
 import { indexOutput } from './index-command.js';
@@ -75,7 +75,7 @@ describe('a selection that cannot narrow, asked `--local`', () => {
 
     expect(kept(gate, [A, B, unseen])).toEqual([A, B, unseen]);
     expect(kept(local, [A, B, unseen])).toEqual([A]);
-    expect(local.reading.only).toEqual([A]);
+    expect(local.reading.only).toEqual(['packages/a/src/a.ts', A]);
   });
 
   it('runs a changed test file that nothing imports, as its own evidence', async () => {
@@ -83,6 +83,20 @@ describe('a selection that cannot narrow, asked `--local`', () => {
     const { local } = await both(root, () => write(root, B, "import { b } from '../src/b';\nexport const seen = b + 1;\n"));
 
     expect(kept(local, [A, B])).toEqual([B]);
+  });
+
+  it('runs a test file the runner names that imports a change, whatever its name says and though no record holds it', async () => {
+    const { root } = checkout({ [HEALTH]: "import { b } from '../src/b';\nexport const seen = b;\n" });
+    const { local } = await both(root, () => write(root, 'packages/b/src/b.ts', 'export const b = 2;\n'));
+
+    expect(kept(local, [A, B, HEALTH])).toEqual([B, HEALTH]);
+  });
+
+  it('says on the seam why the record could not narrow', async () => {
+    const { root } = checkout();
+    const { local } = await both(root, editA(root));
+
+    expect(selectedLines(local, [A, B]).join('\n')).toContain('no execution journal');
   });
 
   it('reads the change from the merge base with the mainline when the edit is committed and the tree clean', async () => {

@@ -100,7 +100,8 @@ export function suiteOf(input: SelectInput, atDistance: Leg | undefined, fell?: 
     ...(reading.only === undefined ? {} : { only: new Set(reading.only) }),
     // The waves the shard was told it runs read one selection, and place it as one.
     ...(atDistance?.placing === undefined ? {} : { placing: placingOf(inLeg(base, input, { ...atDistance.placing, partition: true })) }),
-    notes: reading.notes,
+    // A fallen reading prints no `declined`, so the seam says why the record could not narrow first.
+    notes: reading.fell === undefined ? reading.notes : [reading.because, ...reading.notes],
     reading,
   };
 }

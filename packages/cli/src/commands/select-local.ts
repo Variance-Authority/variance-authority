@@ -41,6 +41,8 @@ export interface LocalAnswer {
   readonly rung: LocalRung;
   readonly selected: readonly string[];
   readonly left: readonly string[];
+  /** Every file a changed file reaches, a test the graph cannot name by its name among them: the runner's discovery says which are tests. */
+  readonly reached: readonly string[];
   /** The changed files the source index does not hold, which select nothing. */
   readonly unheld: readonly string[];
 }
@@ -68,6 +70,7 @@ export function localLadder(question: LocalQuestion): LocalAnswer {
     rung: 'importers',
     selected: universe.filter((test) => reached.has(test)),
     left: universe.filter((test) => !reached.has(test)),
+    reached: [...reached].sort(codeUnitOrder),
     unheld: [...new Set(missing)].sort(codeUnitOrder),
   };
 }
@@ -166,8 +169,8 @@ export function fellTo(selection: TestSelection, answer: LocalAnswer): TestSelec
   return {
     ...rest,
     skip: answer.left,
-    // No evidence, no test: a file the seam discovers that neither the index nor the record holds is not selected.
-    only: answer.selected,
+    // No evidence, no test: a file the seam discovers that no changed file reaches is not selected.
+    only: answer.reached,
     fell: { rung: answer.rung, from: widened!, left: answer.left },
     because: `${widened}, so \`--local\` selected the test files that import the changed files, by the source index: ${answer.selected.length} of ${many(total, 'test file')}`,
     notes: [

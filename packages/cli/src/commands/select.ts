@@ -222,7 +222,8 @@ export interface TestSelection {
   /**
    * The only test files this leg runs, present when it is a later wave of one
    * shard (`Leg.partition`): those the record placed in its range; or under
-   * `--local`, the importers it fell to. Absent, every file not in `skip`
+   * `--local`, every file a changed file reaches, of which the runner runs
+   * those it discovers. Absent, every file not in `skip`
    * runs, a file the record never saw included.
    */
   readonly only?: readonly string[];
