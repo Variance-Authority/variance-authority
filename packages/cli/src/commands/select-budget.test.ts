@@ -128,4 +128,22 @@ describe('the edit loop under a budget', () => {
     expect(cut.skip).toEqual(whole.skip);
     expect(cut.notes[0]).toBe('`VARIANCE_AUTHORITY_BUDGET=15` cuts nothing: nothing is recorded there');
   });
+
+  it('cuts nothing when the record holds a run with no file timed, and says why', () => {
+    const whole = suiteOf(input(), leg(0, 1));
+    const cut = withinBudget(whole, { recording: '/cache/coverage.bin', times: new Map() }, { seconds: 15, asked: false }, home);
+
+    expect(cut.skip).toEqual(whole.skip);
+    expect(cut.notes[0]).toMatch(/^`VARIANCE_AUTHORITY_BUDGET=15` cuts nothing: /u);
+  });
+
+  it('cuts nothing when the hops were measured on a graph that is not the checkout\'s, and says why', () => {
+    const read = input();
+    const stale: SelectInput = { ...read, ground: { ...read.ground, stale: 'the source index could not be brought up to it' } as SelectInput['ground'] };
+    const whole = suiteOf(stale, leg(0, Number.MAX_SAFE_INTEGER));
+    const cut = withinBudget(whole, TIMES, { seconds: 15, asked: false }, home);
+
+    expect(runs(cut)).toEqual(runs(whole));
+    expect(cut.notes[0]).toMatch(/^`VARIANCE_AUTHORITY_BUDGET=15` cuts nothing: /u);
+  });
 });

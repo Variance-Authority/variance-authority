@@ -58,7 +58,10 @@ export function withinBudget(
   if (selection.declined !== undefined) return unchanged('the selection did not narrow, and a selection that does not narrow skips nothing');
   // A selection `--local` fell to holds no hops to rank by, and its rung already chose by containment.
   if (selection.reading.fell !== undefined) return unchanged(`the selection fell to the ${selection.reading.fell.rung} \`--local\` chose, which holds no hops to rank by`);
+  // The leg leaves a selection on a stale, widened or unread graph uncut and measures no hops; the budget would rank all of it last.
+  if (selection.reading.distances === undefined) return unchanged('the leg measured no hops to rank by, and left the selection whole');
   if ('unread' in times) return unchanged(times.unread);
+  if (times.times.size === 0) return unchanged(`${times.recording} holds no test durations to price by`);
 
   const candidates = ranked(selection, times.times, home);
   const taken: Candidate[] = [];
