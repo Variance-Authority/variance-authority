@@ -515,7 +515,10 @@ matches the entry to the nanosecond and is not racy against the index, and whose
 blob is its size and no git-lfs pointer, is that blob, and is searched out of
 the store; every other file is opened. A checkout git rewrote to another length,
 by line endings, fails the size and is opened; `ident` can keep the length, so
-where an attributes file names it, a blob holding `$Id` is opened too. Opening the store for
+where an attributes file names it, a blob holding `$Id` is opened too. A
+checkout an encoding or a filter rewrote at its length, before the attribute
+was removed, is the one file searched as its blob and not its bytes: git's
+`status` calls it unchanged too, until it is checked out again. Opening the store for
 a search asks git four questions, loads the index and reads the attributes
 files git and the index name, about 18 ms, and a search from disk costs as much at about 3,000
 files, which is `STORE_CROSSOVER`; a shorter list opens nothing. Over Kibana's
