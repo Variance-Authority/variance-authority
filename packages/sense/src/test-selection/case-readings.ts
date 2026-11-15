@@ -244,7 +244,7 @@ export function readingsOf(section: Uint8Array | undefined, index: Uint8Array | 
   const bytes = decodeReadings(section).cases.get(id);
   const stored = bytes === undefined ? [] : decodeCase(bytes);
   if (stored.length === 0) return undefined;
-  const newest = opened === undefined || stored[0]?.regions !== undefined ? undefined : readsOf(opened, new Set([id])).get(id)?.regions;
+  const newest = opened === undefined || stored[0]?.regions !== undefined ? undefined : newestRegions(opened, id);
   return expanded(stored, newest ?? []);
 }
 
