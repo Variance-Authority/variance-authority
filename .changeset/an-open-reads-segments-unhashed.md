@@ -9,3 +9,5 @@ refreshes the index pays about 14 ms of that back in syncs. The writer now
 syncs each segment, the segments' directory and the manifest to disk before the
 rename that publishes them, so a power loss cannot leave a manifest naming bytes
 the disk did not keep.
+A segment of the right length whose bytes were damaged is refused with an error
+naming the index, never a crash of the process.
