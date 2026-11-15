@@ -73,8 +73,12 @@ fn a_path_in_conflict_is_read_from_the_worktree() {
     git(&root, &["checkout", "--quiet", "main"]);
     write(&root, "a.ts", b"export const a = 'main';\n");
     commit(&root);
-    let merged = Command::new("git").args(["merge", "--quiet", "other"]).current_dir(&root).output().unwrap();
-    assert!(!merged.status.success(), "the merge conflicts");
+    let merged = Command::new("git")
+        .args(["-c", "user.email=test@example.test", "-c", "user.name=Test", "merge", "other"])
+        .current_dir(&root)
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&merged.stdout).contains("CONFLICT"), "the merge conflicts: {merged:?}");
     git(&root, &["checkout", "--ours", "a.ts"]);
     settle(&root);
 
@@ -194,6 +198,17 @@ fn a_working_tree_encoding_anywhere_keeps_the_store_shut() {
     let root = repository("git-store-encoding-info", &[("a.ts", A)]);
     write(&root, ".git/info/attributes", b"*.ts working-tree-encoding=UTF-16LE\n");
     assert!(Store::open(&root).is_none(), "the repository's own attributes");
+}
+
+#[test]
+fn a_blob_holding_an_id_under_an_ident_attribute_is_read_from_the_worktree() {
+    // Checkout writes `$Id: <the blob's id> $` over whatever `$Id: … $` the
+    // blob holds, at the same length when the blob holds forty characters there.
+    let root = repository("git-store-ident", &[(".gitattributes", b"*.txt ident\n"), ("a.txt", b"$Id$ x\n"), ("b.txt", b"plain\n")]);
+
+    let store = Store::open(&root).unwrap();
+    assert_eq!(stored(&store, "a.txt"), None);
+    assert_eq!(stored(&store, "b.txt").as_deref(), Some(&b"plain\n"[..]), "a blob holding no id");
 }
 
 #[test]

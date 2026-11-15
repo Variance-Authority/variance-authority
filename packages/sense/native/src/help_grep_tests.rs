@@ -144,6 +144,24 @@ fn a_working_tree_encoding_that_keeps_the_length_is_searched_from_the_worktree()
 }
 
 #[test]
+fn a_working_tree_encoding_in_an_untracked_attributes_file_is_searched_from_the_worktree() {
+    let root = repository("help-grep-encoding-untracked", &[("src/a.ts", "中中a\n".as_bytes()), ("plain.ts", b"\xe4\xb8\xad\n")]);
+    write(&root, "src/.gitattributes", b"a.ts working-tree-encoding=UTF-16LE\n");
+    std::fs::remove_file(root.join("src/a.ts")).unwrap();
+    git(&root, &["checkout", "--", "src/a.ts"]);
+    let utf16: Vec<u8> = "中中a\n".encode_utf16().flat_map(u16::to_le_bytes).collect();
+    assert_eq!(std::fs::read(root.join("src/a.ts")).unwrap(), utf16);
+    settle(&root);
+    git(&root, &["update-index", "--refresh"]);
+    let files: Vec<String> = ["src/a.ts", "plain.ts"].map(String::from).to_vec();
+
+    let (worktree, _) = answer(&root, "中", &files, usize::MAX);
+    let (stored, read) = answer(&root, "中", &files, 0);
+    assert_eq!(read, 0, "refused whole, the plain file with it");
+    assert_eq!(stored, worktree);
+}
+
+#[test]
 fn an_ident_checkout_is_longer_than_its_blob_and_is_searched_from_the_worktree() {
     let root = repository("help-grep-ident", &[(".gitattributes", b"*.txt ident\n"), ("a.txt", b"$Id$ bbbb\n"), ("plain.ts", b"bbbb\n")]);
     std::fs::remove_file(root.join("a.txt")).unwrap();

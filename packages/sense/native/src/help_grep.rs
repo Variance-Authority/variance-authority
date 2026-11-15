@@ -12,12 +12,15 @@
 //! holds as unchanged out of git's object store (`git_store.rs`) and searches
 //! those bytes as a reader, which is what `rg` does with a file it opens: the
 //! same binary detection, the same BOM sniffing. Every other file is opened.
+//! An untracked attributes file below the root that can rewrite a checkout is
+//! looked for beside the search; finding one runs the search again from the
+//! worktree.
 
 // compass: variance-authority.report.agent-surface
 
 use std::path::Path;
 
-use grep_regex::RegexMatcherBuilder;
+use grep_regex::{RegexMatcher, RegexMatcherBuilder};
 use grep_searcher::{sinks::Bytes, BinaryDetection, SearcherBuilder};
 use napi_derive::napi;
 use rayon::prelude::*;
@@ -60,41 +63,13 @@ fn search(root: &Path, pattern: &str, files: &[String], crossover: usize) -> nap
         .build(pattern)
         .map_err(|error| napi::Error::from_reason(format!("ripgrep refused the pattern: {error}")))?;
     let store = if files.len() >= crossover { Store::open(root) } else { None };
-    let search = || -> Vec<Searched> {
-        files
-            .par_iter()
-            .map_init(
-                || {
-                    let searcher =
-                        SearcherBuilder::new().line_number(true).binary_detection(BinaryDetection::convert(b'\0')).build();
-                    (searcher, store.as_ref().map(Store::reader))
-                },
-                |(searcher, reader), file| {
-                    let mut hits = Vec::new();
-                    let sink = Bytes(|line, bytes| {
-                        hits.push((line as u32, shown(bytes)));
-                        Ok(true)
-                    });
-                    let fresh = store.as_ref().and_then(|store| store.checked_out(file));
-                    let stored = fresh.as_ref().zip(reader.as_mut()).and_then(|(fresh, reader)| reader.checkout_bytes(fresh));
-                    let read = stored.is_some();
-                    let searched = match stored {
-                        Some(bytes) => searcher.search_reader(&matcher, bytes, sink),
-                        None => searcher.search_path(&matcher, root.join(file), sink),
-                    };
-                    match searched {
-                        Ok(()) => (Ok(hits), read),
-                        Err(error) => (Err(format!("{file}: {error}")), read),
-                    }
-                },
-            )
-            .collect()
-    };
-    // Every search opens its file or inflates its blob, at the disk reader's width.
-    let searched = match opening_pool(None, files.len()) {
-        Ok(pool) => pool.install(search),
-        Err(_) => search(),
-    };
+    let (searched, rewritten) = std::thread::scope(|scope| {
+        let below = store.as_ref().map(|store| scope.spawn(|| store.rewritten_below(files)));
+        let searched = each(root, &matcher, files, store.as_ref());
+        (searched, below.is_some_and(|below| below.join().unwrap_or(true)))
+    });
+    // A rewrite the store cannot see makes its every answer suspect.
+    let searched = if rewritten { each(root, &matcher, files, None) } else { searched };
     let mut grepped = Grepped { file: Vec::new(), line: Vec::new(), text: Vec::new(), errors: Vec::new() };
     let mut read = 0;
     for (at, (result, stored)) in searched.into_iter().enumerate() {
@@ -111,6 +86,45 @@ fn search(root: &Path, pattern: &str, files: &[String], crossover: usize) -> nap
         }
     }
     Ok((grepped, read))
+}
+
+/// Each file of `files` searched, out of `store` where it proves the bytes.
+fn each(root: &Path, matcher: &RegexMatcher, files: &[String], store: Option<&Store>) -> Vec<Searched> {
+    let search = || -> Vec<Searched> {
+        files
+            .par_iter()
+            .map_init(
+                || {
+                    let searcher =
+                        SearcherBuilder::new().line_number(true).binary_detection(BinaryDetection::convert(b'\0')).build();
+                    (searcher, store.map(Store::reader))
+                },
+                |(searcher, reader), file| {
+                    let mut hits = Vec::new();
+                    let sink = Bytes(|line, bytes| {
+                        hits.push((line as u32, shown(bytes)));
+                        Ok(true)
+                    });
+                    let fresh = store.and_then(|store| store.checked_out(file));
+                    let stored = fresh.as_ref().zip(reader.as_mut()).and_then(|(fresh, reader)| reader.checkout_bytes(fresh));
+                    let read = stored.is_some();
+                    let searched = match stored {
+                        Some(bytes) => searcher.search_reader(matcher, bytes, sink),
+                        None => searcher.search_path(matcher, root.join(file), sink),
+                    };
+                    match searched {
+                        Ok(()) => (Ok(hits), read),
+                        Err(error) => (Err(format!("{file}: {error}")), read),
+                    }
+                },
+            )
+            .collect()
+    };
+    // Every search opens its file or inflates its blob, at the disk reader's width.
+    match opening_pool(None, files.len()) {
+        Ok(pool) => pool.install(search),
+        Err(_) => search(),
+    }
 }
 
 /// A matching line without its terminator, cut at `WIDEST`; bytes that are not UTF-8 read as U+FFFD.

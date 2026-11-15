@@ -13,13 +13,20 @@
 //! blob, so `ask grep` inflates it out of a pack instead of opening it. On
 //! Kibana an open costs about four times what an inflate does, because a
 //! worktree read pays for the descriptor, not the bytes. [`Store::open`] refuses
-//! too a clean, smudge or process filter other than git-lfs's, and any
-//! attributes source that names `working-tree-encoding`: either can make a
-//! checkout and its blob differ at one length (`中中a\n` is eight bytes in UTF-8
-//! and in UTF-16LE). It refuses as well more packs than a lookup should walk
-//! without a multi-pack index. Every rewrite that always changes the length —
-//! `eol`, `core.autocrlf`, `ident` — is caught per file, by the blob's size
-//! against the file's, whenever it happened.
+//! too a clean, smudge or process filter other than git-lfs's, and an
+//! attributes file — git's system, global and `info` ones, every one the index
+//! holds, and every one on the way from the top of the worktree down to the root
+//! — that names `working-tree-encoding`: either can make a checkout and its blob
+//! differ at one length (`中中a\n` is eight bytes in UTF-8 and in UTF-16LE). It
+//! refuses as well more packs than a lookup should walk without a multi-pack
+//! index. An untracked attributes file below the root is not read at open, where
+//! APFS would serialise the lookups ahead of the search:
+//! [`Store::rewritten_below`] reads them beside it, and one naming
+//! `working-tree-encoding` or `ident` sends the whole search to the worktree.
+//! Every rewrite that always changes the length — `eol`, `core.autocrlf` — is
+//! caught per file, by the blob's size against the file's, whenever it
+//! happened; `ident` can keep it, so where a source names `ident` a blob holding
+//! `$Id` reads the worktree.
 //!
 //! [`Store::checked_out`] is the per-file proof, in order: an unconflicted entry,
 //! a regular file, none of skip-worktree, assume-valid or intent-to-add, an
@@ -31,6 +38,7 @@
 
 // compass: variance-authority.reach.source-index
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -73,6 +81,8 @@ pub(crate) struct Store {
     /// Where `root` lies in the checkout, as `--show-prefix` spells it.
     prefix: String,
     root: PathBuf,
+    /// Whether an attributes source names `ident`.
+    ident: bool,
 }
 
 /// What git answered before a store opens; each `None` is a call that failed.
@@ -93,6 +103,21 @@ struct Answers {
 pub(crate) struct Fresh {
     id: ObjectId,
     size: u64,
+    /// Whether an attributes source names `ident`.
+    ident: bool,
+}
+
+/// Whether the attributes sources name a rewrite that can keep a checkout's
+/// length: `working-tree-encoding`, or `ident`. A source that cannot be read
+/// names both.
+#[derive(Clone, Copy, Default)]
+struct Named {
+    encoding: bool,
+    ident: bool,
+}
+
+impl Named {
+    const UNREAD: Named = Named { encoding: true, ident: true };
 }
 
 /// One thread's handle on the store, with the buffer it inflates into.
@@ -154,11 +179,13 @@ impl Store {
         let objects = Objects::at(format, &objects, &replaced)?;
         let index = gix_index::File::at(&index, gix_hash::Kind::Sha1, true, Default::default()).ok()?;
         let top = root.ancestors().nth(prefix.matches('/').count())?;
-        let outside = [Path::new(&system), Path::new(&global), &info];
-        if encoded(&index, top, &objects, &outside) {
+        let mut outside = vec![PathBuf::from(system), PathBuf::from(global), info];
+        outside.extend(root.ancestors().take_while(|directory| directory.starts_with(top)).map(|directory| directory.join(".gitattributes")));
+        let named = named(&index, top, &objects, &outside);
+        if named.encoding {
             return None;
         }
-        Some(Store { objects, index, prefix: prefix.to_owned(), root: root.to_owned() })
+        Some(Store { objects, index, prefix: prefix.to_owned(), root: root.to_owned(), ident: named.ident })
     }
 
     /// `file`, relative to the root this store was opened at, when the index
@@ -181,7 +208,36 @@ impl Store {
             return None;
         }
         let size = metadata.len();
-        (size <= STORE_LARGEST).then_some(Fresh { id: entry.id, size })
+        (size <= STORE_LARGEST).then_some(Fresh { id: entry.id, size, ident: self.ident })
+    }
+
+    /// Whether a `.gitattributes` the index does not hold, in a directory below
+    /// the root that holds a file of `files`, names a rewrite that can keep a
+    /// checkout's length, or could not be read. Then the store's answer for
+    /// `files` is not proof, and the worktree's is.
+    ///
+    /// A lookup a directory, one at a time: APFS serialises them, so more
+    /// threads buy little, and the search runs this beside its own work.
+    pub(crate) fn rewritten_below(&self, files: &[String]) -> bool {
+        let mut directories = HashSet::new();
+        for file in files {
+            let mut at = file.as_str();
+            // A directory met before had its own parents met with it.
+            while let Some((parent, _)) = at.rsplit_once('/') {
+                if !directories.insert(parent) {
+                    break;
+                }
+                at = parent;
+            }
+        }
+        directories.into_iter().any(|directory| {
+            let tracked = format!("{}{directory}/.gitattributes", self.prefix);
+            if self.index.entry_by_path(tracked.as_bytes().into()).is_some() {
+                return false;
+            }
+            let named = read(&self.root.join(directory).join(".gitattributes"));
+            named.encoding || named.ident
+        })
     }
 
     /// A handle for one thread; lookups never re-read the pack directory.
@@ -223,12 +279,14 @@ impl Reader {
         (data.kind == Kind::Blob && !crate::lfs::pointer(data.data)).then_some(data.data)
     }
 
-    /// The bytes `fresh` was checked out from, or `None` to read the worktree.
+    /// The bytes `fresh` was checked out from, or `None` to read the worktree,
+    /// as for a blob holding `$Id` where `ident` may have rewritten it.
     pub(crate) fn checkout_bytes(&mut self, fresh: &Fresh) -> Option<&[u8]> {
         if self.size(&fresh.id)? != fresh.size {
             return None;
         }
-        self.blob(&fresh.id)
+        let blob = self.blob(&fresh.id)?;
+        (!fresh.ident || memchr::memmem::find(blob, b"$Id").is_none()).then_some(blob)
     }
 }
 
@@ -270,29 +328,35 @@ fn attributes(root: &Path) -> Option<[String; 2]> {
     Some([named("GIT_ATTR_SYSTEM")?, named("GIT_ATTR_GLOBAL")?])
 }
 
-/// Whether any attributes source may name `working-tree-encoding`, which can
-/// rewrite a file into other bytes at its blob's length: every `.gitattributes`
-/// the index holds, as checked out and as committed, and the files `outside`
-/// it. A source that cannot be read is read as naming it.
-fn encoded(index: &gix_index::File, top: &Path, objects: &Objects, outside: &[&Path]) -> bool {
-    let names = |bytes: &[u8]| memchr::memmem::find(bytes, b"working-tree-encoding").is_some();
-    let read = |path: &Path| match std::fs::read(path) {
-        Ok(bytes) => names(&bytes),
-        Err(error) => error.kind() != std::io::ErrorKind::NotFound,
-    };
-    if outside.iter().any(|path| !path.as_os_str().is_empty() && read(path)) {
-        return true;
-    }
+/// What the attributes sources name: every `.gitattributes` the index holds,
+/// as checked out and as committed, and the files `outside` it.
+fn named(index: &gix_index::File, top: &Path, objects: &Objects, outside: &[PathBuf]) -> Named {
+    let either = |one: Named, other: Named| Named { encoding: one.encoding || other.encoding, ident: one.ident || other.ident };
+    let outside = outside.iter().filter(|path| !path.as_os_str().is_empty()).map(|path| read(path)).fold(Named::default(), either);
     let mut reader = objects.reader();
-    index.entries().iter().any(|entry| {
+    index.entries().iter().fold(outside, |named, entry| {
         let path = entry.path(index);
         if path != ".gitattributes" && !path.ends_with(b"/.gitattributes") {
-            return false;
+            return named;
         }
-        let Ok(relative) = std::str::from_utf8(path) else { return true };
-        let committed = reader.objects.try_find(&entry.id, &mut reader.buffer).ok().flatten().map(|data| names(data.data));
-        committed != Some(false) || read(&top.join(relative))
+        let Ok(relative) = std::str::from_utf8(path) else { return Named::UNREAD };
+        let committed = reader.objects.try_find(&entry.id, &mut reader.buffer).ok().flatten().map_or(Named::UNREAD, |data| names(data.data));
+        either(named, either(committed, read(&top.join(relative))))
     })
+}
+
+/// What an attributes file's bytes name.
+fn names(bytes: &[u8]) -> Named {
+    Named { encoding: memchr::memmem::find(bytes, b"working-tree-encoding").is_some(), ident: memchr::memmem::find(bytes, b"ident").is_some() }
+}
+
+/// What the attributes file at `path` names: nothing when there is none.
+fn read(path: &Path) -> Named {
+    match std::fs::read(path) {
+        Ok(bytes) => names(&bytes),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Named::default(),
+        Err(_) => Named::UNREAD,
+    }
 }
 
 /// Whether a lookup that misses walks few enough pack indexes.
