@@ -34,7 +34,7 @@ export interface ExplainedCase {
   readonly duration?: number;
   /** Whether its statements were timed; untimed ones come by line. */
   readonly timed: boolean;
-  /** Whether any region was charged to a line: false for a run recorded without cadence. */
+  /** Whether the run recorded statement lines, by a time or a region charged to one: false for a run recorded without cadence. */
   readonly lined: boolean;
   /** In the order first reached where timed, what ran before the first statement first. */
   readonly statements: readonly Statement[];
@@ -94,7 +94,7 @@ export function statementsOf(
     name: test.name,
     ...(test.duration === undefined ? {} : { duration: test.duration }),
     timed: test.times !== undefined,
-    lined: body.size > 0 || hooks.size > 0,
+    lined: body.size > 0 || hooks.size > 0 || times.length > 0,
     statements,
     hooks: [...hooks.keys()].sort((left, right) => left - right).map((line) => ({ line, ...lined(line, hooks) })),
     unlined,

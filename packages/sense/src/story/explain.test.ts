@@ -72,6 +72,12 @@ describe('statementsOf', () => {
 
     expect(explained).toMatchObject({ timed: false, lined: false, statements: [], unlined: [WIRE, HANDLE] });
   });
+
+  it('says a timed case that crossed no region has its statement lines', () => {
+    const explained = statementsOf({ ...CASE, duration: 2, times: [{ line: 4, time: 1500 }] }, []);
+
+    expect(explained).toMatchObject({ timed: true, lined: true, statements: [{ line: 4, time: 1500, regions: [] }] });
+  });
 });
 
 describe('declarations', () => {
