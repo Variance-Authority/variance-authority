@@ -7,7 +7,7 @@ import { encodeOwnedSetExecutionIndex } from '../test-selection/execution-set-fo
 import { writeTestCoverage } from '../test-selection/index.js';
 import { testCoverageFile } from '../test-selection/record-location.js';
 import type { ReadRegion } from '../test-selection/readings-bytes.js';
-import { declarationsOf, recordedStatements, statementsOf } from './explain.js';
+import { recordedStatements, statementsOf } from './explain.js';
 
 const WIRE = { file: 'src/page.ts', name: 'wire', path: 'entry', startLine: 1, endLine: 3 };
 const HANDLE = { file: 'src/page.ts', name: 'handle', path: 'entry', startLine: 5, endLine: 8 };
@@ -33,12 +33,13 @@ describe('statementsOf', () => {
       timed: true,
       lined: true,
       statements: [
-        { line: 9, time: 400, share: 3, regions: [HANDLE, ERROR] },
-        { line: 4, time: 8000, share: 67, regions: [WIRE] },
-        { line: 11, time: 30, share: 0, regions: [] },
+        { line: 9, time: 400, share: 3, regions: [HANDLE, ERROR], declarations: [{ region: HANDLE, arms: 1 }] },
+        { line: 4, time: 8000, share: 67, regions: [WIRE], declarations: [{ region: WIRE, arms: 0 }] },
+        { line: 11, time: 30, share: 0, regions: [], declarations: [] },
       ],
       hooks: [],
       unlined: [],
+      unlinedDeclarations: [],
     });
   });
 
@@ -73,12 +74,14 @@ describe('statementsOf', () => {
   });
 });
 
-describe('declarationsOf', () => {
+describe('declarations', () => {
   it('folds a declaration\'s branches and loops into it, counted, and keeps two declarations of one name in one file two', () => {
     const second = { ...HANDLE, startLine: 20, endLine: 24 };
     const arm = { ...ERROR, startLine: 22, endLine: 22 };
 
-    expect(declarationsOf([HANDLE, ERROR, WIRE, second, arm, SETUP])).toEqual([
+    const [statement] = statementsOf(CASE, [HANDLE, ERROR, WIRE, second, arm, SETUP].map((region) => crossed(region, 4))).statements;
+
+    expect(statement!.declarations).toEqual([
       { region: HANDLE, arms: 1 },
       { region: WIRE, arms: 0 },
       { region: second, arms: 1 },
@@ -86,10 +89,22 @@ describe('declarationsOf', () => {
     ]);
   });
 
+  it('draws an arm to the declaration a statement before it ran, so two declarations of one name stay two', () => {
+    const second = { ...HANDLE, startLine: 20, endLine: 24 };
+    const arm = { ...ERROR, startLine: 22, endLine: 22 };
+
+    const explained = statementsOf(
+      { ...CASE, times: [{ line: 4, time: 10 }, { line: 9, time: 10 }] },
+      [crossed(HANDLE, 4), crossed(ERROR, 9), crossed(second, 4), crossed(arm, 9)],
+    );
+
+    expect(explained.statements[1]!.declarations).toEqual([{ region: HANDLE, arms: 1 }, { region: second, arms: 1 }]);
+  });
+
   it('draws an arm whose declaration did not run by the arm itself, counting the arms after it', () => {
     const other = { ...ERROR, path: 'for#0', startLine: 7, endLine: 7 };
 
-    expect(declarationsOf([ERROR, other])).toEqual([{ region: ERROR, arms: 1 }]);
+    expect(statementsOf(CASE, [crossed(ERROR, null), crossed(other, null)]).unlinedDeclarations).toEqual([{ region: ERROR, arms: 1 }]);
   });
 });
 

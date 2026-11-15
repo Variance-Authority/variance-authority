@@ -22,6 +22,8 @@ export interface Statement {
   /** Whole percent of the case, as {@link shareOf} reads it; absent where either time was not reported. */
   readonly share?: number;
   readonly regions: readonly OutcomeRegion[];
+  /** Its regions folded into their declarations, as {@link Declaration} reads them. */
+  readonly declarations: readonly Declaration[];
 }
 
 /** A case's statements as the record holds its newest run. */
@@ -40,6 +42,8 @@ export interface ExplainedCase {
   readonly hooks: readonly Statement[];
   /** Regions the case crossed with no line recorded. */
   readonly unlined: readonly OutcomeRegion[];
+  /** The unlined regions folded into their declarations. */
+  readonly unlinedDeclarations: readonly Declaration[];
 }
 
 /** A case explained, with the record it was read from and its id there. */
@@ -56,8 +60,10 @@ export function statementsOf(
   const body = new Map<number, OutcomeRegion[]>();
   const hooks = new Map<number, OutcomeRegion[]>();
   const unlined: OutcomeRegion[] = [];
+  const crossed: OutcomeRegion[] = [];
   for (const [file, name, path, startLine, endLine, value] of regions) {
     const region = { file, name, path, startLine, endLine };
+    crossed.push(region);
     if (value === null) {
       unlined.push(region);
       continue;
@@ -70,13 +76,18 @@ export function statementsOf(
   const timedLines = new Set(times.map(({ line }) => line));
   const rest = [...body.keys()].filter((line) => !timedLines.has(line)).sort((left, right) => left - right);
   const before = rest[0] === 0 ? [rest.shift()!] : [];
+  const fold = declarationsIn(crossed);
+  const lined = (line: number, at: ReadonlyMap<number, OutcomeRegion[]>) => {
+    const held = at.get(line) ?? [];
+    return { regions: held, declarations: fold(held) };
+  };
   const statements: Statement[] = [
-    ...before.map((line) => ({ line, regions: body.get(line)! })),
+    ...before.map((line) => ({ line, ...lined(line, body) })),
     ...times.map(({ line, time }) => {
       const share = shareOf(time, test.duration);
-      return { line, time, ...(share === undefined ? {} : { share }), regions: body.get(line) ?? [] };
+      return { line, time, ...(share === undefined ? {} : { share }), ...lined(line, body) };
     }),
-    ...rest.map((line) => ({ line, regions: body.get(line)! })),
+    ...rest.map((line) => ({ line, ...lined(line, body) })),
   ];
   return {
     file: test.file,
@@ -85,8 +96,9 @@ export function statementsOf(
     timed: test.times !== undefined,
     lined: body.size > 0 || hooks.size > 0,
     statements,
-    hooks: [...hooks.keys()].sort((left, right) => left - right).map((line) => ({ line, regions: hooks.get(line)! })),
+    hooks: [...hooks.keys()].sort((left, right) => left - right).map((line) => ({ line, ...lined(line, hooks) })),
     unlined,
+    unlinedDeclarations: fold(unlined),
   };
 }
 
@@ -97,25 +109,28 @@ export interface Declaration {
 }
 
 /**
- * Regions folded into their declarations, file by file as {@link drawersOf}
- * draws them, in the order each declaration is first drawn: a statement reads
- * by what it ran rather than by every branch.
+ * A fold of some of a case's regions into their declarations, each drawn as
+ * {@link drawersOf} draws it over every region the case crossed, file by file
+ * in the record's order: a statement reads by what it ran rather than by every
+ * branch, and an arm a later statement ran stays with the declaration an
+ * earlier one ran, so two declarations of one name in one file stay two.
+ * Declarations come in the order each is first drawn.
  */
-export function declarationsOf(regions: readonly OutcomeRegion[]): Declaration[] {
-  const byFile = new Map<string, number[]>();
-  regions.forEach(({ file }, at) => byFile.set(file, [...byFile.get(file) ?? [], at]));
-  const drawer = new Map<number, number>();
-  for (const ats of byFile.values()) {
-    drawersOf(ats.map((at) => regions[at]!)).forEach((drawn, ordinal) => drawer.set(ats[ordinal]!, ats[drawn]!));
-  }
-  const declared = new Map<number, { region: OutcomeRegion; arms: number }>();
-  regions.forEach((region, at) => {
-    const by = drawer.get(at)!;
-    const held = declared.get(by);
-    if (held === undefined) declared.set(by, { region: regions[by]!, arms: by === at ? 0 : 1 });
-    else held.arms += 1;
-  });
-  return [...declared.values()];
+function declarationsIn(crossed: readonly OutcomeRegion[]): (regions: readonly OutcomeRegion[]) => Declaration[] {
+  const byFile = new Map<string, OutcomeRegion[]>();
+  for (const region of crossed) byFile.set(region.file, [...byFile.get(region.file) ?? [], region]);
+  const drawer = new Map<OutcomeRegion, OutcomeRegion>();
+  for (const inFile of byFile.values()) drawersOf(inFile).forEach((drawn, ordinal) => drawer.set(inFile[ordinal]!, inFile[drawn]!));
+  return (regions) => {
+    const declared = new Map<OutcomeRegion, { region: OutcomeRegion; arms: number }>();
+    for (const region of regions) {
+      const by = drawer.get(region) ?? region;
+      const held = declared.get(by);
+      if (held === undefined) declared.set(by, { region: by, arms: by === region ? 0 : 1 });
+      else held.arms += 1;
+    }
+    return [...declared.values()];
+  };
 }
 
 /** Every case {@link namedCases} finds, explained from its newest run. */

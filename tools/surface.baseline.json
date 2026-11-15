@@ -3753,7 +3753,6 @@
         "askedForStories": "function",
         "compareOutcomes": "function",
         "compareReadings": "function",
-        "declarationsOf": "function",
         "drawRoute": "function",
         "drawToldRoute": "function",
         "drawingText": "function",

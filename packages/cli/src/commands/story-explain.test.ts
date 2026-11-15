@@ -3,6 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import { digestString } from '@variance-authority/core/format';
+import { updateSourceIndex } from '@variance-authority/sense';
 import { commitRunsFile, encodeAsSetExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import { oneRun } from './covering-record.fixture.js';
 import { story } from './story.js';
@@ -29,6 +31,8 @@ async function checkout(ran = true): Promise<string> {
   git(root, 'init', '-q');
   git(root, 'add', '.');
   git(root, 'commit', '-qm', 'spec');
+  // Under CI nothing builds the source index implicitly; the fixture publishes it, as the pipeline's `variance index` step does.
+  await updateSourceIndex(root);
   const tests = [{ id: 'test/page.spec.ts > clicks', file: 'test/page.spec.ts', name: 'clicks', duration: 10, times: [{ line: 6, time: 400 }, { line: 4, time: 8000 }] }];
   await writeTestCoverage(testCoverageFile(root), { version: 3, instrumentation: 'fixture', commit: git(root, 'rev-parse', 'HEAD'), tests: [], modules: [] }, {
     index: encodeAsSetExecutionIndex({ tests, modules: [] }),
@@ -61,6 +65,18 @@ describe('explainedCase', () => {
     await writeFile(join(root, 'test/page.spec.ts'), `// a line above\n${SPEC}`);
 
     expect((await explainedCase(root, [], 'clicks', undefined))?.explained.moved).toBe(true);
+  });
+
+  it('says the test file did not move when it was edited before its run and is the text it ran over, uncommitted', async () => {
+    const root = await checkout(false);
+    const edited = `// a line above\n${SPEC}`;
+    await writeFile(join(root, 'test/page.spec.ts'), edited);
+    await writeFile(commitRunsFile(testCoverageFile(root)), JSON.stringify({
+      commit: git(root, 'rev-parse', 'HEAD'),
+      ...oneRun(new Date().toISOString(), ['test/page.spec.ts'], { 'test/page.spec.ts': digestString(edited) }),
+    }));
+
+    expect((await explainedCase(root, [], 'clicks', undefined))?.explained.moved).toBe(false);
   });
 
   it('reads the test file against the commit its newest run stood at, not the record\'s, so a run carried over from an earlier text has moved', async () => {
@@ -115,6 +131,10 @@ describe('variance story --name with no story taped', () => {
 
 describe('a case explained from the record', () => {
   const page = { file: 'src/page.ts', startLine: 3, endLine: 5 };
+  const setup = { ...page, name: 'setup', path: 'entry', file: 'src/setup.ts' };
+  const handle = { ...page, name: 'handle', path: 'entry' };
+  const reset = { ...page, name: 'reset', path: 'entry' };
+  const late = { ...page, name: 'late', path: 'entry' };
   const EXPLAINED: Explained = {
     file: 'test/page.spec.ts',
     name: 'clicks',
@@ -123,12 +143,13 @@ describe('a case explained from the record', () => {
     lined: true,
     moved: true,
     statements: [
-      { line: 0, regions: [{ ...page, name: 'setup', path: 'entry', file: 'src/setup.ts' }] },
-      { line: 6, time: 400, share: 4, text: 'await click(button);', regions: [{ ...page, name: 'handle', path: 'entry' }, { ...page, name: 'handle', path: 'if#0/then' }] },
-      { line: 4, time: 8000, share: 80, text: 'render(page);', regions: [] },
+      { line: 0, regions: [setup], declarations: [{ region: setup, arms: 0 }] },
+      { line: 6, time: 400, share: 4, text: 'await click(button);', regions: [handle, { ...page, name: 'handle', path: 'if#0/then' }], declarations: [{ region: handle, arms: 1 }] },
+      { line: 4, time: 8000, share: 80, text: 'render(page);', regions: [], declarations: [] },
     ],
-    hooks: [{ line: 2, regions: [{ ...page, name: 'reset', path: 'entry' }] }],
-    unlined: [{ ...page, name: 'late', path: 'entry' }],
+    hooks: [{ line: 2, regions: [reset], declarations: [{ region: reset, arms: 0 }] }],
+    unlined: [late],
+    unlinedDeclarations: [{ region: late, arms: 0 }],
     packages: { 'src/page.ts': '@acme/page' },
   };
 

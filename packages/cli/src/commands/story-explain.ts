@@ -8,7 +8,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { recordedCommit } from '@variance-authority/sense/test-selection';
-import { declarationsOf, recordedStatements, STORY_VARIABLE, type OutcomeRegion, type RecordedExplanation, type Statement, type StoryEntry } from '@variance-authority/sense/story';
+import { recordedStatements, STORY_VARIABLE, type Declaration, type RecordedExplanation, type Statement, type StoryEntry } from '@variance-authority/sense/story';
 import { packageName, packageOf } from '../package-home.js';
 import { ranOf } from './covering-ran.js';
 import { runsOnce } from './record-runs.js';
@@ -93,15 +93,14 @@ export function formatExplained(explained: Explained, format: 'text' | 'json'): 
   } else if (!explained.timed) {
     text.push('  not timed: its statements are listed by line');
   }
-  const regions = (listedRegions: readonly OutcomeRegion[], indent: string) => {
-    const byPackage = new Map<string, OutcomeRegion[]>();
-    for (const region of listedRegions) {
-      const home = explained.packages[region.file] ?? '(no package)';
-      byPackage.set(home, [...byPackage.get(home) ?? [], region]);
+  const regions = (declarations: readonly Declaration[], indent: string) => {
+    const byPackage = new Map<string, Declaration[]>();
+    for (const declaration of declarations) {
+      const home = explained.packages[declaration.region.file] ?? '(no package)';
+      byPackage.set(home, [...byPackage.get(home) ?? [], declaration]);
     }
-    for (const [home, inside] of byPackage) {
+    for (const [home, shown] of byPackage) {
       text.push(`${indent}${home}`);
-      const shown = declarationsOf(inside);
       for (const { region, arms } of shown.slice(0, LISTED)) {
         text.push(`${indent}  ${regionText(region)}${arms === 0 ? '' : `, and ${arms} ${arms === 1 ? 'branch or loop' : 'branches or loops'} in it`}`);
       }
@@ -117,18 +116,18 @@ export function formatExplained(explained: Explained, format: 'text' | 'json'): 
       const share = statement.share === undefined ? '' : `  ${`${statement.share}%`.padStart(4)}`;
       text.push('', `  line ${String(statement.line).padEnd(width)}${time}${share}${statement.text === undefined ? '' : `  ${statement.text}`}`);
     }
-    regions(statement.regions, '    ');
+    regions(statement.declarations, '    ');
   }
   if (explained.hooks.length > 0) {
     text.push('', '  in hooks, apart from the statements');
     for (const hook of explained.hooks) {
       text.push(`    line ${hook.line}`);
-      regions(hook.regions, '      ');
+      regions(hook.declarations, '      ');
     }
   }
   if (explained.unlined.length > 0) {
     text.push('', `  no line recorded: ${explained.unlined.length} ${explained.unlined.length === 1 ? 'region' : 'regions'}`);
-    regions(explained.unlined, '    ');
+    regions(explained.unlinedDeclarations, '    ');
   }
   return `${text.join('\n')}\n`;
 }
