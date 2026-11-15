@@ -9,19 +9,9 @@ import { ROOT } from './workspaces.js';
 const ADDON = 'packages/sense/src/addon.ts';
 
 /**
- * The crate the addon is built from is declared by the one module that loads it.
- *
- * A test reaches `packages/sense/native` only through the `.node` Node loads
- * with `dlopen`, so no journal ever names a `.rs` file. `addon.ts` states that
- * read with `/// <depends>`, and a crate edit charges the tests that import it,
- * at any distance, and no other. A precondition would charge every test file
- * in the suite, whatever it loads.
- *
- * The crate's root module reaches every module through `mod`, and the vendored
- * and instrument crates through `use`; what no Rust line names — the manifests,
- * the lockfile, the toolchain pin, the build scripts and the layout Rust
- * compiles with `include_str!` — is named one by one. Asked here of git
- * directly, so the directive cannot agree with itself.
+ * `addon.ts` declares the crate it loads (its docblock says why), held here to
+ * what git lists, so the directives cannot agree with themselves; a
+ * precondition would charge every test file instead.
  */
 describe('the native crate is declared by the module that loads it', () => {
   const tracked = execFileSync('git', ['ls-files', '-z', '--', NATIVE], { cwd: ROOT, encoding: 'utf8' })
