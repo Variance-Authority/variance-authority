@@ -119,7 +119,7 @@ export async function readWorkspaceSnapshot(
   }
   if (options.tree !== undefined) {
     const tree = await readFile(workspaceTreePath(index, held.graphDigest));
-    if (digest(tree) !== held.graphDigest) {
+    if (hexDigestOf(tree) !== held.graphDigest) {
       throw new Error(`the workspace source tree beside ${at} does not belong to that generation`);
     }
     options.tree(publishedTree(tree, held.graphRoot, held.root));
@@ -208,7 +208,7 @@ export async function workspaceTreeOpens(help: Help, index: string): Promise<boo
   if (held === undefined) return false;
   try {
     const tree = await readFile(workspaceTreePath(index, held.graphDigest));
-    if (digest(tree) !== held.graphDigest) return false;
+    if (hexDigestOf(tree) !== held.graphDigest) return false;
     decodeSourceTree(tree, held.graphRoot, held.root);
     return true;
   } catch {
@@ -228,7 +228,7 @@ export function workspacePackagesDigest(help: Help): string | undefined {
  */
 export async function indexManifestDigest(index: string): Promise<string | undefined> {
   const bytes = await readFile(index).catch(() => undefined);
-  return bytes === undefined ? undefined : digest(bytes);
+  return bytes === undefined ? undefined : hexDigestOf(bytes);
 }
 
 /**
@@ -306,6 +306,11 @@ function workspaceTreePath(index: string, graphDigest: string): string {
   return `${index}.help-tree.${graphDigest}.bin`;
 }
 
-function digest(bytes: Uint8Array): string {
+/**
+ * The digest a generation names its tree and its index by: SHA-256 in hex, as
+ * the addon names a tree it draws, which no prefixed digest of
+ * `@variance-authority/core/format` spells.
+ */
+export function hexDigestOf(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
 }

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { digestString } from '@variance-authority/core/format';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
@@ -24,6 +23,7 @@ import {
   type Use,
 } from '@variance-authority/package/help';
 import {
+  hexDigestOf,
   indexManifestDigest,
   publishStore,
   readWorkspaceSnapshot,
@@ -155,7 +155,7 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
       namesBySource.get(source) ?? new Map()));
 
   return stepped(progress, 'publishing the questions', async () => {
-    const graphDigest = publication.tree === undefined ? undefined : createHash('sha256').update(publication.tree).digest('hex');
+    const graphDigest = publication.tree === undefined ? undefined : hexDigestOf(publication.tree);
     const encoded = await reading.encode({
       root: realpathSync(workspace),
       graphRoot: realpathSync(root),
