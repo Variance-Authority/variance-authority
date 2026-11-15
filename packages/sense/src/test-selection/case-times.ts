@@ -83,30 +83,3 @@ export function timesFrom(table: RowsTable | undefined, test: number): Pick<Exec
   const times = decodeCaseTimes(caseBytes(table, test));
   return times === undefined ? {} : { times };
 }
-
-/**
- * The times of one case across its frames: the frame that ran longer in all,
- * and of two that ran as long the lower, line by line, so no order of frames
- * changes it.
- */
-export function timesAcross(first: ExecutionTest['times'], second: ExecutionTest['times']): Pick<ExecutionTest, 'times'> {
-  if (first === undefined || second === undefined) {
-    const held = first ?? second;
-    return held === undefined ? {} : { times: held };
-  }
-  const order = total(second) - total(first) || lower(second, first);
-  return { times: order > 0 ? second : first };
-}
-
-function total(times: readonly CaseTime[]): number {
-  return times.reduce((sum, { time }) => sum + time, 0);
-}
-
-/** Positive where `left` comes first, statement by statement, line before time. */
-function lower(left: readonly CaseTime[], right: readonly CaseTime[]): number {
-  for (let at = 0; at < Math.min(left.length, right.length); at += 1) {
-    const order = right[at]!.line - left[at]!.line || right[at]!.time - left[at]!.time;
-    if (order !== 0) return order;
-  }
-  return right.length - left.length;
-}

@@ -142,6 +142,6 @@ export function nativeModule(module: CapturedModule): NativeJourneyModule {
 }
 
 /** What stopped the addon loading, or which export the addon that did load lacks. */
-function whyAbsent(entry: keyof NativeScanner): string {
+export function whyAbsent(entry: keyof NativeScanner): string {
   return nativeRefusal() ?? `the loaded addon has no \`${entry}\``;
 }

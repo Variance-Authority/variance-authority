@@ -4,8 +4,8 @@ import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { EVALUATING, type ModuleId } from '../instrument/index.js';
-import { native, nativeAvailable } from '../addon.js';
-import { foldCaseRun, freshCases, inspectCaseRun } from './case-fold.js';
+import { native } from '../addon.js';
+import { foldCases, freshCases } from './case-fold.js';
 import { layCases, lastCaseRunOf } from './case-landing.js';
 import type { CaseSections } from './case-record.js';
 import { AMBIENT, packCase, packFrames } from './cases.js';
@@ -106,8 +106,7 @@ describe('the bounded case fold', () => {
     await writeFile(resolve(cases, 'worker.vac'), packFrames(frames));
     const modules = new Map<ModuleId, CapturedModule>([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
 
-    const run = await inspectCaseRun(cases, '/repo');
-    const folded = await foldCaseRun(run, modules, 64);
+    const folded = foldCases(cases, '/repo', modules, { budget: 64 });
     const decoded = decodeExecutionIndex(folded.bytes);
 
     expect(decoded.tests.map((test) => test.id)).toEqual([
@@ -139,7 +138,7 @@ describe('the bounded case fold', () => {
       blocks: [root!, helper, { ...below!, owner: 1 }, { ...deepest!, owner: 2 }],
     };
 
-    const folded = await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map([['src/branch.ts', module]]), 64);
+    const folded = foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
 
     expect(openSetExecutionIndex(folded.bytes)!.modules[0]!.owner).toEqual(Uint32Array.from([NO_OWNER, 0, 1]));
   });
@@ -161,8 +160,7 @@ describe('the bounded case fold', () => {
       ['src/early.ts', captured('src/early.ts', 'src/early.ts', 2)],
     ]);
 
-    const run = await inspectCaseRun(cases, '/repo');
-    const folded = await foldCaseRun(run, modules, 8);
+    const folded = foldCases(cases, '/repo', modules, { budget: 8 });
     const decoded = decodeExecutionIndex(folded.bytes);
 
     expect(decoded.tests.map((test) => test.id)).toEqual([
@@ -210,10 +208,11 @@ describe('the bounded case fold', () => {
     ]));
     const modules = new Map<ModuleId, CapturedModule>([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
 
-    const run = await inspectCaseRun(cases, '/repo');
+    const folded = foldCases(cases, '/repo', modules, { budget: 64 });
+    const decoded = decodeExecutionIndex(folded.bytes);
 
-    expect(run.tests.map((test) => test.id)).toEqual(['test/eyes.test.ts > crosses', 'test/eyes.test.ts > watches']);
-    expect(run.eyes).toEqual({
+    expect(decoded.tests.map((test) => test.id)).toEqual(['test/eyes.test.ts > crosses', 'test/eyes.test.ts > watches']);
+    expect(folded.eyes).toEqual({
       watched: ['test/eyes.test.ts > crosses', 'test/eyes.test.ts > watches'],
       journals: [
         { case: 'test/eyes.test.ts > crosses', attempt: 1, journal: { steps: ['arrange'] } },
@@ -221,8 +220,7 @@ describe('the bounded case fold', () => {
       ],
     });
     // A journal is no case frame: the fold credits only what the case frame crossed.
-    const folded = await foldCaseRun(run, modules, 64);
-    expect(reach(decodeExecutionIndex(folded.bytes))).toEqual({
+    expect(reach(decoded)).toEqual({
       'src/branch.ts#0': { entered: ['test/eyes.test.ts > crosses'] },
       'src/branch.ts#1': { entered: ['test/eyes.test.ts > crosses'] },
     });
@@ -239,7 +237,7 @@ describe('the bounded case fold', () => {
     ]));
     const modules = new Map<ModuleId, CapturedModule>([['src/pay.ts', captured('src/pay.ts', 'src/pay.ts', 2)]]);
 
-    const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), modules, 64)).bytes);
+    const folded = decodeExecutionIndex(foldCases(cases, '/repo', modules, { budget: 64 }).bytes);
 
     expect(folded.tests.map(({ name, limit }) => [name, limit])).toEqual([['bound', 8000], ['free', undefined]]);
   });
@@ -265,7 +263,7 @@ describe('the bounded case fold', () => {
     ]));
     const modules = new Map<ModuleId, CapturedModule>([['src/pay.ts', captured('src/pay.ts', 'src/pay.ts', 2)]]);
 
-    const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), modules, 64)).bytes);
+    const folded = decodeExecutionIndex(foldCases(cases, '/repo', modules, { budget: 64 }).bytes);
 
     // A retry's second frame reached nothing, and the case is still one row.
     expect(reach(folded)).toEqual({
@@ -315,8 +313,7 @@ describe('the bounded case fold', () => {
       ]),
     );
 
-    const run = await inspectCaseRun(cases, '/repo');
-    const folded = await foldCaseRun(run, modules, 256 * 1024);
+    const folded = foldCases(cases, '/repo', modules, { budget: 256 * 1024 });
 
     expect(folded.crossings).toBe(crossingCount);
     expect(folded.passes).toBeGreaterThan(1);
@@ -327,7 +324,7 @@ describe('the bounded case fold', () => {
     expect((await readFile(resolve(cases, 'journeys.bin'))).byteLength).toBe(folded.bytes.byteLength);
   });
 
-  it.runIf(nativeAvailable())('refuses a repeated name numbered onto a case literally named so, as the native fold does', async () => {
+  it('refuses a repeated name numbered onto a case literally named so, as the journey fold does', async () => {
     const cases = await directory();
     const module = branchModule();
     const branch = (name: string, id: string) =>
@@ -335,7 +332,7 @@ describe('the bounded case fold', () => {
     await writeFile(resolve(cases, 'worker.vac'), packFrames([branch('pays', '0'), branch('pays', '1'), branch('pays#1', '2')]));
     const refusal = 'cannot number the cases of test/branch.test.ts: "pays#1" is the name of one case and the number of a repeated "pays". Rename one of them.';
 
-    await expect(inspectCaseRun(cases, '/repo')).rejects.toThrow(refusal);
+    expect(() => foldCases(cases, '/repo', new Map([['src/branch.ts', module]]))).toThrow(refusal);
     expect(() => native()!.foldJourney!(cases, '/repo', [nativeModule(module)], 1)).toThrow(refusal);
   });
 

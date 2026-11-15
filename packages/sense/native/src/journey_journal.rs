@@ -3,23 +3,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::case_id::{self, CaseIds};
-use crate::case_owner::{journey_of, project_of, project_path, unpack_case};
+use crate::case_owner::{self, journey_of, project_of, project_path, unpack_case};
 use crate::case_said::{self, Heard};
+use crate::case_times;
+use crate::journal_scan::{self, replay, replay_part, Visitor};
 use crate::order;
-
-const MAGIC: [u8; 8] = [0x56, 0x41, 0x4a, 0x52, 0x4e, 0x00, 0x00, 0x03];
-/// The moment a file's collection ended, a double after the frame's name: Jest's timing, not this fold's.
-const TIME_BYTES: usize = 8;
-/// `VAEYS`: an Eyes frame rides beside the case frames (`eyes-frame.cts`) and
-/// crosses nothing, so every fold steps over it.
-const EYES_MAGIC: [u8; 8] = [0x56, 0x41, 0x45, 0x59, 0x53, 0x00, 0x00, 0x01];
-/// A module is named by its path: tag `1`, then the path. Tag `0`, a numbered
-/// module, is refused as damage — nothing writes one (ADR-0056, amended).
-const NAMED: u8 = 1;
-/// A named row of a cut case (`journal-format.cts`): a fourth list after the
-/// three, the test line each hit was first reached under. This fold carries no
-/// lines, so it reads the row as the named row it extends.
-const NAMED_LINED: u8 = 2;
 
 /// A module's repository-relative path.
 pub type ModuleId = String;
@@ -79,6 +67,49 @@ pub struct CaseRun {
     pub unclaimed: Vec<String>,
     /// The heads that wrote a part file, by the label its name opens with.
     pub heads: Vec<String>,
+    /// What a record's case index keeps beyond a journey artifact, read only
+    /// by [`inspect_cases`].
+    pub detail: Option<CaseDetail>,
+}
+
+/// Per case, by test row: what a record's case index carries that a journey
+/// artifact does not.
+pub struct CaseDetail {
+    /// The limit its frames ran under, by `limitAcross`: `NaN` where a frame's
+    /// limit was no number.
+    pub limits: Vec<Option<f64>>,
+    /// Its statement times, as `case_times` lays a row, by [`case_times::across`].
+    pub times: Vec<Vec<u8>>,
+    /// Which cases carry lines, by `linedCases`; `None` where none does.
+    pub lined: Option<Vec<bool>>,
+    /// The cases that watched through Eyes, in the order they first did, each
+    /// with the attempts and journal text it handed over.
+    pub looked: Vec<(u32, Vec<(f64, String)>)>,
+}
+
+/// What [`CaseDetail`] gathers of one case before the cases are ordered.
+#[derive(Default)]
+struct Detail {
+    limit: Option<f64>,
+    times: Vec<u8>,
+    /// Whether a module row of the case's own frames was cut at its statements.
+    cut: bool,
+    /// Whether one was not: a case a helper outside its file declared runs uncut.
+    uncut: bool,
+    /// Where in `looked` what Eyes handed it is held.
+    looked: Option<usize>,
+}
+
+/// `limitAcross`: a limit of 0 is no limit at all and wins; otherwise the longer.
+pub(crate) fn limit_across(first: Option<f64>, second: Option<f64>) -> Option<f64> {
+    if first.is_none() && second.is_none() {
+        return None;
+    }
+    if first == Some(0.0) || second == Some(0.0) {
+        return Some(0.0);
+    }
+    let (first, second) = (first.unwrap_or(0.0), second.unwrap_or(0.0));
+    Some(if first.is_nan() || second.is_nan() { f64::NAN } else { first.max(second) })
 }
 
 /// One case, over every frame written under its file, name, id and project.
@@ -95,9 +126,21 @@ struct Coordinate {
     heard: Option<Heard>,
     /// Every frame written under this coordinate, in replay order.
     frames: Vec<usize>,
+    detail: Detail,
 }
 
 pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRun, String> {
+    inspect_with(directory, root, parts, false)
+}
+
+/// The run's cases as a record's case index lays them: [`inspect`], and each
+/// case's [`CaseDetail`], with every case that watched through Eyes a case
+/// whether or not it crossed anything.
+pub fn inspect_cases(directory: &Path, root: &Path) -> Result<CaseRun, String> {
+    inspect_with(directory, root, &[], true)
+}
+
+fn inspect_with(directory: &Path, root: &Path, parts: &[String], detailed: bool) -> Result<CaseRun, String> {
     let paths = listed(directory, None)?;
     let mut visitor = InspectVisitor {
         root,
@@ -105,20 +148,49 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
         at: HashMap::new(),
         wanted: HashSet::new(),
         frame: 0,
+        detailed,
+        scanning: Scanning::Nothing,
+        cut_files: HashSet::new(),
+        looked: Vec::new(),
     };
     replay(&paths, &mut visitor)?;
-    visitor.coordinates.sort_by(|left, right| {
+    let mut order: Vec<usize> = (0..visitor.coordinates.len()).collect();
+    let coordinates = &visitor.coordinates;
+    order.sort_by(|&left, &right| {
+        let (left, right) = (&coordinates[left], &coordinates[right]);
         case_id::order(
             (&left.file, &left.name, left.project.as_deref(), &left.id),
             (&right.file, &right.name, right.project.as_deref(), &right.id),
         )
     });
+    let mut row_of = vec![0_u32; order.len()];
+    for (row, &held) in order.iter().enumerate() {
+        row_of[held] = row as u32;
+    }
+    let mut held: Vec<Option<Coordinate>> = visitor.coordinates.into_iter().map(Some).collect();
+    let ordered: Vec<Coordinate> = order.iter().map(|&at| held[at].take().expect("each coordinate is ordered once")).collect();
+    let mut detail = detailed.then(|| {
+        let lined: Vec<bool> = ordered
+            .iter()
+            .map(|coordinate| coordinate.detail.cut || (!coordinate.detail.uncut && visitor.cut_files.contains(&coordinate.file)))
+            .collect();
+        CaseDetail {
+            limits: Vec::with_capacity(ordered.len()),
+            times: Vec::with_capacity(ordered.len()),
+            lined: lined.contains(&true).then_some(lined),
+            looked: visitor.looked.into_iter().map(|(at, rows)| (row_of[at], rows)).collect(),
+        }
+    });
 
     let mut frame_tests = vec![0; visitor.frame];
     let mut ids = CaseIds::default();
     let mut journey_tests: HashMap<String, Vec<u32>> = HashMap::new();
-    let mut tests = Vec::with_capacity(visitor.coordinates.len());
-    for (at, coordinate) in visitor.coordinates.into_iter().enumerate() {
+    let mut tests = Vec::with_capacity(ordered.len());
+    for (at, coordinate) in ordered.into_iter().enumerate() {
+        if let Some(detail) = detail.as_mut() {
+            detail.limits.push(coordinate.detail.limit);
+            detail.times.push(coordinate.detail.times);
+        }
         for frame in coordinate.frames {
             frame_tests[frame] = at as u32;
         }
@@ -191,6 +263,7 @@ pub fn inspect(directory: &Path, root: &Path, parts: &[String]) -> Result<CaseRu
         part_wanted,
         unclaimed,
         heads,
+        detail,
     })
 }
 
@@ -247,13 +320,13 @@ impl Visitor for PartInspectVisitor<'_> {
         Ok(())
     }
 
-    fn wants(&mut self, id: &ModuleId) -> bool {
+    fn wants(&mut self, id: &ModuleId, _cut: bool) -> bool {
         self.ran = true;
         self.wanted.insert(id.clone());
         false
     }
 
-    fn module(&mut self, _: &ModuleId, _: &[u32], _: &[u32], _: &[u32]) {}
+    fn module(&mut self, _: &ModuleId, _: &[u32], _: &[u32], _: &[u32], _: Option<&[u32]>) {}
 }
 
 struct InspectVisitor<'a> {
@@ -263,238 +336,118 @@ struct InspectVisitor<'a> {
     at: HashMap<(String, String, String, Option<String>), usize>,
     wanted: HashSet<ModuleId>,
     frame: usize,
+    /// Whether the run is read for a record's case index: [`CaseDetail`].
+    detailed: bool,
+    /// The frame being stepped through, for what its rows say of their cut.
+    scanning: Scanning,
+    /// The test files a frame was cut in.
+    cut_files: HashSet<String>,
+    /// What Eyes handed each case, by coordinate, in the order it arrived.
+    looked: Vec<(usize, Vec<(f64, String)>)>,
+}
+
+enum Scanning {
+    Nothing,
+    Case(usize),
+    Ambient(String),
+}
+
+type Key = (String, String, String, Option<String>);
+
+impl InspectVisitor<'_> {
+    /// The coordinate `key` names, held from here on.
+    fn held(&mut self, key: Key, settled: u8) -> (usize, bool) {
+        if let Some(&held) = self.at.get(&key) {
+            return (held, true);
+        }
+        let at = self.coordinates.len();
+        self.at.insert(key.clone(), at);
+        let (file, name, id, project) = key;
+        self.coordinates.push(Coordinate {
+            file, name, id, project, settled,
+            journeys: Vec::new(),
+            heard: None,
+            frames: Vec::new(),
+            detail: Detail::default(),
+        });
+        (at, false)
+    }
 }
 
 impl Visitor for InspectVisitor<'_> {
     fn test(&mut self, packed: &str) -> Result<(), String> {
         let (file, name, id, settled) = unpack_case(packed);
-        if !name.is_empty() || !id.is_empty() {
-            // A case is written when it settles, so work that outlived it
-            // arrives as a second frame under the same coordinate: one case,
-            // joined as `inspectCaseRun` joins it.
-            let heard = case_said::of_frame(packed)?.map(|heard| case_said::heard(self.root, heard));
-            let journey = journey_of(packed);
-            let key = (project_path(self.root, file), name.to_owned(), id.to_owned(), project_of(packed).map(str::to_owned));
-            match self.at.get(&key) {
-                Some(&held) => {
-                    let coordinate = &mut self.coordinates[held];
-                    coordinate.frames.push(self.frame);
-                    coordinate.settled = settled_across(coordinate.settled, settled);
-                    coordinate.heard = case_said::join(coordinate.heard.take(), heard);
-                    if !journey.is_empty() && !coordinate.journeys.iter().any(|known| known == journey) {
-                        coordinate.journeys.push(journey.to_owned());
-                    }
-                }
-                None => {
-                    self.at.insert(key.clone(), self.coordinates.len());
-                    let (file, name, id, project) = key;
-                    self.coordinates.push(Coordinate {
-                        file, name, id, project, settled,
-                        journeys: if journey.is_empty() { Vec::new() } else { vec![journey.to_owned()] },
-                        heard,
-                        frames: vec![self.frame],
-                    });
-                }
-            }
-            self.frame += 1;
+        if name.is_empty() && id.is_empty() {
+            self.scanning = Scanning::Ambient(project_path(self.root, file));
+            return Ok(());
+        }
+        // A case is written when it settles, so work that outlived it
+        // arrives as a second frame under the same coordinate: one case.
+        let heard = case_said::of_frame(packed)?.map(|heard| case_said::heard(self.root, heard));
+        let journey = journey_of(packed);
+        let key = (project_path(self.root, file), name.to_owned(), id.to_owned(), project_of(packed).map(str::to_owned));
+        let (at, was_held) = self.held(key, settled);
+        let detailed = self.detailed;
+        let coordinate = &mut self.coordinates[at];
+        coordinate.frames.push(self.frame);
+        if was_held {
+            coordinate.settled = settled_across(coordinate.settled, settled);
+        }
+        coordinate.heard = case_said::join(coordinate.heard.take(), heard);
+        if !journey.is_empty() && !coordinate.journeys.iter().any(|known| known == journey) {
+            coordinate.journeys.push(journey.to_owned());
+        }
+        if detailed {
+            let detail = &mut coordinate.detail;
+            detail.limit = limit_across(detail.limit, case_owner::limit_of(packed));
+            let times = case_owner::times_of(packed)?;
+            detail.times = case_times::across(&detail.times, &times)?.to_vec();
+        }
+        self.scanning = Scanning::Case(at);
+        self.frame += 1;
+        Ok(())
+    }
+
+    fn eyes(&mut self, frame: &[u8]) -> Result<(), String> {
+        if !self.detailed {
+            return Ok(());
+        }
+        // A case that watched is a case, whether or not it crossed anything.
+        let (packed, attempt, journal) = journal_scan::eyes_of(frame)?;
+        let (file, name, id, _) = unpack_case(&packed);
+        let key = (project_path(self.root, file), name.to_owned(), id.to_owned(), project_of(&packed).map(str::to_owned));
+        let (at, _) = self.held(key, UNSETTLED);
+        let row = *self.coordinates[at].detail.looked.get_or_insert_with(|| {
+            self.looked.push((at, Vec::new()));
+            self.looked.len() - 1
+        });
+        if let Some(journal) = journal {
+            self.looked[row].1.push((attempt, journal));
         }
         Ok(())
     }
 
-    fn wants(&mut self, id: &ModuleId) -> bool {
+    fn wants(&mut self, id: &ModuleId, cut: bool) -> bool {
         self.wanted.insert(id.clone());
+        if self.detailed {
+            match &self.scanning {
+                Scanning::Case(at) => {
+                    let detail = &mut self.coordinates[*at].detail;
+                    if cut {
+                        detail.cut = true;
+                        self.cut_files.insert(self.coordinates[*at].file.clone());
+                    } else {
+                        detail.uncut = true;
+                    }
+                }
+                Scanning::Ambient(file) if cut => {
+                    self.cut_files.insert(file.clone());
+                }
+                _ => {}
+            }
+        }
         false
     }
 
-    fn module(&mut self, _: &ModuleId, _: &[u32], _: &[u32], _: &[u32]) {}
+    fn module(&mut self, _: &ModuleId, _: &[u32], _: &[u32], _: &[u32], _: Option<&[u32]>) {}
 }
-
-pub trait Visitor {
-    fn test(&mut self, packed: &str) -> Result<(), String>;
-    fn wants(&mut self, id: &ModuleId) -> bool;
-    fn module(&mut self, id: &ModuleId, hits: &[u32], shared: &[u32], loaded: &[u32]);
-}
-
-pub fn replay(paths: &[PathBuf], visitor: &mut impl Visitor) -> Result<(), String> {
-    for path in paths {
-        let raw = fs::read(path).map_err(|error| error.to_string())?;
-        frames(&raw, false, |frame| scan_journal(frame, visitor))?;
-    }
-    Ok(())
-}
-
-/// Read one part file. Its writer may have been killed mid-append, so a torn
-/// last frame ends the file instead of failing the run.
-pub fn replay_part(path: &Path, visitor: &mut impl Visitor) -> Result<(), String> {
-    let raw = fs::read(path).map_err(|error| error.to_string())?;
-    frames(&raw, true, |frame| scan_journal(frame, visitor))
-}
-
-fn frames(
-    raw: &[u8],
-    torn_tail: bool,
-    mut visit: impl FnMut(&[u8]) -> Result<(), String>,
-) -> Result<(), String> {
-    let mut at = 0;
-    while at < raw.len() {
-        let torn = at + 4 > raw.len()
-            || at + 4 + word(raw, at)? as usize > raw.len();
-        if torn && torn_tail {
-            return Ok(());
-        }
-        let length = word(raw, at)? as usize;
-        let from = at + 4;
-        let to = from.checked_add(length).ok_or_else(damaged_cases)?;
-        if to > raw.len() {
-            return Err(damaged_cases());
-        }
-        visit(&raw[from..to])?;
-        at = to;
-    }
-    Ok(())
-}
-
-fn scan_journal(raw: &[u8], visitor: &mut impl Visitor) -> Result<(), String> {
-    if raw.starts_with(&EYES_MAGIC) {
-        return Ok(());
-    }
-    let mut read = Reader::new(raw);
-    for expected in MAGIC {
-        if read.byte()? != expected {
-            return Err(damaged());
-        }
-    }
-    visitor.test(&read.text()?)?;
-    read.take(TIME_BYTES)?;
-    let count = read.number()?;
-    let mut scratch = Vec::new();
-    for _ in 0..count {
-        let lined = match read.byte()? {
-            NAMED => false,
-            NAMED_LINED => true,
-            _ => return Err(damaged()),
-        };
-        let id = read.text()?;
-        if !visitor.wants(&id) {
-            read.skip()?;
-            read.skip()?;
-            read.skip()?;
-            if lined {
-                read.skip()?;
-            }
-            continue;
-        }
-        scratch.clear();
-        let mut starts = [0; 3];
-        for start in &mut starts {
-            *start = scratch.len();
-            read.ordinals(&mut scratch)?;
-        }
-        // FIXME: the Jest journey artifact folds here and drops each case's lines (spec 0100).
-        if lined && read.number()? as usize != starts[1] - starts[0] {
-            return Err(damaged());
-        } else if lined {
-            for _ in starts[0]..starts[1] {
-                read.number()?;
-            }
-        }
-        visitor.module(
-            &id,
-            &scratch[starts[0]..starts[1]],
-            &scratch[starts[1]..starts[2]],
-            &scratch[starts[2]..],
-        );
-    }
-    if read.at != raw.len() {
-        return Err(damaged());
-    }
-    Ok(())
-}
-
-struct Reader<'a> {
-    raw: &'a [u8],
-    at: usize,
-}
-
-impl<'a> Reader<'a> {
-    fn new(raw: &'a [u8]) -> Self {
-        Self { raw, at: 0 }
-    }
-
-    fn byte(&mut self) -> Result<u8, String> {
-        let value = self.raw.get(self.at).copied().ok_or_else(damaged)?;
-        self.at += 1;
-        Ok(value)
-    }
-
-    fn number(&mut self) -> Result<u32, String> {
-        let mut value = 0_u32;
-        let mut shift = 0;
-        loop {
-            let byte = self.byte()?;
-            value = value
-                .checked_add(((byte & 0x7f) as u32) << shift)
-                .ok_or_else(damaged)?;
-            if byte & 0x80 == 0 {
-                return Ok(value);
-            }
-            shift += 7;
-            if shift > 28 {
-                return Err(damaged());
-            }
-        }
-    }
-
-    fn take(&mut self, bytes: usize) -> Result<&'a [u8], String> {
-        let end = self.at.checked_add(bytes).ok_or_else(damaged)?;
-        let taken = self.raw.get(self.at..end).ok_or_else(damaged)?;
-        self.at = end;
-        Ok(taken)
-    }
-
-    fn text(&mut self) -> Result<String, String> {
-        let length = self.number()? as usize;
-        std::str::from_utf8(self.take(length)?).map(str::to_owned).map_err(|_| damaged())
-    }
-
-    fn skip(&mut self) -> Result<(), String> {
-        let mut count = self.number()?;
-        while count > 0 {
-            if self.byte()? & 0x80 == 0 {
-                count -= 1;
-            }
-        }
-        Ok(())
-    }
-
-    fn ordinals(&mut self, out: &mut Vec<u32>) -> Result<(), String> {
-        let count = self.number()?;
-        let mut last = 0_u32;
-        for _ in 0..count {
-            last = last.checked_add(self.number()?).ok_or_else(damaged)?;
-            out.push(last);
-        }
-        Ok(())
-    }
-}
-
-fn word(raw: &[u8], at: usize) -> Result<u32, String> {
-    let bytes: [u8; 4] = raw
-        .get(at..at + 4)
-        .ok_or_else(damaged_cases)?
-        .try_into()
-        .map_err(|_| damaged_cases())?;
-    Ok(u32::from_le_bytes(bytes))
-}
-
-fn damaged() -> String {
-    "not a variance-authority journal".to_owned()
-}
-
-fn damaged_cases() -> String {
-    "not a variance-authority case journal".to_owned()
-}
-
-#[cfg(test)]
-#[path = "journey_journal_tests.rs"]
-mod tests;

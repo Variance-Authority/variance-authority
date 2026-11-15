@@ -1,19 +1,30 @@
 use super::*;
 
+type Row = (ModuleId, bool, Vec<u32>, Vec<u32>, Vec<u32>, Option<Vec<u32>>);
+
 #[derive(Default)]
 struct Seen {
-    modules: Vec<(ModuleId, Vec<u32>, Vec<u32>, Vec<u32>)>,
+    cut: Vec<bool>,
+    modules: Vec<Row>,
+    eyes: usize,
 }
 
 impl Visitor for Seen {
     fn test(&mut self, _: &str) -> Result<(), String> {
         Ok(())
     }
-    fn wants(&mut self, id: &ModuleId) -> bool {
+    fn eyes(&mut self, frame: &[u8]) -> Result<(), String> {
+        assert!(frame.starts_with(&EYES_MAGIC));
+        self.eyes += 1;
+        Ok(())
+    }
+    fn wants(&mut self, id: &ModuleId, cut: bool) -> bool {
+        self.cut.push(cut);
         id != "src/skipped.ts"
     }
-    fn module(&mut self, id: &ModuleId, hits: &[u32], shared: &[u32], loaded: &[u32]) {
-        self.modules.push((id.clone(), hits.to_vec(), shared.to_vec(), loaded.to_vec()));
+    fn module(&mut self, id: &ModuleId, hits: &[u32], shared: &[u32], loaded: &[u32], reached: Option<&[u32]>) {
+        let cut = reached.is_some();
+        self.modules.push((id.clone(), cut, hits.to_vec(), shared.to_vec(), loaded.to_vec(), reached.map(<[u32]>::to_vec)));
     }
 }
 
@@ -40,7 +51,7 @@ fn frame(rows: &[(u8, &str, &[&[u32]])]) -> Vec<u8> {
 }
 
 #[test]
-fn reads_a_cut_case_row_as_the_row_it_was_before_cuts() {
+fn reads_each_hit_of_a_cut_row_with_the_line_that_first_reached_it() {
     // Ordinals are written as gaps; the lines list after them is plain.
     let raw = frame(&[
         (NAMED_LINED, "src/skipped.ts", &[&[1], &[], &[], &[7]]),
@@ -49,11 +60,12 @@ fn reads_a_cut_case_row_as_the_row_it_was_before_cuts() {
     ]);
     let mut seen = Seen::default();
     scan_journal(&raw, &mut seen).unwrap();
+    assert_eq!(seen.cut, vec![true, true, false]);
     assert_eq!(
         seen.modules,
         vec![
-            ("src/m.ts".to_owned(), vec![1, 3], vec![], vec![]),
-            ("src/n.ts".to_owned(), vec![3], vec![], vec![]),
+            ("src/m.ts".to_owned(), true, vec![1, 3], vec![], vec![], Some(vec![9, 4])),
+            ("src/n.ts".to_owned(), false, vec![3], vec![], vec![], None),
         ],
     );
 }
@@ -62,4 +74,13 @@ fn reads_a_cut_case_row_as_the_row_it_was_before_cuts() {
 fn refuses_a_cut_row_whose_lines_do_not_match_its_hits() {
     let raw = frame(&[(NAMED_LINED, "src/m.ts", &[&[1, 2], &[], &[], &[9]])]);
     assert!(scan_journal(&raw, &mut Seen::default()).is_err());
+}
+
+#[test]
+fn hands_an_eyes_frame_over_whole() {
+    let mut raw = EYES_MAGIC.to_vec();
+    raw.extend_from_slice(b"{}");
+    let mut seen = Seen::default();
+    scan_journal(&raw, &mut seen).unwrap();
+    assert_eq!(seen.eyes, 1);
 }

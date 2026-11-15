@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { digestString } from '../digest.js';
 import { EVALUATING, type ModuleId } from '../instrument/index.js';
 import { native, nativeAvailable } from '../addon.js';
-import { foldCaseRun, inspectCaseRun } from './case-fold.js';
+import { foldCases } from './case-fold.js';
 import { packCase, packFrames } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { openSetExecutionIndex } from './execution-set-format.js';
@@ -103,7 +103,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
 
     native()!.foldJourneyTo!(cases, '/repo', [], output);
     const answered = decodeExecutionIndex(await readFile(output));
-    const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map(), 64)).bytes);
+    const folded = decodeExecutionIndex(foldCases(cases, '/repo', new Map(), { budget: 64 }).bytes);
 
     const row = (index: typeof folded) => Object.fromEntries(index.tests.map((test) => [test.name, rowOf(test)]));
     expect(row(answered)).toEqual(row(folded));
@@ -138,7 +138,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
 
     native()!.foldJourneyTo!(cases, '/repo', [], output);
     const answered = decodeExecutionIndex(await readFile(output));
-    const folded = decodeExecutionIndex((await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map(), 64)).bytes);
+    const folded = decodeExecutionIndex(foldCases(cases, '/repo', new Map(), { budget: 64 }).bytes);
 
     const row = (index: typeof folded) => index.tests.map((test) => [test.id, rowOf(test)]);
     expect(row(answered)).toEqual(row(folded));
@@ -172,8 +172,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
       ),
     ]));
 
-    const run = await inspectCaseRun(cases, '/repo');
-    const oracle = await foldCaseRun(run, new Map([['src/branch.ts', module]]), 64);
+    const oracle = foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
     const answered = native()!.foldJourney!(
       cases,
       '/repo',
@@ -213,7 +212,7 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
 
     native()!.foldJourneyTo!(cases, '/repo', [nativeModule(module)], output);
     const owners = (bytes: Uint8Array) => openSetExecutionIndex(bytes)!.modules.map((row) => [...row.owner ?? []]);
-    const oracle = await foldCaseRun(await inspectCaseRun(cases, '/repo'), new Map([['src/branch.ts', module]]), 64);
+    const oracle = foldCases(cases, '/repo', new Map([['src/branch.ts', module]]), { budget: 64 });
 
     expect(owners(await readFile(output))).toEqual(owners(oracle.bytes));
     expect(owners(await readFile(output))).toEqual([[NO_OWNER, 0, 1, 1]]);

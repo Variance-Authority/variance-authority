@@ -118,3 +118,28 @@ export interface NativeJourneyStitch {
 }
 
 export type NativeJourneyStitchResult = Omit<NativeJourneyStitch, 'bytes'>;
+
+/** One run's case journals, read once into the cases they name (`native/src/case_run.rs`). */
+export interface NativeCaseJournals {
+  /** Every case, in the case index's order; `runner` is the id its runner gave it. */
+  cases(): { id: string; file: string; name: string; runner: string; project?: string | null }[];
+  /** Every module a case frame names, for the caller to load its record. */
+  wanted(): string[];
+  /** What Eyes handed the cases that watched, each journal as JSON text; `null` when none did. */
+  eyes(): { watched: string[]; journals: { case: string; attempt: number; journal: string }[] } | null;
+  /**
+   * The case index's bytes over `modules`. `ordinals` holds each module's
+   * region ordinals; `readings` join a reading into its file's record, a land
+   * of `0xFFFFFFFF` where the region has no place there; `durations` and
+   * `limits` follow `cases()`, `NaN` where the runner reported none;
+   * `budgetBytes` bounds the test-by-region relation one slice holds.
+   */
+  fold(
+    modules: NativeJourneyModule[],
+    ordinals: number[][],
+    readings: { id: string; target: string; lands: number[] }[],
+    durations: number[],
+    limits: number[],
+    budgetBytes?: number,
+  ): { bytes: Buffer; passes: number; crossings: number };
+}
