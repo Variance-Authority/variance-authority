@@ -108,7 +108,7 @@ impl Stores {
         if chain.damaged() == 0 && readable == chain.segments.len() && (references.len() < SEGMENTS || chain.dropped > 0) {
             return written(path, Over::Published(chain.published()), &references, &[&segment], &[], 0);
         }
-        let mut layers: Vec<&[u8]> = chain.segments.iter().take(readable).map(|segment| &segment[..]).collect();
+        let mut layers: Vec<&[u8]> = chain.segments.iter().take(readable).map(Vec::as_slice).collect();
         layers.push(&segment);
         let whole = compacted(&layers).map_err(std::io::Error::other)?;
         let oldest = oldest(path, &chain.references);

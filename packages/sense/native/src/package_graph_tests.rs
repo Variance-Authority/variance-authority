@@ -225,7 +225,7 @@ fn a_segment_that_fails_its_digest_ends_the_chain_and_is_counted() {
     names.sort();
     let chain = read_chain(&index).unwrap().unwrap();
     // Whichever segment is second in the manifest is the one to spoil.
-    let second = names.iter().find(|name| chain.segments[1] == std::fs::read(name).unwrap()).unwrap();
+    let second = names.iter().find(|name| std::fs::read(name).unwrap() == chain.segments[1]).unwrap();
     std::fs::write(second, b"spoiled").unwrap();
     let chain = read_chain(&index).unwrap().unwrap();
     assert_eq!((chain.segments.len(), chain.dropped), (1, 1));

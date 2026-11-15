@@ -208,7 +208,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     if chain.as_ref().is_some_and(|chain| chain.dropped > 0 || chain.references.is_empty() || chain.references.len() != chain.segments.len()) {
         return Ok(None);
     }
-    let segments: &[crate::mapped::Mapped] = chain.as_ref().map_or(&[], |chain| &chain.segments);
+    let segments: &[Vec<u8>] = chain.as_ref().map_or(&[], |chain| &chain.segments);
     let Ok(layers) = segments.par_iter().map(|bytes| Layer::open(bytes)).collect::<Result<Vec<_>, _>>() else {
         return Ok(None);
     };
@@ -439,14 +439,14 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     // The working layer and this delta become the next working layer: an update
     // rewrites what changed since the index was readied, and never the base.
     let base = references.len() - working_count;
-    let beneath: Vec<&[u8]> = segments[..base].iter().map(|segment| &segment[..]).collect();
+    let beneath: Vec<&[u8]> = segments[..base].iter().map(Vec::as_slice).collect();
     if unchanged {
         let Some(listing) = listing else {
             return Ok(Some(Updated { files, reread, parsed, published: false, refused: None }));
         };
         // Nothing to publish, and a listing to carry: the working layer is
         // written again with it, so the next update can ask Watchman from here.
-        let working: Vec<&[u8]> = segments[base..].iter().map(|segment| &segment[..]).collect();
+        let working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
         let working = match working.as_slice() {
             [] => encode_generation::<Read>(&Generation { config: Some(&o.config), directories: &[], parses: &[], records: &[], deleted: Deleted::default() }),
             [only] => only.to_vec(),
@@ -476,7 +476,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         deleted: Deleted { parses: &deleted_parses, records: &deleted_records, directories: &deleted_directories },
     });
 
-    let mut working: Vec<&[u8]> = segments[base..].iter().map(|segment| &segment[..]).collect();
+    let mut working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
     working.push(&delta);
     let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
     let working = carried(working, listing).map_err(fail)?;

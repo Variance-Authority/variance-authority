@@ -77,9 +77,6 @@ grep-searcher = "0.1"
 json-strip-comments = "3"
 # The SIMD substring search a name question scans the lowered name table with.
 memchr = "2"
-# A question maps each segment of the source index chain rather than copying
-# it. gix already builds it into the addon.
-memmap2 = "0.9"
 oxc_allocator = { version = "0.157.0", features = ["pool"] }
 oxc_ast = "0.157.0"
 oxc_ast_visit = "0.157.0"

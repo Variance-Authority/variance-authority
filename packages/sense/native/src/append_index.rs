@@ -54,7 +54,7 @@ fn appended(path: &str, read: &[String], legacy: bool, layers: &[&[u8]]) -> Resu
         return Err("a segment the save read is no longer there".to_owned());
     }
     let base = (references.len() - chain.working).min(kept);
-    let segments: Vec<&[u8]> = chain.segments[..kept].iter().map(|segment| &segment[..]).collect();
+    let segments: Vec<&[u8]> = chain.segments[..kept].iter().map(Vec::as_slice).collect();
     let layer = working(&segments[..base], &segments[base..], layers)?;
     written(path, over, &references[..base], &[&layer], &references[base..], 1).map_err(fail).and_then(moved)
 }

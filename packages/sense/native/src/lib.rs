@@ -76,7 +76,6 @@ mod help;
 use help::*;
 mod index;
 mod index_chain;
-mod mapped;
 mod index_turn;
 mod instrument;
 mod journey;
