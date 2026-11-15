@@ -18,13 +18,13 @@ use crate::help_in_file::{in_file, InFile};
 pub struct Importers {
     /// Every use, ordered by the importing file in code units, then by line.
     pub uses: Vec<NameUse>,
-    /// Every file that passes the name on with `export … from`, under the name
-    /// it exports, in code-unit order; none of the files asked about.
+    /// Every file that passes a name asked on with `export … from`, under the
+    /// name it exports, in code-unit order; none of the files asked about.
     pub through: Vec<String>,
-    /// Every line of one of the files asked about that uses the name the file
-    /// declares at its top level, by file in code units, then by line.
+    /// Every line of one of the files asked about that uses the name asked of
+    /// it, declared at its top level, by file in code units, then by line.
     pub in_file: Vec<InFile>,
-    /// Every namespace a file passes the name on inside, by file in code
+    /// Every namespace a file passes a name asked on inside, by file in code
     /// units, then by name: `export * as shout` passes `greet` as `shout.greet`.
     pub namespaces: Vec<Namespace>,
     /// Every file, in code-unit order, with an import the index resolved to
@@ -61,9 +61,9 @@ pub struct Namespace {
     pub members: Vec<String>,
 }
 
-/// Every import, by any file on the chain, of `name` out of one of `files`:
-/// the bindings and member reads that take it through a request the index
-/// resolved to one of them. A relative import is read like one between
+/// Every import, by any file on the chain, of a name asked out of the file
+/// asked with it: the bindings and member reads that take it through a request
+/// the index resolved to that file. A relative import is read like one between
 /// packages, which `usage` does not record. Each use's `key` is the specifier
 /// as written, and its `name` the name it takes, which a re-export can rename.
 ///
