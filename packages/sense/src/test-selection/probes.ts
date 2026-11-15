@@ -16,6 +16,7 @@ import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
+import probeSet from '../instrument/probe-set.cjs';
 import preconditions from './case-preconditions.cjs';
 import { PAGE_STORY, type PageStory } from '../story/page-story.js';
 import { CARRIED_SOURCE } from './carried.js';
@@ -373,9 +374,9 @@ function pageReaderSource(): string {
  * The page half, as source, because it has to cross `page.evaluate` or a bundler.
  *
  * The engine is `instrument/probe-log.cts`, sent as its own source with
- * `instrument/probe-lists.cts`, so a page records with the code a test runner
- * records with. A page has one bucket and never
- * switches it: a drain reads it out and empties it in place.
+ * `instrument/probe-set.cts` and `instrument/probe-lists.cts`, so a page
+ * records with the code a test runner records with. A page has one bucket and
+ * never switches it: a drain reads it out and empties it in place.
  *
  * `globalThis.__VA__` keeps its identity for the life of the page, because
  * every module reads it once and keeps it, and the drain on
@@ -384,7 +385,7 @@ function pageReaderSource(): string {
 export function executionCollectorSource(mode?: InstrumentMode): string {
   const instrumentation = instrumentationId(mode);
   return `
-const engine = (${probeLog.createEngine.toString()})(false);
+const engine = (${probeLog.createEngine.toString()})(false, ${probeSet.probeSet.toString()});
 const lists = ${probeLists.lists.toString()};
 const bucket = engine.open('');
 engine.use(bucket);

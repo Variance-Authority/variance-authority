@@ -96,7 +96,7 @@ fn a_region_with_no_origin_in_front_of_it_in_an_enclosing_region_is_module_code(
     let authored = "export function f() { return 1 }\nexport function g() { return 2 }\n";
     let transformed = "export function f() { return 1 }\n";
     let none = place(authored, transformed, "a.js", "", 0, "a.js@00", false, false).expect("it parses");
-    assert!(none.cut.code.contains("__vaB);__va(1);__va(2);"), "{}", none.cut.code);
+    assert!(none.cut.code.contains(".T();__va(1);__va(2);"), "{}", none.cut.code);
 }
 
 #[test]
@@ -126,7 +126,7 @@ fn a_region_without_an_origin_is_fired_by_the_code_enclosing_it_in_front_of_it()
     let authored = "export function f() { return 1 }\nexport function g() { return 2 }\n";
     let points: Vec<_> = (0..32).map(|column| (0, column, 0, column)).collect();
     let placed = place(authored, authored, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.cut.code.contains("__vaK.g(2147483648|__vaB);__va(2);"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains(".T();__va(2);"), "{}", placed.cut.code);
     assert!(placed.cut.code.contains("function f() {__va(1); return 1 }"), "{}", placed.cut.code);
     assert!(placed.cut.code.contains("function g() {void 0; return 2 }"), "{}", placed.cut.code);
 }
@@ -138,7 +138,7 @@ fn a_region_with_only_a_sibling_in_front_of_it_is_module_code() {
     let authored = "export function f() { return 1 }\nexport function g() { return 2 }\n";
     let points: Vec<_> = (20..32).map(|column| (0, column, 0, column)).collect();
     let placed = place(authored, authored, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.cut.code.contains("__vaB);__va(2);"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains(".T();__va(2);"), "{}", placed.cut.code);
     assert!(placed.cut.code.contains("function f() {__va(1); return 1 }"), "{}", placed.cut.code);
 }
 
@@ -151,7 +151,7 @@ fn a_position_past_the_end_of_its_line_names_nothing_on_the_line_below() {
     let written = "const { fn } = globalThis.__A_GLOBAL_NAME_LONGER_THAN_THE_IMPORT_IT_REPLACES__;";
     let transformed = authored.replacen("import { fn } from './lib.js';", written, 1);
     let placed = place(authored, &transformed, "a.js", &identity(&transformed), 0, "a.js@00", false, false).expect("it parses");
-    assert!(!placed.cut.code.contains("__vaB);__va(1);"), "{}", placed.cut.code);
+    assert!(!placed.cut.code.contains(".T();__va(1);"), "{}", placed.cut.code);
     assert!(placed.cut.code.contains("function helper() {__va(1); return 1 }"), "{}", placed.cut.code);
 }
 
@@ -169,7 +169,7 @@ fn an_outlined_callback_is_module_code_not_the_component_s() {
     let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
     let body = placed.cut.code.split("export function C(p) {").nth(1).expect("C");
     assert!(body.starts_with("__va(2);"), "{}", placed.cut.code);
-    assert!(placed.cut.code.contains("__vaB);__va(3);"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains(".T();__va(3);"), "{}", placed.cut.code);
 }
 
 #[test]
@@ -233,7 +233,7 @@ fn an_import_a_compiler_wrote_fires_nothing_from_the_code_it_names() {
     let mut points = vec![(0, 0, 0, 22)];
     points.extend((0..32).map(|column| (1, column, 0, column)));
     let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
-    assert!(!placed.cut.code.contains("__vaB);__va(1);"), "{}", placed.cut.code);
+    assert!(!placed.cut.code.contains(".T();__va(1);"), "{}", placed.cut.code);
     assert!(placed.cut.code.contains("function f() {__va(1); return 1 }"), "{}", placed.cut.code);
 }
 
@@ -245,7 +245,7 @@ fn an_import_the_author_wrote_still_fires_the_module_code_behind_it() {
     let transformed = "const x = h(() => 1);\nimport 'a';\n";
     let points: Vec<_> = (0..11).map(|column| (1, column, 0, column)).collect();
     let placed = place(authored, transformed, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.cut.code.contains("__vaB);__va(1);"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains(".T();__va(1);"), "{}", placed.cut.code);
 }
 
 #[test]
@@ -256,7 +256,7 @@ fn a_hoisted_declaration_with_no_origin_fires_at_load_not_at_its_holder_s_entry(
     let authored = "export function outer() { const v = 1; return inner; function inner() { return v } }\n";
     let points: Vec<_> = (0..51).map(|column| (0, column, 0, column)).collect();
     let placed = place(authored, authored, "a.js", &map(&points), 0, "a.js@00", false, false).expect("it parses");
-    assert!(placed.cut.code.contains("__vaB);__va(2);"), "{}", placed.cut.code);
+    assert!(placed.cut.code.contains(".T();__va(2);"), "{}", placed.cut.code);
     assert!(placed.cut.code.contains("function outer() {__va(1); const"), "{}", placed.cut.code);
 }
 

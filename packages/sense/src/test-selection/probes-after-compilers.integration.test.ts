@@ -348,7 +348,7 @@ describe('a step ahead of the probes that changed the text a map carries for the
     const code = await built(nulled('const a = 1;', longer), mapped(...BELOW_THE_REGIONS));
 
     expect(code).toMatch(/__va(?:\$\d+)?\(2\);\s*return a;/);
-    expect(code).not.toMatch(/__vaB(?:\$\d+)?\);\s*__va(?:\$\d+)?\(\d/);
+    expect(code).not.toMatch(/\.T\(\);\s*__va(?:\$\d+)?\(\d/);
   });
 
   const CARRIES = /`src\/a\.js`: the map back to the file carries a text for it that is not the file on disk, on a line a region sits on/;

@@ -29,18 +29,22 @@
  *
  * Every inserted site calls `__va(i)`, or `__vaR(v, i)` where the site is an
  * expression. Almost every call is to a region the current bucket has already
- * logged, and that call is two byte reads and an `and`: the region's flags in
- * `__vaF` and the bit that answers now in `__vaP`, both module variables. A zero
- * means the region has something left to log, and only then does `__vaS` run:
+ * logged, and that call is two byte reads and an `and`: the region's flags and
+ * the bit that answers now, both slots of the probe's own closure. A zero means
+ * the region has something left to log, and only then does the slow path run:
  * it sets the flag and appends the region's index across the realm, with the
  * evaluating bit, to the log in [`probe-log.cts`](probe-log.cts).
  * `packages/sense/scripts/probe-write.mjs` prices the logged hit at 1.2 ns at 4
  * and 16 regions and 3.2 ns at 64, on the machine
  * [`docs/context`](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/README.md) names.
  *
- * `__vaS` is its own function so that `__va` stays small enough to inline at
- * every site. Folded into `__va`, the same logic measures slower at 16 regions
- * and when V8 compiles the module only with Maglev.
+ * The probe is written once, in [`probe-set.cts`](probe-set.cts), and the root
+ * makes a set of it for each module that registers. Where a realm is new for
+ * each test file, which is every runner's default, that is what keeps it cheap:
+ * V8 keys compiled code and its feedback on a function's place in its source, so
+ * a probe written into every module would be parsed, compiled and warmed once a
+ * module, every file, where closures made in one place are compiled once a
+ * realm.
  *
  * ## The runtime is a required global, and the probe does not check
  *
@@ -59,10 +63,10 @@
  *
  * ## The global is read once a module
  *
- * The probe reads `globalThis.__VA__` on a module's first hit, keeps it in
- * `__vaK`, and registers the module with it once: `__vaG` is the module's flag
- * row, `__vaF` the row the fast path tests, `__vaB` the row's first index in the
- * realm, and `__vaP` the passing bit. Under Vitest keeping the root saves nothing
+ * The header reads `globalThis.__VA__` on a module's first hit and registers
+ * the module with it once; the probes the root answers keep the root, the
+ * module's flag row, the row the fast path tests, the row's first index in the
+ * realm and the passing bit. Under Vitest keeping the root saves nothing
  * measurable, because a global load in the main realm is an inline-cached slot.
  * Under Jest it is most of the probe. Jest evaluates a test file in a `vm`
  * context, whose global object is contextified: every property read on it goes
@@ -79,7 +83,7 @@
  * that reached a module another case evaluated entered that module, and so did
  * a case that called into a module its own inline require evaluated, and an
  * edit to the top level is an edit the case ran. It tests the region's flag
- * against the root's evaluating bit `v` rather than `__vaP`, because a story
+ * against the root's evaluating bit `v` rather than the passing bit, because a story
  * tap hands every module a passing bit of zero to see each hit, and the root
  * would otherwise be logged on all of them. The module's own probe sets the
  * evaluating side directly: it runs just after raising the depth.
@@ -98,7 +102,7 @@
  * So `__VA__` stays a data property, and the scope is the root's `s`: null
  * where only the collector switches buckets, and otherwise a function that asks
  * the scope and switches when the answer moved. An engine with a scope hands
- * the probe a gate row of zeros, so every hit reaches `__vaS`, which calls `s`.
+ * the probe a gate row of zeros, so every hit reaches the slow path, which calls `s`.
  * `s` is a field of its own rather than an accessor on `a`, because V8 does not
  * inline the accessor, and it added about 6 ns to every scoped hit.
  *
@@ -219,22 +223,21 @@ export function instrument(
 /**
  * The declarations every instrumented module carries, and its own probe.
  *
- * 618 bytes a module, 340 after gzip and 317 after brotli: the text is the same
- * in every module but two numbers, so a compressor spends almost nothing on it.
- * It is written per module rather than built by the collector because the
- * fast path is made of module variables: `__vaF` and `__vaP` are slots in the
- * module's own scope, and the gate reads them with no property lookup on any
- * object. It also keeps the collector's contract to the root's fields: the
- * evaluating protocol below is the emitter's business, and a collector —
- * one this repository ships or a foreign one — never implements it.
+ * 278 bytes a module with a 32-character id, 193 after gzip and 167 after
+ * brotli, the same in every module but the id and the count. It carries no
+ * probe of its own: the
+ * first call to `__va`, `__vaR` or `__vaE` registers the module with the root,
+ * which answers the probes it made for the module's row, and rebinds all three
+ * to them. The root is the engine in [`probe-log.cts`](probe-log.cts) or a story
+ * tap in front of it, and either makes its probes with
+ * [`probe-set.cts`](probe-set.cts).
  *
  * Function declarations rather than `const`, because a circular import can call
  * back into this module before its own top level has run — a binding in the
  * temporal dead zone would turn that into a `ReferenceError` that only appears in
- * instrumented builds, which is the worst kind of difference to chase. `__vaF`
- * and `__vaP` start as empty functions for the same call: a byte read from a
- * function is `undefined`, the `and` of two is zero, and the probe falls through
- * to `__vaS`, which registers the module there.
+ * instrumented builds, which is the worst kind of difference to chase. The
+ * declarations are the ones that register, so that call registers the module
+ * there.
  *
  * The module's own probe fires at the end of the prologue rather than at
  * offset 0, so it sits below anything Vitest hoisted. It raises the evaluating

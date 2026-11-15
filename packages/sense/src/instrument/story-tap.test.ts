@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { EVALUATING, instrument } from './index.js';
 import probeLists from './probe-lists.cjs';
 import probeLog from './probe-log.cjs';
+import probeSet from './probe-set.cjs';
 
 /**
  * The tap as a seam loads it: built, because it `require`s the engine by the
@@ -50,7 +51,7 @@ function presence(engine: Engine, bucket: ReturnType<Engine['open']>): unknown {
 
 describe('a story tap', () => {
   it('tapes every visit in the order it happened, repeats included', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
     const { run } = load(tap.root);
@@ -72,7 +73,7 @@ describe('a story tap', () => {
   });
 
   it('marks what ran while the module evaluated', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
 
@@ -89,7 +90,7 @@ describe('a story tap', () => {
   });
 
   it('tapes no visit to the root of a module called into while another evaluates', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('loading'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
     const context = createContext({ out: [], __VA__: tap.root });
@@ -114,9 +115,9 @@ describe('a story tap', () => {
   });
 
   it('leaves the presence record as it is without the tap', () => {
-    const plain = probeLog.createEngine(false);
+    const plain = probeLog.createEngine(false, probeSet.probeSet);
     const plainCases = [plain.open('a'), plain.open('b')];
-    const tapped = probeLog.createEngine(false);
+    const tapped = probeLog.createEngine(false, probeSet.probeSet);
     const tappedCases = [tapped.open('a'), tapped.open('b')];
     const tap = storyTap.createTap(tapped, storyTap.TAPE_LIMIT);
 
@@ -137,7 +138,7 @@ describe('a story tap', () => {
   });
 
   it('says where each case began', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     const ambient = engine.open('');
     engine.use(ambient);
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
@@ -158,7 +159,7 @@ describe('a story tap', () => {
   });
 
   it('says which case each visit belonged to when the async context decides', async () => {
-    const engine = probeLog.createEngine(true);
+    const engine = probeLog.createEngine(true, probeSet.probeSet);
     const ambient = engine.open('');
     const scopes = new AsyncLocalStorage<ReturnType<Engine['open']>>();
     engine.scope(() => scopes.getStore() ?? ambient);
@@ -177,10 +178,10 @@ describe('a story tap', () => {
   });
 
   it('stops taping at its limit, counts what it missed, and records presence to the end', () => {
-    const plain = probeLog.createEngine(false);
+    const plain = probeLog.createEngine(false, probeSet.probeSet);
     const plainCase = plain.open('case');
     plain.use(plainCase);
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     const bucket = engine.open('case');
     engine.use(bucket);
     const tap = storyTap.createTap(engine, 4);
@@ -197,7 +198,7 @@ describe('a story tap', () => {
   });
 
   it('is found by whoever looks for the engine behind a realm', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
 
     expect(probeLog.engineOf(tap.root)).toBe(engine);
@@ -208,7 +209,7 @@ describe('a story tap', () => {
 
 describe('what a case says on the way', () => {
   it('sits on the tape after the visits before it, in the case it was said in', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
     const { run } = load(tap.root);
@@ -227,7 +228,7 @@ describe('what a case says on the way', () => {
   });
 
   it('opens what a test line did with the line, the last of the cuts that did nothing', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
     const { run } = load(tap.root);
@@ -259,7 +260,7 @@ describe('what a case says on the way', () => {
   });
 
   it('is counted, not kept, past the limit, and starts again with the tape', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
     for (let said = 0; said < storyTap.NOTE_LIMIT + 3; said += 1) tap.note(`line ${said}`);
@@ -271,7 +272,7 @@ describe('what a case says on the way', () => {
   });
 
   it('arrives from the console, which still prints it, and from the channel other packages call', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
     const printed: unknown[][] = [];
@@ -304,7 +305,7 @@ function checkout(n) { out.push(total(cart, { tax: n }, label, new Till())); out
 
 /** {@link HANDED} evaluated once against a fresh engine's root, or a tap in front of it. */
 function handed(tapped: boolean) {
-  const engine = probeLog.createEngine(false);
+  const engine = probeLog.createEngine(false, probeSet.probeSet);
   engine.use(engine.open('case'));
   const tap = tapped ? storyTap.createTap(engine, storyTap.TAPE_LIMIT) : undefined;
   const context = createContext({ out: [], __VA__: tap?.root ?? engine.root });
@@ -349,7 +350,7 @@ describe('what a function was handed, and what a module holds', () => {
   });
 
   it('names an object by what its framework calls it, when the framework said so to the realm', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
     const branded = (value: object): string | undefined => {

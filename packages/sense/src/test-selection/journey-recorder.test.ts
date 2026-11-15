@@ -6,6 +6,7 @@ import { expect, it } from 'vitest';
 
 type Recorder = typeof import('./journey-recorder.cjs');
 type ProbeLog = typeof import('../instrument/probe-log.cjs');
+type ProbeSet = typeof import('../instrument/probe-set.cjs');
 
 /**
  * A loader of built files, each run as an ES module bundle runs a CommonJS
@@ -32,7 +33,7 @@ function packed(): (file: string) => unknown {
 it('tells a story in an ES module bundle, which can require no builtin', () => {
   const load = packed();
   const { storyTap, storyFormat } = (load('test-selection/journey-recorder.cjs') as Recorder).loadRecorder();
-  const tap = storyTap.createTap((load('instrument/probe-log.cjs') as ProbeLog).createEngine(true), storyTap.PART_LIMIT, true);
+  const tap = storyTap.createTap((load('instrument/probe-log.cjs') as ProbeLog).createEngine(true, (load('instrument/probe-set.cjs') as ProbeSet).probeSet), storyTap.PART_LIMIT, true);
 
   expect(storyFormat.decodeStory(storyFormat.encodeStory(tap.take('j-1'), 'j-1')).notes).toEqual([]);
 });

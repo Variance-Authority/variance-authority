@@ -107,7 +107,7 @@ describe('the header', () => {
     const statements = parsed.program.body as readonly { type: string; declarations?: readonly { id: { name: string } }[] }[];
 
     expect(parsed.errors).toEqual([]);
-    expect(statements.some((statement) => statement.declarations?.[0]?.id.name === '__vaK')).toBe(true);
+    expect(statements.some((statement) => statement.declarations?.[0]?.id.name === '__vaL')).toBe(true);
   });
 
   it.each(['await-first.js', 'await-after-import.js'])(
@@ -122,7 +122,7 @@ describe('the header', () => {
 
       expect(statements[first]).toMatchObject({
         type: 'VariableDeclaration',
-        declarations: [{ id: { name: '__vaK' } }, {}, {}, {}],
+        declarations: [{ id: { name: '__vaL' } }, {}],
       });
     },
   );
