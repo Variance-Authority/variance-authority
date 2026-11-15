@@ -359,7 +359,7 @@ pub(crate) fn follow_cuts(bytes: &[u8], cuts: &[RowCut], edit: &dyn Fn(&str) -> 
     let rows = module_rows(&held);
     // FIXME: lines are the only evidence a held module already stands at its
     // rows. A body edited in place moves no line, so its cases stay on the
-    // edited region.
+    // edited region. See the todo in `land-carried-index.test.ts`.
     let onto: FxHashMap<usize, &RowCut> = rows
         .iter()
         .filter_map(|row| cut_at.get(held.modules[*row].file.as_str()).filter(|cut| !cut_alike(&held_cuts[*row].blocks, &cut.blocks)).map(|cut| (*row, *cut)))
@@ -383,6 +383,10 @@ pub(crate) fn follow_cuts(bytes: &[u8], cuts: &[RowCut], edit: &dyn Fn(&str) -> 
             }
             continue;
         };
+        // FIXME: a region born in the re-cut whose owners recorded none landed
+        // is laid with no case, inside a module that stays: absent read as no
+        // test, where the rows widen from the region around it. Nothing ran
+        // over the new text here, so the empty set is pure absence.
         // A region whose cases land names their lines as it is laid, so a
         // module that keeps none named nothing, and leaving it out shifts nobody.
         let (called, loaded) = (vec![EMPTY; cut.blocks.len()], vec![false; cut.blocks.len()]);

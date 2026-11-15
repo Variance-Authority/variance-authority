@@ -33,10 +33,10 @@ export interface IndexedCut extends Cut {
  * snapshot's text's, whatever that text is.
  *
  * Each module of a file is compared with each row the snapshot holds for it,
- * by {@link cutAlike}, the test a run lays its cases over a module by. Two cuts
- * that both hold regions and share no address are apart too: one text cuts one
- * set of addresses, so the index was cut at a text whose regions were all
- * renamed since. A file the snapshot holds no row for, or whose index holds no
+ * by {@link cutAlike}, the JavaScript twin of the test a run lays its cases
+ * over a module by. Two cuts that both hold regions and share no address are
+ * apart too: one text cuts one set of addresses, so the index was cut at a
+ * text whose regions were all renamed since. A file the snapshot holds no row for, or whose index holds no
  * region, has nothing to compare with and is not one.
  */
 export function casesCutApart(coverageFile: string, modules: readonly IndexedCut[]): ReadonlySet<string> {

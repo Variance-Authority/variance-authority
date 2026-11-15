@@ -12,7 +12,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::journey_record::{Block, NO_OWNER};
 use crate::record_coverage_address::{addressed_alike, same_numbering};
-use crate::record_layout::LAYOUT;
+use crate::record_coverage_recut::spares;
 
 /// A region with no line of any file.
 const NO_LINE: u32 = 0;
@@ -36,6 +36,9 @@ pub(crate) struct Edit {
 
 /// Where the hunks place `start..=end`, and whether they touched it; `None`
 /// where they removed every line of it and wrote nothing in its place.
+// FIXME: `placeThrough` in `placed.ts` and `regionTouched` in `region-edit.ts`
+// run this step again in JavaScript for selection over an edit; selection
+// should ask the addon instead.
 pub(crate) fn place_through(hunks: &[Hunk], start_line: i64, end_line: i64) -> Option<(i64, i64, bool)> {
     let (mut shift, mut moved, mut start, mut end, mut removed) = (0, false, None, None, 0);
     for hunk in hunks {
@@ -86,15 +89,10 @@ fn shift_before(hunks: &[Hunk], line: i64) -> i64 {
         .sum()
 }
 
-/// Whether an edit read as `reading` reaches what runs in a region of `kind`.
-fn reaches(reading: Option<&str>, kind: &str) -> bool {
-    !reading.and_then(|read| LAYOUT.coverage.spared.get(read)).is_some_and(|spared| spared.iter().any(|each| each == kind))
-}
-
 /// Whether `edit` reaches a region of `kind` it did not leave whole; a text
 /// the edit left whole runs as it did.
 fn edit_reaches(edit: &Edit, kind: &str) -> bool {
-    reaches(if edit.hunks.is_empty() { Some("none") } else { edit.reading.as_deref() }, kind)
+    !spares(if edit.hunks.is_empty() { Some("none") } else { edit.reading.as_deref() }, kind)
 }
 
 /// The lines `edit` leaves a region at when it stays whole there, or `None`
@@ -137,6 +135,9 @@ fn address_key<K: std::hash::Hash + Eq + Clone>(address: K, seen: &mut FxHashMap
 /// region the edit left alone at its lines, else the one at its address or
 /// what the region around it took, landing where the edit's reading spares
 /// its kind and overwritten where it does not. Without `change`, nothing lands.
+// FIXME: the snapshot's `carried` in `record_coverage_recut.rs` pairs rows
+// across an edit by the same rule, except that it seats by address first and
+// withholds a disputed one; the two should share one pairing.
 pub(crate) fn landed_through(held: &[Block], recorded: &[Block], owners: Option<&[u32]>, change: Option<&Edit>) -> Pairing {
     let mut lands = vec![-1; recorded.len()];
     let mut overwrote = vec![-1; recorded.len()];
@@ -241,6 +242,8 @@ fn landed_on(held: &[Block], recorded: &[Block]) -> Vec<(usize, usize)> {
 
 /// Whether `held` was cut at the text `recorded` was: every region both hold
 /// an address for stands at the same lines in each.
+// FIXME: `cutAlike` in `region-landing.ts` answers this again in JavaScript
+// for `casesCutApart`; it should ask the addon instead.
 pub(crate) fn cut_alike(held: &[Block], recorded: &[Block]) -> bool {
     landed_on(held, recorded)
         .into_iter()
