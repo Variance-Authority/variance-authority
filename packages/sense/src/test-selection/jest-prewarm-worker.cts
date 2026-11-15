@@ -20,6 +20,8 @@ interface ScriptTransformer {
 interface Warming {
   /** `@jest/transform`, resolved from the jest-runner that makes the test workers' transformer. */
   readonly transform: string;
+  /** `jest-resolve`, resolved from the same jest-runner: its classifier says which files jest-runtime loads as ES modules. */
+  readonly resolve: string;
   /** The project's configuration, as Jest's runner hands it to its workers. */
   readonly config: object;
   /** The coverage half of the options, as `jest-runner` hands `jest-runtime` them. */
@@ -54,8 +56,15 @@ async function warm(warming: Warming): Promise<number> {
     supportsTopLevelAwait: false,
     ...warming.coverage,
   };
+  const { default: Resolver } = require(warming.resolve) as {
+    default: { unstable_shouldLoadAsEsm: (path: string, extensionsToTreatAsEsm: readonly string[]) => boolean };
+  };
+  const esm = (warming.config as { extensionsToTreatAsEsm?: readonly string[] }).extensionsToTreatAsEsm ?? [];
   let warmed = 0;
   for (const file of warming.files) {
+    // A file jest-runtime loads as an ES module is transformed with other options under
+    // the same cache key, so a CommonJS warm-up of it would hand the import CommonJS.
+    if (Resolver.unstable_shouldLoadAsEsm(file, esm)) continue;
     try {
       transformer.transform(file, options, fs.readFileSync(file, 'utf8'));
       warmed += 1;

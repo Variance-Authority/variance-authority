@@ -99,6 +99,7 @@ export async function warmRecorded(tests: readonly Test[], globalConfig: GlobalC
     const runner = jestDependency(options.rootDir, 'jest-runner');
     // The @jest/transform whose ScriptTransformer jest-runner hands each test's runtime.
     const transform = createRequire(runner).resolve('@jest/transform');
+    const resolver = createRequire(runner).resolve('jest-resolve');
     // The coverage options jest-runner hands jest-runtime, less the changed files, which no warmed run has.
     const coverage = {
       collectCoverage: globalConfig.collectCoverage ?? false,
@@ -109,7 +110,7 @@ export async function warmRecorded(tests: readonly Test[], globalConfig: GlobalC
     const pool = workerPool(runner, workers, globalConfig.workerThreads === true);
     try {
       const calls = warmings.flatMap(({ config, files }) => chunks(files, size).map((part) =>
-        pool.warm({ transform, config, coverage, files: part })));
+        pool.warm({ transform, resolve: resolver, config, coverage, files: part })));
       const warmed = (await Promise.all(calls)).reduce((sum, count) => sum + count, 0);
       say(`variance-authority: transformed ${warmed} files the selected tests load inside a case, before the workers start`);
     } finally {
