@@ -99,30 +99,18 @@ pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configura
     let walked = importers_from(root, layers, origins);
     let passing: HashSet<String> = walked.through.iter().map(|(_, file)| file.clone()).collect();
     let unresolved = unresolved_walk::unresolved(root, layers, configurations, &files, &passing, &walked.exports);
-    // A site one group reaches by two paths is one use, a value use when either path is one.
-    let mut found: Vec<HashMap<(String, u32, String, String, String), NameUse>> = asked.iter().map(|_| HashMap::new()).collect();
+    let mut uses: Vec<Vec<NameUse>> = asked.iter().map(|_| Vec::new()).collect();
     for taken in walked.taken {
-        let site = (taken.taken.at.clone(), taken.taken.line, taken.taken.name.clone(), taken.taken.key.clone(), taken.local);
-        match found[taken.origin].entry(site) {
-            std::collections::hash_map::Entry::Occupied(mut held) => {
-                let held = held.get_mut();
-                held.r#type &= taken.taken.r#type;
-                held.through_default &= taken.taken.through_default;
-            }
-            std::collections::hash_map::Entry::Vacant(free) => {
-                free.insert(taken.taken);
-            }
-        }
+        uses[taken.origin].push(taken.taken);
     }
     let mut through: Vec<Vec<String>> = asked.iter().map(|_| Vec::new()).collect();
     for (origin, passing) in walked.through {
         if !asked[origin].iter().any(|one| one.file == passing) { through[origin].push(passing); }
     }
-    let groups = found
+    let groups = uses
         .into_iter()
         .zip(through)
-        .map(|(found, mut through)| {
-            let mut uses: Vec<NameUse> = found.into_values().collect();
+        .map(|(mut uses, mut through)| {
             uses.sort_by(|a, b| {
                 crate::order::code_unit(&a.at, &b.at)
                     .then(a.line.cmp(&b.line))
