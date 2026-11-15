@@ -112,6 +112,15 @@ describe('the edit loop under a budget', () => {
     expect(cut.notes[0]).toMatch(/^`VARIANCE_AUTHORITY_BUDGET=15` cuts nothing: /u);
   });
 
+  it('cuts nothing from a selection `--local` fell to, which holds no hops, and says why', () => {
+    const whole = suiteOf(input(), undefined);
+    const fell = { ...whole, reading: { ...whole.reading, fell: { rung: 'importers' as const, from: 'no journal', left: [] } } };
+    const cut = withinBudget(fell, TIMES, { seconds: 1, asked: false }, home);
+
+    expect(cut.skip).toEqual(whole.skip);
+    expect(cut.notes[0]).toMatch(/^`VARIANCE_AUTHORITY_BUDGET=1` cuts nothing: the selection fell to/u);
+  });
+
   it('cuts nothing when the record holds no times, and says why', () => {
     const whole = suiteOf(input(), leg(0, 1));
     const cut = withinBudget(whole, { unread: 'nothing is recorded there' }, { seconds: 15, asked: false }, home);

@@ -56,6 +56,8 @@ export function withinBudget(
     reading: { ...selection.reading, notes: [`${variable} cuts nothing: ${why}`, ...selection.reading.notes] },
   });
   if (selection.declined !== undefined) return unchanged('the selection did not narrow, and a selection that does not narrow skips nothing');
+  // A selection `--local` fell to holds no hops to rank by, and its rung already chose by containment.
+  if (selection.reading.fell !== undefined) return unchanged(`the selection fell to the ${selection.reading.fell.rung} \`--local\` chose, which holds no hops to rank by`);
   if ('unread' in times) return unchanged(times.unread);
 
   const candidates = ranked(selection, times.times, home);
