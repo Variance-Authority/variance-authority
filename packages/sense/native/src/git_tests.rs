@@ -260,7 +260,7 @@ fn an_excludes_file_in_another_users_home_hands_the_comparison_to_status() {
 fn a_boolean_setting_reads_as_git_reads_it() {
     let root = checkout("booleans");
     git(&root, &["init", "-q"]);
-    for spelling in ["true", "yes", "On", "1", "2", "-1", "1k", "false", "NO", "off", "0", "00", ""] {
+    for spelling in ["true", "yes", "On", "1", "2", "-1", "1k", "0x10", "false", "NO", "off", "0", "00", "0x0", "-0X00k", ""] {
         for key in ["core.ignorecase", "core.filemode", "core.symlinks", "core.trustctime", "core.precomposeunicode"] {
             git(&root, &["config", key, spelling]);
             let config = crate::git::worktree_status::config_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));

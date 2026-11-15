@@ -49,11 +49,13 @@ pub(crate) fn settings_of(listed: &[u8]) -> UntrackedSettings {
 }
 
 /// Whether git reads a boolean as false: `false`, `no`, `off`, the empty
-/// value, or an integer equal to zero. Anything else git accepts is true.
+/// value, or an integer equal to zero, in any base `strtoimax` reads. Anything
+/// else git accepts is true.
 pub(crate) fn falsy(value: &[u8]) -> bool {
     let value = value.trim_ascii().to_ascii_lowercase();
     let digits = value.strip_prefix(b"-").or_else(|| value.strip_prefix(b"+")).unwrap_or(&value);
     let digits = digits.strip_suffix(b"k").or_else(|| digits.strip_suffix(b"m")).or_else(|| digits.strip_suffix(b"g")).unwrap_or(digits);
+    let digits = digits.strip_prefix(b"0x").filter(|hex| !hex.is_empty()).unwrap_or(digits);
     matches!(value.as_slice(), b"false" | b"no" | b"off" | b"")
         || (!digits.is_empty() && digits.iter().all(|byte| *byte == b'0'))
 }
