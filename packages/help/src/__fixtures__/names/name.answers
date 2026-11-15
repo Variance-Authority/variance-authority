@@ -1,0 +1,309 @@
+## symbol --name freeze
+freeze [function]
+import { freeze } from 'kit';
+declared at packages/kit/src/index.ts:2
+used by 1 package: app — 1 import by published path
+
+function freeze<T>(value: T): T
+
+Freezes a value and everything it holds.
+
+`variance-authority-help uses` names the 1 place that imports this, from another package, nearest to a file you name first.
+Snapshot <masked>
+
+## uses --name freeze
+`freeze` [function] is imported in 1 place, from another package.
+Path order; `--from` sorts nearest first.
+
+Source, from other packages:
+
+packages/app/src/main.ts:1 — app
+
+A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
+
+1 file imports a specifier the index could not resolve to a file, and it could take `freeze`, so a use there is not listed: packages/app/src/main.ts.
+Snapshot <masked>
+
+## symbol --name Clock
+Clock [interface]
+import { Clock } from 'kit';
+declared at packages/kit/src/clock.ts:2
+used by 1 package: app — 1 import by published path
+
+interface Clock
+
+A source of the time.
+
+Members:
+packages/kit/src/clock.ts:4 — now(): number;
+packages/kit/src/clock.ts:5 — zone: string;
+
+`variance-authority-help uses` names the 1 place that imports this, from another package, nearest to a file you name first.
+Snapshot <masked>
+
+## uses --name Clock
+`Clock` [interface] is imported in 1 place, from another package.
+Path order; `--from` sorts nearest first.
+
+Source, from other packages:
+
+packages/app/src/main.ts:1 — app (type only)
+
+A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
+
+1 file imports a specifier the index could not resolve to a file, and it could take `Clock`, so a use there is not listed: packages/app/src/main.ts.
+Snapshot <masked>
+
+## symbol --name count
+count [function]
+import { count } from 'kit';
+declared at packages/kit/src/tally.ts:2
+used by 1 package: app — 1 import by published path
+
+function tally(...numbers: number[]): number
+
+Adds the numbers it is given.
+
+`variance-authority-help uses` names the 1 place that imports this, from another package, nearest to a file you name first.
+Snapshot <masked>
+
+## uses --name count
+`count` [function] is imported in 1 place, from another package, published by kit, declared as `tally` at packages/kit/src/tally.ts:2.
+Path order; `--from` sorts nearest first.
+
+Source, from other packages:
+
+packages/app/src/main.ts:1 — app
+
+A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
+
+1 file imports a specifier the index could not resolve to a file, and it could take `count`, so a use there is not listed: packages/app/src/main.ts.
+Snapshot <masked>
+
+## symbol --name tally
+count [function]
+import { count } from 'kit';
+declared at packages/kit/src/tally.ts:2
+used by 1 package: app — 1 import by published path
+
+function tally(...numbers: number[]): number
+
+Adds the numbers it is given.
+
+`variance-authority-help uses` names the 1 place that imports this, from another package, nearest to a file you name first.
+Snapshot <masked>
+
+## uses --name tally
+`tally` [function] is imported in 1 place, from another package, published by kit as `count`, declared at packages/kit/src/tally.ts:2.
+Path order; `--from` sorts nearest first.
+
+Source, from other packages:
+
+packages/app/src/main.ts:1 — app
+
+A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
+
+1 file imports a specifier the index could not resolve to a file, and it could take `tally`, so a use there is not listed: packages/app/src/main.ts.
+Snapshot <masked>
+
+## symbol --name Shape
+Shape [class]
+import { Shape } from 'kit';
+declared at packages/kit/src/shape.ts:2
+used by 1 package: app — 1 import by published path
+
+class Shape
+
+A flat figure.
+
+`variance-authority-help uses` names the 1 place that imports this, from another package, nearest to a file you name first.
+Snapshot <masked>
+
+## uses --name Shape
+`Shape` [class] is imported in 1 place, from another package.
+Path order; `--from` sorts nearest first.
+
+Source, from other packages:
+
+packages/app/src/main.ts:1 — app
+
+A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
+
+1 file imports a specifier the index could not resolve to a file, and it could take `Shape`, so a use there is not listed: packages/app/src/main.ts.
+Snapshot <masked>
+
+## symbol --name units
+units [namespace-object]
+import { units } from 'kit';
+declared at packages/kit/src/index.ts:11
+used by 1 package: app — 1 import by published path
+
+export * as units from './units.js'
+
+Nothing is written above this declaration.
+
+`variance-authority-help uses` names the 1 place that imports this, from another package, nearest to a file you name first.
+Snapshot <masked>
+
+## uses --name units
+`units` [namespace-object] is imported in 1 place, from another package.
+Path order; `--from` sorts nearest first.
+
+Source, from other packages:
+
+packages/app/src/main.ts:1 — app
+
+A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
+
+1 file imports a specifier the index could not resolve to a file, and it could take `units`, so a use there is not listed: packages/app/src/main.ts.
+Snapshot <masked>
+
+## symbol --name Clock.now
+Clock.now
+a member of `Clock`, declared at packages/kit/src/clock.ts:4
+`variance-authority-help uses` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.
+Snapshot <masked>
+
+## uses --name Clock.now
+`Clock.now` is no exported name; it is a member, declared in 1 place:
+Path order; `--from` sorts nearest first.
+
+Member declarations:
+
+packages/kit/src/clock.ts:4 — Clock
+
+No line uses `now` through a value whose type is written as `Clock` at packages/kit/src/clock.ts:4.
+
+An implementation of `Clock.now` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on packages/kit/src/clock.ts:4 names it.
+A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.
+Ask TypeScript for those: its language service's find-references on `Clock.now` at packages/kit/src/clock.ts:4.
+Snapshot <masked>
+
+## symbol --name Shape.area
+Shape.area
+a member of `Shape`, declared at packages/kit/src/shape.ts:4
+`variance-authority-help uses` names the lines that use it through a value written as its container, and the declaration to ask its language's find-references about for the rest.
+Snapshot <masked>
+
+## uses --name Shape.area
+`Shape.area` is no exported name; it is a member, declared in 1 place:
+Path order; `--from` sorts nearest first.
+
+Member declarations:
+
+packages/kit/src/shape.ts:4 — Shape
+
+No line uses `area` through a value whose type is written as `Shape` at packages/kit/src/shape.ts:4.
+
+An implementation of `Shape.area` that takes its type from where it goes — an argument, a property, a returned value — writes no type on its line and is not listed: TypeScript's language service's go-to-implementation on packages/kit/src/shape.ts:4 names it.
+A use is listed here only where its line writes the value's type. A use through an inferred value, a generic, a subtype by `extends`, a JSX attribute, a utility type or an inline type literal is not: which type a value has is a type checker's answer, and none runs here.
+Ask TypeScript for those: its language service's find-references on `Shape.area` at packages/kit/src/shape.ts:4.
+Snapshot <masked>
+
+## symbol --name step
+step [function]
+declared, not exported, at packages/kit/src/extra.ts:4 by kit
+function step(at: number): number
+One level of the walk.
+Only `walk` can name it: it is declared inside `walk`.
+Snapshot <masked>
+
+## uses --name step
+`step` [function] is declared, not exported, at packages/kit/src/extra.ts:4, so only `walk` can name it: it is declared inside `walk`.
+Snapshot <masked>
+
+## symbol --name plain
+plain [const]
+import { plain } from 'kit';
+declared at packages/kit/src/index.ts:6
+used by 1 package: app — 1 import by published path
+
+const plain = (n: number): number =>
+
+Nothing is written above this declaration.
+
+`variance-authority-help uses` names the 1 place that imports this, from another package, nearest to a file you name first.
+Snapshot <masked>
+
+## uses --name plain
+`plain` [const] is imported in 1 place, from another package.
+Path order; `--from` sorts nearest first.
+
+Source, from other packages:
+
+packages/app/src/main.ts:1 — app
+
+A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
+
+1 file imports a specifier the index could not resolve to a file, and it could take `plain`, so a use there is not listed: packages/app/src/main.ts.
+Snapshot <masked>
+
+## symbol --name nothing
+refused: `nothing` is not published by this workspace, and no published name contains it; ask `variance-authority-help search` with a word from its documentation. No file in this workspace declares `nothing`, at its top level or as a member. No installed dependency publishes it either. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.
+
+## uses --name nothing
+refused: `nothing` is not published by this workspace, and no published name contains it; ask `variance-authority-help search` with a word from its documentation. No file in this workspace declares `nothing`, at its top level or as a member. A name written only as text, in a string or a comment, declares nothing: a text search such as `rg` finds it.
+
+## search --query freeze
+1 published match for `freeze`
+
+kit · freeze [function] imported in 1 place in 1 package — Freezes a value and everything it holds.
+
+No recorded case was read: no run kept its cases there.
+
+No third-party name matches `freeze`. No dependency was searched: no manifest in reach declares or imports one.
+Snapshot <masked>
+
+## search --query numbers add
+No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `numbers add`. The nearest follow.
+
+No recorded case was read: no run kept its cases there.
+
+2 names and files in this repository hold most of `numbers add`, the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.
+
+kit · count [function] imported in 1 place in 1 package — Adds the numbers it is given. [holds: add, numbers]
+tally — kit · packages/kit/src/tally.ts:2 — Adds the numbers it is given. [holds: add, numbers]
+
+No third-party name matches `numbers add`. No dependency was searched: no manifest in reach declares or imports one.
+Snapshot <masked>
+
+## search --query clock time
+No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `clock time`. The nearest follow.
+
+No recorded case was read: no run kept its cases there.
+
+3 names and files in this repository hold most of `clock time`, the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.
+
+kit · Clock [interface] imported in 1 place in 1 package — A source of the time. [holds: clock, time]
+packages/kit/src/clock.ts [file] — kit [holds: clock]
+kit/extra · walk [function] imported in 1 place in 1 package — Walks a tree, one level at a time. [holds: time]
+
+No third-party name matches `clock time`. No dependency was searched: no manifest in reach declares or imports one.
+Snapshot <masked>
+
+## packages
+app — 1 name, 0 imported elsewhere, 1 documented
+kit — 6 names, 6 imported elsewhere, 4 documented
+kit/extra — 1 name, 1 imported elsewhere, 1 documented
+
+Narrower questions:
+  variance ask entrypoint --package kit
+Snapshot <masked>
+
+## entrypoint --package kit
+kit — 6 names
+
+Clock [interface] 1 import by published path from 1 other package — A source of the time.
+Shape [class] 1 import by published path from 1 other package — A flat figure.
+count [function] 1 import by published path from 1 other package — Adds the numbers it is given.
+freeze [function] 1 import by published path from 1 other package — Freezes a value and everything it holds.
+plain [const] 1 import by published path from 1 other package — UNDOCUMENTED
+units [namespace-object] 1 import by published path from 1 other package — UNDOCUMENTED
+Snapshot <masked>
+
+## gaps
+2 names cross a package boundary with nothing written above the declaration:
+
+plain [const] packages/kit/src/index.ts:6 — used by 1 package: app
+units [namespace-object] packages/kit/src/index.ts:11 — used by 1 package: app
+Snapshot <masked>

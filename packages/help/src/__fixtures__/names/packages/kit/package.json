@@ -1,0 +1,9 @@
+{
+  "name": "kit",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    "./extra": { "types": "./dist/extra.d.ts", "default": "./dist/extra.js" }
+  },
+  "files": ["dist"]
+}

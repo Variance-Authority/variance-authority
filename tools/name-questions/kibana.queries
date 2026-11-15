@@ -1,0 +1,66 @@
+# The fixed question set the name questions are measured against on Kibana
+# (variance-authority-examples, HEAD 2df7209048767f154e91695e9456cfcad6be35af).
+# `tools/name-questions.mjs` reads it. One question per line:
+#   name <case> <Name>      asked as `ask symbol` and as `ask uses`
+#   search <words>          asked as `ask search --query`
+#   entrypoint <package>    asked as `ask entrypoint --package`
+#   packages | gaps         asked as they stand
+# A case is what the name tests in the store, not a property of the answer.
+
+name exported useKibana
+name exported toMountPoint
+name exported KibanaRequest
+name exported i18n
+name exported getUrlOrigin
+name exported bytePartition
+name exported deepFreeze
+name re-exported CoreStart
+name re-exported CoreSetup
+name re-exported SavedObjectsClientContract
+name re-exported IRouter
+name renamed getDemoScenariosByCategory
+name renamed commonFunctionalUIServices
+name renamed versionHandlerResolvers
+name renamed UnifiedMetricsExperienceGrid
+name renamed appIds
+name default WebpackConfig
+name default JsonCodeEditor
+name default CiStatsJestReporter
+name namespace SpecificationTypes
+name namespace datasetQualityUrlSchemaV1
+name namespace rulesV1
+name namespace cli
+name member CoreStart.http
+name member KibanaRequest.headers
+name member HttpSetup.fetch
+name member CoreSetup.getStartServices
+name nested recursiveScanFolder
+name nested clearInvalidCookie
+name nested handleRootShutdown
+name nested includeObjects
+name nested getStartServices
+name undocumented pick
+name undocumented isPromise
+name undocumented ensureValidObjectPath
+name absent NotAThingInKibana
+
+search saved object
+search feature flag
+search rate limit
+search time range
+search index pattern
+search alerting rule
+search license check
+search telemetry
+search breadcrumb
+search dark mode
+search http route
+search cookie session
+
+packages
+entrypoint @kbn/std
+entrypoint @kbn/core
+entrypoint @kbn/core/public
+entrypoint @kbn/security-solution-plugin
+entrypoint @kbn/actions-simulators-plugin
+gaps
