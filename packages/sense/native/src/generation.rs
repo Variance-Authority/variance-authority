@@ -21,7 +21,7 @@ use serde::Deserialize;
 
 use crate::parse_columns::{ParseColumns, ParseRow};
 use crate::record::Indexed;
-use crate::segment::{encode, u32s, u8s, Collected, Column, Strings};
+use crate::segment::{encode, u32s, u8s, Collected, Column, Strings, NONE};
 
 /// The directory columns: every path and the digest of what it holds, sorted
 /// by path, and every path the generation deletes.
@@ -129,7 +129,35 @@ impl RecordColumns {
         self.unresolved.push(self.unresolved_value.len() as u32);
     }
 
+    /// The importers of every target, read backwards out of `targets.path`:
+    /// each target path once, ascending by its dictionary id, and the rows of
+    /// the records whose imports resolve to it, ascending. A question walking
+    /// importers reads the rows of the files it reached instead of every
+    /// record's targets.
+    fn reverse(&self) -> [Column; 3] {
+        let mut pairs: Vec<u64> = (0..self.file.len())
+            .flat_map(|row| {
+                let (from, to) = (self.targets[row] as usize, self.targets[row + 1] as usize);
+                self.target_path[from..to].iter().filter(|&&target| target != NONE).map(move |&target| (u64::from(target) << 32) | row as u64)
+            })
+            .collect();
+        pairs.par_sort_unstable();
+        pairs.dedup();
+        let (mut to, mut offsets, mut rows) = (Vec::new(), vec![0u32], Vec::with_capacity(pairs.len()));
+        for pair in pairs {
+            let target = (pair >> 32) as u32;
+            if to.last() != Some(&target) {
+                if !to.is_empty() { offsets.push(rows.len() as u32); }
+                to.push(target);
+            }
+            rows.push(pair as u32);
+        }
+        if !to.is_empty() { offsets.push(rows.len() as u32); }
+        [u32s("targets.reverse-to", to), u32s("targets.reverse", offsets), u32s("targets.reverse-row", rows)]
+    }
+
     pub fn columns(self, deleted: Vec<u32>) -> Vec<Column> {
+        let [reverse_to, reverse, reverse_row] = self.reverse();
         vec![
             u32s("records.file", self.file),
             u32s("records.deleted", deleted),
@@ -148,6 +176,9 @@ impl RecordColumns {
             u8s("records.targets-present", self.targets_present),
             u32s("witnesses.directory", self.witness_directory),
             u32s("targets.path", self.target_path),
+            reverse_to,
+            reverse,
+            reverse_row,
             u32s("edges.to", self.edge_to),
             u32s("edges.kind", self.edge_kind),
             u32s("record-declares.name", self.declare_name),

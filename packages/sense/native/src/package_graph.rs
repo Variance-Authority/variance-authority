@@ -27,6 +27,7 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 use rayon::prelude::*;
 
+use crate::chain_lookup::{fold, At};
 use crate::compact::Layer;
 use crate::git::Oid;
 use crate::index_chain::{read_chain, Chain};
@@ -104,9 +105,6 @@ pub fn orient_packages(root: String, index: String, files: Vec<String>, rows: u3
     let listed = Listed { paths: &snapshot.paths, oids: &snapshot.oids };
     orientation(&root, &chain, &listed, &files, limits).map(Some).map_err(fail)
 }
-
-/// A folded record: its layer and row.
-pub(crate) type At = (usize, usize);
 
 /// One folded record as the answer sees it.
 struct Record<'a> {
@@ -293,22 +291,6 @@ pub(crate) fn orientation(root: &str, chain: &Chain, listed: &Listed, files: &[S
     })
 }
 
-/// Every file's newest record. The fold is `compacted`'s: oldest layer first,
-/// its deletes, then its puts.
-pub(crate) fn fold<'a>(layers: &'a [Layer<'a>]) -> HashMap<&'a str, At> {
-    let mut folded: HashMap<&str, At> = HashMap::new();
-    for (at, layer) in layers.iter().enumerate() {
-        let (stored, records) = (&layer.stored, &layer.records);
-        for row in 0..records.deleted.len() {
-            folded.remove(stored.text(records.deleted.at(row)));
-        }
-        for row in 0..records.file.len() {
-            folded.insert(stored.text(records.file.at(row)), (at, row));
-        }
-    }
-    folded
-}
-
 /// Whether the record is stale, and which other packages its targets land in.
 fn record<'a>(layers: &'a [Layer<'a>], owners: &Owners, listed: &Listed, file: &'a str, at: At) -> Record<'a> {
     let (layer, row) = at;
@@ -348,47 +330,15 @@ pub(crate) fn names_object(digest: &str, oid: &Oid) -> bool {
 /// Each crossing's parse, found the way the fold would find it: the key is the
 /// record's digest and its file's way (`keyFor` in `files.ts`), and the newest
 /// layer that puts or deletes the key decides. Only the wanted keys are looked
-/// at, so a question about three packages reads three packages' parses.
+/// up, so a question about three packages reads three packages' parses.
 pub(crate) fn join_parses(layers: &[Layer], crossings: &mut [Crossing]) {
-    let ways: Vec<String> = crossings.iter().map(|crossing| crate::index::way(crossing.file)).collect();
-    let mut wanted: HashMap<&str, Vec<usize>> = HashMap::new();
-    for (at, crossing) in crossings.iter().enumerate() {
+    crossings.par_iter_mut().for_each(|crossing| {
         let (layer, row) = crossing.at;
         let (stored, records) = (&layers[layer].stored, &layers[layer].records);
-        if let Some(digest) = stored.optional(records.digest.at(row)) {
-            wanted.entry(digest).or_default().push(at);
-        }
-    }
-    let (wanted, ways) = (&wanted, &ways);
-    let hits: Vec<(Vec<usize>, Vec<(usize, usize)>)> = layers
-        .par_iter()
-        .map(|layer| {
-            let (stored, parses) = (&layer.stored, &layer.parses);
-            let matching = |digest: u32, way: u32, into: &mut Vec<usize>| {
-                if let Some(held) = wanted.get(stored.text(digest)) {
-                    let way = stored.text(way);
-                    into.extend(held.iter().copied().filter(|&at| ways[at] == way));
-                }
-            };
-            let (mut deleted, mut found, mut put) = (Vec::new(), Vec::new(), Vec::new());
-            for row in 0..parses.deleted.len() {
-                matching(parses.deleted.at(row), parses.deleted_way.at(row), &mut deleted);
-            }
-            for row in 0..parses.key.len() {
-                matching(parses.key.at(row), parses.way.at(row), &mut found);
-                put.extend(found.drain(..).map(|at| (at, row)));
-            }
-            (deleted, put)
-        })
-        .collect();
-    for (layer, (deleted, put)) in hits.into_iter().enumerate() {
-        for at in deleted {
-            crossings[at].parse = None;
-        }
-        for (at, row) in put {
-            crossings[at].parse = Some((layer, row));
-        }
-    }
+        crossing.parse = stored
+            .optional(records.digest.at(row))
+            .and_then(|digest| crate::chain_lookup::parse(layers, digest, &crate::index::way(crossing.file)));
+    });
 }
 
 /// One name an `export … from` passes on: `imported` is `*` for a star, and

@@ -12,10 +12,11 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use napi_derive::napi;
 use rayon::prelude::*;
 
+use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::index_chain::{read_chain, Chain};
 use crate::order::code_unit;
-use crate::package_graph::{fold, join_parses, names_object, orientation, Crossing, Limits, Listed, Orientation};
+use crate::package_graph::{join_parses, names_object, orientation, Crossing, Limits, Listed, Orientation};
 use crate::package_owners::{declared, owners, Manifest, NO_OWNER};
 use crate::specifier::{package_of, request_of};
 

@@ -8,7 +8,7 @@ import { readClaims } from './adjudicate.js';
 import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
 import { caughtUp, foundNothingAnswer, madeBefore, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
-import { sourceIndexPath } from '@variance-authority/sense';
+import { asOneQuestion, sourceIndexPath } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
 import { cutFor, readTree, verbOf, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
@@ -323,16 +323,17 @@ async function sourceAnswering(request: SourceRequest, tool: Tool<Help>, input: 
     : await wholeSource(readSource, tool, input, reading);
 }
 
+/** The answer as it is printed, read as one question: the source index is opened once however many readers it asks. */
 function rendered(request: SourceRequest, answering: Answering, unseen: boolean | string): string {
   const at = answering.at;
   if (request.format === 'json') {
     // The generation is carried as a field rather than a footer line, and is
     // absent when the reading could not say when it was made.
-    const data = answering.data?.();
+    const data = asOneQuestion(() => answering.data?.());
     const unopened = answering.unopened === undefined ? {} : { unopened: answering.unopened };
     return `${JSON.stringify({ ...data, ...(at === undefined ? {} : { generatedAt: at, ...(unseen === false ? {} : { compared: false }) }), ...unopened }, undefined, 2)}\n`;
   }
-  const answer = answering.answer();
+  const answer = asOneQuestion(() => answering.answer());
   const dated = at === undefined ? answer : `${answer}\n${snapshotLine(at, unseen)}`;
   const said = unopenedLine(answering.unopened, unseen === false);
   return `${said === undefined ? dated : `${dated}\n${said}`}\n`;

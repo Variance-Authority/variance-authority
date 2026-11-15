@@ -5,10 +5,13 @@
 
 use std::path::PathBuf;
 
-use super::{importers, Importers};
+use super::{importers, Configurations, Importers};
 use crate::compact::Layer;
 use crate::generation::Delta;
 use crate::graph_index::merged;
+
+#[path = "help_usage_reads_tests.rs"]
+mod reads;
 
 struct Fixture(PathBuf);
 
@@ -77,7 +80,7 @@ fn chain(files: &[(String, String)]) -> Vec<u8> {
 fn read(root: &PathBuf, bytes: &[u8], files: &[&str], name: &str) -> Importers {
     let layer = Layer::open(bytes).unwrap();
     let files: Vec<String> = files.iter().map(|file| (*file).to_owned()).collect();
-    importers(root.to_str().unwrap(), std::slice::from_ref(&layer), &files, name)
+    importers(root.to_str().unwrap(), std::slice::from_ref(&layer), &Configurations::default(), &files, name)
 }
 
 fn uses(read: &Importers) -> Vec<String> {

@@ -5,13 +5,15 @@
 // compass: variance-authority.reach.relations
 
 use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex, PoisonError};
 
+use crate::chain_lookup::{fold, newest};
 use crate::compact::Layer;
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
+use crate::package_graph::{join_parses, passed_on, Crossing};
 use crate::package_owners::{owners, parent, NO_OWNER};
 use crate::specifier::{is_relative, package_of};
-use crate::witness_aliases::AliasesRead;
+use crate::witness_aliases::{AliasMapping, AliasesRead};
 
 /// One import the index resolved to no file: the importing file, the parse
 /// it is read from, the request's place in it and the specifier as written.
@@ -25,16 +27,23 @@ struct Unresolved<'a> {
 
 /// Every import, by importing file in code-unit order, whose specifier the
 /// record lists as resolved to no file and `keep` lets through. Only a file
-/// whose record lists one has its parse read.
-fn unresolved_imports<'a>(layers: &'a [Layer], folded: &HashMap<&'a str, At>, keep: &dyn Fn(&str) -> bool) -> Vec<Unresolved<'a>> {
-    let mut crossings: Vec<Crossing> = folded
-        .iter()
-        .filter(|&(_, &(layer, row))| {
-            let (stored, records) = (&layers[layer].stored, &layers[layer].records);
-            records.unresolved_of(stored, row).is_some_and(|mut written| written.any(keep))
-        })
-        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
-        .collect();
+/// whose newest record lists one has its record and its parse read. A
+/// specifier is judged once per layer however many files write it: Kibana's
+/// records list some ninety thousand, a few thousand of them distinct.
+fn unresolved_imports<'a>(layers: &'a [Layer], keep: &dyn Fn(&str) -> bool) -> Vec<Unresolved<'a>> {
+    let mut crossings: Vec<Crossing> = Vec::new();
+    for (at, layer) in layers.iter().enumerate() {
+        let (stored, records) = (&layer.stored, &layer.records);
+        let mut judged: HashMap<u32, bool> = HashMap::new();
+        for (row, mut written) in records.with_unresolved() {
+            if !newest(layers, (at, row)) { continue; }
+            let file = stored.text(records.file.at(row));
+            super::read_record(file);
+            if written.any(|id| *judged.entry(id).or_insert_with(|| keep(stored.text(id)))) {
+                crossings.push(Crossing { file, owner: NO_OWNER, others: Vec::new(), at: (at, row), parse: None });
+            }
+        }
+    }
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
     join_parses(layers, &mut crossings);
     let mut found = Vec::new();
@@ -76,7 +85,7 @@ fn takes(layers: &[Layer], import: &Unresolved, exports: &HashSet<String>) -> bo
 pub(super) fn unresolved(
     root: &str,
     layers: &[Layer],
-    folded: &HashMap<&str, At>,
+    configurations: &Configurations,
     files: &[String],
     through: &HashSet<String>,
     exports: &HashSet<String>,
@@ -88,56 +97,83 @@ pub(super) fn unresolved(
         holding.map(|file| owners.package_of(file)).filter(|name| !name.is_empty()).map(str::to_owned).collect()
     };
     let none = HashSet::new();
-    let mapped = configured(root, folded);
+    let mapped = configurations.of(root, &|| fold(layers).into_keys().collect());
     // A path alias, a `#` subpath import or a configuration's mapping names a file of this workspace, so it could have meant any.
     let meant = |written: &str| {
         is_relative(written)
             || written.starts_with('#')
-            || mapped(written)
+            || mapped.maps(written)
             || package_of(written, &none).is_some_and(|package| !named_like_a_package(package) || packages.contains(package))
     };
     let mut found: Vec<String> =
-        unresolved_imports(layers, folded, &meant).iter().filter(|import| takes(layers, import, exports)).map(|import| import.file.to_owned()).collect();
+        unresolved_imports(layers, &meant).iter().filter(|import| takes(layers, import, exports)).map(|import| import.file.to_owned()).collect();
     found.dedup();
     found
 }
 
-/// Whether a specifier names a file of this workspace through the `paths` or
-/// `baseUrl` a `tsconfig` or `jsconfig` beside an indexed file declares: it
-/// matches a mapping's pattern, or its first segment is a file or directory
-/// the index holds under a `baseUrl`. A configuration that cannot be read maps
-/// nothing.
-fn configured(root: &str, folded: &HashMap<&str, At>) -> impl Fn(&str) -> bool {
-    let mut directories: HashSet<&str> = HashSet::new();
-    for &file in folded.keys() {
-        let mut directory = parent(file);
-        while directories.insert(directory) && !directory.is_empty() {
-            directory = parent(directory);
-        }
+/// The configurations one question reads, by the root it reads them under:
+/// each is read the first time a reading of the opened chain asks, and every
+/// later one in the question is handed the same. They depend on the chain's
+/// files and the disk, never on the name asked, and a name declared in ten
+/// files used to read them ten times. The chain's files are asked for only
+/// when a configuration is first read.
+#[derive(Default)]
+pub(crate) struct Configurations(Mutex<HashMap<String, Arc<Configured>>>);
+
+impl Configurations {
+    fn of<'f>(&self, root: &str, files: &dyn Fn() -> Vec<&'f str>) -> Arc<Configured> {
+        let mut held = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        Arc::clone(held.entry(root.to_owned()).or_insert_with(|| Arc::new(Configured::read(root, &files()))))
     }
-    let configs: Vec<String> = directories
-        .iter()
-        .flat_map(|directory| ["tsconfig.json", "jsconfig.json"].map(|name| if directory.is_empty() { name.to_owned() } else { format!("{directory}/{name}") }))
-        .filter(|config| std::path::Path::new(root).join(config).is_file())
-        .collect();
-    let AliasesRead { bases, mappings } = crate::witness_aliases::read(root, &configs).unwrap_or(AliasesRead { bases: Vec::new(), mappings: Vec::new() });
-    // The first segment of every indexed path under a `baseUrl`, with its extension and without.
-    let mut under: HashSet<String> = HashSet::new();
-    for base in &bases {
-        let prefix = if base.is_empty() { String::new() } else { format!("{base}/") };
-        for &file in folded.keys() {
-            let Some(rest) = file.strip_prefix(prefix.as_str()) else { continue };
-            let first = rest.split('/').next().unwrap_or(rest);
-            under.insert(format!("{base}\0{first}"));
-            if let Some((stem, _)) = first.rsplit_once('.') {
-                under.insert(format!("{base}\0{stem}"));
+}
+
+/// The `paths` and `baseUrl` every `tsconfig` and `jsconfig` beside an indexed
+/// file declares, and the first segment of every indexed path under each
+/// `baseUrl`, with its extension and without. A configuration that cannot be
+/// read maps nothing.
+pub(crate) struct Configured {
+    bases: Vec<String>,
+    mappings: Vec<AliasMapping>,
+    under: HashSet<String>,
+}
+
+impl Configured {
+    fn read(root: &str, files: &[&str]) -> Self {
+        let mut directories: HashSet<&str> = HashSet::new();
+        for &file in files {
+            let mut directory = parent(file);
+            while directories.insert(directory) && !directory.is_empty() {
+                directory = parent(directory);
             }
         }
+        let configs: Vec<String> = directories
+            .iter()
+            .flat_map(|directory| ["tsconfig.json", "jsconfig.json"].map(|name| if directory.is_empty() { name.to_owned() } else { format!("{directory}/{name}") }))
+            .filter(|config| std::path::Path::new(root).join(config).is_file())
+            .collect();
+        let AliasesRead { bases, mappings } = crate::witness_aliases::read(root, &configs).unwrap_or(AliasesRead { bases: Vec::new(), mappings: Vec::new() });
+        let mut under: HashSet<String> = HashSet::new();
+        for base in &bases {
+            let prefix = if base.is_empty() { String::new() } else { format!("{base}/") };
+            for &file in files {
+                let Some(rest) = file.strip_prefix(prefix.as_str()) else { continue };
+                let first = rest.split('/').next().unwrap_or(rest);
+                under.insert(format!("{base}\0{first}"));
+                if let Some((stem, _)) = first.rsplit_once('.') {
+                    under.insert(format!("{base}\0{stem}"));
+                }
+            }
+        }
+        Configured { bases, mappings, under }
     }
-    move |written: &str| {
+
+    /// Whether a specifier names a file of this workspace: it matches a
+    /// mapping's pattern, or its first segment is a file or directory the index
+    /// holds under a `baseUrl`.
+    fn maps(&self, written: &str) -> bool {
         let first = written.split('/').next().unwrap_or(written);
-        bases.iter().any(|base| under.contains(&format!("{base}\0{first}")))
-            || mappings.iter().any(|mapping| match &mapping.suffix {
+        self.bases.iter().any(|base| self.under.contains(&format!("{base}\0{first}")))
+            || self.mappings.iter().any(|mapping| match &mapping.suffix {
                 None => written == mapping.prefix,
                 Some(suffix) => {
                     written.len() >= mapping.prefix.len() + suffix.len() && written.starts_with(&mapping.prefix) && written.ends_with(suffix.as_str())
@@ -162,17 +198,17 @@ fn named_like_a_package(package: &str) -> bool {
 /// to no file and that an import binds `name` out of or reads it off: where a
 /// name no file here declares comes from, for `discover --imports` to list the
 /// files.
-pub(crate) fn sources(root: &str, layers: &[Layer], name: &str) -> Vec<String> {
+pub(crate) fn sources(root: &str, layers: &[Layer], configurations: &Configurations, name: &str) -> Vec<String> {
     let folded = fold(layers);
     let paths = beside(root, folded.keys().copied());
     let workspace: HashSet<String> = owners(root, &paths).packages.into_iter().map(|package| package.name).collect();
     let none = HashSet::new();
-    let mapped = configured(root, &folded);
+    let mapped = configurations.of(root, &|| folded.keys().copied().collect());
     let outside = |written: &str| {
-        !mapped(written) && package_of(written, &none).is_some_and(|package| named_like_a_package(package) && !workspace.contains(package))
+        !mapped.maps(written) && package_of(written, &none).is_some_and(|package| named_like_a_package(package) && !workspace.contains(package))
     };
     let wanted = HashSet::from([name.to_owned()]);
-    let mut found: Vec<String> = unresolved_imports(layers, &folded, &outside)
+    let mut found: Vec<String> = unresolved_imports(layers, &outside)
         .iter()
         .filter(|import| layers[import.layer].parses.request_republishes[import.request] != 1)
         .filter(|import| {

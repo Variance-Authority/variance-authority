@@ -26,11 +26,12 @@ use oxc_ast_visit::{walk, Visit};
 use oxc_span::GetSpan;
 use serde::Serialize;
 
+use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::harvest::{Harvest, TextSpan};
 use crate::help_usage::{importers_from, kind_of};
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 use crate::read::Lines;
 

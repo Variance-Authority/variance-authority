@@ -2978,6 +2978,7 @@
         "Violation": "interface",
         "WorkingTreeChanges": "interface",
         "aliasesOf": "function",
+        "asOneQuestion": "function",
         "auditTaints": "function",
         "cappedLayers": "function",
         "cappedTiers": "function",

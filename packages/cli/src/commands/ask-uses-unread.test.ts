@@ -1,6 +1,7 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { asOneQuestion, importersOf } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages.fixture.js';
@@ -107,6 +108,24 @@ describe('variance ask uses names the files whose imports did not resolve', () =
     expect(unreadOf(out)).toEqual([
       '1 file imports a specifier the index could not resolve to a file, and it could take `greet`, so a use there is not listed: apps/app/src/bare.ts.',
     ]);
+  });
+
+  it('reads the configurations once for one question, however many declarations it asks about', async () => {
+    const root = checkout({
+      'apps/app/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { 'internal/*': ['src/internal/*'] } } }),
+      'apps/app/src/bare.ts': "import { greet } from 'internal/greet';\nexport const bare = greet;\n",
+      'packages/kit/src/greet.ts': 'export function greet(name: string): string {\n  return name;\n}\n',
+    });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    // The configuration is gone before the second declaration is asked: read once, it still maps the import.
+    const [first, second] = asOneQuestion(() => {
+      const first = importersOf(root, ['packages/lib/src/greet.ts'], 'greet');
+      rmSync(join(root, 'apps/app/tsconfig.json'));
+      return [first, importersOf(root, ['packages/kit/src/greet.ts'], 'greet')];
+    });
+    expect(first?.unresolved).toEqual(['apps/app/src/bare.ts']);
+    expect(second?.unresolved).toEqual(['apps/app/src/bare.ts']);
   });
 
   it('says nothing when every import resolved', async () => {
