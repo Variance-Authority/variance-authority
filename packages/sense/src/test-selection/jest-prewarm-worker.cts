@@ -56,6 +56,7 @@ async function warm(warming: Warming): Promise<number> {
     supportsTopLevelAwait: false,
     ...warming.coverage,
   };
+  // The project's own jest-resolve, at the path its jest-runner resolved: no import names the adopter's copy.
   const { default: Resolver } = require(warming.resolve) as {
     default: { unstable_shouldLoadAsEsm: (path: string, extensionsToTreatAsEsm: readonly string[]) => boolean };
   };
