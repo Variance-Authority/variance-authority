@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { parseArgs } from 'node:util';
+import { digestString } from '@variance-authority/core/format';
 
 /**
  * Asks a fixed question set of a workspace through the built CLI, keeps each
@@ -9,13 +11,21 @@ import { join, resolve } from 'node:path';
  * only the `Snapshot` line masked. A change to how the name questions are
  * stored is judged by it: the answers stay the same and the times fall.
  *
- * `node tools/name-questions.mjs ask <set> --workspace <dir> --out <dir> [--runs <n>]`
- * `node tools/name-questions.mjs compare <kept> <kept>`
+ * `node tools/name-questions.mjs ask <set> --workspace <dir> --out <dir> [--runs <n>] [--bin <bin.js>]`
+ * `node tools/name-questions.mjs digest <kept>` prints a kept run as one line per answer
+ * `node tools/name-questions.mjs compare <kept|.out> <kept|.out>`
+ *
+ * A kept run is a folder of whole answers, megabytes on a large workspace; a
+ * `.out` file is its digest, one line per answer — the file, the
+ * `digestString` of its text with the `Snapshot` line masked, its bytes and its lines — small enough to check
+ * in beside the set. Two kept runs compare line for line; a `.out` on either
+ * side compares by digest and names the answers that differ.
  *
  * `VARIANCE_AUTHORITY_CACHE` passes through, so the index asked is the caller's.
+ * `--bin` asks another build, such as a checkout of `main`, the same questions.
  */
 
-const BIN = resolve(import.meta.dirname, '../packages/cli/dist/bin.js');
+const BUILT = resolve(import.meta.dirname, '../packages/cli/dist/bin.js');
 const SNAPSHOT = /^Snapshot .*$/gm;
 
 /** The questions in a set, each as the `ask` arguments it is put with. */
@@ -42,7 +52,7 @@ function fileOf(question, at) {
 const masked = (text) => text.replace(SNAPSHOT, 'Snapshot <masked>');
 const median = (values) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
 
-function asked(set, workspace, out, runs) {
+function asked(set, workspace, out, runs, bin) {
   mkdirSync(out, { recursive: true });
   const rows = [`# ${execFileSync('uptime', { encoding: 'utf8' }).trim()}`, ['question', 'runs', 'median_ms', 'worst_ms', 'bytes', 'exit', 'same'].join('\t')];
   questionsOf(readFileSync(set, 'utf8')).forEach((question, at) => {
@@ -52,7 +62,7 @@ function asked(set, workspace, out, runs) {
     let status = 0;
     for (let run = 0; run < runs; run++) {
       const started = process.hrtime.bigint();
-      const answer = spawnSync(process.execPath, [BIN, 'ask', ...question, '--just-answer'], { cwd: workspace, encoding: 'utf8', maxBuffer: 1 << 30 });
+      const answer = spawnSync(process.execPath, [bin, 'ask', ...question, '--just-answer'], { cwd: workspace, encoding: 'utf8', maxBuffer: 1 << 30 });
       times.push(Number(process.hrtime.bigint() - started) / 1e6);
       const text = `${answer.stdout}${answer.stderr === '' ? '' : `\n--- stderr\n${answer.stderr}`}`;
       status = answer.status ?? -1;
@@ -67,9 +77,32 @@ function asked(set, workspace, out, runs) {
   writeFileSync(join(out, 'timings.tsv'), `${rows.join('\n')}\n`);
 }
 
+const answersIn = (dir) => readdirSync(dir).filter((file) => file.endsWith('.txt')).sort();
+
+/** A kept run's digest: one line per answer, its file, the digest of its masked text, bytes and lines. */
+function digestOf(dir) {
+  return answersIn(dir).map((name) => {
+    const text = masked(readFileSync(join(dir, name), 'utf8'));
+    return [name, digestString(text), Buffer.byteLength(text), text.split('\n').length].join('\t');
+  });
+}
+
+/** The digest of either a kept run or a `.out` file, keyed by the answer's file. */
+function digestsOf(path) {
+  const lines = statSync(path).isDirectory() ? digestOf(path) : readFileSync(path, 'utf8').split('\n').filter((line) => line !== '' && !line.startsWith('#'));
+  return new Map(lines.map((line) => [line.split('\t')[0], line.split('\t').slice(1).join('\t')]));
+}
+
 function compared(left, right) {
-  const files = (dir) => readdirSync(dir).filter((file) => file.endsWith('.txt'));
-  const names = [...new Set([...files(left), ...files(right)])].sort();
+  if (!statSync(left).isDirectory() || !statSync(right).isDirectory()) {
+    const [a, b] = [digestsOf(left), digestsOf(right)];
+    const names = [...new Set([...a.keys(), ...b.keys()])].sort();
+    const differ = names.filter((name) => a.get(name) !== b.get(name));
+    for (const name of differ) console.log(`${name}: ${a.get(name) ?? 'kept on one side only'} and ${b.get(name) ?? 'kept on one side only'}`);
+    console.log(`${names.length - differ.length} of ${names.length} answers the same`);
+    return differ.length === 0;
+  }
+  const names = [...new Set([...answersIn(left), ...answersIn(right)])].sort();
   let differ = 0;
   for (const name of names) {
     const read = (dir) => { try { return masked(readFileSync(join(dir, name), 'utf8')); } catch { return undefined; } };
@@ -86,14 +119,14 @@ function compared(left, right) {
   return differ === 0;
 }
 
-function option(args, flag, fallback) {
-  const at = args.indexOf(flag);
-  if (at !== -1) return args[at + 1];
-  if (fallback === undefined) throw new Error(`\`${flag}\` is required`);
-  return fallback;
+const { positionals: [command, ...paths], values } = parseArgs({
+  allowPositionals: true,
+  options: { workspace: { type: 'string' }, out: { type: 'string' }, runs: { type: 'string', default: '1' }, bin: { type: 'string', default: BUILT } },
+});
+if (command === 'ask') {
+  if (values.workspace === undefined || values.out === undefined) throw new Error('`ask` takes `--workspace` and `--out`');
+  asked(resolve(paths[0]), resolve(values.workspace), resolve(values.out), Number(values.runs), resolve(values.bin));
 }
-
-const [command, ...args] = process.argv.slice(2);
-if (command === 'ask') asked(resolve(args[0]), resolve(option(args, '--workspace')), resolve(option(args, '--out')), Number(option(args, '--runs', '1')));
-else if (command === 'compare') process.exitCode = compared(resolve(args[0]), resolve(args[1])) ? 0 : 1;
-else if (command !== undefined) throw new Error(`name-questions takes \`ask\` or \`compare\`, not \`${command}\``);
+else if (command === 'digest') process.stdout.write(`${digestOf(resolve(paths[0])).join('\n')}\n`);
+else if (command === 'compare') process.exitCode = compared(resolve(paths[0]), resolve(paths[1])) ? 0 : 1;
+else if (command !== undefined) throw new Error(`name-questions takes \`ask\`, \`digest\` or \`compare\`, not \`${command}\``);

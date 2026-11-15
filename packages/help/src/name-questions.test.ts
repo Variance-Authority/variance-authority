@@ -29,7 +29,7 @@ let root: string;
 let help: Help;
 let tree: Tree | undefined;
 
-/** The `ask` arguments of each line of a question set, in `tools/name-questions/kibana.questions`' format. */
+/** The `ask` arguments of each line of a question set, in `tools/name-questions/kibana.queries`' format. */
 function questionsOf(text: string): readonly (readonly string[])[] {
   return text.split('\n').filter((line) => line.trim() !== '' && !line.startsWith('#')).flatMap((line) => {
     const [kind = '', ...rest] = line.trim().split(/\s+/);
