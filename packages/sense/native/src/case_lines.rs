@@ -140,6 +140,7 @@ impl Builder {
 
     /// The entries the case holds: a module index per module alone, and a run
     /// per run of the others.
+    #[cfg(test)]
     pub(crate) fn held(&self) -> usize {
         self.alone.values().map(Vec::len).sum::<usize>()
             + self.mixed.iter().map(|(_, (runs, _))| runs.len()).sum::<usize>()
