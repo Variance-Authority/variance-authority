@@ -1014,13 +1014,14 @@ Recording costs less than coverage at every precision. A probe fires only when
 its code runs, so what you pay tracks what your tests ran, and the finer the
 step you record, the more probes there are to fire.
 
-| | the suite | `loads` | `entries` | `presence` | `--coverage`, V8 |
+| | the suite | `loads`, `file-use` | `entries`, `function-use` | `presence`, `region-use` | `--coverage`, V8 |
 |---|---|---|---|---|---|
 | [Zod](selection-zod.md) — 398 runs, 5,656 tests | 11.14 s | 10.51 s — **0.94×** | 11.18 s — **1.00×** | 11.13 s — **1.00×** | 14.09 s — **1.27×** |
 | [TanStack Query](selection-tanstack-query.md) — 188 files, 4,523 tests | 14.09 s | 14.78 s — **1.05×** | 15.90 s — **1.13×** | 15.94 s — **1.13×** | 18.24 s — **1.29×** |
 
-Both suites are public and unmodified apart from the configuration that
-installs the recorder. Every figure is the median of five runs of the whole
+Both suites are public, run under Vitest, and are unmodified apart from the
+configuration that installs the recorder, with every other option at its
+default, `cadence` included. Every figure is the median of five runs of the whole
 suite, the first discarded as warm-up and the order of the arms rotated each
 round, with the Vite cache and the record cache cleared before every run so no
 run is paid for by the one before it. Pass and fail counts are identical across

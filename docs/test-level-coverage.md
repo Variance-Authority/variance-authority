@@ -10,6 +10,16 @@ watch.
 
 ## What you already believe this costs
 
+Recording costs less than coverage at every precision, and the finer the step
+you record, the more it costs:
+
+| added to the run | Zod | TanStack Query |
+|---|---|---|
+| `loads` — the modules each test file loaded | inside the noise | **+5%** |
+| `entries` — the functions each case entered | inside the noise | **+13%** |
+| `presence`, the default — the regions each case entered | inside the noise | **+13%** |
+| `--coverage`, V8 — the union | **+27%** | **+29%** |
+
 You have turned coverage on in CI, watched the suite get slower, and turned it
 off again. That reflex is right, and it is the first thing to settle rather
 than the last: a relation you record on every run is worth nothing if
@@ -31,16 +41,6 @@ that returns more than a percentage. On the suite that takes fifteen, you
 never see the 30% at all — sharding hides it, the wall clock stays roughly
 where it was, and the cost moves onto the bill instead. At that end coverage
 is not slower. It is **30% more money, every run, forever**, for a union.
-
-The recorder's cost depends on how fine a step you record, and every step
-costs less than coverage:
-
-| added to the run | Zod | TanStack Query |
-|---|---|---|
-| `loads` — the modules each test file loaded | inside the noise | **+5%** |
-| `entries` — the functions each case entered | inside the noise | **+13%** |
-| `presence`, the default — the regions each case entered | inside the noise | **+13%** |
-| `--coverage`, V8 — the union | **+27%** | **+29%** |
 
 A probe fires only when its code runs, so what you pay tracks what your tests
 *ran*. The engine's counters are not fired but read, and the read hands back
@@ -70,9 +70,6 @@ relation spelled two ways measured:
 
 That is most of the engineering in this feature, and it is what makes the
 answer something a job uploads without thinking about it.
-
-Those timings are the recorder writing the file-level axis; cases add an
-attribution per crossing on top of them.
 
 What it costs *you* is not what it cost us:
 
@@ -246,7 +243,7 @@ suite ran over, so the index's coordinates belong to the commit it was recorded
 at, and the `--since` reading measures from that commit for this reason. For the
 test files it names, `covering` prints whether they ran over your source file as
 it is now, and when that run landed. A test file that ran over another text is
-evidence about that text, not about yours. At +2% to +8% there is no budget
+evidence about that text, not about yours. At +13% or less there is no budget
 argument against recording on every run, which is the cadence this needs.
 
 **Fold shards, don't fold axes.** A suite split across machines ends with one

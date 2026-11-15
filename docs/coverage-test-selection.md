@@ -3,7 +3,7 @@
 Coverage-based test selection runs, after a change, only the tests that
 executed the code you changed, according to a recording of an earlier run.
 [Variance Authority](README.md) records that relation on the suite you already
-run, for no more than 8% of its run time, and parses each changed file as it was
+run, for no more than 13% of its run time, and parses each changed file as it was
 recorded and as your diff leaves it before it selects a test. On an unmodified
 Zod checkout, a one-line edit selects 6 test files, 8 runs in all, where
 rerunning every file that loads the changed module selects 197.
