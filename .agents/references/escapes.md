@@ -3,7 +3,8 @@
 Ideas that passed, or would have passed, an idea review and were later shown
 not to belong. Each is kept as the question that would have stopped it before
 any code was written, with the pull requests it cost where it cost any. The `occam` agent asks
-every one of them in its idea mode. [Refine](refine.md#the-idea-loop) says
+every one of them in its idea mode, and a reviewer an entry names asks it of
+every diff. [Refine](refine.md#the-idea-loop) says
 when an entry is added.
 
 1. **Does a neighbour's tool already own the question?** A language's own
@@ -56,3 +57,8 @@ when an entry is added.
    harm and stands on an ask or a reproduction. A brief built on an agent's list
    of its own complaints said the agent was misled, and its transcript shows it
    naming the cause and moving on. #1202, #1205.
+15. **Does a later stage answer again what an earlier one settled, or guess
+   past its verdict?** The index resolves every import; a question that reads
+   configuration again, or guesses which unresolved specifier might be an
+   importer, is a second resolver. The `alignment` reviewer asks it of every
+   diff. #1387.

@@ -32,8 +32,12 @@ next, so the design can be read apart from what the diff made of it:
    quote the rule by its name rather than restating it. The rules this reviewer
    owns are the ones about shape: **One implementation**, **Four roles, and
    complexity goes down**, **Scope stops at a neighbour's answer** (with the
-   compass's **Not ours** table), **No runner is the default** and **Performance
-   is earned, and isolation is not how it is earned**. Two questions have no
+   compass's **Not ours** table), **No runner is the default**, **Performance
+   is earned, and isolation is not how it is earned** and **No magic, and not
+   alone**. Of the last, ask whether a later stage (a question, a read, a
+   server call) derives again a fact an earlier one (the index, an update, the
+   resolver) settled, or guesses past its verdict: either is blocking, as
+   [escape 15](../references/escapes.md) records. Two questions have no
    rule of their own, and you ask them too: does the new code sit in the
    container its `// compass:` header names, and does the change add a flag
    between two behaviours, an option no task asked for or an abstraction with
