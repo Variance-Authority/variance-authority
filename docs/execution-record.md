@@ -594,9 +594,10 @@ Where attempts of a file overlap, by cases running at the same time or a retry
 begun before the attempt before it was closed, a stopped case ends where the
 file does, as does every case stopped in that file after it, and can read
 longer than the case; a case that finishes is timed whole either way. A retry
-adds to the attempt before it. A case whose file was not transformed, and
-every case of an index written before the section, holds an empty row: untimed,
-never `0`. Where no case was timed the section is not written. Where shards
+adds to the attempt before it. A case whose file was not transformed holds an
+empty row, and an index written before the section has none: either way the
+case reads as untimed, never `0`. Where no case was timed the section is not
+written. Where shards
 hold one case twice, the combined record keeps the row that ran longest in
 all, and of two as long the lower. No selection, key or
 digest reads the section.
