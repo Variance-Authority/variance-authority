@@ -1,11 +1,15 @@
 /**
- * The files a record says a set of test files loaded.
+ * The files a record says a set of test files loaded late: inside a case or a
+ * hook, after the file's first case began.
  *
- * A module is loaded by a test when one of its regions names that test in
- * either of its two sets: the tests that entered the region, and the tests
- * that had loaded it before their first case began. A module the record holds
- * no region for, because nothing instrumented it, is named by neither, so the
- * answer is the record's instrumented files and nothing else.
+ * Each region of the record holds two sets: the tests that entered it, and the
+ * tests that had entered it before their first case began. A test that entered
+ * some region of a module and none of them before its first case loaded the
+ * module while it ran, as a `require` in a body or SWC's `module.lazy` does. A
+ * test that entered one before, its top at the least, loaded it at import,
+ * outside any case, so the module was never on a case's time. A module the
+ * record holds no region for, because nothing instrumented it, is named by
+ * neither, so the answer is the record's instrumented files and nothing else.
  */
 
 // compass: variance-authority.reach
@@ -16,40 +20,55 @@ import { askCoverageFile } from './coverage-file.js';
 import { projectPath } from './instrumented-modules.js';
 
 /**
- * Every file the record at `recording` says one of `tests` loaded, by absolute
- * path under `root`, in the record's order. `tests` are absolute paths; a test
- * the record holds no row for adds nothing, and a recorded file the checkout no
- * longer holds is left out.
+ * For each of `tests` the record at `recording` holds a row for, the files it
+ * loaded late, by absolute path under `root`, in the record's order. `tests`
+ * are absolute paths; a test with no row, or one that loaded everything before
+ * its first case, is absent, and a recorded file the checkout no longer holds
+ * is left out.
  */
-export function recordedLoads(recording: string, root: string, tests: readonly string[]): readonly string[] {
-  const asked = new Set(tests.map((test) => projectPath(root, test)));
+export function lateLoads(recording: string, root: string, tests: readonly string[]): ReadonlyMap<string, readonly string[]> {
+  const asked = new Map(tests.map((test) => [projectPath(root, test), test]));
   return askCoverageFile(recording, (view) => {
-    const selected = new Set<number>();
+    const selected = new Map<number, string>();
     view.testPath.all().forEach((path, row) => {
-      if (asked.has(view.string(path))) selected.add(row);
+      const test = asked.get(view.string(path));
+      if (test !== undefined) selected.set(row, test);
     });
-    if (selected.size === 0) return [];
-    const reaching = new Map<number, boolean>();
-    const reaches = (set: number): boolean => {
-      let answer = reaching.get(set);
-      if (answer === undefined) {
-        answer = view.crossings.count(set) > 0 && view.crossings.members(set).some((row) => selected.has(row));
-        reaching.set(set, answer);
+    const late = new Map<string, string[]>();
+    if (selected.size === 0) return late;
+    // A set's selected rows, decoded once however many regions name it.
+    const members = new Map<number, ArrayLike<number> & Iterable<number>>();
+    const selectedOf = (set: number): ArrayLike<number> & Iterable<number> => {
+      let rows = members.get(set);
+      if (rows === undefined) {
+        rows = view.crossings.count(set) === 0 ? [] : view.crossings.members(set).filter((row) => selected.has(row));
+        members.set(set, rows);
       }
-      return answer;
+      return rows;
     };
     const bounds = view.moduleBlocks.all();
     const entered = view.blockSet.all();
     const loaded = view.blockLoadedSet.all();
-    const loads: string[] = [];
     view.modulePath.all().forEach((path, module) => {
+      // A region's loaded set holds the tests that entered that region before their
+      // first case: the module's top for one that loaded it at import, and no
+      // function it only called later. So the module was early for a test that
+      // is in any region's loaded set, and late for one that entered it otherwise.
+      const loading = new Set<number>();
+      const early = new Set<number>();
       for (let block = bounds[module]!; block < bounds[module + 1]!; block += 1) {
-        if (!reaches(entered[block]!) && !reaches(loaded[block]!)) continue;
-        const file = resolve(root, view.string(path));
-        if (existsSync(file)) loads.push(file);
-        return;
+        for (const row of selectedOf(entered[block]!)) loading.add(row);
+        for (const row of selectedOf(loaded[block]!)) early.add(row);
+      }
+      for (const row of early) loading.delete(row);
+      if (loading.size === 0) return;
+      const file = resolve(root, view.string(path));
+      if (!existsSync(file)) return;
+      for (const row of loading) {
+        const test = selected.get(row)!;
+        late.set(test, [...(late.get(test) ?? []), file]);
       }
     });
-    return loads;
+    return late;
   });
 }

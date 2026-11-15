@@ -18,7 +18,7 @@ interface ScriptTransformer {
 
 /** What the main process hands each call. */
 interface Warming {
-  /** `@jest/transform`, resolved as Jest resolves it. */
+  /** `@jest/transform`, resolved from the jest-runner that makes the test workers' transformer. */
   readonly transform: string;
   /** The project's configuration, as Jest's runner hands it to its workers. */
   readonly config: object;
@@ -27,20 +27,25 @@ interface Warming {
   readonly files: readonly string[];
 }
 
-let made: { readonly config: string; readonly transformer: Promise<ScriptTransformer> } | undefined;
+/** Each project's transformer, by its configuration: a child is handed calls of several projects in any order. */
+const made = new Map<string, Promise<ScriptTransformer>>();
 
 /** Transform `files`, and say how many reached Jest's cache; a file whose transform throws is left to the test that loads it. */
 async function warm(warming: Warming): Promise<number> {
   const config = JSON.stringify(warming.config);
-  if (made?.config !== config) {
+  let making = made.get(config);
+  if (making === undefined) {
     // The project's own @jest/transform, at the path its Jest resolved: no import names the adopter's copy.
     const { createScriptTransformer } = require(warming.transform) as {
       createScriptTransformer: (config: object) => Promise<ScriptTransformer>;
     };
-    made = { config, transformer: createScriptTransformer(warming.config) };
+    making = createScriptTransformer(warming.config);
+    made.set(config, making);
   }
-  const transformer = await made.transformer;
-  // As `jest-runtime`'s `defaultTransformOptions`, read in the process that will run the tests.
+  const transformer = await making;
+  // jest-runtime 30.5's `defaultTransformOptions`, the options it transforms a
+  // CommonJS `require` with, read in the process that will run the tests. They
+  // hold for CommonJS alone, which is why an ES module project is never warmed.
   const options = {
     isInternalModule: false,
     supportsDynamicImport: typeof (vm as { SyntheticModule?: unknown }).SyntheticModule === 'function',

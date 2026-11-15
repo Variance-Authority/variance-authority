@@ -47,7 +47,10 @@ export interface PlacingOptions {
   readonly root: string;
   /** The configuration's `rootDir`, which the project's sequencer resolves from. */
   readonly rootDir: string;
-  /** The suite's recorded times, read once, and only by a run under `--shard`. */
+  /**
+   * The suite's record, read at most once: by a run under `--shard` for its
+   * times, and by a selected run's `sort` for what its tests load late.
+   */
   readonly times: () => Promise<SuiteTimes>;
   /**
    * Told whether Jest's resolved configuration asks for a shard, from the
@@ -60,10 +63,10 @@ export interface PlacingOptions {
    * the filter this sequencer is installed beside: `undefined` when the shard
    * places what it runs. Absent for a run that selects nothing, which places
    * what Jest hands it whatever an earlier run in the process left behind.
+   * Present, `sort` also fills Jest's transform cache with what the record
+   * says the selected tests load late.
    */
   readonly placing?: () => readonly string[] | undefined;
-  /** Whether `sort` fills Jest's transform cache with what the record says the tests load: a selected run's. */
-  readonly warm?: boolean;
   readonly say?: (line: string) => void;
   /** The command line the configuration is evaluated under; `process.argv` unless handed. */
   readonly argv?: readonly string[];
@@ -96,9 +99,9 @@ export function placingSequencer(
   const handed = {
     made: (globalConfig: object) => options.sharded?.((globalConfig as { shard?: unknown }).shard != null),
     sorting: refuseUnfound,
-    ...(options.warm === true ? { warming: (tests: readonly unknown[], globalConfig: object) => warmRecorded(
+    ...(options.placing === undefined ? {} : { warming: (tests: readonly unknown[], globalConfig: object) => warmRecorded(
       tests as Parameters<typeof warmRecorded>[0], globalConfig, { root: options.root, rootDir: options.rootDir, record: () => (read ??= options.times()), say },
-    ) } : {}),
+    ) }),
     own: (): SequencerClass => {
       const at = path === undefined ? jestDependency(options.rootDir, JEST_SEQUENCER) : from.resolve(path, { paths: [options.rootDir] });
       const module = from(at) as SequencerClass | { default: SequencerClass };
