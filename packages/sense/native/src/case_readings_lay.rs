@@ -99,7 +99,10 @@ fn open(bytes: &[u8]) -> Result<Option<Index>, String> {
         return Err("test columns disagree".to_owned());
     }
     let blocks = index.called.len();
+    // Every block belongs to a module: a region left outside every range would be read as crossed by nobody.
     if index.module_blocks.len() != index.module_files.len() + 1
+        || index.module_blocks.first().is_some_and(|first| *first != 0)
+        || index.module_blocks.last().is_some_and(|last| *last as usize != blocks)
         || [index.names.len(), index.paths.len(), index.starts.len(), index.ends.len()].into_iter().any(|length| length != blocks)
         || index.module_blocks.windows(2).any(|bounds| bounds[1] < bounds[0] || bounds[1] as usize > blocks)
     {
@@ -444,3 +447,7 @@ pub fn readings_of_case(section: Buffer, index: Option<Buffer>, id: String) -> n
         }).collect(),
     }).collect()))
 }
+
+#[cfg(test)]
+#[path = "case_readings_lay_tests.rs"]
+mod tests;
