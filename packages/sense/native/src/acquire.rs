@@ -50,7 +50,7 @@ const CHUNK: usize = 2048;
 /// warm page cache a wave read from it costs about 10 ms more than the disk
 /// read at 160 files and breaks even near 800 (`docs/performance.md`). The
 /// line stays where it was until a cold-cache measurement says where it moves.
-const FILES_PER_WAVE: usize = 160;
+pub(crate) const FILES_PER_WAVE: usize = 160;
 /// The largest file a read opens when its caller names no limit.
 // FIXME: `LARGEST_FILE` in `scan.ts` is the same number, and a change to it
 // bumps `VERSION` in `reuse.ts` so that no index keeps what the old limit

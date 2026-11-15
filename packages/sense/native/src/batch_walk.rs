@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
 use super::GraphOptions;
-use crate::acquire::{read_git, Answer, Outcome, LARGEST_FILE};
+use crate::acquire::{read_git, Answer, Outcome, FILES_PER_WAVE, LARGEST_FILE};
 use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
 use crate::parse_origin::FromBlob;
@@ -139,7 +139,10 @@ where
 {
     let (mut read, mut answered, mut targets) =
         (Vec::with_capacity(wave.len()), Vec::with_capacity(wave.len()), Vec::with_capacity(wave.len()));
-    let (mut slices, mut oids) = (wave.chunks(slice.max(1)), oids.into_iter());
+    // Equal slices, so a wave over one slice reads none smaller than half of one:
+    // `read_git` picks the store or the disk by how many files it is handed.
+    let even = wave.len().div_ceil(wave.len().div_ceil(slice.max(1)).max(1)).max(1);
+    let (mut slices, mut oids) = (wave.chunks(even), oids.into_iter());
     let mut previous: Option<(&'w [String], Vec<R>)> = None;
     loop {
         let next = slices.next();
@@ -289,6 +292,25 @@ mod tests {
             assert_eq!(read, expected, "slice {slice}");
             assert_eq!(kept, oids.iter().map(Option::is_some).collect::<Vec<_>>(), "slice {slice}");
             assert_eq!(targets, wave.iter().map(|file| vec![format!("{file} read {file}")]).collect::<Vec<_>>(), "slice {slice}");
+        }
+    }
+
+    /// `read_git` takes the object store or the disk by how many files it is
+    /// handed, so a wave read in slices hands it no slice the wave's own size
+    /// would not have read the same way.
+    #[test]
+    fn no_slice_of_a_wave_is_too_small_for_the_store() {
+        for len in [SLICE + 1, 2 * SLICE + 1, 3 * SLICE - 1] {
+            let wave: Vec<String> = (0..len).map(|n| format!("f{n}.ts")).collect();
+            let sizes = std::cell::RefCell::new(Vec::new());
+            let reading = |files: &[String], oids: Vec<Option<Oid>>| {
+                sizes.borrow_mut().push(files.len());
+                (vec![(); files.len()], oids.iter().map(Option::is_some).collect())
+            };
+            read_resolved(&wave, SLICE, vec![None; len], reading, |files: &[String], _: &[()]| vec![Vec::new(); files.len()]);
+            let sizes = sizes.into_inner();
+            assert_eq!(sizes.iter().sum::<usize>(), len);
+            assert!(sizes.iter().all(|size| *size >= FILES_PER_WAVE), "a wave of {len} read in slices of {sizes:?}");
         }
     }
 
