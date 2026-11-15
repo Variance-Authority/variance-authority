@@ -19,6 +19,8 @@ pub(crate) mod help_in_file;
 pub(crate) mod help_member_uses;
 #[path = "help_members.rs"]
 pub(crate) mod help_members;
+#[path = "help_names.rs"]
+pub(crate) mod help_names;
 #[path = "help_origin.rs"]
 pub(crate) mod help_origin;
 #[path = "help_own_uses.rs"]

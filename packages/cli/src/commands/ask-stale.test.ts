@@ -259,13 +259,13 @@ describe('variance ask about a name whose file changed since the source index', 
     expect(snapshotOf(out)).not.toBe(snapshotOf(before.out));
   });
 
-  it('dates what a generation it could not save answers, and quotes a file written since it was read as it read it', async () => {
+  it('dates what a generation read again answers, and quotes a file written since it was read as it read it', async () => {
     const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const unsaved = await readWorkspaceForAnswer(root, { index: join(root, 'package.json', 'index'), refreshAfterMs: 0 });
+    const read = await readWorkspaceForAnswer(root, { refreshAfterMs: 0 });
     write(root, { 'packages/kit/src/options.ts': `// one\n// two\n${OPTIONS}` });
 
-    const answer = await askSource({ question: 'symbol', name: 'Options', source: async () => ({ help: unsaved }) });
+    const answer = await askSource({ question: 'symbol', name: 'Options', source: async () => ({ help: read }) });
 
     expect(snapshotOf(answer)).toBeDefined();
     expect(answer).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');

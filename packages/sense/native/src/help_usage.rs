@@ -1,9 +1,8 @@
 //! What a repository imports from what it publishes, read off the folded chain.
 //!
-//! `collectingUsage` in `packages/help/src/read.ts` is the twin: same joins,
-//! same rule for which request counts, so the two answer alike. It exists here
-//! because the chain is already open in this process and the JavaScript twin
-//! decoded every record of it to be handed the same columns.
+//! The only reader of it: every publish of the Help value reads its uses here,
+//! where the chain is already open, rather than decoding every record of it
+//! into JavaScript to be handed the same columns.
 
 // compass: variance-authority.reach.relations
 
@@ -122,8 +121,6 @@ pub struct NameUse {
 #[napi(object)]
 pub struct IndexedUsage {
     pub exported: Vec<NamedExport>,
-    /// Each `export … from`, named or `*`, as `forward_row` writes it.
-    pub forwards: Vec<String>,
     pub deep: Vec<DeepRequest>,
     /// Imports of a package that declares no entry: every one is by path.
     pub by_path: Vec<DeepRequest>,
@@ -151,7 +148,7 @@ fn own_binding<'a>(local: Option<&'a str>, imported: &HashSet<&str>) -> Option<&
 }
 
 /// `requested` in `package/src/manifest.ts`: `"<package> .<rest>"`.
-fn requested(specifier: &str) -> (&str, String) {
+pub(crate) fn requested(specifier: &str) -> (&str, String) {
     let name = if specifier.starts_with('@') {
         specifier.match_indices('/').nth(1).map_or(specifier, |(at, _)| &specifier[..at])
     } else {
@@ -163,7 +160,6 @@ fn requested(specifier: &str) -> (&str, String) {
 #[derive(Default)]
 struct Part {
     exported: Vec<NamedExport>,
-    forwards: Vec<String>,
     deep: Vec<DeepRequest>,
     by_path: Vec<DeepRequest>,
     unfollowed: Vec<DeepRequest>,
@@ -224,13 +220,6 @@ fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, 
     names
 }
 
-/// One `export … from` of the file `at`, as `collect-usage.ts` writes it: `*`
-/// exports no name of its own, so no row of the export list holds it, and
-/// `imported` is what the row leads to, which no name or specifier says.
-fn forward_row(at: &str, exported: Option<&str>, from: &str, imported: Option<&str>) -> String {
-    format!("{at}\0{}\0{from}\0{}", exported.unwrap_or(""), imported.unwrap_or(""))
-}
-
 fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
@@ -251,9 +240,6 @@ fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -
             .collect();
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
-            if let Some(from) = text.optional(parses.export_from.at(export)) {
-                part.forwards.push(forward_row(at, text.optional(id), from, text.optional(parses.export_imported.at(export))));
-            }
             let Some(name) = text.optional(id) else { continue };
             let local = text.optional(parses.export_local.at(export));
             let passed_on = text.optional(parses.export_from.at(export)).is_some();
@@ -334,12 +320,11 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
             collect(layers, crossing, by, &targets)
         })
         .collect();
-    let mut out = IndexedUsage { exported: Vec::new(), forwards: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
+    let mut out = IndexedUsage { exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
     let mut reasons = Vec::new();
     for part in parts {
         reasons.extend(part.reasons);
         out.exported.extend(part.exported);
-        out.forwards.extend(part.forwards);
         out.deep.extend(part.deep);
         out.by_path.extend(part.by_path);
         out.unfollowed.extend(part.unfollowed);

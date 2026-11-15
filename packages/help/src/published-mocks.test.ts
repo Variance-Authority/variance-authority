@@ -3,9 +3,8 @@ import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
-import * as sense from '@variance-authority/sense';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import * as read from './read.js';
 import { readWorkspaceSnapshot } from './snapshot.js';
 import { publishWorkspaceFromIndex } from './refresh-native.js';
@@ -19,16 +18,6 @@ import { publishWorkspaceFromIndex } from './refresh-native.js';
  * imports, and a relative one that lands nowhere marks the test as unknown,
  * the way the question-time graph does.
  */
-
-vi.mock('@variance-authority/sense', async (original) => {
-  const actual = await original<typeof import('@variance-authority/sense')>();
-  return { ...actual, sourceTreeOf: vi.fn(actual.sourceTreeOf) };
-});
-
-vi.mock('./read.js', async (original) => {
-  const actual = await original<typeof import('./read.js')>();
-  return { ...actual, readWorkspaceOver: vi.fn(actual.readWorkspaceOver) };
-});
 
 const temporary: string[] = [];
 let root: string;
@@ -89,12 +78,10 @@ describe('the published tree', () => {
     await publishWorkspaceFromIndex(root, { index, readStartedAt: '2026-11-14T00:00:00.000Z' });
     write(TEST, `// moved\n${MOCKS}`);
     await updateSourceIndex(root, { index });
-    vi.mocked(read.readWorkspaceOver).mockClear();
 
     await publishWorkspaceFromIndex(root, { index, readStartedAt: '2026-11-14T00:00:00.000Z' });
     const tree = await publishedTree();
 
-    expect(read.readWorkspaceOver).not.toHaveBeenCalled();
     expect([...tree.reachedFrom([TEST])]).toContain(MOCKED);
     expect(tree.unknownAmong([TEST])).toEqual([TEST]);
   });
@@ -140,14 +127,5 @@ describe('the published tree', () => {
     const tree = await publishedTree();
 
     expect([...tree.reachedFrom([TEST])]).toContain(MOCKED);
-  });
-
-  it('reaches the module a test loads for real when the addon draws no tree', async () => {
-    vi.mocked(sense.sourceTreeOf).mockResolvedValueOnce(null);
-    await publishWorkspaceFromIndex(root, { index, readStartedAt: '2026-11-14T00:00:00.000Z' });
-    const tree = await publishedTree();
-
-    expect([...tree.reachedFrom([TEST])]).toContain(MOCKED);
-    expect(tree.unknownAmong([TEST])).toEqual([TEST]);
   });
 });
