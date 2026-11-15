@@ -2620,7 +2620,6 @@
     11
   ],
   "packages/sense/src/test-selection/carried-rows.ts docblock": [
-    41,
     18
   ],
   "packages/sense/src/test-selection/carried-sources.ts block": [
@@ -2628,12 +2627,6 @@
   ],
   "packages/sense/src/test-selection/carried-sources.ts docblock": [
     19
-  ],
-  "packages/sense/src/test-selection/case-cuts.ts block": [
-    6
-  ],
-  "packages/sense/src/test-selection/case-cuts.ts overview": [
-    18
   ],
   "packages/sense/src/test-selection/case-fold.ts docblock": [
     23
@@ -2645,8 +2638,7 @@
     26
   ],
   "packages/sense/src/test-selection/case-layer.ts docblock": [
-    30,
-    11
+    12
   ],
   "packages/sense/src/test-selection/case-lines.ts overview": [
     23
@@ -3017,13 +3009,6 @@
   ],
   "packages/sense/src/test-selection/recorded-text.ts overview": [
     48
-  ],
-  "packages/sense/src/test-selection/region-landing.ts block": [
-    13,
-    6
-  ],
-  "packages/sense/src/test-selection/region-landing.ts docblock": [
-    14
   ],
   "packages/sense/src/test-selection/reporter-hooks.integration.test.ts block": [
     6

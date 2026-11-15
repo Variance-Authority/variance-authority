@@ -261,7 +261,7 @@ impl<'a> Lines<'a> {
                 .or_else(|| self.ambient.get(&(u64::from(self.file_start[test as usize]) * self.width + local as u64)))
                 .copied()
                 .unwrap_or(1);
-            self.builders[test as usize].get_or_insert_with(case_lines::Builder::default).add(module, block, value);
+            self.builders[test as usize].get_or_insert_with(case_lines::Builder::default).add(module, block, value).expect("the fold hands a case's regions over in order");
         }
     }
 
@@ -269,7 +269,7 @@ impl<'a> Lines<'a> {
         self.builders
             .into_iter()
             .zip(self.lined)
-            .map(|(builder, lined)| if *lined { builder.unwrap_or_default().finish() } else { Vec::new() })
+            .map(|(builder, lined)| if *lined { builder.unwrap_or_default().finish(None) } else { Vec::new() })
             .collect()
     }
 }

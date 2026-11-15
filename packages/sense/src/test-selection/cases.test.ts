@@ -229,7 +229,7 @@ describe('folding case frames into an execution index', () => {
     // The bytes a browser driver hands the record (`journal.ts`).
     const run = owned([journal('b.test.ts', 'beta', '2', [0])], recorded);
 
-    const { merged } = layerCaseIndex(record, run, { ran: new Set(['b.test.ts']), finished: new Set(['b.test.ts']), present: () => true });
+    const { merged } = layerCaseIndex(record, run, { ran: ['b.test.ts'], finished: ['b.test.ts'], before: false });
 
     const laid = decodeSetExecutionIndex(merged);
     expect(Object.fromEntries(laid.modules[0]!.blocks.map((block) => [block.name, block.crossings.map(({ test }) => laid.tests[test]!.name)])))

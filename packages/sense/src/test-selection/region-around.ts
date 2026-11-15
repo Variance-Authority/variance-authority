@@ -7,8 +7,8 @@
  * written one up its owners (`keptOwners` in `cases.ts`). The snapshot's rows
  * hand a region born in a re-cut the tests of the region around it by the same
  * owners (`around` in `record_coverage_layer.rs`). The case index's carry reads
- * its owner's decision as it walks the cut in order (`landedThrough` in
- * `region-edit.ts`), as the recut does, and needs no walk.
+ * its owner's decision as it walks the cut in order (`landed_through` in
+ * `native/src/case_layer_landing.rs`), as the recut does, and needs no walk.
  */
 
 /**

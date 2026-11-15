@@ -15,9 +15,9 @@ use crate::case_shard::{put, Varints};
 /// One case's lines: every value it holds, the value of a module without a
 /// segment, and the modules that hold another, as runs over their regions.
 pub(crate) struct Lines {
-    fallback: Option<u64>,
+    pub(crate) fallback: Option<u64>,
     /// Per module, run `at` holds `values[at]` from region `starts[at]`.
-    segments: BTreeMap<u32, (Vec<u64>, Vec<u32>)>,
+    pub(crate) segments: BTreeMap<u32, (Vec<u64>, Vec<u32>)>,
 }
 
 /// One case's lines off its bytes; `None` for a case whose lines were not recorded.
@@ -105,75 +105,75 @@ pub(crate) fn earlier(left: u64, right: u64) -> u64 {
 pub(crate) fn encode(values: &BTreeMap<(u32, u32), u64>) -> Vec<u8> {
     let mut builder = Builder::default();
     for (&(module, block), &value) in values {
-        builder.add(module, block, value);
+        builder.add(module, block, value).expect("a map hands its regions over in order");
     }
-    builder.finish()
+    builder.finish(None)
 }
 
-/// One case's lines gathered as its regions are handed over, in module order
-/// and region order within a module: each module closes into its runs as the
-/// next begins, so a case holds a run per change of line, not a value per
-/// region it crossed, and a module at one value holds only its index.
+const OUT_OF_ORDER: &str = "case lines are handed over out of order";
+
+/// One case's lines from its crossings, handed over in module order and,
+/// within a module, in region order; or, for a module carried as it was
+/// stored, as its segment whole.
 #[derive(Default)]
 pub(crate) struct Builder {
     alone: BTreeMap<u64, Vec<u32>>,
     mixed: Vec<(u32, (Vec<u64>, Vec<u32>))>,
-    /// The module being handed over, and its runs so far.
-    open: Option<(u32, Vec<u64>, Vec<u32>)>,
+    module: Option<u32>,
+    open: bool,
+    values: Vec<u64>,
+    starts: Vec<u32>,
 }
 
 impl Builder {
-    /// A region of `module` the case crossed, at `value`, after every region
-    /// before it.
-    pub(crate) fn add(&mut self, module: u32, block: u32, value: u64) {
-        if let Some((at, runs, starts)) = self.open.as_mut().filter(|(at, _, _)| *at == module) {
-            debug_assert!(starts[starts.len() - 1] <= block, "case lines are handed over out of order in module {at}");
-            if runs[runs.len() - 1] != value {
-                runs.push(value);
-                starts.push(block);
-            }
-            return;
+    /// A region of `module` the case crossed, at `value`.
+    pub(crate) fn add(&mut self, module: u32, block: u32, value: u64) -> Result<(), String> {
+        if self.module != Some(module) || !self.open {
+            self.begin(module)?;
+            self.values.push(value);
+            self.starts.push(0);
+            return Ok(());
         }
+        if self.starts[self.starts.len() - 1] > block {
+            return Err(OUT_OF_ORDER.to_owned());
+        }
+        if self.values[self.values.len() - 1] != value {
+            self.values.push(value);
+            self.starts.push(block);
+        }
+        Ok(())
+    }
+
+    /// A module's segment as it was stored, every region of it at the values it held.
+    pub(crate) fn segment(&mut self, module: u32, values: &[u64], starts: &[u32]) -> Result<(), String> {
+        self.begin(module)?;
+        self.values.extend_from_slice(values);
+        self.starts.extend_from_slice(starts);
         self.close();
-        self.open = Some((module, vec![value], vec![0]));
+        Ok(())
     }
 
-    /// The entries the case holds: a module index per module alone, and a run
-    /// per run of the others.
-    #[cfg(test)]
-    pub(crate) fn held(&self) -> usize {
-        self.alone.values().map(Vec::len).sum::<usize>()
-            + self.mixed.iter().map(|(_, (runs, _))| runs.len()).sum::<usize>()
-            + self.open.as_ref().map_or(0, |(_, runs, _)| runs.len())
-    }
-
-    fn close(&mut self) {
-        let Some((module, runs, starts)) = self.open.take() else { return };
-        if runs.len() == 1 {
-            self.alone.entry(runs[0]).or_default().push(module);
-        } else {
-            self.mixed.push((module, (runs, starts)));
-        }
-    }
-
-    /// The case's bytes.
-    pub(crate) fn finish(mut self) -> Vec<u8> {
+    /// The case's bytes. `fallback` is the value of modules handed over by
+    /// nobody, which a case carried from a held index keeps; without it, the
+    /// value most modules hold alone, the lower of two that tie.
+    pub(crate) fn finish(mut self, fallback: Option<u64>) -> Vec<u8> {
         self.close();
-        let Builder { alone, mixed, .. } = self;
-        let mut fallback = None;
-        let mut most = 0;
-        for (value, modules) in &alone {
-            if modules.len() > most {
-                (fallback, most) = (Some(*value), modules.len());
+        let mut chosen = fallback;
+        if chosen.is_none() {
+            let mut most = 0;
+            for (value, modules) in &self.alone {
+                if modules.len() > most {
+                    (chosen, most) = (Some(*value), modules.len());
+                }
             }
+            chosen = chosen.or_else(|| self.mixed.first().map(|(_, (values, _))| values[0]));
         }
-        let fallback = fallback.or_else(|| mixed.first().map(|(_, (values, _))| values[0]));
-        let mut table: Vec<u64> = alone.keys().copied().chain(fallback).chain(mixed.iter().flat_map(|(_, (values, _))| values.iter().copied())).collect();
+        let mut table: Vec<u64> = self.alone.keys().copied().chain(chosen).chain(self.mixed.iter().flat_map(|(_, (values, _))| values.iter().copied())).collect();
         table.sort_unstable();
         table.dedup();
-        let mut segments: BTreeMap<u32, (Vec<u64>, Vec<u32>)> = mixed.into_iter().collect();
-        for (value, modules) in alone {
-            if Some(value) != fallback {
+        let mut segments: BTreeMap<u32, (Vec<u64>, Vec<u32>)> = self.mixed.into_iter().collect();
+        for (value, modules) in self.alone {
+            if Some(value) != chosen {
                 for module in modules {
                     segments.insert(module, (vec![value], vec![0]));
                 }
@@ -186,7 +186,7 @@ impl Builder {
             put(&mut out, if at == 0 { *value } else { value - table[at - 1] });
         }
         if table.len() > 1 {
-            put(&mut out, index(fallback.expect("a case with values has a fallback")));
+            put(&mut out, index(chosen.expect("a case with values has a fallback")));
             put(&mut out, segments.len() as u64);
             let mut previous = -1_i64;
             for (module, (values, starts)) in segments {
@@ -202,6 +202,37 @@ impl Builder {
             }
         }
         out
+    }
+
+    /// The entries the case holds: a module index per module alone, and a
+    /// value per run of the others.
+    #[cfg(test)]
+    pub(crate) fn held(&self) -> usize {
+        self.alone.values().map(Vec::len).sum::<usize>() + self.mixed.iter().map(|(_, (values, _))| values.len()).sum::<usize>() + self.values.len()
+    }
+
+    fn begin(&mut self, module: u32) -> Result<(), String> {
+        if self.module.is_some_and(|current| module <= current) {
+            return Err(OUT_OF_ORDER.to_owned());
+        }
+        self.close();
+        self.module = Some(module);
+        self.open = true;
+        Ok(())
+    }
+
+    fn close(&mut self) {
+        if !self.open {
+            return;
+        }
+        self.open = false;
+        let (values, starts) = (std::mem::take(&mut self.values), std::mem::take(&mut self.starts));
+        let module = self.module.expect("an open builder names its module");
+        if values.len() == 1 {
+            self.alone.entry(values[0]).or_default().push(module);
+        } else {
+            self.mixed.push((module, (values, starts)));
+        }
     }
 }
 

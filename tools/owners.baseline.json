@@ -451,6 +451,16 @@
   },
   {
     "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-prewarm-worker.cts",
+    "count": 2
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-prewarm.ts",
+    "count": 1
+  },
+  {
+    "idiom": "commonjs-load",
     "at": "packages/sense/src/test-selection/jest-runtime.cts",
     "count": 2
   },

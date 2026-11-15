@@ -63,16 +63,16 @@ fn holds_a_case_by_its_runs_not_by_its_crossings() {
     let mut values = BTreeMap::new();
     for module in 0..20 {
         for block in 0..1000 {
-            builder.add(module, block, 6);
+            builder.add(module, block, 6).unwrap();
             values.insert((module, block), 6);
         }
         assert!(builder.held() <= module as usize + 2, "module {module}: {} held", builder.held());
     }
     // A module whose line changes holds a run per change.
     for block in 0..1000 {
-        builder.add(20, block, if block < 500 { 6 } else { 8 });
+        builder.add(20, block, if block < 500 { 6 } else { 8 }).unwrap();
         values.insert((20, block), if block < 500 { 6 } else { 8 });
     }
     assert_eq!(builder.held(), 20 + 2);
-    assert_eq!(builder.finish(), encode(&values));
+    assert_eq!(builder.finish(None), encode(&values));
 }
