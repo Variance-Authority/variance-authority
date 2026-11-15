@@ -3,6 +3,7 @@
 
 // compass: variance-authority.reach.source-index
 
+use crate::harvest::REACHES;
 use crate::name_table::{Item, Names};
 use crate::stored::{same_length, Stored, U32s};
 
@@ -124,11 +125,11 @@ impl<'a> Parses<'a> {
             deleted_way: stored.maybe_u32s("parses.deleted-way")?,
             requests: stored.offsets("parses.requests", rows, request_value.len())?,
             exports: stored.offsets("parses.exports", rows, export_exported.len())?,
-            exports_present: stored.u8s("parses.exports-present")?,
+            exports_present: stored.codes("parses.exports-present", 1)?,
             declares: stored.offsets("parses.declares", rows, declare_name.len())?,
-            declares_present: stored.u8s("parses.declares-present")?,
+            declares_present: stored.codes("parses.declares-present", 1)?,
             unknown: u32s("parses.unknown")?,
-            harvested: stored.u8s("parses.harvested")?,
+            harvested: stored.codes("parses.harvested", 1)?,
             bytes: u32s("parses.bytes")?,
             lines: u32s("parses.lines")?,
             blocks: u32s("parses.blocks")?,
@@ -136,17 +137,17 @@ impl<'a> Parses<'a> {
             request_kind: u32s("requests.kind")?,
             request_line: u32s("requests.line")?,
             request_flags: stored.u8s("requests.flags")?,
-            request_republishes: stored.u8s("requests.republishes")?,
+            request_republishes: stored.codes("requests.republishes", 1)?,
             request_bindings: stored.offsets("requests.bindings", request_value.len(), binding_imported.len())?,
             request_value,
             binding_local: u32s("bindings.local")?,
-            binding_type: stored.u8s("bindings.type")?,
+            binding_type: stored.codes("bindings.type", 1)?,
             binding_line: u32s("bindings.line")?,
             binding_imported,
             export_local: u32s("exports.local")?,
             export_from: u32s("exports.from")?,
             export_imported: u32s("exports.imported")?,
-            export_type: stored.u8s("exports.type")?,
+            export_type: stored.codes("exports.type", 1)?,
             export_line: u32s("exports.line")?,
             export_signature: ends("exports.signature-start", "exports.signature-end")?,
             export_doc: ends("exports.doc-start", "exports.doc-end")?,
@@ -157,7 +158,7 @@ impl<'a> Parses<'a> {
             symbol_line: u32s("symbols.line")?,
             symbol_signature: ends("symbols.signature-start", "symbols.signature-end")?,
             symbol_doc: ends("symbols.doc-start", "symbols.doc-end")?,
-            symbol_reach: stored.u8s("symbols.reach")?,
+            symbol_reach: stored.codes("symbols.reach", REACHES.len() as u8)?,
             symbol_name,
             mocks_minus: stored.offsets("parses.mocks-minus", rows, mock_minus.len())?,
             mocks_plus: stored.offsets("parses.mocks-plus", rows, mock_plus.len())?,

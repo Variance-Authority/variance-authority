@@ -3,12 +3,12 @@
 //! (`compact.rs`).
 //!
 //! What a column *means* is `decodeSourceIndex`'s to say, in
-//! `source-index-format.ts`, and it decides whether a segment is believed at
-//! all: a chain is cut at the first segment it refuses. What reaches this side
-//! is a chain it accepted and layers this side encoded. So this checks framing
-//! and bounds — enough that a bad offset is a refusal with a name rather than a
-//! read past the end — and a segment that breaks them is a defect in whoever
-//! handed it over.
+//! `source-index-format.ts`, and this side refuses what it refuses. A segment
+//! is opened by its length, not its digest, so a damaged segment of the right
+//! length reaches here. This checks framing and bounds — enough that a bad
+//! offset is a refusal with a name rather than a read past the end — and the
+//! range of every one-byte code column, so a damaged flag is refused rather
+//! than read as false.
 
 // compass: variance-authority.reach.source-index
 
@@ -149,6 +149,16 @@ impl<'a> Stored<'a> {
 
     pub fn u8s(&self, name: &str) -> Result<&'a [u8], String> {
         self.section(name, 1)?.ok_or_else(|| format!("no section {name}"))
+    }
+
+    /// A one-byte column of codes from zero to `most`, as a flag (`most` one)
+    /// or an enumeration: the TypeScript reader refuses the segment for one
+    /// code past it anywhere, so this side refuses it at open, not when a row
+    /// is read. A segment is read by its length, not its digest, so a damaged
+    /// byte reaches here. One pass of a byte maximum, which vectorises.
+    pub fn codes(&self, name: &str, most: u8) -> Result<&'a [u8], String> {
+        let column = self.u8s(name)?;
+        if column.iter().fold(0, |high, &code| high.max(code)) <= most { Ok(column) } else { Err(format!("column {name} holds a code past {most}")) }
     }
 
     pub fn u32s(&self, name: &str) -> Result<U32s<'a>, String> {

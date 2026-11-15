@@ -239,7 +239,7 @@ impl<'a> Directories<'a> {
     }
 }
 
-/// A flag column's entry; the decoder refuses anything but zero and one.
+/// A flag column's entry; `Stored::codes` refused anything but zero and one at open.
 fn flag(column: &[u8], row: usize) -> bool {
     column[row] == 1
 }
