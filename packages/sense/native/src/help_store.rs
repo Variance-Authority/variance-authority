@@ -118,7 +118,6 @@ pub struct StoreMeta {
     pub generated_at: String,
     /// When the read behind the value began, before any of it was read.
     pub read_started_at: String,
-    pub forwards_digest: Option<String>,
     pub index_digest: Option<String>,
     pub packages_digest: Option<String>,
 }
@@ -126,8 +125,8 @@ pub struct StoreMeta {
 #[napi(object)]
 pub struct EncodedStore {
     pub bytes: Buffer,
-    /// sha256 over the export list as a set of file, name, kind and type: what
-    /// `sameSurface` compares, kept so a later refresh compares two digests.
+    /// sha256 over the export list as a set of file, name, kind and type, which
+    /// the store's head states.
     pub exported: String,
 }
 
@@ -225,7 +224,8 @@ pub(crate) fn encode(input: &StoreRef, exported: &[NamedExport], meta: Option<&S
     let meta: [Option<&str>; META] = match meta {
         Some(held) => [
             Some(&held.root), Some(&held.graph_root), Some(&held.graph_digest), Some(&held.generated_at), Some(&held.read_started_at),
-            Some(&digest), held.forwards_digest.as_deref(), held.index_digest.as_deref(), held.packages_digest.as_deref(),
+            // The seventh slot held a digest of the `export … from` rows, which no reader compares any more.
+            Some(&digest), None, held.index_digest.as_deref(), held.packages_digest.as_deref(),
         ],
         None => [None, None, None, None, None, Some(&digest), None, None, None],
     };

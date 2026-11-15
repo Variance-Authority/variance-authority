@@ -94,7 +94,6 @@ export interface StoreMeta {
   readonly generatedAt: string;
   /** When the read behind the value began, before any of it was read. */
   readonly readStartedAt: string;
-  readonly forwardsDigest?: string;
   readonly indexDigest?: string;
   readonly packagesDigest?: string;
 }
@@ -105,36 +104,67 @@ export interface EncodedStore {
   readonly exported: string;
 }
 
-/** What `HelpReading.publish` writes, beside what the reading holds. */
-export interface HelpPublish {
-  readonly snapshot: string;
-  /** The graph is written at this prefix, its digest and `.bin`. */
-  readonly graph: string;
+/** One opening the workspace publishes: its `<package> .<subpath>` key, and the repo-relative file its entry is read from. */
+export interface HelpEntry {
+  readonly key: string;
+  readonly file: string;
+}
+
+/** One kind of one published name, as the chain reads its declaration. */
+export interface ReachedDeclaration {
+  /** As the parser harvested it, or `foreign` for a name read from no declaration of the checkout, `namespace-object` for a module held whole. */
+  readonly kind: string;
+  readonly at: string;
+  readonly line: number;
+  readonly signature?: string | null;
+  readonly doc?: string | null;
+  /** The name it is declared under there. */
+  readonly declared: string;
+}
+
+/** One name an entry hands out, and its kinds, the first declaration read of each kind kept, in the order they were read. */
+export interface PublishedName {
+  readonly name: string;
+  readonly kinds: readonly ReachedDeclaration[];
+}
+
+/** What `HelpReading.encode` stamps the store with, beside what the reading holds. */
+export interface HelpEncode {
   readonly root: string;
   readonly graphRoot: string;
   readonly generatedAt: string;
   /** When the read behind the value began, before any of it was read. */
   readonly readStartedAt: string;
-  /** The digest of the index manifest the reading was made from. */
-  readonly indexDigest: string;
-  /** What {@link forwardsDigest} states of the reading's `forwards`. */
-  readonly forwardsDigest: string;
+  /** The digest of the index manifest the reading was made from; absent when the value holds what no manifest says. */
+  readonly indexDigest?: string;
   /** What the package manifests the value was joined against state, as the store keeps it. */
   readonly packagesDigest: string;
   readonly packages: readonly StorePackage[];
   readonly unreadable: readonly string[];
+  /** The digest of the tree the caller publishes, when the reading drew none. */
+  readonly graphDigest?: string;
 }
 
-/** The chain's answer for a Help value; the export list stays with the addon. */
+/** The store's bytes, and the tree's when the reading drew it, under its digest. */
+export interface HelpEncoded {
+  readonly store: Uint8Array;
+  readonly tree?: Uint8Array | null;
+  readonly graphDigest: string;
+}
+
+/** The chain's answer for a Help value; the export list and the imports by path stay with the addon. */
 export interface HelpReading {
-  /** The export list as a set, as `EncodedStore.exported` states it. */
-  readonly exportedDigest: string;
-  /** The rows of the export list that `files` write; the rest stays with the addon. */
-  exportedOf(files: string[]): NativeIndexedUsage['exported'];
   /** The uses and unreadable files, handed over once; `exported`, `deep`, `byPath` and `unfollowed` are empty. */
   usage(): NativeIndexedUsage;
-  /** Write the graph and the store; a graph already written under its digest is kept. */
-  publish(options: HelpPublish): Promise<{ readonly graphDigest: string }>;
+  /**
+   * The names each entry hands out, in the order the entries were given,
+   * handed over once. Throws with the first export whose declaration the
+   * reading cannot say: a name nothing in its file binds, or one the file it
+   * leads to does not hand out.
+   */
+  names(): PublishedName[][];
+  /** The store's bytes and the tree's, once. */
+  encode(options: HelpEncode): Promise<HelpEncoded>;
 }
 
 /** One declaration of a member, `on` the interface, type alias or class that holds it. */
@@ -213,10 +243,8 @@ export interface Alias {
 export interface NativeHelp {
   /** The chain at `index`, read and checked once, for the readers below to share. */
   openIndex?(index: string): OpenedIndex;
-  readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[], tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
-  sourceTreeOf?(root: string, index: string, tsconfig: string | boolean | null, code: string[]): Promise<Uint8Array | null>;
+  readHelp?(root: string, index: string, entries: HelpEntry[], published: string[], unentered: string[], declared: string[], drawn: boolean, tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
-  digestForwards?(forwards: string[]): string;
   importersOf?(root: string, index: OpenedIndex, files: string[], name: string): NativeImporters | null;
   outsideSourcesOf?(root: string, index: OpenedIndex, name: string): string[] | null;
   memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
@@ -306,30 +334,24 @@ export function onIndex<T>(index: string, read: (opened: OpenedIndex) => T): T {
 }
 
 /**
- * The reading of the index at `index` for the entrypoints in `opened`, the
+ * The reading of the index at `index` for the openings in `entries`, the
  * imports into the packages in `targets.published` that no entry opens, the
  * packages in `targets.unentered`, which declare no entry, and the specifiers
  * in `targets.declared`, which a manifest names whether or not the reading
- * could follow them; `null` when none was published. `opened` and
- * `targets.declared` are `<package> .<subpath>` keys. Its graph carries what
- * each test loads for real beside its mocks, resolved under the `tsconfig` the
- * repository declares, as `mockTaint` joins them.
+ * could follow them; `null` when none was published. Entry keys and
+ * `targets.declared` are `<package> .<subpath>` keys. Unless `drawn` is
+ * `false`, for a caller that publishes a graph of its own, the reading draws
+ * the graph too, carrying what each test loads for real beside its mocks,
+ * resolved under the `tsconfig` the repository declares, as `mockTaint` joins them.
  */
 export function readHelp(
   root: string,
-  opened: readonly string[],
+  entries: readonly HelpEntry[],
   targets: { readonly published: Iterable<string>; readonly unentered: Iterable<string>; readonly declared: Iterable<string> },
   index: string = sourceIndexPath(root),
+  drawn = true,
 ): Promise<HelpReading | null> {
-  return entry('readHelp')(root, index, [...opened], [...targets.published], [...targets.unentered], [...targets.declared], ...mocking(root));
-}
-
-/**
- * The source tree `readHelp` publishes for the index at `index`, for a reading
- * whose usage was drawn on this side; `null` when none was published.
- */
-export function sourceTreeOf(root: string, index: string = sourceIndexPath(root)): Promise<Uint8Array | null> {
-  return entry('sourceTreeOf')(root, index, ...mocking(root));
+  return entry('readHelp')(root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root));
 }
 
 /** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */
@@ -341,11 +363,6 @@ function mocking(root: string): [string | boolean | null, string[]] {
 /** The store of `store` and `exported`, stamped with `meta` when it is published, and the digest of `exported`. */
 export function encodeHelpStore(store: HelpStore, exported: readonly NamedExport[], meta?: StoreMeta): EncodedStore {
   return entry('encodeHelpStore')(store, [...exported], meta ?? null);
-}
-
-/** The `export … from` rows of a reading as a set, which the export list does not hold. */
-export function forwardsDigest(forwards: readonly string[]): string {
-  return entry('digestForwards')([...forwards]);
 }
 
 /**

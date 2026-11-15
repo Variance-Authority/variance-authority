@@ -364,14 +364,6 @@ describe('reading a workspace through the source index', () => {
     expect(await readWorkspace(WORKSPACE, { index, changed: [] })).toEqual(walked);
   });
 
-  it('leaves the index alone when asked not to save', async () => {
-    const untouched = join(dirname(index), 'unsaved.bin');
-    expect(sites(await readWorkspace(WORKSPACE, { index: untouched, save: false }))).toEqual(sites(walked));
-    // A second reading against a file nothing wrote is a cold reading, and cold
-    // is the same answer.
-    expect(sites(await readWorkspace(WORKSPACE, { index: untouched, save: false }))).toEqual(sites(walked));
-  });
-
   it('joins declarative module loads onto the graph without inventing symbol uses', async () => {
     let records: readonly FileRecord[] = [];
     const taint = taintTable('loaders', {

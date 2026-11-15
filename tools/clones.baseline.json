@@ -148,20 +148,6 @@
   },
   {
     "files": [
-      "packages/help/src/indexed-surface.ts",
-      "packages/package/src/reach.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/help/src/read.ts",
-      "packages/package/src/help.ts"
-    ],
-    "count": 2
-  },
-  {
-    "files": [
       "packages/history/src/answers.ts",
       "packages/server/src/http-parse.ts"
     ],
