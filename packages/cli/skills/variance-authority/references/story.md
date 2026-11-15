@@ -6,6 +6,14 @@ counts, in one answer under 5,000 characters. Of the root
 `variance.config.json` it reads only `suites` and `cacheRoot`, to find where
 stories are kept.
 
+Named with `--name` (and `--file`) for a test no story is recorded for, it
+explains the test from the coverage record every run keeps: each line of the
+test's body in the order first reached, its source, its time and share of the
+test, and the functions it was the first to run, by package, with a hook's
+apart. It has no order beyond first visits and no counts. Ask it before you
+record: it answers "what does this line of the test reach" and "which line is
+slow" with no run.
+
 It is for a close look at a few tests, never at a suite. Record one only when
 you can write the question in one line about named tests: which path does this
 test take through this function, why does it pass or fail, does it reach the
@@ -59,7 +67,8 @@ Never record:
   for the tests `covering` names, pass their files and names. Never in CI.
 - **A performance test or a benchmark**, or a test for a question about time. A
   loop that runs thousands of times runs many times slower while recorded, and
-  a story has no times. If a story shows a loop count in the thousands, or
+  a story has no times; the test's own line times come from `story --name`
+  with no story recorded. If a story shows a loop count in the thousands, or
   prints that the recording filled up, choose another test.
 - **To find which tests run a line.** That is `covering`, from the record every
   run already keeps.

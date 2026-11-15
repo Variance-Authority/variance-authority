@@ -258,6 +258,11 @@ function alike(reading: Pick<Reading, 'stopped' | 'regions'>, read: Pick<Read, '
   return reading.regions.every((region, at) => region.every((part, field) => part === read.regions[at]![field]));
 }
 
+/** The regions case `id` crossed as `index` holds its newest run, each with the line charged; absent when the index holds no such case. */
+export function newestRegions(index: OpenedSetExecutionIndex, id: string): readonly ReadRegion[] | undefined {
+  return readsOf(index, new Set([id])).get(id)?.regions;
+}
+
 /** The readings of the cases `wanted` names that `index` holds, by id. */
 function readsOf(index: OpenedSetExecutionIndex, wanted: ReadonlySet<string>): Map<string, Read> {
   const rows = new Map<number, Read>();

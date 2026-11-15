@@ -95,7 +95,8 @@ export function formatOutcomes(comparison: OutcomeComparison, format: 'text' | '
   return `${text.join('\n')}\n`;
 }
 
-function regionText({ file, name, path, startLine, endLine }: OutcomeRegion): string {
+/** A region as one line: its name, its file and lines, and the arm it is. */
+export function regionText({ file, name, path, startLine, endLine }: OutcomeRegion): string {
   const where = `${name === '' ? '(top level)' : name}  ${file}:${lines(startLine, endLine)}`;
   return path === 'entry' || path === 'module' ? where : `${where}, ${armWords(path)}`;
 }
