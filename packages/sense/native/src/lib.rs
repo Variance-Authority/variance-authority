@@ -61,7 +61,6 @@ mod git_fixture;
 mod git_store;
 mod git_tree;
 pub use git_tree::{git_tree, git_tree_for, GitTree};
-use git_tree::tree_from_snapshot;
 #[cfg(feature = "grammars")]
 mod grammar;
 mod graph_dominators;
