@@ -4,18 +4,6 @@
  * the slowest files, and the slowest cases, each under a first line that names
  * the scope it applied. Asked for cases over a time, the question is about
  * cases, so the files stand aside.
- *
- * A case closest to its limit is stated as its run and its limit, never as a
- * breach: the run spans hooks and attempts, the limit one attempt, so a passing
- * case can read above it.
- *
- * A case that names its slowest statement carries it on one more line: the
- * file line, its time, and its share of the case, never above the whole of it:
- * two clocks time them, and a case stopped beside others ends with its file.
- *
- * A scope that matched nothing says which half matched nothing, and a `to`
- * path the record holds no row for is named as unrecorded: a table with no
- * rows would read as *no test is slow here*, which is a claim nobody measured.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -92,7 +80,11 @@ function takenAt({ commit, landed }: { readonly commit?: string; readonly landed
   return commit === undefined ? at : `${at}, landed at a time the record does not hold`;
 }
 
-/** The cases that ran the largest share of their limit, each as its run and its limit, over its slowest statement. */
+/**
+ * The cases that ran the largest share of their limit, each as its run and its
+ * limit, over its slowest statement — never as a breach: the run spans hooks
+ * and attempts, the limit one attempt, so a passing case can read above it.
+ */
 function closestSection(cases: RecordedCaseDurations, named: string): string[] {
   if ('unread' in cases || cases.timed === 0) return [];
   if (cases.limited === 0) return [`${named}: none of the ${cases.timed} timed case(s) has a recorded limit, so they are listed by time alone.`];
@@ -122,15 +114,23 @@ function placeOf(scope: DurationScope): string {
 }
 
 type Read = RecordedDurations | RecordedCaseDurations;
-type Row = { readonly file: string; readonly duration: number; readonly name?: string; readonly slowest?: TimedTestCase['slowest'] };
+type Row = { readonly file: string; readonly duration: number; readonly name?: string; readonly times?: TimedTestCase['times'] };
 
 const WHOLE = 100;
+const MICROS = 1000;
 
-/** The line under a case that names its slowest statement, indented to the case's label. */
-function statementLine({ file, duration, slowest }: Row, indent: number): string[] {
-  if (slowest === undefined) return [];
-  const share = Math.min(WHOLE, Math.round((slowest.time / duration) * WHOLE));
-  return [`${' '.repeat(indent)}slowest statement ${file}:${slowest.line}, ${spent(slowest.time)}, ${share}% of the case`];
+/**
+ * The line under a cut case whose slowest statement held a millisecond or more,
+ * indented to the case's label: the first reached among equals, its file line,
+ * whole milliseconds, and share of the case, never above the whole of it — two
+ * clocks time them, and a case stopped beside others ends with its file.
+ */
+function statementLine({ file, duration, times }: Row, indent: number): string[] {
+  const slowest = times?.reduce((held, time) => (time.time > held.time ? time : held));
+  const took = slowest === undefined ? 0 : Math.floor(slowest.time / MICROS);
+  if (slowest === undefined || took < 1) return [];
+  const share = Math.min(WHOLE, Math.round((took / duration) * WHOLE));
+  return [`${' '.repeat(indent)}slowest statement ${file}:${slowest.line}, ${spent(took)}, ${share}% of the case`];
 }
 
 function section(
@@ -179,7 +179,10 @@ function section(
   ];
 }
 
-/** Which half of the scope matched nothing, since an empty table would say no half did. */
+/**
+ * Which half of the scope matched nothing, since an empty table would say no
+ * half did — that no test is slow here, which nobody measured.
+ */
 function emptyScope(counts: ScopeCounts, noun: string, scope: DurationScope, recording: string): string {
   const from = scope.from?.join(' or ');
   const to = scope.to?.join(' or ');
@@ -191,6 +194,7 @@ function emptyScope(counts: ScopeCounts, noun: string, scope: DurationScope, rec
   return `no recorded ${noun} under ${from} entered ${to}, in ${recording}.`;
 }
 
+/** A `to` path the record holds no row for, named as unrecorded rather than as slow-free. */
 function unrecordedLine(counts: ScopeCounts, recording: string): string[] {
   if (counts.unrecorded.length === 0) return [];
   const paths = counts.unrecorded.map((path) => `\`${path}\``).join(', ');

@@ -1,0 +1,6 @@
+{
+  "name": "fixture-names",
+  "description": "One package that exports a name in each way a name question reads, and one that uses them.",
+  "private": true,
+  "workspaces": ["packages/*"]
+}

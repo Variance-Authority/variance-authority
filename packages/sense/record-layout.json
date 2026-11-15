@@ -131,8 +131,9 @@
     "readings": 16,
     "duration": "tests.duration",
     "limit": "tests.limit",
-    "slowest": "tests.slowest",
     "lines": "lines.blob",
-    "linesOffsets": "lines.off"
+    "linesOffsets": "lines.off",
+    "times": "times.blob",
+    "timesOffsets": "times.off"
   }
 }

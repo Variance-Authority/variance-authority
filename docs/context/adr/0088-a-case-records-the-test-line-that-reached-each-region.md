@@ -70,7 +70,9 @@ was the case's own or a hook's.** Nothing else in ADR-0056 decision 1 moves.
    journey run never cuts.
 5. **Selection reads none of it.** Which cases run is decided by the set, as
    before.
-6. **A case also carries its slowest statement's line and time.**
+6. **A case also carries the time of every statement line it cut at**, in
+   microseconds, in the order it first reached them. The slowest is read off
+   them, not stored.
 
 Not admitted: a rank within a statement, counts, repeats, spans, stacks,
 depth, and anything written on a page. ADR-0076 let a story claim only order

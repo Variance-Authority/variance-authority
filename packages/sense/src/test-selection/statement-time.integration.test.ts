@@ -1,5 +1,5 @@
 /**
- * A cut case names its slowest statement under each runner whose test files
+ * A cut case times every statement it ran under each runner whose test files
  * are cut: `test/waits.pace.ts` waits 200 ms on line 13 of a case that does
  * nothing else of length.
  */
@@ -11,6 +11,7 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 import { decodeExecutionIndex } from './execution-format.js';
+import type { ExecutionTest } from './reverse.js';
 
 const execute = promisify(execFile);
 const repository = resolve(import.meta.dirname, '../../../..');
@@ -50,7 +51,13 @@ const VITEST = [resolve(repository, 'node_modules/vitest/vitest.mjs'), 'run', '-
 const SCOPED = { FIXTURE_CONTINUATIONS: 'on' };
 const JEST = [resolve(repository, 'node_modules/jest/bin/jest.js'), '--config', 'jest.config.mjs', '--watchman=false'];
 
-describe('the slowest statement of a case, under each runner', () => {
+/** The statement that held the most time, as a reader picks it off the times. */
+function slowestOf(test: ExecutionTest | undefined): { line: number; time: number } | undefined {
+  const slowest = test?.times?.reduce((held, time) => (time.time > held.time ? time : held));
+  return slowest === undefined ? undefined : { line: slowest.line, time: slowest.time / 1000 };
+}
+
+describe('the statement times of a case, under each runner', () => {
   it.each([
     ['Vitest', 'external-vitest', VITEST, { FIXTURE_INCLUDE: 'test/waits.pace.ts' }],
     ['Jest', 'external-jest', JEST, { FIXTURE_TEST_MATCH: '<rootDir>/test/waits.pace.ts' }],
@@ -60,10 +67,13 @@ describe('the slowest statement of a case, under each runner', () => {
 
     expect(others).toEqual([]);
     expect(waits?.name).toBe('waits on one line');
-    expect(waits?.slowest?.line).toBe(WAIT.line);
-    expect(waits?.slowest?.time).toBeGreaterThanOrEqual(WAIT.time);
-    // The runner's clock spans the whole case; each side rounds to a millisecond.
-    expect(waits?.slowest?.time).toBeLessThanOrEqual(waits!.duration! + 1);
+    expect(slowestOf(waits)?.line).toBe(WAIT.line);
+    expect(slowestOf(waits)?.time).toBeGreaterThanOrEqual(WAIT.time);
+    // The runner's clock spans the whole case and rounds to a millisecond.
+    expect(slowestOf(waits)?.time).toBeLessThanOrEqual(waits!.duration! + 1);
+    // Every line it cut at holds a time, the quick ones included.
+    expect(waits?.times?.length).toBeGreaterThan(1);
+    expect(waits?.times?.every(({ time }) => Number.isInteger(time) && time >= 0)).toBe(true);
   }, 120_000);
 
   // `test/stops.limit.ts`: the runner stops the first case at 50 ms on line 13,
@@ -77,11 +87,11 @@ describe('the slowest statement of a case, under each runner', () => {
 
     expect(others).toEqual([]);
     expect(stopped?.name).toBe('is stopped at its limit');
-    expect(stopped?.slowest?.line).toBe(13);
-    expect(stopped?.slowest?.time).toBeGreaterThanOrEqual(45);
-    expect(stopped?.slowest?.time).toBeLessThan(300);
-    expect(waits?.slowest).toMatchObject({ line: 17 });
-    expect(waits?.slowest?.time).toBeGreaterThanOrEqual(300);
+    expect(slowestOf(stopped)?.line).toBe(13);
+    expect(slowestOf(stopped)?.time).toBeGreaterThanOrEqual(45);
+    expect(slowestOf(stopped)?.time).toBeLessThan(300);
+    expect(slowestOf(waits)).toMatchObject({ line: 17 });
+    expect(slowestOf(waits)?.time).toBeGreaterThanOrEqual(300);
   }, 120_000);
 
   it('is not recorded for a case whose file `cadence: false` left uncut', async () => {
@@ -90,6 +100,6 @@ describe('the slowest statement of a case, under each runner', () => {
     expect(others).toEqual([]);
     expect(waits?.name).toBe('waits on one line');
     expect(waits?.duration).toBeGreaterThanOrEqual(WAIT.time);
-    expect(waits?.slowest).toBeUndefined();
+    expect(waits?.times).toBeUndefined();
   }, 120_000);
 });

@@ -214,7 +214,7 @@ describe('the Rstest integration', () => {
       return {
         ...rest,
         tests: tests.map(({ duration: _, ...test }) => test),
-        cases: { ...cases, tests: cases.tests.map(({ duration: _, ...test }) => test) },
+        cases: { ...cases, tests: cases.tests.map(({ duration: _, times, ...test }) => ({ ...test, timedLines: times?.map(({ line }) => line) })) },
       };
     };
     expect(await recorded(taped)).toEqual(await recorded(plain));

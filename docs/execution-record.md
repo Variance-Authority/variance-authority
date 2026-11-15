@@ -577,10 +577,14 @@ limit of 5 s, and a retried case more. A case with no limit is absent from the
 column, never `0`, and a case index written before the column opens with every
 case's limit absent.
 
-A `tests.slowest` section beside them is the statement of the case's own body
-that took longest, as two entries per case: its line in the test file, and the
-whole milliseconds between the moment it began and the moment the next
-statement began, or the case ended. A statement in a loop counts as the sum of
+A `times.blob` section beside them, with its offsets in `times.off`, is the
+time of every statement of the case's own body, one row a case: each line the
+body cut at, in the order it first reached them, with the whole microseconds
+between the moment that statement began and the moment the next began, or the
+case ended. A row is varint pairs, the line as its zigzagged distance from the
+line before it, the first from 0, then the microseconds. Nothing is left out or
+ranked: a statement that took 3 µs reads 3, and the slowest is read off the
+row. A statement in a loop counts as the sum of
 its runs, and the time is read on the real clock, so a case under fake timers
 is timed as any other. Vitest, Jest and Rstest record it for a case whose test
 file [cadence](test-level-coverage.md#which-test-statement-first-ran-a-region)
@@ -590,9 +594,12 @@ Where attempts of a file overlap, by cases running at the same time or a retry
 begun before the attempt before it was closed, a stopped case ends where the
 file does, as does every case stopped in that file after it, and can read
 longer than the case; a case that finishes is timed whole either way. A retry
-adds to the attempt before it. A case whose statements all took under a
-millisecond, a case whose file was not transformed and every case of an index
-written before the section are absent from it, never `0`. No selection, key or
+adds to the attempt before it. A case whose file was not transformed holds an
+empty row, and an index written before the section has none: either way the
+case reads as untimed, never `0`. Where no case was timed the section is not
+written. Where shards
+hold one case twice, the combined record keeps the row that ran longest in
+all, and of two as long the lower. No selection, key or
 digest reads the section.
 
 **Attempts.** A runner that retries a case reports one outcome for it, the last,
@@ -671,7 +678,7 @@ was read, and a story the run did not time is recorded without one.
 `variance ask slowest-tests` opens with whose record it read, at which commit and
 how old, then lists the cases closest to their limit and the slowest recorded
 files and cases, anywhere or under the paths you name. `--over` lists cases alone.
-A listed case that recorded its slowest statement carries it on one more line.
+A listed case that timed its statements carries the slowest on one more line.
 
 **Runs.** A section over sixty-four kilobytes is cut into runs — four thousand
 and ninety-six rows of a column, five hundred and twelve strings of the blob —

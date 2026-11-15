@@ -2,8 +2,9 @@ import { blob, column, NO_OWNER, sections } from './format-layout.js';
 import { type CrossingSetsView } from './crossing-sets-read.js';
 import { CrossingSets, type CrossingSetsPool } from './crossing-sets.js';
 import { codeUnitOrder, intern } from '@variance-authority/core/segment';
-import { linesColumn, type CaseLines, type LinesTable } from './case-lines.js';
+import { linesColumn, type CaseLines, type RowsTable } from './case-lines.js';
 import { saidLaid, type Said } from './case-said.js';
+import { timesColumn, timesFrom, type CaseTime } from './case-times.js';
 import {
   columnWords,
   durationColumn,
@@ -19,8 +20,6 @@ import {
   SAID_SECTION,
   sectionsOf,
   setColumns,
-  slowestColumn,
-  slowestFrom,
   stoppedColumn,
   stoppedFrom,
   stringTable,
@@ -158,7 +157,7 @@ export function encodeSetExecutionIndex(index: SetExecutionIndex): Buffer {
     testStopped: stoppedColumn(index.tests),
     testDuration: durationColumn(index.tests),
     testLimit: limitColumn(index.tests),
-    testSlowest: slowestColumn(index.tests.length, (at) => index.tests[at]!.slowest),
+    testTimes: index.tests.map((test) => test.times),
     testSaid: index.tests.map((test) => test.said),
     moduleFile,
     moduleBlocks,
@@ -187,12 +186,12 @@ function renamed(lines: readonly (CaseLines | undefined)[], order: readonly numb
 }
 
 /** The columns an index is written from: every one {@link SetColumns} reads, none optional but the owner, overwritten and lines columns. */
-export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testLimit' | 'testSlowest' | 'testSaid' | 'testLines'> {
+export interface WrittenSetColumns extends Omit<SetColumns, 'sets' | 'testStopped' | 'testDuration' | 'testLimit' | 'testTimes' | 'testSaid' | 'testLines'> {
   readonly testStopped: Uint8Array;
   readonly testDuration: Uint32Array;
   readonly testLimit: Uint32Array;
-  /** Each case's slowest statement; no column where no case timed one. */
-  readonly testSlowest?: Uint32Array | undefined;
+  /** Each case's statement times; no column where no case was timed. */
+  readonly testTimes?: readonly (readonly CaseTime[] | undefined)[] | undefined;
   /** What each case said; `undefined` where none listened. */
   readonly testSaid: readonly (Said | undefined)[];
   /** Each case's lines, its modules named by their row; no column where no case recorded any. */
@@ -216,11 +215,11 @@ export function writeSetColumns(columns: WrittenSetColumns, pool: CrossingSetsPo
     'tests.stopped': column(columns.testStopped),
     'tests.duration': column(columns.testDuration),
     [LAYOUT.cases.limit]: column(columns.testLimit),
-    ...(columns.testSlowest === undefined ? {} : { [LAYOUT.cases.slowest]: column(columns.testSlowest) }),
     ...(laid?.said === undefined ? {} : { [SAID_SECTION]: column(laid.said) }),
     ...(laid?.read === undefined ? {} : { [READ_SECTION]: column(laid.read) }),
     ...(laid?.misused === undefined ? {} : { [MISUSED_SECTION]: column(laid.misused) }),
     ...linesColumn(columns.testLines ?? []),
+    ...timesColumn(columns.testId.length, (at) => columns.testTimes?.[at]),
     'modules.file': column(columns.moduleFile),
     'modules.blocks': column(columns.moduleBlocks),
     'blocks.kind': column(columns.blockKind),
@@ -244,7 +243,7 @@ export interface OpenedSetExecutionIndex {
   readonly modules: readonly SetExecutionModule[];
   readonly sets: CrossingSetsView;
   /** Each case's lines, absent in an index written without cuts. */
-  readonly lines?: LinesTable;
+  readonly lines?: RowsTable;
 }
 
 /**
@@ -434,7 +433,7 @@ export function testAt(columns: TestColumns, at: number, string: (id: number) =>
     ...stoppedFrom(columns.testStopped, at),
     ...durationFrom(columns.testDuration, at),
     ...limitFrom(columns.testLimit, at),
-    ...slowestFrom(columns.testSlowest, at),
+    ...timesFrom(columns.testTimes, at),
     ...(columns.testSaid?.[at] === undefined ? {} : { said: columns.testSaid[at] }),
   };
 }
