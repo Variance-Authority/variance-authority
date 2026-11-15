@@ -352,18 +352,10 @@ export function forwardsDigest(forwards: readonly string[]): string {
 }
 
 /**
- * Every import of each asked name out of the file asked with it, repo-relative,
- * by any file the index at `index` holds — an import within a package as well
- * as one across packages, which the Help value does not record — ordered by the
- * importing file in code units, then by line; `undefined` when no index was
- * published. A file that passes the name on with `export … from` is followed
- * under the name it exports and named in `through`, and is no use. Each use's
- * `key` is the specifier as the importing file wrote it, and its `name` the
- * name it takes, which such a file can rename. Each group is followed as one
- * question, so a file passing on two of its names is read once, and `apart`
- * holds what each group would answer alone, in the order asked, all of them
- * read in one walk.
- * Throws when the index does not read.
+ * Every import, by any file the index at `index` holds, of each asked name out
+ * of the file asked with it, each group followed as one question and told
+ * apart in `apart`: `importers_of` in `native/src/help_publish.rs` says how.
+ * `undefined` when no index was published; throws when it does not read.
  */
 export function importersOf(
   root: string,
