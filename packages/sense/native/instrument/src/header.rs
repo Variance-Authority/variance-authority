@@ -3,13 +3,9 @@
 //! The text is the runtime's contract, and this is its one author: the addon
 //! inserts it for `instrument()` in `src/instrument/index.ts`, and a Rust
 //! pipeline inserts it through [`crate::instrument`]. Why it is shaped this way
-//! — module variables for the fast path, function declarations for a circular
-//! import, a depth on the bucket for a module evaluating inside another — is in
+//! — the probes made by the root, function declarations for a circular import,
+//! a depth on the bucket for a module evaluating inside another — is in
 //! that file's documentation, beside the collectors that read it.
-
-/// The bit a log entry carries when its region was entered while a module was
-/// evaluating. `EVALUATING` in `src/instrument/index.ts` is the same number.
-pub const EVALUATING: u32 = 0x8000_0000;
 
 /// The header for one module: `module` is the id its probes report, `count` its
 /// number of regions.
@@ -23,19 +19,14 @@ pub fn header(module: &str, count: usize) -> String {
     out
 }
 
-const HEAD: &str = concat!(
-    "var __vaK,__vaG,__vaB,__vaL;function __vaF(){}function __vaP(){}",
-    "function __vaI(){__vaK=globalThis.__VA__;const r=__vaK.r(",
-);
+const HEAD: &str = "var __vaL,__vaM;function __vaI(){const m=__vaM=globalThis.__VA__.r(";
 
 const TAIL: &str = concat!(
-    ");__vaF=r.f;__vaG=r.s;__vaB=r.b;__vaP=r.p;__vaL=r.V;return __vaK}",
-    "function __va(i){if((__vaF[i]&__vaP[0])===0)__vaS(i)}",
-    "function __vaS(i){const K=__vaK||__vaI();if(K.s!==null)K.s();const v=K.v,m=v===0?1:2;if((__vaG[0]&m)===0){__vaG[0]|=m;K.g(__vaB|v)}",
-    "const f=__vaG[i],p=__vaP[0];if((f&p)===0){__vaG[i]=f|p;const n=K.n;if(n<K.l){K.L[n]=(__vaB+i)|v;K.n=n+1}else K.g((__vaB+i)|v)}}",
-    "function __vaR(v,i){__va(i);return v}",
-    "function __vaE(){(__vaK||__vaI()).x()}",
-    "(__vaK||__vaI()).e();__vaG[0]|=2;__vaK.g(2147483648|__vaB);",
+    ");__vaL=m.V;__vaR=m.R;__vaE=m.E;__va=m.va;return m}",
+    "function __va(i){__vaI().va(i)}",
+    "function __vaR(v,i){return __vaI().R(v,i)}",
+    "function __vaE(){__vaI().E()}",
+    "(__vaM||__vaI()).T();",
 );
 
 /// `JSON.stringify` of a string, which is how the id has always been written.
@@ -71,8 +62,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_evaluating_bit_is_the_one_the_tail_writes() {
-        assert!(TAIL.contains(&format!("{EVALUATING}|__vaB")));
+    fn the_header_takes_its_probes_from_the_root_on_the_first_call() {
+        // The root makes the probes, once for every module of a realm: each
+        // declaration asks for the module's set and rebinds the names to it,
+        // so a circular import that calls one before the header ran is served.
+        let text = header("a", 1);
+        assert!(text.contains("function __vaI(){const m=__vaM=globalThis.__VA__.r(\"a\",1);__vaL=m.V;__vaR=m.R;__vaE=m.E;__va=m.va;return m}"), "{text}");
+        assert!(text.contains("function __va(i){__vaI().va(i)}"), "{text}");
+        assert!(text.contains("function __vaR(v,i){return __vaI().R(v,i)}"), "{text}");
+        assert!(text.contains("function __vaE(){__vaI().E()}"), "{text}");
+        assert!(text.ends_with("(__vaM||__vaI()).T();"), "{text}");
+        assert!(!text.contains('&'), "the gate is the root's: {text}");
     }
 
     #[test]

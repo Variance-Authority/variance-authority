@@ -6,8 +6,8 @@
  * A region's first touch in a segment sets its flag and appends it to the log;
  * every later touch reads the flag and returns. The later touches are almost
  * all of them — a suite enters a region once per case and runs it thousands of
- * times — so the steady state is what this prices: two module-scoped loads,
- * two byte reads and an `and`, with no call. Two shapes of it:
+ * times — so the steady state is what this prices: two closure slots, two
+ * byte reads and an `and`, with no call. Two shapes of it:
  *
  *   current  the emitted runtime over a flat engine: what a test file records with
  *   scoped   the same runtime over an engine that asks its scope which bucket is
@@ -37,6 +37,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { probeRuntime } from '../dist/instrument/index.js';
 import * as probeLog from '../dist/instrument/probe-log.cjs';
+import * as probeSet from '../dist/instrument/probe-set.cjs';
 
 const REGIONS = Number(process.argv[2] ?? 4);
 const SWEEPS = Number(process.argv[3] ?? 1_000_000);
@@ -55,11 +56,11 @@ const VARIANTS = ORDER.length > 0 ? ORDER : Object.keys(SHAPES);
 
 // The flat engine a test file records with, and a scoped one beside it whose
 // resolver always answers the same bucket, so it never switches.
-const flat = probeLog.createEngine(false);
+const flat = probeLog.createEngine(false, probeSet.probeSet);
 const flatBucket = flat.open('');
 flat.use(flatBucket);
 globalThis.__VA__ = flat.root;
-const scoped = probeLog.createEngine(true);
+const scoped = probeLog.createEngine(true, probeSet.probeSet);
 const scopedBucket = scoped.open('');
 scoped.scope(() => scopedBucket);
 globalThis.__VA_SCOPED__ = scoped.root;
@@ -76,8 +77,8 @@ globalThis.__VA_SCOPED__ = scoped.root;
 function source(id, variant) {
   const shape = SHAPES[variant];
   const runtime = probeRuntime(id, REGIONS + 1).replace(
-    '__vaK=globalThis.__VA__;',
-    `__vaK=globalThis.${shape.root};`,
+    'globalThis.__VA__.r(',
+    `globalThis.${shape.root}.r(`,
   );
   const sites = [];
   const calls = [];
@@ -120,11 +121,11 @@ try {
     }
   }
 
-  const held = [
-    ...flat.lists(flat.read(flatBucket), true),
-    ...scoped.lists(scoped.read(scopedBucket), true),
-  ];
-  const entered = (variant) => held.find((row) => row.id === variant)?.hits.length ?? 0;
+  // A module that registers again is handed the row it holds, flags and all.
+  const entered = (variant) => {
+    const root = SHAPES[variant].root === '__VA__' ? flat.root : scoped.root;
+    return root.r(variant, REGIONS + 1).s.filter((flag) => flag !== 0).length;
+  };
 
   const floorOf = (variant) => Math.min(...timings.get(variant));
   const base = floorOf(VARIANTS[0]);

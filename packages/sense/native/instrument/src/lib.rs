@@ -41,7 +41,6 @@ mod place;
 mod walk;
 
 pub use cadence::{cadence, Cadence};
-pub use header::EVALUATING;
 
 /// How many regions a module is cut into.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -150,7 +149,7 @@ mod tests {
         let source = "import a from './a';\nexport function f(x) {\n  if (x) return a;\n  return 0;\n}\n";
         let out = instrument(source, "f.js", "src/f.js@00", Mode::Presence).expect("it parses");
         assert_eq!(out.code.lines().count(), source.lines().count());
-        assert!(out.code.starts_with("import a from './a';\nvar __vaK"));
+        assert!(out.code.starts_with("import a from './a';\nvar __vaL,__vaM;"));
         assert!(out.code.contains(".r(\"src/f.js@00\",5);"));
         assert_eq!(out.regions, 5);
         assert_eq!(out.instrumentation, "sense:instrument/presence-v6");

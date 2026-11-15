@@ -129,7 +129,7 @@ pub(crate) fn splice(source: &str, program: &Program, mut walker: Walker, keep: 
 
     // A module that is all prologue takes its header on the line of its last
     // statement, which may end without a semicolon: `export * from './a'`
-    // followed by `var __vaK` is not a program. A module that is only a
+    // followed by `var __vaL` is not a program. A module that is only a
     // hashbang would take it inside that comment and record nothing. The
     // separator makes each a program that runs its header.
     let tail = prologue > 0 && program.body.iter().all(is_prologue);

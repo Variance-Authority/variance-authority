@@ -69,6 +69,7 @@
 
 import type { ModuleId } from './index.js';
 import type probeCuts = require('./probe-cuts.cjs');
+import type probeSet = require('./probe-set.cjs');
 
 /** One caller's share of the log: a case, a journey, a file, a page between drains. */
 interface Bucket {
@@ -96,16 +97,21 @@ interface Bucket {
  * @param scoped Whether the bucket follows an async scope. True makes every
  * probe call in and ask the resolver handed to `scope`, which is the price of
  * two scopes interleaving; false leaves the bucket to `use` alone.
+ * @param probes What makes a row's probes: `probeSet`, from `probe-set.cts`.
  * @param cuts What keeps a test runner's cuts; without it a cut does nothing.
  */
-function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.createCuts>) {
+function createEngine(
+  scoped: boolean,
+  probes: typeof probeSet.probeSet,
+  cuts?: ReturnType<typeof probeCuts.createCuts>,
+) {
   const EVALUATING = -2147483648;
   const INDEX = 0x7fffffff;
-  const NO_FLAGS = new Uint8Array(0);
 
   const rowIds: ModuleId[] = [];
   const rowCounts: number[] = [];
   const rowFlags: Uint8Array[] = [];
+  const rowProbes: ReturnType<typeof probes>[] = [];
   const byId = new Map<ModuleId, number>();
   let rowBase = new Int32Array(256);
   let rowLive = new Uint8Array(256);
@@ -149,12 +155,6 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
   let resolveNow = (): Bucket => current;
   // Which flag bit answers now: 1 outside every evaluation, 2 inside one.
   const passing = new Uint8Array([1]);
-  const registered: { f: Uint8Array; s: Uint8Array; b: number; p: Uint8Array } = {
-    f: NO_FLAGS,
-    s: NO_FLAGS,
-    b: 0,
-    p: passing,
-  };
   // What the probe reads before it calls in. Where only `use` switches, that is
   // the flag itself, since every flag is clear after a switch. Where the scope
   // decides, a set flag may belong to the bucket the scope just left, so the
@@ -341,7 +341,7 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
     root.n = end + 1;
   };
 
-  const register = (id: ModuleId, count: number): typeof registered => {
+  const register = (id: ModuleId, count: number): ReturnType<typeof probes> => {
     let row = byId.get(id);
     if (row === undefined || rowCounts[row] !== count) {
       if (row !== undefined) rowLive[row] = 0;
@@ -364,12 +364,10 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
       rowOf = grow(rowOf, total + count);
       seen = grow(seen, total + count);
       rowOf.fill(row, total, total + count);
+      rowProbes.push(probes(root, rowGates[row]!, rowFlags[row]!, total, passing));
       total += count;
     }
-    registered.f = rowGates[row]!;
-    registered.s = rowFlags[row]!;
-    registered.b = rowBase[row]!;
-    return registered;
+    return rowProbes[row]!;
   };
 
   const raise = (): void => {
@@ -409,11 +407,11 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
   // What the probes and a tap read, and nothing else: `a` the activation, a
   // number `use` moves on every switch, which the story tap reads; `s` the
   // scope check, null unless the bucket follows an async scope; `v` the
-  // evaluating bit; `n`/`l`/`L` the log; `g` the slow write; `r` registration;
-  // `e`/`x` the evaluating depth; `m` a module marked loaded; `c` a test line's
-  // cut. Built with every field in place, so its shape never changes under the
-  // probes that read it. `s` is a field of its own because an accessor is not
-  // inlined: it cost 6 ns a hit.
+  // evaluating bit; `n`/`l`/`L` the log; `g` the slow write; `r` registration,
+  // which answers the module's probes; `e`/`x` the evaluating depth; `m` a
+  // module marked loaded; `c` a test line's cut. Built with every field in
+  // place, so its shape never changes under the probes that read it. `s` is a
+  // field of its own because an accessor is not inlined: it cost 6 ns a hit.
   const root = {
     a: activation,
     s: null as (() => void) | null,
@@ -449,6 +447,8 @@ function createEngine(scoped: boolean, cuts?: ReturnType<typeof probeCuts.create
   const api = {
     root,
     scoped, cuts,
+    /** What makes a row's probes, for a root in front of this one. */
+    probes,
     /** A new, empty bucket. */
     open,
     /** Make `bucket` the one the probes write into. */
