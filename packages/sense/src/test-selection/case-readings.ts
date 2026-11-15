@@ -107,6 +107,16 @@ export function readingsOf(section: Uint8Array | undefined, index: Uint8Array | 
   }));
 }
 
+/**
+ * The regions case `id` crossed as `index` holds its newest run, each with the
+ * line charged; absent when the index holds no such case. The addon reads it.
+ */
+export function newestRegions(index: Uint8Array, id: string): readonly ReadRegion[] | undefined {
+  const read = native()?.newestRegionsOfCase;
+  if (read === undefined) throw new Error(`reading a case's regions requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `newestRegionsOfCase`'}`);
+  return read(buffer(index)!, id)?.map(({ module, name, path, start, end, value }): ReadRegion => [module, name, path, start, end, value ?? null]);
+}
+
 function buffer(bytes: Uint8Array | undefined): Buffer | undefined {
   return bytes === undefined ? undefined : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }

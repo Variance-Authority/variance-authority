@@ -263,7 +263,7 @@ export async function answerConfigless(
     // its test seam.
     case 'story': {
       const { formatStory, story } = await import('./story.js');
-      streams.out(formatStory(story(parsed), parsed.format));
+      streams.out(formatStory(await story(parsed), parsed.format));
       return EXIT_CLEAN;
     }
 

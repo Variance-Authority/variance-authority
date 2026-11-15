@@ -16,7 +16,7 @@ import type {
   ScopeCounts,
   TimedTestCase,
 } from '@variance-authority/sense';
-import { ago } from '@variance-authority/sense/test-selection';
+import { ago, shareOf } from '@variance-authority/sense/test-selection';
 
 /** A duration as a reader compares them: milliseconds under a second, seconds to a tenth above. */
 export function spent(milliseconds: number): string {
@@ -122,14 +122,13 @@ const MICROS = 1000;
 /**
  * The line under a cut case whose slowest statement held a millisecond or more,
  * indented to the case's label: the first reached among equals, its file line,
- * whole milliseconds, and share of the case, never above the whole of it — two
- * clocks time them, and a case stopped beside others ends with its file.
+ * its nearest millisecond, and its share of the case as `variance story` gives it.
  */
 function statementLine({ file, duration, times }: Row, indent: number): string[] {
   const slowest = times?.reduce((held, time) => (time.time > held.time ? time : held));
-  const took = slowest === undefined ? 0 : Math.floor(slowest.time / MICROS);
-  if (slowest === undefined || took < 1) return [];
-  const share = Math.min(WHOLE, Math.round((took / duration) * WHOLE));
+  if (slowest === undefined || slowest.time < MICROS) return [];
+  const took = Math.round(slowest.time / MICROS);
+  const share = shareOf(slowest.time, duration) ?? WHOLE;
   return [`${' '.repeat(indent)}slowest statement ${file}:${slowest.line}, ${spent(took)}, ${share}% of the case`];
 }
 

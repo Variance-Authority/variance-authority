@@ -9,6 +9,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { digestString } from '@variance-authority/core/format';
 import type { ExecutionIndex, HeldNames } from '@variance-authority/sense/test-selection';
 import type { RanNamed, RanQuestion } from './covering-ran.js';
 import { rowsCut, type RowsCut } from './record-rows-text.js';
@@ -51,7 +52,7 @@ export async function namesOf(question: RanQuestion, snapshot: string, held: Rea
     const blob = now.get(file);
     if (blob === undefined) return [file, { unknown: `the source index does not hold ${file}, so which text ran over it is not known` }];
     const cut = cuts.get(file);
-    return [file, { blob, digest: cut !== undefined && !('unknown' in cut) && cut.blob === blob ? cut.digest : undefined }];
+    return [file, { blob, digest: cut !== undefined && !('unknown' in cut) && cut.blob === blob ? cut.digest : undefined, own: digestString(held.get(file)!) }];
   }));
   return { names, rows };
 }

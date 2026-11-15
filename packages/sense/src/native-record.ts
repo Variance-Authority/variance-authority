@@ -82,6 +82,14 @@ export interface NativeRecords {
     id: string,
   ): { count: number; stopped?: boolean; regions: { module: string; name: string; path: string; start: number; end: number; value?: number }[] }[] | null;
   /**
+   * The regions case `id` crossed as `index` holds its newest run, as `newestRegions` documents it;
+   * `null` when the index holds no such case.
+   */
+  newestRegionsOfCase?(
+    index: Buffer,
+    id: string,
+  ): { module: string; name: string; path: string; start: number; end: number; value?: number }[] | null;
+  /**
    * Where each region of `inventories` lands among `table`'s, one file's own cut, by position:
    * at the region of its shape, else at the innermost source region enclosing it; `null` where none does.
    */

@@ -6,7 +6,7 @@ use std::collections::{HashMap, HashSet};
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
-use super::{lay, readings_of, Run};
+use super::{lay, open, readings_of, Region, Run};
 
 /// Lay a run's case readings over the record's; see `layReadings`. `same` is
 /// every file the run recorded from the text the landed index holds it at,
@@ -60,13 +60,25 @@ pub fn readings_of_case(section: Buffer, index: Option<Buffer>, id: String) -> n
     Ok(readings.map(|readings| readings.into_iter().map(|reading| CaseReading {
         count: reading.count as f64,
         stopped: reading.stopped,
-        regions: reading.regions.into_iter().map(|region| CaseRegion {
-            module: region.module.to_string(),
-            name: region.name.to_string(),
-            path: region.path.to_string(),
-            start: region.start as f64,
-            end: region.end as f64,
-            value: region.value.map(|value| value as f64),
-        }).collect(),
+        regions: reading.regions.into_iter().map(region).collect(),
     }).collect()))
+}
+
+/// The regions case `id` crossed as `index` holds its newest run; see `newestRegions`.
+#[napi(catch_unwind)]
+pub fn newest_regions_of_case(index: Buffer, id: String) -> napi::Result<Option<Vec<CaseRegion>>> {
+    let Some(index) = open(&index).map_err(napi::Error::from_reason)? else { return Ok(None) };
+    let read = index.reads(&HashSet::from([id.as_str()])).map_err(napi::Error::from_reason)?.remove(&id);
+    Ok(read.map(|read| read.regions.into_iter().map(region).collect()))
+}
+
+fn region(region: Region) -> CaseRegion {
+    CaseRegion {
+        module: region.module.to_string(),
+        name: region.name.to_string(),
+        path: region.path.to_string(),
+        start: region.start as f64,
+        end: region.end as f64,
+        value: region.value.map(|value| value as f64),
+    }
 }
