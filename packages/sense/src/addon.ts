@@ -2,6 +2,7 @@
 /// <depends path="../native/Cargo.lock" />
 /// <depends path="../native/Cargo.toml" />
 /// <depends path="../native/build.rs" />
+/// <depends path="../native/build.mjs" />
 /// <depends path="../native/instrument/Cargo.toml" />
 /// <depends path="../native/instrument/build.rs" />
 /// <depends path="../native/rust-toolchain.toml" />

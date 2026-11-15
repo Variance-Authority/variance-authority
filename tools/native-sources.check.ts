@@ -17,7 +17,7 @@ describe('the native crate is declared by the module that loads it', () => {
   const tracked = execFileSync('git', ['ls-files', '-z', '--', NATIVE], { cwd: ROOT, encoding: 'utf8' })
     .split('\0')
     .filter((path) => path !== '');
-  const unnamed = tracked.filter((path) => /(?:^|\/)(?:build\.rs|Cargo\.lock|[^/]+\.toml)$/.test(path));
+  const unnamed = tracked.filter((path) => /(?:^|\/)(?:build\.m?[jr]s|Cargo\.lock|[^/]+\.toml)$/.test(path));
   const declared = [...readFileSync(join(ROOT, ADDON), 'utf8').matchAll(/^\/\/\/ <depends path="([^"]+)" \/>$/gm)].map(
     ([, path]) => posix.join(posix.dirname(ADDON), path!),
   );
