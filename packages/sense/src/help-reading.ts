@@ -353,8 +353,8 @@ export function forwardsDigest(forwards: readonly string[]): string {
 
 /**
  * Every import, by any file the index at `index` holds, of each asked name out
- * of the file asked with it, each group followed as one question and told
- * apart in `apart`: `importers_of` in `native/src/help_publish.rs` says how.
+ * of the file asked with it, each group followed as one question and answered
+ * in `groups`: `importers_of` in `native/src/help_publish.rs` says how.
  * `undefined` when no index was published; throws when it does not read.
  */
 export function importersOf(

@@ -98,7 +98,9 @@ export function importsOf(root: string | undefined, files: readonly string[], na
   const read = importers(root, [files.map((file) => ({ file, name }))]);
   if ('unread' in read) return read;
   const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
-  return { uses: read.uses.map(indexedUse), through: read.through, namespaces: read.namespaces, inFile, unresolved: read.unresolved };
+  const [asked] = read.groups;
+  if (asked === undefined) return { unread: 'the source index answered no group for the one asked' };
+  return { uses: asked.uses.map(indexedUse), through: asked.through, namespaces: read.namespaces, inFile, unresolved: read.unresolved };
 }
 
 /** The native answer to who imports each asked name out of its file, one question per group, or why the index says nothing. */
@@ -113,7 +115,7 @@ function importers(root: string | undefined, asked: readonly (readonly Asked[])[
   return read ?? { unread: 'no source index is published; run `variance index`' };
 }
 
-function indexedUse(use: NonNullable<ReturnType<typeof importersOf>>['uses'][number]): IndexedUse {
+function indexedUse(use: NonNullable<ReturnType<typeof importersOf>>['groups'][number]['uses'][number]): IndexedUse {
   return { name: use.name, specifier: use.key, ...useOf(use), ...(use.lines == null ? {} : { lines: use.lines }) };
 }
 
@@ -131,7 +133,7 @@ export type Apart = { readonly uses: readonly IndexedUse[]; readonly through: re
 export function importsApart(root: string | undefined, asked: readonly Asked[]): readonly Apart[] {
   const read = importers(root, asked.map((one) => [one]));
   if ('unread' in read) return asked.map(() => read);
-  return read.apart.map((one) => ({ uses: one.uses.map(indexedUse), through: one.through }));
+  return read.groups.map((one) => ({ uses: one.uses.map(indexedUse), through: one.through }));
 }
 
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */

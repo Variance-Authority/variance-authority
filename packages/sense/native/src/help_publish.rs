@@ -130,8 +130,8 @@ fn reading(root: &str, index: String, opened: &[String], published: &[String], u
 /// included, and through each file that passes it on with `export … from`,
 /// which is named in `through` and is no use; `None` when there is no index. A
 /// use's `key` is the specifier as the importing file wrote it, and its `name`
-/// the name it takes. Each group is one question, and `apart` says what each
-/// would answer alone.
+/// the name it takes. Each group is one question, answered in `groups` as it
+/// would be alone.
 #[napi(catch_unwind)]
 pub fn importers_of(root: String, index: &OpenedIndex, asked: Vec<Vec<Asked>>) -> napi::Result<Option<Importers>> {
     opened_chain(index, |layers| importers(&root, layers, &index.configurations, &asked))

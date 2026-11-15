@@ -13,14 +13,13 @@ use super::NameUse;
 use crate::compact::Layer;
 use crate::help_in_file::{in_file, InFile};
 
-/// Who imports each name asked out of the file asked with it, and which files pass it on.
+/// Who imports each name asked out of the file asked with it, told apart by
+/// the group asked, and what the files asked hold of it.
 #[napi(object)]
 pub struct Importers {
-    /// Every use, ordered by the importing file in code units, then by line.
-    pub uses: Vec<NameUse>,
-    /// Every file that passes a name asked on with `export … from`, under the
-    /// name it exports, in code-unit order; none of the files asked about.
-    pub through: Vec<String>,
+    /// Each group asked, in the order asked, with what a question about it
+    /// alone would list.
+    pub groups: Vec<Group>,
     /// Every line of one of the files asked about that uses the name asked of
     /// it, declared at its top level, by file in code units, then by line.
     pub in_file: Vec<InFile>,
@@ -30,9 +29,6 @@ pub struct Importers {
     /// Every file, in code-unit order, with an import the index resolved to
     /// no file that could take the name: a use there is not listed.
     pub unresolved: Vec<String>,
-    /// Each group asked, in the order asked, with what a question about it
-    /// alone would list.
-    pub apart: Vec<Apart>,
 }
 
 /// One file asked about, and the name it exports what is asked under.
@@ -42,11 +38,13 @@ pub struct Asked {
     pub name: String,
 }
 
-/// What one group asked about answers alone: the uses of its names, and the
-/// files passing them on, its own left out.
+/// What one group asked about answers alone.
 #[napi(object)]
-pub struct Apart {
+pub struct Group {
+    /// Every use of its names, ordered by the importing file in code units, then by line.
     pub uses: Vec<NameUse>,
+    /// Every file that passes one of its names on with `export … from`, under
+    /// the name it exports, in code-unit order; none of the group's own files.
     pub through: Vec<String>,
 }
 
@@ -83,11 +81,9 @@ pub struct Namespace {
 /// and the scan read those lines with its parse: they are `in_file`.
 ///
 /// Each group asked is one origin, followed as one question: a file passing on
-/// the names of two of its members is followed once. `apart` says what each
-/// group would answer alone, so the declarations of one name, each asked as its
-/// own group, are told apart in one walk, a default export among them. In `uses`
-/// a site two groups reach is one use, a value use when either reached it as
-/// one; in `apart` each keeps what its own walk reached.
+/// the names of two of its members is followed once. Each group's answer is
+/// what it would answer alone, so the declarations of one name, each asked as
+/// its own group, are told apart in one walk, a default export among them.
 pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configurations, asked: &[Vec<Asked>]) -> Importers {
     let mut origins: HashMap<String, HashMap<String, HashSet<usize>>> = HashMap::new();
     let mut by_name: HashMap<&str, Vec<String>> = HashMap::new();
@@ -103,72 +99,45 @@ pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configura
     let walked = importers_from(root, layers, origins);
     let passing: HashSet<String> = walked.through.iter().map(|(_, file)| file.clone()).collect();
     let unresolved = unresolved_walk::unresolved(root, layers, configurations, &files, &passing, &walked.exports);
-    // The walk's own site, without its origin: a use two origins reach is one.
-    // Each origin that reached the site keeps its own type and default flags, for `by_file`.
-    let mut merged: HashMap<(String, u32, String, String, String), (NameUse, Vec<Reached>)> = HashMap::new();
+    // A site one group reaches by two paths is one use, a value use when either path is one.
+    let mut found: Vec<HashMap<(String, u32, String, String, String), NameUse>> = asked.iter().map(|_| HashMap::new()).collect();
     for taken in walked.taken {
         let site = (taken.taken.at.clone(), taken.taken.line, taken.taken.name.clone(), taken.taken.key.clone(), taken.local);
-        match merged.entry(site) {
+        match found[taken.origin].entry(site) {
             std::collections::hash_map::Entry::Occupied(mut held) => {
-                let (held, origins) = held.get_mut();
+                let held = held.get_mut();
                 held.r#type &= taken.taken.r#type;
                 held.through_default &= taken.taken.through_default;
-                match origins.iter_mut().find(|reached| reached.origin == taken.origin) {
-                    Some(reached) => {
-                        reached.r#type &= taken.taken.r#type;
-                        reached.through_default &= taken.taken.through_default;
-                    }
-                    None => origins.push(Reached { origin: taken.origin, r#type: taken.taken.r#type, through_default: taken.taken.through_default }),
-                }
             }
             std::collections::hash_map::Entry::Vacant(free) => {
-                let reached = Reached { origin: taken.origin, r#type: taken.taken.r#type, through_default: taken.taken.through_default };
-                free.insert((taken.taken, vec![reached]));
+                free.insert(taken.taken);
             }
         }
     }
-    let mut found: Vec<(NameUse, Vec<Reached>)> = merged.into_values().collect();
-    found.sort_by(|(a, _), (b, _)| {
-        crate::order::code_unit(&a.at, &b.at)
-            .then(a.line.cmp(&b.line))
-            .then_with(|| crate::order::code_unit(&a.name, &b.name))
-            .then_with(|| crate::order::code_unit(&a.key, &b.key))
-            // Two bindings of one name on one line differ by what they bind it to.
-            .then_with(|| crate::order::code_unit(a.local.as_deref().unwrap_or(""), b.local.as_deref().unwrap_or("")))
-    });
-    let mut through: Vec<String> = passing.into_iter().filter(|file| !files.contains(file)).collect();
-    through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
+    let mut through: Vec<Vec<String>> = asked.iter().map(|_| Vec::new()).collect();
+    for (origin, passing) in walked.through {
+        if !asked[origin].iter().any(|one| one.file == passing) { through[origin].push(passing); }
+    }
+    let groups = found
+        .into_iter()
+        .zip(through)
+        .map(|(found, mut through)| {
+            let mut uses: Vec<NameUse> = found.into_values().collect();
+            uses.sort_by(|a, b| {
+                crate::order::code_unit(&a.at, &b.at)
+                    .then(a.line.cmp(&b.line))
+                    .then_with(|| crate::order::code_unit(&a.name, &b.name))
+                    .then_with(|| crate::order::code_unit(&a.key, &b.key))
+                    // Two bindings of one name on one line differ by what they bind it to.
+                    .then_with(|| crate::order::code_unit(a.local.as_deref().unwrap_or(""), b.local.as_deref().unwrap_or("")))
+            });
+            through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
+            Group { uses, through }
+        })
+        .collect();
     let mut namespaces = walked.namespaces;
     namespaces.sort_unstable_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at).then_with(|| crate::order::code_unit(&a.name, &b.name)).then_with(|| a.members.len().cmp(&b.members.len()))
     });
-    let apart = split(asked, &found, &walked.through);
-    let uses = found.into_iter().map(|(taken, _)| taken).collect();
-    Importers { uses, through, in_file, namespaces, unresolved, apart }
-}
-
-/// One origin's reach of a site: whether every path it took there was type-only,
-/// and whether every one passed the name on as a default.
-struct Reached {
-    origin: usize,
-    r#type: bool,
-    through_default: bool,
-}
-
-/// Each group asked, with the uses it reached, flagged as it reached them, and
-/// the files it was passed on through, its own left out.
-fn split(asked: &[Vec<Asked>], found: &[(NameUse, Vec<Reached>)], through_by: &HashSet<(usize, String)>) -> Vec<Apart> {
-    let mut apart: Vec<Apart> = asked.iter().map(|_| Apart { uses: Vec::new(), through: Vec::new() }).collect();
-    for (taken, origins) in found {
-        for reached in origins {
-            apart[reached.origin].uses.push(NameUse { r#type: reached.r#type, through_default: reached.through_default, ..taken.clone() });
-        }
-    }
-    for (origin, passing) in through_by {
-        if !asked[*origin].iter().any(|one| one.file == *passing) { apart[*origin].through.push(passing.clone()); }
-    }
-    for one in &mut apart {
-        one.through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
-    }
-    apart
+    Importers { groups, in_file, namespaces, unresolved }
 }
