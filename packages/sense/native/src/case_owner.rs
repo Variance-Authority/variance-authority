@@ -62,17 +62,32 @@ pub fn times_of(packed: &str) -> Result<Vec<u8>, String> {
 /// file outside the root is `../shared/a.test.ts` — the spelling the runner's
 /// report and the JavaScript `projectPath` join a case on. A file on another
 /// drive or prefix keeps its whole resolved path, as `path.relative` does.
-// FIXME: on Windows `path.relative` compares parts without case; this does not.
 pub fn project_path(root: &Path, file: &str) -> String {
-    let root = resolved(root);
-    let file = resolved(Path::new(file));
-    let shared = root.iter().zip(&file).take_while(|(a, b)| a == b).count();
-    let parts: Vec<String> = if shared == 0 {
-        file
-    } else {
-        std::iter::repeat("..".to_owned()).take(root.len() - shared).chain(file[shared..].iter().cloned()).collect()
+    let case = if cfg!(windows) { PartCase::Folded } else { PartCase::Kept };
+    named_from(&resolved(root), &resolved(Path::new(file)), case)
+}
+
+/// Whether two spellings of a path part name one part: on Windows
+/// `path.relative` compares them without case, elsewhere case is part of the name.
+#[derive(Clone, Copy)]
+enum PartCase {
+    Kept,
+    Folded,
+}
+
+/// `file` named from `root`, both as resolved parts: `..` for each part of the
+/// root past the prefix they share, then the file's own parts in its own
+/// spelling; the file whole when they share nothing.
+fn named_from(root: &[String], file: &[String], case: PartCase) -> String {
+    let same = |a: &String, b: &String| match case {
+        PartCase::Kept => a == b,
+        PartCase::Folded => a.to_lowercase() == b.to_lowercase(),
     };
-    parts.join("/")
+    let shared = root.iter().zip(file).take_while(|(a, b)| same(a, b)).count();
+    if shared == 0 {
+        return file.join("/");
+    }
+    std::iter::repeat("..").take(root.len() - shared).chain(file[shared..].iter().map(String::as_str)).collect::<Vec<_>>().join("/")
 }
 
 /// `path` made absolute against the working directory and with `.` and `..`
@@ -127,6 +142,18 @@ mod tests {
         assert_eq!(project_path(root, "/repo"), "");
         assert_eq!(project_path(Path::new("/repo/packages/app"), "/repo/test/a.test.ts"), "../../test/a.test.ts");
         assert_eq!(project_path(Path::new("/"), "/a.test.ts"), "a.test.ts");
+    }
+
+    #[test]
+    fn a_windows_root_is_shared_whatever_the_case_of_its_parts_and_the_file_keeps_its_spelling() {
+        let parts = |spelled: &[&str]| spelled.iter().map(|part| (*part).to_owned()).collect::<Vec<_>>();
+        let root = parts(&["C:", "Repo"]);
+        let file = parts(&["c:", "repo", "Test", "a.test.ts"]);
+        assert_eq!(named_from(&root, &file, PartCase::Folded), "Test/a.test.ts");
+        assert_eq!(named_from(&root, &parts(&["C:", "Shared", "a.test.ts"]), PartCase::Folded), "../Shared/a.test.ts");
+        assert_eq!(named_from(&root, &parts(&["D:", "repo", "a.test.ts"]), PartCase::Folded), "D:/repo/a.test.ts");
+        // Elsewhere a part's case is part of its name.
+        assert_eq!(named_from(&parts(&["", "Repo"]), &parts(&["", "repo", "a.test.ts"]), PartCase::Kept), "../repo/a.test.ts");
     }
 
     #[test]

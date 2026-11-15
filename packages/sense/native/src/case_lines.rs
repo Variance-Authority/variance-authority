@@ -204,6 +204,13 @@ impl Builder {
         out
     }
 
+    /// The entries the case holds: a module index per module alone, and a
+    /// value per run of the others.
+    #[cfg(test)]
+    pub(crate) fn held(&self) -> usize {
+        self.alone.values().map(Vec::len).sum::<usize>() + self.mixed.iter().map(|(_, (values, _))| values.len()).sum::<usize>() + self.values.len()
+    }
+
     fn begin(&mut self, module: u32) -> Result<(), String> {
         if self.module.is_some_and(|current| module <= current) {
             return Err(OUT_OF_ORDER.to_owned());
