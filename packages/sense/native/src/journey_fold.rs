@@ -8,7 +8,7 @@
 //! one file into that file's record, and gathers the test line that first
 //! reached each region of a cut case (spec 0100).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use crate::case_lines;
 use crate::case_owner;
@@ -223,7 +223,8 @@ pub(crate) fn fold(
 struct Lines<'a> {
     lined: &'a [bool],
     file_start: Vec<u32>,
-    builders: Vec<Option<BTreeMap<(u32, u32), u64>>>,
+    /// Each case's lines, its modules closed into runs as the next begins.
+    builders: Vec<Option<case_lines::Builder>>,
     width: u64,
     own: HashMap<u64, u64>,
     ambient: HashMap<u64, u64>,
@@ -235,7 +236,7 @@ impl<'a> Lines<'a> {
         for &(first, last) in run.tests_by_file.values() {
             file_start[first as usize..last as usize].fill(first);
         }
-        Lines { lined, file_start, builders: vec![None; lined.len()], width: 0, own: HashMap::new(), ambient: HashMap::new() }
+        Lines { lined, file_start, builders: lined.iter().map(|_| None).collect(), width: 0, own: HashMap::new(), ambient: HashMap::new() }
     }
 
     fn slice(&mut self, width: usize) {
@@ -260,7 +261,7 @@ impl<'a> Lines<'a> {
                 .or_else(|| self.ambient.get(&(u64::from(self.file_start[test as usize]) * self.width + local as u64)))
                 .copied()
                 .unwrap_or(1);
-            self.builders[test as usize].get_or_insert_with(BTreeMap::new).insert((module, block), value);
+            self.builders[test as usize].get_or_insert_with(case_lines::Builder::default).add(module, block, value);
         }
     }
 
@@ -268,7 +269,7 @@ impl<'a> Lines<'a> {
         self.builders
             .into_iter()
             .zip(self.lined)
-            .map(|(builder, lined)| if *lined { case_lines::encode(&builder.unwrap_or_default()) } else { Vec::new() })
+            .map(|(builder, lined)| if *lined { builder.unwrap_or_default().finish() } else { Vec::new() })
             .collect()
     }
 }
