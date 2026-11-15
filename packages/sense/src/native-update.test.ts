@@ -160,6 +160,22 @@ describe('the native warm update', () => {
     expect(await held(start)).toEqual(before);
   });
 
+  it('rebuilds an index whose segment of the published length names the wrong bytes', async () => {
+    const start = await both();
+    const before = await held(start);
+    const [digest] = (await openImmutableLog(start)).digests;
+    const segment = join(`${start}.segments`, `${digest!.replace(':', '-')}.bin`);
+    const bytes = await readFile(segment);
+    const length = bytes.readUInt32LE(0);
+    const header = JSON.parse(bytes.subarray(4, 4 + length).toString().replace(/\0+$/, '')) as { sections: { name: string; offset: number }[] };
+    header.sections.find((section) => section.name === 'index.config')!.offset = 0;
+    Buffer.from(JSON.stringify(header).padEnd(length, '\0')).copy(bytes, 4);
+    await writeFile(segment, bytes);
+
+    await updateSourceIndex(root, { index: start });
+    expect(await held(start)).toEqual(before);
+  });
+
   it('declines an index nobody published, leaving it to the JavaScript update', async () => {
     expect(await updateNatively(root, join(work, 'never', 'index.bin'))).toBeUndefined();
   });
