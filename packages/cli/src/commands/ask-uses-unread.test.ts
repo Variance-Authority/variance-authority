@@ -120,9 +120,9 @@ describe('variance ask uses names the files whose imports did not resolve', () =
 
     // The configuration is gone before the second declaration is asked: read once, it still maps the import.
     const [first, second] = asOneQuestion(() => {
-      const first = importersOf(root, ['packages/lib/src/greet.ts'], 'greet');
+      const first = importersOf(root, [{ file: 'packages/lib/src/greet.ts', name: 'greet' }]);
       rmSync(join(root, 'apps/app/tsconfig.json'));
-      return [first, importersOf(root, ['packages/kit/src/greet.ts'], 'greet')];
+      return [first, importersOf(root, [{ file: 'packages/kit/src/greet.ts', name: 'greet' }])];
     });
     expect(first?.unresolved).toEqual(['apps/app/src/bare.ts']);
     expect(second?.unresolved).toEqual(['apps/app/src/bare.ts']);

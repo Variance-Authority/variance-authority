@@ -13,7 +13,7 @@
 // compass: variance-authority.report.agent-surface
 
 import { native, nativeRefusal } from './addon.js';
-import type { NativeImporters, NativeIndexedUsage } from './native-orient.js';
+import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import type { DeclaredNames, NameTerms } from './declared-names.js';
 import { sourceIndexPath } from './source-index.js';
 import { CODE_EXTENSIONS } from './language.js';
@@ -218,7 +218,7 @@ export interface NativeHelp {
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   digestForwards?(forwards: string[]): string;
-  importersOf?(root: string, index: OpenedIndex, files: string[], name: string, byFile?: boolean): NativeImporters | null;
+  importersOf?(root: string, index: OpenedIndex, asked: NativeAsked[]): NativeImporters | null;
   outsideSourcesOf?(root: string, index: OpenedIndex, name: string): string[] | null;
   memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
   membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
@@ -352,24 +352,23 @@ export function forwardsDigest(forwards: readonly string[]): string {
 }
 
 /**
- * Every import of `name` out of one of `files`, repo-relative, by any file the
- * index at `index` holds — an import within a package as well as one across
- * packages, which the Help value does not record — ordered by the importing
- * file in code units, then by line; `undefined` when no index was published.
- * A file that passes the name on with `export … from` is followed under the
- * name it exports and named in `through`, and is no use. Each use's `key` is
- * the specifier as the importing file wrote it, and its `name` the name it
- * takes, which such a file can rename. `byFile` also says what each file would
- * answer alone, in `byFile`. Throws when the index does not read.
+ * Every import of each asked name out of the file asked with it, repo-relative,
+ * by any file the index at `index` holds — an import within a package as well
+ * as one across packages, which the Help value does not record — ordered by the
+ * importing file in code units, then by line; `undefined` when no index was
+ * published. A file that passes the name on with `export … from` is followed
+ * under the name it exports and named in `through`, and is no use. Each use's
+ * `key` is the specifier as the importing file wrote it, and its `name` the
+ * name it takes, which such a file can rename. `byFile` holds what each asked
+ * file would answer alone, in the order asked, all of them read in one walk.
+ * Throws when the index does not read.
  */
 export function importersOf(
   root: string,
-  files: readonly string[],
-  name: string,
+  asked: readonly NativeAsked[],
   index: string = sourceIndexPath(root),
-  byFile = false,
 ): NativeImporters | undefined {
-  return onIndex(index, (opened) => entry('importersOf')(root, opened, [...files], name, byFile)) ?? undefined;
+  return onIndex(index, (opened) => entry('importersOf')(root, opened, [...asked])) ?? undefined;
 }
 
 /**

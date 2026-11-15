@@ -26,13 +26,11 @@ pub(crate) struct Taken {
 }
 
 /// What `importers_from` walked: every use, every file that passes a wanted
-/// name on, every namespace a file passes one on inside, and every name a
+/// name on with the origin it passed it on for, every namespace a file passes one on inside, and every name a
 /// wanted name is exported by along the way.
 pub(crate) struct Walked {
     pub(crate) taken: Vec<Taken>,
-    pub(crate) through: HashSet<String>,
-    /// Each file of `through` with every origin it passed a name on for.
-    pub(crate) through_by: HashSet<(usize, String)>,
+    pub(crate) through: HashSet<(usize, String)>,
     pub(crate) namespaces: Vec<Namespace>,
     pub(crate) exports: HashSet<String>,
 }
@@ -123,7 +121,6 @@ pub(crate) fn importers_from(root: &str, layers: &[Layer], asked: HashMap<String
     let mut exports: HashSet<String> = wanted.values().flat_map(|names| names.keys().map(|want| want.export.clone())).collect();
     let mut found: HashMap<(usize, String, u32, String, String, String), Taken> = HashMap::new();
     let mut through = HashSet::new();
-    let mut through_by = HashSet::new();
     let mut namespaces = HashSet::new();
     while !wanted.is_empty() {
         let (uses, passed) = importers_of(root, layers, &wanted, &deepest);
@@ -156,14 +153,13 @@ pub(crate) fn importers_from(root: &str, layers: &[Layer], asked: HashMap<String
             if follow {
                 exports.insert(want.export.clone());
                 seen.insert(key, typed);
-                through.insert(file.clone());
-                through_by.insert((origin, file.clone()));
+                through.insert((origin, file.clone()));
                 let held = wanted.entry(file).or_default().entry(want).or_default().entry(origin).or_insert(typed);
                 *held &= typed;
             }
         }
     }
-    Walked { taken: found.into_values().collect(), through, through_by, namespaces: namespaces.into_iter().collect(), exports }
+    Walked { taken: found.into_values().collect(), through, namespaces: namespaces.into_iter().collect(), exports }
 }
 
 /// One step of `importers_from`: the uses of each wanted name out of its

@@ -27,7 +27,7 @@ use crate::help_search::{exported_digest, set_digest};
 use crate::help_store::{encode, DeepRef, StoreMeta, StorePackage, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_origin::{declaration_exported, ExportedDeclaration};
-use crate::help_usage::{importers, usage, Configurations, DeepRequest, Importers, IndexedUsage, NamedExport};
+use crate::help_usage::{importers, usage, Asked, Configurations, DeepRequest, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::{tree, Mocking};
 
@@ -125,15 +125,15 @@ fn reading(root: &str, index: String, opened: &[String], published: &[String], u
     })
 }
 
-/// Every import of `name` out of one of `files`, which are repo-relative, by
-/// any file of the chain at `index`, relative imports included, and through
-/// each file that passes it on with `export … from`, which is named in
-/// `through` and is no use; `None` when there is no index. A use's `key` is the
-/// specifier as the importing file wrote it, and its `name` the name it takes.
-/// `by_file` also says what each file would answer alone, in `by_file`.
+/// Every import of each asked name out of the file asked with it, which is
+/// repo-relative, by any file of the chain at `index`, relative imports
+/// included, and through each file that passes it on with `export … from`,
+/// which is named in `through` and is no use; `None` when there is no index. A
+/// use's `key` is the specifier as the importing file wrote it, and its `name`
+/// the name it takes. `by_file` says what each file asked would answer alone.
 #[napi(catch_unwind)]
-pub fn importers_of(root: String, index: &OpenedIndex, files: Vec<String>, name: String, by_file: Option<bool>) -> napi::Result<Option<Importers>> {
-    opened_chain(index, |layers| importers(&root, layers, &index.configurations, &files, &name, by_file.unwrap_or(false)))
+pub fn importers_of(root: String, index: &OpenedIndex, asked: Vec<Asked>) -> napi::Result<Option<Importers>> {
+    opened_chain(index, |layers| importers(&root, layers, &index.configurations, &asked))
 }
 
 /// Every specifier on the chain at `index` that names a package or a runtime

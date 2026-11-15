@@ -13,7 +13,7 @@ import { uses } from './uses.js';
 import { type Members, containerOf, membersOf, membersStop } from './members.js';
 import { exportedRows } from './passed-on.js';
 import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
-import { type Apart, UNCOUNTED, exportsNamed, importsApart } from './unpublished.js';
+import { UNCOUNTED, exportsNamed, importsApart } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { type PublishedDeclaration, publishedDeclarations, publishingFiles, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
@@ -403,26 +403,12 @@ function exportedOnly(help: Help, name: string, exported: readonly Named[], root
  * resolved to it: a file that passes on another one's export is left out.
  */
 function declaringExports(name: string, exported: readonly Named[], root: string | undefined) {
-  const by = walked(exported, root);
-  const read = exported.map((held) => [held, by.get(held.name)!.get(held.at)!] as const);
+  const apart = importsApart(root, exported.map((held) => ({ file: held.at, name: held.name })));
+  const read = exported.map((held, at) => [held, apart[at]!] as const);
   const passing = new Set(read.flatMap(([, within]) => ('through' in within ? within.through : [])));
   // Files that pass the name on to each other and declare it nowhere else are all shown.
   const declaring = read.filter(([held]) => !passing.has(held.at));
   return declaring.length > 0 ? declaring : read;
-}
-
-/** Who imports each export, read in one walk per name the exports are held under, by name, then by file. */
-function walked(exported: readonly Named[], root: string | undefined): ReadonlyMap<string, ReadonlyMap<string, Apart>> {
-  const files = new Map<string, string[]>();
-  for (const held of exported) {
-    const named = files.get(held.name) ?? [];
-    if (!named.includes(held.at)) named.push(held.at);
-    files.set(held.name, named);
-  }
-  return new Map([...files].map(([name, at]) => {
-    const read = importsApart(root, at, name);
-    return [name, new Map(at.map((file, index) => [file, read[index]!]))];
-  }));
 }
 
 /** How many places import one export, read off the source index. */

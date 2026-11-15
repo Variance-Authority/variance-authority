@@ -434,14 +434,20 @@ export interface NativeImporters {
    * file that could take the name: a use there is not listed.
    */
   unresolved: string[];
-  /** When asked by file, each file asked about in the order asked, with what it answers alone; empty otherwise. */
+  /** Each file asked about, in the order asked, with what it would answer alone. */
   byFile: NativeFromFile[];
 }
 
-/** What one file asked about answers alone: the positions in `uses` of its uses, and the files passing it on, its own left out. */
+/** One file asked who imports a name out of it, and the name it exports it under. */
+export interface NativeAsked {
+  file: string;
+  name: string;
+}
+
+/** What one file asked about answers alone: its uses, flagged as its own walk reached them, and the files passing it on, its own left out. */
 export interface NativeFromFile {
   file: string;
-  uses: number[];
+  uses: NativeNameUse[];
   through: string[];
 }
 
