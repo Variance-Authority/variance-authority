@@ -181,7 +181,9 @@ variance ask search --query button --from src/issue-view.tsx --changed-file /tmp
 ```
 
 The paths are relative to the scan root. The file is authoritative, including
-when it is empty; a rename writes both its old and new path. Git still supplies
+when it is empty; a rename writes both its old and new path. An empty file
+writes no byte of the generation: it moves only the time of a zero-byte stamp
+beside the index, and answers are dated from that comparison. Git still supplies
 the committed path set and the named paths are hashed from disk, but `git
 status` is not run to rediscover them.
 

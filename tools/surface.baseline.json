@@ -3064,7 +3064,6 @@
         "recordedTimes": "function",
         "refreshDependencyLexiconNative": "function",
         "relationBetween": "function",
-        "restampHelpStore": "function",
         "restrictedChains": "function",
         "restrictedImports": "function",
         "ripgrepNative": "function",

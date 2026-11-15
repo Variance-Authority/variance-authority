@@ -3,12 +3,11 @@ import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import { readHelp, type Help } from '@variance-authority/package/help';
-import { restampHelpStore } from '@variance-authority/sense';
 import { taintTable } from '@variance-authority/sense/taint';
-import { publishedHead, readWorkspaceSnapshot, workspaceGeneration, workspaceReadStarted, workspaceSnapshotPath } from './snapshot.js';
+import { compareWorkspaceSnapshot, publishedGeneration, publishedHead, readWorkspaceSnapshot, workspaceComparedPath, workspaceGeneration, workspaceReadStarted, workspaceSnapshotPath } from './snapshot.js';
 import { readWorkspace, readWorkspaceForAnswer, refreshWorkspace } from './read.js';
 import { HELP } from './tools.js';
 import { search } from './tools/search.js';
@@ -27,6 +26,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await rm(dirname(index), { recursive: true, force: true });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 /** Every name with who reaches it and from where, flattened to something comparable. */
@@ -192,10 +195,10 @@ describe('reading a workspace through the source index', () => {
     try {
       const at = join(root, '.index');
       await readWorkspace(root, { index: at });
-      const snapshot = workspaceSnapshotPath(at);
-      await writeFile(snapshot, restampHelpStore(await readFile(snapshot), '2000-01-01T00:00:00.000Z'));
       const values = join(root, 'packages/alpha/src/values.ts');
       await writeFile(values, (await readFile(values, 'utf8')).replace('Measures the thing', 'Changed later'));
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000);
 
       const refreshed = await readWorkspaceForAnswer(root, { index: at });
 
@@ -222,19 +225,47 @@ describe('reading a workspace through the source index', () => {
     }
   });
 
-  it('republishes the recorded generation when the caller says nothing changed', async () => {
+  it('dates the recorded generation compared, and writes none of its bytes, when the caller says nothing changed', async () => {
     const { root, temporary } = await copyWorkspace('help-unchanged-snapshot-');
     try {
       const at = join(root, '.index');
       const first = await readWorkspace(root, { index: at });
       const snapshot = workspaceSnapshotPath(at);
-      await writeFile(snapshot, restampHelpStore(await readFile(snapshot), '2000-01-01T00:00:00.000Z'));
+      const bytes = await readFile(snapshot);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(Date.now() + 1000);
 
-      const republished = await readWorkspaceForAnswer(root, { index: at, changed: [] });
+      const compared = await readWorkspaceForAnswer(root, { index: at, changed: [] });
 
-      expect(republished).toEqual(first);
-      expect(workspaceGeneration(republished)).not.toBe('2000-01-01T00:00:00.000Z');
-      expect(publishedHead(at)?.generatedAt).toBe(workspaceGeneration(republished));
+      expect(compared).toEqual(first);
+      expect(await readFile(snapshot)).toEqual(bytes);
+      expect(await readFile(workspaceComparedPath(at))).toHaveLength(0);
+      expect(publishedHead(at)?.generatedAt).toBe(workspaceGeneration(first));
+      expect(Date.parse(workspaceGeneration(compared)!)).toBeGreaterThan(Date.parse(workspaceGeneration(first)!));
+      expect(await publishedGeneration(root, at)).toBe(workspaceGeneration(compared));
+      expect(workspaceReadStarted(compared)).toBe(workspaceReadStarted(first));
+    } finally {
+      await rm(temporary, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves the stamp to a generation published since the one it was told nothing changed for, and dates a publication by its own time', async () => {
+    const { root, temporary } = await copyWorkspace('help-compared-after-');
+    try {
+      const at = join(root, '.index');
+      await readWorkspace(root, { index: at });
+      const held = await readWorkspaceSnapshot(root, { index: at });
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(Date.now() + 1000);
+      await compareWorkspaceSnapshot(held, at);
+      const later = await readWorkspace(root, { index: at });
+      expect(await publishedGeneration(root, at)).toBe(workspaceGeneration(later));
+      vi.setSystemTime(Date.now() + 1000);
+
+      await compareWorkspaceSnapshot(held, at);
+
+      expect(await publishedGeneration(root, at)).toBe(workspaceGeneration(later));
+      expect(publishedHead(at)?.generatedAt).toBe(workspaceGeneration(later));
     } finally {
       await rm(temporary, { recursive: true, force: true });
     }

@@ -238,7 +238,6 @@ export {
   membersOn,
   outsideSourcesOf,
   readHelp,
-  restampHelpStore,
   ripgrepNative,
   sourceTreeOf,
   type Alias,

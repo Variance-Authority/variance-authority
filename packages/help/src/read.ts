@@ -64,9 +64,9 @@ import { indexedNames, type IndexedSource } from './indexed-surface.js';
 import { operatorError } from './operator.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
 import {
+  compareWorkspaceSnapshot,
   publishedTree,
   readWorkspaceSnapshot,
-  republishWorkspaceSnapshot,
   tryPublishWorkspaceSnapshot,
   workspaceForwardsDigest,
   workspaceGeneration,
@@ -142,7 +142,7 @@ export async function readWorkspaceForAnswer(
     return recorded;
   }
   if (reading.changed?.length === 0 && reading.taints === undefined) {
-    await republishWorkspaceSnapshot(recorded, reading.index ?? sourceIndexPath(resolve(root)));
+    await compareWorkspaceSnapshot(recorded, reading.index ?? sourceIndexPath(resolve(root)));
     return recorded;
   }
   try {

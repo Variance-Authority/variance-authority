@@ -22,6 +22,7 @@ import { joinUsage, packagesDigest, readWorkspaceOver, sameExportedSurface, same
 import {
   indexManifestDigest,
   readWorkspaceSnapshot,
+  stampPublished,
   workspaceExportedDigest,
   workspaceForwardsDigest,
   workspaceGeneration,
@@ -149,6 +150,7 @@ async function refreshOver(
       packages: storeOf(help).packages,
       unreadable: help.unreadable,
     }));
+    await stampPublished(own, generatedAt);
   } catch {
     // The value is complete. An unwritable cache costs reuse, and the caller reads it back.
   }

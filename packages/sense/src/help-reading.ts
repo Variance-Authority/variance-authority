@@ -216,7 +216,6 @@ export interface NativeHelp {
   readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[], tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
   sourceTreeOf?(root: string, index: string, tsconfig: string | boolean | null, code: string[]): Promise<Uint8Array | null>;
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
-  restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   digestForwards?(forwards: string[]): string;
   importersOf?(root: string, index: OpenedIndex, files: string[], name: string): NativeImporters | null;
   outsideSourcesOf?(root: string, index: OpenedIndex, name: string): string[] | null;
@@ -339,11 +338,6 @@ function mocking(root: string): [string | boolean | null, string[]] {
 /** The store of `store` and `exported`, stamped with `meta` when it is published, and the digest of `exported`. */
 export function encodeHelpStore(store: HelpStore, exported: readonly NamedExport[], meta?: StoreMeta): EncodedStore {
   return entry('encodeHelpStore')(store, [...exported], meta ?? null);
-}
-
-/** The same store with a new `generatedAt`: the body is copied as it is. */
-export function restampHelpStore(bytes: Uint8Array, generatedAt: string): Uint8Array {
-  return entry('restampHelpStore')(bytes, generatedAt);
 }
 
 /** The `export … from` rows of a reading as a set, which the export list does not hold. */

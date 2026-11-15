@@ -20,7 +20,6 @@ use napi_derive::napi;
 use crate::help_search::{exported_digest, joined};
 use crate::help_usage::{DeepRequest, NameUse, NamedExport};
 use crate::segment::{self, Column};
-use crate::stored::Stored;
 
 /// `FORMAT` and `VERSION` in `packages/help/src/store-layout.ts`.
 const FORMAT: &str = "variance-authority-help-store";
@@ -29,7 +28,6 @@ pub(crate) const NONE: u32 = u32::MAX;
 pub(crate) const USE_KINDS: [&str; 3] = ["source", "test", "story"];
 /// The generation's fields, in the order `head` holds them.
 const META: usize = 9;
-const GENERATED_AT: usize = 3;
 
 /// One place a name is used: `Use`, and `Taken`'s `name` for an import by path.
 #[napi(object)]
@@ -140,38 +138,6 @@ pub fn encode_help_store(store: HelpStore, exported: Vec<NamedExport>, meta: Opt
     let input = StoreRef { packages: &store.packages, deep, unreadable: &store.unreadable };
     let (bytes, digest) = encode(&input, &exported, meta.as_ref(), None);
     EncodedStore { bytes: bytes.into(), exported: digest }
-}
-
-/// The same store with a new `generatedAt`: every column but the head's is copied as it is.
-#[napi(catch_unwind)]
-pub fn restamp_help_store(bytes: Buffer, generated_at: String) -> napi::Result<Buffer> {
-    restamped(&bytes, &generated_at).map(Into::into).map_err(napi::Error::from_reason)
-}
-
-fn restamped(bytes: &[u8], generated_at: &str) -> Result<Vec<u8>, String> {
-    let stored = Stored::open_as(bytes, FORMAT, VERSION)?;
-    let (blob, off, ids) = (stored.u8s("head.blob")?, stored.u32s("head.off")?, stored.u32s("head")?);
-    if ids.len() != META {
-        return Err(format!("a help store head of {} fields, not {META}", ids.len()));
-    }
-    let mut meta: Vec<Option<&str>> = Vec::with_capacity(META);
-    for field in 0..META {
-        let id = ids.at(field) as usize;
-        if ids.at(field) == NONE {
-            meta.push(None);
-            continue;
-        }
-        let text = (id + 1 < off.len()).then(|| blob.get(off.at(id) as usize..off.at(id + 1) as usize)).flatten();
-        meta.push(Some(text.and_then(|text| std::str::from_utf8(text).ok()).ok_or("a help store head field that is not a string")?));
-    }
-    meta[GENERATED_AT] = Some(generated_at);
-    let mut columns = Vec::from(head_columns(&meta));
-    columns.extend(stored.columns().into_iter().filter(|(name, _, _)| !is_head(name)).map(|(name, width, bytes)| segment::column(name.to_owned(), width, bytes.to_vec())));
-    Ok(segment::encode_as(FORMAT, VERSION, columns))
-}
-
-fn is_head(name: &str) -> bool {
-    name == "head" || name.starts_with("head.")
 }
 
 /// The generation as its own dictionary and one id per field, `NONE` for absent.

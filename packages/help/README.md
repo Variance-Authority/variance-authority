@@ -212,7 +212,8 @@ that the next question refreshes it. Run the binary or server with
 no freshness work. On `variance ask`, `--changed-file` belongs to the producer
 side: it supplies an authoritative newline-delimited file of scan-root-relative
 changed paths and cannot be combined with `--just-answer`. An empty file states
-that nothing changed. A listed file gives its names at the lines it holds now. A file left off is unchanged for that request, and the
+that nothing changed: the generation is not written again, and it is dated from
+that comparison, in this answer and the ones after it. A listed file gives its names at the lines it holds now. A file left off is unchanged for that request, and the
 next question without a list looks. With no generation to refresh, the read is
 whole and the list is not used.
 
@@ -553,8 +554,8 @@ UTC production time attached to a recorded value.
 `input` and `output` are the two streams the protocol is spoken over and default
 to this process's own; override them when the host owns the transport. It uses
 the same one-hour policy, and on every call reads the published generation's
-head: one published since the generation it holds, by `variance index` or another
-reader, is read before the call is answered, with or without `justAnswer`.
+head: one published, or compared with the checkout, since the generation it
+holds, by `variance index` or another reader, is read before the call is answered, with or without `justAnswer`.
 `readAgain` is that decision. It asks a `docs_symbol`, `docs_uses` or `docs_search`
 whose files changed again of a generation made now, or serves only the recorded generation when `justAnswer` is true. A refused call answers from the generation it was refused from. A host
 of its own asks `outlived` whether the files a found answer names changed after

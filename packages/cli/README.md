@@ -260,7 +260,9 @@ question and return it through `Sourced.tree` only then.
 `--changed-file` takes a newline-delimited file of scan-root-relative paths an
 editor, watcher, or CI step already detected as changed. It is producer input:
 an empty file states that nothing changed, it replaces Git status discovery, and
-it cannot be combined with `--just-answer`. A file you listed gives its names at
+it cannot be combined with `--just-answer`. With an empty file the generation is
+not written again; it is dated from that comparison, in this answer and the ones
+after it. A file you listed gives its names at
 the lines it holds now. A file you left off is unchanged for
 that request; the next question without a list looks. With no generation to
 refresh, the read is whole and the list is not used.

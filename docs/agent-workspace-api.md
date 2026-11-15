@@ -405,7 +405,8 @@ it refuses instead, says the flag is why, and names the command to run.
 When an editor, watcher, or orchestrator produces a generation and already has
 the changed paths, write their scan-root-relative paths to a newline-delimited
 file and pass that file through `--changed-file`. An empty file declares that
-nothing changed. This is producer input: it replaces Git's changed-file
+nothing changed: the generation is not written again, and it is dated from that
+comparison, in this answer and the ones after it. This is producer input: it replaces Git's changed-file
 discovery and cannot be combined with `--just-answer`. Such a refresh reads the
 files you listed and no others, so the generation keeps the time of the read it
 refreshed: an answer given with the list gives a listed file's names at the lines

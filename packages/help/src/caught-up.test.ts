@@ -23,6 +23,9 @@ import { uses } from './tools/uses.js';
 const fixture = publishing();
 beforeEach(fixture.before);
 afterEach(fixture.after);
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 const served = (root: string, justAnswer: boolean, name = 'keptOf', options: WorkspaceOptions = {}): Promise<{ text: string; isError?: boolean }> =>
   asked(root, justAnswer, 'docs_symbol', { name }, options);
@@ -153,6 +156,23 @@ describe('outlived', () => {
     const started = Date.now();
     const help = await readWorkspaceForAnswer(root, { changed: [] });
     expect(await outlived('docs_symbol', help, { name: 'taxOf' }, { root }, started)).toBe(false);
+  });
+
+  it('takes a generation compared during the request at its word, and looks at one compared before it, whose read began earlier', async () => {
+    const root = await fixture.published();
+    await readWorkspace(root);
+    const compared = await readWorkspaceForAnswer(root, { changed: [] });
+    edit(root);
+    const started = Date.now() + 1;
+    // Compared before the question: its read began before the edit, so the file is looked at.
+    expect(await outlived('docs_symbol', compared, { name: 'taxOf' }, { root }, started)).toBe(true);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 1);
+    await readWorkspaceForAnswer(root, { changed: [] });
+    // Another reader of the generation compared during the question takes it at the same word.
+    const read = await readWorkspaceForAnswer(root, { justAnswer: true });
+    expect(Date.parse(workspaceGeneration(read)!)).toBeGreaterThanOrEqual(started);
+    expect(await outlived('docs_symbol', read, { name: 'taxOf' }, { root }, started)).toBe(false);
   });
 
   it('looks at a generation read whole during the request, as at any other', async () => {
@@ -416,6 +436,15 @@ describe('the help server about a name written after the published generation', 
     expect(await readAgain(held, root, { refreshAfterMs: -1, justAnswer: true })).toBe(false);
     await readWorkspace(root);
     expect(await readAgain(held, root, { ...hour, justAnswer: true })).toBe(true);
+  });
+
+  it('reads again after another reader compares the generation it holds with the checkout', async () => {
+    const root = await fixture.published();
+    const held = await readWorkspaceForAnswer(root, { justAnswer: true });
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.now() + 1000);
+    await readWorkspaceForAnswer(root, { changed: [] });
+    expect(await readAgain(held, root, { refreshAfterMs: 60 * 60 * 1000, justAnswer: true })).toBe(true);
   });
 
   it.each([false, true])('answers from a generation published since the one it holds, on the same connection, `justAnswer` %s', async (justAnswer) => {

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, openSync, readSync, realpathSync } from 'node:fs';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { closeSync, openSync, readSync, realpathSync, statSync } from 'node:fs';
+import { mkdir, readFile, rename, utimes, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import {
   decodeSourceTree,
@@ -12,12 +12,7 @@ import {
 } from '@variance-authority/mcp/tools';
 import { SegmentCutShort } from '@variance-authority/core/segment';
 import type { Help } from '@variance-authority/package/help';
-import {
-  encodeHelpStore,
-  readSourceRecords,
-  restampHelpStore,
-  sourceIndexPath,
-} from '@variance-authority/sense';
+import { encodeHelpStore, readSourceRecords, sourceIndexPath } from '@variance-authority/sense';
 import { openHelpStore, openSearchIndex, type SearchIndex } from './search-index.js';
 import { encodeStore, storeOf } from './store-encode.js';
 import { storeHeadOf, type StoreHead } from './store-layout.js';
@@ -34,9 +29,11 @@ export interface SnapshotOptions {
 const generated = new WeakMap<Help, string>();
 const snapshots = new WeakMap<Help, StoreHead>();
 const searches = new WeakMap<Help, SearchIndex>();
-const stores = new WeakMap<Help, Uint8Array>();
 
-/** When the workspace value was published, absent on an unrecorded reading. */
+/**
+ * When the workspace value was published, or last compared with the checkout
+ * and found unchanged, whichever is later; absent on an unrecorded reading.
+ */
 export function workspaceGeneration(help: Help): string | undefined {
   return generated.get(help);
 }
@@ -56,6 +53,49 @@ export function workspaceSnapshotPath(index: string): string {
   return `${index}.help.bin`;
 }
 
+/**
+ * Beside the value published at `index`, a file of no bytes whose time says when
+ * the checkout was last compared with that value. Every publication dates it to
+ * the value's `generatedAt`, so a comparison of the value before it no longer
+ * counts; an answer told nothing changed dates it now. Every reader of when a
+ * value was made, {@link workspaceGeneration} and {@link publishedGeneration},
+ * takes the later of its time and the head's, so a comparison costs no byte of
+ * the value. Not the index manifest's time: other writers append to the chain.
+ */
+export function workspaceComparedPath(index: string): string {
+  return `${index}.compared`;
+}
+
+/** The head's `generatedAt`, or the stamp's time beside `index` when that is later. */
+function generationOf(head: StoreHead, index: string): string {
+  let compared: number;
+  try {
+    // Whole milliseconds, as the head dates a value: a coarser filesystem rounds down, never ahead.
+    compared = Math.floor(statSync(workspaceComparedPath(index)).mtimeMs);
+  } catch {
+    return head.generatedAt;
+  }
+  return compared > Date.parse(head.generatedAt) ? new Date(compared).toISOString() : head.generatedAt;
+}
+
+/** Date the stamp beside `index`, making it when it is not there. */
+async function stamp(index: string, at: Date): Promise<void> {
+  const path = workspaceComparedPath(index);
+  await utimes(path, at, at).catch(async () => {
+    await writeFile(path, new Uint8Array());
+    await utimes(path, at, at);
+  });
+}
+
+/**
+ * Date the stamp beside a value just published at `index` to its `generatedAt`.
+ * A publisher that writes the store itself calls this after it; one that fails
+ * leaves the value dated by its head, and the stamp by an older comparison.
+ */
+export async function stampPublished(index: string, generatedAt: string): Promise<void> {
+  await stamp(index, new Date(generatedAt)).catch(() => undefined);
+}
+
 /** Read the last published value without inspecting the checkout or asking Git. */
 export async function readWorkspaceSnapshot(
   root: string,
@@ -64,11 +104,9 @@ export async function readWorkspaceSnapshot(
   const where = realpathSync(resolve(root));
   const index = options.index ?? sourceIndexPath(where);
   const at = workspaceSnapshotPath(index);
-  let bytes: Uint8Array;
   let opened: ReturnType<typeof openHelpStore>;
   try {
-    bytes = await readFile(at);
-    opened = openHelpStore(bytes);
+    opened = openHelpStore(await readFile(at));
   } catch (error) {
     throw new Error(
       `no readable workspace snapshot at ${at}: ${error instanceof Error ? error.message : String(error)}`,
@@ -91,10 +129,9 @@ export async function readWorkspaceSnapshot(
     options.records(await readSourceRecords(index), held.graphRoot);
   }
   const { help } = opened;
-  generated.set(help, held.generatedAt);
+  generated.set(help, generationOf(held, index));
   snapshots.set(help, held);
   searches.set(help, opened.search);
-  stores.set(help, bytes);
   return help;
 }
 
@@ -132,21 +169,22 @@ export function publishedHead(index: string): StoreHead | undefined {
 }
 
 /**
- * When the value at `index` was published, as {@link publishedHead} reads it.
- * Absent when there is no value, or it belongs to another checkout or format.
+ * When the value at `index` was published or last compared, as {@link publishedHead}
+ * and the stamp beside it read it. Absent when there is no value, or it belongs to
+ * another checkout or format.
  */
 export async function publishedGeneration(root: string, index: string): Promise<string | undefined> {
   const where = realpathSync(resolve(root));
   const held = publishedHead(index);
-  return held?.root === where ? held.generatedAt : undefined;
+  return held?.root === where ? generationOf(held, index) : undefined;
 }
 
 /**
  * Whether a server holding `held` reads the workspace again before it answers:
- * when it holds none, when a generation newer than `held` was published since —
- * `variance index`, or another reader — as {@link publishedGeneration} reads it
- * off the value's head, or, unless `justAnswer`, when `held` is older than
- * `refreshAfterMs`. A call where nothing was published costs that head's read.
+ * when it holds none, when a generation newer than `held` was published or
+ * compared since — `variance index`, or another reader — as {@link publishedGeneration}
+ * reads it off the value's head and stamp, or, unless `justAnswer`, when `held` is
+ * older than `refreshAfterMs`. A call where nothing was published costs those reads.
  */
 export async function readAgain(held: Help | undefined, root: string, options: { readonly index?: string; readonly justAnswer?: boolean; readonly refreshAfterMs: number }): Promise<boolean> {
   const at = held === undefined ? undefined : workspaceGeneration(held);
@@ -205,23 +243,21 @@ export async function indexManifestDigest(index: string): Promise<string | undef
 }
 
 /**
- * Publish a new generation time when its authoritative changed set is empty.
- * Nothing was read for it, so the value keeps the time its read began.
+ * Date `help`, read at `index`, as compared with the checkout now, when its
+ * authoritative changed set is empty: nothing was read for it, so it keeps the
+ * time its read began, and no byte of it is written, only the stamp's time.
+ * When another value was published at `index` since `help` was read, the stamp
+ * is that value's, and is left as it is.
  */
-export async function republishWorkspaceSnapshot(help: Help, index: string): Promise<void> {
+export async function compareWorkspaceSnapshot(help: Help, index: string): Promise<void> {
   const held = snapshots.get(help);
-  const bytes = stores.get(help);
-  if (held === undefined || bytes === undefined) return;
-  const generatedAt = new Date().toISOString();
+  const head = publishedHead(index);
+  if (held === undefined || head?.generatedAt !== held.generatedAt || head.graphDigest !== held.graphDigest) return;
   try {
-    const next = restampHelpStore(bytes, generatedAt);
-    await writeReplacing(workspaceSnapshotPath(index), next);
-    generated.set(help, generatedAt);
-    snapshots.set(help, { ...held, generatedAt });
-    stores.set(help, next);
-    searches.set(help, openSearchIndex(next));
+    await stamp(index, new Date());
+    generated.set(help, generationOf(held, index));
   } catch {
-    // The previously committed generation remains answerable and keeps its time.
+    // The value remains answerable and keeps the time it was last compared.
   }
 }
 
@@ -260,12 +296,12 @@ export async function tryPublishWorkspaceSnapshot(
     const held = storeHeadOf(bytes);
     if (held !== undefined) snapshots.set(help, held);
     generated.set(help, generatedAt);
-    stores.set(help, bytes);
     searches.set(help, openSearchIndex(bytes));
     const at = workspaceSnapshotPath(own);
     await mkdir(dirname(at), { recursive: true });
     await writeReplacing(workspaceTreePath(own, graphDigest), tree);
     await writeReplacing(at, bytes);
+    await stampPublished(own, generatedAt);
   } catch {
     // This value is complete. An unwritable cache costs reuse, not this answer.
   }

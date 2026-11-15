@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -60,6 +61,15 @@ const HIDDEN_TEXT = 'export const shown = 1;\n/** Halves it. */\nfunction hidden
 /** {@link HIDDEN_TEXT} rewritten so the line the index read still spells the name. */
 const HIDDEN_REWRITTEN = 'export const shown = 1;\n// the words of today\n// hiddenOf went elsewhere, and this comment is long enough to reach past the old signature\n';
 
+/** Every file under `dir`, by its path there, with the digest of its bytes. */
+function bytesUnder(dir: string): Readonly<Record<string, string>> {
+  const held: Record<string, string> = {};
+  for (const path of readdirSync(dir, { recursive: true, encoding: 'utf8' }).sort()) {
+    if (statSync(join(dir, path)).isFile()) held[path] = createHash('sha256').update(readFileSync(join(dir, path))).digest('hex');
+  }
+  return held;
+}
+
 /** The time an answer's generation was made, from its date line. */
 function snapshotOf(out: string): string | undefined {
   return /^Snapshot (\S+Z)/mu.exec(out)?.[1];
@@ -93,6 +103,23 @@ describe('variance ask about a name written after the source index', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('Whether an installed dependency publishes it is not known: the dependency lexicon is not published');
     expect(out).not.toContain('state-kit');
+  });
+
+  it('writes no byte under the cache when `--changed-file` lists nothing, and dates the answer when it was compared', async () => {
+    const root = checkout({ 'changed.txt': '' });
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const published = snapshotOf((await run(['ask', 'symbol', '--name', 'greet'])).out);
+    const cache = process.env['VARIANCE_AUTHORITY_CACHE']!;
+    const before = bytesUnder(cache);
+
+    const { code, out } = await run(['ask', 'symbol', '--name', 'greet', '--changed-file', join(root, 'changed.txt')]);
+
+    expect(code).toBe(EXIT_CLEAN);
+    expect(bytesUnder(cache)).toEqual(before);
+    expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z\.$/mu);
+    expect(Date.parse(snapshotOf(out)!)).toBeGreaterThan(Date.parse(published!));
+    // The next question reads the generation as compared when the last one was.
+    expect(snapshotOf((await run(['ask', 'symbol', '--name', 'greet'])).out)).toBe(snapshotOf(out));
   });
 
   it('prints the true lines of a published name from a file `--changed-file` names', async () => {
