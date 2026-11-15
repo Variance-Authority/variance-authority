@@ -18,6 +18,7 @@ use crate::journey_columns::{self, Decoded};
 use crate::record_layout::LAYOUT;
 use crate::record_parts::{read_readings, write_readings};
 
+mod napi;
 
 /// One recorded run of one case, and how many runs read it so.
 #[derive(Clone)]

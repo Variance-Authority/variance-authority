@@ -1,12 +1,12 @@
 //! The case readings lay and reader as TypeScript reaches them: buffers in and
-//! out, the work done in [`crate::case_readings_lay`].
+//! out, the work done in [`super`].
 
 use std::collections::{HashMap, HashSet};
 
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
-use crate::case_readings_lay::{lay, readings_of, Run};
+use super::{lay, readings_of, Run};
 
 /// Lay a run's case readings over the record's; see `layReadings`. `same` is
 /// every file the run recorded from the text the landed index holds it at,
