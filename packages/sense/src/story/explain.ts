@@ -8,14 +8,11 @@
  */
 
 import { askCoverageFile } from '../test-selection/coverage-file.js';
-import { caseSectionsAt } from '../test-selection/case-record.js';
 import { lineOf } from '../test-selection/case-lines.js';
 import { newestRegions } from '../test-selection/case-readings.js';
 import type { ReadRegion } from '../test-selection/readings-bytes.js';
-import { openSetExecutionIndex } from '../test-selection/execution-set-format.js';
 import type { ExecutionTest } from '../test-selection/reverse.js';
-import type { OutcomeRegion } from './outcomes.js';
-import { checkoutRecords } from './directory.js';
+import { namedCases, type OutcomeRegion } from './outcomes.js';
 
 /** A line of the case: the regions it was the first to run, and its microseconds where the case was timed. Line 0 is before the body's first statement. */
 export interface Statement {
@@ -87,25 +84,12 @@ export function statementsOf(
   };
 }
 
-/**
- * Every case a record of this checkout holds under `name` (its whole name, or
- * `<file> > <name>`), in `file` when given, explained from its newest run. A
- * name two files hold is both, for the caller to refuse.
- */
+/** Every case {@link namedCases} finds, explained from its newest run. */
 export function recordedStatements(root: string, name: string, file?: string): RecordedExplanation[] {
-  const found: RecordedExplanation[] = [];
-  for (const record of checkoutRecords(root)) {
-    const { index } = caseSectionsAt(record, ['index']);
-    const opened = index === undefined ? undefined : openSetExecutionIndex(index);
-    if (opened === undefined) continue;
-    for (const test of opened.tests) {
-      if (file !== undefined && test.file !== file) continue;
-      if (test.name !== name && test.id !== name) continue;
-      const commit = commitOf(record);
-      found.push({ ...statementsOf(test, newestRegions(opened, test.id) ?? []), record, ...(commit === undefined ? {} : { commit }) });
-    }
-  }
-  return found;
+  return [...namedCases(root, name, file, ['index'])].map(({ record, opened, test }) => {
+    const commit = commitOf(record);
+    return { ...statementsOf(test, newestRegions(opened, test.id) ?? []), record, ...(commit === undefined ? {} : { commit }) };
+  });
 }
 
 /** The commit `record` was written at; absent outside a checkout or where it cannot be read. */
