@@ -66,9 +66,9 @@ export interface DeclaredMatch {
   readonly summary?: string;
 }
 
-/** A declaration as the source index read it: where its doc is, until a row prints it. */
+/** A declaration as the source index read it: its doc, until a row prints what it says. */
 export type DeclaredRead = DeclaredMatch & {
-  readonly doc?: { readonly start: number; readonly end: number };
+  readonly doc?: string;
 };
 
 /** A member of a container, or a function another function's body declares. */

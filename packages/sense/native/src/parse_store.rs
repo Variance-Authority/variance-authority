@@ -37,7 +37,7 @@ use crate::index::parses_only;
 use crate::index_chain::{read_chain, Chain};
 use crate::log::{file_name, written, LogSegment, Over};
 use crate::order::code_unit;
-use crate::parse_columns::{ParseColumns, ParseRow, Span};
+use crate::parse_columns::{ParseColumns, ParseRow};
 
 /// Past this many segments an append writes the store as one.
 const SEGMENTS: usize = 16;
@@ -155,8 +155,8 @@ impl ParseRow for Parse<'_, '_, '_> {
     fn unknown(&self) -> Option<&str> { either!(self, row => row.unknown()) }
     fn harvested(&self) -> bool { either!(self, row => row.harvested()) }
     fn size(&self) -> Option<crate::source_size::Size> { either!(self, row => row.size()) }
-    fn doc(&self) -> Span { either!(self, row => row.doc()) }
-    fn words(&self, item: crate::name_table::Item, at: usize) -> Option<Option<&str>> { either!(self, row => row.words(item, at)) }
+    fn doc(&self) -> Option<(u32, u32, Option<&str>)> { either!(self, row => row.doc()) }
+    fn words(&self, item: crate::name_table::Item, at: usize) -> Option<Option<std::borrow::Cow<'_, str>>> { either!(self, row => row.words(item, at)) }
 }
 
 impl<'c> Opened<'c> {

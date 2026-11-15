@@ -9,10 +9,15 @@ use serde::Serialize;
 use crate::read::Lines;
 use crate::top_level::top_level;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+/// Where a declaration's head or doc is written, in UTF-16 units, and the
+/// text written there, as [`crate::span_text`] cuts it from the source the
+/// read held: absent until then, and for a read made without its source.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct TextSpan {
     pub start: u32,
     pub end: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -101,6 +106,7 @@ impl Offsets {
         TextSpan {
             start: self.at(span.start),
             end: self.at(span.end),
+            text: None,
         }
     }
 }
@@ -161,7 +167,7 @@ impl Harvest {
             }
             let doc = offsets.span(Span::new(comment.span.start + 2, comment.span.end - 2));
             if module_doc.is_none() && first.is_none_or(|first| comment.span.end <= first && (banner || subject as u32 != first)) {
-                module_doc = Some(doc);
+                module_doc = Some(doc.clone());
             }
             if !banner {
                 docs.insert(subject as u32, doc);
@@ -206,7 +212,7 @@ impl Harvest {
     }
 
     pub fn doc(&self, at: u32) -> Option<TextSpan> {
-        self.docs.get(&at).copied()
+        self.docs.get(&at).cloned()
     }
 
     fn push(

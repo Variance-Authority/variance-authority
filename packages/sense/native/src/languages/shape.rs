@@ -76,6 +76,9 @@ pub struct Export {
     #[serde(rename = "type")]
     pub type_only: bool,
     pub line: u32,
+    /// The line it is written on, as [`crate::span_text`] keeps it.
+    #[serde(rename = "lineText", skip_serializing_if = "Option::is_none")]
+    pub line_text: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]

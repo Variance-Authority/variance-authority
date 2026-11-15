@@ -14,14 +14,20 @@ pub(crate) struct NamespaceSymbol {
     pub doc: Option<String>,
 }
 
-pub(crate) fn text(source: &[u16], span: Option<TextSpan>) -> Option<String> {
+pub(crate) fn text(source: &[u16], span: Option<&TextSpan>) -> Option<String> {
     let span = span?;
     Some(String::from_utf16_lossy(source.get(span.start as usize..span.end as usize)?).trim().to_owned())
 }
 
-pub(crate) fn doc(source: &[u16], span: Option<TextSpan>) -> Option<String> {
-    let raw = text(source, span)?;
-    let body = raw.trim_start_matches("/**").trim_end_matches("*/");
+pub(crate) fn doc(source: &[u16], span: Option<&TextSpan>) -> Option<String> {
+    cut(&text(source, span)?)
+}
+
+/// A doc comment's words as the lexicon and the name table read them: every
+/// line trimmed and stripped of its marks. It is not the doc a reader prints,
+/// which [`crate::text_cut::doc`] cuts, keeping a line's indent.
+pub(crate) fn cut(raw: &str) -> Option<String> {
+    let body = raw.trim().trim_start_matches("/**").trim_end_matches("*/");
     // A JSDoc line's `*` margin, or a Rust or Swift `///` / `//!` one.
     let lines: Vec<_> = body
         .lines()
@@ -72,13 +78,13 @@ pub(crate) fn exported_namespace(file: &str, source: &str, program: &Program, sy
         let utf16: Vec<u16> = inner.encode_utf16().collect();
         for symbol in read.symbols {
             answer.push(NamespaceSymbol { name: symbol.name, kind: symbol.kind.to_owned(), line: symbol.line + line_offset,
-                signature: text(&utf16, symbol.signature), doc: doc(&utf16, symbol.doc) });
+                signature: text(&utf16, symbol.signature.as_ref()), doc: doc(&utf16, symbol.doc.as_ref()) });
         }
     }
     let utf16: Vec<u16> = source.encode_utf16().collect();
     for symbol in symbols.iter().filter(|symbol| symbol.name == namespace) {
         answer.push(NamespaceSymbol { name: symbol.name.clone(), kind: symbol.kind.to_owned(), line: symbol.line,
-            signature: text(&utf16, symbol.signature), doc: doc(&utf16, symbol.doc) });
+            signature: text(&utf16, symbol.signature.as_ref()), doc: doc(&utf16, symbol.doc.as_ref()) });
     }
     answer
 }

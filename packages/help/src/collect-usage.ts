@@ -3,9 +3,7 @@
  * out rather than from a second walk.
  */
 
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import type { Parsed } from '@variance-authority/sense';
+import { cutDoc, cutHead, type Parsed, type TextSpan } from '@variance-authority/sense';
 import { NAMESPACE_NAME } from '@variance-authority/sense/read';
 import {
   boundDeclaration,
@@ -21,7 +19,6 @@ import {
   type Usage,
   type Use,
 } from '@variance-authority/package/help';
-import { docOf, headOf } from './indexed-surface.js';
 
 /** An import by path while its file's targets are still to come. */
 type Pending = { -readonly [key in keyof Deep]: Deep[key] };
@@ -36,7 +33,7 @@ type Pending = { -readonly [key in keyof Deep]: Deep[key] };
  * among them that declare no entry, whose imports are listed apart from the
  * deep ones.
  */
-export function collectingUsage(root: string, opened: ReadonlySet<string>, targets: ImportTargets): {
+export function collectingUsage(opened: ReadonlySet<string>, targets: ImportTargets): {
   accept(at: string, by: string, parsed: Parsed): void;
   targets(at: string, targets: readonly (string | undefined)[]): void;
   read(): Usage;
@@ -49,12 +46,12 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
 
   return {
     accept(at, by, parsed) {
-      if (parsed.unknown !== undefined) usage.unreadable.push(at);
       const kind = kindOf(at);
 
-      // The parse holds where a doc and a signature are, not what they say, so
-      // the file is read once for the text, and only when an export has either.
-      let text: string | undefined;
+      // The parse keeps each span's text; a span it kept no text of is a file
+      // the read could not cut it from, and its docs are unknown.
+      let unread = parsed.unknown !== undefined;
+      const unkept = (span: TextSpan | undefined): boolean => span !== undefined && span.text === undefined;
       const importedHere = new Set(parsed.requests.flatMap((request) => request.bindings.map((binding) => binding.local)));
       for (const published of parsed.exports ?? []) {
         if (published.from !== undefined) forwards.push(`${at}\0${published.exported ?? ''}\0${published.from}\0${published.imported ?? ''}`);
@@ -65,10 +62,9 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
             ? (parsed.symbols ?? []).filter((symbol) => symbol.name === published.local)
             : [];
           const bound = boundDeclaration(named, published.line);
-          const span = published.doc ?? bound?.doc;
-          if (span !== undefined || bound?.signature !== undefined) text ??= readFileSync(join(root, at), 'utf8');
-          const doc = text === undefined ? undefined : docOf(text, span);
-          const signature = text === undefined ? undefined : headOf(text, bound?.signature);
+          unread ||= unkept(published.doc) || unkept(bound?.doc) || unkept(bound?.signature);
+          const doc = cutDoc((published.doc ?? bound?.doc)?.text);
+          const signature = cutHead(bound?.signature?.text);
           // What the export binds in its own file, by the package stage's one rule.
           const own = published.from === undefined ? ownBinding(published.local, importedHere) : undefined;
           usage.exported.push({
@@ -86,6 +82,7 @@ export function collectingUsage(root: string, opened: ReadonlySet<string>, targe
           });
         }
       }
+      if (unread) usage.unreadable.push(at);
 
       for (const [index, asked] of parsed.requests.entries()) {
         const key = requested(asked.value);

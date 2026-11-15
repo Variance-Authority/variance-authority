@@ -18,6 +18,7 @@ use crate::help_in_file::{in_file, InFile};
 use crate::orient_map_read::beside;
 use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
+use crate::segment::NONE;
 
 #[path = "help_importers.rs"]
 mod importers_walk;
@@ -63,13 +64,13 @@ pub struct NamedExport {
     #[serde(rename = "boundLine", skip_serializing_if = "Option::is_none")]
     pub bound_line: Option<u32>,
     /// The doc comment above the export, or above the declaration it binds in
-    /// the same file, as `dependency_namespace::doc` cuts it from the file at the
-    /// span the index holds; absent when nothing documents it.
+    /// the same file, as [`crate::text_cut::doc`] cuts it from the text the
+    /// index keeps; absent when nothing documents it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<String>,
     /// What the declaration the export binds in the same file writes before its
-    /// body, as `dependency_namespace::text` cuts it from the file at the span
-    /// the index holds, its parameter comments included; absent for an
+    /// body, as [`crate::text_cut::head`] cuts it from the text the index
+    /// keeps, its parameter comments included; absent for an
     /// `export … from` and when the parse spans none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
@@ -230,7 +231,7 @@ fn forward_row(at: &str, exported: Option<&str>, from: &str, imported: Option<&s
     format!("{at}\0{}\0{from}\0{}", exported.unwrap_or(""), imported.unwrap_or(""))
 }
 
-fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
+fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
     let at = crossing.file;
@@ -240,9 +241,10 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
     if text.optional(parses.unknown.at(row)).is_some() { part.unreadable.push(at.to_owned()); }
     let kind = kind_of(at);
     if parses.exports_present[row] == 1 {
-        // The file is read only when an export of it is documented or binds a
-        // declaration: the index holds where each span is, and the text is the file's.
-        let mut source: Option<Vec<u16>> = None;
+        // The index keeps each span's text; a span it holds no text of is a
+        // file the parse could not read back, and its docs are unknown.
+        let unkept = |[start, _, kept]: [crate::stored::U32s; 3], at: usize| start.at(at) != NONE && kept.at(at) == NONE;
+        let mut unread = false;
         let imported_here: HashSet<&str> = parses.requests.range(row)
             .flat_map(|request| parses.request_bindings.range(request))
             .map(|binding| text.text(parses.binding_local.at(binding)))
@@ -267,22 +269,14 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
             });
             let declaration = bound.map(|symbol| text.text(parses.symbol_kind.at(symbol)).to_owned());
             let bound_line = bound.map(|symbol| parses.symbol_line.at(symbol)).filter(|&line| line != parses.export_line.at(export));
-            let doc = parses.doc_of_export(export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(symbol)));
-            let signature = bound.and_then(|symbol| parses.signature_of_symbol(symbol));
-            let utf16: &[u16] = if doc.is_none() && signature.is_none() { &[] } else {
-                source.get_or_insert_with(|| {
-                    std::fs::read_to_string(std::path::Path::new(root).join(at)).map(|text| text.encode_utf16().collect()).unwrap_or_default()
-                })
-            };
-            let doc = doc.and_then(|span| crate::dependency_namespace::doc(utf16, Some(span)));
-            // The head as `headOf` keeps it: its trailing `;` dropped, and nothing when nothing is left.
-            let signature = signature.and_then(|span| crate::dependency_namespace::text(utf16, Some(span))).and_then(|head| {
-                let head = head.trim_end();
-                let head = head.strip_suffix(';').unwrap_or(head);
-                (!head.is_empty()).then(|| head.to_owned())
-            });
+            unread |= unkept(parses.export_doc, export)
+                || bound.is_some_and(|symbol| unkept(parses.symbol_doc, symbol) || unkept(parses.symbol_signature, symbol));
+            let doc = parses.doc_of_export(text, export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(text, symbol)));
+            let doc = doc.and_then(crate::text_cut::doc);
+            let signature = bound.and_then(|symbol| parses.signature_of_symbol(text, symbol)).and_then(crate::text_cut::head);
             part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), bound: own.map(str::to_owned), declaration, bound_line, doc, signature });
         }
+        if unread && part.unreadable.last().map(String::as_str) != Some(at) { part.unreadable.push(at.to_owned()); }
     }
     let first = parses.requests.at(row) as usize;
     // The index resolved each request when it wrote the record; a record whose
@@ -337,7 +331,7 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
         .par_iter()
         .map(|crossing| {
             let by = if crossing.owner == NO_OWNER { "" } else { owners.packages[crossing.owner as usize].name.as_str() };
-            collect(root, layers, crossing, by, &targets)
+            collect(layers, crossing, by, &targets)
         })
         .collect();
     let mut out = IndexedUsage { exported: Vec::new(), forwards: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };

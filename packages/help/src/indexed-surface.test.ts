@@ -38,7 +38,7 @@ async function publishedBy(
     declared: {},
     entrypoints: [{ subpath: '.', source: entry }],
   };
-  const names = await indexedNames(root, [offering], sources);
+  const names = indexedNames(root, [offering], sources);
   return Object.fromEntries(
     [...names(entry)].map(([name, kinds]) => [
       name,
@@ -68,7 +68,7 @@ describe('published names from indexed declaration facts', () => {
       entrypoints: [{ subpath: '.', source: 'entry.ts' }],
     };
 
-    const names = await indexedNames(root, [offering], sources);
+    const names = indexedNames(root, [offering], sources);
     expect([...names('entry.ts').get('default')!.keys()]).toEqual(['function']);
   });
 
@@ -82,7 +82,7 @@ describe('published names from indexed declaration facts', () => {
       entrypoints: [{ subpath: '.', source: 'handed.js' }],
     };
 
-    const names = await indexedNames(root, [offering], new Map([['handed.js', { parsed: parsed('handed.js', text), targets: [] }]]));
+    const names = indexedNames(root, [offering], new Map([['handed.js', { parsed: parsed('handed.js', text), targets: [] }]]));
     expect(names('handed.js').get('default')?.get('function')).toMatchObject({ line: 2, signature: 'function same(value)' });
   });
 
@@ -99,7 +99,7 @@ describe('published names from indexed declaration facts', () => {
       entrypoints: [{ subpath: '.', source: 'literal.ts' }],
     };
 
-    const names = await indexedNames(root, [offering], source);
+    const names = indexedNames(root, [offering], source);
     expect(names('literal.ts').get('default')?.get('const')).toMatchObject({
       kind: 'const',
       at: 'literal.ts',

@@ -229,7 +229,7 @@ async function scanIndexed(
   const where = resolve(root);
   const index = await openSourceIndex(at);
   const owner = ownership(where);
-  const usage = collectingUsage(where, opened, targets);
+  const usage = collectingUsage(opened, targets);
   const sources = new Map<string, IndexedSource>();
 
   const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(where, dirs)}`, () => scanRelations({
@@ -391,7 +391,7 @@ async function scanWorkspace(
 async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): Promise<Help> {
   const { root, offerings, scanned } = read;
   const help = await stepped(options.progress, 'reading the signatures and comments of the exported names', async () => {
-    const names = await indexedNames(root, offerings, scanned.sources);
+    const names = indexedNames(root, offerings, scanned.sources);
     return assembleHelp(root, offerings, scanned.usage, names);
   });
   // `assembleHelp` has consumed the lazy name reader. Keeping every transient

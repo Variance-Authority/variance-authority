@@ -28,7 +28,7 @@ use rayon::prelude::*;
 
 use crate::generation::{encode_generation, key_parts, Deleted, Generation};
 use crate::order::code_unit;
-use crate::parse_columns::{ParseRow, Span};
+use crate::parse_columns::ParseRow;
 use crate::record::Indexed;
 use crate::segment::NONE;
 use crate::stored::{same_length, Stored, U32s};
@@ -244,10 +244,10 @@ fn flag(column: &[u8], row: usize) -> bool {
     column[row] == 1
 }
 
-/// A span with both ends, or none: `span` in `source-index-harvest.ts`.
-fn span(starts: U32s, ends: U32s, row: usize) -> Span {
+/// A span with both ends and its text, or none: `span` in `source-index-harvest.ts`.
+fn span<'a>(stored: &Stored<'a>, [starts, ends, texts]: [U32s; 3], row: usize) -> Option<(u32, u32, Option<&'a str>)> {
     let (start, end) = (starts.at(row), ends.at(row));
-    (start != NONE || end != NONE).then_some((start, end))
+    (start != NONE || end != NONE).then(|| (start, end, stored.optional(texts.at(row))))
 }
 
 #[path = "compact_parses.rs"]

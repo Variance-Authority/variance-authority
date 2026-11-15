@@ -21,15 +21,14 @@
 use napi_derive::napi;
 
 use crate::compact::Layer;
-use crate::help_declared::span;
 use crate::chain_lookup::record;
 use crate::package_graph::{join_parses, passed_on, Crossing};
 use crate::package_owners::NO_OWNER;
 use crate::resolve_export::{resolve_export, Bound, Exports, Modules, Passes, Reached};
 
 /// The declaration an export binds: the file that declares it, the name it
-/// has there, its line and kind, and the spans of its signature and doc
-/// comment in the file's UTF-16 offsets, when the parser kept them.
+/// has there, its line and kind, and its head and doc comment, as
+/// [`crate::text_cut`] cuts them, when the parser kept them.
 #[napi(object)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExportedDeclaration {
@@ -38,10 +37,8 @@ pub struct ExportedDeclaration {
     pub line: u32,
     /// As the parser harvested it: `function`, `const`, …
     pub kind: String,
-    pub signature_start: Option<u32>,
-    pub signature_end: Option<u32>,
-    pub doc_start: Option<u32>,
-    pub doc_end: Option<u32>,
+    pub signature: Option<String>,
+    pub doc: Option<String>,
 }
 
 /// The declaration the export `name` of `file` binds: the file's own, under
@@ -56,6 +53,22 @@ pub(crate) fn declaration_exported(layers: &[Layer], file: &str, name: &str) -> 
     let index = Index { layers };
     let (file, _) = record(layers, file)?;
     resolve_export(&index, &file, name).declaration()
+}
+
+/// The text of the line an export of `file` is written on, `line`, as the
+/// read the index recorded saw it; `None` when the file's newest parse holds no
+/// export on that line, or kept no text of it.
+pub(crate) fn export_line(layers: &[Layer], file: &str, line: u32) -> Option<String> {
+    let (file, at) = record(layers, file)?;
+    let mut crossings = [Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }];
+    join_parses(layers, &mut crossings);
+    let (layer, row) = crossings[0].parse?;
+    let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
+    if parses.exports_present[row] != 1 {
+        return None;
+    }
+    let export = parses.exports.range(row).find(|&export| parses.export_line.at(export) == line)?;
+    stored.optional(parses.export_line_text.at(export)).map(str::to_owned)
 }
 
 /// Whether `file`'s bare `export * from` of `star` passes `name` on: the
@@ -154,17 +167,13 @@ impl<'a> Parsed<'a> {
     /// The declaration `symbol` of `file`, as [`ExportedDeclaration`] holds it.
     fn declaration(&self, file: &str, symbol: usize) -> ExportedDeclaration {
         let (text, parses) = (&self.layer.stored, &self.layer.parses);
-        let (signature_start, signature_end) = span(parses.symbol_signature[0], parses.symbol_signature[1], symbol);
-        let (doc_start, doc_end) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol);
         ExportedDeclaration {
             at: file.to_owned(),
             name: text.text(parses.symbol_name.at(symbol)).to_owned(),
             line: parses.symbol_line.at(symbol),
             kind: text.text(parses.symbol_kind.at(symbol)).to_owned(),
-            signature_start,
-            signature_end,
-            doc_start,
-            doc_end,
+            signature: parses.signature_of_symbol(text, symbol).and_then(crate::text_cut::head),
+            doc: parses.doc_of_symbol(text, symbol).and_then(crate::text_cut::doc),
         }
     }
 
