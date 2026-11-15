@@ -58,6 +58,9 @@ mod emitted;
 mod external_dependencies;
 mod generation;
 mod git;
+#[cfg(test)]
+mod git_fixture;
+mod git_store;
 #[cfg(feature = "grammars")]
 mod grammar;
 mod graph_dominators;

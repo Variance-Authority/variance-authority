@@ -27,8 +27,15 @@ run over an unobserved surface.
 ## How you talk to it
 
 Read-only plumbing: `git ls-tree`, `git ls-files`, `git status --porcelain`,
-`git hash-object`, `git log`, and a three-dot diff against a merge base. Nothing in the
-system commits, and nothing in it rewrites history.
+`git hash-object`, `git log`, and a three-dot diff against a merge base. The
+blobs a scan and a search read come out of the object store through one reader in
+the addon's own process, after git has said where the store is and that no
+replace ref could make an id name other bytes: a scan reads it by the ids it
+already holds, and a search over thousands of files by the index's proof that a
+file is unchanged, once git has also said no filter rewrites the checkout. A
+text at a commit is read through `git cat-file --batch`, which can fetch what a
+partial clone lacks. Nothing in the system commits, and nothing in it rewrites
+history.
 
 ## Their chart
 
