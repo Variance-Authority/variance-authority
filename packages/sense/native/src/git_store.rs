@@ -164,18 +164,32 @@ pub(crate) struct Head {
     /// blob, and is left out. `None` where the store will not open, or a tree
     /// is missing or does not decode, and `ls-tree` answers instead.
     pub(crate) blobs: Option<Vec<(Vec<u8>, ObjectId, bool)>>,
+    /// `--show-object-format`: `sha1` or `sha256`.
+    pub(crate) format: String,
+    /// `--show-toplevel`: the top of the checkout.
+    pub(crate) top: PathBuf,
+    /// `--absolute-git-dir`: this worktree's git directory.
+    pub(crate) git_dir: PathBuf,
+    /// `--git-common-dir`: the directory every worktree shares.
+    pub(crate) common: PathBuf,
+    /// `--git-path index`: the index, `GIT_INDEX_FILE` included.
+    pub(crate) index: PathBuf,
 }
 
 /// What `HEAD` holds below `root`, asked of git in one call, or `None` where
 /// git names no tree for `HEAD`, as on an unborn branch.
 pub(crate) fn head(root: &Path) -> Option<Head> {
-    let located = git(root, &["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "objects", "--git-common-dir", "HEAD^{tree}"])?;
+    let located = git(
+        root,
+        &["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "objects", "--git-common-dir", "--git-path", "index", "--absolute-git-dir", "--show-toplevel", "HEAD^{tree}"],
+    )?;
     let mut lines = located.lines();
-    let (prefix, format, objects, common, tree) = (lines.next()?, lines.next()?, lines.next()?, lines.next()?, lines.next()?);
-    let blobs = replaced(root, &root.join(common))
+    let (prefix, format, objects, common) = (lines.next()?, lines.next()?, lines.next()?, root.join(lines.next()?));
+    let (index, git_dir, top, tree) = (root.join(lines.next()?), PathBuf::from(lines.next()?), PathBuf::from(lines.next()?), lines.next()?);
+    let blobs = replaced(root, &common)
         .and_then(|replaced| Objects::at(format, &root.join(objects), replaced))
         .and_then(|objects| below(&mut objects.reader(), ObjectId::from_hex(tree.as_bytes()).ok()?, prefix));
-    Some(Head { prefix: prefix.to_owned(), blobs })
+    Some(Head { prefix: prefix.to_owned(), blobs, format: format.to_owned(), top, git_dir, common, index })
 }
 
 /// The blobs below `prefix` in the tree `tree`; a prefix the tree does not

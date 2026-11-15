@@ -4,7 +4,8 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::{hex, snapshot};
+use super::{hex, snapshot, snapshot_of};
+use crate::git_fixture;
 
 fn git(at: &Path, args: &[&str]) -> String {
     let output = Command::new("git")
@@ -68,3 +69,130 @@ fn an_edited_file_keeps_its_digest_beside_paths_that_are_not_files() {
     }
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// Whether the working tree was compared in-process, rather than handed to `status`.
+fn compared(root: &Path) -> bool {
+    let head = crate::git_store::head(root).unwrap();
+    let config = crate::worktree_status::config_of(&crate::git_porcelain::configured(root.to_str().unwrap()));
+    crate::worktree_status::changes(&head, head.blobs.as_deref().unwrap(), &config).is_some()
+}
+
+/// The snapshot compared in-process is the one `status` answers, path for path.
+fn agrees(root: &Path) {
+    let root = root.to_str().unwrap();
+    let (known, printed) = (snapshot_of(root, true).unwrap(), snapshot_of(root, false).unwrap());
+    let digests = |tree: &super::Snapshot| -> Vec<(String, String, bool)> {
+        tree.paths.iter().zip(&tree.oids).zip(&tree.regular).map(|((path, oid), regular)| (path.clone(), hex(oid), *regular)).collect()
+    };
+    assert_eq!(digests(&known), digests(&printed));
+    let sorted = |tree: &super::Snapshot| {
+        let mut unhashed = tree.unhashed.clone();
+        unhashed.sort();
+        unhashed
+    };
+    assert_eq!(sorted(&known), sorted(&printed));
+}
+
+fn executable(root: &Path, path: &str) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(root.join(path), std::fs::Permissions::from_mode(0o755)).unwrap();
+}
+
+#[test]
+fn every_kind_of_edit_is_compared_in_process_as_status_answers_it() {
+    let root = git_fixture::repository(
+        "status-edits",
+        &[
+            ("a.ts", b"a\n"),
+            ("b.ts", b"b\n"),
+            ("gone.ts", b"gone\n"),
+            ("moved.ts", b"moved\n"),
+            ("same.ts", b"same\n"),
+            ("run.sh", b"run\n"),
+            ("staged.ts", b"staged\n"),
+            (".gitignore", b"*.log\nbuild/\n"),
+            ("deep/kept.ts", b"kept\n"),
+        ],
+    );
+    std::os::unix::fs::symlink("a.ts", root.join("link")).unwrap();
+    git_fixture::commit(&root);
+
+    git_fixture::write(&root, "a.ts", b"a, edited\n");
+    git_fixture::write(&root, "staged.ts", b"staged, edited\n");
+    git_fixture::git(&root, &["add", "staged.ts"]);
+    git_fixture::write(&root, "added.ts", b"added\n");
+    git_fixture::git(&root, &["add", "added.ts"]);
+    std::fs::remove_file(root.join("gone.ts")).unwrap();
+    git_fixture::git(&root, &["mv", "moved.ts", "renamed.ts"]);
+    executable(&root, "run.sh");
+    // Touched, not changed: the stat moves and the bytes do not.
+    git_fixture::write(&root, "same.ts", b"same\n");
+    std::fs::remove_file(root.join("link")).unwrap();
+    std::os::unix::fs::symlink("b.ts", root.join("link")).unwrap();
+    git_fixture::write(&root, "new.ts", b"new\n");
+    git_fixture::write(&root, "fresh/one.ts", b"one\n");
+    git_fixture::write(&root, "fresh/deeper/two.ts", b"two\n");
+    git_fixture::write(&root, "trace.log", b"ignored\n");
+    git_fixture::write(&root, "build/out.ts", b"ignored\n");
+    std::os::unix::fs::symlink("deep", root.join("untracked-link")).unwrap();
+
+    assert!(compared(&root));
+    agrees(&root);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_root_below_the_top_compares_only_what_lies_under_it() {
+    let root = git_fixture::repository("status-prefix", &[("sub/a.ts", b"a\n"), ("sub/gone.ts", b"g\n"), ("beside/b.ts", b"b\n")]);
+    git_fixture::write(&root, "sub/a.ts", b"a, edited\n");
+    std::fs::remove_file(root.join("sub/gone.ts")).unwrap();
+    git_fixture::write(&root, "sub/new/n.ts", b"n\n");
+    git_fixture::write(&root, "beside/b.ts", b"b, edited\n");
+    git_fixture::write(&root, "beside/new.ts", b"new\n");
+    git_fixture::git(&root, &["mv", "beside/b.ts", "sub/b.ts"]);
+
+    assert!(compared(&root.join("sub")));
+    agrees(&root.join("sub"));
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_conflict_a_nested_repository_and_global_excludes_are_compared_as_status_answers_them() {
+    let root = git_fixture::repository("status-conflict", &[("c.ts", b"base\n"), ("d.ts", b"d\n")]);
+    git_fixture::git(&root, &["checkout", "--quiet", "-b", "side"]);
+    git_fixture::write(&root, "c.ts", b"the side branch\n");
+    git_fixture::commit(&root);
+    git_fixture::git(&root, &["checkout", "--quiet", "main"]);
+    git_fixture::write(&root, "c.ts", b"main, longer than base\n");
+    git_fixture::commit(&root);
+    let merged = Command::new("git").args(["-c", "user.email=t@e.test", "-c", "user.name=T", "merge", "--quiet", "side"]).current_dir(&root).output().unwrap();
+    assert!(!merged.status.success(), "the merge conflicts");
+
+    git_fixture::write(&root, "nested/inner.ts", b"inner\n");
+    git_fixture::git(&root.join("nested"), &["init", "--quiet"]);
+    let excludes = root.with_extension("excludes");
+    std::fs::write(&excludes, "*.tmp\n").unwrap();
+    git_fixture::git(&root, &["config", "core.excludesFile", excludes.to_str().unwrap()]);
+    git_fixture::write(&root, "scratch.tmp", b"excluded\n");
+    git_fixture::write(&root, "kept.ts", b"kept\n");
+
+    assert!(compared(&root));
+    agrees(&root);
+    let _ = std::fs::remove_dir_all(&root);
+    let _ = std::fs::remove_file(&excludes);
+}
+
+#[test]
+fn a_gitlink_under_the_root_hands_the_comparison_to_status() {
+    let module = git_fixture::repository("status-module", &[("m.ts", b"m\n")]);
+    let root = git_fixture::repository("status-gitlink", &[("a.ts", b"a\n")]);
+    git_fixture::git(&root, &["-c", "protocol.file.allow=always", "submodule", "add", "--quiet", module.to_str().unwrap(), "vendor/module"]);
+    git_fixture::commit(&root);
+    git_fixture::write(&root, "a.ts", b"a, edited\n");
+
+    assert!(!compared(&root));
+    agrees(&root);
+    let _ = std::fs::remove_dir_all(&root);
+    let _ = std::fs::remove_dir_all(&module);
+}
+

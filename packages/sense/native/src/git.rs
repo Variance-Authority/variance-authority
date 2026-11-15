@@ -18,6 +18,8 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+use crate::git_porcelain::{configured, porcelain, settings_of, untracked_question};
+
 /// A git object name, unformatted. Twenty bytes rather than forty characters.
 pub type Oid = [u8; 20];
 
@@ -41,13 +43,21 @@ pub struct Snapshot {
 /// outside a repository would be useless in exactly the tarball and sandbox
 /// cases it should handle quietly.
 pub fn snapshot(root: &str) -> Option<Snapshot> {
+    snapshot_of(root, true)
+}
+
+/// `snapshot`, with the working tree compared in-process only when `compared`
+/// asks for it: the tests hold the two answers side by side.
+fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
     // One call names the root's place and `HEAD`'s tree, and the object store
     // lists the tree in-process; `ls-tree` answers where it will not, as under a
     // replace ref or on an unborn branch.
-    let (asked, held) = match crate::git_store::head(std::path::Path::new(root)) {
-        Some(head) => (head.prefix.into_bytes(), head.blobs),
-        None => (trim(&git(root, &["rev-parse", "--show-prefix"], None)?).to_vec(), None),
+    let head = crate::git_store::head(std::path::Path::new(root));
+    let asked = match &head {
+        Some(head) => head.prefix.clone().into_bytes(),
+        None => trim(&git(root, &["rev-parse", "--show-prefix"], None)?).to_vec(),
     };
+    let held = head.as_ref().and_then(|head| head.blobs.as_deref());
     let prefix = asked.as_slice();
     let (listing, status) = std::thread::scope(|scope| {
         let listing = scope.spawn(|| held.is_none().then(|| git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None).map(Listing::Printed)).flatten());
@@ -57,18 +67,25 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         // their behalf. The shape of the question is `untracked_question`'s.
         // A reader never writes the index: its refresh would race the user's
         // own git for `index.lock`, and move the stamp a held listing stands on.
+        // The index and `HEAD`'s blobs, both held, are compared in-process;
+        // `git status` answers where `worktree_status` hands the question back.
         let status = scope.spawn(|| {
-            let settings = untracked_settings(root);
+            let listed = configured(root);
+            if let (true, Some(head), Some(held)) = (compared, &head, held) {
+                if let Some(changes) = crate::worktree_status::changes(head, held, &crate::worktree_status::config_of(&listed)) {
+                    return Some(Status::Known(changes));
+                }
+            }
             let mut args = vec!["--no-optional-locks", "status", "--porcelain=v1", "-z"];
-            args.extend(untracked_question(prefix, settings));
-            git(root, &args, None)
+            args.extend(untracked_question(prefix, settings_of(&listed)));
+            git(root, &args, None).map(Status::Printed)
         });
         (listing.join().ok().flatten(), status.join().ok().flatten())
     });
     // A repository with no commit yet has no tree to list, and that is an empty
     // listing rather than an unanswerable one: `status` names every file as
     // added or untracked, and the overlay hashes each of them from disk.
-    let listing = match held.map(Listing::Held).or(listing) {
+    let listing = match head.and_then(|head| head.blobs).map(Listing::Held).or(listing) {
         Some(listing) => listing,
         None if unborn(root) => Listing::Printed(Vec::new()),
         None => return None,
@@ -160,64 +177,10 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
     Some(Snapshot { paths, oids, regular, unhashed })
 }
 
-/// What the repository configures about its untracked files: whether git keeps
-/// an untracked cache, and `status.showUntrackedFiles`, the one mode it keeps it
-/// for. `untrackedSettings` in `working-tree-changes.ts`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct UntrackedSettings {
-    pub cached: bool,
-    pub mode: &'static str,
-}
-
-/// The three settings, read in one call; none set is git's default, and so is
-/// a git that cannot answer.
-fn untracked_settings(root: &str) -> UntrackedSettings {
-    let pattern = r"^(core\.untrackedcache|feature\.manyfiles|status\.showuntrackedfiles)$";
-    settings_of(&git(root, &["config", "-z", "--get-regexp", pattern], None).unwrap_or_default())
-}
-
-/// `git config -z --get-regexp` output as the settings it names, read in
-/// order so a later file wins, as git reads it. `settingsOf` in
-/// `working-tree-changes.ts`.
-pub(crate) fn settings_of(listed: &[u8]) -> UntrackedSettings {
-    let truthy = |value: &[u8]| matches!(value, b"true" | b"yes" | b"on" | b"1");
-    let falsy = |value: &[u8]| matches!(value, b"false" | b"no" | b"off" | b"0" | b"");
-    let (mut cache, mut many_files, mut mode) = (None, false, "normal");
-    for entry in listed.split(|byte| *byte == 0).filter(|entry| !entry.is_empty()) {
-        // The key alone is a setting written with no value, which git reads as true.
-        let (key, value) = match entry.iter().position(|byte| *byte == b'\n') {
-            Some(newline) => (&entry[..newline], entry[newline + 1..].to_ascii_lowercase()),
-            None => (entry, b"true".to_vec()),
-        };
-        match key {
-            b"core.untrackedcache" => cache = Some(truthy(&value)),
-            b"feature.manyfiles" => many_files = truthy(&value),
-            b"status.showuntrackedfiles" => {
-                mode = if value == b"all" { "all" } else if falsy(&value) { "no" } else { "normal" };
-            }
-            _ => {}
-        }
-    }
-    UntrackedSettings { cached: cache.unwrap_or(many_files), mode }
-}
-
-/// How `status` is asked for the untracked files below `prefix`.
-///
-/// Git answers from its untracked cache only in the mode the repository
-/// configures, and only with no pathspec, for the measurements
-/// `untrackedQuestion` in `working-tree-changes.ts` gives. Where git keeps the
-/// cache, the whole checkout is asked in its configured mode and the overlay
-/// drops what lies beside the root; where it does not, the pathspec is what
-/// keeps the walk to the root.
-pub(crate) fn untracked_question(prefix: &[u8], settings: UntrackedSettings) -> Vec<&'static str> {
-    if settings.cached && settings.mode != "no" {
-        return vec![if settings.mode == "all" { "--untracked-files=all" } else { "--untracked-files=normal" }];
-    }
-    if prefix.is_empty() {
-        vec!["--untracked-files=normal"]
-    } else {
-        vec!["--untracked-files=all", "--", "."]
-    }
+/// What the working tree says instead of `HEAD`: compared in-process, or printed by `status`.
+enum Status {
+    Known(crate::worktree_status::Changes),
+    Printed(Vec<u8>),
 }
 
 /// What `HEAD` holds below the root: read from the object store, or printed by `ls-tree`.
@@ -238,7 +201,7 @@ fn unborn(root: &str) -> bool {
 /// What the working tree says instead of the committed listing, path by path:
 /// `Some` is a digest for the bytes on disk, and `None` a path not there to name
 /// — deleted, renamed away, or unreadable.
-type Moved = HashMap<Vec<u8>, Option<Oid>>;
+pub(crate) type Moved = HashMap<Vec<u8>, Option<Oid>>;
 
 /// Every path the working tree disagrees about, with the ones it holds that
 /// hashed nothing, or `None` when git did not answer and every committed digest
@@ -253,72 +216,11 @@ type Moved = HashMap<Vec<u8>, Option<Oid>>;
 /// Failure removes the disagreeing paths rather than leaving them: a stale
 /// digest on an edited file is a subject nobody observes, and no digest at all
 /// is a file the scan hashes for itself.
-fn overlay(root: &str, prefix: &[u8], status: Option<Vec<u8>>, links: &std::collections::HashSet<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)> {
-    let status = status?;
-
-    let fields: Vec<&[u8]> = status.split(|byte| *byte == 0).collect();
-    let mut moved: Moved = HashMap::new();
-    let mut dirty: Vec<Vec<u8>> = Vec::new();
-    let mut collapsed: Vec<&[u8]> = Vec::new();
-
-    let mut at = 0;
-    while at < fields.len() {
-        let entry = fields[at];
-        at += 1;
-        if entry.len() < 4 {
-            continue;
-        }
-
-        let codes = &entry[..2];
-
-        // A rename carries its old path as the next field, and that path is gone.
-        if codes.contains(&b'R') {
-            if let Some(from) = fields.get(at).and_then(|from| from.strip_prefix(prefix)) {
-                moved.insert(from.to_vec(), None);
-            }
-            at += 1;
-        }
-        // Collapsed by `normal`, the root itself, or a directory above it, is
-        // one untracked line, and every file under the root is untracked.
-        if codes == b"??" && entry.ends_with(b"/") && prefix.starts_with(&entry[3..]) {
-            collapsed.push(b".");
-            continue;
-        }
-        let Some(path) = entry[3..].strip_prefix(prefix) else {
-            continue;
-        };
-
-        if codes.contains(&b'D') {
-            moved.insert(path.to_vec(), None);
-        } else if path.ends_with(b"/") {
-            // A directory git did not descend: untracked, collapsed by
-            // `--untracked-files=normal`, or a repository of its own. It has no
-            // blob, and one in the batch fails `hash-object` for every file.
-            if codes == b"??" {
-                collapsed.push(path);
-            }
-        } else {
-            dirty.push(path.to_vec());
-        }
-    }
-
-    if !collapsed.is_empty() {
-        // Only the directories git collapsed are walked, and the walk is git's,
-        // so the ignore rules are the ones `status` applied. Unanswered, the
-        // files under them are unknown, and git has not answered.
-        let mut args = vec!["--literal-pathspecs", "ls-files", "-z", "--others", "--exclude-standard", "--"];
-        let spelled: Option<Vec<&str>> = collapsed.iter().map(|dir| std::str::from_utf8(dir).ok()).collect();
-        let listed = spelled.and_then(|dirs| {
-            args.extend(dirs);
-            git(root, &args, None)
-        });
-        let listed = listed?;
-        for path in listed.split(|byte| *byte == 0) {
-            if !path.is_empty() && !path.ends_with(b"/") {
-                dirty.push(path.to_vec());
-            }
-        }
-    }
+fn overlay(root: &str, prefix: &[u8], status: Option<Status>, links: &std::collections::HashSet<Vec<u8>>) -> Option<(Moved, Vec<Vec<u8>>)> {
+    let (mut moved, mut dirty) = match status? {
+        Status::Known(changes) => (changes.gone.into_iter().map(|path| (path, None)).collect(), changes.dirty),
+        Status::Printed(printed) => porcelain(root, prefix, &printed)?,
+    };
 
     // A link's object is the path it holds, not the bytes behind it, so a link is named as an edited file is.
     let unlisted: Vec<Vec<u8>> = links.iter().filter(|link| !moved.contains_key(*link) && !dirty.contains(link)).cloned().collect();
