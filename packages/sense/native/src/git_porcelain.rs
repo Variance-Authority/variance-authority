@@ -20,7 +20,7 @@ pub(crate) struct UntrackedSettings {
 /// The untracked settings and `worktree_status`'s, listed in one call; none set
 /// is git's default, and so is a git that cannot answer.
 pub(crate) fn configured(root: &str) -> Vec<u8> {
-    let pattern = format!(r"^(core\.untrackedcache|feature\.manyfiles|status\.showuntrackedfiles|{})$", crate::worktree_status::KEYS);
+    let pattern = format!(r"^(core\.untrackedcache|feature\.manyfiles|status\.showuntrackedfiles|{})$", crate::git::worktree_status::KEYS);
     git(root, &["config", "-z", "--get-regexp", &pattern], None).unwrap_or_default()
 }
 

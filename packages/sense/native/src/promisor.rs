@@ -99,7 +99,7 @@ fn remote(root: &str) -> Option<String> {
             return Some(value.to_owned());
         }
         let name = key.strip_prefix("remote.").and_then(|key| key.strip_suffix(".promisor"));
-        if promised.is_none() && name.is_some() && !crate::git_porcelain::falsy(value.as_bytes()) {
+        if promised.is_none() && name.is_some() && !crate::git::git_porcelain::falsy(value.as_bytes()) {
             promised = name.map(str::to_owned);
         }
     }

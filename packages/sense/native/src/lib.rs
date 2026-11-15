@@ -63,8 +63,6 @@ mod git;
 #[cfg(test)]
 mod git_fixture;
 mod git_store;
-mod git_porcelain;
-mod worktree_status;
 #[cfg(feature = "grammars")]
 mod grammar;
 mod graph_dominators;

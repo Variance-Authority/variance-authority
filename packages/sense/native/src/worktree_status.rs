@@ -62,7 +62,7 @@ pub(crate) const KEYS: &str = r"core\.(excludesfile|ignorecase|precomposeunicode
 /// `git config -z --get-regexp` output as the settings it names, a later file
 /// winning; none set is git's default.
 pub(crate) fn config_of(listed: &[u8]) -> Config {
-    let on = |value: &[u8]| !crate::git_porcelain::falsy(value);
+    let on = |value: &[u8]| !crate::git::git_porcelain::falsy(value);
     let mut config = Config {
         fsmonitor: false,
         ignore_case: false,
@@ -214,7 +214,7 @@ fn worktree(head: &Head, index: &gix_index::File, config: &Config) -> Option<(Pa
 fn untracked(head: &Head, index: &gix_index::File, config: &Config) -> Option<BTreeSet<Vec<u8>>> {
     let top = head.top.as_path();
     let mut buf = Vec::new();
-    let globals = gix_ignore::Search::from_git_dir(&head.common, excludes_file(config, top), &mut buf, Default::default()).ok()?;
+    let globals = gix_ignore::Search::from_git_dir(&head.common, excludes_file(config, top)?, &mut buf, Default::default()).ok()?;
     let lookup = config.ignore_case.then(|| index.prepare_icase_backing());
     let git_dir = gix_path::realpath(&head.git_dir).ok()?;
     let threads = std::thread::available_parallelism().map_or(1, usize::from).min(WALKERS);
@@ -369,17 +369,19 @@ impl Walker<'_> {
     }
 }
 
-/// `core.excludesFile`, or git's default beside the user's configuration.
-fn excludes_file(config: &Config, top: &Path) -> Option<PathBuf> {
+/// `core.excludesFile`, or git's default beside the user's configuration; none
+/// when it names another user's home, which only git resolves.
+fn excludes_file(config: &Config, top: &Path) -> Option<Option<PathBuf>> {
     match &config.excludes_file {
-        Some(named) => {
-            let named = gix_path::from_bstr(named.as_bstr()).ok()?;
-            match named.strip_prefix("~") {
-                Ok(home) => gix_path::env::home_dir().map(|dir| dir.join(home)),
-                Err(_) => Some(top.join(named)),
+        Some(named) => match named.strip_prefix(b"~") {
+            Some(home) if home.is_empty() || home.starts_with(b"/") => {
+                let home = gix_path::from_bstr(home.trim_start_with(|c| c == '/').as_bstr()).ok()?;
+                Some(gix_path::env::home_dir().map(|dir| dir.join(home)))
             }
-        }
-        None => gix_path::env::xdg_config("ignore", &mut |name| std::env::var_os(name)),
+            Some(_) => None,
+            None => Some(Some(top.join(gix_path::from_bstr(named.as_bstr()).ok()?))),
+        },
+        None => Some(gix_path::env::xdg_config("ignore", &mut |name| std::env::var_os(name))),
     }
 }
 
@@ -421,12 +423,17 @@ impl CompareBlobs for OnDisk<'_> {
             return Ok(Some(()));
         };
         let path = self.top.join(path);
-        let bytes = if entry.mode == Mode::SYMLINK {
-            std::fs::read_link(&path).ok().and_then(|target| gix_path::into_bstr(target).ok().map(|target| target.to_vec()))
+        // A file is hashed as it streams, so a large one is never held whole.
+        let id = if entry.mode == Mode::SYMLINK {
+            std::fs::read_link(&path).ok().and_then(|target| gix_path::into_bstr(target).ok()).and_then(|target| gix_object::compute_hash(gix_hash::Kind::Sha1, gix_object::Kind::Blob, &target).ok())
         } else {
-            std::fs::read(&path).ok()
+            std::fs::File::open(&path).ok().and_then(|mut file| {
+                let len = file.metadata().ok()?.len();
+                let mut progress = gix_utils::progress::Discard;
+                gix_object::compute_stream_hash(gix_hash::Kind::Sha1, gix_object::Kind::Blob, &mut file, len, &mut progress, &AtomicBool::new(false)).ok()
+            })
         };
-        let same = bytes.and_then(|bytes| gix_object::compute_hash(gix_hash::Kind::Sha1, gix_object::Kind::Blob, &bytes).ok()) == Some(entry.id);
+        let same = id == Some(entry.id);
         Ok((!same).then_some(()))
     }
 }

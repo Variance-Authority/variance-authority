@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use crate::git_porcelain::{configured, porcelain, settings_of, untracked_question};
+use crate::git::git_porcelain::{configured, porcelain, settings_of, untracked_question};
 
 /// A git object name, unformatted. Twenty bytes rather than forty characters.
 pub type Oid = [u8; 20];
@@ -74,7 +74,7 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
         let status = scope.spawn(|| {
             let listed = configured(root);
             if let (true, Some(head), Some(held)) = (compared, &head, held) {
-                if let Some(changes) = crate::worktree_status::changes(head, held, &crate::worktree_status::config_of(&listed)) {
+                if let Some(changes) = crate::git::worktree_status::changes(head, held, &crate::git::worktree_status::config_of(&listed)) {
                     return Some(Status::Known(changes));
                 }
             }
@@ -181,7 +181,7 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
 
 /// What the working tree says instead of `HEAD`: compared in-process, or printed by `status`.
 enum Status {
-    Known(crate::worktree_status::Changes),
+    Known(crate::git::worktree_status::Changes),
     Printed(Vec<u8>),
 }
 
@@ -416,6 +416,12 @@ pub(crate) fn answer(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Resul
 
     Ok(output.stdout)
 }
+
+// What `status` asks git, and the comparison that answers in its place.
+#[path = "git_porcelain.rs"]
+pub(crate) mod git_porcelain;
+#[path = "worktree_status.rs"]
+pub(crate) mod worktree_status;
 
 #[cfg(all(test, unix))]
 #[path = "git_tests.rs"]

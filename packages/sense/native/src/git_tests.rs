@@ -73,8 +73,8 @@ fn an_edited_file_keeps_its_digest_beside_paths_that_are_not_files() {
 /// Whether the working tree was compared in-process, rather than handed to `status`.
 fn compared(root: &Path) -> bool {
     let head = crate::git_store::head(root).unwrap();
-    let config = crate::worktree_status::config_of(&crate::git_porcelain::configured(root.to_str().unwrap()));
-    crate::worktree_status::changes(&head, head.blobs.as_deref().unwrap(), &config).is_some()
+    let config = crate::git::worktree_status::config_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));
+    crate::git::worktree_status::changes(&head, head.blobs.as_deref().unwrap(), &config).is_some()
 }
 
 /// The snapshot compared in-process is the one `status` answers, path for path.
@@ -211,6 +211,16 @@ fn a_skip_worktree_entry_hands_the_comparison_to_status() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[test]
+fn an_excludes_file_in_another_users_home_hands_the_comparison_to_status() {
+    let root = git_fixture::repository("status-excludes-user", &[("a.ts", b"a\n")]);
+    git_fixture::git(&root, &["config", "core.excludesFile", "~root/.va-ignore"]);
+    git_fixture::write(&root, "b.ts", b"b\n");
+    assert!(!compared(&root));
+    agrees(&root);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// Every spelling git accepts for a boolean reads as git reads it, so the
 /// in-process comparison never runs under a setting it misread.
 #[test]
@@ -220,7 +230,7 @@ fn a_boolean_setting_reads_as_git_reads_it() {
     for spelling in ["true", "yes", "On", "1", "2", "-1", "1k", "false", "NO", "off", "0", "00", ""] {
         for key in ["core.ignorecase", "core.filemode", "core.symlinks", "core.trustctime", "core.precomposeunicode"] {
             git(&root, &["config", key, spelling]);
-            let config = crate::worktree_status::config_of(&crate::git_porcelain::configured(root.to_str().unwrap()));
+            let config = crate::git::worktree_status::config_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));
             let read = match key {
                 "core.ignorecase" => config.ignore_case,
                 "core.filemode" => config.file_mode,
@@ -234,7 +244,7 @@ fn a_boolean_setting_reads_as_git_reads_it() {
         // The untracked settings read the same listing, and by the same rule.
         for key in ["core.untrackedcache", "feature.manyfiles"] {
             git(&root, &["config", key, spelling]);
-            let settings = crate::git_porcelain::settings_of(&crate::git_porcelain::configured(root.to_str().unwrap()));
+            let settings = crate::git::git_porcelain::settings_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));
             assert_eq!(settings.cached.to_string(), git(&root, &["config", "--type=bool", key]), "{key} = {spelling:?}");
             git(&root, &["config", "--unset", key]);
         }
