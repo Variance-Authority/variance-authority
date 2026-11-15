@@ -35,9 +35,9 @@ function run(stopped: boolean, lines: { readonly wire?: number; readonly handle?
 }
 
 const cases = new Set([ID]);
-const unchanged = () => true;
-/** A run that announced every case its index holds, over the texts `same` names. */
-const over = (fresh: Buffer, same: (file: string) => boolean = unchanged, inputs?: ReadonlyMap<string, string>) => ({
+const unchanged = ['src/page.ts'];
+/** A run that announced every case its index holds, recording at the text the index holds the files `same` names. */
+const over = (fresh: Buffer, same: readonly string[] = unchanged, inputs?: ReadonlyMap<string, string>) => ({
   fresh,
   announced: new Set(openSetExecutionIndex(fresh)!.tests.map((test) => test.id)),
   same,
@@ -45,7 +45,7 @@ const over = (fresh: Buffer, same: (file: string) => boolean = unchanged, inputs
 });
 
 /** Lay `runs` one after another over the same texts, as each run's record would; `inputs` what each run's test files ran over. */
-function laid(runs: readonly Buffer[], same: (file: string) => boolean = unchanged, inputs?: readonly ReadonlyMap<string, string>[]): { section?: Buffer; index: Buffer } {
+function laid(runs: readonly Buffer[], same: readonly string[] = unchanged, inputs?: readonly ReadonlyMap<string, string>[]): { section?: Buffer; index: Buffer } {
   let section: Buffer | undefined;
   let index: Buffer | undefined;
   runs.forEach((fresh, at) => {
@@ -68,7 +68,7 @@ describe('layReadings', () => {
   it('keeps only the newest once a module either reading entered was recorded from another text', () => {
     const { section } = laid([run(true, { handle: 3 }), run(false, { wire: 2, handle: 4 })]);
 
-    expect(layReadings(section, run(false, { wire: 2, handle: 4 }), run(true, { handle: 3 }), cases, over(run(true, { handle: 3 }), () => false))).toBeUndefined();
+    expect(layReadings(section, run(false, { wire: 2, handle: 4 }), run(true, { handle: 3 }), cases, over(run(true, { handle: 3 }), []))).toBeUndefined();
   });
 
   it('reads a region its index names by the first set in its pool', () => {
@@ -189,7 +189,7 @@ describe('layReadings', () => {
 
     const landed = run(false, { handle: 4 }, ['b.test.ts > other']);
 
-    expect(layReadings(section, index, landed, new Set([ID, 'b.test.ts > other']), over(other, (file) => file !== 'src/page.ts'))).toBeUndefined();
+    expect(layReadings(section, index, landed, new Set([ID, 'b.test.ts > other']), over(other, []))).toBeUndefined();
     expect(layReadings(section, index, landed, new Set([ID, 'b.test.ts > other']), over(other))?.toString()).toEqual(section?.toString());
   });
 

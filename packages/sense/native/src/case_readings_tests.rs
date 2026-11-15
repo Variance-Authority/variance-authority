@@ -6,7 +6,7 @@ use crate::journey_journal::{Test, FINISHED};
 use crate::journey_record::{Block, Module};
 
 fn region(name: &str, start: u64) -> Region {
-    Region { module: "src/a.ts".to_owned(), name: name.to_owned(), path: name.to_owned(), start, end: start, value: Some(start * 2) }
+    Region { module: "src/a.ts".into(), name: name.into(), path: name.into(), start, end: start, value: Some(start * 2) }
 }
 
 fn case(file: &str, name: &str) -> Test {

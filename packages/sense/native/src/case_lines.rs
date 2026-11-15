@@ -67,11 +67,31 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Option<Lines>, String> {
 /// The value of a region of `module`, for a region the case crossed; `None`
 /// where the case crossed nothing.
 pub(crate) fn value_at(lines: &Lines, module: u32, block: u32) -> Option<u64> {
-    let Some((values, starts)) = lines.segments.get(&module) else {
-        return lines.fallback;
-    };
-    let at = starts.partition_point(|start| *start <= block).max(1) - 1;
-    values.get(at).copied()
+    module_lines(lines, module).value(block)
+}
+
+/// The lines of one module of a case, to read many of its regions' values.
+#[derive(Clone, Copy)]
+pub(crate) enum ModuleLines<'a> {
+    Fallback(Option<u64>),
+    Runs(&'a [u64], &'a [u32]),
+}
+
+impl ModuleLines<'_> {
+    /// `value_at` for a region of this module.
+    pub(crate) fn value(self, block: u32) -> Option<u64> {
+        match self {
+            ModuleLines::Fallback(value) => value,
+            ModuleLines::Runs(values, starts) => values.get(starts.partition_point(|start| *start <= block).max(1) - 1).copied(),
+        }
+    }
+}
+
+pub(crate) fn module_lines(lines: &Lines, module: u32) -> ModuleLines<'_> {
+    match lines.segments.get(&module) {
+        None => ModuleLines::Fallback(lines.fallback),
+        Some((values, starts)) => ModuleLines::Runs(values, starts),
+    }
 }
 
 /// Which of two values one region keeps: the case's own crossing over a hook's,

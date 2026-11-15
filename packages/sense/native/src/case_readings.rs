@@ -6,6 +6,9 @@
 //! reads back the same, so they are kept as they are.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::case_lines;
 use crate::order;
@@ -19,12 +22,13 @@ const GONE: u64 = 8;
 const VALUES: u64 = 16;
 const ADDED: u64 = 32;
 
-/// One region a reading crossed: `ReadRegion`'s module, name, path, lines and value.
+/// One region a reading crossed: `ReadRegion`'s module, name, path, lines and
+/// value. Its strings are shared, since every reading of a case repeats them.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Region {
-    pub module: String,
-    pub name: String,
-    pub path: String,
+    pub module: Arc<str>,
+    pub name: Arc<str>,
+    pub path: Arc<str>,
     pub start: u64,
     pub end: u64,
     pub value: Option<u64>,
@@ -54,9 +58,9 @@ pub(crate) fn decode_case(bytes: &[u8]) -> Result<Vec<Stored>, String> {
     let mut strings = Vec::new();
     for _ in 0..count {
         let length = read.take()?;
-        strings.push(String::from_utf8(read.bytes(length)?.to_vec()).map_err(|error| error.to_string())?);
+        strings.push(Arc::<str>::from(std::str::from_utf8(read.bytes(length)?).map_err(|error| error.to_string())?));
     }
-    let string = |read: &mut Varints| -> Result<String, String> {
+    let string = |read: &mut Varints| -> Result<Arc<str>, String> {
         strings.get(read.take()? as usize).cloned().ok_or_else(|| "a reading names a string it does not hold".to_owned())
     };
     let value = |read: &mut Varints| -> Result<Option<u64>, String> { Ok(read.take()?.checked_sub(1)) };
@@ -100,8 +104,37 @@ pub(crate) fn decode_case(bytes: &[u8]) -> Result<Vec<Stored>, String> {
 /// One case's bytes, as `caseBytes` writes them: the strings in the order the
 /// readings first name them, then the readings.
 pub(crate) fn case_bytes(readings: &[Stored]) -> Vec<u8> {
-    let mut out = Body { strings: Vec::new(), places: HashMap::new(), bytes: Vec::new() };
-    put(&mut out.bytes, readings.len() as u64);
+    case_bytes_of(readings.len(), readings.iter().map(Stored::view))
+}
+
+/// A reading as stored, borrowed: what `case_bytes` writes.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct StoredView<'a> {
+    pub count: u64,
+    pub stopped: Option<bool>,
+    pub regions: Option<&'a [Region]>,
+    pub gone: Option<&'a [u64]>,
+    pub values: Option<&'a [(u64, Option<u64>)]>,
+    pub added: Option<&'a [(u64, Region)]>,
+}
+
+impl Stored {
+    pub(crate) fn view(&self) -> StoredView<'_> {
+        StoredView {
+            count: self.count,
+            stopped: self.stopped,
+            regions: self.regions.as_deref(),
+            gone: self.gone.as_deref(),
+            values: self.values.as_deref(),
+            added: self.added.as_deref(),
+        }
+    }
+}
+
+/// `case_bytes` over `count` borrowed readings.
+pub(crate) fn case_bytes_of<'a>(count: usize, readings: impl Iterator<Item = StoredView<'a>>) -> Vec<u8> {
+    let mut out = Body { strings: Vec::new(), places: FxHashMap::default(), shared: FxHashMap::default(), bytes: Vec::new() };
+    put(&mut out.bytes, count as u64);
     for reading in readings {
         put(&mut out.bytes, reading.count);
         let flags = reading.stopped.map_or(0, |stops| STOPPED | if stops { STOPS } else { 0 })
@@ -110,13 +143,13 @@ pub(crate) fn case_bytes(readings: &[Stored]) -> Vec<u8> {
             | if reading.values.is_some() { VALUES } else { 0 }
             | if reading.added.is_some() { ADDED } else { 0 };
         put(&mut out.bytes, flags);
-        if let Some(regions) = &reading.regions {
+        if let Some(regions) = reading.regions {
             put(&mut out.bytes, regions.len() as u64);
             for region in regions {
                 out.region(region);
             }
         }
-        if let Some(gone) = &reading.gone {
+        if let Some(gone) = reading.gone {
             put(&mut out.bytes, gone.len() as u64);
             let mut before: i64 = -1;
             for at in gone {
@@ -124,14 +157,14 @@ pub(crate) fn case_bytes(readings: &[Stored]) -> Vec<u8> {
                 before = *at as i64;
             }
         }
-        if let Some(values) = &reading.values {
+        if let Some(values) = reading.values {
             put(&mut out.bytes, values.len() as u64);
             for (at, held) in values {
                 put(&mut out.bytes, *at);
                 out.value(*held);
             }
         }
-        if let Some(added) = &reading.added {
+        if let Some(added) = reading.added {
             put(&mut out.bytes, added.len() as u64);
             for (at, region) in added {
                 put(&mut out.bytes, *at);
@@ -152,17 +185,27 @@ pub(crate) fn case_bytes(readings: &[Stored]) -> Vec<u8> {
 /// The readings' bytes as they are written, and the strings they name so far.
 struct Body<'a> {
     strings: Vec<&'a str>,
-    places: HashMap<&'a str, u64>,
+    places: FxHashMap<&'a str, u64>,
+    /// `places` by the address of a shared string, which most strings repeat.
+    shared: FxHashMap<usize, u64>,
     bytes: Vec<u8>,
 }
 
 impl<'a> Body<'a> {
-    fn string(&mut self, value: &'a str) {
-        let next = self.strings.len() as u64;
-        let place = *self.places.entry(value).or_insert(next);
-        if place == next {
-            self.strings.push(value);
-        }
+    fn string(&mut self, value: &'a Arc<str>) {
+        let address = Arc::as_ptr(value).cast::<u8>() as usize;
+        let place = match self.shared.get(&address) {
+            Some(place) => *place,
+            None => {
+                let next = self.strings.len() as u64;
+                let place = *self.places.entry(value).or_insert(next);
+                if place == next {
+                    self.strings.push(value);
+                }
+                self.shared.insert(address, place);
+                place
+            }
+        };
         put(&mut self.bytes, place);
     }
 
@@ -181,41 +224,52 @@ impl<'a> Body<'a> {
 }
 
 /// What `regions` crossed otherwise than `base`, as `difference` writes it:
-/// regions the base names alike pair in order.
-fn difference(regions: &[Region], base: &[Region]) -> Stored {
-    let mut places: HashMap<(&str, &str, &str, u64, u64), std::collections::VecDeque<usize>> = HashMap::new();
+/// regions the base names alike pair in order. Also whether it reads back as
+/// `regions` without being applied: every region paired, in the base's order.
+fn difference(regions: &[Region], base: &[Region]) -> (Stored, bool) {
+    let held = |gone: Vec<u64>, values: Vec<(u64, Option<u64>)>, added: Vec<(u64, Region)>| Stored {
+        gone: (!gone.is_empty()).then_some(gone),
+        values: (!values.is_empty()).then_some(values),
+        added: (!added.is_empty()).then_some(added),
+        ..Stored::default()
+    };
+    // Regions alike at every place pair by place, as the queues would pair them.
+    if regions.len() == base.len() && regions.iter().zip(base).all(|(region, was)| region.key() == was.key()) {
+        let values = regions.iter().zip(base).enumerate().filter(|(_, (region, was))| region.value != was.value).map(|(at, (region, _))| (at as u64, region.value)).collect();
+        return (held(Vec::new(), values, Vec::new()), true);
+    }
+    let mut places: FxHashMap<(&str, &str, &str, u64, u64), std::collections::VecDeque<usize>> = FxHashMap::default();
     for (at, region) in base.iter().enumerate() {
         places.entry(region.key()).or_default().push_back(at);
     }
-    let mut crossed = HashSet::new();
+    let mut crossed = vec![false; base.len()];
     let (mut values, mut added) = (Vec::new(), Vec::new());
+    let (mut ordered, mut last) = (true, None);
     for (at, region) in regions.iter().enumerate() {
         match places.get_mut(&region.key()).and_then(std::collections::VecDeque::pop_front) {
             None => added.push((at as u64, region.clone())),
             Some(from) => {
-                crossed.insert(from);
+                crossed[from] = true;
+                ordered &= last.is_none_or(|last| last < from);
+                last = Some(from);
                 if base[from].value != region.value {
                     values.push((from as u64, region.value));
                 }
             }
         }
     }
-    let gone: Vec<u64> = (0..base.len()).filter(|at| !crossed.contains(at)).map(|at| at as u64).collect();
-    Stored {
-        gone: (!gone.is_empty()).then_some(gone),
-        values: (!values.is_empty()).then_some(values),
-        added: (!added.is_empty()).then_some(added),
-        ..Stored::default()
-    }
+    let gone = crossed.iter().enumerate().filter(|(_, crossed)| !**crossed).map(|(at, _)| at as u64).collect();
+    let reads = ordered && added.is_empty();
+    (held(gone, values, added), reads)
 }
 
 /// The regions `stored` names over `base`, as `applied` reads them; its own where it holds them.
-fn applied(stored: &Stored, base: &[Region]) -> Vec<Region> {
+pub(crate) fn applied(stored: &Stored, base: &[Region]) -> Vec<Region> {
     if let Some(regions) = &stored.regions {
         return regions.clone();
     }
-    let charged: HashMap<u64, Option<u64>> = stored.values.iter().flatten().copied().collect();
-    let dropped: HashSet<u64> = stored.gone.iter().flatten().copied().collect();
+    let charged: FxHashMap<u64, Option<u64>> = stored.values.iter().flatten().copied().collect();
+    let dropped: FxHashSet<u64> = stored.gone.iter().flatten().copied().collect();
     let mut own: Vec<Region> = base
         .iter()
         .enumerate()
@@ -232,9 +286,9 @@ fn applied(stored: &Stored, base: &[Region]) -> Vec<Region> {
 }
 
 /// `regions` as their difference from `base`, or whole where the difference would not read back as them.
-fn against(regions: &[Region], base: &[Region]) -> Stored {
-    let held = difference(regions, base);
-    if applied(&held, base) == regions { held } else { Stored { regions: Some(regions.to_vec()), ..Stored::default() } }
+pub(crate) fn against(regions: &[Region], base: &[Region]) -> Stored {
+    let (held, reads) = difference(regions, base);
+    if reads || applied(&held, base) == regions { held } else { Stored { regions: Some(regions.to_vec()), ..Stored::default() } }
 }
 
 /// Whether a case's newest reading is stored as a difference from the index
@@ -271,15 +325,16 @@ fn case_regions(shard: &Shard, inventories: &HashMap<String, Vec<Inventory>>, ro
     let mut read = Vec::new();
     for (place, module) in shard.modules.iter().enumerate() {
         let blocks = &cut_of(inventories, &module.file, module.inventory)?.blocks;
+        let file: Arc<str> = Arc::from(module.file.as_str());
         for (block, set) in module.called.iter().enumerate() {
             if !set_holds(set_slice(&shard.set_bytes, &shard.set_offsets, *set)?, shard.tests.len(), row)? {
                 continue;
             }
             let region = blocks.get(block).ok_or_else(|| format!("the case index names a region of `{}` its cut does not hold", module.file))?;
             read.push(Region {
-                module: module.file.clone(),
-                name: region.name.clone(),
-                path: region.path.clone(),
+                module: file.clone(),
+                name: Arc::from(region.name.as_str()),
+                path: Arc::from(region.path.as_str()),
                 start: u64::from(region.start_line),
                 end: u64::from(region.end_line),
                 value: lines.as_ref().and_then(|lines| case_lines::value_at(lines, place as u32, block as u32)),

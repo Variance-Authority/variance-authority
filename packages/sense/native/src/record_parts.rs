@@ -280,7 +280,7 @@ fn fronted(reader: &mut Varints<'_>, last: &mut Vec<u8>) -> Result<Vec<u8>, Stri
     Ok(last.clone())
 }
 
-fn put_fronted(out: &mut Vec<u8>, last: &mut Vec<u8>, value: &str) {
+pub(crate) fn put_fronted(out: &mut Vec<u8>, last: &mut Vec<u8>, value: &str) {
     let bytes = value.as_bytes();
     let shared = last.iter().zip(bytes).take_while(|(left, right)| left == right).count();
     put(out, shared as u64);
@@ -290,7 +290,7 @@ fn put_fronted(out: &mut Vec<u8>, last: &mut Vec<u8>, value: &str) {
 }
 
 /// A digest as `format/hash.ts` spells it, `v1:` and lowercase hex, as its bytes; any other as a zero and its text.
-fn put_digest(out: &mut Vec<u8>, digest: &str) {
+pub(crate) fn put_digest(out: &mut Vec<u8>, digest: &str) {
     let hex = digest.strip_prefix("v1:").filter(|hex| !hex.is_empty() && hex.len() % 2 == 0 && hex.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')));
     match hex {
         Some(hex) => {
