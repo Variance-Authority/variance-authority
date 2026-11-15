@@ -277,22 +277,17 @@ describe('variance ask orient', () => {
     expect((await run(['ask', 'orient'])).out).toContain('packages: benchmarks\n');
   });
 
-  it('says why a checkout git cannot list is folded into no map', async () => {
+  it('folds a checkout git cannot list into a code map from the files its index holds and the manifests beside them', async () => {
     families(false);
 
     const indexed = await run(['index', '--no-git']);
 
     expect(indexed.code).toBe(EXIT_CLEAN);
     expect(indexed.out.split('\n')[1]).toBe(
-      'code map: none, because the source index holds no file records; ' +
+      'code map: 20 packages in 4 areas, 1 deep, over 6 dependency layers; ' +
         'git could not list the checkout, so its files are the ones the index holds and its manifests the ones found beside them',
     );
   });
-
-  it.todo(
-    'a checkout git cannot list is folded into a code map from the files its index holds and the manifests beside them — ' +
-      'needs `variance index` to keep a file record for each file it parses outside git, which it keeps only as parses',
-  );
 
   it('refuses an area the map does not have, and an area asked together with files', async () => {
     families();
