@@ -140,6 +140,7 @@ pub fn inspect_cases(directory: &Path, root: &Path) -> Result<CaseRun, String> {
     inspect_with(directory, root, &[], true)
 }
 
+// FIXME: `detailed` also decides which cases exist: an Eyes-only case is in the case index and not in the journey artifact, and part files are in the artifact and not in the case index.
 fn inspect_with(directory: &Path, root: &Path, parts: &[String], detailed: bool) -> Result<CaseRun, String> {
     let paths = listed(directory, None)?;
     let mut visitor = InspectVisitor {
