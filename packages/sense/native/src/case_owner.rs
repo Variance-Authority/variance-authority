@@ -57,14 +57,46 @@ pub fn times_of(packed: &str) -> Result<Vec<u8>, String> {
     Ok(crate::case_times::encode(&times))
 }
 
+/// `file` named from `root` as node's `path.relative` names it, in `/`: both
+/// resolved, then `..` for each part of `root` the file does not share, so a
+/// file outside the root is `../shared/a.test.ts` — the spelling the runner's
+/// report and the JavaScript `projectPath` join a case on. A file on another
+/// drive or prefix keeps its whole resolved path, as `path.relative` does.
+// FIXME: on Windows `path.relative` compares parts without case; this does not.
 pub fn project_path(root: &Path, file: &str) -> String {
-    let path = Path::new(file);
-    let relative = path.strip_prefix(root).unwrap_or(path);
-    relative
-        .components()
-        .map(|part| part.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/")
+    let root = resolved(root);
+    let file = resolved(Path::new(file));
+    let shared = root.iter().zip(&file).take_while(|(a, b)| a == b).count();
+    let parts: Vec<String> = if shared == 0 {
+        file
+    } else {
+        std::iter::repeat("..".to_owned()).take(root.len() - shared).chain(file[shared..].iter().cloned()).collect()
+    };
+    parts.join("/")
+}
+
+/// `path` made absolute against the working directory and with `.` and `..`
+/// resolved by its spelling, as `path.resolve` does, one part per entry: the
+/// first is the prefix (`C:`), or empty for the root, so a join spells `/`.
+fn resolved(path: &Path) -> Vec<String> {
+    let absolute = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+    let mut parts: Vec<String> = Vec::new();
+    for part in absolute.components() {
+        match part {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                // `..` never climbs past the root or the prefix.
+                if parts.len() > 1 {
+                    parts.pop();
+                }
+            }
+            std::path::Component::Prefix(prefix) => parts.push(prefix.as_os_str().to_string_lossy().into_owned()),
+            std::path::Component::RootDir if parts.is_empty() => parts.push(String::new()),
+            std::path::Component::RootDir => {}
+            std::path::Component::Normal(part) => parts.push(part.to_string_lossy().into_owned()),
+        }
+    }
+    parts
 }
 
 #[cfg(test)]
@@ -83,6 +115,18 @@ mod tests {
         assert!(limit_of(&owner("soon", "")).unwrap().is_nan());
         assert_eq!(limit_of(&owner("", "")), None);
         assert_eq!(limit_of("/repo/a.test.ts\0case\x001"), None);
+    }
+
+    #[test]
+    fn a_file_is_named_from_the_root_as_path_relative_names_it() {
+        let root = Path::new("/repo");
+        assert_eq!(project_path(root, "/repo/test/a.test.ts"), "test/a.test.ts");
+        assert_eq!(project_path(root, "/shared/a.test.ts"), "../shared/a.test.ts");
+        assert_eq!(project_path(root, "/repo-two/a.test.ts"), "../repo-two/a.test.ts");
+        assert_eq!(project_path(root, "/repo/test/../a.test.ts"), "a.test.ts");
+        assert_eq!(project_path(root, "/repo"), "");
+        assert_eq!(project_path(Path::new("/repo/packages/app"), "/repo/test/a.test.ts"), "../../test/a.test.ts");
+        assert_eq!(project_path(Path::new("/"), "/a.test.ts"), "a.test.ts");
     }
 
     #[test]

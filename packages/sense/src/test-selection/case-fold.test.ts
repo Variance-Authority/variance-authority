@@ -122,6 +122,28 @@ describe('the bounded case fold', () => {
     expect(folded.crossings).toBe(3);
   });
 
+  it('names a test file outside the root as `path.relative` does, so its cases join the runner\'s report and its ambient work', async () => {
+    const cases = await directory();
+    const file = '/shared/a.test.ts';
+    await writeFile(resolve(cases, 'worker.vac'), packFrames([
+      journalFormat.encodeJournal(packCase(file, 'pays', '1'), new Map([['src/branch.ts', counters(3, [1])]])),
+      journalFormat.encodeJournal(packCase(file, AMBIENT, AMBIENT), new Map([['src/branch.ts', counters(3, [0])]])),
+    ]));
+    const modules = new Map<ModuleId, CapturedModule>([['src/branch.ts', captured('src/branch.ts', 'src/branch.ts', 3)]]);
+    // The runner's report names the file from the root, `..` and all.
+    const durations = (named: string, name: string) => (named === '../shared/a.test.ts' && name === 'pays' ? 120 : undefined);
+
+    const decoded = decodeExecutionIndex(foldCases(cases, '/repo', modules, { budget: 64, durations }).bytes);
+
+    expect(decoded.tests.map(({ id, file: named, duration }) => [id, named, duration])).toEqual([
+      ['../shared/a.test.ts > pays', '../shared/a.test.ts', 120],
+    ]);
+    expect(reach(decoded)).toEqual({
+      'src/branch.ts#0': { entered: ['../shared/a.test.ts > pays'] },
+      'src/branch.ts#1': { entered: ['../shared/a.test.ts > pays'] },
+    });
+  });
+
   it('names each region\'s owner among the regions it keeps, past one the transform wrote', async () => {
     const cases = await directory();
     await writeFile(resolve(cases, 'worker.vac'), packFrames([
