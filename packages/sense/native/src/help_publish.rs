@@ -222,9 +222,10 @@ pub fn declared_loose_of(root: String, index: &OpenedIndex, groups: Vec<Vec<Stri
 /// right length is refused with an error by every reading here, never a crash.
 /// A question opens it at its start and closes it at its end, and each reading
 /// in between is handed the opened layers, so a name declared in ten files no
-/// longer reads and opens the chain ten times. The bytes are copies, so
-/// a segment truncated or removed after the open changes nothing the question
-/// reads.
+/// longer reads and opens the chain ten times. Each segment is mapped
+/// (`mapped.rs`), and the log only renames a segment into place or removes it
+/// by name, so a segment removed or replaced after the open changes nothing
+/// the question reads.
 #[napi]
 pub struct OpenedIndex {
     index: String,
@@ -383,10 +384,10 @@ mod tests {
     }
 
     #[test]
-    fn a_segment_damaged_after_the_open_is_read_as_it_was() {
+    fn a_segment_removed_after_the_open_is_read_as_it_was() {
         let (directory, path, second) = published("after");
         let opened = open_index(path).unwrap();
-        std::fs::write(&second, b"").unwrap();
+        std::fs::remove_file(&second).unwrap();
         assert_eq!(configs(&opened), Some(vec!["v1:a".to_owned(), "v1:b".to_owned()]));
         std::fs::remove_dir_all(directory).unwrap();
     }

@@ -1,4 +1,4 @@
-//! A segment's bytes, mapped read-only from its file on macOS and Linux.
+//! A segment's bytes, mapped read-only from its file.
 //!
 //! A question opens the whole chain and reads a few rows of it: on Kibana the
 //! chain is a quarter of a gigabyte, and copying it into the heap before the
@@ -6,56 +6,36 @@
 //! costs the pages a reading touches. A segment is never written in place: the
 //! log renames each into place under its digest and removes it by name, so a
 //! mapping keeps the bytes it opened even after a writer published past them.
+//! A file truncated in place under a mapping is outside that contract: reading
+//! past its new end faults.
 //!
-//! Elsewhere, and for an empty file, which cannot be mapped, the bytes are read.
+//! An empty file, which cannot be mapped, is empty bytes.
 
 // compass: variance-authority.reach.source-index
 
 use std::ops::Deref;
 
-pub(crate) struct Mapped {
-    held: Held,
-}
-
-enum Held {
+pub(crate) enum Mapped {
     Read(Vec<u8>),
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
-    Mapped { at: *const u8, length: usize },
+    Mapped(memmap2::Mmap),
 }
-
-// The mapping is read-only and private, and unmapped only when this is dropped.
-unsafe impl Send for Mapped {}
-unsafe impl Sync for Mapped {}
 
 impl Mapped {
     /// The bytes of the file at `path`.
     pub(crate) fn open(path: &str) -> std::io::Result<Self> {
-        #[cfg(any(target_os = "macos", target_os = "linux"))]
-        {
-            use std::os::fd::AsRawFd;
-            let file = std::fs::File::open(path)?;
-            let length = file.metadata()?.len() as usize;
-            if length == 0 {
-                return Ok(Self::from(Vec::new()));
-            }
-            // SAFETY: a fresh read-only mapping of a file this process opened;
-            // the descriptor may close once the mapping exists.
-            let at = unsafe { libc::mmap(std::ptr::null_mut(), length, libc::PROT_READ, libc::MAP_PRIVATE, file.as_raw_fd(), 0) };
-            if at == libc::MAP_FAILED {
-                return Err(std::io::Error::last_os_error());
-            }
-            Ok(Self { held: Held::Mapped { at: at.cast(), length } })
+        let file = std::fs::File::open(path)?;
+        if file.metadata()?.len() == 0 {
+            return Ok(Self::Read(Vec::new()));
         }
-        #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-        {
-            std::fs::read(path).map(Self::from)
-        }
+        // SAFETY: segments are renamed into place and removed by name, never
+        // written in place, so the mapped bytes do not change under a reader.
+        unsafe { memmap2::Mmap::map(&file) }.map(Self::Mapped)
     }
 }
 
 impl From<Vec<u8>> for Mapped {
     fn from(bytes: Vec<u8>) -> Self {
-        Self { held: Held::Read(bytes) }
+        Self::Read(bytes)
     }
 }
 
@@ -63,21 +43,9 @@ impl Deref for Mapped {
     type Target = [u8];
 
     fn deref(&self) -> &[u8] {
-        match &self.held {
-            Held::Read(bytes) => bytes,
-            // SAFETY: the mapping lives as long as `self` and is never written.
-            #[cfg(any(target_os = "macos", target_os = "linux"))]
-            Held::Mapped { at, length } => unsafe { std::slice::from_raw_parts(*at, *length) },
-        }
-    }
-}
-
-impl Drop for Mapped {
-    fn drop(&mut self) {
-        #[cfg(any(target_os = "macos", target_os = "linux"))]
-        if let Held::Mapped { at, length } = self.held {
-            // SAFETY: unmapped once, by the owner of the mapping.
-            unsafe { libc::munmap(at as *mut libc::c_void, length) };
+        match self {
+            Self::Read(bytes) => bytes,
+            Self::Mapped(mapped) => mapped,
         }
     }
 }

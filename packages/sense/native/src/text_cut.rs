@@ -4,15 +4,12 @@
 //! The index keeps every span's text as written, inside a doc's `/**` and
 //! `*/` and from a declaration's first byte to where its body opens. What a
 //! reader prints is cut from that slice by these two rules, and by nothing
-//! else: the native store and the JavaScript readers reach them through the
-//! same functions, so a doc reads the same whichever producer published it.
+//! else, so a doc reads the same whichever answer prints it.
 //! The whitespace they trim is JavaScript's `String.prototype.trim` set, which
 //! the rules were first written in: Unicode's White_Space less U+0085, and
 //! U+FEFF.
 
 // compass: variance-authority.reach.source-index
-
-use napi_derive::napi;
 
 /// Whether `c` is whitespace to JavaScript's `trim`.
 fn blank(c: char) -> bool {
@@ -43,18 +40,6 @@ pub(crate) fn head(slice: &str) -> Option<String> {
     let head = slice.trim_end_matches(blank);
     let head = head.strip_suffix(';').unwrap_or(head);
     (!head.is_empty()).then(|| head.to_owned())
-}
-
-/// [`doc`], for a reader on the JavaScript side.
-#[napi(js_name = "cutDoc")]
-pub fn cut_doc(slice: String) -> Option<String> {
-    doc(&slice)
-}
-
-/// [`head`], for a reader on the JavaScript side.
-#[napi(js_name = "cutHead")]
-pub fn cut_head(slice: String) -> Option<String> {
-    head(&slice)
 }
 
 #[cfg(test)]

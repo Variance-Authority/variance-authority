@@ -2990,8 +2990,6 @@
         "checkoutListing": "function",
         "checkoutPath": "function",
         "codeMapPage": "function",
-        "cutDoc": "function",
-        "cutHead": "function",
         "decidesResolution": "function",
         "declarationExported": "function",
         "declaredDescribedOf": "function",

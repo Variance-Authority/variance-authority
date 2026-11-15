@@ -10,8 +10,8 @@ The source index keeps the text of every doc comment, declaration head and
 member and export line an answer prints, cut from the source the parse already
 held, so reading a workspace and answering about it no longer open each file a
 second and third time to cut those lines out. The doc and head rules run in one
-place, the native index, and `@variance-authority/sense` exports them as
-`cutDoc` and `cutHead`, with `exportLine` for the line an export is written on.
+place, the native index, and `@variance-authority/sense` exports `exportLine`
+for the line an export is written on.
 A file the parse could not read is recorded as unreadable rather than read again
 from JavaScript.
 

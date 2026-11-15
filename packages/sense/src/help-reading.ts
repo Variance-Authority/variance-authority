@@ -200,8 +200,8 @@ export interface ContainerMember {
 
 /**
  * The declaration an export binds: the file that declares it, the name it has
- * there, its line and kind, and its head and doc comment as {@link cutHead}
- * and {@link cutDoc} cut them, when the parser kept them.
+ * there, its line and kind, and its head and doc comment as the index cuts
+ * them, when the parser kept them.
  */
 export interface ExportedDeclaration {
   readonly at: string;
@@ -251,8 +251,6 @@ export interface NativeHelp {
   membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
   declarationExportedOf?(index: OpenedIndex, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
   exportLineOf?(index: OpenedIndex, file: string, line: number): string | null;
-  cutDoc?(slice: string): string | null;
-  cutHead?(slice: string): string | null;
   aliasesOf?(root: string, index: OpenedIndex, local: string): Alias[] | null;
   declaredOf?(root: string, index: OpenedIndex, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: OpenedIndex, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
@@ -438,26 +436,6 @@ export function declarationExported(root: string, file: string, name: string, in
  */
 export function exportLine(root: string, file: string, line: number, index: string = sourceIndexPath(root)): string | undefined {
   return onIndex(index, (opened) => entry('exportLineOf')(opened, file, line)) ?? undefined;
-}
-
-/**
- * A doc comment's prose, cut from the text a span keeps inside its marks: each
- * line less its JSDoc or Javadoc `*` margin, or its Rust or Swift `///` or
- * `//!`, and one space or tab after it, the whole trimmed. `undefined` for no
- * text or when nothing is left. The index's own answers are cut by the same
- * code, so a doc reads the same whichever side cut it.
- */
-export function cutDoc(slice: string | undefined): string | undefined {
-  return slice === undefined ? undefined : (entry('cutDoc')(slice) ?? undefined);
-}
-
-/**
- * A declaration's head, cut from the text its signature span keeps: less the
- * whitespace it ends on and one `;` after that. `undefined` for no text or
- * when nothing is left.
- */
-export function cutHead(slice: string | undefined): string | undefined {
-  return slice === undefined ? undefined : (entry('cutHead')(slice) ?? undefined);
 }
 
 /**

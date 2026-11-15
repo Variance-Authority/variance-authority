@@ -2083,6 +2083,7 @@ dependencies = [
  "json-strip-comments",
  "libc",
  "memchr",
+ "memmap2",
  "napi",
  "napi-build",
  "napi-derive",
