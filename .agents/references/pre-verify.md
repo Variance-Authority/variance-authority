@@ -113,10 +113,7 @@ yarn verify:rules   # 2. yarn check, once near is green
 The order is the order failures arrive in. Lint and an incremental
 `tsc --build` take about a second each, and a test within two imports of the
 edit fails first and for the simplest reason, so the near wave answers in
-seconds and is the only wave the edit loop repeats. Its tests are cut to 60 s
-of recorded test time in each slice, ordered as the loop's are, and it names
-what it left: the wave stands in front of every push, and what it left is
-CI's, which runs the leg whole. It type-checks with
+seconds and is the only wave the edit loop repeats. It type-checks with
 `tsc --build`, not `yarn typecheck`, whose `--force` rebuilds every project.
 The repository checks are minutes and cannot be selected, so they run once the
 change has stopped moving.
