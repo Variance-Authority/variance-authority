@@ -2,6 +2,7 @@
 import { spawnSync, execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import { digestString } from '@variance-authority/core/format';
 
@@ -119,14 +120,17 @@ function compared(left, right) {
   return differ === 0;
 }
 
-const { positionals: [command, ...paths], values } = parseArgs({
-  allowPositionals: true,
-  options: { workspace: { type: 'string' }, out: { type: 'string' }, runs: { type: 'string', default: '1' }, bin: { type: 'string', default: BUILT } },
-});
-if (command === 'ask') {
-  if (values.workspace === undefined || values.out === undefined) throw new Error('`ask` takes `--workspace` and `--out`');
-  asked(resolve(paths[0]), resolve(values.workspace), resolve(values.out), Number(values.runs), resolve(values.bin));
+// Run as a command, not when a test imports `questionsOf` to read a set the same way.
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const { positionals: [command, ...paths], values } = parseArgs({
+    allowPositionals: true,
+    options: { workspace: { type: 'string' }, out: { type: 'string' }, runs: { type: 'string', default: '1' }, bin: { type: 'string', default: BUILT } },
+  });
+  if (command === 'ask') {
+    if (values.workspace === undefined || values.out === undefined) throw new Error('`ask` takes `--workspace` and `--out`');
+    asked(resolve(paths[0]), resolve(values.workspace), resolve(values.out), Number(values.runs), resolve(values.bin));
+  }
+  else if (command === 'digest') process.stdout.write(`${digestOf(resolve(paths[0])).join('\n')}\n`);
+  else if (command === 'compare') process.exitCode = compared(resolve(paths[0]), resolve(paths[1])) ? 0 : 1;
+  else if (command !== undefined) throw new Error(`name-questions takes \`ask\`, \`digest\` or \`compare\`, not \`${command}\``);
 }
-else if (command === 'digest') process.stdout.write(`${digestOf(resolve(paths[0])).join('\n')}\n`);
-else if (command === 'compare') process.exitCode = compared(resolve(paths[0]), resolve(paths[1])) ? 0 : 1;
-else if (command !== undefined) throw new Error(`name-questions takes \`ask\`, \`digest\` or \`compare\`, not \`${command}\``);

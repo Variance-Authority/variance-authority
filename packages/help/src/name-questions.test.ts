@@ -11,6 +11,7 @@ import { updateSourceIndex } from '@variance-authority/sense';
 import { ask } from './ask.js';
 import { refreshDependencyLexicon } from './dependency-lexicon.js';
 import { readWorkspace, readWorkspaceForAnswer } from './read.js';
+import { questionsOf } from '../../../tools/name-questions.mjs';
 
 /**
  * The name questions, asked as `ask --just-answer` asks them of the store and
@@ -28,17 +29,6 @@ let temporary: string;
 let root: string;
 let help: Help;
 let tree: Tree | undefined;
-
-/** The `ask` arguments of each line of a question set, in `tools/name-questions/kibana.queries`' format. */
-function questionsOf(text: string): readonly (readonly string[])[] {
-  return text.split('\n').filter((line) => line.trim() !== '' && !line.startsWith('#')).flatMap((line) => {
-    const [kind = '', ...rest] = line.trim().split(/\s+/);
-    if (kind === 'name') return [['symbol', '--name', rest[1] ?? ''], ['uses', '--name', rest[1] ?? '']];
-    if (kind === 'search') return [['search', '--query', rest.join(' ')]];
-    if (kind === 'entrypoint') return [['entrypoint', '--package', rest[0] ?? '']];
-    return [[kind]];
-  });
-}
 
 /** One question's answer, or what it refused with, under its own heading. */
 function answered(question: readonly string[]): string {
