@@ -37,11 +37,11 @@ export interface ExecutionTest {
    */
   readonly limit?: number;
   /**
-   * The slowest statement of the case's body: its line in the test file and
-   * its whole milliseconds, a loop's runs summed. Absent where the file was
-   * not cut or no statement took a millisecond, which is not a time of zero.
+   * Every statement of the case's body: its line in the test file and its
+   * whole microseconds, a loop's runs summed, in the order the case first
+   * reached them. Absent where the file was not cut, which is not a time of zero.
    */
-  readonly slowest?: { readonly line: number; readonly time: number };
+  readonly times?: readonly { readonly line: number; readonly time: number }[];
   /** Every item the case said it arranged, unresolved; `[]` is heard-nothing, absent is unheard. */
   readonly said?: Said;
 }

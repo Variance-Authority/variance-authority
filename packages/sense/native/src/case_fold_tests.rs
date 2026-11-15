@@ -128,12 +128,17 @@ fn joins_a_case_two_shards_ran_at_its_longest_limit_and_names_none_where_no_shar
 }
 
 #[test]
-fn joins_a_case_two_shards_ran_at_the_statement_that_waited_longest_and_writes_no_column_where_none_did() {
-    let one = |slowest| shard(&[case("a.test.ts", "adds", "1", FINISHED), case("a.test.ts", "drops", "2", FINISHED)], &CaseExtras { slowest: vec![slowest, None], ..CaseExtras::default() }, &[]);
-    let joined = read(&folded(&[&one(Some((7, 40))), &one(Some((9, 210))), &one(Some((8, 210))), &one(None)]).unwrap().bytes);
-    assert_eq!(joined.slowest, [Some((8, 210)), None]);
-    let untimed = folded(&[&one(None)]).unwrap().bytes;
-    assert!(!crate::journey_columns::decode_any(&untimed).unwrap().1.has(&crate::record_layout::LAYOUT.cases.slowest));
+fn joins_a_case_two_shards_ran_at_the_frame_that_ran_longest_and_writes_no_column_where_none_did() {
+    let row = |pairs: &[(u32, u64)]| crate::case_times::encode(pairs);
+    let one = |times: Vec<u8>| shard(&[case("a.test.ts", "adds", "1", FINISHED), case("a.test.ts", "drops", "2", FINISHED)], &CaseExtras { times: vec![times, Vec::new()], ..CaseExtras::default() }, &[]);
+    // Two frames ran 250 µs in all and one 249: the longer wins over a slower single line, and of the two as long the lower row.
+    let longest = row(&[(9, 200), (4, 50)]);
+    let frames = [one(row(&[(7, 249)])), one(row(&[(9, 210), (8, 40)])), one(longest.clone()), one(Vec::new())];
+    let joined = read(&folded(&frames.iter().map(Vec::as_slice).collect::<Vec<_>>()).unwrap().bytes);
+    assert_eq!(joined.times, [longest, Vec::new()]);
+    assert_eq!(crate::case_times::decode(&joined.times[0]).unwrap(), [(9, 200), (4, 50)]);
+    let untimed = folded(&[&one(Vec::new())]).unwrap().bytes;
+    assert!(!crate::journey_columns::decode_any(&untimed).unwrap().1.has(&crate::record_layout::LAYOUT.cases.times));
 }
 
 #[test]

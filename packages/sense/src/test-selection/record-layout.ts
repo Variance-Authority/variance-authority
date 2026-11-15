@@ -56,9 +56,10 @@ export interface RecordLayout {
     readonly loadedSets: number;
     readonly duration: string;
     readonly limit: string;
-    readonly slowest: string;
     readonly lines: string;
     readonly linesOffsets: string;
+    readonly times: string;
+    readonly timesOffsets: string;
   };
 }
 

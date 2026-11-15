@@ -85,9 +85,9 @@ pub struct CaseExtras {
     pub durations: Vec<Option<u32>>,
     /// Each case's limit in milliseconds; empty where no case named one.
     pub limits: Vec<Option<u32>>,
-    /// Each case's slowest statement as its line and whole milliseconds; empty
-    /// where no case timed one.
-    pub slowest: Vec<Option<(u32, u32)>>,
+    /// Each case's statement times as stored, empty for a case that was not
+    /// timed; no rows where no case was.
+    pub times: Vec<Vec<u8>>,
     /// Each case's lines as stored, empty for a case that recorded none; no
     /// rows where no case recorded any.
     pub lines: Vec<Vec<u8>>,
@@ -96,6 +96,19 @@ pub struct CaseExtras {
     /// sets it; a journey artifact carries them only where a case has one, so
     /// `journeys stitch` does not.
     pub always_timed: bool,
+}
+
+/// One row a case as a blob and its offsets, as `lines.blob` is laid.
+fn rows(columns: &mut Vec<Column>, rows: &[Vec<u8>], blob_name: &'static str, offsets_name: &'static str) -> Result<(), String> {
+    let mut blob = Vec::new();
+    let mut offsets = vec![0_u32];
+    for row in rows {
+        blob.extend_from_slice(row);
+        offsets.push(u32::try_from(blob.len()).map_err(|_| format!("{blob_name} exceeds 4 GiB"))?);
+    }
+    columns.push(Column::Blob(blob_name, blob, offsets.clone()));
+    columns.push(Column::Words(offsets_name, offsets));
+    Ok(())
 }
 
 pub fn encode(
@@ -108,8 +121,8 @@ pub fn encode(
     let timed = extras.always_timed || extras.durations.iter().any(Option::is_some);
     let limited = extras.always_timed || extras.limits.iter().any(Option::is_some);
     let lined = extras.lines.iter().any(|lines| !lines.is_empty());
-    let paced = extras.slowest.iter().any(Option::is_some);
-    if (paced && extras.slowest.len() != tests.len()) || (timed && extras.durations.len() != tests.len()) || (limited && extras.limits.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
+    let paced = extras.times.iter().any(|times| !times.is_empty());
+    if (paced && extras.times.len() != tests.len()) || (timed && extras.durations.len() != tests.len()) || (limited && extras.limits.len() != tests.len()) || (lined && extras.lines.len() != tests.len()) {
         return Err("case columns disagree with the cases".to_owned());
     }
     let mut strings = Vec::new();
@@ -227,24 +240,16 @@ pub fn encode(
         let words = extras.limits.iter().map(|limit| limit.unwrap_or(LAYOUT.coverage.no_duration)).collect();
         columns.push(Column::Words(cases.limit.as_str(), words));
     }
-    if paced {
-        let words = extras.slowest.iter().flat_map(|slowest| <[u32; 2]>::from(slowest.unwrap_or((0, 0)))).collect();
-        columns.push(Column::Words(cases.slowest.as_str(), words));
-    }
     for (section, laid) in case_said::SECTIONS.into_iter().zip(heard) {
         if let Some(laid) = laid {
             columns.push(Column::Bytes(section, laid));
         }
     }
     if lined {
-        let mut blob = Vec::new();
-        let mut offsets = vec![0_u32];
-        for lines in &extras.lines {
-            blob.extend_from_slice(lines);
-            offsets.push(u32::try_from(blob.len()).map_err(|_| "case lines exceed 4 GiB".to_owned())?);
-        }
-        columns.push(Column::Blob(cases.lines.as_str(), blob, offsets.clone()));
-        columns.push(Column::Words(cases.lines_offsets.as_str(), offsets));
+        rows(&mut columns, &extras.lines, cases.lines.as_str(), cases.lines_offsets.as_str())?;
+    }
+    if paced {
+        rows(&mut columns, &extras.times, cases.times.as_str(), cases.times_offsets.as_str())?;
     }
     columns.extend([
         Column::Words("modules.file", module_file),

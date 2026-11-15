@@ -266,10 +266,10 @@ describe('the duration each case carries', () => {
   });
 });
 
-describe('the slowest statement a cut case names', () => {
+describe('the statement times of a cut case', () => {
   const paced: ExecutionIndex = {
     tests: [
-      { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', duration: 260, slowest: { line: 4, time: 210 } },
+      { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', duration: 260, times: [{ line: 4, time: 210_000 }, { line: 9, time: 3 }, { line: 5, time: 0 }, { line: 9_000, time: 40_000_000 }] },
       { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two', duration: 3 },
     ],
     modules: [],
@@ -279,22 +279,24 @@ describe('the slowest statement a cut case names', () => {
     return header.sections.map((section) => section.name);
   };
 
-  it('is kept in either spelling, and a case that names none stays without one, never at zero', () => {
+  it('is kept in either spelling, line by line in the order reached, and an uncut case stays without them, never at zero', () => {
     for (const bytes of [encodeExecutionIndex(paced), encodeAsSetExecutionIndex(paced)]) {
       const back = decodeExecutionIndex(bytes);
       expect(back.tests).toEqual(paced.tests);
-      expect('slowest' in back.tests[1]!).toBe(false);
+      expect('times' in back.tests[1]!).toBe(false);
     }
   });
 
-  it('adds no section to an index none of whose cases names one, which is how an older record reads', () => {
-    const untimed: ExecutionIndex = { tests: paced.tests.map(({ slowest: _, ...test }) => test), modules: [] };
+  it('adds no section to an index none of whose cases was timed, which is how an older record reads', () => {
+    const untimed: ExecutionIndex = { tests: paced.tests.map(({ times: _, ...test }) => test), modules: [] };
 
     for (const bytes of [encodeExecutionIndex(untimed), encodeAsSetExecutionIndex(untimed)]) {
-      expect(sectionsOf(bytes)).not.toContain('tests.slowest');
-      expect(decodeExecutionIndex(bytes).tests.map((test) => 'slowest' in test)).toEqual([false, false]);
+      expect(sectionsOf(bytes)).not.toContain('times.blob');
+      expect(decodeExecutionIndex(bytes).tests.map((test) => 'times' in test)).toEqual([false, false]);
     }
-    expect(sectionsOf(encodeExecutionIndex(paced))).toContain('tests.slowest');
+    for (const bytes of [encodeExecutionIndex(paced), encodeAsSetExecutionIndex(paced)]) {
+      expect(sectionsOf(bytes)).toEqual(expect.arrayContaining(['times.blob', 'times.off']));
+    }
   });
 });
 
@@ -417,12 +419,12 @@ describe('the preconditions each case named', () => {
     expect(() => decodeExecutionIndex(withHeader(set, short))).toThrow(/not a variance-authority execution index/);
   });
 
-  it('refuses a slowest-statement column that does not hold two entries per case, in either spelling', () => {
+  it('refuses statement times whose offsets do not bound every case, in either spelling', () => {
     const short = (sections: { name: string; length: number }[]) => {
-      sections.find((section) => section.name === 'tests.slowest')!.length = 8;
+      sections.find((section) => section.name === 'times.off')!.length = 8;
     };
     const tests = [
-      { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', slowest: { line: 4, time: 210 } },
+      { id: 'a.test.ts > one', file: 'a.test.ts', name: 'one', times: [{ line: 4, time: 210 }] },
       { id: 'a.test.ts > two', file: 'a.test.ts', name: 'two' },
     ];
     const rows = encodeExecutionIndex({ tests, modules: [] });
