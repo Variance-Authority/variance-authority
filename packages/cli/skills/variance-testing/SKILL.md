@@ -134,6 +134,36 @@ each region the change needs pinned, then check that it lands:
    see one fail. A test that passes on a broken line pins nothing. Restore the
    line.
 
+## The pull request's review: act on every mark
+
+CI posts the same reading as a comment, from `variance review`. Its header
+names the commit it reviewed: when the head has moved past it, it describes an
+earlier commit, so wait for the next one. A comment GitHub cut short is whole in
+`variance review --from-run <run URL> --format json`.
+
+Code the change wrote that no case ran has two exits, and setting it aside is
+not one of them:
+
+- 🔴 under **Where no case ran**: write a test whose input takes that branch,
+  and check it lands as above. When no input can take it — a guard for an
+  answer the callee never gives, a fallback nothing reaches — delete it, or
+  make its type rule it out. *Nothing reaches it* is the reason to delete it,
+  never the reason to keep it untested.
+- ⚪ ran only while its module loaded: read as 🔴 for the code the change is for.
+- ❔ a case ran it in text an edit wrote over: run the suite on the change and
+  read again before you decide.
+
+Code that ran is read for what it lost:
+
+- 🟡 or 🟠, reached only from far: not a gap. Where the function is what the
+  change is for, the red test belongs next to it.
+- **no longer run** or **run by fewer cases**: a case that ran it at the base
+  no longer does. Either the change removed what called it, and the pull
+  request says so, or it is a regression to fix. A region whose case stopped is
+  unknown, not lost: rerun that case.
+- **Cases added and removed**: the added ones are the red tests the change
+  claims; each removed one is named in the pull request with why.
+
 ## Improve a file's coverage
 
 ```bash
