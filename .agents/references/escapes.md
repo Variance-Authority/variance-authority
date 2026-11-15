@@ -3,7 +3,8 @@
 Ideas that passed, or would have passed, an idea review and were later shown
 not to belong. Each is kept as the question that would have stopped it before
 any code was written, with the pull requests it cost where it cost any. The `occam` agent asks
-every one of them in its idea mode. [Refine](refine.md#the-idea-loop) says
+every one of them in its idea mode, and a reviewer an entry names asks it of
+every diff. [Refine](refine.md#the-idea-loop) says
 when an entry is added.
 
 1. **Does a neighbour's tool already own the question?** A language's own
