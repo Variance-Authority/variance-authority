@@ -122,14 +122,7 @@ fn read_chain_once(path: &str) -> Result<Option<Chain>, String> {
     }
     let (references, working) = manifest(&bytes).ok_or_else(|| format!("{path}: invalid immutable log manifest"))?;
     let directory = format!("{path}.segments");
-    let read: Vec<Option<Vec<u8>>> = references
-        .par_iter()
-        .map(|reference| {
-            let name = format!("{directory}/{}.bin", reference.digest.replacen(':', "-", 1));
-            let segment = std::fs::read(name).ok()?;
-            (segment.len() as u64 == reference.length).then_some(segment)
-        })
-        .collect();
+    let read: Vec<Option<Vec<u8>>> = references.par_iter().map(|reference| segment(&directory, reference)).collect();
     let count = read.iter().position(Option::is_none).unwrap_or(read.len());
     let dropped = (references.len() - count) as u32;
     let segments = read.into_iter().take(count).map(Option::unwrap).collect();
@@ -170,10 +163,15 @@ pub(crate) fn manifest_references_of(bytes: &[u8]) -> Option<(Vec<Reference>, us
 /// missing or of another length, so the caller reads it all.
 pub(crate) fn read_tail(path: &str, chain: &[Reference], known: usize) -> Option<Vec<Vec<u8>>> {
     let directory = format!("{path}.segments");
-    chain.get(known..)?.par_iter().map(|reference| {
-        let segment = std::fs::read(format!("{directory}/{}.bin", reference.digest.replacen(':', "-", 1))).ok()?;
-        (segment.len() as u64 == reference.length).then_some(segment)
-    }).collect()
+    chain.get(known..)?.par_iter().map(|reference| segment(&directory, reference)).collect()
+}
+
+/// The segment `reference` names in `directory`, if it is there at the length the manifest gives. Reading
+/// is what is left of an open once nothing is hashed, half of it on Kibana, so the readers above read
+/// every segment at once.
+fn segment(directory: &str, reference: &Reference) -> Option<Vec<u8>> {
+    let segment = std::fs::read(crate::log::file_name(directory, &reference.digest)).ok()?;
+    (segment.len() as u64 == reference.length).then_some(segment)
 }
 
 #[cfg(test)]
@@ -256,7 +254,7 @@ mod tests {
 
     fn segment_file(path: &str) -> std::path::PathBuf {
         let (references, _) = manifest_references(path).unwrap();
-        std::path::PathBuf::from(format!("{path}.segments/{}.bin", references[0].digest.replacen(':', "-", 1)))
+        std::path::PathBuf::from(crate::log::file_name(&format!("{path}.segments"), &references[0].digest))
     }
 
     #[test]

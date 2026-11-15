@@ -62,7 +62,7 @@ describe('the immutable segment log', () => {
     const [, second] = (await openImmutableLog(file)).digests;
     await writeFile(join(`${file}.segments`, `${second!.replace(':', '-')}.bin`), 'TWO');
 
-    // The digest is checked where bytes cross a boundary, not on every open.
+    // The digest names the bytes the writer wrote; carrying them intact between machines is the transport's.
     const opened = await openImmutableLog(file);
     expect(opened.segments.map(String)).toEqual(['one', 'TWO']);
     expect(opened.dropped).toBe(0);
