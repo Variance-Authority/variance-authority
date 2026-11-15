@@ -99,14 +99,9 @@ fn remote(root: &str) -> Option<String> {
             return Some(value.to_owned());
         }
         let name = key.strip_prefix("remote.").and_then(|key| key.strip_suffix(".promisor"));
-        if promised.is_none() && name.is_some() && truthy(value) {
+        if promised.is_none() && name.is_some() && !crate::git_porcelain::falsy(value.as_bytes()) {
             promised = name.map(str::to_owned);
         }
     }
     promised
-}
-
-/// A configuration boolean as git reads one.
-fn truthy(value: &str) -> bool {
-    matches!(value.to_ascii_lowercase().as_str(), "true" | "yes" | "on" | "1")
 }

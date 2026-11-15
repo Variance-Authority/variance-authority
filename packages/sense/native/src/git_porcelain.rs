@@ -28,8 +28,7 @@ pub(crate) fn configured(root: &str) -> Vec<u8> {
 /// order so a later file wins, as git reads it. `settingsOf` in
 /// `working-tree-changes.ts`.
 pub(crate) fn settings_of(listed: &[u8]) -> UntrackedSettings {
-    let truthy = |value: &[u8]| matches!(value, b"true" | b"yes" | b"on" | b"1");
-    let falsy = |value: &[u8]| matches!(value, b"false" | b"no" | b"off" | b"0" | b"");
+    let truthy = |value: &[u8]| !falsy(value);
     let (mut cache, mut many_files, mut mode) = (None, false, "normal");
     for entry in listed.split(|byte| *byte == 0).filter(|entry| !entry.is_empty()) {
         // The key alone is a setting written with no value, which git reads as true.
@@ -47,6 +46,16 @@ pub(crate) fn settings_of(listed: &[u8]) -> UntrackedSettings {
         }
     }
     UntrackedSettings { cached: cache.unwrap_or(many_files), mode }
+}
+
+/// Whether git reads a boolean as false: `false`, `no`, `off`, the empty
+/// value, or an integer equal to zero. Anything else git accepts is true.
+pub(crate) fn falsy(value: &[u8]) -> bool {
+    let value = value.trim_ascii().to_ascii_lowercase();
+    let digits = value.strip_prefix(b"-").or_else(|| value.strip_prefix(b"+")).unwrap_or(&value);
+    let digits = digits.strip_suffix(b"k").or_else(|| digits.strip_suffix(b"m")).or_else(|| digits.strip_suffix(b"g")).unwrap_or(digits);
+    matches!(value.as_slice(), b"false" | b"no" | b"off" | b"")
+        || (!digits.is_empty() && digits.iter().all(|byte| *byte == b'0'))
 }
 
 /// How `status` is asked for the untracked files below `prefix`.

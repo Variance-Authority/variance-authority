@@ -217,6 +217,13 @@ fn a_boolean_setting_reads_as_git_reads_it() {
             assert_eq!(read.to_string(), git(&root, &["config", "--type=bool", key]), "{key} = {spelling:?}");
             git(&root, &["config", "--unset", key]);
         }
+        // The untracked settings read the same listing, and by the same rule.
+        for key in ["core.untrackedcache", "feature.manyfiles"] {
+            git(&root, &["config", key, spelling]);
+            let settings = crate::git_porcelain::settings_of(&crate::git_porcelain::configured(root.to_str().unwrap()));
+            assert_eq!(settings.cached.to_string(), git(&root, &["config", "--type=bool", key]), "{key} = {spelling:?}");
+            git(&root, &["config", "--unset", key]);
+        }
     }
     let _ = std::fs::remove_dir_all(&root);
 }

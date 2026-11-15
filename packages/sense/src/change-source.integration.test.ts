@@ -39,6 +39,9 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     return ran;
   }
 
+  /** Whether those commands listed the checkout: HEAD's tree, read in-process or by `ls-tree`. */
+  const listed = (ran: string[]): boolean => ran.some((argv) => argv.startsWith('ls-tree') || argv.endsWith(' HEAD^{tree}'));
+
   /**
    * A file dated a minute back. One written in the second git writes its index
    * in is racy, and `status` rewrites the index for it on every call: a listing
@@ -130,12 +133,12 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
 
     await tell({ clock: 'c:2:1', fresh: true });
     await updateNatively(root, index);
-    expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+    expect(listed(await gitRan())).toBe(true);
 
     await write('lib/unit.ts', 'export const unit = 2;\n', 30_000);
     await tell({ clock: 'c:2:2', files: ['lib/unit.ts'] });
     const edited = await updateNatively(root, index);
-    expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+    expect(listed(await gitRan())).toBe(true);
     expect(edited?.reread).toBe(1);
     await write('lib/unit.ts', 'export const unit = 1;\n');
   });
@@ -153,7 +156,7 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     // Tracked, so not ignored, though the pattern matches it.
     await tell({ clock: 'c:3:2', files: ['cache/out.js', 'cache/kept.ts'] });
     await updateNatively(root, index);
-    expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+    expect(listed(await gitRan())).toBe(true);
   });
 
   it("runs no git when what Watchman reports is git's own writes to its directory", async () => {
@@ -188,7 +191,7 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '-m', 'moved');
     await tell({ clock: 'c:8:1', files: ['.git/index.lock', '.git/logs/HEAD'] });
     await updateNatively(root, index);
-    expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+    expect(listed(await gitRan())).toBe(true);
   });
 
   it('asks git when the excludes file a home-relative `core.excludesfile` names changes', async () => {
@@ -207,7 +210,7 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
       await writeFile(join(home, 'ignore'), 'notes.ts\n');
       await tell({ clock: 'c:9:1' });
       await updateNatively(root, index);
-      expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+      expect(listed(await gitRan())).toBe(true);
     } finally {
       process.env.HOME = at;
       git('config', '--unset', 'core.excludesfile');
@@ -225,7 +228,7 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
       execFileSync('git', ['clone', '--quiet', root, other], { stdio: 'ignore' });
       await tell({ roots: [root, other], clock: 'c:10:1' });
       await updateNatively(other, index);
-      expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+      expect(listed(await gitRan())).toBe(true);
     } finally {
       await rm(other, { recursive: true, force: true });
     }
@@ -263,14 +266,14 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
       await gitRan();
       await tell({ clock: 'c:12:1' });
       await updateNatively(root, index);
-      expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+      expect(listed(await gitRan())).toBe(true);
 
       await tell({ clock: 'c:12:2', config: { ignore_vcs: ['vendor'] } });
       await updateNatively(root, index);
       await gitRan();
       await tell({ clock: 'c:12:3', config: { ignore_vcs: ['vendor'] } });
       await updateNatively(root, index);
-      expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+      expect(listed(await gitRan())).toBe(true);
     } finally {
       git('rm', '--quiet', '.hg/kept.ts', 'vendor/kept.ts');
       git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'no vcs');
@@ -304,7 +307,7 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
       await updateNatively(root, index);
       await gitRan();
       await updateNatively(root, index);
-      expect((await gitRan()).some((ran) => ran.startsWith('ls-tree'))).toBe(true);
+      expect(listed(await gitRan())).toBe(true);
     } finally {
       process.env.WATCHMAN_SOCK = at;
     }

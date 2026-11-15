@@ -62,7 +62,7 @@ pub(crate) const KEYS: &str = r"core\.(excludesfile|ignorecase|precomposeunicode
 /// `git config -z --get-regexp` output as the settings it names, a later file
 /// winning; none set is git's default.
 pub(crate) fn config_of(listed: &[u8]) -> Config {
-    let on = |value: &[u8]| !falsy(value);
+    let on = |value: &[u8]| !crate::git_porcelain::falsy(value);
     let mut config = Config {
         fsmonitor: false,
         ignore_case: false,
@@ -91,16 +91,6 @@ pub(crate) fn config_of(listed: &[u8]) -> Config {
         }
     }
     config
-}
-
-/// Whether git reads a boolean as false: `false`, `no`, `off`, the empty
-/// value, or an integer equal to zero. Anything else git accepts is true.
-fn falsy(value: &[u8]) -> bool {
-    let value = value.trim_ascii().to_ascii_lowercase();
-    let digits = value.strip_prefix(b"-").or_else(|| value.strip_prefix(b"+")).unwrap_or(&value);
-    let digits = digits.strip_suffix(b"k").or_else(|| digits.strip_suffix(b"m")).or_else(|| digits.strip_suffix(b"g")).unwrap_or(digits);
-    matches!(value.as_slice(), b"false" | b"no" | b"off" | b"")
-        || (!digits.is_empty() && digits.iter().all(|byte| *byte == b'0'))
 }
 
 /// Every path below the root the working tree or the index disagrees with
