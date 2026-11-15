@@ -2,26 +2,13 @@
  * `VARIANCE_AUTHORITY_BUDGET`: a ceiling of recorded test time on one run of
  * the selection, which the edit loop sets so it answers in seconds.
  *
- * The cut is a prefix of the selection, ordered by containment: a change to a
- * file is checked first by that file's own tests, then by the tests that import
- * it from its own package, then by those in other packages. Within each, the
- * nearest by import hops comes first and, among equals, the shortest. Files are
- * taken while the next one fits, and the first that would pass the ceiling ends
- * the run; what is left is CI's.
- *
- * It only ever adds to `skip`, so it runs no file the selection did not choose.
- * A selection that declined to narrow skips nothing (ADR-0062), and a budget
- * does not make it: what it cannot place by the change, it does not cut.
- *
- * Without a leg asked, only the changed files' own tests are taken: widening
- * past them is the caller's decision, made by asking `VARIANCE_AUTHORITY_AT_DISTANCE`.
- *
- * This is not the shard placement in `@variance-authority/core/shard`: that
- * balances every file across machines, and this one picks which files fit one.
- * It reads the same record's times, and prices an untimed file higher than
- * placement does, at the slowest of its package, so a ceiling stays a ceiling.
+ * The cut is a prefix ordered by containment: a changed file's own tests, then
+ * its importers in its package, then those in other packages, nearest first.
+ * It only adds to `skip`, and a selection that declined to narrow skips
+ * nothing (ADR-0062), so it cuts nothing there either.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { durationText } from '@variance-authority/core/shard';
 import type { SuiteTimes, TestDistance } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
@@ -112,7 +99,12 @@ export function withinBudget(
   };
 }
 
-/** The files the selection runs, as far as the record names them, in the order a budget takes them. */
+/**
+ * The files the selection runs, as far as the record names them, in the order
+ * a budget takes them. Not the shard placement in `core/shard`, which balances
+ * every file across machines: this picks which fit one, and prices an untimed
+ * file at the slowest of its package, so a ceiling stays a ceiling.
+ */
 function ranked(selection: SuiteReading, times: ReadonlyMap<string, number>, home: (file: string) => string | undefined): readonly Candidate[] {
   const distances = new Map<string, TestDistance>((selection.reading.distances ?? []).map((distance) => [distance.test, distance]));
   const named = new Set([...selection.whole, ...(selection.reading.incomplete ?? []), ...distances.keys()]);
@@ -133,7 +125,7 @@ function ranked(selection: SuiteReading, times: ReadonlyMap<string, number>, hom
       const hops = distance?.hops;
       return { test, tier: tierOf(test, distance, home), hops: hops ?? Number.MAX_SAFE_INTEGER, price: price(test) };
     })
-    .sort((a, b) => a.tier - b.tier || a.hops - b.hops || a.price - b.price || (a.test < b.test ? -1 : a.test > b.test ? 1 : 0));
+    .sort((a, b) => a.tier - b.tier || a.hops - b.hops || a.price - b.price || codeUnitOrder(a.test, b.test));
 }
 
 /**
