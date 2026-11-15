@@ -44,14 +44,15 @@ gh issue view <n> --json title,body --jq '.title, .body' | awk '/^```/ { fence =
 
 Open every item of Evidence — the quote, the issue, the run, the measurement —
 and every claim that somebody was hurt, wherever it sits: Perceived, Evidence or,
-once you print it, Impact. Evidence that does not open, or does not say what the
-issue claims, is **nobody needs it**, and so is a harm claim with nothing to open,
-or one that only an agent's own report of its trouble carries. Code lines show
+once you print it, Impact. Evidence that does not open — other than the owner's
+words quoted from a session you cannot open, which are read as quoted — or does
+not say what the issue claims, is **nobody needs it**, and so is a harm claim
+with nothing to open, or one that only an agent's own report of its trouble
+carries. Code lines show
 the mechanism, not the problem: when nothing else shows it — a failing run, a
 reproduction, a measurement, an adopter's case — the problem is **nobody needs it**. An ask
 is evidence of a need, weighed with the rest, never an order and never required:
-whether anybody asked is not a reason, either way. The owner's words quoted from
-a session you cannot open are read as quoted. Do step 1 below from what you read, chain
+whether anybody asked is not a reason, either way. Do step 1 below from what you read, chain
 included. Only then print the rest, the labels last:
 
 ```bash
@@ -141,7 +142,8 @@ Reasons you reject on, and you name the one you use:
   and an ask alone does not answer it.
 - **Nobody waits for it.** A need is shown, but nothing is held back while it
   is not done — no adopter blocked, no change built on it — so what it costs
-  buys nothing yet. Unlike **not now**, nothing unproven stands in its way.
+  buys nothing yet. Unlike **not now**, nothing unproven stands in its way;
+  unlike **too much for what it buys**, the size of the cost does not decide it.
 - **Not the task.** Diff mode only: the task sentence and the issue's Change do
   not name this part, and the body cannot show the task needs it.
 - **It already exists.** A command, a capability or a page on `main` already
