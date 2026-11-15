@@ -1,0 +1,19 @@
+# The name questions asked of this workspace, in the line format of
+# `tools/name-questions/kibana.questions`.
+name exported freeze
+name re-exported Clock
+name renamed count
+name renamed tally
+name default Shape
+name namespace units
+name member Clock.now
+name member Shape.area
+name nested step
+name undocumented plain
+name absent nothing
+search freeze
+search numbers add
+search clock time
+packages
+entrypoint kit
+gaps
