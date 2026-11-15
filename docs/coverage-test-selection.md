@@ -237,8 +237,8 @@ change is how it answers four questions.
 
 **What does the recording cost?** The coverage your runner already offers
 reads the engine's counters, and those counters cover every script the worker
-loaded, whether a test used it or not. On three public suites, `--coverage`
-adds 26% to 30% to every run and produces a union with no record of which test
+loaded, whether a test used it or not. On two public suites, `--coverage`
+adds 27% to 29% to every run and produces a union with no record of which test
 covered what. Reading those counters once per test costs 2.1× to 2.7× on a
 jsdom suite. At that cost the per-test relation is not
 recorded on every run, so it describes an older commit.
@@ -268,9 +268,10 @@ without telling you.
 
 **It records with a probe, not the profiler.** The recorder writes a counter at
 each region as your code is transformed, so the cost depends on what your tests
-ran. On Zod, TanStack Query and Material UI, recording costs at most 1.02×,
-1.08× and 1.03× the plain run, against 1.26× to 1.30× for `--coverage` on the
-same suites. At that
+ran. At the default precision, recording costs 1.00× the plain run on Zod and
+1.13× on TanStack Query, against 1.27× and 1.29× for `--coverage` on the same
+suites; recording only the modules each test file loaded costs 1.05× on
+TanStack Query. At that
 cost you can record on every run, which keeps the record current.
 [Test-level coverage](test-level-coverage.md#what-you-already-believe-this-costs)
 has the measurements and how they were made.
@@ -474,7 +475,7 @@ unmodified fork with one commit of setup:
 | One-line edit, test files that load the changed module | 197 files | 149 files |
 | One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 9 files, 758 of 4,523 tests |
 | Test file runs skipped over sixty commits | 57% | 93% |
-| Recording cost, at most | 1.02× | 1.08× |
+| Recording cost, default precision | 1.00× | 1.13× |
 
 ```mermaid
 ---

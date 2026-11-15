@@ -513,16 +513,15 @@ Rstest alike:
 export default withTestSelection(defineConfig({ test: {} }), { mode: 'loads' });
 ```
 
-| `mode` | What each module gets | The record holds | The finest step it answers | Added to the run |
+| `mode` | What each module gets | The record holds | The finest step it answers | Added to TanStack Query's run |
 |---|---|---|---|---|
-| `loads` | one line after its text; nothing is parsed | the modules each test file loaded, and no cases | `file-use` | about 3% |
-| `entries` | a probe at the module and at each function body | the functions each case entered | `function-use` | about 7% |
-| `presence`, the default | a probe in every region: function body, branch arm, loop body, handler | the regions each case entered | `region-use` | about 9% |
+| `loads` | one line after its text; nothing is parsed | the modules each test file loaded, and no cases | `file-use` | 5% |
+| `entries` | a probe at the module and at each function body | the functions each case entered | `function-use` | 13% |
+| `presence`, the default | a probe in every region: function body, branch arm, loop body, handler | the regions each case entered | `region-use` | 13% |
 
-The run is this repository's unit suite under Vitest on an Apple M4 Max, each
-arm the mean of two rounds against the same suite run with no recording. On
-it, what `entries` and `presence` add over `loads` lands in Vitest's transform
-and collect phases, where each module is parsed and its probes placed.
+On Zod no mode costs more than the run's own spread. Both suites, the method
+and `--coverage` beside them are in
+[what recording costs](#what-recording-costs-while-the-suite-runs).
 
 Four more options decide what a case carries besides its regions, and where the
 probes go:
@@ -1011,78 +1010,32 @@ and it is in [addressing scale](scale.md).
 
 ## What recording costs while the suite runs
 
-If you have ever turned coverage on in CI you have a number in your head for
-what instrumentation costs, and it is a large one. Check it against this before
-you carry it over, because the two instruments are not paid for in the same way.
+Recording costs less than coverage at every precision. A probe fires only when
+its code runs, so what you pay tracks what your tests ran, and the finer the
+step you record, the more probes there are to fire.
 
-Every suite below is public and unmodified apart from the configuration that
+| | the suite | `loads` | `entries` | `presence` | `--coverage`, V8 |
+|---|---|---|---|---|---|
+| [Zod](selection-zod.md) — 398 runs, 5,656 tests | 11.14 s | 10.51 s — **0.94×** | 11.18 s — **1.00×** | 11.13 s — **1.00×** | 14.09 s — **1.27×** |
+| [TanStack Query](selection-tanstack-query.md) — 188 files, 4,523 tests | 14.09 s | 14.78 s — **1.05×** | 15.90 s — **1.13×** | 15.94 s — **1.13×** | 18.24 s — **1.29×** |
+
+Both suites are public and unmodified apart from the configuration that
 installs the recorder. Every figure is the median of five runs of the whole
-suite, the first discarded as warm-up, with the Vite cache and the record cache
-cleared between runs so no run is paid for by the one before it. Pass and fail
-counts are identical down all three columns. An Apple M4 Max, 64 GB, Node 26.
+suite, the first discarded as warm-up and the order of the arms rotated each
+round, with the Vite cache and the record cache cleared before every run so no
+run is paid for by the one before it. Pass and fail counts are identical across
+every column. An Apple M4 Max, 64 GB, Node 26.
 
-| | the suite | recording | `--coverage`, V8 |
-|---|---|---|---|
-| [Zod](selection-zod.md) — 398 runs, 5,656 tests | 8.87 s | 9.05 s — **1.02×** | 11.56 s — **1.30×** |
-| [TanStack Query](selection-tanstack-query.md) — 188 files, 4,523 tests | 11.78 s | 12.77 s — **1.08×** | 15.25 s — **1.29×** |
-| [Material UI](https://github.com/mui/material-ui), node scope — 452 files, 7,456 tests | 25.88 s | 26.76 s — **1.03×** | 32.49 s — **1.26×** |
+Each round also runs the suite plain a second time, and the two plain arms are
+the band the rest is read against: 0.9% apart on Zod and 1.8% on TanStack
+Query. On Zod every mode lands inside that band — `loads` below the plain run
+is the band, not a saving. On TanStack Query, where jsdom loads far more code
+into every worker, each mode stands outside it, and `--coverage` still costs
+more than twice what the default `presence` does.
 
-A ratio of two timed runs is only worth reading if you know what the machine
-does to an untimed one, so the Material UI rounds carry a second unrecorded
-arm. Each round runs the suite plain, recorded, and plain again, and the two
-plain arms are the band everything else is read against: their medians are
-**25.90 s and 25.88 s**, 0.1% apart over five rounds. A 0.9 s recording cost
-stands well outside that. On a suite of nine or twelve seconds it would not —
-which is the reason the largest row is here at all.
-
-The same suite pinned to two workers, so that it lasts a minute and a half
-rather than half a minute, is the check on whether any of this scales with the
-clock. Median of three rounds, two baseline arms 0.02% apart: **91.56 s**
-plain, **93.69 s** recorded — **1.02×** — and **110.86 s** under `--coverage`
-— **1.21×**. Recording does not grow when the same work is spread over fewer
-cores, because what it charges for is what the tests ran rather than how long
-they took to run. The gap between the two instruments is the figure to carry:
-on that run coverage costs 19.3 s and recording costs 2.1 s.
-
-```mermaid
-xychart-beta horizontal
-  accTitle: Seconds each instrument adds to Material UI's suite on two workers
-  x-axis ["recording", "--coverage, V8"]
-  y-axis "seconds added to 91.56" 0 --> 20
-  bar [2.1, 0]
-  bar [0, 19.3]
-  bar [0, 0]
-  bar [0, 0]
-```
-
-That is the setting `--coverage` gives you, not a pessimistic one.
-`Profiler.startPreciseCoverage` takes two independent flags — a counter per
-region rather than a bit, and block ranges rather than function entries — and
-Vitest's provider requests both. Node's inspector exposes no cheaper mode;
-the best-effort one is d8's.
-
-A probe fires only when its code runs, so what you pay tracks what your tests
-**ran**. The engine's counters are not fired but read, and
-`takePreciseCoverage` answers with every script the isolate has loaded, so what
-you pay tracks what the worker **had open**. For one report at the end of a
-worker that difference never surfaces, which is why native coverage is the right
-tool for the job it was built for.
-
-It surfaces for a selector, because a selector cannot use the read at the end of
-the worker. That read is one union per file — every region some test covered,
-with no record of which test — and a skip list needs the crossing. So the
-counters have to be read after every test, and each of those reads is priced by
-the environment rather than by the test. On the TanStack Query suite, where
-jsdom puts 193 scripts in a worker, the engine hands 144 of them back to every
-one of the 4,494 tests, and the run takes **2.1× to 2.7×** the suite — counters
-alone, with the result discarded rather than mapped, attributed and written. The
-same reading on Zod, which runs in `node` with 52 scripts in a worker, costs
-nothing measurable. One engine, one call, two environments.
-
-You do not have to take either figure. Time your own suite five times with the
-plugin installed and five times with that one line taken out, and compare the
-medians — one configuration with the plugin behind a flag rather than two
-configurations, because two that can drift are one and a coincidence.
+To check the figure on your own suite, time it five times with the plugin and
+five times with it off, and compare the medians — one configuration with the
+plugin behind a flag rather than two configurations that can drift.
 
 Wall clock is not the only cost, and on a large suite it is not the one to
 watch. The probes add code to every module your tests load, and each worker

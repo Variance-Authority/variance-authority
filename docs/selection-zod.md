@@ -23,7 +23,7 @@ because the record shows which of the files that *reach* a module covered the
 > - Change one line in `locales/ru.ts` and the record selects **8 runs, 1.5s
 >   instead of 8.2s**, an **82%** shorter run. A package graph would still run
 >   201 of the 202 files.
-> - One commit of setup, and recording costs **1.02×** a suite run.
+> - One commit of setup, and recording costs nothing measurable at any precision.
 
 Nothing in the repository was written with this in mind and no test was changed
 to accommodate it. One commit adds the instrumentation; the
@@ -51,16 +51,20 @@ record stores the union rather than letting the second run overwrite the first.
 
 | | median of five |
 |---|---|
-| the suite as it ships | 8.87 s |
-| recording | 9.05 s — **1.02×** |
-| `vitest --coverage`, V8 provider | 11.56 s — **1.30×** |
+| the suite as it ships | 11.14 s |
+| the suite again, the noise band | 11.24 s — 0.9% apart |
+| recording, `loads` | 10.51 s — **0.94×** |
+| recording, `entries` | 11.18 s — **1.00×** |
+| recording, `presence` (the default) | 11.13 s — **1.00×** |
+| `vitest --coverage`, V8 provider | 14.09 s — **1.27×** |
 
-Same pass and fail counts in all three, Vite cache and record cache cleared
-between runs. Zod runs in `node`, which is why the third row is the interesting
+Same pass and fail counts in every row, Vite cache and record cache cleared
+before every run. Every recording mode lands inside the band the two plain
+runs set; `loads` below the plain run is that band, not a saving. Zod runs in `node`, which is why the third row is the interesting
 one: the engine's counters are read per worker and answer with every script the
 isolate has loaded, and a worker here holds 52. What it buys for that is one
 union per file — every region some test covered, with no record of which test —
-and its overhead is about fifteen times the recorder's.
+and the recorder, at any precision, costs less than the noise.
 
 ## One line, asked of the record
 

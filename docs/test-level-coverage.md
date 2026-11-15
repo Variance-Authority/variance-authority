@@ -17,12 +17,11 @@ recording it is the reason the suite stops being run.
 
 The promise on the engine side is that coverage is free. V8 already keeps the
 counters, Node exposes them through the inspector, and nothing rewrites your
-code. The measured reality on three public suites, unmodified apart from the
-configuration: Zod's 5,656 tests go from 8.87 s to 11.56 s under
-`--coverage`, TanStack Query's 4,523 from 11.78 s to 15.25 s, and Material
-UI's 7,456 from 25.88 s to 32.49 s. That is **+26% to +30%, on every run**,
-and what it buys is the union — a percentage, and a file that cannot show
-which test covered anything in it.
+code. The measured reality on two public suites, unmodified apart from the
+configuration: Zod's 5,656 tests go from 11.14 s to 14.09 s under
+`--coverage`, and TanStack Query's 4,523 from 14.09 s to 18.24 s. That is
+**+27% and +29%, on every run**, and what it buys is the union — a
+percentage, and a file that cannot show which test covered anything in it.
 
 **Thirty percent is not one cost, because a percentage is not a unit.** On a
 ten-second suite it is three seconds: it slows an agent loop slightly and
@@ -33,49 +32,24 @@ never see the 30% at all — sharding hides it, the wall clock stays roughly
 where it was, and the cost moves onto the bill instead. At that end coverage
 is not slower. It is **30% more money, every run, forever**, for a union.
 
-The same three suites with the recorder installed are 9.05 s, 12.77 s and
-26.76 s: **+2%, +8% and +3%**. The difference is not tuning, it is which way
-the instrument faces. A probe fires only when its code runs, so what you pay
-tracks what your tests *ran*. The engine's counters are not fired but read, and
-the read hands back every script the worker had open, whether a test went near
-it or not.
+The recorder's cost depends on how fine a step you record, and every step
+costs less than coverage:
 
-```mermaid
-xychart-beta horizontal
-  accTitle: Percent each instrument adds to a suite run
-  x-axis ["Zod, recording", "Zod, --coverage", "TanStack Query, recording", "TanStack Query, --coverage", "Material UI, recording", "Material UI, --coverage"]
-  y-axis "% added to the run" 0 --> 35
-  bar [2, 0, 8, 0, 3, 0]
-  bar [0, 30, 0, 29, 0, 26]
-  bar [0, 0, 0, 0, 0, 0]
-  bar [0, 0, 0, 0, 0, 0]
-```
+| added to the run | Zod | TanStack Query |
+|---|---|---|
+| `loads` — the modules each test file loaded | inside the noise | **+5%** |
+| `entries` — the functions each case entered | inside the noise | **+13%** |
+| `presence`, the default — the regions each case entered | inside the noise | **+13%** |
+| `--coverage`, V8 — the union | **+27%** | **+29%** |
 
-Two of those suites are short enough that you should not believe a percentage
-taken off them, and that objection is why the third is here. Every Material UI
-round runs the suite plain, recorded, and plain again; the two plain arms come
-out **0.1%** apart, so a 0.9 s recording cost is a signal rather than a warm
-disk. Run the same suite on two workers, where it takes a minute and a half
-instead of half a minute, and the two baseline arms land **0.02%** apart:
-**91.56 s** plain against **93.69 s** recorded, and **110.86 s** under
-`--coverage`. Recording does not grow with the clock, and at that length the
-comparison stops being a ratio and becomes a number you can spend — **19.3
-seconds a run for the union, 2.1 seconds for the relation**:
+A probe fires only when its code runs, so what you pay tracks what your tests
+*ran*. The engine's counters are not fired but read, and the read hands back
+every script the worker had open, whether a test went near it or not.
 
-```mermaid
-xychart-beta horizontal
-  accTitle: Seconds each instrument adds to Material UI's suite on two workers
-  x-axis ["recording, the relation", "--coverage, the union"]
-  y-axis "seconds added to 91.56" 0 --> 20
-  bar [2.1, 0]
-  bar [0, 19.3]
-  bar [0, 0]
-  bar [0, 0]
-```
-
-(Medians, warm-up discarded, both caches cleared between runs, on an Apple M4
-Max, 64 GB, Node 26. The full table is in [running less of the
-suite](selecting.md#what-recording-costs-while-the-suite-runs).)
+(Medians of five, warm-up discarded, both caches cleared before every run, on
+an Apple M4 Max, 64 GB, Node 26. Two plain arms in every round set the noise
+band: 0.9% apart on Zod, 1.8% on TanStack Query. The seconds are in [running
+less of the suite](selecting.md#what-recording-costs-while-the-suite-runs).)
 
 Per test, the gap stops being a percentage and becomes the reason this axis
 does not exist in your pipeline. Getting it out of the profiler means reading
@@ -102,9 +76,9 @@ attribution per crossing on top of them.
 
 What it costs *you* is not what it cost us:
 
-- **Plan around +10%, and treat anything under that as luck.** How many
-  regions a test crosses is a property of your code, not of the recorder, and
-  a suite that spends most of its time in one hot module pays differently from
+- **Plan around +15% at the default precision, and treat anything under that
+  as luck.** How many regions a test crosses is a property of your code, not
+  of the recorder, and a suite that spends most of its time in one hot module pays differently from
   one that spends it starting workers.
 - **What those cycles buy is not a percentage.** It is the part worth putting
   on the other side of the comparison. A run under `--coverage` ends with a

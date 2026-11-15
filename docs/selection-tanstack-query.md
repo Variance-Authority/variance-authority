@@ -23,7 +23,7 @@ with 9.
 > - What limits `file-use` here is `query-core`'s index, which loads every
 >   module it re-exports: an edit to `hydration.ts` runs 149 test files, and
 >   21 of them call a function in it.
-> - One commit of setup, and recording costs **1.08×** a suite run.
+> - One commit of setup, and recording costs **1.05×** to **1.13×** a suite run, by precision.
 
 Nothing in the repository was written with this in mind and no test was changed
 to accommodate it. One commit adds the instrumentation; the
@@ -49,13 +49,16 @@ separate runs cannot see it.
 
 | | median of five |
 |---|---|
-| the suite as it ships | 11.78 s |
-| recording | 12.77 s — **1.08×** |
-| `vitest --coverage`, V8 provider | 15.25 s — **1.29×** |
+| the suite as it ships | 14.09 s |
+| the suite again, the noise band | 13.84 s — 1.8% apart |
+| recording, `loads` | 14.78 s — **1.05×** |
+| recording, `entries` | 15.90 s — **1.13×** |
+| recording, `presence` (the default) | 15.94 s — **1.13×** |
+| `vitest --coverage`, V8 provider | 18.24 s — **1.29×** |
 
-Same pass and fail counts in all three — the 22 that fail in the upstream
+Same pass and fail counts in every row — the 22 that fail in the upstream
 repository fail in each — with the Vite cache and the record cache cleared
-between runs. This suite runs in jsdom, so a worker holds 193 scripts against
+before every run. This suite runs in jsdom, so a worker holds 193 scripts against
 Zod's 52. A probe is paid for by the test that reaches it and does not notice;
 the engine's counters are read rather than fired, and a read answers with the
 whole isolate. Read as often as a selector needs them — after every test, not

@@ -156,13 +156,14 @@ step; nothing composes them.
 
 `withTestSelection` takes the same recording options under Vitest, Jest and
 Rstest. Record at the step the suite declares and no finer, because each step
-down costs run time. Added to this repository's unit suite under Vitest:
+down costs run time. Added to TanStack Query's suite under Vitest, where
+`--coverage` adds 29%; on Zod no mode costs more than the run's own spread:
 
 | `mode` | the record holds | finest `precision` it answers | added |
 |---|---|---|---|
-| `'loads'` | the modules each test file loaded; one line after each module, nothing parsed, no cases | `file-use` | about 3% |
-| `'entries'` | the functions each case entered | `function-use` | about 7% |
-| `'presence'` (default) | the regions each case entered | `region-use` | about 9% |
+| `'loads'` | the modules each test file loaded; one line after each module, nothing parsed, no cases | `file-use` | 5% |
+| `'entries'` | the functions each case entered | `function-use` | 13% |
+| `'presence'` (default) | the regions each case entered | `region-use` | 13% |
 
 The other recording options:
 
