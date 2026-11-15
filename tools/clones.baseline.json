@@ -442,13 +442,6 @@
   },
   {
     "files": [
-      "packages/sense/src/test-selection/execution-set-format.ts",
-      "packages/sense/src/test-selection/held-case-index.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/sense/src/test-selection/jest-reporter.ts",
       "packages/sense/src/test-selection/selection-fold.ts"
     ],

@@ -54,23 +54,14 @@ function landedOn(held: Cut, recorded: Cut): Map<number, number> {
  * For each region recorded now, the held region of the same cut it stands for,
  * or -1.
  *
- * An address is half a seat among siblings: a function written in front of an
- * anonymous one takes the seat it held. A run that read a file through its
- * source and its build keeps only the regions both cut alike, so one cut can
- * lack a region the other holds. A seat it lacks among regions told apart only
- * by occurrence moves every later sibling down one, so where the two cuts hold
- * an address a different number of times, a region lands only on the held one
- * at its own lines, and the rest are absent from the other cut rather than its
- * neighbours.
- *
- * This answers whether two cuts of one text agree. Where the cases of a region
- * go over an edit is the case layering's to say
- * (`native/src/case_layer_landing.rs`): it seats a region by the
- * lines the edit places it at first, and pairs by address only where both
- * cuts numbered their regions alike and the edit's reading spares the kind.
+ * An address is half a seat among siblings, and a run that read a file through
+ * its source and its build keeps only the regions both cut alike, so one cut
+ * can lack a region the other holds. Where the two cuts hold an address a
+ * different number of times, a region lands only on the held one at its own
+ * lines. Where cases go over an edit is `native/src/case_layer_landing.rs`'s.
  */
 function landing(recorded: Cut, before: Cut): Int32Array {
-  // A layer asks one pair this up to four times.
+  // One pair is asked this more than once.
   const known = landed.get(recorded)?.get(before);
   if (known !== undefined) return known;
   const found = landingOf(recorded, before);

@@ -3,24 +3,15 @@
  *
  * A landing — a run's, `variance land`'s, or a repin onto a newer milestone —
  * re-cuts a carried module's rows to the text on disk when every region keeps
- * its address (`carriedSources` in `carried-sources.ts`), and lays a run's own
- * cases onto the modules that run recorded. A module the run did not
- * record keeps the case regions it was recorded with, and after the re-cut
- * those are lines of a text the record no longer names. Every reader asks the
- * index by line, so it would charge an edit to whichever region stood at that
- * line before the move. Nothing downstream can tell: the index names no text.
+ * its address (`carriedSources` in `carried-sources.ts`). A module no run
+ * recorded keeps its case regions at the lines of a text the record no longer
+ * names, and every reader asks the index by line, so it would charge an edit
+ * to whichever region stood there before the move.
  *
  * So after every landing, each held module whose rows now stand at another
- * text is laid onto the rows' cut by the rule a run's recorded module takes the
- * held cases by (`follow_cuts` in `native/src/case_layer.rs`): through the
- * edit between the two texts, where
- * a region the edit touched, or one the re-cut bore, keeps the cases of its own
- * region or of the region around it: as they ran where the edit's reading
- * spares its kind, and as overwritten elsewhere. A module none of whose cases
- * land or are overwritten leaves the index, as one no run kept cases of is
- * absent from it, rather than standing at lines no text holds. A module whose
- * index already stands at the rows' lines, as one a run recorded does, is
- * carried as it is.
+ * text is laid onto the rows' cut through the edit between the two texts, by
+ * the rule a run's recorded module takes held cases by (`follow_cuts` in
+ * `native/src/case_layer.rs`).
  */
 
 import { native } from '../addon.js';
