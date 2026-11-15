@@ -61,7 +61,8 @@ export function foldCases(
   const readings = [...(options.readings ?? new Map<ModuleId, Reading>())].map(([id, reading]) => ({
     id,
     target: reading.id,
-    lands: reading.lands.map((land) => land ?? 0xFFFF_FFFF),
+    // `lands` is sparse, and `map` keeps a hole a hole: `Array.from` visits it.
+    lands: Array.from(reading.lands, (land) => land ?? 0xFFFF_FFFF),
   }));
   const folded = journals.fold(
     shaped,
