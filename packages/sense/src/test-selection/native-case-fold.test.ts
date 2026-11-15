@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { digestString } from '../digest.js';
 import { EVALUATING, type ModuleId } from '../instrument/index.js';
 import { native, nativeAvailable } from '../addon.js';
@@ -219,5 +219,35 @@ describe.runIf(nativeAvailable())('the native case fold', () => {
     const stitched = resolve(cases, '..', 'stitched.bin');
     native()!.stitchJourneysTo!([output, output], stitched);
     expect(owners(await readFile(stitched))).toEqual([[NO_OWNER, 0, 1, 1]]);
+  });
+});
+
+describe('the case fold without the native addon', () => {
+  afterEach(() => {
+    vi.doUnmock('../addon.js');
+    vi.resetModules();
+  });
+
+  const loaded = async (addon: () => object | undefined) => {
+    vi.resetModules();
+    vi.doMock('../addon.js', () => ({
+      native: addon,
+      nativeRefusal: () => (addon() === undefined ? '@variance-authority/sense-linux-x64-gnu is not installed' : undefined),
+    }));
+    return import('./case-fold.js');
+  };
+
+  it('refuses to fold a run, naming why the addon did not load', async () => {
+    const { freshCases } = await loaded(() => undefined);
+
+    await expect(freshCases('/cases', '/repo', new Map(), { tests: [] }))
+      .rejects.toThrow('the case fold requires the Sense native addon: @variance-authority/sense-linux-x64-gnu is not installed');
+  });
+
+  it('refuses to fold with an addon that has no case fold, naming the missing call', async () => {
+    const { foldCases: fold } = await loaded(() => ({}));
+
+    expect(() => fold('/cases', '/repo', new Map()))
+      .toThrow('the case fold requires the Sense native addon: the loaded addon has no `openCaseJournals`');
   });
 });
