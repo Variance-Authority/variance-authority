@@ -451,7 +451,7 @@ describe('the help server about a name written after the published generation', 
 });
 
 describe('a generation that could not be saved', () => {
-  it('keeps its times, so what it answers is dated and its text gated', async () => {
+  it('keeps its times, so what it answers is dated', async () => {
     const root = await fixture.published();
     const help = await readWorkspace(root, { index: join(root, 'package.json', 'index') });
     expect(workspaceGeneration(help)).toBeDefined();

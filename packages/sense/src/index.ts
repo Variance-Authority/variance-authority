@@ -230,7 +230,10 @@ export {
 export {
   aliasesOf,
   asOneQuestion,
+  cutDoc,
+  cutHead,
   declarationExported,
+  exportLine,
   encodeHelpStore,
   forwardsDigest,
   importersOf,

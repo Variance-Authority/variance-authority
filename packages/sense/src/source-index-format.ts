@@ -38,7 +38,7 @@ import { packageOf } from './specifier.js';
  */
 const FORMAT = 'variance-authority-source-index';
 /** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
-export const SOURCE_INDEX_VERSION = 45;
+export const SOURCE_INDEX_VERSION = 46;
 const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
@@ -169,6 +169,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const exportType = opened.u8('exports.type');
   const exportLine = opened.u32('exports.line');
   const exportTags = opened.u8('exports.tags');
+  const exportLineText = opened.u32('exports.line-text');
   const declareName = opened.u32('declares.name');
   const harvest = openHarvest(opened, text, parseKey.length, exportExported.length);
   const mocksOf = openMocks(opened, text, parseKey.length);
@@ -187,7 +188,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   sameLength(requestValue.length, [requestKind, requestLine, requestFlags, requestRepublishes]);
   validateOffset(requestBindings, bindingImported.length, requestValue.length);
   sameLength(bindingImported.length, [bindingLocal, bindingType, bindingLine]);
-  sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType, exportLine, exportTags]);
+  sameLength(exportExported.length, [exportLocal, exportFrom, exportImported, exportType, exportLine, exportTags, exportLineText]);
 
   const parses = new Map<ParseKey, Parsed>();
   const skippedParses = new Set<ParseKey>();
@@ -215,6 +216,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       const signature = harvest.exportSignature(entry);
       const doc = harvest.exportDoc(entry);
       const roles = declaredRoles(exportTags[entry]!);
+      const lineText = optional(exportLineText[entry]!);
       return {
         ...(exported === undefined ? {} : { exported }),
         ...(local === undefined ? {} : { local }),
@@ -225,6 +227,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
         ...(signature === undefined ? {} : { signature }),
         ...(doc === undefined ? {} : { doc }),
         ...(roles.length === 0 ? {} : { roles }),
+        ...(lineText === undefined ? {} : { lineText }),
       };
     });
     const symbols = harvest.symbols(row);

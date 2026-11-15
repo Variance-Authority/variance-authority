@@ -231,15 +231,15 @@ export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree
  * published row shown is counted by `importingOf` when it is given, as `uses`
  * counts that name.
  */
-export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf, since?: number): Searched {
+export function searched(index: SearchIndex, question: SearchQuestion, tree?: Tree, root?: string, importingOf?: ImportingOf): Searched {
   const count = importingOf === undefined ? undefined : counting(importingOf);
-  const found = searchedBy(index, question, tree, root, count?.of, since);
+  const found = searchedBy(index, question, tree, root, count?.of);
   if (count === undefined) return found;
   const unread = count.unread();
   return { ...found, publishing: count.publishing(), ...(unread === undefined ? {} : { answer: { ...found.answer, importsUnread: unread } }) };
 }
 
-function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined, since: number | undefined): Searched {
+function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | undefined, root: string | undefined, importingOf: ImportingOf | undefined): Searched {
   const found = matched(index, question, tree);
   if ('refused' in found) return { answer: { query: found.query, refused: found.refused }, area: found.area };
   const { query, said, area, within, named, hits, answered, rest } = found;
@@ -252,7 +252,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   // is what the location reaches, and a package another workspace declares is that workspace's
   // to offer, so ownership is asked of the paths the question started at and not of the closure.
   const thirdParty = root === undefined ? undefined : queryDependencyLexicon(root, query, area === undefined ? undefined : [...area.from, ...area.to]);
-  const told = declaredTold(root, said, since);
+  const told = declaredTold(said);
   const read = declaredMatches(root, question.query, area?.files, ELSEWHERE_CAP, told);
   const declared = read?.declared;
   const aliases = aliasMatches(root, question.query, area?.files);
@@ -318,7 +318,7 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const heldRows = described === undefined || carried === undefined ? undefined : describedShown(index, query, carried, DESCRIBED_CAP, described)
     .flatMap((one): DescribedMatch[] => {
       if ('match' in one) return [{ ...told(one.match), words: one.words }];
-      if ('file' in one) return [{ ...fileMatch(root, one.file, since, said), words: one.words }];
+      if ('file' in one) return [{ ...fileMatch(one.file, said), words: one.words }];
       // The row it was weighed through is the row shown.
       const { through } = one;
       const row = through.kind === 'published'

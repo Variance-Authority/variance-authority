@@ -26,7 +26,7 @@ use crate::off_thread::{off_thread, OffThread};
 use crate::help_search::{exported_digest, set_digest};
 use crate::help_store::{encode, DeepRef, StoreMeta, StorePackage, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
-use crate::help_origin::{declaration_exported, ExportedDeclaration};
+use crate::help_origin::{declaration_exported, export_line, ExportedDeclaration};
 use crate::help_usage::{importers, usage, Asked, DeepRequest, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::{tree, Mocking};
@@ -172,6 +172,13 @@ pub struct ExportedReading {
 #[napi(catch_unwind)]
 pub fn declaration_exported_of(index: &OpenedIndex, file: String, name: String) -> napi::Result<Option<ExportedReading>> {
     opened_chain(index, |layers| ExportedReading { declaration: declaration_exported(layers, &file, &name) })
+}
+
+/// The text of the line an export of `file`, repo-relative, is written on,
+/// as [`export_line`] keeps it; `None` when there is none or no index.
+#[napi]
+pub fn export_line_of(index: &OpenedIndex, file: String, line: u32) -> napi::Result<Option<String>> {
+    Ok(opened_chain(index, |layers| export_line(layers, &file, line))?.flatten())
 }
 
 /// Every top-level declaration on the chain at `index` that no export of its

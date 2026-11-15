@@ -61,19 +61,30 @@ impl ParseRow for Read {
                 values.insert(&binding.local);
             }
         }
+        fn texts(span: &Option<crate::harvest::TextSpan>) -> Option<&str> {
+            span.as_ref().and_then(|span| span.text.as_deref())
+        }
+        values.extend(texts(&self.doc));
         for export in &self.exports {
             for value in [&export.exported, &export.local, &export.from, &export.imported].into_iter().flatten() {
                 values.insert(value);
             }
+            values.extend(texts(&export.signature));
+            values.extend(texts(&export.doc));
+            values.extend(export.line_text.as_deref());
         }
         for symbol in &self.symbols {
             values.insert(&symbol.name);
             values.insert(symbol.kind);
+            values.extend(texts(&symbol.signature));
+            values.extend(texts(&symbol.doc));
         }
         for nested in &self.nested {
             values.insert(&nested.name);
             values.insert(nested.kind);
             values.extend(nested.holder.as_deref());
+            values.extend(nested.signature.text.as_deref());
+            values.extend(texts(&nested.doc));
         }
         values.extend(self.declares.iter().map(String::as_str));
         values.extend(self.mocks.minus.iter().map(String::as_str));
@@ -82,6 +93,8 @@ impl ParseRow for Read {
         for declared in &self.member_declarations {
             values.insert(&declared.name);
             values.insert(&declared.on);
+            values.extend(texts(&declared.doc));
+            values.extend(declared.line_text.as_deref());
         }
         for used in &self.member_uses {
             values.insert(&used.name);
@@ -112,20 +125,21 @@ impl ParseRow for Read {
                 }),
             );
         }
-        let span = |span: Option<crate::harvest::TextSpan>| span.map(|span| (span.start, span.end));
+        let span = |span: &Option<crate::harvest::TextSpan>| crate::parse_columns::spanned(strings, raw(span));
         for export in &self.exports {
             into.export(
                 [&export.exported, &export.local, &export.from, &export.imported]
                     .map(|value| strings.optional(value.as_deref())),
                 export.type_only,
                 export.line,
-                span(export.signature),
-                span(export.doc),
+                span(&export.signature),
+                span(&export.doc),
                 export.tags,
+                strings.optional(export.line_text.as_deref()),
             );
         }
         for symbol in &self.symbols {
-            into.symbol(id(&symbol.name), id(symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc), crate::harvest::reach_code(symbol.reach));
+            into.symbol(id(&symbol.name), id(symbol.kind), symbol.line, span(&symbol.signature), span(&symbol.doc), crate::harvest::reach_code(symbol.reach));
         }
         for name in &self.declares {
             into.declare(id(name));
@@ -135,7 +149,7 @@ impl ParseRow for Read {
             into.member(member.request, id(&member.name), member.line, member.through_default);
         }
         for declared in &self.member_declarations {
-            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(declared.doc));
+            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(&declared.doc), strings.optional(declared.line_text.as_deref()));
         }
         for used in &self.member_uses {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));
@@ -145,7 +159,7 @@ impl ParseRow for Read {
         }
         for nested in &self.nested {
             let holder = strings.optional(nested.holder.as_deref());
-            into.nested(id(&nested.name), id(nested.kind), nested.line, span(Some(nested.signature)), span(nested.doc), holder, nested.holder_line);
+            into.nested(id(&nested.name), id(nested.kind), nested.line, Some((nested.signature.start, nested.signature.end, strings.optional(nested.signature.text.as_deref()))), span(&nested.doc), holder, nested.holder_line);
         }
         for read in &self.binding_members {
             into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);
@@ -172,13 +186,25 @@ impl ParseRow for Read {
         self.size
     }
 
-    fn doc(&self) -> crate::parse_columns::Span {
-        self.doc.map(|doc| (doc.start, doc.end))
+    fn doc(&self) -> Option<(u32, u32, Option<&str>)> {
+        raw(&self.doc)
     }
 
-    fn words(&self, item: crate::name_table::Item, at: usize) -> Option<Option<&str>> {
-        self.words.at(item, at)
+    fn words(&self, item: crate::name_table::Item, at: usize) -> Option<Option<std::borrow::Cow<'_, str>>> {
+        use crate::name_table::Item;
+        let doc = match item {
+            Item::Module => self.doc.as_ref(),
+            Item::Symbol => self.symbols.get(at).and_then(|symbol| symbol.doc.as_ref()),
+            Item::Nested => self.nested.get(at).and_then(|nested| nested.doc.as_ref()),
+            Item::Member => self.member_declarations.get(at).and_then(|member| member.doc.as_ref()),
+        };
+        crate::parse_columns::words_at(doc.map(|doc| doc.text.as_deref()))
     }
+}
+
+/// A span's ends and the text it holds, as [`ParseRow::doc`] gives them.
+fn raw(span: &Option<crate::harvest::TextSpan>) -> Option<(u32, u32, Option<&str>)> {
+    span.as_ref().map(|span| (span.start, span.end, span.text.as_deref()))
 }
 
 /// What the path says about reading it: `parseWay` and the second half of

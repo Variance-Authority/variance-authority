@@ -124,9 +124,9 @@ pub fn doc_above(children: &[Node], at: usize, source: &str, between: fn(Node) -
 pub fn span_of(source: &str, start: usize, end: usize) -> TextSpan {
     let units = |byte: usize| source.get(..byte).map_or(0, |before| before.encode_utf16().count()) as u32;
     if source.is_ascii() {
-        return TextSpan { start: start as u32, end: end as u32 };
+        return TextSpan { start: start as u32, end: end as u32, text: None };
     }
-    TextSpan { start: units(start), end: units(end) }
+    TextSpan { start: units(start), end: units(end), text: None }
 }
 
 /// A visibility modifier as written, with the whitespace taken out, so
@@ -187,7 +187,9 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
         Grammar::Rust => rust_uses::own_uses(&tree, source),
         Grammar::Python | Grammar::Swift | Grammar::Java | Grammar::Kotlin => Vec::new(),
     };
-    Some(Read { size: Some(size::size_of(source, &tree, grammar)), symbols, harvested: true, own_uses, ..read })
+    let lines = crate::read::Lines::new(source);
+    let read = Read { size: Some(size::size_of(source, &tree, grammar)), symbols, harvested: true, own_uses, ..read };
+    Some(read.texted(&crate::span_text::Source::new(source, lines.starts())))
 }
 
 /// The targets a `Package.swift` declares, or nothing when it does not parse.

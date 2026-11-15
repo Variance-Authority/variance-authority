@@ -8,7 +8,7 @@
 
 // compass: variance-authority.reach.source-index
 
-use crate::parse_columns::{ParseColumns, ParseRow};
+use crate::parse_columns::{spanned, ParseColumns, ParseRow};
 use crate::read::{Binding, Kind, Read, Request};
 use crate::segment::{Collected, Strings};
 use crate::stored::{Stored, U32s};
@@ -138,13 +138,31 @@ impl ParseRow for ParseView<'_, '_> {
         }
         for at in columns.nested.range(row) {
             into.extend(stored.optional(columns.nested_holder.at(at)));
+            into.extend(stored.optional(columns.nested_signature[2].at(at)));
+            into.extend(stored.optional(columns.nested_doc[2].at(at)));
         }
+        for export in self.exports() {
+            for column in [columns.export_signature[2], columns.export_doc[2], columns.export_line_text] {
+                into.extend(stored.optional(column.at(export)));
+            }
+        }
+        for symbol in columns.symbols.range(row) {
+            into.extend(stored.optional(columns.symbol_signature[2].at(symbol)));
+            into.extend(stored.optional(columns.symbol_doc[2].at(symbol)));
+        }
+        for at in columns.member_declarations.range(row) {
+            into.extend(stored.optional(columns.member_declaration_doc[2].at(at)));
+            into.extend(stored.optional(columns.member_declaration_line_text.at(at)));
+        }
+        into.extend(stored.optional(columns.doc[2].at(row)));
         into.extend(self.unknown());
     }
 
     fn write(&self, strings: &Strings, into: &mut ParseColumns) {
         let (stored, columns, row) = (self.stored, self.columns, self.row);
         let id = |column: U32s, at: usize| strings.id(stored.text(column.at(at)));
+        let span = |ends, at: usize| spanned(strings, span(stored, ends, at));
+        let text = |column: U32s, at: usize| strings.optional(stored.optional(column.at(at)));
         for request in columns.requests.range(row) {
             into.request(
                 id(columns.request_value, request),
@@ -168,9 +186,10 @@ impl ParseRow for ParseView<'_, '_> {
                     .map(|column| strings.optional(stored.optional(column.at(export)))),
                 flag(columns.export_type, export),
                 columns.export_line.at(export),
-                span(columns.export_signature[0], columns.export_signature[1], export),
-                span(columns.export_doc[0], columns.export_doc[1], export),
+                span(columns.export_signature, export),
+                span(columns.export_doc, export),
                 columns.export_tags[export],
+                text(columns.export_line_text, export),
             );
         }
         for symbol in columns.symbols.range(row) {
@@ -178,8 +197,8 @@ impl ParseRow for ParseView<'_, '_> {
                 id(columns.symbol_name, symbol),
                 id(columns.symbol_kind, symbol),
                 columns.symbol_line.at(symbol),
-                span(columns.symbol_signature[0], columns.symbol_signature[1], symbol),
-                span(columns.symbol_doc[0], columns.symbol_doc[1], symbol),
+                span(columns.symbol_signature, symbol),
+                span(columns.symbol_doc, symbol),
                 columns.symbol_reach[symbol],
             );
         }
@@ -198,7 +217,8 @@ impl ParseRow for ParseView<'_, '_> {
                 id(columns.member_declaration_name, at),
                 columns.member_declaration_line.at(at),
                 id(columns.member_declaration_on, at),
-                span(columns.member_declaration_doc[0], columns.member_declaration_doc[1], at),
+                span(columns.member_declaration_doc, at),
+                text(columns.member_declaration_line_text, at),
             );
         }
         for at in columns.member_uses.range(row) {
@@ -217,8 +237,8 @@ impl ParseRow for ParseView<'_, '_> {
                 id(columns.nested_name, at),
                 id(columns.nested_kind, at),
                 columns.nested_line.at(at),
-                span(columns.nested_signature[0], columns.nested_signature[1], at),
-                span(columns.nested_doc[0], columns.nested_doc[1], at),
+                span(columns.nested_signature, at),
+                span(columns.nested_doc, at),
                 strings.optional(stored.optional(columns.nested_holder.at(at))),
                 columns.nested_holder_line.at(at),
             );
@@ -254,12 +274,12 @@ impl ParseRow for ParseView<'_, '_> {
             .then(|| crate::source_size::Size { bytes, lines, blocks: (blocks != NONE).then_some(blocks) })
     }
 
-    fn doc(&self) -> crate::parse_columns::Span {
-        span(self.columns.doc[0], self.columns.doc[1], self.row)
+    fn doc(&self) -> Option<(u32, u32, Option<&str>)> {
+        span(self.stored, self.columns.doc, self.row)
     }
 
     /// Carried as the layer wrote them, so a compaction keeps what the writer held.
-    fn words(&self, item: crate::name_table::Item, at: usize) -> Option<Option<&str>> {
+    fn words(&self, item: crate::name_table::Item, at: usize) -> Option<Option<std::borrow::Cow<'_, str>>> {
         use crate::name_table::{Doc, Item};
         let (columns, row) = (self.columns, self.row);
         let entry = match item {
@@ -270,7 +290,7 @@ impl ParseRow for ParseView<'_, '_> {
         };
         match columns.names[item as usize].doc(entry) {
             Doc::Absent => Some(None),
-            Doc::Words(words) => Some(Some(words)),
+            Doc::Words(words) => Some(Some(std::borrow::Cow::Borrowed(words))),
             Doc::Unknown => None,
         }
     }

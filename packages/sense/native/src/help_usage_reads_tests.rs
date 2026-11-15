@@ -105,3 +105,35 @@ fn a_record_a_later_layer_replaces_or_deletes_imports_nothing() {
     assert_eq!(uses(&answer), ["src/late.ts:4 greet via ./greet", "src/use_b.ts:2 greet via ./b"]);
     assert_eq!(answer.groups[0].through, ["src/a.ts", "src/b.ts"]);
 }
+
+/// One file that exports `open`, its doc and its head spanned, the text kept
+/// when `kept`; the file itself is never written to the root.
+fn documented(path: &str, kept: bool) -> (String, String) {
+    let digest = format!("git:{:04x}", path.bytes().map(u32::from).sum::<u32>());
+    let record = format!(r#"["{path}", {{"record": {{"file": "{path}", "digest": "{digest}"}}, "witnesses": [], "targets": []}}]"#);
+    let text = |text: &str| if kept { format!(r#", "text": "{text}""#) } else { String::new() };
+    let parse = format!(
+        r#"["{digest}\u0000.ts\u0000+", {{"requests": [], "harvested": true,
+            "exports": [{{"exported": "open", "local": "open", "line": 4}}],
+            "symbols": [{{"name": "open", "kind": "function", "line": 4,
+                "signature": {{"start": 30, "end": 60{}}},
+                "doc": {{"start": 2, "end": 25{}}}}}]}}]"#,
+        text("export function open(): void;  "),
+        text(r"*\r\n * Opens the door.\r\n "),
+    );
+    (record, parse)
+}
+
+#[test]
+fn usage_answers_a_doc_and_a_head_from_the_text_the_index_keeps_and_reads_no_source() {
+    let root = fixture("usage-kept");
+    let bytes = chain(&[documented("src/kept.ts", true), documented("src/lost.ts", false)]);
+    let layer = Layer::open(&bytes).unwrap();
+
+    let usage = crate::help_usage::usage(root.0.to_str().unwrap(), std::slice::from_ref(&layer), &[], &[], &[], &[]);
+
+    let told: Vec<(&str, Option<&str>, Option<&str>)> =
+        usage.exported.iter().map(|one| (one.at.as_str(), one.doc.as_deref(), one.signature.as_deref())).collect();
+    assert_eq!(told, [("src/kept.ts", Some("Opens the door."), Some("export function open(): void")), ("src/lost.ts", None, None)]);
+    assert_eq!(usage.unreadable, ["src/lost.ts"]);
+}

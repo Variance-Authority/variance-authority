@@ -46,6 +46,9 @@ pub struct MemberDeclaration {
     pub(crate) on: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) doc: Option<TextSpan>,
+    /// The line it is declared on, as [`crate::span_text`] keeps it.
+    #[serde(rename = "lineText", skip_serializing_if = "Option::is_none")]
+    pub(crate) line_text: Option<String>,
 }
 
 /// Every member `program` declares, in source order.
@@ -166,11 +169,14 @@ pub(crate) fn indexed_extensions(layers: &[Layer]) -> Vec<String> {
     held
 }
 
-/// One member a container declares: its name and its line.
+/// One member a container declares: its name, its line, and that line's text.
 #[napi(object)]
 pub struct ContainerMember {
     pub name: String,
     pub line: u32,
+    /// The line as the read the index recorded saw it, its line end dropped;
+    /// absent when the index kept none.
+    pub text: Option<String>,
 }
 
 /// Every member the interface, type alias or class named `on` declares in
@@ -191,7 +197,11 @@ pub(crate) fn members_on(layers: &[Layer], file: &str, on: &str) -> Vec<Containe
         .member_declarations
         .range(row)
         .filter(|&at| stored.text(parses.member_declaration_on.at(at)) == on)
-        .map(|at| ContainerMember { name: stored.text(parses.member_declaration_name.at(at)).to_owned(), line: parses.member_declaration_line.at(at) })
+        .map(|at| ContainerMember {
+            name: stored.text(parses.member_declaration_name.at(at)).to_owned(),
+            line: parses.member_declaration_line.at(at),
+            text: stored.optional(parses.member_declaration_line_text.at(at)).map(str::to_owned),
+        })
         .collect();
     members.sort_by_key(|member| member.line);
     members
@@ -276,7 +286,7 @@ impl Walker<'_> {
     fn declare(&mut self, key: Option<oxc_ast::StaticPropertyName<'_>>, at: u32, start: u32) {
         let Some(key) = key.and_then(|name| name.into_cow_str()) else { return };
         let on = self.containers.last().cloned().unwrap_or_default();
-        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on, doc: self.harvest.doc(start) });
+        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on, doc: self.harvest.doc(start), line_text: None });
     }
 
     fn within(&mut self, container: String, walk: impl FnOnce(&mut Self)) {
