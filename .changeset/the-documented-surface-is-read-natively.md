@@ -23,3 +23,8 @@ of keeping the signatures and comments of the reading it was handed.
 reading it returns hands over `names()` and encodes the store with `encode()`.
 The unreadable files are listed as the manifests' first, then the index's, each
 in path order.
+
+A scan of a directory git cannot list now keeps a record of each file it read in
+the index it is handed, under a shape no listed scan reuses, so the questions
+and the code map are read off its index as off any other; `digests: false`
+still keeps none.
