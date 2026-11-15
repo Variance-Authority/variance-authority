@@ -242,12 +242,22 @@ fn landed_on(held: &[Block], recorded: &[Block]) -> Vec<(usize, usize)> {
 
 /// Whether `held` was cut at the text `recorded` was: every region both hold
 /// an address for stands at the same lines in each.
-// FIXME: `cutAlike` in `region-landing.ts` answers this again in JavaScript
-// for `casesCutApart`; it should ask the addon instead.
 pub(crate) fn cut_alike(held: &[Block], recorded: &[Block]) -> bool {
     landed_on(held, recorded)
         .into_iter()
         .all(|(from, block)| held[from].start_line == recorded[block].start_line && held[from].end_line == recorded[block].end_line)
+}
+
+/// Whether a case index's cut of a module stands at other text than a
+/// snapshot's: not one cut of one text, and either a region both hold stands
+/// at other lines, or both hold regions and share no address, since one text
+/// cuts one set of addresses.
+pub(crate) fn cut_apart(index: &[Block], snapshot: &[Block]) -> bool {
+    let same = index.len() == snapshot.len()
+        && index.iter().zip(snapshot).all(|(one, other)| {
+            one.start_line == other.start_line && one.end_line == other.end_line && one.kind == other.kind && one.name == other.name && one.path == other.path
+        });
+    !same && (!cut_alike(index, snapshot) || (!index.is_empty() && !snapshot.is_empty() && landed_on(index, snapshot).is_empty()))
 }
 
 /// How `held` reads at the lines `recorded` stands its regions on.

@@ -10,7 +10,7 @@ use rustc_hash::FxHashSet;
 use crate::journey_record::Block;
 
 use super::case_layer::{follow_cuts, layer, layer_before, Edits, Files, Present, RowCut};
-use super::case_layer_landing::{Edit, Hunk};
+use super::case_layer_landing::{cut_apart, Edit, Hunk};
 
 #[napi(object)]
 pub struct CaseHunk {
@@ -119,4 +119,24 @@ pub fn follow_case_cuts(index: Buffer, cuts: Vec<CaseCut>, edit: Function<String
     let cuts: Vec<RowCut> = cuts.into_iter().map(|cut| RowCut { file: cut.file, blocks: cut.blocks, owners: cut.owners }).collect();
     let followed = follow_cuts(&index, &cuts, &|file| asked(&edit, file)).map_err(napi::Error::from_reason)?;
     Ok(followed.map(Buffer::from))
+}
+
+/// One region of a cut, as the comparison of two cuts reads it.
+#[napi(object)]
+pub struct CaseRegion {
+    pub kind: String,
+    pub name: String,
+    pub path: String,
+    pub start_line: u32,
+    pub end_line: u32,
+}
+
+fn blocks_of(regions: Vec<CaseRegion>) -> Vec<Block> {
+    regions.into_iter().map(|region| Block { kind: region.kind, name: region.name, path: region.path, start_line: region.start_line, end_line: region.end_line, source: false }).collect()
+}
+
+/// Whether a case index's cut of a module stands at other text than a snapshot row's cut of it.
+#[napi]
+pub fn case_cut_apart(index: Vec<CaseRegion>, snapshot: Vec<CaseRegion>) -> bool {
+    cut_apart(&blocks_of(index), &blocks_of(snapshot))
 }

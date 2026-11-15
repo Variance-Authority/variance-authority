@@ -26,7 +26,7 @@ import type {
   NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
   NativeJourneyProjection, NativeJourneyFold, NativeJourneyFoldResult,
   NativeJourneyModule, NativeJourneyStitch, NativeJourneyStitchResult, NativeCaseJournals,
-  NativeCaseCut, NativeCaseEdit, NativeCaseLayers, NativeCaseRunFiles,
+  NativeCaseCut, NativeCaseEdit, NativeCaseLayers, NativeCaseRegion, NativeCaseRunFiles,
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeCommitTexts } from './native-commit-text.js';
@@ -248,6 +248,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   layerCaseBefore?(kept: Uint8Array | undefined, retired: Uint8Array | undefined, ran: string[]): Buffer | null;
   /** The case index with each module `cuts` names laid onto that cut; `null` when every one already stands at it. `edit` is asked only of a module laid onto another cut. */
   followCaseCuts?(index: Uint8Array, cuts: NativeCaseCut[], edit: (file: string) => NativeCaseEdit | undefined): Buffer | null;
+  /** Whether a case index's cut of a module stands at other text than a snapshot row's cut of it: `native/src/case_layer_landing.rs`. */
+  caseCutApart?(index: readonly NativeCaseRegion[], snapshot: readonly NativeCaseRegion[]): boolean;
   /** Read a run's case journals for the case index a reporter lays. */
   openCaseJournals?(directory: string, root: string): NativeCaseJournals;
   /** A journey file cut down to the changed modules, with cases only on the regions the change can ask about. */

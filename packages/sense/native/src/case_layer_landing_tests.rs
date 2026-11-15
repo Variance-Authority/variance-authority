@@ -173,3 +173,15 @@ fn a_held_region_strays_where_siblings_of_its_address_are_held_a_different_numbe
     assert!(strayed(&held, &recorded));
     assert!(!strayed(&held, &held));
 }
+
+#[test]
+fn a_cut_is_apart_where_a_shared_region_moved_or_no_address_is_shared() {
+    let base = named(&[("applyDiscount", 1), ("round", 5)]);
+    let lead = named(&[("applyDiscount", 2), ("round", 6)]);
+    let renamed: Vec<Block> = base.iter().map(|block| at(&block.kind, &format!("{}Before", block.name), &format!("{}Before", block.path), block.start_line, block.end_line)).collect();
+    assert!(cut_apart(&base, &lead));
+    assert!(!cut_apart(&lead, &lead));
+    assert!(cut_apart(&renamed, &lead));
+    assert!(!cut_apart(&[], &lead));
+    assert!(!cut_apart(&lead[..1], &lead));
+}

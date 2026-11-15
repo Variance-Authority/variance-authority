@@ -171,6 +171,15 @@ export interface NativeCaseLayers {
   readonly unlined: string[];
 }
 
+/** One region of a cut, as the addon compares two cuts. */
+export interface NativeCaseRegion {
+  readonly kind: string;
+  readonly name: string;
+  readonly path: string;
+  readonly startLine: number;
+  readonly endLine: number;
+}
+
 /** A module's rows as a cut no case has entered yet. */
 export interface NativeCaseCut {
   readonly file: string;

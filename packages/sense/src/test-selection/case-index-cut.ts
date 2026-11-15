@@ -14,7 +14,9 @@ import { BLOCK_KINDS } from './format-layout.js';
 import type { TestCoverageView } from './format-view.js';
 import { askCoverageFile } from './coverage-file.js';
 import { findModules } from './lookup.js';
-import { cutAlike, sameCut, sharesRegion, type Cut } from './region-landing.js';
+import { native } from '../addon.js';
+import { whyAbsent } from './native-modules.js';
+import type { Cut } from './region-landing.js';
 import { NO_LINE } from './written-lines.js';
 
 /** A case index's module, as {@link casesCutApart} reads it. */
@@ -32,29 +34,26 @@ export interface IndexedCut extends Cut {
  * lines than the snapshot's row of it, so the index's lines are not the
  * snapshot's text's, whatever that text is.
  *
- * Each module of a file is compared with each row the snapshot holds for it,
- * by {@link cutAlike}, the JavaScript twin of the test a run lays its cases
- * over a module by. Two cuts that both hold regions and share no address are
- * apart too: one text cuts one set of addresses, so the index was cut at a
- * text whose regions were all renamed since. A file the snapshot holds no row for, or whose index holds no
+ * Each module of a file is compared with each row the snapshot holds for it
+ * by the addon, with the test a run lays its cases over a module by. Two cuts
+ * that both hold regions and share no address are apart too: one text cuts
+ * one set of addresses, so the index was cut at a text whose regions were all
+ * renamed since. A file the snapshot holds no row for, or whose index holds no
  * region, has nothing to compare with and is not one.
  */
 export function casesCutApart(coverageFile: string, modules: readonly IndexedCut[]): ReadonlySet<string> {
   if (modules.length === 0) return new Set();
+  const cutApart = native()?.caseCutApart;
+  if (cutApart === undefined) throw new Error(`comparing the case index with its snapshot requires the Sense native addon: ${whyAbsent('caseCutApart')}`);
   return askCoverageFile(coverageFile, (coverage) => {
     const rows = new Map<string, readonly Cut[]>();
     const apart = new Set<string>();
     for (const module of modules) {
       if (!rows.has(module.file)) rows.set(module.file, findModules(coverage, module.file).map((row) => snapshotCut(coverage, row)));
-      if (rows.get(module.file)!.some((cut) => !sameCut(module, cut) && (!cutAlike(module, cut) || disjoint(module, cut)))) apart.add(module.file);
+      if (rows.get(module.file)!.some((cut) => cutApart(module.blocks, cut.blocks))) apart.add(module.file);
     }
     return apart;
   });
-}
-
-/** Whether both cuts hold regions and no address of one is in the other. */
-function disjoint(index: Cut, snapshot: Cut): boolean {
-  return index.blocks.length > 0 && snapshot.blocks.length > 0 && !sharesRegion(index, snapshot);
 }
 
 /** The regions one snapshot row holds lines for, as a cut. */
