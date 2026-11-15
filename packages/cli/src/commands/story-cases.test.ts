@@ -51,8 +51,8 @@ beforeEach(() => {
 });
 
 describe('cases compared with each other', () => {
-  it('sets every kept reading of each case named against the others\', one side for each case', () => {
-    ask('--file', PAY, '--name', 'charges', '--name', 'charges off', '--name', 'as mike');
+  it('sets every kept reading of each case named against the others\', one side for each case', async () => {
+    await ask('--file', PAY, '--name', 'charges', '--name', 'charges off', '--name', 'as mike');
 
     expect(sidesOf()).toEqual([
       ['charges', ['/stories/charges.0.story', '/stories/charges.1.story', '/stories/charges.2.story']],
@@ -61,45 +61,45 @@ describe('cases compared with each other', () => {
     ]);
   });
 
-  it('takes the cases from any file, naming each side by its file when the files differ', () => {
-    ask('--name', 'charges', '--name', 'elsewhere');
+  it('takes the cases from any file, naming each side by its file when the files differ', async () => {
+    await ask('--name', 'charges', '--name', 'elsewhere');
 
     expect(sidesOf()?.map(([name]) => name)).toEqual([`${PAY} > charges`, 'src/other.test.ts > elsewhere']);
   });
 
-  it('keeps only the readings under --label on every side, and refuses a side it leaves empty', () => {
-    ask('--name', 'charges', '--name', 'charges off', '--label', 'slow');
+  it('keeps only the readings under --label on every side, and refuses a side it leaves empty', async () => {
+    await ask('--name', 'charges', '--name', 'charges off', '--label', 'slow');
 
     expect(sidesOf()).toEqual([
       ['charges', ['/stories/charges.2.story']],
       ['charges off', ['/stories/charges off.1.story']],
     ]);
-    expect(() => ask('--name', 'charges', '--name', `${PAY} > as mike`, '--label', 'slow')).toThrow(
+    await expect(ask('--name', 'charges', '--name', `${PAY} > as mike`, '--label', 'slow')).rejects.toThrow(
       `no story is written for --name ${PAY} > as mike and --label slow`,
     );
   });
 
-  it('refuses two names for one case', () => {
-    expect(() => ask('--name', 'charges', '--name', `${PAY} > charges`)).toThrow(
+  it('refuses two names for one case', async () => {
+    await expect(ask('--name', 'charges', '--name', `${PAY} > charges`)).rejects.toThrow(
       `--name charges and --name ${PAY} > charges are one case; name each case once`,
     );
   });
 
-  it('names --file when a name has no story in the file it narrows to', () => {
-    expect(() => ask('--file', PAY, '--name', 'charges', '--name', 'elsewhere')).toThrow(
+  it('names --file when a name has no story in the file it narrows to', async () => {
+    await expect(ask('--file', PAY, '--name', 'charges', '--name', 'elsewhere')).rejects.toThrow(
       `no story is written for --name elsewhere and --file ${PAY}`,
     );
   });
 
-  it('refuses a name two files hold, and a name with no story, rather than pick', () => {
-    expect(() => ask('--name', 'charges', '--name', 'as mike')).toThrow(
+  it('refuses a name two files hold, and a name with no story, rather than pick', async () => {
+    await expect(ask('--name', 'charges', '--name', 'as mike')).rejects.toThrow(
       `--name as mike is a case in ${PAY} and src/other.test.ts; name the file with --file, or compare them as \`<file> > <name>\``,
     );
-    expect(() => ask('--name', 'charges', '--name', 'refunds')).toThrow('no story is written for --name refunds');
+    await expect(ask('--name', 'charges', '--name', 'refunds')).rejects.toThrow('no story is written for --name refunds');
   });
 
-  it('reads a name written as the case\'s file and name, as a side names it', () => {
-    ask('--name', `${PAY} > as mike`, '--name', 'src/other.test.ts > as mike');
+  it('reads a name written as the case\'s file and name, as a side names it', async () => {
+    await ask('--name', `${PAY} > as mike`, '--name', 'src/other.test.ts > as mike');
 
     expect(sidesOf()).toEqual([
       [`${PAY} > as mike`, ['/stories/as mike.0.story']],
@@ -107,8 +107,8 @@ describe('cases compared with each other', () => {
     ]);
   });
 
-  it('prints the cases in its header and each side by its name', () => {
-    const answer = ask('--file', PAY, '--name', 'charges', '--name', 'charges off', '--name', 'as mike');
+  it('prints the cases in its header and each side by its name', async () => {
+    const answer = await ask('--file', PAY, '--name', 'charges', '--name', 'charges off', '--name', 'as mike');
 
     expect(formatStory(answer, 'text').split('\n').slice(0, 3)).toEqual([
       `compare  ${PAY}`,
@@ -142,8 +142,8 @@ describe('cases compared with each other', () => {
 });
 
 describe('a case run under several projects', () => {
-  it('is a case for each project, listed with the project, and --project reads one', () => {
-    const listed = ask('--file', PAY, '--name', 'checks out');
+  it('is a case for each project, listed with the project, and --project reads one', async () => {
+    const listed = await ask('--file', PAY, '--name', 'checks out');
 
     expect(formatStory(listed, 'text').split('\n')).toEqual([
       '2 stories; name one with --file and --name, and --project',
@@ -153,19 +153,19 @@ describe('a case run under several projects', () => {
       '',
     ]);
     expect(JSON.parse(formatStory(listed, 'json')).stories.map(({ project }: { project: string }) => project)).toEqual(['chromium', 'webkit']);
-    ask('--file', PAY, '--name', 'checks out', '--project', 'webkit', '--compare', 'last');
+    await ask('--file', PAY, '--name', 'checks out', '--project', 'webkit', '--compare', 'last');
     expect(sidesOf()).toEqual([
       ['newest', ['/stories/checks out.webkit.0.story']],
       ['the one before', ['/stories/checks out.webkit.1.story']],
     ]);
-    expect(() => ask('--name', 'checks out', '--project', 'firefox')).toThrow('no story is written for --name checks out and --project firefox');
+    await expect(ask('--name', 'checks out', '--project', 'firefox')).rejects.toThrow('no story is written for --name checks out and --project firefox');
   });
 
-  it('refuses a case named for a comparison that ran under two projects, until --project names one', () => {
-    expect(() => ask('--name', 'checks out', '--name', 'pays')).toThrow(
+  it('refuses a case named for a comparison that ran under two projects, until --project names one', async () => {
+    await expect(ask('--name', 'checks out', '--name', 'pays')).rejects.toThrow(
       '--name checks out ran under the projects chromium and webkit; name one with --project',
     );
-    ask('--name', 'checks out', '--name', 'pays', '--project', 'webkit');
+    await ask('--name', 'checks out', '--name', 'pays', '--project', 'webkit');
     expect(sidesOf()).toEqual([
       ['checks out', ['/stories/checks out.webkit.0.story', '/stories/checks out.webkit.1.story']],
       ['pays', ['/stories/pays.webkit.0.story']],

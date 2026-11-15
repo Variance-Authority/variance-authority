@@ -117,7 +117,7 @@ describe('a story read as a route', () => {
     expect(JSON.parse(formatStory({ route: long }, 'json')).untaken).toBeUndefined();
   });
 
-  it('names an `if` by the line its `then` starts on at a step that draws only its implicit `else`', () => {
+  it('names an `if` by the line its `then` starts on at a step that draws only its implicit `else`', async () => {
     // `checkout` awaits before its `if`, so step 1 goes no further than the
     // await and step 3 comes back to take the `then`; the `else` it never takes
     // is the region an absent `else` is given, on the line the `if` ends.
@@ -392,6 +392,6 @@ describe('a story read as a route', () => {
   it('refuses a checkout with no story by naming the variable that writes one', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-story-'));
     await writeFile(join(root, 'variance.config.json'), JSON.stringify({ cacheRoot: 'cache' }));
-    expect(() => story({ command: 'story', root, format: 'text' })).toThrow(/VARIANCE_AUTHORITY_STORY=1/);
+    await expect(story({ command: 'story', root, format: 'text' })).rejects.toThrow(/VARIANCE_AUTHORITY_STORY=1/);
   });
 });

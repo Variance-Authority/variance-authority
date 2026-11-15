@@ -244,7 +244,7 @@ export function readingsOf(section: Uint8Array | undefined, index: Uint8Array | 
   const bytes = decodeReadings(section).cases.get(id);
   const stored = bytes === undefined ? [] : decodeCase(bytes);
   if (stored.length === 0) return undefined;
-  const newest = opened === undefined || stored[0]?.regions !== undefined ? undefined : readsOf(opened, new Set([id])).get(id)?.regions;
+  const newest = opened === undefined || stored[0]?.regions !== undefined ? undefined : newestRegions(opened, id);
   return expanded(stored, newest ?? []);
 }
 
@@ -256,6 +256,11 @@ function alike(reading: Pick<Reading, 'stopped' | 'regions'>, read: Pick<Read, '
   if (read === undefined) return false;
   if (reading.stopped !== read.stopped || reading.regions.length !== read.regions.length) return false;
   return reading.regions.every((region, at) => region.every((part, field) => part === read.regions[at]![field]));
+}
+
+/** The regions case `id` crossed as `index` holds its newest run, each with the line charged; absent when the index holds no such case. */
+export function newestRegions(index: OpenedSetExecutionIndex, id: string): readonly ReadRegion[] | undefined {
+  return readsOf(index, new Set([id])).get(id)?.regions;
 }
 
 /** The readings of the cases `wanted` names that `index` holds, by id. */
