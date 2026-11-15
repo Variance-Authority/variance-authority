@@ -40,7 +40,7 @@ export const VALUES = 16;
 export const ADDED = 32;
 
 /**
- * The section's cases, each its bytes for {@link decodeCase}, and its inputs.
+ * The section's cases, each its bytes as the native reader reads them, and its inputs.
  * A section an earlier build wrote as JSON holds none: the readings are only
  * what earlier runs saw, and the next record writes them as bytes. Bytes this
  * build cannot read are refused, so a damaged section never passes for empty.
@@ -70,44 +70,9 @@ function isJson(bytes: Uint8Array): boolean {
   return bytes[0] === 0x7b && bytes[1] === 0x22;
 }
 
-/** One case's stored readings off its bytes, which the section's frame already accepted. */
-export function decodeCase(bytes: Uint8Array): StoredReading[] {
-  const read = reader(bytes);
-  const strings: string[] = [];
-  for (let count = read.take(); strings.length < count;) strings.push(read.text());
-  const string = (): string => strings[read.take()] ?? invalid();
-  const value = (): number | null => {
-    const held = read.take();
-    return held === 0 ? null : held - 1;
-  };
-  const region = (): ReadRegion => [string(), string(), string(), read.take(), read.take(), value()];
-  // Every item takes a byte at least, so a count past what is left is refused before room is made for it.
-  const list = <T>(each: () => T): T[] => {
-    const count = read.take();
-    return count > read.left ? invalid() : Array.from({ length: count }, each);
-  };
-  const readings: StoredReading[] = [];
-  for (let count = read.take(); readings.length < count;) {
-    const reading: { -readonly [K in keyof StoredReading]: StoredReading[K] } = { count: read.take() };
-    const flags = read.take();
-    if (flags & STOPPED) reading.stopped = (flags & STOPS) !== 0;
-    if (flags & REGIONS) reading.regions = list(region);
-    if (flags & GONE) {
-      let at = -1;
-      reading.gone = list(() => (at += read.take() + 1));
-    }
-    if (flags & VALUES) reading.values = list(() => [read.take(), value()] as const);
-    if (flags & ADDED) reading.added = list(() => [read.take(), region()] as const);
-    readings.push(reading);
-  }
-  read.end();
-  return readings;
-}
-
 interface Reader {
   take(): number;
   bytes(length: number): Uint8Array;
-  readonly left: number;
   text(): string;
   hex(length: number): string;
   fronted(): () => string;
@@ -122,9 +87,6 @@ function reader(bytes: Uint8Array): Reader {
   return {
     take: read.take,
     bytes: read.bytes,
-    get left() {
-      return read.left;
-    },
     text: () => spelled('utf8', read.bytes(read.take())),
     hex: (length) => spelled('hex', read.bytes(length)),
     fronted: () => {

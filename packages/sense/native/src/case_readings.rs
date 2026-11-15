@@ -51,7 +51,7 @@ pub(crate) struct Stored {
     pub added: Option<Vec<(u64, Region)>>,
 }
 
-/// One case's stored readings off its bytes, as `decodeCase` reads them.
+/// One case's stored readings off its bytes, in the format `readings-bytes.ts` lays out.
 pub(crate) fn decode_case(bytes: &[u8]) -> Result<Vec<Stored>, String> {
     let mut read = Varints::new(bytes);
     let count = read.take()?;
@@ -101,7 +101,7 @@ pub(crate) fn decode_case(bytes: &[u8]) -> Result<Vec<Stored>, String> {
     Ok(readings)
 }
 
-/// One case's bytes, as `decodeCase` reads them: the strings in the order the
+/// One case's bytes, as [`decode_case`] reads them: the strings in the order the
 /// readings first name them, then the readings.
 pub(crate) fn case_bytes(readings: &[Stored]) -> Vec<u8> {
     case_bytes_of(readings.len(), readings.iter().map(Stored::view))

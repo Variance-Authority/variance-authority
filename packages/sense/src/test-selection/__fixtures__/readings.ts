@@ -1,5 +1,5 @@
-import { ADDED, decodeCase, decodeReadings, GONE, REGIONS, STOPPED, STOPS, VALUES, type ReadRegion, type StoredReading } from '../readings-bytes.js';
-import { put } from '../varints.js';
+import { ADDED, decodeReadings, GONE, REGIONS, STOPPED, STOPS, VALUES, type ReadRegion, type StoredReading } from '../readings-bytes.js';
+import { put, varints } from '../varints.js';
 
 /** A digest as `@variance-authority/core` spells it (`format/hash.ts`): stored as its bytes. */
 const DIGEST = /^v1:((?:[0-9a-f]{2})+)$/;
@@ -22,6 +22,47 @@ export function shapeOf(section: Uint8Array): ReadingsShape {
     ...(cases.size === 0 ? {} : { cases: Object.fromEntries([...cases].map(([id, bytes]) => [id, decodeCase(bytes)])) }),
     ...(inputs.size === 0 ? {} : { inputs: Object.fromEntries(inputs) }),
   };
+}
+
+/**
+ * One case's stored readings off its bytes, for tests that read what the
+ * native lay wrote; the reader the record uses is the addon's.
+ */
+export function decodeCase(bytes: Uint8Array): StoredReading[] {
+  const refused = (): Error => new Error('the record\'s readings section is not one this build reads');
+  const invalid = (): never => {
+    throw refused();
+  };
+  const read = varints(bytes, refused);
+  const strings: string[] = [];
+  for (let count = read.take(); strings.length < count;) strings.push(Buffer.from(read.bytes(read.take())).toString('utf8'));
+  const string = (): string => strings[read.take()] ?? invalid();
+  const value = (): number | null => {
+    const held = read.take();
+    return held === 0 ? null : held - 1;
+  };
+  const region = (): ReadRegion => [string(), string(), string(), read.take(), read.take(), value()];
+  // Every item takes a byte at least, so a count past what is left is refused before room is made for it.
+  const list = <T>(each: () => T): T[] => {
+    const count = read.take();
+    return count > read.left ? invalid() : Array.from({ length: count }, each);
+  };
+  const readings: StoredReading[] = [];
+  for (let count = read.take(); readings.length < count;) {
+    const reading: { -readonly [K in keyof StoredReading]: StoredReading[K] } = { count: read.take() };
+    const flags = read.take();
+    if (flags & STOPPED) reading.stopped = (flags & STOPS) !== 0;
+    if (flags & REGIONS) reading.regions = list(region);
+    if (flags & GONE) {
+      let at = -1;
+      reading.gone = list(() => (at += read.take() + 1));
+    }
+    if (flags & VALUES) reading.values = list(() => [read.take(), value()] as const);
+    if (flags & ADDED) reading.added = list(() => [read.take(), region()] as const);
+    readings.push(reading);
+  }
+  if (!read.done) invalid();
+  return readings;
 }
 
 /**
