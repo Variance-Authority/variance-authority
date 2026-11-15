@@ -22,7 +22,7 @@ export interface ParsedSelect {
   readonly suite?: string;
   /** `--at-distance <hops>`: one leg of the selection, the text as typed, read by `parseAtDistance`. */
   readonly atDistance?: string;
-  /** `--local`: a reading that cannot narrow falls to the changed files' importers or packages. */
+  /** `--local`: a reading that cannot narrow falls to the changed files' importers, never to every test file. */
   readonly local?: boolean;
 }
 

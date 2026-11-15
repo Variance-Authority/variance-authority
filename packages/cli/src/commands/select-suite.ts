@@ -56,9 +56,10 @@ export interface SuiteRequest {
    */
   readonly grain?: 'file' | 'case';
   /**
-   * A reading that cannot narrow falls to the changed files' importers, or
-   * their packages, instead of running every test file (`select-local.ts`).
-   * Asked by name: a gate never sets it.
+   * A local seam: a reading the record cannot answer runs only the changed
+   * files' importers, by the source index, and names the rest, instead of
+   * running every test file (`select-local.ts`). Asked by name: a gate never
+   * sets it.
    */
   readonly local?: boolean;
   /**

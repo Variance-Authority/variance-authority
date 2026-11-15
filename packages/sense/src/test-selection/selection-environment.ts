@@ -92,7 +92,7 @@ export function selectionFrom(
   }
   const local = env['VARIANCE_AUTHORITY_LOCAL'];
   if (local !== undefined && local !== '1' && local !== '0') {
-    throw new Error(`VARIANCE_AUTHORITY_LOCAL=${local} is not 1 or 0: write \`1\` to fall to the changed files' importers or packages when the record cannot narrow`);
+    throw new Error(`VARIANCE_AUTHORITY_LOCAL=${local} is not 1 or 0: write \`1\` to run only the changed files' importers when the record cannot narrow`);
   }
   const ranAt = env['VARIANCE_AUTHORITY_RAN_AT'];
   if (ranAt !== undefined && ranAt !== '' && since === '') {

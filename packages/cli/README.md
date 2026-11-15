@@ -2393,14 +2393,16 @@ journal holds no answer: no record of the suite, neither this checkout's nor the
 mainline's, a diff git would not produce, a lockfile that cannot be compared at the diff's base, or a journal
 with no whole observation in it.
 
-`--local` answers each of those, and a diff that moves what the suite rests on,
-with a smaller selection instead: the test files that import a changed file, by
-the [source index](#index-publish-the-file-graph-once), or every test file in a
-changed file's package when the index does not list it. stderr names which one
-ran and the test files it left, which stay on the skip list, and `--format json`
-gives them under `fell`, with its `rung`, `importers` or `package`, and `left`.
-It is for a laptop's edit loop, never a gate, and `VARIANCE_AUTHORITY_LOCAL=1`
-asks the same of a runner's seam.
+`--local` answers each of those with only the test files that import a changed
+file, by the [source index](#index-publish-the-file-graph-once), and never with
+every test file: a changed file the index does not hold selects none, and
+stderr names it. The first line names the doubt; stderr names the test files
+the importers left, which stay on the skip list, and `--format json` carries no
+`widened` and gives them under `fell`, with its `rung`, `importers`, and `left`.
+A diff that moves what the suite rests on still runs every test file, and with
+no diff from any base `--local` exits non-zero. It is for a laptop's edit loop,
+never a gate, and `VARIANCE_AUTHORITY_LOCAL=1` asks the same of a runner's
+seam.
 
 A changed file the journal records nothing about is not one of those. Prose, a
 workflow, or a fixture your tests read with `fs` keeps no test in the run, and
