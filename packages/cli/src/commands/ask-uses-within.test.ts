@@ -1,10 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages.fixture.js';
+import { checkout, damageReadOver, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask uses` and `ask symbol` over the imports of a name within its
@@ -146,7 +145,7 @@ describe('variance ask over the imports of a name within its own package', () =>
   it('keeps the imports by package path of a published name when the source index does not read, and says why the rest are not listed', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    writeFileSync(sourceIndexPath(root), 'not a source index');
+    damageReadOver(root);
 
     const { code, out, err } = await run(['ask', 'uses', '--name', 'greet']);
     expect(err).toBe('');
@@ -159,25 +158,13 @@ describe('variance ask over the imports of a name within its own package', () =>
   it('answers `symbol` for an unpublished name when the source index does not read, and says why it cannot count who imports it', async () => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    writeFileSync(sourceIndexPath(root), 'not a source index');
+    damageReadOver(root);
 
     const { code, out, err } = await run(['ask', 'symbol', '--name', 'roundTax']);
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
     expect(out).toMatch(/^Who imports it is read from the source index, and the source index at .* did not read: .*; run `variance index`\.$/m);
-  });
-
-  it('answers `symbol` for an unpublished name when no source index is published, and says so', async () => {
-    const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    rmSync(sourceIndexPath(root));
-
-    const { code, out, err } = await run(['ask', 'symbol', '--name', 'roundTax']);
-    expect(err).toBe('');
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('exported, without being published, at packages/lib/src/internal/math.ts:5 by @acme/lib');
-    expect(out).toMatch(/^Who imports it is read from the source index, and no source index is published; run `variance index`\.$/m);
   });
 
   it('answers `uses` and `symbol` alike for a name its package entry passes on and only its own package imports', async () => {

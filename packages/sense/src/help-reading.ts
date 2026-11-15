@@ -94,7 +94,6 @@ export interface StoreMeta {
   readonly generatedAt: string;
   /** When the read behind the value began, before any of it was read. */
   readonly readStartedAt: string;
-  readonly indexDigest?: string;
   readonly packagesDigest?: string;
 }
 
@@ -135,8 +134,6 @@ export interface HelpEncode {
   readonly generatedAt: string;
   /** When the read behind the value began, before any of it was read. */
   readonly readStartedAt: string;
-  /** The digest of the index manifest the reading was made from; absent when the value holds what no manifest says. */
-  readonly indexDigest?: string;
   /** What the package manifests the value was joined against state, as the store keeps it. */
   readonly packagesDigest: string;
   readonly packages: readonly StorePackage[];
@@ -165,6 +162,8 @@ export interface HelpReading {
   names(): PublishedName[][];
   /** The store's bytes and the tree's, once. */
   encode(options: HelpEncode): Promise<HelpEncoded>;
+  /** The digests of the segments the reading read, oldest first: what the questions published from it are read over. */
+  over(): string[];
 }
 
 /** One declaration of a member, `on` the interface, type alias or class that holds it. */
@@ -243,6 +242,7 @@ export interface Alias {
 export interface NativeHelp {
   /** The chain at `index`, read and checked once, for the readers below to share. */
   openIndex?(index: string): OpenedIndex;
+  publishWorkspace?(index: string, store: Uint8Array, over: string[], given: boolean): Promise<boolean>;
   readHelp?(root: string, index: string, entries: HelpEntry[], published: string[], unentered: string[], declared: string[], drawn: boolean, tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   importersOf?(root: string, index: OpenedIndex, files: string[], name: string): NativeImporters | null;
@@ -352,6 +352,18 @@ export function readHelp(
   drawn = true,
 ): Promise<HelpReading | null> {
   return entry('readHelp')(root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root));
+}
+
+/**
+ * Publish `store` as the questions read from the chain at `index` over the
+ * segments `over`, in the chain's manifest: every later write carries it, and
+ * a question reads the chain as of `over`. `given` when the store holds what no
+ * chain says, such as a caller's taints, so a refresh never keeps it. Whether
+ * it was published: not when the chain has no manifest to carry it, or a
+ * segment of `over` is gone.
+ */
+export function publishQuestions(index: string, store: Uint8Array, over: readonly string[], given: boolean): Promise<boolean> {
+  return entry('publishWorkspace')(index, Buffer.from(store.buffer, store.byteOffset, store.byteLength), [...over], given);
 }
 
 /** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */

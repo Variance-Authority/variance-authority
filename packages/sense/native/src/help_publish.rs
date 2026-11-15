@@ -6,8 +6,9 @@
 //! holds what the chain says — the uses and the names each published entry
 //! hands out, which JavaScript joins into the documented surface, and the
 //! export list, the imports by path and the path graph it has nothing to add
-//! to — and encoding turns it into the two files written beside the index: the
-//! graph, and the store (`help_store.rs`).
+//! to — and encoding turns it into the graph, written beside the index, and
+//! the store (`help_store.rs`), which [`publish_workspace`] publishes in the
+//! chain's manifest over the segments the reading read.
 
 // compass: variance-authority.report.agent-surface
 
@@ -25,7 +26,7 @@ use crate::help_members::{indexed_extensions, member_declarations, members_on, C
 use crate::help_names::{published_names, HelpEntry, PublishedName};
 use crate::help_origin::{declaration_exported, export_line, ExportedDeclaration};
 use crate::help_usage::{importers, usage, Configurations, DeepRequest, Importers, IndexedUsage, NamedExport};
-use crate::index_chain::read_chain;
+use crate::index_chain::{read_chain, read_tail, workspace_of};
 use crate::source_tree::{tree, Mocking};
 
 /// What the chain says for a Help value, held on this side, each part handed
@@ -38,6 +39,8 @@ pub struct HelpReading {
     usage: Option<IndexedUsage>,
     /// What `names` hands over, or the first export the reading cannot say.
     names: Option<Result<Vec<Vec<PublishedName>>, String>>,
+    /// The digests of the segments read, oldest first.
+    over: Vec<String>,
 }
 
 /// What encoding reads, moved to the thread that encodes it.
@@ -58,10 +61,6 @@ pub struct HelpEncode {
     pub generated_at: String,
     /// When the read behind the value began, before any of it was read.
     pub read_started_at: String,
-    /// The digest of the index manifest the reading was made from, which a
-    /// later refresh over the same manifest keeps the value by; absent when
-    /// the value holds what no manifest says, such as a caller's taints.
-    pub index_digest: Option<String>,
     /// What `workspacePackagesDigest` states of the manifests the value was joined against.
     pub packages_digest: String,
     pub packages: Vec<StorePackage>,
@@ -109,14 +108,20 @@ pub fn read_help(
                 opened.push(entry.key.clone());
             }
         }
-        opened_chain(&open_index(index)?, |layers| {
+        // The chain as it is now, not as the questions last published read it: this reading is the next of them.
+        let chain = read_chain(&index).map_err(|error| refused(&index, error))?;
+        let over: Vec<String> = chain.as_ref()
+            .map(|chain| chain.references.iter().take(chain.segments.len()).map(|reference| reference.digest.clone()).collect())
+            .unwrap_or_default();
+        let chain = OpenedIndex::over(index, chain.map(|chain| chain.segments))?;
+        opened_chain(&chain, |layers| {
             let (mut read, (tree, names)) = rayon::join(
                 || usage(&root, layers, &opened, &published, &unentered, &declared),
                 || rayon::join(|| mocking.as_ref().map(|mocking| tree(layers, mocking)), || published_names(layers, &entries)),
             );
             let exported = std::mem::take(&mut read.exported);
             let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
-            HelpReading { held: Some(Held { exported, deep, tree }), usage: Some(read), names: Some(names) }
+            HelpReading { held: Some(Held { exported, deep, tree }), usage: Some(read), names: Some(names), over }
         })
     })
 }
@@ -222,9 +227,12 @@ pub fn declared_loose_of(root: String, index: &OpenedIndex, groups: Vec<Vec<Stri
     opened_chain(index, |layers| declared(&root, layers, "", Matching::Terms { groups }, files.as_deref()))
 }
 
-/// The source index at a path, opened once for one question: every segment the
-/// manifest names, checked against its digest and cut at the first that is
-/// missing or fails it, as [`read_chain`] reads them, and each opened in place.
+/// The source index at a path, opened once for one question: the segments the
+/// questions published in its manifest were read over, so an answer never
+/// mixes in what a writer appended after them, or every segment the manifest
+/// names when it names no questions or one of theirs is gone — each checked
+/// against its digest and cut at the first that is missing or fails it, as
+/// [`read_chain`] reads them, and each opened in place.
 /// A question opens it at its start and closes it at its end, and each reading
 /// in between is handed the opened layers, so a name declared in ten files no
 /// longer reads, hashes and opens the chain ten times. The bytes are copies, so
@@ -274,12 +282,37 @@ impl OpenedIndex {
     }
 }
 
-/// The chain at `index`, read and opened for one question.
+/// The chain at `index`, read and opened for one question, as the questions
+/// published in it were read. A segment they were read over that is gone or
+/// no longer matches its digest refuses the reading: the chain as it is now
+/// would answer for another generation than the questions do.
 #[napi]
 pub fn open_index(index: String) -> napi::Result<OpenedIndex> {
+    if let Some(held) = std::fs::read(&index).ok().as_deref().and_then(workspace_of) {
+        let segments = read_tail(&index, &held.over, 0)
+            .ok_or_else(|| refused(&index, "a segment the published questions were read over is gone or damaged".to_owned()))?;
+        return OpenedIndex::over(index, Some(segments));
+    }
     let chain = read_chain(&index).map_err(|error| refused(&index, error))?;
-    let opened = chain.map(|chain| Opened::open(chain.segments)).transpose().map_err(|error| refused(&index, error))?;
-    Ok(OpenedIndex { index, opened, configurations: Configurations::default(), closed: false })
+    OpenedIndex::over(index, chain.map(|chain| chain.segments))
+}
+
+impl OpenedIndex {
+    /// `segments` of the chain at `index` opened; `None` when nothing was ever published.
+    fn over(index: String, segments: Option<Vec<Vec<u8>>>) -> napi::Result<OpenedIndex> {
+        let opened = segments.map(Opened::open).transpose().map_err(|error| refused(&index, error))?;
+        Ok(OpenedIndex { index, opened, configurations: Configurations::default(), closed: false })
+    }
+}
+
+/// Publish the store `store` in the manifest of the chain at `index`, read
+/// over the segments `over`, as [`crate::log::publish_workspace`] does;
+/// `given` when it holds what no chain says. Whether it was published: not
+/// when the chain has no manifest, or a segment of `over` is gone.
+#[napi(ts_return_type = "Promise<boolean>")]
+pub fn publish_workspace(index: String, store: Buffer, over: Vec<String>, given: bool) -> AsyncTask<OffThread<bool>> {
+    off_thread(move || crate::log::publish_workspace(&index, &store, &over, given)
+        .map_err(|error| napi::Error::from_reason(format!("the questions were not published in the source index at {index}: {error}"))))
 }
 
 fn refused(index: &str, error: String) -> napi::Error {
@@ -317,6 +350,13 @@ impl HelpReading {
         }
     }
 
+    /// The digests of the segments the reading read, oldest first: what the
+    /// questions published from it are read over.
+    #[napi]
+    pub fn over(&self) -> Vec<String> {
+        self.over.clone()
+    }
+
     /// The store's bytes and the tree's, once: the export list and the
     /// imports by path go into the store from here.
     #[napi(ts_return_type = "Promise<HelpEncoded>")]
@@ -339,7 +379,6 @@ impl Held {
             graph_digest: graph_digest.clone(),
             generated_at: o.generated_at,
             read_started_at: o.read_started_at,
-            index_digest: o.index_digest,
             packages_digest: Some(o.packages_digest),
         };
         let deep = [&self.deep[0], &self.deep[1], &self.deep[2]].map(|held| held.iter().map(DeepRef::from).collect());

@@ -15,7 +15,7 @@ use rayon::prelude::*;
 
 use crate::compact::{compacted, Layer};
 use crate::index_chain::read_chain;
-use crate::log::{written, LogSegment, Over};
+use crate::log::{folded, LogSegment, Over};
 use crate::off_thread::{off_thread, OffThread};
 
 /// The working layer is folded once its rows are this share of the base's. On
@@ -50,8 +50,9 @@ fn readied(index: &str) -> Result<bool, String> {
     let references: Vec<LogSegment> = chain.references.iter()
         .map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 })
         .collect();
-    // A chain another writer moved while this one folded is left as it is.
-    written(index, Over::Published(chain.published()), &[], &[&one], &references, 0).map_err(|error| error.to_string())
+    // A chain another writer moved while this one folded is left as it is. The
+    // questions published over this chain are read over the fold from now on.
+    folded(index, Over::Published(chain.published()), &one, &references).map_err(|error| error.to_string())
 }
 
 /// What a layer carries: the rows it puts and the rows it deletes, since a

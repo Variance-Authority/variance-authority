@@ -227,6 +227,7 @@ export {
   type DeclaredNames,
   type DescribedFile,
 } from './declared-names.js';
+export { publishedQuestions, type PublishedQuestions } from './immutable-log.js';
 export {
   aliasesOf,
   asOneQuestion,
@@ -239,6 +240,7 @@ export {
   memberDeclarationsOf,
   membersOn,
   outsideSourcesOf,
+  publishQuestions,
   readHelp,
   ripgrepNative,
   type Alias,

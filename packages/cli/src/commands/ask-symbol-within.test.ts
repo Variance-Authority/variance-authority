@@ -1,10 +1,9 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages.fixture.js';
+import { checkout, damageReadOver, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask symbol` counts the imports of a published name the way `ask
@@ -116,7 +115,7 @@ describe('variance ask symbol over the imports of a published name inside its ow
   it('counts the imports from other packages alone when the source index does not read, and says why', async () => {
     const root = checkout(FIVE_WITHIN);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    writeFileSync(sourceIndexPath(root), 'not a source index');
+    damageReadOver(root);
 
     const { code, out } = await run(['ask', 'symbol', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);

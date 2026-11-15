@@ -17,7 +17,7 @@ use napi_derive::napi;
 
 use crate::journey_columns::{decode, Decoded};
 use crate::case_shard::strings;
-use crate::journeys::{same, Meta, FORMAT, NO_PACKAGE, TEST, WALK};
+use crate::journeys::{same, same_chain, Meta, FORMAT, NO_PACKAGE, TEST, WALK};
 use crate::journeys_answer::*;
 use crate::journeys_steps::{Known, Tag};
 
@@ -259,7 +259,7 @@ pub(crate) fn opened(index: &str, recording: &str, out: &str) -> Result<(Meta, D
     if !same(recording, meta.recording_stat.as_ref(), &meta.recording) {
         return Err("the recording changed after they were prepared");
     }
-    if !same(index, meta.index_stat.as_ref(), &meta.index) {
+    if !same_chain(index, meta.index_stat.as_ref(), &meta.index) {
         return Err("the index changed after they were prepared");
     }
     Ok((meta, decoded))

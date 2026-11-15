@@ -101,9 +101,10 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+/// The identity of the chain at `index`: the layers it names, not its bytes,
+/// which also carry the questions published from it.
 pub(crate) fn manifest_digest(index: &str) -> Option<String> {
-    let bytes = std::fs::read(index).ok()?;
-    Some(hex(&Sha256::digest(&bytes)))
+    crate::index_chain::identity_at(index)
 }
 
 /// The bytes kept at `path` when they are a map of this format.
@@ -259,7 +260,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
     let fail = napi::Error::from_reason;
     let path = map_path(index);
     let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
-    let digest = hex(&Sha256::digest(chain.published()));
+    let digest = chain.identity();
     let walked = snapshot.is_none();
     let listed = snapshot.as_ref().and_then(listing);
     if listed.is_some() {

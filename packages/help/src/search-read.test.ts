@@ -7,12 +7,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { ask, askSearch, askSearchJson } from './ask.js';
 import { readWorkspace, readWorkspaceForAnswer } from './read.js';
-import { workspaceSnapshotPath } from './snapshot.js';
+import { publishedStorePath } from './snapshot.js';
 import { readSearchForAnswer, unopenedLine } from './search-read.js';
 import { importingOf } from './tools/published-match.js';
 
 /**
- * `search` answers from the store published beside the source index, opened in
+ * `search` answers from the store published in the source index, opened in
  * place, and answers what the value answers.
  */
 
@@ -84,7 +84,7 @@ describe('search from its published store', () => {
 
   it('opens a published store at any age, and scans nothing', async () => {
     const written = async (): Promise<readonly number[]> =>
-      Promise.all([at, workspaceSnapshotPath(at)].map(async (file) => (await stat(file)).mtimeMs));
+      Promise.all([at, publishedStorePath(at)!].map(async (file) => (await stat(file)).mtimeMs));
     const before = await written();
 
     const { index: search, compared } = await readSearchForAnswer(root, { index: at, refreshAfterMs: 0 });
@@ -100,7 +100,7 @@ describe('search from its published store', () => {
 
     expect(compared).toBe(true);
     expect(askSearch(search, ['--query', 'measure'])).toContain('measure');
-    await expect(access(workspaceSnapshotPath(empty))).resolves.toBeUndefined();
+    await expect(access(publishedStorePath(empty)!)).resolves.toBeUndefined();
   });
 
   it('says nothing failed to open when nothing was published', async () => {
@@ -110,23 +110,27 @@ describe('search from its published store', () => {
 
   it('says which published store did not open, why, and that the checkout was read instead', async () => {
     const broken = join(root, '.broken');
-    await writeFile(workspaceSnapshotPath(broken), 'not a store');
+    await readWorkspace(root, { index: broken });
+    const store = publishedStorePath(broken)!;
+    await writeFile(store, 'not a store');
 
     const reading = await readSearchForAnswer(root, { index: broken });
 
     expect(reading.compared).toBe(true);
-    expect(reading.unopened).toEqual([{ published: 'value', at: workspaceSnapshotPath(broken), reason: expect.stringMatching(/\S/u) }]);
+    expect(reading.unopened).toEqual([{ published: 'value', at: store, reason: expect.stringMatching(/\S/u) }]);
     const line = unopenedLine(reading.unopened, reading.compared);
-    expect(line?.startsWith(`The published value at ${workspaceSnapshotPath(broken)} did not open (`)).toBe(true);
+    expect(line?.startsWith(`The published value at ${store} did not open (`)).toBe(true);
     expect(line?.endsWith('); the checkout was read instead.')).toBe(true);
     await expect(readSearchForAnswer(root, { index: broken })).resolves.toMatchObject({ compared: false });
   });
 
   it('names the published store that did not open in the refusal `--just-answer` makes', async () => {
     const broken = join(root, '.broken-refused');
-    await writeFile(workspaceSnapshotPath(broken), 'not a store');
+    await readWorkspace(root, { index: broken });
+    const store = publishedStorePath(broken)!;
+    await writeFile(store, 'not a store');
     await expect(readSearchForAnswer(root, { index: broken, justAnswer: true })).rejects.toThrow(
-      `the published value at ${workspaceSnapshotPath(broken)} did not open`,
+      `the published value at ${store} did not open`,
     );
   });
 
@@ -136,6 +140,6 @@ describe('search from its published store', () => {
     await expect(refused).rejects.toThrow(/none is published/);
     await expect(refused).rejects.toThrow(/asked with `--just-answer`/);
     await expect(access(empty)).rejects.toThrow();
-    await expect(access(workspaceSnapshotPath(empty))).rejects.toThrow();
+    expect(publishedStorePath(empty)).toBeUndefined();
   });
 });

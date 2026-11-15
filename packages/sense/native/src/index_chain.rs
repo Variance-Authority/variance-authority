@@ -17,7 +17,7 @@
 // compass: variance-authority.reach.source-index
 
 use rayon::prelude::*;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 const MAGIC: &[u8] = b"VAIDXLSM";
@@ -31,6 +31,25 @@ struct Manifest {
     /// How many of the last segments are the working layer (`log.rs`).
     #[serde(default)]
     working: usize,
+    #[serde(default)]
+    workspace: Option<Workspace>,
+}
+
+/// The questions published from the chain: a store under its digest in the
+/// chain's segment directory, and the segments it was read over, which the
+/// manifest keeps on disk while it names them, whether or not the chain still
+/// does. A question reads the chain as of `over`, so a writer appending after
+/// the publish never mixes into an answer what the store does not hold.
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq, Debug)]
+pub(crate) struct Workspace {
+    pub(crate) digest: String,
+    pub(crate) length: u64,
+    /// The digests of the segments the store was read over, oldest first.
+    pub(crate) over: Vec<String>,
+    /// The store holds what no chain says, such as a caller's taints, so a
+    /// refresh over the same chain never keeps it.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub(crate) given: bool,
 }
 
 #[derive(Deserialize)]
@@ -72,6 +91,43 @@ impl Chain {
     pub(crate) fn published(&self) -> &[u8] {
         self.manifest.as_deref().or_else(|| self.segments.first().map(Vec::as_slice)).unwrap_or(&[])
     }
+
+    /// What the chain holds, as a digest: [`identity_of`] over the bytes read.
+    pub(crate) fn identity(&self) -> String {
+        identity_of(self.published())
+    }
+}
+
+/// The identity of the chain whose manifest is `bytes`: the segments it names
+/// and how many are the working layer, as a hex digest. Not the bytes' own
+/// digest: a manifest also carries its generation and the questions published
+/// from it, and neither changes a layer. A legacy or malformed file is its own
+/// bytes.
+pub(crate) fn identity_of(bytes: &[u8]) -> String {
+    let mut hash = Sha256::new();
+    match bytes.starts_with(MAGIC).then(|| manifest(bytes)).flatten() {
+        Some((references, working, _)) => {
+            for reference in &references {
+                hash.update(reference.digest.as_bytes());
+                hash.update(b"\n");
+            }
+            hash.update(working.to_string().as_bytes());
+        }
+        None => hash.update(bytes),
+    }
+    hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// [`identity_of`] the manifest at `path`; `None` when there is no file.
+pub(crate) fn identity_at(path: &str) -> Option<String> {
+    std::fs::read(path).ok().map(|bytes| identity_of(&bytes))
+}
+
+/// The questions the manifest `bytes` names; `None` for a legacy or malformed
+/// file, or one that names none.
+pub(crate) fn workspace_of(bytes: &[u8]) -> Option<Workspace> {
+    if !bytes.starts_with(MAGIC) { return None; }
+    manifest(bytes)?.2
 }
 
 /// How many manifests a reader follows while writers keep moving it, before it
@@ -119,7 +175,7 @@ fn read_chain_once(path: &str) -> Result<Option<Chain>, String> {
     if !bytes.starts_with(MAGIC) {
         return Ok(Some(Chain { segments: vec![bytes], dropped: 0, moved: false, manifest: None, references: Vec::new(), working: 0 }));
     }
-    let (references, working) = manifest(&bytes).ok_or_else(|| format!("{path}: invalid immutable log manifest"))?;
+    let (references, working, _) = manifest(&bytes).ok_or_else(|| format!("{path}: invalid immutable log manifest"))?;
     let directory = format!("{path}.segments");
     let read: Vec<Option<Vec<u8>>> = references
         .par_iter()
@@ -137,20 +193,25 @@ fn read_chain_once(path: &str) -> Result<Option<Chain>, String> {
     Ok(Some(Chain { segments, dropped, moved: false, manifest: Some(bytes), references, working }))
 }
 
+/// A `v1:` digest of 32 lowercase hex digits, as the log names a segment.
+fn named(digest: &str) -> bool {
+    let hex = digest.strip_prefix("v1:").unwrap_or("");
+    hex.len() == 32 && hex.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+}
+
 /// `decodeManifest` and `manifestIsValid`: the header's length is the rest of
-/// the file, and every reference is a `v1:` digest with a length.
-fn manifest(bytes: &[u8]) -> Option<(Vec<Reference>, usize)> {
+/// the file, and every reference is a `v1:` digest with a length. Questions
+/// named by anything else are no questions, and the chain still reads.
+fn manifest(bytes: &[u8]) -> Option<(Vec<Reference>, usize, Option<Workspace>)> {
     let length = u32::from_le_bytes(bytes.get(MAGIC.len()..HEADER_BYTES)?.try_into().ok()?) as usize;
     if length != bytes.len() - HEADER_BYTES {
         return None;
     }
     let parsed: Manifest = serde_json::from_slice(&bytes[HEADER_BYTES..]).ok()?;
-    let digests = parsed.segments.iter().all(|reference| {
-        let hex = reference.digest.strip_prefix("v1:").unwrap_or("");
-        hex.len() == 32 && hex.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
-    });
+    let digests = parsed.segments.iter().all(|reference| named(&reference.digest));
     let working = parsed.working.min(parsed.segments.len());
-    (parsed.format == "variance-authority-immutable-log" && parsed.version == 1 && digests).then_some((parsed.segments, working))
+    let workspace = parsed.workspace.filter(|held| named(&held.digest) && held.over.iter().all(|digest| named(digest)));
+    (parsed.format == "variance-authority-immutable-log" && parsed.version == 1 && digests).then_some((parsed.segments, working, workspace))
 }
 
 /// The digests of the segments the manifest at `path` names, oldest first: the chain's identity, read
@@ -163,8 +224,16 @@ pub(crate) fn manifest_digests(path: &str) -> Option<(Vec<String>, usize)> {
 /// `manifest_digests` over manifest bytes a caller already read.
 pub(crate) fn manifest_digests_of(bytes: &[u8]) -> Option<(Vec<String>, usize)> {
     if !bytes.starts_with(MAGIC) { return None; }
-    let (references, working) = manifest(bytes)?;
+    let (references, working, _) = manifest(bytes)?;
     Some((references.into_iter().map(|reference| reference.digest).collect(), working))
+}
+
+/// The segments the manifest `bytes` names, with their lengths, and how many
+/// of the last are the working layer; `None` for a legacy or malformed file.
+pub(crate) fn manifest_references(bytes: &[u8]) -> Option<(Vec<Reference>, usize)> {
+    if !bytes.starts_with(MAGIC) { return None; }
+    let (references, working, _) = manifest(bytes)?;
+    Some((references, working))
 }
 
 /// The segments of `chain` past its first `known`, read and checked against the digests they are named by,

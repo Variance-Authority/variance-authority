@@ -107,6 +107,12 @@ pub(crate) fn same(path: &str, stat: Option<&Stat>, digest: &str) -> bool {
     stat.is_some_and(|stat| Stat::of(path).as_ref() == Some(stat)) || digest_of(path).as_deref() == Some(digest)
 }
 
+/// [`same`] for the chain at `index`, stamped by its identity: a manifest
+/// rewritten to carry the questions published from it names the same layers.
+pub(crate) fn same_chain(index: &str, stat: Option<&Stat>, digest: &str) -> bool {
+    stat.is_some_and(|stat| Stat::of(index).as_ref() == Some(stat)) || crate::index_chain::identity_at(index).as_deref() == Some(digest)
+}
+
 /// The stamp a kept file carries, read without the rest of it; absent when
 /// nothing is kept or another walk prepared it.
 pub(crate) fn kept_meta(path: &str) -> Option<Meta> {
@@ -149,7 +155,7 @@ impl From<(&Meta, bool)> for JourneysPrepared {
 #[napi(catch_unwind)]
 pub fn journeys_kept(index: String, recording: String, out: String) -> Option<JourneysPrepared> {
     let meta = kept_meta(&out)?;
-    let fresh = same(&index, meta.index_stat.as_ref(), &meta.index) && same(&recording, meta.recording_stat.as_ref(), &meta.recording);
+    let fresh = same_chain(&index, meta.index_stat.as_ref(), &meta.index) && same(&recording, meta.recording_stat.as_ref(), &meta.recording);
     fresh.then(|| (&meta, true).into())
 }
 
@@ -218,7 +224,7 @@ fn prepare(
     // the older one and found moved.
     let (recording_stat, index_stat) = (Stat::of(recording), Stat::of(index));
     let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
-    let index_digest = hex(&Sha256::digest(chain.published()));
+    let index_digest = chain.identity();
     let bytes = std::fs::read(recording).map_err(|error| fail(format!("the recording at {} did not read: {error}", std::path::Path::new(recording).strip_prefix(root).unwrap_or(std::path::Path::new(recording)).display())))?;
     let recording_digest = hex(&Sha256::digest(&bytes));
     let layers: Vec<Layer> = chain

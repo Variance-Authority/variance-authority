@@ -11,7 +11,7 @@ import type { UseKind } from '@variance-authority/package/help';
 
 /** `FORMAT` and `VERSION` in `help_store.rs`. */
 const FORMAT = 'variance-authority-help-store';
-const VERSION = 7;
+const VERSION = 8;
 const WHAT = 'help store';
 
 export const USE_KINDS: readonly UseKind[] = ['source', 'test', 'story'];
@@ -35,18 +35,13 @@ export interface StoreHead {
   readonly readStartedAt: string;
   /** The export list as a set, as `encodeHelpStore` states it. */
   readonly exportedDigest: string;
-  /** The index manifest the value was refreshed from; absent when it was read another way. */
-  readonly indexDigest?: string;
   /** The package manifests the value was joined against, as `packagesDigest` states them. */
   readonly packagesDigest?: string;
 }
 
-/**
- * The fields `head` holds, in its order. `forwardsDigest` is a slot no store
- * writes any more, kept so a store of this version still opens.
- */
+/** The fields `head` holds, in its order. */
 const HEAD_FIELDS = [
-  'root', 'graphRoot', 'graphDigest', 'generatedAt', 'readStartedAt', 'exportedDigest', 'forwardsDigest', 'indexDigest', 'packagesDigest',
+  'root', 'graphRoot', 'graphDigest', 'generatedAt', 'readStartedAt', 'exportedDigest', 'packagesDigest',
 ] as const;
 export type HeadFields = Partial<Record<(typeof HEAD_FIELDS)[number], string>>;
 
@@ -64,14 +59,13 @@ function fieldsOf(segment: OpenSegment): HeadFields {
 }
 
 export function generationOf(fields: HeadFields): StoreHead | undefined {
-  const { root, graphRoot, graphDigest, generatedAt, readStartedAt, exportedDigest, indexDigest, packagesDigest } = fields;
+  const { root, graphRoot, graphDigest, generatedAt, readStartedAt, exportedDigest, packagesDigest } = fields;
   if (
     root === undefined || graphRoot === undefined || graphDigest === undefined
     || generatedAt === undefined || readStartedAt === undefined || exportedDigest === undefined
   ) return undefined;
   return {
     root, graphRoot, graphDigest, generatedAt, readStartedAt, exportedDigest,
-    ...(indexDigest === undefined ? {} : { indexDigest }),
     ...(packagesDigest === undefined ? {} : { packagesDigest }),
   };
 }

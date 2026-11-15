@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import { readHelp, type Help } from '@variance-authority/package/help';
 import { taintTable } from '@variance-authority/sense/taint';
-import { compareWorkspaceSnapshot, publishedGeneration, publishedHead, readWorkspaceSnapshot, workspaceComparedPath, workspaceGeneration, workspaceReadStarted, workspaceSnapshotPath } from './snapshot.js';
+import { compareWorkspaceSnapshot, publishedGeneration, publishedHead, publishedStorePath, readWorkspaceSnapshot, workspaceComparedPath, workspaceGeneration, workspaceReadStarted } from './snapshot.js';
 import { readWorkspace, readWorkspaceForAnswer, refreshWorkspace } from './read.js';
 import { HELP } from './tools.js';
 import { search } from './tools/search.js';
@@ -186,7 +186,7 @@ describe('reading a workspace through the source index', () => {
   it('refuses just-answer when no producer has published a generation', async () => {
     const missing = join(dirname(index), 'missing.bin');
     await expect(readWorkspaceSnapshot(WORKSPACE, { index: missing })).rejects.toThrow(
-      `no readable workspace snapshot at ${workspaceSnapshotPath(missing)}`,
+      `no readable workspace snapshot in the source index at ${missing}`,
     );
   });
 
@@ -213,7 +213,7 @@ describe('reading a workspace through the source index', () => {
     try {
       const at = join(root, '.index');
       await readWorkspace(root, { index: at });
-      await rm(workspaceSnapshotPath(at));
+      await rm(publishedStorePath(at)!);
       const values = join(root, 'packages/alpha/src/values.ts');
       await writeFile(values, `${await readFile(values, 'utf8')}export const writtenLater = 1;\n`);
 
@@ -230,7 +230,7 @@ describe('reading a workspace through the source index', () => {
     try {
       const at = join(root, '.index');
       const first = await readWorkspace(root, { index: at });
-      const snapshot = workspaceSnapshotPath(at);
+      const snapshot = publishedStorePath(at)!;
       const bytes = await readFile(snapshot);
       vi.useFakeTimers({ toFake: ['Date'] });
       vi.setSystemTime(Date.now() + 1000);

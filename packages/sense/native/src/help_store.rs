@@ -23,11 +23,11 @@ use crate::segment::{self, Column};
 
 /// `FORMAT` and `VERSION` in `packages/help/src/store-layout.ts`.
 const FORMAT: &str = "variance-authority-help-store";
-const VERSION: u8 = 7;
+const VERSION: u8 = 8;
 pub(crate) const NONE: u32 = u32::MAX;
 pub(crate) const USE_KINDS: [&str; 3] = ["source", "test", "story"];
 /// The generation's fields, in the order `head` holds them.
-const META: usize = 9;
+const META: usize = 7;
 
 /// One place a name is used: `Use`, and `Taken`'s `name` for an import by path.
 #[napi(object)]
@@ -118,7 +118,6 @@ pub struct StoreMeta {
     pub generated_at: String,
     /// When the read behind the value began, before any of it was read.
     pub read_started_at: String,
-    pub index_digest: Option<String>,
     pub packages_digest: Option<String>,
 }
 
@@ -224,10 +223,9 @@ pub(crate) fn encode(input: &StoreRef, exported: &[NamedExport], meta: Option<&S
     let meta: [Option<&str>; META] = match meta {
         Some(held) => [
             Some(&held.root), Some(&held.graph_root), Some(&held.graph_digest), Some(&held.generated_at), Some(&held.read_started_at),
-            // The seventh slot held a digest of the `export … from` rows, which no reader compares any more.
-            Some(&digest), None, held.index_digest.as_deref(), held.packages_digest.as_deref(),
+            Some(&digest), held.packages_digest.as_deref(),
         ],
-        None => [None, None, None, None, None, Some(&digest), None, None, None],
+        None => [None, None, None, None, None, Some(&digest), None],
     };
     let mut columns = Vec::from(head_columns(&meta));
     columns.extend(body);

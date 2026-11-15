@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { publishedQuestions, sourceIndexPath } from '@variance-authority/sense';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
 
@@ -89,6 +90,29 @@ export function checkout(more: Readonly<Record<string, string>> = {}): string {
   git(['config', 'user.name', 'Fixture']);
   commit('the checkout');
   return root;
+}
+
+/** The questions `variance index` published for the checkout at `root`, or a throw when it published none. */
+function published(root: string): NonNullable<ReturnType<typeof publishedQuestions>> {
+  const held = publishedQuestions(sourceIndexPath(root));
+  if (held === undefined) throw new Error(`no questions are published in the source index of ${root}`);
+  return held;
+}
+
+/**
+ * Overwrite each segment the questions published for `root` were read over:
+ * the questions still open, and the source index no longer reads as they read it.
+ */
+export function damageReadOver(root: string): void {
+  const held = published(root);
+  for (const digest of held.over) writeFileSync(join(dirname(held.at), `${digest.replace(':', '-')}.bin`), 'not a segment');
+}
+
+/** Overwrite the store of the questions published for `root`, and say where it is. */
+export function damageStore(root: string): string {
+  const { at } = published(root);
+  writeFileSync(at, 'not a store');
+  return at;
 }
 
 /** `variance` run with `argv`, its exit code and what it wrote to each stream. */

@@ -12,14 +12,19 @@
  * it — a save's or an update's layers become the working layer over the base
  * the chain was readied with (`native/src/append_index.rs`), and readying folds
  * that layer into the base before work (`native/src/ready_index.rs`).
+ *
+ * The manifest also names the questions published from the chain, which every
+ * write carries forward: {@link publishedQuestions} reads them.
  */
 
+import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { digestBytes } from './digest.js';
 import type { Digest } from '@variance-authority/core/format';
 
 const MAGIC = Buffer.from('VAIDXLSM');
+const DIGEST = /^v1:[0-9a-f]{32}$/;
 const VERSION = 1;
 const HEADER_BYTES = MAGIC.length + 4;
 /** How many manifests a reader follows while writers keep moving it, before it keeps the prefix it read as `moved`. */
@@ -34,6 +39,63 @@ interface Manifest {
   readonly format: 'variance-authority-immutable-log';
   readonly version: 1;
   readonly segments: readonly SegmentReference[];
+}
+
+/** The questions a manifest names, as `log.rs` writes them. */
+interface Questions {
+  readonly digest: Digest;
+  readonly length: number;
+  readonly over: readonly Digest[];
+  readonly given?: boolean;
+}
+
+/** The questions published in a chain's manifest, as {@link publishedQuestions} reads them. */
+export interface PublishedQuestions {
+  /** The store's file: under its digest, beside the segments. */
+  readonly at: string;
+  readonly length: number;
+  /** The digests of the segments the store was read over, oldest first. */
+  readonly over: readonly Digest[];
+  /** The digests of the segments the manifest names now, oldest first. */
+  readonly segments: readonly Digest[];
+  /** Whether the store holds what no chain says, such as a caller's taints. */
+  readonly given: boolean;
+}
+
+/**
+ * The questions the manifest at `path` names, read off the manifest alone;
+ * `undefined` when it names none, it is a legacy or malformed file, there is
+ * none, or a segment they were read over is no longer beside it.
+ */
+export function publishedQuestions(path: string): PublishedQuestions | undefined {
+  named(path);
+  let parsed: unknown;
+  try {
+    const bytes = readFileSync(path);
+    if (!bytes.subarray(0, MAGIC.length).equals(MAGIC)) return undefined;
+    decodeManifest(bytes);
+    parsed = JSON.parse(bytes.toString('utf8', HEADER_BYTES));
+  } catch {
+    return undefined;
+  }
+  const { segments, workspace } = parsed as Manifest & { readonly workspace?: unknown };
+  if (!questionsAreValid(workspace)) return undefined;
+  const directory = segmentDirectory(path);
+  if (!workspace.over.every((digest) => existsSync(join(directory, fileName(digest))))) return undefined;
+  return {
+    at: join(directory, fileName(workspace.digest)),
+    length: workspace.length,
+    over: workspace.over,
+    segments: segments.map((segment) => segment.digest),
+    given: workspace.given === true,
+  };
+}
+
+function questionsAreValid(value: unknown): value is Questions {
+  if (typeof value !== 'object' || value === null) return false;
+  const held = value as Partial<Questions>;
+  return typeof held.digest === 'string' && DIGEST.test(held.digest) && Number.isSafeInteger(held.length)
+    && Array.isArray(held.over) && held.over.every((digest) => typeof digest === 'string' && DIGEST.test(digest));
 }
 
 export interface ImmutableLog {
@@ -175,7 +237,7 @@ function manifestIsValid(value: unknown): value is Manifest {
       manifest.version !== VERSION || !Array.isArray(manifest.segments)) return false;
   return manifest.segments.every((segment) =>
     typeof segment === 'object' && segment !== null &&
-    typeof segment.digest === 'string' && /^v1:[0-9a-f]{32}$/.test(segment.digest) &&
+    typeof segment.digest === 'string' && DIGEST.test(segment.digest) &&
     Number.isSafeInteger(segment.length) && segment.length >= 0);
 }
 

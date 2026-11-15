@@ -23,15 +23,14 @@ import {
   type Use,
 } from '@variance-authority/package/help';
 import {
+  headGeneration,
   hexDigestOf,
-  indexManifestDigest,
+  publishedOverChain,
   publishStore,
-  readWorkspaceSnapshot,
   workspaceGeneration,
-  workspaceIndexDigest,
-  workspacePackagesDigest,
   workspaceTreeOpens,
 } from './snapshot.js';
+import type { StoreHead } from './store-layout.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
 import { storeOf } from './store-encode.js';
 import { useOf } from './native-use.js';
@@ -60,8 +59,6 @@ export type FromIndexOptions = HelpOptions & {
  */
 export async function publishWorkspaceFromIndex(root: string, options: FromIndexOptions): Promise<string | undefined> {
   const where = resolve(root);
-  const previous = await stepped(options.progress, 'reading the questions published last', () =>
-    readWorkspaceSnapshot(where, options.index === undefined ? {} : { index: options.index }).catch(() => undefined));
   const { offerings, targets } = await stepped(options.progress, `reading the package manifests of ${where}`, () =>
     readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
   const scope = scanScope(where, offerings);
@@ -76,15 +73,13 @@ export async function publishWorkspaceFromIndex(root: string, options: FromIndex
       ...(options.progress === undefined ? {} : { progress: options.progress }),
     });
   }
-  const indexDigest = await indexManifestDigest(index);
-  if (indexDigest === undefined) return undefined;
-  const kept = previous === undefined ? undefined : workspaceGeneration(previous);
-  // A value published from this very manifest over these manifests is what this publish would write: an index that did
-  // not move costs nothing, while the tree beside it still opens.
+  // A value read over every segment the chain names, joined against these manifests, is what this publish would
+  // write: an index that did not move costs nothing, while the tree beside it still opens.
+  const previous = publishedOverChain(own, index);
   if (
-    previous !== undefined && kept !== undefined && samePackages({ root: scope.root, offerings }, previous)
-    && workspaceIndexDigest(previous) === indexDigest && await workspaceTreeOpens(previous, own)
-  ) return kept;
+    previous !== undefined && previous.root === realpathSync(where) && samePackages({ root: scope.root, offerings }, previous)
+    && await workspaceTreeOpens(previous, own)
+  ) return headGeneration(previous, own);
   const help = await publishHelp({
     workspace: where,
     root: scope.root,
@@ -93,7 +88,6 @@ export async function publishWorkspaceFromIndex(root: string, options: FromIndex
     index,
     own,
     readStartedAt: options.readStartedAt,
-    indexDigest,
     ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
   return help === undefined ? undefined : workspaceGeneration(help.help);
@@ -112,9 +106,7 @@ export interface HelpPublication {
   /** The workspace's own index, beside which the value is published. */
   readonly own: string;
   readonly readStartedAt: string;
-  /** The digest of the manifest at `index`; absent when the value holds what no manifest says, such as a caller's taints. */
-  readonly indexDigest?: string;
-  /** The tree to publish in place of the one the addon draws off the index, such as one a caller's taints joined. */
+  /** The tree to publish in place of the one the addon draws off the index, such as one a caller's taints joined: what no chain says. */
   readonly tree?: Uint8Array;
   readonly progress?: Progress;
 }
@@ -124,7 +116,8 @@ export interface HelpPublication {
  * addon — the uses, the names each entry hands out and the declarations they
  * are read from, the export list, the imports by path and the tree — joined
  * here with the manifests and the READMEs into the documented surface,
- * encoded, and published beside `own`. No parse row crosses into JavaScript.
+ * encoded, and published in the chain's manifest over the segments the
+ * reading read, its tree beside `own`. No parse row crosses into JavaScript.
  * The value as published, and the tree it was published with; `undefined`
  * when no index was published at `index`. Throws with the first export whose
  * declaration the chain cannot say.
@@ -161,7 +154,6 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
       graphRoot: realpathSync(root),
       generatedAt: new Date().toISOString(),
       readStartedAt: publication.readStartedAt,
-      ...(publication.indexDigest === undefined ? {} : { indexDigest: publication.indexDigest }),
       packagesDigest: packagesDigest(root, offerings),
       packages: storeOf(help).packages,
       unreadable: help.unreadable,
@@ -169,7 +161,8 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
     });
     const tree = publication.tree ?? encoded.tree;
     if (tree === undefined || tree === null) throw new Error('the reading drew no tree, and none was handed to it');
-    return { help: await publishStore(publication.own, encoded.store, tree, encoded.graphDigest), tree };
+    const place = { chain: index, over: reading.over(), given: publication.tree !== undefined, index: publication.own };
+    return { help: await publishStore(place, encoded.store, tree, encoded.graphDigest), tree };
   });
 }
 
@@ -213,8 +206,8 @@ export function packagesDigest(root: string, offerings: readonly Offering[]): st
   return digestString(JSON.stringify(shape));
 }
 
-/** Whether the offerings are the ones `documented` was published from; never for a value published without them. */
-export function samePackages(read: { readonly root: string; readonly offerings: readonly Offering[] }, documented: Help): boolean {
-  const held = workspacePackagesDigest(documented);
+/** Whether the offerings are the ones the value headed `documented` was published from; never for a value published without them. */
+export function samePackages(read: { readonly root: string; readonly offerings: readonly Offering[] }, documented: StoreHead): boolean {
+  const held = documented.packagesDigest;
   return held !== undefined && held === packagesDigest(read.root, read.offerings);
 }

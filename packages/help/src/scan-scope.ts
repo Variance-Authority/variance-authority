@@ -57,7 +57,12 @@ export function scanScope(root: string, offerings: readonly Offering[]): { reado
  * spelled from the root and must never be overwritten by the workspace's.
  */
 export function scopeSourceIndexPath(index: string, dirs: readonly string[]): string {
-  return coversWhole(dirs) ? index : `${index}.workspace.bin`;
+  return coversWhole(dirs) ? index : sourceIndexesOf(index)[1];
+}
+
+/** Every index a scope of the workspace whose own index is `index` is kept in: its own, and the one beside it. */
+export function sourceIndexesOf(index: string): readonly [string, string] {
+  return [index, `${index}.workspace.bin`];
 }
 
 /** Whether a scan of `dirs` is the whole of its root, and so kept in the root's own index. */

@@ -11,13 +11,14 @@ import {
 } from '@variance-authority/mcp/tools';
 import { SegmentCutShort } from '@variance-authority/core/segment';
 import type { Help } from '@variance-authority/package/help';
-import { readSourceRecords, sourceIndexPath } from '@variance-authority/sense';
+import { publishedQuestions, publishQuestions, readSourceRecords, sourceIndexPath, type PublishedQuestions } from '@variance-authority/sense';
+import { sourceIndexesOf } from './scan-scope.js';
 import { openHelpStore, openSearchIndex, type SearchIndex } from './search-index.js';
 import { encodeStore } from './store-encode.js';
 import { storeHeadOf, type StoreHead } from './store-layout.js';
 
 export interface SnapshotOptions {
-  /** The source index this reading was published beside. */
+  /** The workspace's own source index, in whose chain, or the scope's beside it, the value was published. */
   readonly index?: string;
   /** Handed the recorded graph without consulting the checkout. */
   readonly records?: (records: readonly FileRecord[], graphRoot: string) => void;
@@ -44,12 +45,34 @@ export function workspaceReadStarted(help: Help): number | undefined {
 }
 
 /**
- * The answerable workspace value published beside one source-index generation:
- * one binary store holding the packages, the imports by path, the export list
- * and the search over them, opened in place, with the generation in its head.
+ * The answerable workspace value published for the workspace whose own index
+ * is `index`: one binary store holding the packages, the imports by path, the
+ * export list and the search over them, with the generation in its head,
+ * named in the manifest of the chain it was read from — the workspace's own,
+ * or the scope's beside it, whichever published later — over the segments it
+ * read. `undefined` when neither names one.
  */
-export function workspaceSnapshotPath(index: string): string {
-  return `${index}.help.bin`;
+function publishedStore(index: string): PublishedQuestions | undefined {
+  const found = sourceIndexesOf(index).flatMap((chain) => publishedQuestions(chain) ?? []);
+  if (found.length < 2) return found[0];
+  const made = (held: PublishedQuestions): number => Date.parse(headAt(held.at)?.generatedAt ?? '') || 0;
+  return found.reduce((newer, held) => made(held) > made(newer) ? held : newer);
+}
+
+/**
+ * The file the store published for the workspace whose own index is `index`
+ * is held in, as {@link readWorkspaceSnapshot} opens it; `undefined` when none
+ * is published.
+ */
+export function publishedStorePath(index: string): string | undefined {
+  return publishedStore(index)?.at;
+}
+
+/** A refusal for a workspace nothing is published for, which a caller tells from a store that did not open by its `code`. */
+function noneAt(index: string): Error {
+  return new Error(`no readable workspace snapshot in the source index at ${index}: none is published there`, {
+    cause: Object.assign(new Error('none is published'), { code: 'ENOENT' }),
+  });
 }
 
 /**
@@ -102,10 +125,14 @@ export async function readWorkspaceSnapshot(
 ): Promise<Help> {
   const where = realpathSync(resolve(root));
   const index = options.index ?? sourceIndexPath(where);
-  const at = workspaceSnapshotPath(index);
+  const published = publishedStore(index);
+  if (published === undefined) throw noneAt(index);
+  const { at } = published;
   let opened: ReturnType<typeof openHelpStore>;
   try {
-    opened = openHelpStore(await readFile(at));
+    const bytes = await readFile(at);
+    if (bytes.length !== published.length) throw new Error(`it holds ${String(bytes.length)} bytes, and the manifest names ${String(published.length)}`);
+    opened = openHelpStore(bytes);
   } catch (error) {
     throw new Error(
       `no readable workspace snapshot at ${at}: ${error instanceof Error ? error.message : String(error)}`,
@@ -135,14 +162,21 @@ export async function readWorkspaceSnapshot(
 }
 
 /**
- * The generation published at `index`, read off the store's head alone: the
- * rest is every export of the repository, and a caller asking whether its write
- * landed has no use for it. Absent when there is none, or it is not this format.
+ * The generation published for the workspace whose own index is `index`, read
+ * off the store's head alone: the rest is every export of the repository, and
+ * a caller asking whether its write landed has no use for it. Absent when there
+ * is none, or it is not this format.
  */
 export function publishedHead(index: string): StoreHead | undefined {
+  const published = publishedStore(index);
+  return published === undefined ? undefined : headAt(published.at);
+}
+
+/** The head of the store at `at`, read off its first bytes. */
+function headAt(at: string): StoreHead | undefined {
   let file: number;
   try {
-    file = openSync(workspaceSnapshotPath(index), 'r');
+    file = openSync(at, 'r');
   } catch {
     return undefined;
   }
@@ -193,19 +227,31 @@ export async function readAgain(held: Help | undefined, root: string, options: {
   return published !== undefined && Date.parse(published) > Date.parse(at);
 }
 
-/** The index manifest the value was refreshed from, absent when it was read another way. */
-export function workspaceIndexDigest(help: Help): string | undefined {
-  return snapshots.get(help)?.indexDigest;
+/**
+ * The generation published in the chain at `chain` for the workspace whose own
+ * index is `index`, when it is the one readers take and it was read over the
+ * segments the chain names now with nothing a caller handed it: the value a
+ * publish from that chain would write again. Read off the manifest and the
+ * store's head alone.
+ */
+export function publishedOverChain(index: string, chain: string): StoreHead | undefined {
+  const published = publishedStore(index);
+  if (published === undefined || published.given || published.at !== publishedQuestions(chain)?.at) return undefined;
+  const { over, segments } = published;
+  return over.length === segments.length && over.every((digest, at) => digest === segments[at]) ? headAt(published.at) : undefined;
+}
+
+/** When `head`, published for the workspace whose own index is `index`, was made or last compared. */
+export function headGeneration(head: StoreHead, index: string): string {
+  return generationOf(head, index);
 }
 
 /**
- * Whether the tree published beside `help` at `index` opens in this build. A
+ * Whether the tree published with `held` beside `index` opens in this build. A
  * tree of another format version, or one whose bytes moved, is published
  * again rather than kept, though the index it was drawn from did not move.
  */
-export async function workspaceTreeOpens(help: Help, index: string): Promise<boolean> {
-  const held = snapshots.get(help);
-  if (held === undefined) return false;
+export async function workspaceTreeOpens(held: StoreHead, index: string): Promise<boolean> {
   try {
     const tree = await readFile(workspaceTreePath(index, held.graphDigest));
     if (hexDigestOf(tree) !== held.graphDigest) return false;
@@ -216,20 +262,6 @@ export async function workspaceTreeOpens(help: Help, index: string): Promise<boo
   }
 }
 
-/** The package manifests the value was joined against, as `packagesDigest` states them; absent on an unrecorded reading. */
-export function workspacePackagesDigest(help: Help): string | undefined {
-  return snapshots.get(help)?.packagesDigest;
-}
-
-/**
- * The digest of the manifest published at `index`. Segments are named by their
- * own digests, so the manifest's bytes are the whole chain's identity. Absent
- * when nothing is published there.
- */
-export async function indexManifestDigest(index: string): Promise<string | undefined> {
-  const bytes = await readFile(index).catch(() => undefined);
-  return bytes === undefined ? undefined : hexDigestOf(bytes);
-}
 
 /**
  * Date `help`, read at `index`, as compared with the checkout now, when its
@@ -255,14 +287,28 @@ export function publishedTree(graph: readonly FileRecord[] | Uint8Array, graphRo
   return graph instanceof Uint8Array ? decodeSourceTree(graph, graphRoot, root) : treeAtWorkspace(treeOf(graph, graphRoot), root);
 }
 
+/** Where {@link publishStore} publishes a store. */
+export interface StorePlace {
+  /** The chain the store was read from, in whose manifest it is published. */
+  readonly chain: string;
+  /** The digests of the segments of `chain` it was read over. */
+  readonly over: readonly string[];
+  /** Whether it holds what no chain says, such as a caller's taints. */
+  readonly given: boolean;
+  /** The workspace's own index, beside which the tree is written and the stamp dated. */
+  readonly index: string;
+}
+
 /**
- * The value the store `store` holds, published at `index` with the tree
- * `tree` beside it under `graphDigest`: opened first, so it answers whether or
- * not it could be written, then the tree, which a store on disk names, then the
- * store. A tree of that digest and length already there is kept, since its
- * name is its content.
+ * The value the store `store` holds, published in the manifest of the chain
+ * it was read from with the tree `tree` beside the workspace's own index under
+ * `graphDigest`: opened first, so it answers whether or not it could be
+ * written, then the tree, which a store on disk names, then the store. A tree
+ * of that digest and length already there is kept, since its name is its
+ * content.
  */
-export async function publishStore(index: string, store: Uint8Array, tree: Uint8Array, graphDigest: string): Promise<Help> {
+export async function publishStore(place: StorePlace, store: Uint8Array, tree: Uint8Array, graphDigest: string): Promise<Help> {
+  const { index } = place;
   const opened = openHelpStore(store);
   const { help, generation: held } = opened;
   if (held !== undefined) {
@@ -271,12 +317,11 @@ export async function publishStore(index: string, store: Uint8Array, tree: Uint8
   }
   searches.set(help, opened.search);
   try {
-    const at = workspaceSnapshotPath(index);
-    await mkdir(dirname(at), { recursive: true });
+    await mkdir(dirname(index), { recursive: true });
     const graph = workspaceTreePath(index, graphDigest);
     if ((await stat(graph).catch(() => undefined))?.size !== tree.length) await writeReplacing(graph, tree);
-    await writeReplacing(at, store);
-    if (held !== undefined) await stampPublished(index, held.generatedAt);
+    const published = await publishQuestions(place.chain, store, place.over, place.given);
+    if (published && held !== undefined) await stampPublished(index, held.generatedAt);
   } catch {
     // This value is complete. An unwritable cache costs reuse, not this answer.
   }

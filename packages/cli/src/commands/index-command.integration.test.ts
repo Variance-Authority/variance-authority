@@ -43,7 +43,7 @@ function unprepared(root: string, unchanged = false): string {
   return 'code map: none, because no manifest names a package\n' +
     `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}\n` +
     `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin')}\n` +
-    `questions: published at ${sourceIndexPath(root)}.help.bin\n`;
+    `questions: published in the source index at ${sourceIndexPath(root)}\n`;
 }
 
 function checkout(): string {
@@ -230,7 +230,7 @@ describe('variance index', () => {
     const { code, out } = await run(['index']);
 
     expect(out.split('\n')).toContain("journeys: not prepared: commit 0123456789ab is not in this checkout's object store. Fetch it with `git fetch origin 0123456789abcdef0123456789abcdef01234567`, or check out every commit: `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`");
-    expect(out).toContain('questions: published at');
+    expect(out).toContain('questions: published in the source index at');
     expect(code).toBe(EXIT_OPERATOR);
   });
 
@@ -287,7 +287,7 @@ describe('variance index', () => {
     expect(indexed.status).toBe(EXIT_CLEAN);
     // Nothing is left running when the step ends: the follow-ups are its own lines.
     expect(indexed.stdout).not.toContain('follow-ups:');
-    expect(indexed.stdout).toContain('questions: published at');
+    expect(indexed.stdout).toContain('questions: published in the source index at');
     const read = spawnSync(process.execPath, [BIN, 'reach', '--since', 'HEAD'], { cwd: root, env, encoding: 'utf8' });
     expect(read.status).toBe(EXIT_CLEAN);
     expect(read.stdout).toBe('src/unit.ts\nsrc/widget.ts\n');
@@ -301,9 +301,9 @@ describe('variance index', () => {
     const index = sourceIndexPath(root);
     const held = publishedHead(index);
     expect(Date.parse(held?.readStartedAt ?? '')).toBeLessThanOrEqual(statSync(index).mtimeMs);
-    // One binary file holds the questions: no JSON value and no search beside it.
+    // The chain holds the questions: beside the index is only the tree they were published with.
     expect(readdirSync(dirname(index)).filter((name) => name.includes('.help')).map((name) => name.replace(/\.help-tree\.[0-9a-f]+\.bin$/u, '.help-tree.<digest>.bin')).sort())
-      .toEqual(['source-index.bin.help-tree.<digest>.bin', 'source-index.bin.help.bin']);
+      .toEqual(['source-index.bin.help-tree.<digest>.bin']);
   });
 
   it('leaves a fresh checkout answering `ask search` from what `index` published', async () => {
@@ -333,7 +333,7 @@ describe('variance index', () => {
 
     expect(searched.code).toBe(EXIT_CLEAN);
     expect(searched.err).toContain(`process ${gone} ended before it finished what \`variance index\` left to it, so it is made now`);
-    expect(searched.err).toContain('questions: published at');
+    expect(searched.err).toContain('questions: published in the source index at');
     expect(existsSync(followUpsLockPath(index))).toBe(false);
   });
 

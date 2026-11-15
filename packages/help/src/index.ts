@@ -29,7 +29,7 @@
  */
 
 export { readWorkspace, readWorkspaceForAnswer, refreshWorkspace } from './read.js';
-export { publishedGeneration, publishedHead, readAgain, readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
+export { publishedGeneration, publishedHead, readAgain, readWorkspaceSnapshot, workspaceGeneration } from './snapshot.js';
 export type { AnsweringOptions, ReadingOptions } from './read.js';
 export type { SnapshotOptions } from './snapshot.js';
 export { publishWorkspaceFromIndex, type FromIndexOptions } from './refresh-native.js';

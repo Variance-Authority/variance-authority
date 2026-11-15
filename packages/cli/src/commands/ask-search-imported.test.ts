@@ -1,11 +1,9 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { workspaceSnapshotPath } from '@variance-authority/help';
-import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
-import { checkout, run } from './ask-packages.fixture.js';
+import { checkout, damageReadOver, damageStore, run } from './ask-packages.fixture.js';
 
 /**
  * `variance ask search` says, beside each published name, how many places
@@ -150,7 +148,7 @@ describe('variance ask search counts the places that import a published name as 
   it('counts what uses counts when the source index does not read, and says what is left out', async () => {
     const root = checkout(FIVE_WITHIN);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    writeFileSync(sourceIndexPath(root), 'not a source index');
+    damageReadOver(root);
 
     expect(await usesCount('greet')).toBe(1);
     const { code, out } = await run(['ask', 'search', '--query', 'greet']);
@@ -166,7 +164,7 @@ describe('variance ask search counts the places that import a published name as 
       'packages/lib/src/quiet.ts': "import { toneQuiet } from './tone.js';\nexport const quiet = toneQuiet;\n",
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    writeFileSync(sourceIndexPath(root), 'not a source index');
+    damageReadOver(root);
 
     const { out } = await run(['ask', 'search', '--query', 'tone']);
     expect(out.split('\n').filter((line) => / · toneQuiet \[/u.test(line))).toEqual(['@acme/lib · toneQuiet [const] no other package imports it by its published path — UNDOCUMENTED']);
@@ -175,11 +173,16 @@ describe('variance ask search counts the places that import a published name as 
   it('says the published store did not open, and counts from the checkout it read instead', async () => {
     const root = checkout(FIVE_WITHIN);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    writeFileSync(workspaceSnapshotPath(sourceIndexPath(root)), 'not a store');
+    const at = damageStore(root);
 
     const { code, out } = await run(['ask', 'search', '--query', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
     expect(greetRows(out)).toEqual(['@acme/lib · greet [function] imported in 6 places in 2 packages — UNDOCUMENTED']);
     expect(out).toMatch(/^The published value at .* did not open \(.*\); the checkout was read instead\.$/mu);
+    expect(out).toContain(`The published value at ${at} did not open (`);
+
+    const again = damageStore(root);
+    const json = JSON.parse((await run(['ask', 'search', '--query', 'greet', '--format', 'json'])).out) as { unopened?: readonly { at: string }[] };
+    expect(json.unopened?.map((one) => one.at)).toEqual([again]);
   });
 });

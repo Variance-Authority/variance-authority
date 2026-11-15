@@ -3,7 +3,7 @@ import type { Help } from '@variance-authority/package/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { operatorError } from './operator.js';
 import { UnsavedRead, readWorkspace, readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
-import { readWorkspaceSnapshot, searchIndexOf, workspaceSnapshotPath } from './snapshot.js';
+import { publishedStorePath, readWorkspaceSnapshot, searchIndexOf } from './snapshot.js';
 import type { SearchIndex } from './search-index.js';
 
 /** A search, and whether it was read from the checkout as it is now. */
@@ -101,7 +101,6 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
     return { index: searchIndexOf(help), compared: !justAnswer, value: held(help) };
   }
 
-  const at = workspaceSnapshotPath(index);
   let unopened: Unopened[] | undefined;
   try {
     // The value opens in place: a name it holds is decoded when a question reads it, so the search costs what it reads.
@@ -112,10 +111,10 @@ export async function readSearchForAnswer(root: string, options: AnsweringOption
     return { index: searchIndexOf(help), compared: false, value: held(help) };
   } catch (cause) {
     // Not published says nothing; published and unopenable is said with the answer.
-    if (!absent(cause)) unopened = [{ published: 'value', at, reason: reasonOf(cause) }];
+    if (!absent(cause)) unopened = [{ published: 'value', at: publishedStorePath(index) ?? index, reason: reasonOf(cause) }];
     if (justAnswer) {
       const tried = unopened === undefined
-        ? `none is published at ${at}`
+        ? `none is published in the source index at ${index}`
         : unopened.map(({ published, at: where, reason }) => `the published ${published} at ${where} did not open (${reason})`).join(', and ');
       throw operatorError(
         `search reads the published source generation, and ${tried}; ` +
