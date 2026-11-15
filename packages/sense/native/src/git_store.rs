@@ -179,7 +179,9 @@ impl Store {
         let objects = Objects::at(format, &objects, &replaced)?;
         let index = gix_index::File::at(&index, gix_hash::Kind::Sha1, true, Default::default()).ok()?;
         let top = root.ancestors().nth(prefix.matches('/').count())?;
-        let mut outside = vec![PathBuf::from(system), PathBuf::from(global), info];
+        // Git resolves a relative `core.attributesFile` from the top of the worktree.
+        let named_file = |path: String| if path.is_empty() { PathBuf::new() } else { top.join(path) };
+        let mut outside = vec![named_file(system), named_file(global), info];
         outside.extend(root.ancestors().take_while(|directory| directory.starts_with(top)).map(|directory| directory.join(".gitattributes")));
         let named = named(&index, top, &objects, &outside);
         if named.encoding {

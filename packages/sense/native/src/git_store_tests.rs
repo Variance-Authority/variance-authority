@@ -198,6 +198,13 @@ fn a_working_tree_encoding_anywhere_keeps_the_store_shut() {
     let root = repository("git-store-encoding-info", &[("a.ts", A)]);
     write(&root, ".git/info/attributes", b"*.ts working-tree-encoding=UTF-16LE\n");
     assert!(Store::open(&root).is_none(), "the repository's own attributes");
+
+    // Git reads a relative `core.attributesFile` from the top of the worktree,
+    // whatever directory asked: here neither this process's nor the root's.
+    let root = repository("git-store-encoding-global", &[("apps/x/a.ts", A)]);
+    write(&root, "attrs", b"*.ts working-tree-encoding=UTF-16LE\n");
+    git(&root, &["config", "core.attributesFile", "attrs"]);
+    assert!(Store::open(&root.join("apps/x")).is_none(), "a relative global attributes file");
 }
 
 #[test]
