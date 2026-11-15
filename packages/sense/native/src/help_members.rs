@@ -26,7 +26,7 @@ use oxc_ast_visit::{walk, Visit};
 use oxc_span::GetSpan;
 use serde::Serialize;
 
-use crate::chain_lookup::fold;
+use crate::chain_lookup::{fold, newest, record};
 use crate::compact::Layer;
 use crate::harvest::{Harvest, TextSpan};
 use crate::help_usage::{importers_from, kind_of};
@@ -101,26 +101,34 @@ pub struct MemberUseSite {
 /// in code units, then by line. A file whose parse the chain does not hold
 /// declares nothing.
 pub(crate) fn member_declarations(root: &str, layers: &[Layer], name: &str) -> Vec<MemberSite> {
-    // The digests whose parse declares the name somewhere on the chain; the
-    // file's newest parse is joined below and asked again.
+    // The digests whose parse declares the name somewhere on the chain, by
+    // their id in each layer's dictionary: a layer whose dictionary does not
+    // hold the name declares no member by it. The file's newest parse is
+    // joined below and asked again.
     let mut declaring: HashSet<&str> = HashSet::new();
     for layer in layers {
         let (stored, parses) = (&layer.stored, &layer.parses);
+        let Some(name) = stored.id_of(name) else { continue };
         for row in 0..parses.key.len() {
-            if parses.member_declarations.range(row).any(|at| stored.text(parses.member_declaration_name.at(at)) == name) {
+            if parses.member_declarations.range(row).any(|at| parses.member_declaration_name.at(at) == name) {
                 declaring.insert(stored.text(parses.key.at(row)));
             }
         }
     }
     if declaring.is_empty() { return Vec::new(); }
-    let mut crossings: Vec<Crossing> = fold(layers)
-        .into_iter()
-        .filter(|&(_, (layer, row))| {
-            let (stored, records) = (&layers[layer].stored, &layers[layer].records);
-            stored.optional(records.digest.at(row)).is_some_and(|digest| declaring.contains(digest))
-        })
-        .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
-        .collect();
+    // Each layer's records whose digest is one of them, kept where the record
+    // is still its file's newest: the rule `fold` applies, read for these rows alone.
+    let mut crossings: Vec<Crossing> = Vec::new();
+    for (at, layer) in layers.iter().enumerate() {
+        let (stored, records) = (&layer.stored, &layer.records);
+        let digests: HashSet<u32> = declaring.iter().filter_map(|digest| stored.id_of(digest)).collect();
+        if digests.is_empty() { continue; }
+        for row in 0..records.file.len() {
+            if digests.contains(&records.digest.at(row)) && newest(layers, (at, row)) {
+                crossings.push(Crossing { file: stored.text(records.file.at(row)), owner: NO_OWNER, others: Vec::new(), at: (at, row), parse: None });
+            }
+        }
+    }
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
     join_parses(layers, &mut crossings);
     let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
@@ -178,8 +186,7 @@ pub struct ContainerMember {
 /// member of a type literal inside it is the literal's, not the container's.
 /// Empty when the chain holds no parse of the file.
 pub(crate) fn members_on(layers: &[Layer], file: &str, on: &str) -> Vec<ContainerMember> {
-    let folded = fold(layers);
-    let Some((&file, &at)) = folded.get_key_value(file) else { return Vec::new() };
+    let Some((file, at)) = record(layers, file) else { return Vec::new() };
     let mut crossings = [Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }];
     join_parses(layers, &mut crossings);
     let Some((layer, row)) = crossings[0].parse else { return Vec::new() };
@@ -225,9 +232,9 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
         if one.taken.through.is_some() || one.local.is_empty() { continue; }
         written.entry(one.taken.at).or_default().entry(one.local).or_default().insert(one.origin);
     }
-    let mut crossings: Vec<Crossing> = fold(layers)
-        .into_iter()
-        .filter(|(file, _)| written.contains_key(*file))
+    let mut crossings: Vec<Crossing> = written
+        .keys()
+        .filter_map(|file| record(layers, file))
         .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
         .collect();
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));

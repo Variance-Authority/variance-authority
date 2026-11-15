@@ -117,3 +117,83 @@ fn reads_each_file_as_the_newest_layer_holds_it() {
         "src/b.ts:2 Held @t/w source",
     ]);
 }
+
+/// A chain of two layers over `root`, the newer one written from `newer`, each
+/// record `(file, digest)` and each parse `(digest, member declarations, member uses)`.
+fn chain(older: &[(&str, &str)], older_parses: &[(&str, &str, &str)], newer: &[(&str, &str)], newer_parses: &[(&str, &str, &str)], deleted: &[&str]) -> (Vec<u8>, Vec<u8>) {
+    use crate::generation::Delta;
+    use crate::graph_index::merged;
+
+    let records = |records: &[(&str, &str)]| {
+        records.iter().map(|(path, digest)| format!(r#"["{path}", {{"record": {{"file": "{path}", "digest": "{digest}"}}, "witnesses": []}}]"#)).collect::<Vec<_>>().join(", ")
+    };
+    let parses = |parses: &[(&str, &str, &str)]| {
+        parses.iter().map(|(digest, declared, used)| format!(r#"["{digest}\u0000.ts\u0000+", {{"requests": [], "memberDeclarations": [{declared}], "memberUses": [{used}]}}]"#)).collect::<Vec<_>>().join(", ")
+    };
+    let deleted = deleted.iter().map(|file| format!(r#""{file}""#)).collect::<Vec<_>>().join(", ");
+    let generation = |document: String| merged(&[], &Delta::of(vec![document]).unwrap());
+    (
+        generation(format!(r#"{{"config": "v1:c", "records": [{}], "parses": [{}]}}"#, records(older), parses(older_parses))),
+        generation(format!(r#"{{"records": [{}], "parses": [{}], "deletedRecords": [{deleted}]}}"#, records(newer), parses(newer_parses))),
+    )
+}
+
+/// A container's members come from its file's newest record: the newer
+/// layer's parse of a file it rewrote, the older layer's of one it left, and
+/// none of a file it deleted or the chain never held.
+#[test]
+fn members_on_reads_each_file_as_the_newest_layer_holds_it() {
+    use crate::compact::Layer;
+
+    let (older, newer) = chain(
+        &[("src/a.ts", "git:a1"), ("src/b.ts", "git:b1"), ("src/d.ts", "git:d1")],
+        &[
+            ("git:a1", r#"{"name": "resolve", "line": 2, "on": "Scanner"}, {"name": "other", "line": 3, "on": "Scanner"}"#, ""),
+            ("git:b1", r#"{"name": "resolve", "line": 2, "on": "Held"}"#, ""),
+            ("git:d1", r#"{"name": "gone", "line": 1, "on": "Gone"}"#, ""),
+        ],
+        &[("src/a.ts", "git:a2")],
+        &[("git:a2", r#"{"name": "resolve", "line": 5, "on": "Scanner"}, {"name": "later", "line": 9, "on": "Later"}"#, "")],
+        &["src/d.ts"],
+    );
+    let layers = [Layer::open(&older).unwrap(), Layer::open(&newer).unwrap()];
+    let members = |file: &str, on: &str| -> Vec<String> { super::members_on(&layers, file, on).into_iter().map(|member| format!("{}:{}", member.name, member.line)).collect() };
+
+    assert_eq!(members("src/a.ts", "Scanner"), ["resolve:5"]);
+    assert_eq!(members("src/b.ts", "Held"), ["resolve:2"]);
+    assert_eq!(members("src/d.ts", "Gone"), Vec::<String>::new());
+    assert_eq!(members("src/missing.ts", "Scanner"), Vec::<String>::new());
+}
+
+/// A file a newer layer deletes declares nothing, and a declaration's uses
+/// are read from its file's newest parse, not from the one it replaced.
+#[test]
+fn a_member_and_its_uses_are_read_from_the_newest_record() {
+    use crate::compact::Layer;
+
+    let root = std::env::temp_dir().join(format!("sense-help-members-newest-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(root.join("package.json"), r#"{"name": "@t/w"}"#).unwrap();
+    let (older, newer) = chain(
+        &[("src/a.ts", "git:a1"), ("src/b.ts", "git:b1")],
+        &[
+            ("git:a1", r#"{"name": "resolve", "line": 2, "on": "Scanner"}"#, r#"{"name": "resolve", "line": 7, "of": "Scanner", "how": "read"}"#),
+            ("git:b1", r#"{"name": "resolve", "line": 2, "on": "Held"}"#, ""),
+        ],
+        &[("src/a.ts", "git:a2")],
+        &[("git:a2", r#"{"name": "resolve", "line": 3, "on": "Scanner"}"#, r#"{"name": "resolve", "line": 8, "of": "Scanner", "how": "write"}"#)],
+        &["src/b.ts"],
+    );
+    let layers = [Layer::open(&older).unwrap(), Layer::open(&newer).unwrap()];
+
+    let found: Vec<String> = super::member_declarations(root.to_str().unwrap(), &layers, "resolve")
+        .into_iter()
+        .map(|site| {
+            let uses: Vec<String> = site.uses.unwrap_or_default().into_iter().map(|one| format!("{}:{} {}", one.at, one.line, one.how)).collect();
+            format!("{}:{} {} uses [{}]", site.at, site.line, site.on, uses.join(", "))
+        })
+        .collect();
+    let _ = std::fs::remove_dir_all(&root);
+    assert_eq!(found, ["src/a.ts:3 Scanner uses [src/a.ts:8 write]"]);
+}
