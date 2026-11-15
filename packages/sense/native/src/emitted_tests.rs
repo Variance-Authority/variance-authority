@@ -212,3 +212,26 @@ fn a_source_that_links_elsewhere_is_read_where_it_points() {
     assert_eq!(answers, [Some("shared/h.ts".to_owned()), Some("shared/h.ts".to_owned())]);
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_base_two_packages_extend_is_read_once_in_a_scan() {
+    let root = workspace("once");
+    // `b` and `i` build through one base. Whoever asks first reads it, and a
+    // scan that read it answers the second package from that reading, where a
+    // second read would find the base no longer naming an `outDir`.
+    write(&root, &[
+        ("packages/i/package.json", r#"{ "name": "@s/i", "exports": "./dist/index.js" }"#),
+        ("packages/i/tsconfig.json", r#"{ "extends": "../../tsconfig.base.json",
+            "compilerOptions": { "rootDir": "./src" } }"#),
+        ("packages/i/src/index.ts", "export {};\n"),
+    ]);
+    std::os::unix::fs::symlink("../../packages/i", root.join("node_modules/@s/i")).unwrap();
+    let from = root.join("packages/a/src/x.ts");
+    let scan = Resolvers::new(Tsconfig::Auto, None);
+    assert_eq!(scan.resolve(&root, &from, "@s/b", None), Some("packages/b/src/index.ts".to_owned()));
+    write(&root, &[("tsconfig.base.json", "{}")]);
+    assert_eq!(scan.resolve(&root, &from, "@s/i", None), Some("packages/i/src/index.ts".to_owned()), "the same scan");
+    let later = Resolvers::new(Tsconfig::Auto, None);
+    assert_eq!(later.resolve(&root, &from, "@s/i", None), None, "a later scan reads the disk again");
+    let _ = std::fs::remove_dir_all(&root);
+}

@@ -148,7 +148,7 @@ impl Resolvers {
         if let Some(found) = self.governed.read().ok().and_then(|held| held.get(path).cloned()) {
             return found;
         }
-        let resolver = match crate::conditions::custom_conditions(path) {
+        let resolver = match self.emitted.configs.custom_conditions(path) {
             Some(custom) if !custom.is_empty() => self.with_conditions(custom),
             _ => Arc::clone(&self.modules),
         };
