@@ -1,0 +1,43 @@
+name: measure-cache-restore
+on:
+  push:
+    branches: [measure/cache-restore]
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: make a cache shaped like Kibana's data suite (9,885 files, 86 MB)
+        run: |
+          python3 - <<'PY'
+          import os, random, string
+          random.seed(1)
+          root = '/tmp/src/jest-transform-cache-abc'
+          words = [''.join(random.choices(string.ascii_letters, k=random.randint(3,12))) for _ in range(4000)]
+          for i in range(9885):
+              d = os.path.join(root, '%02x' % (i % 256))
+              os.makedirs(d, exist_ok=True)
+              size = 8700
+              body = []
+              n = 0
+              while n < size:
+                  w = random.choice(words); body.append(w); n += len(w) + 1
+              open(os.path.join(d, 'file%05d_%032x' % (i, random.getrandbits(128))), 'w').write(' '.join(body))
+          PY
+          du -sh /tmp/src; find /tmp/src -type f | wc -l
+          cd /tmp/src && tar -cf - . | zstd -3 -q -o /tmp/cache.tar.zst && ls -la /tmp/cache.tar.zst
+          sudo apt-get install -y -qq squashfs-tools > /dev/null && mksquashfs /tmp/src /tmp/cache.sqfs -comp zstd -quiet && ls -la /tmp/cache.sqfs
+          rm -rf /tmp/src
+      - name: time each restore
+        run: |
+          nproc; df -h /tmp /dev/shm | tail -2
+          t() { sync; echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null; s=$(date +%s.%N); eval "$2"; e=$(date +%s.%N); echo "$1: $(echo "$e - $s" | bc) s"; }
+          for r in 1 2 3; do
+            rm -rf /tmp/d1 /dev/shm/d2 /tmp/d3 /tmp/d4; mkdir -p /tmp/d1 /dev/shm/d2 /tmp/d3 /tmp/d4
+            t "decompress to memory only" "zstd -dc /tmp/cache.tar.zst > /dev/null"
+            t "tar -x to disk" "zstd -dc /tmp/cache.tar.zst | tar -xf - -C /tmp/d1"
+            t "tar -x to /dev/shm (tmpfs)" "zstd -dc /tmp/cache.tar.zst | tar -xf - -C /dev/shm/d2"
+            t "unsquashfs, all cores" "sudo unsquashfs -q -f -d /tmp/d3 /tmp/cache.sqfs > /dev/null"
+            t "squashfs loop mount + overlay (no files written)" "sudo mkdir -p /mnt/l /mnt/u /mnt/w /mnt/m && sudo mount -o loop,ro /tmp/cache.sqfs /mnt/l && sudo mount -t overlay overlay -o lowerdir=/mnt/l,upperdir=/mnt/u,workdir=/mnt/w /mnt/m"
+            t "  first read of every file through it" "find /mnt/m -type f -print0 | xargs -0 cat > /dev/null"
+            sudo umount /mnt/m /mnt/l; sudo rm -rf /mnt/u /mnt/w
+          done
