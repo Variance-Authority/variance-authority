@@ -121,6 +121,10 @@ fn read_decoded(decoded: &Decoded, loaded_sets: bool) -> Result<(Shard, Vec<Inve
     let lines = split_rows(lines.as_ref(), count, "case lines")?;
     let set_bytes = decoded.bytes("sets.blob")?;
     let set_offsets = decoded.words("sets.off")?;
+    if set_offsets.windows(2).any(|bounds| bounds[1] < bounds[0]) || set_offsets.last().is_some_and(|last| *last as usize > set_bytes.len()) {
+        return Err("journey set bounds are invalid".to_owned());
+    }
+    let pool = set_offsets.len().saturating_sub(1);
     let section = |name: &str| if decoded.has(name) { decoded.bytes(name).map(Some) } else { Ok(None) };
     let [said, read, misused] = case_said::SECTIONS.map(section);
     let [said, read, misused] = [said?, read?, misused?];
@@ -159,6 +163,10 @@ fn read_decoded(decoded: &Decoded, loaded_sets: bool) -> Result<(Shard, Vec<Inve
         .any(|length| length != kinds.len())
     {
         return Err("block columns disagree".to_owned());
+    }
+    // Every set a region names is in the pool, so a carry never meets one that is not.
+    if let Some(set) = called.iter().chain(overwritten.iter().flatten()).find(|set| **set as usize >= pool) {
+        return Err(format!("journey set id {set} is out of bounds"));
     }
     let mut modules = Vec::with_capacity(module_files.len());
     let mut cuts = Vec::with_capacity(module_files.len());

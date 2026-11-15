@@ -80,6 +80,23 @@ fn replaces_a_finished_file_carries_the_rest_and_retires_a_file_the_checkout_los
 }
 
 #[test]
+fn writes_the_run_alone_over_an_index_naming_a_set_its_pool_does_not_hold() {
+    let tests = [case("b.test.ts", "kept")];
+    let fresh = index(&[case("a.test.ts", "new")], &[("m.ts", &[1], vec![vec![0]])]);
+    // Region 0 names a set past the pool in `called`, then in `overwritten`.
+    for (called, overwritten) in [(vec![99], vec![]), (vec![0], vec![99])] {
+        let mut sets = SetPool::new(tests.len());
+        let called: Vec<u32> = called.into_iter().map(|set| if set == 0 { sets.intern(&[0]) } else { set }).collect();
+        let module = regions("kept.ts", &[1]);
+        let encoded = [EncodedModule { module: &module, called: &called, loaded: &[false], overwritten: &overwritten }];
+        let held = journey_format::encode(&tests, &CaseExtras::default(), &encoded, &mut sets, None).unwrap();
+        let layers = layer(Some(&held), &fresh, &ran(&["a.test.ts"], &["a.test.ts", "b.test.ts"]), None, true).unwrap();
+        assert_eq!(layers.merged, fresh);
+        assert_eq!(layers.cases, ["a.test.ts > new"]);
+    }
+}
+
+#[test]
 fn lands_held_cases_where_the_edit_moved_their_region() {
     let held = index(&[case("a.test.ts", "one"), case("b.test.ts", "two")], &[("m.ts", &[1, 2], vec![vec![0], vec![1]])]);
     let fresh = index(&[case("a.test.ts", "one")], &[("m.ts", &[1, 4], vec![vec![0], vec![]])]);
