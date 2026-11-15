@@ -77,6 +77,27 @@ describe('the selection the environment asks for', () => {
     }
   });
 
+  it('asks the cli to cut the selection to VARIANCE_AUTHORITY_BUDGET seconds, and refuses what is not a positive number', async () => {
+    const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-budget-'));
+    try {
+      const cli = resolve(root, 'node_modules', '@variance-authority', 'cli');
+      await mkdir(cli, { recursive: true });
+      await writeFile(resolve(cli, 'package.json'), JSON.stringify({ name: '@variance-authority/cli', type: 'module', main: 'index.js' }));
+      await writeFile(resolve(cli, 'index.js'), 'export async function selectSuite(request) { return { notes: [JSON.stringify(request.budget ?? null)] }; }');
+      const asked = async (env: NodeJS.ProcessEnv) => (await selectionFrom({ VARIANCE_AUTHORITY_SINCE: '', ...env }, { root }, () => {})!()).notes;
+
+      expect(await asked({ VARIANCE_AUTHORITY_BUDGET: '15' })).toEqual(['15']);
+      expect(await asked({ VARIANCE_AUTHORITY_BUDGET: '' })).toEqual(['null']);
+      expect(await asked({})).toEqual(['null']);
+      for (const value of ['soon', '0', '-5']) {
+        expect(() => selectionFrom({ VARIANCE_AUTHORITY_SINCE: '', VARIANCE_AUTHORITY_BUDGET: value }, { root }, () => {}))
+          .toThrow(`VARIANCE_AUTHORITY_BUDGET=${value} is not a number of seconds above 0`);
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it('asks the cli to narrow by the tested commit beside a base, and refuses one without a base', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-selection-tested-'));
     try {

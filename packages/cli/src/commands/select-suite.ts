@@ -73,6 +73,12 @@ export interface SuiteRequest {
    * (`select-tested.ts`). Read only beside `since`.
    */
   readonly ranAt?: string;
+  /**
+   * A ceiling, in seconds of recorded test time, that the selection is cut to:
+   * the edit loop's, never a gate's (`select-budget.ts`). Without `atDistance`,
+   * only the changed files' own tests are taken.
+   */
+  readonly budget?: number;
 }
 
 function placingOf(span: TestSelection): NonNullable<SuiteSelection['placing']> {

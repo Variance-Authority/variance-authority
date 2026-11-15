@@ -5,7 +5,8 @@
  * empty, it has no fallback base. Beside it, `_AT_DISTANCE`, `_LOCAL=1` and
  * `_RAN_AT` are `--at-distance`, `--local` and `--ran-at`, the last only beside
  * a base that is not empty, and `_GRAIN=case` also skips the cases of a kept
- * file that ran none of the change.
+ * file that ran none of the change. `_BUDGET` is a ceiling, in seconds of
+ * recorded test time, that the selection is cut to: the edit loop's, never a gate's.
  *
  * The reading is `selectSuite` from `@variance-authority/cli`, the function
  * `variance select` prints. It parses the execution journal through
@@ -58,6 +59,8 @@ interface Selector {
     readonly beneath?: boolean;
     /** Ignored by a cli older than `selectSuite` taking it, which selects as without it. */
     readonly ranAt?: string;
+    /** Ignored by a cli older than the budget, which runs the whole selection. */
+    readonly budget?: number;
   }): Promise<SuiteSelection>;
   /** Absent from a cli older than placement by time. */
   suiteTimes?(request: { readonly root: string; readonly suite?: string; readonly beneath?: boolean }): Promise<SuiteTimes>;
@@ -105,6 +108,12 @@ export function selectionFrom(
         'write `0-2` for everything within two imports, `2` for exactly two, or `3-` for the rest',
     );
   }
+  // Set and empty, as a script's `${VARIANCE_AUTHORITY_BUDGET:-}` leaves it, asks for none.
+  const budgeted = env['VARIANCE_AUTHORITY_BUDGET'];
+  const budget = budgeted === undefined || budgeted === '' ? undefined : Number(budgeted);
+  if (budget !== undefined && !(Number.isFinite(budget) && budget > 0)) {
+    throw new Error(`VARIANCE_AUTHORITY_BUDGET=${budgeted} is not a number of seconds above 0: write \`15\` to run what fits in 15 s of recorded test time`);
+  }
   // The hops of every wave the shard runs, which each wave places as one; read only beside a distance.
   const placing = env['VARIANCE_AUTHORITY_PLACE_AT_DISTANCE'];
   const span = placing === undefined ? undefined : distanceRange(placing);
@@ -126,6 +135,7 @@ export function selectionFrom(
       ...(local === '1' ? { local: true } : {}),
       ...(request.beneath === true ? { beneath: true } : {}),
       ...(ranAt === undefined || ranAt === '' ? {} : { ranAt }),
+      ...(budget === undefined ? {} : { budget }),
     });
   };
 }
