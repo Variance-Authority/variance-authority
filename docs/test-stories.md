@@ -1,23 +1,13 @@
 # Read what one test ran, in order
 
-A **test story** is the order one test ran its code in, written out as
-numbered steps: each function the test ran, the branch it took at each `if`,
-how many times each loop ran, the values each function was handed, and the
-lines the code printed. Every run already records which code each test ran. A
-story adds the order, the counts, the values and the printed lines, and you
-read it from top to bottom. When a test fails only on
-some runs, you [compare the stories](#why-does-this-test-fail-on-some-runs) of
-runs that passed with runs that failed.
-When one test passes and another fails, such as the same checkout with a
-feature flag off and on, you compare the stories of the two tests. Either way
-what each function was handed is compared with the rest, and any other value
-you suspect you print from the code under test, never from the test.
-
-If you only need which line of the test first ran a piece of code, or how
-long each line took, every ordinary run [already records
-that](test-level-coverage.md#which-test-statement-first-ran-a-region), and
-`variance story --name` [explains the test from it](#explain-a-test-without-recording-a-story).
-Record a story when you need what happened next or how often it repeated.
+A **test story** is the order one test ran its code in, as numbered steps:
+each function it ran, the branch taken at each `if`, how often each loop ran,
+the values each function was handed and the lines the code printed. Every
+ordinary run already records which line of the test first ran each piece of
+code and how long each line took, and `variance story --name`
+[explains a test from that](#explain-a-test-without-recording-a-story). Record
+a story when you need what happened next or how often it repeated, or to
+[compare runs](#why-does-this-test-fail-on-some-runs), or tests, that passed and failed.
 
 ## Explain a test without recording a story
 
@@ -635,7 +625,8 @@ neither is what a function returned.
 ## What the code prints
 
 For any other value — one inside an object, or one no function was handed —
-the lines the code prints are what give it, and three sources write them under
+the lines the code prints are what give it, printed from the code under test,
+never from the test, and three sources write them under
 their step:
 
 - **`console`.** Each line printed with `console.log`, `info`, `warn`, `error`

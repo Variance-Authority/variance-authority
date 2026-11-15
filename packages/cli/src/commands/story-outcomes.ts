@@ -13,24 +13,38 @@ export interface RecordedOutcomes {
 }
 
 /**
+ * The one case the record holds under `name` that no story among `stories` is
+ * taped for, as `find` reads it; nothing when there is no name, a story is
+ * taped, or the record holds none. A name two files hold is refused.
+ */
+export function untapedCase<Found extends { readonly file: string }>(
+  stories: readonly StoryEntry[],
+  name: string | undefined,
+  file: string | undefined,
+  find: (name: string) => readonly Found[],
+): Found | undefined {
+  if (name === undefined || stories.some((entry) => (file === undefined || entry.file === file) && entry.name === name)) return undefined;
+  const found = find(name);
+  const files = [...new Set(found.map((one) => one.file))];
+  if (files.length > 1) {
+    throw new OperatorError(`--name ${name} is a case in ${listed(files)}; name the file with --file`);
+  }
+  return found[0];
+}
+
+/**
  * The case `name` names, compared by outcome from the readings the record
  * keeps of it; nothing when a story of it is taped among `stories`, or no
  * record keeps an earlier reading of it, so the story's own answer is given.
  */
 export function recordedOutcomes(root: string, stories: readonly StoryEntry[], name: string | undefined, file: string | undefined): RecordedOutcomes | undefined {
-  if (name === undefined || stories.some((entry) => (file === undefined || entry.file === file) && entry.name === name)) return undefined;
-  const found = recordedReadings(root, name, file);
-  if (found.length === 0) return undefined;
-  const files = [...new Set(found.map((one) => one.file))];
-  if (files.length > 1) {
-    throw new OperatorError(`--name ${name} is a case in ${listed(files)}; name the file with --file`);
-  }
-  const [recorded] = found;
-  const outcomes = compareOutcomes(recorded!);
+  const recorded = untapedCase(stories, name, file, (named) => recordedReadings(root, named, file));
+  if (recorded === undefined) return undefined;
+  const outcomes = compareOutcomes(recorded);
   if (outcomes !== undefined) return { outcomes };
   const runsOf = (readings: readonly { readonly count: number }[]) => readings.reduce((sum, reading) => sum + reading.count, 0);
-  const told = recorded!.readings.filter((reading) => reading.stopped !== undefined);
-  const untold = runsOf(recorded!.readings) - runsOf(told);
+  const told = recorded.readings.filter((reading) => reading.stopped !== undefined);
+  const untold = runsOf(recorded.readings) - runsOf(told);
   const which = `${recorded!.file} > ${recorded!.name}`;
   const again = 'run it until it has passed and thrown, twice each';
   if (told.length === 0) {

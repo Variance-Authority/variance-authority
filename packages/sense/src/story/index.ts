@@ -8,7 +8,7 @@
 export { askedForStories, storyDirectories, storyDirectory } from './directory.js';
 export { STORY_VARIABLE } from './asked.js';
 export { foldSteps, PERIOD, type Step } from './fold.js';
-export { recordedStatements, statementsOf, type ExplainedCase, type RecordedExplanation, type Statement } from './explain.js';
+export { recordedStatements, type RecordedExplanation, type Statement } from './explain.js';
 export { compareOutcomes, recordedReadings, type Charge, type Moved, type OutcomeComparison, type OutcomeRegion, type RecordedCase } from './outcomes.js';
 export { compareReadings, type Comparison, type Moment, type Only, type Order, type PlaceDifference, type Side, type SideSummary } from './compare.js';
 export { drawRoute, drawToldRoute, listStories, readRoute, toldModules, type Arm, type Place, type Region, type Route, type Stop, type StoryEntry, type Untaken } from './read.js';

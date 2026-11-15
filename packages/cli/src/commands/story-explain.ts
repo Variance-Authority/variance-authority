@@ -9,10 +9,9 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { recordedStatements, STORY_VARIABLE, type OutcomeRegion, type RecordedExplanation, type Statement, type StoryEntry } from '@variance-authority/sense/story';
-import { OperatorError } from '../exit.js';
 import { packageName, packageOf } from '../package-home.js';
-import { LISTED, listed } from './story-compare.js';
-import { regionText } from './story-outcomes.js';
+import { LISTED } from './story-compare.js';
+import { regionText, untapedCase } from './story-outcomes.js';
 
 /** A statement with its source text, as the checkout holds the line, and its share of the case. */
 export interface ExplainedStatement extends Statement {
@@ -36,14 +35,9 @@ export interface Explained extends Omit<RecordedExplanation, 'statements' | 'com
  * answer is given.
  */
 export function explainedCase(root: string, stories: readonly StoryEntry[], name: string | undefined, file: string | undefined): { readonly explained: Explained } | undefined {
-  if (name === undefined || stories.some((entry) => (file === undefined || entry.file === file) && entry.name === name)) return undefined;
-  const found = recordedStatements(root, name, file);
-  if (found.length === 0) return undefined;
-  const files = [...new Set(found.map((one) => one.file))];
-  if (files.length > 1) {
-    throw new OperatorError(`--name ${name} is a case in ${listed(files)}; name the file with --file`);
-  }
-  const { commit, statements, ...rest } = found[0]!;
+  const found = untapedCase(stories, name, file, (named) => recordedStatements(root, named, file));
+  if (found === undefined) return undefined;
+  const { commit, statements, ...rest } = found;
   const source = sourceLines(root, rest.file);
   const packages: Record<string, string> = {};
   for (const { file: at } of [...statements, ...rest.hooks].flatMap((statement) => statement.regions).concat(rest.unlined)) {
