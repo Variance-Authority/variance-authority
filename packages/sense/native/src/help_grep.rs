@@ -4,7 +4,9 @@
 //! are ripgrep's own crates, configured as `rg` configures them for files named
 //! on its command line, so a query matches here what it matches there. Hits
 //! cross as columns, and a line is cut before it crosses: one match in a
-//! minified bundle is a megabyte of line.
+//! minified bundle is a megabyte of line. The files are searched in the disk
+//! reader's opening pool, not on every core: past a few threads at once, each
+//! `open` costs more.
 
 // compass: variance-authority.report.agent-surface
 
@@ -14,6 +16,8 @@ use grep_regex::RegexMatcherBuilder;
 use grep_searcher::{sinks::Bytes, BinaryDetection, SearcherBuilder};
 use napi_derive::napi;
 use rayon::prelude::*;
+
+use crate::acquire::opening_pool;
 
 /// Characters of a matching line kept before the cut.
 const WIDEST: usize = 240;
@@ -40,23 +44,30 @@ pub fn ripgrep(root: String, pattern: String, files: Vec<String>) -> napi::Resul
         .build(&pattern)
         .map_err(|error| napi::Error::from_reason(format!("ripgrep refused the pattern: {error}")))?;
     let root = Path::new(&root);
-    let searched: Vec<Result<Vec<(u32, String)>, String>> = files
-        .par_iter()
-        .map_init(
-            || SearcherBuilder::new().line_number(true).binary_detection(BinaryDetection::convert(b'\0')).build(),
-            |searcher, file| {
-                let mut hits = Vec::new();
-                let sink = Bytes(|line, bytes| {
-                    hits.push((line as u32, shown(bytes)));
-                    Ok(true)
-                });
-                match searcher.search_path(&matcher, root.join(file), sink) {
-                    Ok(()) => Ok(hits),
-                    Err(error) => Err(format!("{file}: {error}")),
-                }
-            },
-        )
-        .collect();
+    let search = || -> Vec<Result<Vec<(u32, String)>, String>> {
+        files
+            .par_iter()
+            .map_init(
+                || SearcherBuilder::new().line_number(true).binary_detection(BinaryDetection::convert(b'\0')).build(),
+                |searcher, file| {
+                    let mut hits = Vec::new();
+                    let sink = Bytes(|line, bytes| {
+                        hits.push((line as u32, shown(bytes)));
+                        Ok(true)
+                    });
+                    match searcher.search_path(&matcher, root.join(file), sink) {
+                        Ok(()) => Ok(hits),
+                        Err(error) => Err(format!("{file}: {error}")),
+                    }
+                },
+            )
+            .collect()
+    };
+    // Every search opens its file, so the files are searched at the disk reader's width.
+    let searched = match opening_pool(None, files.len()) {
+        Ok(pool) => pool.install(search),
+        Err(_) => search(),
+    };
     let mut grepped = Grepped { file: Vec::new(), line: Vec::new(), text: Vec::new(), errors: Vec::new() };
     for (at, result) in searched.into_iter().enumerate() {
         match result {

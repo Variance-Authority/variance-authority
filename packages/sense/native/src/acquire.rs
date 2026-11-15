@@ -257,6 +257,16 @@ pub(crate) fn read_all(
     read.into_iter().map(|(answer, _)| answer).collect()
 }
 
+/// The threads that open `files` worktree files at once: `readers`, or
+/// `READERS`, and never more than there are files. The disk reader and the
+/// native search both open their files in it, because past a few threads at
+/// once each `open` costs the kernel more (journal 0065).
+pub(crate) fn opening_pool(readers: Option<u32>, files: usize) -> Result<ThreadPool, ThreadPoolBuildError> {
+    ThreadPoolBuilder::new()
+        .num_threads(readers.map_or(READERS, |count| count as usize).min(files.max(1)))
+        .build()
+}
+
 /// Read `files` off the disk; `oids` is empty, or Git's name for each file.
 fn read_disk(
     root: String,
@@ -271,13 +281,7 @@ fn read_disk(
     let wanted = digests.unwrap_or(false);
     let at = Path::new(&root);
     let arenas = AllocatorPool::new(rayon::current_num_threads());
-    let opening = ThreadPoolBuilder::new()
-        .num_threads(
-            readers
-                .map_or(READERS, |count| count as usize)
-                .min(files.len().max(1)),
-        )
-        .build();
+    let opening = opening_pool(readers, files.len());
     let mut read = Vec::with_capacity(files.len());
     let mut chunks = (0..files.len()).step_by(CHUNK).map(|from| {
         let to = (from + CHUNK).min(files.len());
