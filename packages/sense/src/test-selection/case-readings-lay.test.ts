@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { layReadings } from './case-readings.js';
 
 describe('case readings without the native addon', () => {
   afterEach(() => {
