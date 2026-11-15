@@ -21,6 +21,8 @@
 use rayon::prelude::*;
 use serde::Deserialize;
 
+use crate::mapped::Mapped;
+
 const MAGIC: &[u8] = b"VAIDXLSM";
 const HEADER_BYTES: usize = MAGIC.len() + 4;
 
@@ -42,7 +44,7 @@ pub(crate) struct Reference {
 
 /// The valid prefix of a committed chain, oldest segment first.
 pub(crate) struct Chain {
-    pub segments: Vec<Vec<u8>>,
+    pub segments: Vec<Mapped>,
     /// Segments the manifest names past the first one that could not be used.
     pub dropped: u32,
     /// Whether the manifest moved under every read: `dropped` then counts
@@ -71,7 +73,7 @@ impl Chain {
     /// The bytes published at the chain's path, read once with the segments
     /// they name, so a digest of them describes exactly this chain.
     pub(crate) fn published(&self) -> &[u8] {
-        self.manifest.as_deref().or_else(|| self.segments.first().map(Vec::as_slice)).unwrap_or(&[])
+        self.manifest.as_deref().or_else(|| self.segments.first().map(|segment| &segment[..])).unwrap_or(&[])
     }
 }
 
@@ -118,11 +120,11 @@ fn read_chain_once(path: &str) -> Result<Option<Chain>, String> {
         Err(error) => return Err(format!("{path}: {error}")),
     };
     if !bytes.starts_with(MAGIC) {
-        return Ok(Some(Chain { segments: vec![bytes], dropped: 0, moved: false, manifest: None, references: Vec::new(), working: 0 }));
+        return Ok(Some(Chain { segments: vec![Mapped::from(bytes)], dropped: 0, moved: false, manifest: None, references: Vec::new(), working: 0 }));
     }
     let (references, working) = manifest(&bytes).ok_or_else(|| format!("{path}: invalid immutable log manifest"))?;
     let directory = format!("{path}.segments");
-    let read: Vec<Option<Vec<u8>>> = references.par_iter().map(|reference| segment(&directory, reference)).collect();
+    let read: Vec<Option<Mapped>> = references.par_iter().map(|reference| segment(&directory, reference)).collect();
     let count = read.iter().position(Option::is_none).unwrap_or(read.len());
     let dropped = (references.len() - count) as u32;
     let segments = read.into_iter().take(count).map(Option::unwrap).collect();
@@ -161,16 +163,15 @@ pub(crate) fn manifest_references_of(bytes: &[u8]) -> Option<(Vec<Reference>, us
 /// The segments of `chain` past its first `known`, for a reader that already holds the first `known`, each
 /// checked against the length it is named with, as [`read_chain_once`] checks them. `None` says one was
 /// missing or of another length, so the caller reads it all.
-pub(crate) fn read_tail(path: &str, chain: &[Reference], known: usize) -> Option<Vec<Vec<u8>>> {
+pub(crate) fn read_tail(path: &str, chain: &[Reference], known: usize) -> Option<Vec<Mapped>> {
     let directory = format!("{path}.segments");
     chain.get(known..)?.par_iter().map(|reference| segment(&directory, reference)).collect()
 }
 
-/// The segment `reference` names in `directory`, if it is there at the length the manifest gives. Reading
-/// is what is left of an open once nothing is hashed, half of it on Kibana, so the readers above read
-/// every segment at once.
-fn segment(directory: &str, reference: &Reference) -> Option<Vec<u8>> {
-    let segment = std::fs::read(crate::log::file_name(directory, &reference.digest)).ok()?;
+/// The segment `reference` names in `directory`, if it is there at the length the manifest gives,
+/// mapped: a question pays for the pages it reads, not for the whole chain.
+fn segment(directory: &str, reference: &Reference) -> Option<Mapped> {
+    let segment = Mapped::open(&crate::log::file_name(directory, &reference.digest)).ok()?;
     (segment.len() as u64 == reference.length).then_some(segment)
 }
 
@@ -180,7 +181,7 @@ mod tests {
     use sha2::{Digest, Sha256};
 
     fn chain(manifest: &[u8], dropped: u32) -> Chain {
-        Chain { segments: vec![Vec::new()], dropped, moved: false, manifest: Some(manifest.to_vec()), references: Vec::new(), working: 0 }
+        Chain { segments: vec![Mapped::from(Vec::new())], dropped, moved: false, manifest: Some(manifest.to_vec()), references: Vec::new(), working: 0 }
     }
 
     #[test]
@@ -235,7 +236,8 @@ mod tests {
             || if std::mem::take(&mut first) { Ok(Some(Chain { segments: Vec::new(), ..chain(&held, 1) })) } else { read_chain_once(path) },
             || Ok(std::fs::read(path).ok()),
         ).unwrap().unwrap();
-        assert_eq!((read.damaged(), read.segments), (0, vec![b"a".to_vec()]));
+        assert_eq!((read.damaged(), read.segments.len()), (0, 1));
+        assert_eq!(read.segments[0], b"a".to_vec());
         std::fs::remove_dir_all(directory).unwrap();
     }
 
@@ -265,8 +267,9 @@ mod tests {
         std::fs::write(segment_file(&path), &changed).unwrap();
         let (references, _) = manifest_references(&path).unwrap();
         let read = read_chain_once(&path).unwrap().unwrap();
-        assert_eq!((read.dropped, read.segments), (0, vec![changed.clone()]));
-        assert_eq!(read_tail(&path, &references, 0), Some(vec![changed]));
+        assert_eq!((read.dropped, read.segments.len()), (0, 1));
+        assert_eq!(read.segments[0], changed);
+        assert_eq!(read_tail(&path, &references, 0).unwrap(), vec![changed]);
         std::fs::remove_dir_all(directory).unwrap();
     }
 
@@ -276,7 +279,7 @@ mod tests {
         std::fs::write(segment_file(&path), &segment[1..]).unwrap();
         let (references, _) = manifest_references(&path).unwrap();
         assert_eq!(read_chain_once(&path).unwrap().unwrap().dropped, 1);
-        assert_eq!(read_tail(&path, &references, 0), None);
+        assert!(read_tail(&path, &references, 0).is_none());
         std::fs::remove_dir_all(directory).unwrap();
     }
 

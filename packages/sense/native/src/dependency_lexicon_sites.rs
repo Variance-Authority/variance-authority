@@ -178,7 +178,7 @@ impl Writer {
     pub fn bytes(&self) -> &[u8] { &self.out.bytes }
 }
 
-fn open_layers(segments: &[Vec<u8>]) -> Option<Vec<Layer<'_>>> {
+fn open_layers(segments: &[crate::mapped::Mapped]) -> Option<Vec<Layer<'_>>> {
     segments.iter().map(|bytes| Layer::open(bytes)).collect::<Result<Vec<_>, _>>().ok()
 }
 

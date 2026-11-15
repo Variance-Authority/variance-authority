@@ -240,14 +240,14 @@ self_cell::self_cell!(
     /// Segments and the layers opened over them, kept together because the
     /// layers borrow the bytes.
     struct Opened {
-        owner: Vec<Vec<u8>>,
+        owner: Vec<crate::mapped::Mapped>,
         #[covariant]
         dependent: Layers,
     }
 );
 
 impl Opened {
-    fn open(segments: Vec<Vec<u8>>) -> Result<Self, String> {
+    fn open(segments: Vec<crate::mapped::Mapped>) -> Result<Self, String> {
         Opened::try_new(segments, |segments| {
             segments.par_iter().enumerate()
                 .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))

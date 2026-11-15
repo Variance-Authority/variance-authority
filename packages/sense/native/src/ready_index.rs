@@ -45,7 +45,7 @@ fn readied(index: &str) -> Result<bool, String> {
     if (over as f64) < SHARE * under as f64 {
         return Ok(false);
     }
-    let layers: Vec<&[u8]> = chain.segments.iter().map(Vec::as_slice).collect();
+    let layers: Vec<&[u8]> = chain.segments.iter().map(|segment| &segment[..]).collect();
     let one = compacted(&layers)?;
     let references: Vec<LogSegment> = chain.references.iter()
         .map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 })
