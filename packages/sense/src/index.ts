@@ -236,7 +236,6 @@ export {
   importersOf,
   memberDeclarationsOf,
   membersOn,
-  outsideSourcesOf,
   readHelp,
   restampHelpStore,
   ripgrepNative,
