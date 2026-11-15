@@ -200,7 +200,7 @@ pub(crate) fn members_on(layers: &[Layer], file: &str, on: &str) -> Vec<Containe
         .map(|at| ContainerMember {
             name: stored.text(parses.member_declaration_name.at(at)).to_owned(),
             line: parses.member_declaration_line.at(at),
-            text: stored.optional(parses.member_declaration_line_text.at(at)).map(str::to_owned),
+            text: stored.kept(parses.member_declaration_line_text.at(at)).map(str::to_owned),
         })
         .collect();
     members.sort_by_key(|member| member.line);

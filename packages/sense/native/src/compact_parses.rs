@@ -223,29 +223,29 @@ impl<'a> Parses<'a> {
     /// The module's own doc comment as written inside its marks; absent
     /// when it writes none or its parse kept no text of it.
     pub fn doc_of_module(&self, stored: &Stored<'a>, row: usize) -> Option<&'a str> {
-        stored.optional(self.doc[2].at(row))
+        stored.kept(self.doc[2].at(row))
     }
 
     /// The doc comment of one export, as [`Self::doc_of_module`] is of the module.
     pub fn doc_of_export(&self, stored: &Stored<'a>, export: usize) -> Option<&'a str> {
-        stored.optional(self.export_doc[2].at(export))
+        stored.kept(self.export_doc[2].at(export))
     }
 
     /// What one export writes before its body, as written; absent when the
     /// reader spanned none or the parse kept no text of it.
     pub fn signature_of_export(&self, stored: &Stored<'a>, export: usize) -> Option<&'a str> {
-        stored.optional(self.export_signature[2].at(export))
+        stored.kept(self.export_signature[2].at(export))
     }
 
     /// The doc comment of one declaration, as [`Self::doc_of_export`] is of an export.
     pub fn doc_of_symbol(&self, stored: &Stored<'a>, symbol: usize) -> Option<&'a str> {
-        stored.optional(self.symbol_doc[2].at(symbol))
+        stored.kept(self.symbol_doc[2].at(symbol))
     }
 
     /// What one declaration writes before its body, as written; absent when
     /// the reader spanned none.
     pub fn signature_of_symbol(&self, stored: &Stored<'a>, symbol: usize) -> Option<&'a str> {
-        stored.optional(self.symbol_signature[2].at(symbol))
+        stored.kept(self.symbol_signature[2].at(symbol))
     }
 
     fn lengths(&self) -> Result<(), String> {

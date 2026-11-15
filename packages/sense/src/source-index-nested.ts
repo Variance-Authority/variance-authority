@@ -18,6 +18,7 @@ import { spanAt, spanColumns, type SpanColumns } from './source-index-harvest.js
 export function openNested(
   opened: OpenSegment,
   text: (value: number) => string,
+  kept: (value: number) => string | undefined,
   parseCount: number,
 ): (row: number) => { readonly nested?: readonly NestedDeclaration[] } {
   const reject = (): never => { throw opened.reject(); };
@@ -32,7 +33,7 @@ export function openNested(
   validateOffsets(offsets, name.length, parseCount, reject);
   sameLength(name.length, [kind, line, ...signature, ...docs, holder, holderLine], reject);
 
-  const span = (columns: SpanColumns, at: number): TextSpan | undefined => spanAt(columns, at, text, reject);
+  const span = (columns: SpanColumns, at: number): TextSpan | undefined => spanAt(columns, at, kept, reject);
 
   return (row) => {
     const nested = rangeOf(offsets, row, reject).map((at): NestedDeclaration => {

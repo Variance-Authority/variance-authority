@@ -36,7 +36,27 @@ fn every_column_the_decoder_names_is_written_in_its_order() {
     assert_eq!(names.last(), Some(&"packages.kind"));
     let path = names.iter().position(|name| *name == "targets.path").unwrap();
     assert_eq!(names[path + 1..path + 4], ["targets.reverse-to", "targets.reverse", "targets.reverse-row"]);
-    assert_eq!(names.len(), 137);
+    assert_eq!(names.len(), 139);
+}
+
+#[test]
+fn a_kept_text_is_read_back_from_the_heap_and_never_enters_the_dictionary() {
+    let delta: Delta = serde_json::from_str(
+        r#"{"parses":[["git:a\u0000.ts\u0000+",{"requests":[],"exports":[{"exported":"open","local":"open","line":2,
+            "signature":{"start":10,"end":30,"text":"export function open()"},
+            "doc":{"start":0,"end":9,"text":"Opens the door nobody looks up."},
+            "lineText":"export function open() {"}]}]]}"#,
+    )
+    .unwrap();
+    let parses: Vec<(&str, &HeldParse)> = delta.parses.iter().map(|(key, parse)| (key.as_str(), parse)).collect();
+    let bytes = encode_generation(&Generation { config: None, directories: &[], parses: &parses, records: &[], deleted: Deleted::default() });
+    let stored = crate::stored::Stored::open(&bytes).unwrap();
+    let kept = |column: &str| stored.kept(stored.u32s(column).unwrap().at(0));
+    assert_eq!(kept("exports.signature-text"), Some("export function open()"));
+    assert_eq!(kept("exports.doc-text"), Some("Opens the door nobody looks up."));
+    assert_eq!(kept("exports.line-text"), Some("export function open() {"));
+    let dictionary = String::from_utf8_lossy(stored.u8s("strings.blob").unwrap());
+    assert!(!dictionary.contains("nobody looks up") && !dictionary.contains("function"), "{dictionary}");
 }
 
 #[test]

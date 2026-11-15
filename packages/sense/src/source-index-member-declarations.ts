@@ -1,4 +1,4 @@
-import { NONE, rangeOf, sameLength, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
+import { rangeOf, sameLength, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
 import type { MemberDeclaration } from './cache.js';
 import { spanAt, spanColumns } from './source-index-harvest.js';
 
@@ -16,6 +16,7 @@ import { spanAt, spanColumns } from './source-index-harvest.js';
 export function openMemberDeclarations(
   opened: OpenSegment,
   text: (value: number) => string,
+  kept: (value: number) => string | undefined,
   parseCount: number,
 ): (row: number) => { readonly memberDeclarations?: readonly MemberDeclaration[] } {
   const reject = (): never => { throw opened.reject(); };
@@ -30,13 +31,14 @@ export function openMemberDeclarations(
 
   return (row) => {
     const memberDeclarations = rangeOf(offsets, row, reject).map((at): MemberDeclaration => {
-      const doc = spanAt(docs, at, text, reject);
+      const doc = spanAt(docs, at, kept, reject);
+      const written = kept(lineText[at]!);
       return {
         name: text(name[at]!),
         line: line[at]!,
         on: text(on[at]!),
         ...(doc === undefined ? {} : { doc }),
-        ...(lineText[at] === NONE ? {} : { lineText: text(lineText[at]!) }),
+        ...(written === undefined ? {} : { lineText: written }),
       };
     });
     return memberDeclarations.length === 0 ? {} : { memberDeclarations };

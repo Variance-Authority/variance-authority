@@ -247,7 +247,7 @@ fn flag(column: &[u8], row: usize) -> bool {
 /// A span with both ends and its text, or none: `span` in `source-index-harvest.ts`.
 fn span<'a>(stored: &Stored<'a>, [starts, ends, texts]: [U32s; 3], row: usize) -> Option<(u32, u32, Option<&'a str>)> {
     let (start, end) = (starts.at(row), ends.at(row));
-    (start != NONE || end != NONE).then(|| (start, end, stored.optional(texts.at(row))))
+    (start != NONE || end != NONE).then(|| (start, end, stored.kept(texts.at(row))))
 }
 
 #[path = "compact_parses.rs"]

@@ -8,7 +8,7 @@
 
 // compass: variance-authority.reach.source-index
 
-use crate::parse_columns::{spanned, ParseColumns, ParseRow};
+use crate::parse_columns::{ParseColumns, ParseRow};
 use crate::read::{Binding, Kind, Read, Request};
 use crate::segment::{Collected, Strings};
 use crate::stored::{Stored, U32s};
@@ -138,31 +138,15 @@ impl ParseRow for ParseView<'_, '_> {
         }
         for at in columns.nested.range(row) {
             into.extend(stored.optional(columns.nested_holder.at(at)));
-            into.extend(stored.optional(columns.nested_signature[2].at(at)));
-            into.extend(stored.optional(columns.nested_doc[2].at(at)));
         }
-        for export in self.exports() {
-            for column in [columns.export_signature[2], columns.export_doc[2], columns.export_line_text] {
-                into.extend(stored.optional(column.at(export)));
-            }
-        }
-        for symbol in columns.symbols.range(row) {
-            into.extend(stored.optional(columns.symbol_signature[2].at(symbol)));
-            into.extend(stored.optional(columns.symbol_doc[2].at(symbol)));
-        }
-        for at in columns.member_declarations.range(row) {
-            into.extend(stored.optional(columns.member_declaration_doc[2].at(at)));
-            into.extend(stored.optional(columns.member_declaration_line_text.at(at)));
-        }
-        into.extend(stored.optional(columns.doc[2].at(row)));
         into.extend(self.unknown());
     }
 
     fn write(&self, strings: &Strings, into: &mut ParseColumns) {
         let (stored, columns, row) = (self.stored, self.columns, self.row);
         let id = |column: U32s, at: usize| strings.id(stored.text(column.at(at)));
-        let span = |ends, at: usize| spanned(strings, span(stored, ends, at));
-        let text = |column: U32s, at: usize| strings.optional(stored.optional(column.at(at)));
+        let span = |ends, at: usize| span(stored, ends, at);
+        let text = |column: U32s, at: usize| stored.kept(column.at(at));
         for request in columns.requests.range(row) {
             into.request(
                 id(columns.request_value, request),

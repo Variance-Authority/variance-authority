@@ -14,16 +14,18 @@ const REACHES: readonly SourceSymbolReach[] = ['file', 'module', 'underscore', '
 export type SpanColumns = readonly [starts: Uint32Array, ends: Uint32Array, texts: Uint32Array];
 
 /**
- * The span three columns hold at `at`, with the text the index kept of it:
- * absent when both ends are, and `reject`ed when one is or it runs backwards.
+ * The span three columns hold at `at`, with the text the index kept of it in
+ * its text heap: absent when both ends are, and `reject`ed when one is or it
+ * runs backwards.
  */
-export function spanAt([starts, ends, texts]: SpanColumns, at: number, text: (value: number) => string, reject: () => never): TextSpan | undefined {
+export function spanAt([starts, ends, texts]: SpanColumns, at: number, kept: (value: number) => string | undefined, reject: () => never): TextSpan | undefined {
   const start = starts[at];
   const end = ends[at];
-  const kept = texts[at];
+  const id = texts[at];
   if (start === NONE && end === NONE) return undefined;
-  if (start === undefined || end === undefined || kept === undefined || start === NONE || end === NONE || end < start) reject();
-  return kept === NONE ? { start, end } : { start, end, text: text(kept) };
+  if (start === undefined || end === undefined || id === undefined || start === NONE || end === NONE || end < start) reject();
+  const text = kept(id);
+  return text === undefined ? { start, end } : { start, end, text };
 }
 
 /** Open a span's three columns, `<name>-start`, `-end` and `-text`. */
@@ -43,6 +45,7 @@ export interface HarvestReader {
 export function openHarvest(
   opened: OpenSegment,
   text: (value: number) => string,
+  kept: (value: number) => string | undefined,
   parseCount: number,
   exportCount: number,
 ): HarvestReader {
@@ -63,7 +66,7 @@ export function openHarvest(
   sameLength(exportCount, [...exportSignature, ...exportDoc], reject);
   sameLength(parseCount, [...moduleDoc], reject);
 
-  const span = (columns: SpanColumns, row: number): TextSpan | undefined => spanAt(columns, row, text, reject);
+  const span = (columns: SpanColumns, row: number): TextSpan | undefined => spanAt(columns, row, kept, reject);
 
   return {
     symbols: (row) => rangeOf(parseSymbols, row, reject).map((at) => {

@@ -68,7 +68,7 @@ pub(crate) fn export_line(layers: &[Layer], file: &str, line: u32) -> Option<Str
         return None;
     }
     let export = parses.exports.range(row).find(|&export| parses.export_line.at(export) == line)?;
-    stored.optional(parses.export_line_text.at(export)).map(str::to_owned)
+    stored.kept(parses.export_line_text.at(export)).map(str::to_owned)
 }
 
 /// Whether `file`'s bare `export * from` of `star` passes `name` on: the

@@ -38,7 +38,7 @@ import { packageOf } from './specifier.js';
  */
 const FORMAT = 'variance-authority-source-index';
 /** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
-export const SOURCE_INDEX_VERSION = 46;
+export const SOURCE_INDEX_VERSION = 47;
 const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
@@ -140,6 +140,9 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
     return strings(value);
   };
   const optional = (value: number): string | undefined => value === NONE ? undefined : text(value);
+  // The signatures, docs and lines a parse cut: a heap beside the dictionary,
+  // read by row, never looked up by value.
+  const kept = openStrings(opened.u8('texts.blob'), opened.u32('texts.off'), invalid).optional;
 
   const parseKey = opened.u32('parses.key');
   const parseWay = opened.u32('parses.key-way');
@@ -171,13 +174,13 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
   const exportTags = opened.u8('exports.tags');
   const exportLineText = opened.u32('exports.line-text');
   const declareName = opened.u32('declares.name');
-  const harvest = openHarvest(opened, text, parseKey.length, exportExported.length);
+  const harvest = openHarvest(opened, text, kept, parseKey.length, exportExported.length);
   const mocksOf = openMocks(opened, text, parseKey.length);
   const membersOf = openMembers(opened, text, parseKey.length);
-  const declaredMembersOf = openMemberDeclarations(opened, text, parseKey.length);
+  const declaredMembersOf = openMemberDeclarations(opened, text, kept, parseKey.length);
   const memberUsesOf = openMemberUses(opened, text, parseKey.length);
   const ownUsesOf = openOwnUses(opened, text, parseKey.length);
-  const nestedOf = openNested(opened, text, parseKey.length);
+  const nestedOf = openNested(opened, text, kept, parseKey.length);
   const bindingMembersOf = openBindingMembers(opened, text, parseKey.length);
   const sizeOf = openSize(opened, parseKey.length);
   validateOffset(parseRequests, requestValue.length, parseKey.length);
@@ -216,7 +219,7 @@ export function decodeSourceIndex(input: Uint8Array, decided?: DecidedKeys): Sto
       const signature = harvest.exportSignature(entry);
       const doc = harvest.exportDoc(entry);
       const roles = declaredRoles(exportTags[entry]!);
-      const lineText = optional(exportLineText[entry]!);
+      const lineText = kept(exportLineText[entry]!);
       return {
         ...(exported === undefined ? {} : { exported }),
         ...(local === undefined ? {} : { local }),

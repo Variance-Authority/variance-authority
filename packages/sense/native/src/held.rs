@@ -12,7 +12,7 @@
 
 use serde::Deserialize;
 
-use crate::parse_columns::{ParseColumns, ParseRow, Span};
+use crate::parse_columns::{ParseColumns, ParseRow};
 use crate::segment::{Collected, Strings};
 
 #[derive(Debug, Deserialize)]
@@ -193,10 +193,6 @@ fn raw(value: &Option<HeldSpan>) -> Option<(u32, u32, Option<&str>)> {
     value.as_ref().map(|span| (span.start.unwrap_or(NONE), span.end.unwrap_or(NONE), span.text.as_deref()))
 }
 
-fn text(value: &Option<HeldSpan>) -> Option<&str> {
-    value.as_ref().and_then(|span| span.text.as_deref())
-}
-
 impl ParseRow for HeldParse {
     fn strings<'s>(&'s self, values: &mut Collected<'s>) {
         for request in &self.requests {
@@ -207,20 +203,14 @@ impl ParseRow for HeldParse {
                 values.insert(&binding.local);
             }
         }
-        values.extend(text(&self.doc));
         for export in self.exports.iter().flatten() {
             for value in [&export.exported, &export.local, &export.from, &export.imported].into_iter().flatten() {
                 values.insert(value);
             }
-            values.extend(text(&export.signature));
-            values.extend(text(&export.doc));
-            values.extend(export.line_text.as_deref());
         }
         for symbol in &self.symbols {
             values.insert(&symbol.name);
             values.insert(&symbol.kind);
-            values.extend(text(&symbol.signature));
-            values.extend(text(&symbol.doc));
         }
         values.extend(self.mocks.minus.iter().map(String::as_str));
         values.extend(self.mocks.plus.iter().map(String::as_str));
@@ -228,8 +218,6 @@ impl ParseRow for HeldParse {
         for declared in &self.member_declarations {
             values.insert(&declared.name);
             values.insert(&declared.on);
-            values.extend(text(&declared.doc));
-            values.extend(declared.line_text.as_deref());
         }
         for used in &self.member_uses {
             values.insert(&used.name);
@@ -241,8 +229,6 @@ impl ParseRow for HeldParse {
             values.insert(&nested.name);
             values.insert(&nested.kind);
             values.extend(nested.holder.as_deref());
-            values.extend(text(&nested.signature));
-            values.extend(text(&nested.doc));
         }
         for read in &self.binding_members {
             values.insert(&read.binding);
@@ -255,7 +241,7 @@ impl ParseRow for HeldParse {
 
     fn write(&self, strings: &Strings, into: &mut ParseColumns) {
         let id = |value: &str| strings.id(value);
-        let span = |value: &Option<HeldSpan>| -> Span { crate::parse_columns::spanned(strings, raw(value)) };
+        let span = raw;
         for request in &self.requests {
             into.request(
                 id(&request.value),
@@ -277,7 +263,7 @@ impl ParseRow for HeldParse {
                 span(&export.signature),
                 span(&export.doc),
                 export.tags,
-                strings.optional(export.line_text.as_deref()),
+                export.line_text.as_deref(),
             );
         }
         for symbol in &self.symbols {
@@ -291,7 +277,7 @@ impl ParseRow for HeldParse {
             into.member(member.request, id(&member.name), member.line, member.through_default);
         }
         for declared in &self.member_declarations {
-            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(&declared.doc), strings.optional(declared.line_text.as_deref()));
+            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(&declared.doc), declared.line_text.as_deref());
         }
         for used in &self.member_uses {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));

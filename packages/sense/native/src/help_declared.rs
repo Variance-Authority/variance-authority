@@ -312,7 +312,7 @@ pub(crate) fn declared(root: &str, layers: &[Layer], query: &str, matching: Matc
                     let on = text.text(parses.member_declaration_on.at(at)).to_lowercase();
                     let dotted = query.rsplit_once('.').is_some_and(|(asked_on, asked)| asked_on == on && asked == name);
                     let doc = names[Item::Member as usize].doc(at);
-                    if name.contains(query) || dotted || doc_holds(Said::of(doc, text.optional(parses.member_declaration_doc[2].at(at)))) {
+                    if name.contains(query) || dotted || doc_holds(Said::of(doc, text.kept(parses.member_declaration_doc[2].at(at)))) {
                         hits.push((layer, crossing.file, Row::Member(at), None));
                     }
                 }
@@ -390,8 +390,8 @@ fn nested_name(layers: &[Layer], layer: usize, at: &str, nested: usize, by: &str
         by: by.to_owned(),
         line: parses.nested_line.at(nested),
         file_kind: kind_of(at).to_owned(),
-        signature: text.optional(parses.nested_signature[2].at(nested)).and_then(text_cut::head),
-        doc: text.optional(parses.nested_doc[2].at(nested)).and_then(text_cut::doc),
+        signature: text.kept(parses.nested_signature[2].at(nested)).and_then(text_cut::head),
+        doc: text.kept(parses.nested_doc[2].at(nested)).and_then(text_cut::doc),
         reach: None,
         held: None,
         named: None,
@@ -414,7 +414,7 @@ fn member_name(layers: &[Layer], layer: usize, at: &str, member: usize, by: &str
         line: parses.member_declaration_line.at(member),
         file_kind: kind_of(at).to_owned(),
         signature: None,
-        doc: text.optional(parses.member_declaration_doc[2].at(member)).and_then(text_cut::doc),
+        doc: text.kept(parses.member_declaration_doc[2].at(member)).and_then(text_cut::doc),
         reach: None,
         held: None,
         named: None,

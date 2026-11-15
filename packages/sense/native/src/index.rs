@@ -61,30 +61,19 @@ impl ParseRow for Read {
                 values.insert(&binding.local);
             }
         }
-        fn texts(span: &Option<crate::harvest::TextSpan>) -> Option<&str> {
-            span.as_ref().and_then(|span| span.text.as_deref())
-        }
-        values.extend(texts(&self.doc));
         for export in &self.exports {
             for value in [&export.exported, &export.local, &export.from, &export.imported].into_iter().flatten() {
                 values.insert(value);
             }
-            values.extend(texts(&export.signature));
-            values.extend(texts(&export.doc));
-            values.extend(export.line_text.as_deref());
         }
         for symbol in &self.symbols {
             values.insert(&symbol.name);
             values.insert(symbol.kind);
-            values.extend(texts(&symbol.signature));
-            values.extend(texts(&symbol.doc));
         }
         for nested in &self.nested {
             values.insert(&nested.name);
             values.insert(nested.kind);
             values.extend(nested.holder.as_deref());
-            values.extend(nested.signature.text.as_deref());
-            values.extend(texts(&nested.doc));
         }
         values.extend(self.declares.iter().map(String::as_str));
         values.extend(self.mocks.minus.iter().map(String::as_str));
@@ -93,8 +82,6 @@ impl ParseRow for Read {
         for declared in &self.member_declarations {
             values.insert(&declared.name);
             values.insert(&declared.on);
-            values.extend(texts(&declared.doc));
-            values.extend(declared.line_text.as_deref());
         }
         for used in &self.member_uses {
             values.insert(&used.name);
@@ -125,7 +112,7 @@ impl ParseRow for Read {
                 }),
             );
         }
-        let span = |span: &Option<crate::harvest::TextSpan>| crate::parse_columns::spanned(strings, raw(span));
+        let span = raw;
         for export in &self.exports {
             into.export(
                 [&export.exported, &export.local, &export.from, &export.imported]
@@ -135,7 +122,7 @@ impl ParseRow for Read {
                 span(&export.signature),
                 span(&export.doc),
                 export.tags,
-                strings.optional(export.line_text.as_deref()),
+                export.line_text.as_deref(),
             );
         }
         for symbol in &self.symbols {
@@ -149,7 +136,7 @@ impl ParseRow for Read {
             into.member(member.request, id(&member.name), member.line, member.through_default);
         }
         for declared in &self.member_declarations {
-            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(&declared.doc), strings.optional(declared.line_text.as_deref()));
+            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(&declared.doc), declared.line_text.as_deref());
         }
         for used in &self.member_uses {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));
@@ -159,7 +146,7 @@ impl ParseRow for Read {
         }
         for nested in &self.nested {
             let holder = strings.optional(nested.holder.as_deref());
-            into.nested(id(&nested.name), id(nested.kind), nested.line, Some((nested.signature.start, nested.signature.end, strings.optional(nested.signature.text.as_deref()))), span(&nested.doc), holder, nested.holder_line);
+            into.nested(id(&nested.name), id(nested.kind), nested.line, Some((nested.signature.start, nested.signature.end, nested.signature.text.as_deref())), span(&nested.doc), holder, nested.holder_line);
         }
         for read in &self.binding_members {
             into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);

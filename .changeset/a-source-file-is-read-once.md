@@ -18,5 +18,5 @@ from JavaScript.
 An answer now prints a file's text as the index read it, also when the file was
 written since: the date line still says the checkout was not compared, and
 nothing of what the file holds today is mixed into it. The source index format
-moves to version 46, so the first command after upgrading reads the checkout
+moves to version 47, so the first command after upgrading reads the checkout
 once more.

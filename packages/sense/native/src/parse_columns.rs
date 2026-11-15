@@ -42,13 +42,37 @@ pub trait ParseRow {
     fn words(&self, item: Item, at: usize) -> Option<Option<Cow<'_, str>>>;
 }
 
-/// A text span's two ends and its text's id, `NONE` where there is none, or
-/// `NONE` three times when there is no span.
-pub type Span = Option<(u32, u32, u32)>;
+/// A text span's two ends and the text it holds, when the row kept it; absent
+/// when there is no span.
+pub type Span<'t> = Option<(u32, u32, Option<&'t str>)>;
 
-/// A span as [`Span`] stores it, its text interned in `strings`.
-pub fn spanned(strings: &Strings, span: Option<(u32, u32, Option<&str>)>) -> Span {
-    span.map(|(start, end, text)| (start, end, strings.optional(text)))
+/// The text heap: the signatures, docs and lines the parse cut, each where
+/// its row put it. Not the dictionary: these are long, mostly unique and
+/// never looked up by value, and sorting them into it was most of what they
+/// cost to write.
+#[derive(Default)]
+struct Heap {
+    blob: Vec<u8>,
+    ends: Vec<u32>,
+}
+
+impl Heap {
+    /// The id of `text` once appended, or `NONE` when there is none.
+    fn push(&mut self, text: Option<&str>) -> u32 {
+        let Some(text) = text else { return NONE };
+        self.blob.extend_from_slice(text.as_bytes());
+        self.ends.push(self.blob.len() as u32);
+        self.ends.len() as u32 - 1
+    }
+
+    /// `texts.blob` and `texts.off`: the `id`-th text runs from offset `id`
+    /// to offset `id + 1`, and the first offset is 0.
+    fn columns(self) -> [Column; 2] {
+        let mut off = Vec::with_capacity(self.ends.len() + 1);
+        off.push(0);
+        off.extend(self.ends);
+        [u8s("texts.blob", self.blob), u32s("texts.off", off)]
+    }
 }
 
 /// What [`ParseRow::words`] answers of a doc: absent when there is no span,
@@ -144,12 +168,13 @@ pub struct ParseColumns {
     declare_name: Vec<u32>,
     /// The name table, one column per [`Item`].
     names: [NameColumn; 4],
+    texts: Heap,
 }
 
-fn span(into: &mut [Vec<u32>; 3], value: Span) {
+fn span(into: &mut [Vec<u32>; 3], texts: &mut Heap, value: Span) {
     into[0].push(value.map_or(NONE, |(start, _, _)| start));
     into[1].push(value.map_or(NONE, |(_, end, _)| end));
-    into[2].push(value.map_or(NONE, |(_, _, text)| text));
+    into[2].push(texts.push(value.and_then(|(_, _, text)| text)));
 }
 
 impl ParseColumns {
@@ -167,7 +192,7 @@ impl ParseColumns {
             columns.bytes.push(size.map_or(NONE, |size| size.bytes));
             columns.lines.push(size.map_or(NONE, |size| size.lines));
             columns.blocks.push(size.and_then(|size| size.blocks).unwrap_or(NONE));
-            span(&mut columns.doc, spanned(strings, row.doc()));
+            span(&mut columns.doc, &mut columns.texts, row.doc());
             columns.names[Item::Module as usize].push("", row.doc().is_some(), row.words(Item::Module, 0).as_ref().map(|words| words.as_deref()));
             let before = [columns.symbol_name.len(), columns.nested_name.len(), columns.member_declaration_name.len()];
             row.write(strings, &mut columns);
@@ -232,8 +257,8 @@ impl ParseColumns {
 
     /// One export; each name is an id or `NONE`.
     #[allow(clippy::too_many_arguments, reason = "one column each, in the encoder's order")]
-    /// `line_text` is the id of the text of the line it is written on, or `NONE`.
-    pub fn export(&mut self, names: [u32; 4], type_only: bool, line: u32, signature: Span, doc: Span, tags: u8, line_text: u32) {
+    /// `line_text` is the text of the line it is written on, when the row kept it.
+    pub fn export(&mut self, names: [u32; 4], type_only: bool, line: u32, signature: Span, doc: Span, tags: u8, line_text: Option<&str>) {
         let [exported, local, from, imported] = names;
         self.export_exported.push(exported);
         self.export_local.push(local);
@@ -241,10 +266,10 @@ impl ParseColumns {
         self.export_imported.push(imported);
         self.export_type.push(u8::from(type_only));
         self.export_line.push(line);
-        span(&mut self.export_signature, signature);
-        span(&mut self.export_doc, doc);
+        span(&mut self.export_signature, &mut self.texts, signature);
+        span(&mut self.export_doc, &mut self.texts, doc);
         self.export_tags.push(tags);
-        self.export_line_text.push(line_text);
+        self.export_line_text.push(self.texts.push(line_text));
     }
 
     /// `reach` as [`crate::harvest::reach_code`] stores it.
@@ -252,8 +277,8 @@ impl ParseColumns {
         self.symbol_name.push(name);
         self.symbol_kind.push(kind);
         self.symbol_line.push(line);
-        span(&mut self.symbol_signature, signature);
-        span(&mut self.symbol_doc, doc);
+        span(&mut self.symbol_signature, &mut self.texts, signature);
+        span(&mut self.symbol_doc, &mut self.texts, doc);
         self.symbol_reach.push(reach);
     }
 
@@ -274,12 +299,12 @@ impl ParseColumns {
     }
 
     /// `line_text` is as [`Self::export`] takes it.
-    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32, doc: Span, line_text: u32) {
+    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32, doc: Span, line_text: Option<&str>) {
         self.member_declaration_name.push(name);
         self.member_declaration_line.push(line);
         self.member_declaration_on.push(on);
-        span(&mut self.member_declaration_doc, doc);
-        self.member_declaration_line_text.push(line_text);
+        span(&mut self.member_declaration_doc, &mut self.texts, doc);
+        self.member_declaration_line_text.push(self.texts.push(line_text));
     }
 
     pub fn member_use(&mut self, name: u32, line: u32, of: u32, how: u32) {
@@ -301,8 +326,8 @@ impl ParseColumns {
         self.nested_name.push(name);
         self.nested_kind.push(kind);
         self.nested_line.push(line);
-        span(&mut self.nested_signature, signature);
-        span(&mut self.nested_doc, doc);
+        span(&mut self.nested_signature, &mut self.texts, signature);
+        span(&mut self.nested_doc, &mut self.texts, doc);
         self.nested_holder.push(holder);
         self.nested_holder_line.push(holder_line);
     }
@@ -431,6 +456,7 @@ impl ParseColumns {
         ]
         .into_iter()
         .chain(NameColumn::columns(self.names))
+        .chain(self.texts.columns())
         .collect()
     }
 }
