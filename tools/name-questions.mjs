@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync, execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -22,12 +22,21 @@ import { digestString } from '@variance-authority/core/format';
  * in beside the set. Two kept runs compare line for line; a `.out` on either
  * side compares by digest and names the answers that differ.
  *
+ * With `--runs`, every run's answer is held against the first: one a later run
+ * gave otherwise is kept beside it in `<answer>.unstable`, and `compare` counts
+ * it as not the same, on either side, kept or digested.
+ *
  * `VARIANCE_AUTHORITY_CACHE` passes through, so the index asked is the caller's.
  * `--bin` asks another build, such as a checkout of `main`, the same questions.
  */
 
 const BUILT = resolve(import.meta.dirname, '../packages/cli/dist/bin.js');
 const SNAPSHOT = /^Snapshot .*$/gm;
+/** Beside an answer, the answers later runs of the same build gave otherwise. */
+const UNSTABLE = '.unstable';
+/** An unstable answer's place in a digest, where its digest would be. */
+const MOVED = 'unstable';
+const ANSWERED_OTHERWISE = 'answered otherwise by another run of the same build';
 
 /** The questions in a set, each as the `ask` arguments it is put with. */
 export function questionsOf(text) {
@@ -58,8 +67,8 @@ function asked(set, workspace, out, runs, bin) {
   const rows = [`# ${execFileSync('uptime', { encoding: 'utf8' }).trim()}`, ['question', 'runs', 'median_ms', 'worst_ms', 'bytes', 'exit', 'same'].join('\t')];
   questionsOf(readFileSync(set, 'utf8')).forEach((question, at) => {
     const times = [];
+    const moved = [];
     let first;
-    let same = true;
     let status = 0;
     for (let run = 0; run < runs; run++) {
       const started = process.hrtime.bigint();
@@ -68,9 +77,11 @@ function asked(set, workspace, out, runs, bin) {
       const text = `${answer.stdout}${answer.stderr === '' ? '' : `\n--- stderr\n${answer.stderr}`}`;
       status = answer.status ?? -1;
       if (first === undefined) first = text;
-      else if (masked(text) !== masked(first)) same = false;
+      else if (masked(text) !== masked(first)) moved.push(`--- run ${run + 1} of ${runs}\n${text}`);
     }
+    const same = moved.length === 0;
     writeFileSync(join(out, fileOf(question, at)), first);
+    if (!same) writeFileSync(join(out, `${fileOf(question, at)}${UNSTABLE}`), moved.join('\n'));
     rows.push([question.join(' '), runs, median(times).toFixed(1), Math.max(...times).toFixed(1), Buffer.byteLength(first), status, same].join('\t'));
     process.stderr.write(`${rows.at(-1)}\n`);
   });
@@ -79,10 +90,15 @@ function asked(set, workspace, out, runs, bin) {
 }
 
 const answersIn = (dir) => readdirSync(dir).filter((file) => file.endsWith('.txt')).sort();
+const movedIn = (dir, name) => existsSync(join(dir, `${name}${UNSTABLE}`));
 
-/** A kept run's digest: one line per answer, its file, the digest of its masked text, bytes and lines. */
+/**
+ * A kept run's digest: one line per answer, its file, the digest of its masked text, bytes and lines,
+ * or `unstable` in their place for an answer another run of the build gave otherwise.
+ */
 function digestOf(dir) {
   return answersIn(dir).map((name) => {
+    if (movedIn(dir, name)) return [name, MOVED].join('\t');
     const text = masked(readFileSync(join(dir, name), 'utf8'));
     return [name, digestString(text), Buffer.byteLength(text), text.split('\n').length].join('\t');
   });
@@ -98,8 +114,11 @@ function compared(left, right) {
   if (!statSync(left).isDirectory() || !statSync(right).isDirectory()) {
     const [a, b] = [digestsOf(left), digestsOf(right)];
     const names = [...new Set([...a.keys(), ...b.keys()])].sort();
-    const differ = names.filter((name) => a.get(name) !== b.get(name));
-    for (const name of differ) console.log(`${name}: ${a.get(name) ?? 'kept on one side only'} and ${b.get(name) ?? 'kept on one side only'}`);
+    const differ = names.filter((name) => a.get(name) !== b.get(name) || a.get(name) === MOVED);
+    for (const name of differ) {
+      if (a.get(name) === MOVED || b.get(name) === MOVED) console.log(`${name}: ${ANSWERED_OTHERWISE}`);
+      else console.log(`${name}: ${a.get(name) ?? 'kept on one side only'} and ${b.get(name) ?? 'kept on one side only'}`);
+    }
     console.log(`${names.length - differ.length} of ${names.length} answers the same`);
     return differ.length === 0;
   }
@@ -107,6 +126,7 @@ function compared(left, right) {
   let differ = 0;
   for (const name of names) {
     const read = (dir) => { try { return masked(readFileSync(join(dir, name), 'utf8')); } catch { return undefined; } };
+    if (movedIn(left, name) || movedIn(right, name)) { differ++; console.log(`${name}: ${ANSWERED_OTHERWISE}`); continue; }
     const [a, b] = [read(left), read(right)];
     if (a === b) continue;
     differ++;
