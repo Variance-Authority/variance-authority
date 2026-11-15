@@ -41,10 +41,16 @@ pub struct Snapshot {
 /// outside a repository would be useless in exactly the tarball and sandbox
 /// cases it should handle quietly.
 pub fn snapshot(root: &str) -> Option<Snapshot> {
-    let prefix = git(root, &["rev-parse", "--show-prefix"], None)?;
-    let prefix = trim(&prefix);
+    // One call names the root's place and `HEAD`'s tree, and the object store
+    // lists the tree in-process; `ls-tree` answers where it will not, as under a
+    // replace ref or on an unborn branch.
+    let (asked, held) = match crate::git_store::head(std::path::Path::new(root)) {
+        Some(head) => (head.prefix.into_bytes(), head.blobs),
+        None => (trim(&git(root, &["rev-parse", "--show-prefix"], None)?).to_vec(), None),
+    };
+    let prefix = asked.as_slice();
     let (listing, status) = std::thread::scope(|scope| {
-        let listing = scope.spawn(|| git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None));
+        let listing = scope.spawn(|| held.is_none().then(|| git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None).map(Listing::Printed)).flatten());
         // `core.fsmonitor` and `core.untrackedCache` are left to the repository,
         // for the reason `working-tree-changes.ts` gives: they are what make this
         // call cheap, and overriding either way spends a user's configuration on
@@ -62,37 +68,53 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
     // A repository with no commit yet has no tree to list, and that is an empty
     // listing rather than an unanswerable one: `status` names every file as
     // added or untracked, and the overlay hashes each of them from disk.
-    let listing = match listing {
+    let listing = match held.map(Listing::Held).or(listing) {
         Some(listing) => listing,
-        None if unborn(root) => Vec::new(),
+        None if unborn(root) => Listing::Printed(Vec::new()),
         None => return None,
     };
 
     // Kept in the order `ls-tree` prints it, which is byte order over the whole
     // path: a map here would scatter it, and putting it back cost more than
     // reading it did. The overlay is the part that moves, and it is small.
-    let mut listed: Vec<(Vec<u8>, Oid)> = Vec::with_capacity(listing.len() / 96);
+    let mut listed: Vec<(Vec<u8>, Oid)> = Vec::new();
     let mut links: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
-    for entry in listing.split(|byte| *byte == 0) {
-        // `<mode> <type> <object>\t<path>`, and only blobs are files.
-        let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
-            continue;
-        };
-        let (head, path) = entry.split_at(tab);
-        let mut fields = head.split(|byte| *byte == b' ');
-        let (mode, kind, object) = (fields.next(), fields.next(), fields.next());
-        if kind != Some(b"blob".as_slice()) {
-            continue;
+    match listing {
+        Listing::Held(blobs) => {
+            listed.reserve(blobs.len());
+            for (path, id, link) in blobs {
+                if link {
+                    links.insert(path.clone());
+                }
+                let mut oid = [0u8; 20];
+                oid.copy_from_slice(id.as_bytes());
+                listed.push((path, oid));
+            }
         }
-        let Some(oid) = object.and_then(parse_oid) else {
-            continue;
-        };
-        let path = &path[1..];
-        let relative = path.strip_prefix(prefix).unwrap_or(path);
-        if mode == Some(b"120000".as_slice()) {
-            links.insert(relative.to_vec());
+        Listing::Printed(listing) => {
+            listed.reserve(listing.len() / 96);
+            for entry in listing.split(|byte| *byte == 0) {
+                // `<mode> <type> <object>\t<path>`, and only blobs are files.
+                let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
+                    continue;
+                };
+                let (head, path) = entry.split_at(tab);
+                let mut fields = head.split(|byte| *byte == b' ');
+                let (mode, kind, object) = (fields.next(), fields.next(), fields.next());
+                if kind != Some(b"blob".as_slice()) {
+                    continue;
+                }
+                let Some(oid) = object.and_then(parse_oid) else {
+                    continue;
+                };
+                let path = &path[1..];
+                let relative = path.strip_prefix(prefix).unwrap_or(path);
+                if mode == Some(b"120000".as_slice()) {
+                    links.insert(relative.to_vec());
+                }
+                listed.push((relative.to_vec(), oid));
+            }
         }
-        listed.push((relative.to_vec(), oid));
     }
 
     let (moved, unhashed) = match overlay(root, prefix, status, &links) {
@@ -196,6 +218,12 @@ pub(crate) fn untracked_question(prefix: &[u8], settings: UntrackedSettings) -> 
     } else {
         vec!["--untracked-files=all", "--", "."]
     }
+}
+
+/// What `HEAD` holds below the root: read from the object store, or printed by `ls-tree`.
+enum Listing {
+    Held(Vec<(Vec<u8>, gix_hash::ObjectId, bool)>),
+    Printed(Vec<u8>),
 }
 
 /// Whether `HEAD` names a branch nobody has committed to yet.
