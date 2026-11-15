@@ -35,7 +35,7 @@ code.
 
 | Kind | The body shows | Complete when it carries | Never contains |
 |---|---|---|---|
-| `feat` | A capability that does not exist, or behaviour that works as built and is wanted different, and who asked for it | Tests that fail on the base, with those that pinned the old behaviour amended; the page, README or help text that names it, rewritten where it described the old; a changeset, saying what an upgrader does when behaviour changed | A test still asserting the old behaviour |
+| `feat` | A capability that does not exist, or behaviour that works as built and is wanted different, and who needs it | Tests that fail on the base, with those that pinned the old behaviour amended; the page, README or help text that names it, rewritten where it described the old; a changeset, saying what an upgrader does when behaviour changed | A test still asserting the old behaviour |
 | `fix` | Behaviour that departs from what a doc, spec, test or issue states, quoted | A test that fails on the base; every place the same defect lives, each a block row; a changeset when a package ships | Behaviour nobody stated |
 | `perf` | A cost, measured | The same measurement before and after (CI's `measure` job on the base and on the PR, or a named benchmark), its command and machine quoted in the body | A changed assertion |
 | `refactor` | A shape that makes a named next change hard | Every existing test unchanged and green on both sides | A changed assertion |

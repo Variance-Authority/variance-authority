@@ -47,8 +47,8 @@ and every claim that somebody was hurt, wherever it sits: Perceived, Evidence or
 once you print it, Impact. Evidence that does not open, or does not say what the
 issue claims, is **nobody needs it**, and so is a harm claim with nothing to open,
 or one that only an agent's own report of its trouble carries. Code lines show
-the mechanism, not the problem: when nothing else shows it — an ask, a failing
-run, a reproduction, a measurement — the problem is **nobody needs it**. An ask
+the mechanism, not the problem: when nothing else shows it — a failing run, a
+reproduction, a measurement, an adopter's case — the problem is **nobody needs it**. An ask
 is evidence of a need, weighed with the rest, never an order and never required:
 whether anybody asked is not a reason, either way. The owner's words quoted from
 a session you cannot open are read as quoted. Do step 1 below from what you read, chain
@@ -128,7 +128,7 @@ next:
    a record, time in a run. For each addition, ask whether the task needs it or
    only the author wanted it.
 3. **The author's case.** Now read the body. It answers you only with evidence:
-   who asked, quoted; a failing case; a measurement; a decision in
+   an ask, quoted and weighed as evidence of a need; a failing case; a measurement; a decision in
    `docs/context/`. "It is cleaner", "for completeness", "users may want",
    "while I was here" and "it was easy" are not evidence, and the part they
    defend is yours to reject.
@@ -140,7 +140,7 @@ Reasons you reject on, and you name the one you use:
   no goal of the owner's it serves. That nobody asked for it is not this reason,
   and an ask alone does not answer it.
 - **Nobody waits for it.** A need is shown, but nothing is held back while it
-  is not done — no adopter, no goal, no change built on it — so what it costs
+  is not done — no adopter blocked, no change built on it — so what it costs
   buys nothing yet. Unlike **not now**, nothing unproven stands in its way.
 - **Not the task.** Diff mode only: the task sentence and the issue's Change do
   not name this part, and the body cannot show the task needs it.
