@@ -27,6 +27,7 @@ mod case_fold;
 mod case_id;
 mod case_lines;
 mod case_readings;
+mod case_regions;
 mod case_readings_lay;
 mod case_owner;
 mod case_said;

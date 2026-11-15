@@ -1,4 +1,4 @@
-//! One case's readings as `readings-bytes.ts` stores them, read and written
+//! One case's readings as the readings section stores them, read and written
 //! where `combine` folds a shard whose index holds a case's regions otherwise
 //! than the combined index does: the newest reading, stored as its difference
 //! from its shard's index, is laid again over the combined one, as
@@ -10,9 +10,9 @@ use std::sync::Arc;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::case_lines;
 use crate::order;
 use crate::case_shard::{self, put, Inventory, Shard, Varints};
+use crate::case_regions::{regions_of, Cuts};
 use crate::crossing_sets::{set_holds, set_slice};
 
 const STOPPED: u64 = 1;
@@ -315,39 +315,6 @@ thread_local! {
     pub(crate) static EXPANDED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
-/// The regions `shard`, its cuts in `inventories`, holds of the case at `row`,
-/// as `readsOf` reads them: in module and region order, each with the value
-/// the case's lines give it. Only this case's regions are laid out.
-fn case_regions(shard: &Shard, inventories: &HashMap<String, Vec<Inventory>>, row: u32) -> Result<Vec<Region>, String> {
-    #[cfg(test)]
-    EXPANDED.with(|expanded| expanded.set(expanded.get() + 1));
-    let lines = case_lines::decode(&shard.lines[row as usize])?;
-    let mut read = Vec::new();
-    for (place, module) in shard.modules.iter().enumerate() {
-        let blocks = &cut_of(inventories, &module.file, module.inventory)?.blocks;
-        let file: Arc<str> = Arc::from(module.file.as_str());
-        for (block, set) in module.called.iter().enumerate() {
-            if !set_holds(set_slice(&shard.set_bytes, &shard.set_offsets, *set)?, shard.tests.len(), row)? {
-                continue;
-            }
-            let region = blocks.get(block).ok_or_else(|| format!("the case index names a region of `{}` its cut does not hold", module.file))?;
-            read.push(Region {
-                module: file.clone(),
-                name: Arc::from(region.name.as_str()),
-                path: Arc::from(region.path.as_str()),
-                start: u64::from(region.start_line),
-                end: u64::from(region.end_line),
-                value: lines.as_ref().and_then(|lines| case_lines::value_at(lines, place as u32, block as u32)),
-            });
-        }
-    }
-    Ok(read)
-}
-
-fn cut_of<'a>(inventories: &'a HashMap<String, Vec<Inventory>>, file: &str, at: usize) -> Result<&'a Inventory, String> {
-    inventories.get(file).and_then(|cuts| cuts.get(at)).ok_or_else(|| format!("the case index names a cut of `{file}` it does not hold"))
-}
-
 /// A case of one shard whose newest the combined index may read otherwise:
 /// its own id, and its bytes with the newest written whole.
 pub(crate) struct Owed {
@@ -359,8 +326,8 @@ pub(crate) struct Owed {
 /// than the shard did: stored as a difference from the shard's index, and
 /// crossing a file the shards cut more than one way, the only file whose
 /// regions the fold reconciles (or any file, where the shard did not lay its
-/// modules in the fold's order). Each is read over the shard's index one at a
-/// time and kept as the bytes `main` keeps it in, its newest whole. A shard
+/// modules in the fold's order). Each is read over the shard's index, all of
+/// them in one walk, and kept as the bytes `main` keeps it in, its newest whole. A shard
 /// whose cases cross no such file lays out no case's regions.
 pub(crate) fn owed(shard: &Shard, inventories: &HashMap<String, Vec<Inventory>>, cases: &[(String, &[u8])]) -> Result<Vec<Owed>, String> {
     let mut differing: HashMap<&str, &[u8]> = HashMap::new();
@@ -376,7 +343,7 @@ pub(crate) fn owed(shard: &Shard, inventories: &HashMap<String, Vec<Inventory>>,
     if differing.is_empty() || recut.is_empty() {
         return Ok(Vec::new());
     }
-    let mut owed = Vec::new();
+    let mut rows = Vec::new();
     for (row, test) in shard.tests.iter().enumerate() {
         let Some(bytes) = differing.get(test.id.as_str()) else { continue };
         let row = row as u32;
@@ -389,13 +356,17 @@ pub(crate) fn owed(shard: &Shard, inventories: &HashMap<String, Vec<Inventory>>,
                 }
             }
         }
-        if !crosses {
-            continue;
+        if crosses {
+            rows.push((row, &test.id, *bytes));
         }
+    }
+    let regions = regions_of(&Cuts::new(shard, inventories)?, &rows.iter().map(|(row, _, _)| *row).collect::<Vec<_>>())?;
+    let mut owed = Vec::new();
+    for ((_, id, bytes), regions) in rows.into_iter().zip(regions) {
         let mut stored = decode_case(bytes)?;
-        let newest = applied(&stored[0], &case_regions(shard, inventories, row)?);
+        let newest = applied(&stored[0], &regions);
         stored[0] = Stored { count: stored[0].count, stopped: stored[0].stopped, regions: Some(newest), ..Stored::default() };
-        owed.push(Owed { id: test.id.clone(), whole: case_bytes(&stored) });
+        owed.push(Owed { id: id.clone(), whole: case_bytes(&stored) });
     }
     Ok(owed)
 }
@@ -403,7 +374,7 @@ pub(crate) fn owed(shard: &Shard, inventories: &HashMap<String, Vec<Inventory>>,
 /// Each owed case, by its shard and its own id, laid over the combined index
 /// in `combined` as `packed` lays a newest: as its difference from the
 /// regions that index holds of the case, or whole where that costs fewer
-/// bytes. Cases are laid one at a time; with none owed, nothing is read.
+/// bytes. Their regions are laid out in one walk; with none owed, nothing is read.
 pub(crate) fn laid_again(
     owed: Vec<(String, Vec<Owed>)>,
     combined: &[u8],
@@ -419,17 +390,27 @@ pub(crate) fn laid_again(
     let name = |shard: &str, id: &str| renamed.get(shard).unwrap_or(&unrenamed).get(id).cloned().unwrap_or_else(|| id.to_owned());
     let wanted: HashSet<String> = owed.iter().flat_map(|(shard, cases)| cases.iter().map(|case| name(shard, &case.id))).collect();
     let rows: HashMap<&str, u32> = index.tests.iter().enumerate().filter(|(_, test)| wanted.contains(&test.id)).map(|(row, test)| (test.id.as_str(), row as u32)).collect();
-    for (shard, cases) in owed {
-        for case in cases {
+    let owed: Vec<(String, Owed, u32)> = owed
+        .into_iter()
+        .flat_map(|(shard, cases)| cases.into_iter().map(move |case| (shard.clone(), case)))
+        .map(|(shard, case)| {
             let row = *rows.get(name(&shard, &case.id).as_str()).ok_or_else(|| format!("{shard}: the combined index does not record `{}`", case.id))?;
-            let to = case_regions(&index, &inventories, row)?;
-            let whole = decode_case(&case.whole)?;
-            let newest = whole[0].regions.as_deref().unwrap_or_default();
-            let mut differing = whole.clone();
-            differing[0] = Stored { count: whole[0].count, stopped: whole[0].stopped, ..against(newest, &to) };
-            let differing = case_bytes(&differing);
-            laid.insert((shard.clone(), case.id), if differing.len() <= case.whole.len() { differing } else { case.whole });
-        }
+            Ok((shard, case, row))
+        })
+        .collect::<Result<_, String>>()?;
+    // Two shards may owe one case, which is laid out once.
+    let mut distinct: Vec<u32> = owed.iter().map(|(_, _, row)| *row).collect();
+    distinct.sort_unstable();
+    distinct.dedup();
+    let regions = regions_of(&Cuts::new(&index, &inventories)?, &distinct)?;
+    for (shard, case, row) in owed {
+        let to = &regions[distinct.binary_search(&row).unwrap_or_else(|_| unreachable!())];
+        let whole = decode_case(&case.whole)?;
+        let newest = whole[0].regions.as_deref().unwrap_or_default();
+        let mut differing = whole.clone();
+        differing[0] = Stored { count: whole[0].count, stopped: whole[0].stopped, ..against(newest, to) };
+        let differing = case_bytes(&differing);
+        laid.insert((shard, case.id), if differing.len() <= case.whole.len() { differing } else { case.whole });
     }
     Ok(laid)
 }

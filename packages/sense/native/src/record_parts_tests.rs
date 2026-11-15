@@ -166,7 +166,7 @@ fn a_last_run_at_no_commit_takes_the_commit_the_others_name() {
     }
 }
 
-/// A readings section as `readings-bytes.ts` writes it; a case's bytes are opaque to the fold, so any distinct text stands for them.
+/// A readings section as `write_readings` writes it; a case's bytes are opaque to the fold, so any distinct text stands for them.
 fn section(cases: &[(&str, &str)], inputs: &[(&str, &str)]) -> Vec<u8> {
     let mut out = Vec::new();
     let mut last = Vec::new();

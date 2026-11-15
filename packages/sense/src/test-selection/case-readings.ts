@@ -3,8 +3,8 @@
  * so a reader can set one reading against another (spec 0072 item 2). A rerun
  * keeps the reading it replaces while its test file ran over the same inputs
  * and every module either reading entered stands at the same text; anything
- * that moved drops them, since they read other code. The section's bytes are
- * `readings-bytes.ts`'s, which selection never decodes.
+ * that moved drops them, since they read other code. The native addon lays and
+ * reads the section; selection never decodes it.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';

@@ -100,7 +100,7 @@ fn lays_a_newest_again_over_a_file_the_fold_reconciled_one_case_at_a_time() {
     let other = case_shard::read_shard(&two, &mut inventories).unwrap();
     let (differs, counts) = (newest(Stored { gone: Some(vec![0]), ..Stored::default() }), newest(Stored::default()));
     let cases = [(tests[0].id.clone(), differs.as_slice()), (tests[1].id.clone(), counts.as_slice())];
-    let was = applied(&decode_case(&differs).unwrap()[0], &case_regions(&read, &inventories, 0).unwrap());
+    let was = applied(&decode_case(&differs).unwrap()[0], &regions_of(&Cuts::new(&read, &inventories).unwrap(), &[0]).unwrap()[0]);
     let before = expanded();
 
     let owed = owed(&read, &inventories, &cases).unwrap();
@@ -115,6 +115,6 @@ fn lays_a_newest_again_over_a_file_the_fold_reconciled_one_case_at_a_time() {
     let mut combined = HashMap::new();
     let index = case_shard::read_shard(&folded.bytes, &mut combined).unwrap();
     let row = index.tests.iter().position(|test| test.id == tests[0].id).unwrap() as u32;
-    assert_eq!(applied(&again[0], &case_regions(&index, &combined, row).unwrap()), was);
+    assert_eq!(applied(&again[0], &regions_of(&Cuts::new(&index, &combined).unwrap(), &[row]).unwrap()[0]), was);
     assert_eq!(again[1], decode_case(&differs).unwrap()[1]);
 }

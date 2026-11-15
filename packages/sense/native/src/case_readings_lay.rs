@@ -1,14 +1,12 @@
 //! A run's case readings laid over the ones the record kept, as
 //! `case-readings.ts` asks for them: a rerun keeps the readings it replaces
 //! while its test file ran over the same inputs and every module either
-//! reading entered stands at the same text, and the section is written in
-//! `readings-bytes.ts`'s bytes, each case's newest against the regions the
+//! reading entered stands at the same text, and the section is written by
+//! `record_parts::write_readings`, each case's newest against the regions the
 //! landed index holds of it.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-
-use rustc_hash::FxHashMap;
 
 use napi::bindgen_prelude::Buffer;
 use rayon::prelude::*;
@@ -16,12 +14,11 @@ use napi_derive::napi;
 
 use crate::case_lines;
 use crate::case_readings::{against, applied, case_bytes_of, decode_case, Region, Stored, StoredView};
-use crate::case_shard::{put, string, strings};
-use crate::crossing_sets::{decode_set, set_slice};
+use crate::case_regions::{regions_of, Walked};
+use crate::case_shard::{string, strings};
 use crate::journey_columns::{self, Decoded};
-use crate::order;
 use crate::record_layout::LAYOUT;
-use crate::record_parts::{put_digest, put_fronted, read_readings};
+use crate::record_parts::{read_readings, write_readings};
 
 
 /// One recorded run of one case, and how many runs read it so.
@@ -124,78 +121,74 @@ impl Index {
         self.files.iter().map(|file| string(&self.strings, *file)).collect()
     }
 
-    /// The readings of the cases `wanted` names, by id, as `readsOf` reads
-    /// them: each case's regions in module and region order, each with the
-    /// value the case's lines give it. Each set is decoded once.
+    /// The readings of the cases `wanted` names, by id, their regions as
+    /// `regions_of` lays them out. An id held twice reads as its last row, as
+    /// a map keyed by id keeps it.
     fn reads(&self, wanted: &HashSet<&str>) -> Result<HashMap<String, Read>, String> {
-        let mut reads: Vec<Read> = Vec::new();
-        let mut slots: Vec<Option<usize>> = vec![None; self.ids.len()];
-        let mut by_id: HashMap<String, usize> = HashMap::new();
-        let mut lines = Vec::new();
+        let mut by_id: HashMap<&str, u32> = HashMap::new();
         for (row, id) in self.ids.iter().enumerate() {
             let id = string(&self.strings, *id)?;
-            if !wanted.contains(id) {
-                continue;
-            }
-            let stopped = match self.stopped.as_ref().map(|column| column[row]) {
-                None | Some(0) => None,
-                Some(1) => Some(false),
-                Some(2) => Some(true),
-                Some(_) => return Err("a case's settling is not one this build reads".to_owned()),
-            };
-            lines.push(match &self.lines {
-                None => None,
-                Some((blob, offsets)) => {
-                    let (from, to) = (offsets[row] as usize, offsets[row + 1] as usize);
-                    if to < from || to > blob.len() {
-                        return Err("case lines bounds are invalid".to_owned());
-                    }
-                    case_lines::decode(&blob[from..to])?
-                }
-            });
-            slots[row] = Some(reads.len());
-            by_id.insert(id.to_owned(), reads.len());
-            reads.push(Read { file: string(&self.strings, self.files[row])?.to_owned(), stopped, regions: Vec::new(), modules: Vec::new() });
-        }
-        if !reads.is_empty() {
-            let mut members: FxHashMap<u32, Vec<u32>> = FxHashMap::default();
-            // Each case's lines of the module last read for it.
-            let mut module_lines: Vec<(usize, Option<case_lines::ModuleLines>)> = vec![(usize::MAX, None); reads.len()];
-            for (place, file) in self.module_files.iter().enumerate() {
-                let file = self.shared(*file)?;
-                let first = self.module_blocks[place] as usize;
-                for at in first..self.module_blocks[place + 1] as usize {
-                    let set = self.called[at];
-                    if !members.contains_key(&set) {
-                        members.insert(set, decode_set(set_slice(&self.set_bytes, &self.set_offsets, set)?, self.ids.len())?);
-                    }
-                    let block = (at - first) as u32;
-                    for row in &members[&set] {
-                        let Some(slot) = slots.get(*row as usize).copied().flatten() else { continue };
-                        let read = &mut reads[slot];
-                        let (at_place, own) = &mut module_lines[slot];
-                        if *at_place != place {
-                            *at_place = place;
-                            *own = lines[slot].as_ref().map(|lines| case_lines::module_lines(lines, place as u32));
-                        }
-                        read.regions.push(Region {
-                            module: file.clone(),
-                            name: self.shared(self.names[at])?,
-                            path: self.shared(self.paths[at])?,
-                            start: u64::from(self.starts[at]),
-                            end: u64::from(self.ends[at]),
-                            value: own.and_then(|own| own.value(block)),
-                        });
-                        if read.modules.last().is_none_or(|last| !Arc::ptr_eq(last, &file)) {
-                            read.modules.push(file.clone());
-                        }
-                    }
-                }
+            if wanted.contains(id) {
+                by_id.insert(id, row as u32);
             }
         }
-        // An id held twice reads as its last row, as a map keyed by id keeps it.
-        let mut reads: Vec<Option<Read>> = reads.into_iter().map(Some).collect();
-        Ok(by_id.into_iter().map(|(id, slot)| (id, reads[slot].take().unwrap_or_else(|| unreachable!()))).collect())
+        let rows: Vec<u32> = by_id.values().copied().collect();
+        let regions = regions_of(self, &rows)?;
+        rows.into_iter()
+            .zip(regions)
+            .map(|(row, regions)| {
+                let stopped = match self.stopped.as_ref().map(|column| column[row as usize]) {
+                    None | Some(0) => None,
+                    Some(1) => Some(false),
+                    Some(2) => Some(true),
+                    Some(_) => return Err("a case's settling is not one this build reads".to_owned()),
+                };
+                let mut modules: Vec<Arc<str>> = Vec::new();
+                for region in &regions {
+                    if modules.last().is_none_or(|last| !Arc::ptr_eq(last, &region.module)) {
+                        modules.push(region.module.clone());
+                    }
+                }
+                let read = Read { file: string(&self.strings, self.files[row as usize])?.to_owned(), stopped, regions, modules };
+                Ok((string(&self.strings, self.ids[row as usize])?.to_owned(), read))
+            })
+            .collect()
+    }
+}
+
+impl Walked for Index {
+    fn cases(&self) -> usize {
+        self.ids.len()
+    }
+
+    fn modules(&self) -> usize {
+        self.module_files.len()
+    }
+
+    fn module(&self, place: usize) -> Result<Arc<str>, String> {
+        self.shared(self.module_files[place])
+    }
+
+    fn called(&self, place: usize) -> &[u32] {
+        &self.called[self.module_blocks[place] as usize..self.module_blocks[place + 1] as usize]
+    }
+
+    fn region(&self, place: usize, block: usize) -> Result<(Arc<str>, Arc<str>, u64, u64), String> {
+        let at = self.module_blocks[place] as usize + block;
+        Ok((self.shared(self.names[at])?, self.shared(self.paths[at])?, u64::from(self.starts[at]), u64::from(self.ends[at])))
+    }
+
+    fn sets(&self) -> (&[u8], &[u32]) {
+        (&self.set_bytes, &self.set_offsets)
+    }
+
+    fn lines(&self, row: u32) -> Result<Option<case_lines::Lines>, String> {
+        let Some((blob, offsets)) = &self.lines else { return Ok(None) };
+        let (from, to) = (offsets[row as usize] as usize, offsets[row as usize + 1] as usize);
+        if to < from || to > blob.len() {
+            return Err("case lines bounds are invalid".to_owned());
+        }
+        case_lines::decode(&blob[from..to])
     }
 }
 
@@ -213,11 +206,10 @@ pub(crate) struct Run<'a> {
 pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&[u8]>, cases: &HashSet<String>, run: Option<&Run>) -> Result<Option<Vec<u8>>, String> {
     // The three indexes are independent until the readings meet, so each is opened and read on its own thread.
     let ((before, kept), (fresh, opened)) = rayon::join(
-        || rayon::join(|| previous.map(open).transpose(), || kept.filter(|bytes| !bytes.starts_with(b"{\"")).map(read_readings).transpose().map_err(refused)),
+        || rayon::join(|| previous.map(open).transpose(), || kept.map(read_readings).transpose().map_err(refused)),
         || rayon::join(|| run.map(|run| open(run.fresh)).transpose(), || landed.map(open).transpose()),
     );
     let (before, opened) = (before?.flatten(), opened?.flatten());
-    // A section an earlier build wrote as JSON holds none.
     let (stored, held) = kept?.map_or_else(|| (Vec::new(), HashMap::new()), |section| (section.cases, section.inputs.into_iter().collect::<HashMap<_, _>>()));
     let fresh = match fresh? {
         None => None,
@@ -292,25 +284,8 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
     if laid.is_empty() && inputs.is_empty() {
         return Ok(None);
     }
-    let mut ids: Vec<&String> = laid.keys().collect();
-    ids.sort_by(|left, right| order::code_unit(left, right));
-    let mut paths: Vec<&String> = inputs.keys().collect();
-    paths.sort_by(|left, right| order::code_unit(left, right));
-    let mut bytes = Vec::new();
-    let mut last = Vec::new();
-    put(&mut bytes, ids.len() as u64);
-    let owns: Vec<Vec<u8>> = ids.par_iter().map(|id| packed(&laid[*id], there.get(*id))).collect();
-    for (id, own) in ids.into_iter().zip(owns) {
-        put_fronted(&mut bytes, &mut last, id);
-        put(&mut bytes, own.len() as u64);
-        bytes.extend_from_slice(&own);
-    }
-    let mut last = Vec::new();
-    put(&mut bytes, paths.len() as u64);
-    for file in paths {
-        put_fronted(&mut bytes, &mut last, file);
-        put_digest(&mut bytes, &inputs[file]);
-    }
+    let cases: Vec<(&str, Vec<u8>)> = laid.par_iter().map(|(id, readings)| (id.as_str(), packed(readings, there.get(id)))).collect();
+    let bytes = write_readings(cases, &inputs);
     Ok(Some(bytes))
 }
 
@@ -393,11 +368,7 @@ pub fn lay_readings(
 /// Every reading `section` keeps of case `id`, newest first, the newest read
 /// off `index` where it is stored as its difference from it; absent when the
 /// section keeps none of the case.
-pub(crate) fn readings_of(section: &[u8], index: Option<&[u8]>, id: &str) -> Result<Option<Vec<Reading>>, String> {
-    // A section an earlier build wrote as JSON holds none.
-    if section.starts_with(b"{\"") {
-        return Ok(None);
-    }
+fn readings_of(section: &[u8], index: Option<&[u8]>, id: &str) -> Result<Option<Vec<Reading>>, String> {
     let section = read_readings(section).map_err(refused)?;
     let Some((_, bytes)) = section.cases.iter().find(|(case, _)| case == id) else { return Ok(None) };
     let stored = decode_case(bytes).map_err(refused)?;
