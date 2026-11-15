@@ -38,13 +38,8 @@
  * and 16 regions and 3.2 ns at 64, on the machine
  * [`docs/context`](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/README.md) names.
  *
- * The probe is written once, in [`probe-set.cts`](probe-set.cts), and the root
- * makes a set of it for each module that registers. Where a realm is new for
- * each test file, which is every runner's default, that is what keeps it cheap:
- * V8 keys compiled code and its feedback on a function's place in its source, so
- * a probe written into every module would be parsed, compiled and warmed once a
- * module, every file, where closures made in one place are compiled once a
- * realm.
+ * The probe is written once, in [`probe-set.cts`](probe-set.cts), which says
+ * why, and the root makes a set of it for each module that registers.
  *
  * ## The runtime is a required global, and the probe does not check
  *

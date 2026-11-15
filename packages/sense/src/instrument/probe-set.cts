@@ -1,22 +1,9 @@
 /**
- * The functions a module's probes call, made by the root when the module
- * registers.
- *
- * The header an instrumented module carries declares `__va`, `__vaR` and
- * `__vaE`, and on the first call of any of them rebinds all three to the set
- * its root made for it: see [`index.ts`](index.ts). The probe is therefore
- * written once, here, and not once a module. That matters where a realm is
- * new for each test file, which is every runner's default: V8 keys compiled
- * code and the feedback that optimises it on a function's place in its source,
- * so a probe written into every module is a function of its own in every
- * module, parsed, compiled and run cold, every file, in every one of them. The
- * closures made here all come from one place in one source, so a realm
- * compiles the probe once and warms it once.
- *
- * What the gate reads are the closure's own slots, as they were the module's
- * variables before: no property lookup on any object.
- *
- * ## Written to be sent as text
+ * The probes every module calls, written once and made by the root for each
+ * module that registers: the header rebinds to them on its first call, see
+ * [`index.ts`](index.ts). V8 keys compiled code and its feedback on a function's
+ * place in its source, so a probe written into each module is compiled and
+ * warmed once a module in every fresh realm, and these closures once a realm.
  *
  * {@link probeSet} names nothing outside itself, so a page collector is sent
  * its source beside the engine's: see `test-selection/probes.ts`.
@@ -81,7 +68,7 @@ function probeSet(
     b: base,
     p: passing,
     V: handing,
-    /** A statement's probe. */
+    /** A statement's probe: the gate reads the closure's own slots, with no property lookup. */
     va: (i: number): void => {
       if ((gate[i]! & passing[0]!) === 0) slow(i);
     },
