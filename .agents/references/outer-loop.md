@@ -117,10 +117,13 @@ refusal, is named in the report as not made, never waited for.
 evidence", from `variance review --coverage`. Each mark in it is acted on as
 [the review on the pull request](../../packages/cli/skills/variance-testing/SKILL.md#the-pull-requests-review-act-on-every-mark)
 says: 🔴 code the change wrote gets a test or is deleted, and is never set
-aside in the body, least of all because nothing reaches it. A comment describing code you
-did not touch, a base older than your branch point, or tests you expected and it
-does not name, is a finding about the report. Merge `origin/main` and let CI post again; if the comment is
-still wrong, it is a defect in the report, and it gets its own change.
+aside in the body, least of all because nothing reaches it. Its "What this
+change might do" section names the cases that stood on the changed lines: read
+them for behaviour the change moved and no test claims. A comment
+describing code you did not touch, a base older than your branch point, or
+tests you expected and it does not name, is a finding about the report. Merge
+`origin/main` and let CI post again; if the comment is still wrong, it is a
+defect in the report, and it gets its own change.
 
 ## 7. Correct
 

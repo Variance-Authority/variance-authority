@@ -125,8 +125,10 @@ variance covering --since main
 ```
 
 It names every region the diff changed with the cases that ran it, and counts
-regions **no case ran** and regions **one case alone** ran. Write a test for
-each region the change needs pinned, then check that it lands:
+regions **no case ran** and regions **one case alone** ran. Code the change
+wrote that no case ran gets a test, or is deleted when no input can reach it, as
+[the review](#the-pull-requests-review-act-on-every-mark) says. Check each test
+lands:
 
 1. Run the new test. `covering --file <path> --line <n> --cases last` lists it,
    or its story has no `✗` on the branch it is for.
@@ -149,18 +151,20 @@ not one of them:
   answer the callee never gives, a fallback nothing reaches — delete it, or
   make its type rule it out. *Nothing reaches it* is the reason to delete it,
   never the reason to keep it untested.
-- ⚪ ran only while its module loaded: read as 🔴 for the code the change is for.
+- ⚪ ran only while its module loaded: as 🔴.
 - ❔ a case ran it in text an edit wrote over: run the suite on the change and
   read again before you decide.
 
 Code that ran is read for what it lost:
 
-- 🟡 or 🟠, reached only from far: not a gap. Where the function is what the
-  change is for, the red test belongs next to it.
-- **no longer run** or **run by fewer cases**: a case that ran it at the base
-  no longer does. Either the change removed what called it, and the pull
-  request says so, or it is a regression to fix. A region whose case stopped is
-  unknown, not lost: rerun that case.
+- 🟡 reached only from far, or 🟠 from a distance not measured: not a gap.
+  Where the function is what the change is for, the red test belongs next to
+  it.
+- ▼ **no longer run** or ▽ **run by fewer cases**: a case that ran it at the
+  base no longer does. Either the change removed what called it, and the pull
+  request says so, or it is a regression to fix. The ▼ count holds regions whose
+  case stopped before them too: rerun a stopped case before you call its
+  regions lost.
 - **Cases added and removed**: the added ones are the red tests the change
   claims; each removed one is named in the pull request with why.
 
