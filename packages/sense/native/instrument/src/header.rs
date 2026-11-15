@@ -62,9 +62,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_header_carries_no_probe_of_its_own() {
-        // The root makes the probes, once for every module of a realm.
-        assert!(!header("a", 1).contains("&"));
+    fn the_header_takes_its_probes_from_the_root_on_the_first_call() {
+        // The root makes the probes, once for every module of a realm: each
+        // declaration asks for the module's set and rebinds the names to it,
+        // so a circular import that calls one before the header ran is served.
+        let text = header("a", 1);
+        assert!(text.contains("function __vaI(){const m=__vaM=globalThis.__VA__.r(\"a\",1);__vaL=m.V;__vaR=m.R;__vaE=m.E;__va=m.va;return m}"), "{text}");
+        assert!(text.contains("function __va(i){__vaI().va(i)}"), "{text}");
+        assert!(text.contains("function __vaR(v,i){return __vaI().R(v,i)}"), "{text}");
+        assert!(text.contains("function __vaE(){__vaI().E()}"), "{text}");
+        assert!(text.ends_with("(__vaM||__vaI()).T();"), "{text}");
+        assert!(!text.contains('&'), "the gate is the root's: {text}");
     }
 
     #[test]

@@ -34,8 +34,8 @@
  * the region has something left to log, and only then does the slow path run:
  * it sets the flag and appends the region's index across the realm, with the
  * evaluating bit, to the log in [`probe-log.cts`](probe-log.cts).
- * `packages/sense/scripts/probe-write.mjs` prices the logged hit at 1.2 ns at 4
- * and 16 regions and 3.2 ns at 64, on the machine
+ * `packages/sense/scripts/probe-write.mjs` prices the logged hit at 0.6 ns at 4
+ * regions, 1.0 ns at 16 and 3.3 ns at 64, on the machine
  * [`docs/context`](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/README.md) names.
  *
  * The probe is written once, in [`probe-set.cts`](probe-set.cts), which says

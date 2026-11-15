@@ -8,8 +8,8 @@ import probeSet from './probe-set.cjs';
  * The probe is the most-executed function this project ships — once per region
  * per entry, hundreds of millions of times in a suite — so what it costs is
  * decided by what is written in it rather than by anything downstream. Almost
- * every hit is a region already logged, and that hit is the gate alone: 1.2 ns
- * at 4 and 16 regions and 3.2 ns at 64 under `probe-write.mjs`. A guard added
+ * every hit is a region already logged, and that hit is the gate alone: 0.6 ns
+ * at 4 regions, 1.0 ns at 16 and 3.3 ns at 64 under `probe-write.mjs`. A guard added
  * here is paid on every hit forever, and the kind that gets added is the kind
  * that reads well in review: a `typeof`, a truthiness test, a defensive branch
  * around a state that is fatal anyway.

@@ -66,7 +66,6 @@ function probeSet(
     f: gate,
     s: flags,
     b: base,
-    p: passing,
     V: handing,
     /** A statement's probe: the gate reads the closure's own slots, with no property lookup. */
     va: (i: number): void => {

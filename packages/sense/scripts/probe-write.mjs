@@ -121,11 +121,11 @@ try {
     }
   }
 
-  const held = [
-    ...flat.lists(flat.read(flatBucket), true),
-    ...scoped.lists(scoped.read(scopedBucket), true),
-  ];
-  const entered = (variant) => held.find((row) => row.id === variant)?.hits.length ?? 0;
+  // A module that registers again is handed the row it holds, flags and all.
+  const entered = (variant) => {
+    const root = SHAPES[variant].root === '__VA__' ? flat.root : scoped.root;
+    return root.r(variant, REGIONS + 1).s.filter((flag) => flag !== 0).length;
+  };
 
   const floorOf = (variant) => Math.min(...timings.get(variant));
   const base = floorOf(VARIANTS[0]);
