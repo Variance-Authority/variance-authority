@@ -151,6 +151,16 @@ impl<'a> Stored<'a> {
         self.section(name, 1)?.ok_or_else(|| format!("no section {name}"))
     }
 
+    /// A one-byte column of codes from zero to `most`, as a flag (`most` one)
+    /// or an enumeration: the TypeScript reader refuses the segment for one
+    /// code past it anywhere, so this side refuses it at open, not when a row
+    /// is read. A segment is read by its length, not its digest, so a damaged
+    /// byte reaches here. One pass of a byte maximum, which vectorises.
+    pub fn codes(&self, name: &str, most: u8) -> Result<&'a [u8], String> {
+        let column = self.u8s(name)?;
+        if column.iter().fold(0, |high, &code| high.max(code)) <= most { Ok(column) } else { Err(format!("column {name} holds a code past {most}")) }
+    }
+
     pub fn u32s(&self, name: &str) -> Result<U32s<'a>, String> {
         Ok(U32s(self.section(name, 4)?.ok_or_else(|| format!("no section {name}"))?))
     }
