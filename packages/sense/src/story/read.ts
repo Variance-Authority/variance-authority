@@ -45,7 +45,7 @@ import { BLOCK_KINDS } from '../test-selection/format-layout.js';
 import type { TestCoverageView } from '../test-selection/format-view.js';
 import { findModules } from '../test-selection/lookup.js';
 import moduleIds from '../test-selection/module-id.cjs';
-import { coordinatesOf } from './region-coordinates.js';
+import { coordinatesOf, drawersOf } from './region-coordinates.js';
 import { NO_LINE } from '../test-selection/written-lines.js';
 import { recordOfStories, storyDirectories } from './directory.js';
 import { foldSteps, type Step } from './fold.js';
@@ -439,33 +439,21 @@ export interface Placed {
   readonly at: readonly string[];
 }
 
-/**
- * Each region's declaration, drawn by its own region: a function's `entry`, or
- * the `module` region for the top level — the last of its name at or before
- * it, so two declarations of one name stay two. A region of a name whose own
- * region comes after it, or that the module does not hold, is drawn by the
- * first region it has.
- */
+/** Each region's declaration, as {@link drawersOf} draws it. */
 export function placesOf(file: string, regions: readonly Region[]): Placed {
   const at = coordinatesOf(file, regions);
-  const drawn = (region: Region, ordinal: number): Place => ({
-    file,
-    name: region.name,
-    kind: region.kind,
-    at: at[ordinal]!,
-    ...(region.startLine === undefined ? {} : { startLine: region.startLine, endLine: region.endLine }),
-  });
-  const owned = new Map<string, Place>();
-  const first = new Map<string, Place>();
-  const places = regions.map((region, ordinal) => {
-    if (region.path === 'entry' || region.path === 'module') {
-      const place = drawn(region, ordinal);
-      owned.set(region.name, place);
-      return place;
-    }
-    const place = owned.get(region.name) ?? first.get(region.name) ?? drawn(region, ordinal);
-    if (!first.has(region.name)) first.set(region.name, place);
-    return place;
+  const places: Place[] = [];
+  drawersOf(regions).forEach((drawer, ordinal) => {
+    const region = regions[ordinal]!;
+    places.push(drawer === ordinal
+      ? {
+        file,
+        name: region.name,
+        kind: region.kind,
+        at: at[ordinal]!,
+        ...(region.startLine === undefined ? {} : { startLine: region.startLine, endLine: region.endLine }),
+      }
+      : places[drawer]!);
   });
   return { places, at };
 }

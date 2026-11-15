@@ -44,3 +44,24 @@ export function coordinatesOf(
     return `${file}#${numbered(name)}/${path}`;
   });
 }
+
+/**
+ * The ordinal of the region that draws each region of one module: a
+ * function's `entry`, or the `module` region for the top level — the last of
+ * its name at or before it, so two declarations of one name stay two. A region
+ * of a name whose own region comes after it, or that the module does not hold,
+ * is drawn by the first region it has. A drawer never comes after what it draws.
+ */
+export function drawersOf(regions: readonly { readonly name: string; readonly path: string }[]): number[] {
+  const owned = new Map<string, number>();
+  const first = new Map<string, number>();
+  return regions.map((region, ordinal) => {
+    if (region.path === 'entry' || region.path === 'module') {
+      owned.set(region.name, ordinal);
+      return ordinal;
+    }
+    const drawer = owned.get(region.name) ?? first.get(region.name) ?? ordinal;
+    if (!first.has(region.name)) first.set(region.name, drawer);
+    return drawer;
+  });
+}

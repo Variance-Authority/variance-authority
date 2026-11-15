@@ -7,7 +7,7 @@ import { encodeOwnedSetExecutionIndex } from '../test-selection/execution-set-fo
 import { writeTestCoverage } from '../test-selection/index.js';
 import { testCoverageFile } from '../test-selection/record-location.js';
 import type { ReadRegion } from '../test-selection/readings-bytes.js';
-import { recordedStatements, statementsOf } from './explain.js';
+import { declarationsOf, recordedStatements, statementsOf } from './explain.js';
 
 const WIRE = { file: 'src/page.ts', name: 'wire', path: 'entry', startLine: 1, endLine: 3 };
 const HANDLE = { file: 'src/page.ts', name: 'handle', path: 'entry', startLine: 5, endLine: 8 };
@@ -70,6 +70,26 @@ describe('statementsOf', () => {
     const explained = statementsOf(CASE, [crossed(WIRE, null), crossed(HANDLE, null)]);
 
     expect(explained).toMatchObject({ timed: false, lined: false, statements: [], unlined: [WIRE, HANDLE] });
+  });
+});
+
+describe('declarationsOf', () => {
+  it('folds a declaration\'s branches and loops into it, counted, and keeps two declarations of one name in one file two', () => {
+    const second = { ...HANDLE, startLine: 20, endLine: 24 };
+    const arm = { ...ERROR, startLine: 22, endLine: 22 };
+
+    expect(declarationsOf([HANDLE, ERROR, WIRE, second, arm, SETUP])).toEqual([
+      { region: HANDLE, arms: 1 },
+      { region: WIRE, arms: 0 },
+      { region: second, arms: 1 },
+      { region: SETUP, arms: 0 },
+    ]);
+  });
+
+  it('draws an arm whose declaration did not run by the arm itself, counting the arms after it', () => {
+    const other = { ...ERROR, path: 'for#0', startLine: 7, endLine: 7 };
+
+    expect(declarationsOf([ERROR, other])).toEqual([{ region: ERROR, arms: 1 }]);
   });
 });
 

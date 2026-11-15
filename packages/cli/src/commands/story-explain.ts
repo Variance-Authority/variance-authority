@@ -8,7 +8,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { recordedCommit } from '@variance-authority/sense/test-selection';
-import { recordedStatements, STORY_VARIABLE, type OutcomeRegion, type RecordedExplanation, type Statement, type StoryEntry } from '@variance-authority/sense/story';
+import { declarationsOf, recordedStatements, STORY_VARIABLE, type OutcomeRegion, type RecordedExplanation, type Statement, type StoryEntry } from '@variance-authority/sense/story';
 import { packageName, packageOf } from '../package-home.js';
 import { ranOf } from './covering-ran.js';
 import { runsOnce } from './record-runs.js';
@@ -101,19 +101,9 @@ export function formatExplained(explained: Explained, format: 'text' | 'json'): 
     }
     for (const [home, inside] of byPackage) {
       text.push(`${indent}${home}`);
-      // A declaration's arms ride its line, counted, so a statement reads by what it ran rather than by every branch.
-      const declarations = new Map<string, { first: OutcomeRegion; arms: number }>();
-      for (const region of inside) {
-        const key = `${region.file}\0${region.name}`;
-        const held = declarations.get(key);
-        const whole = region.path === 'entry' || region.path === 'module';
-        if (held === undefined) declarations.set(key, { first: region, arms: whole ? 0 : 1 });
-        else declarations.set(key, { first: whole ? region : held.first, arms: held.arms + (whole ? 0 : 1) });
-      }
-      const shown = [...declarations.values()];
-      for (const { first, arms } of shown.slice(0, LISTED)) {
-        const within = first.path === 'entry' || first.path === 'module' ? arms : arms - 1;
-        text.push(`${indent}  ${regionText(first)}${within === 0 ? '' : `, and ${within} ${within === 1 ? 'branch or loop' : 'branches or loops'} in it`}`);
+      const shown = declarationsOf(inside);
+      for (const { region, arms } of shown.slice(0, LISTED)) {
+        text.push(`${indent}  ${regionText(region)}${arms === 0 ? '' : `, and ${arms} ${arms === 1 ? 'branch or loop' : 'branches or loops'} in it`}`);
       }
       if (shown.length > LISTED) text.push(`${indent}  and ${shown.length - LISTED} more`);
     }

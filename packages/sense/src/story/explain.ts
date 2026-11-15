@@ -13,6 +13,7 @@ import { newestRegions } from '../test-selection/case-readings.js';
 import type { ReadRegion } from '../test-selection/readings-bytes.js';
 import type { ExecutionTest } from '../test-selection/reverse.js';
 import { namedCases, type OutcomeRegion } from './outcomes.js';
+import { drawersOf } from './region-coordinates.js';
 
 /** A line of the case: the regions it was the first to run, and its microseconds where the case was timed. Line 0 is before the body's first statement. */
 export interface Statement {
@@ -87,6 +88,34 @@ export function statementsOf(
     hooks: [...hooks.keys()].sort((left, right) => left - right).map((line) => ({ line, regions: hooks.get(line)! })),
     unlined,
   };
+}
+
+/** A declaration a statement ran, by the region that draws it, and how many of its branches and loops ran besides. */
+export interface Declaration {
+  readonly region: OutcomeRegion;
+  readonly arms: number;
+}
+
+/**
+ * Regions folded into their declarations, file by file as {@link drawersOf}
+ * draws them, in the order each declaration is first drawn: a statement reads
+ * by what it ran rather than by every branch.
+ */
+export function declarationsOf(regions: readonly OutcomeRegion[]): Declaration[] {
+  const byFile = new Map<string, number[]>();
+  regions.forEach(({ file }, at) => byFile.set(file, [...byFile.get(file) ?? [], at]));
+  const drawer = new Map<number, number>();
+  for (const ats of byFile.values()) {
+    drawersOf(ats.map((at) => regions[at]!)).forEach((drawn, ordinal) => drawer.set(ats[ordinal]!, ats[drawn]!));
+  }
+  const declared = new Map<number, { region: OutcomeRegion; arms: number }>();
+  regions.forEach((region, at) => {
+    const by = drawer.get(at)!;
+    const held = declared.get(by);
+    if (held === undefined) declared.set(by, { region: regions[by]!, arms: by === at ? 0 : 1 });
+    else held.arms += 1;
+  });
+  return [...declared.values()];
 }
 
 /** Every case {@link namedCases} finds, explained from its newest run. */
