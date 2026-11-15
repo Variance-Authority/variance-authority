@@ -15,6 +15,9 @@ import { scanRelations } from './scan.js';
  * the assertion that no object store was opened would hold for any setting.
  */
 
+/** The files a scan reads before it opens the object store: `STORE_CROSSOVER` in `git_store.rs`. */
+const CROSSOVER = 3_000;
+
 describe.runIf(nativeAvailable())('reading from the working tree instead of the object store', () => {
   let root: string;
   let cache: string;
@@ -22,11 +25,13 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
   beforeAll(() => {
     root = mkdtempSync(join(tmpdir(), 'sense-packs-'));
     cache = mkdtempSync(join(tmpdir(), 'sense-packs-index-'));
-    for (let index = 0; index < 160; index += 1) {
-      const next = index === 159 ? '' : `import { value${index + 1} } from './${index + 1}.js';\n`;
+    for (let index = 0; index < CROSSOVER; index += 1) {
+      const next = index === CROSSOVER - 1 ? '' : `import { value${index + 1} } from './${index + 1}.js';\n`;
       writeFileSync(join(root, `${index}.ts`), `${next}export const value${index} = ${index};\n`);
     }
     git('init', '--quiet');
+    // Three thousand loose objects start a detached `git maintenance` that outlives the test.
+    git('config', 'maintenance.auto', 'false');
     git('add', '.');
     git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'source');
   });
@@ -79,8 +84,8 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
   it('publishes an index that the next update builds on', async () => {
     const index = join(cache, 'disk', 'source-index.bin');
     expect(await updateSourceIndex(root, { index, packs: false }))
-      .toMatchObject({ was: 'missing', files: 160, reread: 160 });
+      .toMatchObject({ was: 'missing', files: CROSSOVER, reread: CROSSOVER });
     expect(await updateSourceIndex(root, { index, packs: false }))
-      .toMatchObject({ was: 'published', files: 160, reread: 0 });
+      .toMatchObject({ was: 'published', files: CROSSOVER, reread: 0 });
   });
 });

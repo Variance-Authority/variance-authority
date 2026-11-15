@@ -5,6 +5,9 @@ import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { native, nativeAvailable } from './addon.js';
 
+/** The files a scan reads before it opens the object store: `STORE_CROSSOVER` in `git_store.rs`. */
+const CROSSOVER = 3_000;
+
 it.runIf(nativeAvailable())('reads local blobs and worktree fallbacks without fetching missing objects', () => {
   const root = mkdtempSync(join(tmpdir(), 'sense-local-blobs-'));
   const git = (...args: string[]): string => execFileSync('git', args, {
@@ -17,7 +20,9 @@ it.runIf(nativeAvailable())('reads local blobs and worktree fallbacks without fe
   }).trim();
   try {
     git('init', '--quiet');
-    for (let index = 0; index < 160; index += 1) {
+    // Three thousand loose objects start a detached `git maintenance`, which would pack the object deleted below.
+    git('config', 'maintenance.auto', 'false');
+    for (let index = 0; index < CROSSOVER; index += 1) {
       writeFileSync(join(root, `${index}.ts`), `export const value = ${index};\n`);
     }
     git('add', '.');
@@ -46,7 +51,7 @@ it.runIf(nativeAvailable())('reads local blobs and worktree fallbacks without fe
     expect(events.some((event) => event.event === 'start' && event.argv?.includes('--show-object-format'))).toBe(true);
     const commands = events.filter((event) => event.event === 'child_start').map((event) => event.argv);
     expect(commands.filter((args: string[]) => args.includes('fetch'))).toEqual([]);
-    expect(files).toHaveLength(161);
+    expect(files).toHaveLength(CROSSOVER + 1);
     expect(packed.values).toContain('./2');
     expect(packed.values).toContain('./3');
   } finally {
