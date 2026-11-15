@@ -10,13 +10,25 @@ import type { SourceSymbol, SourceSymbolReach, TextSpan } from './harvest.js';
 /** The reaches `symbols.reach` stores, from 1; 0 is none. `REACHES` in `native/src/harvest.rs`. */
 const REACHES: readonly SourceSymbolReach[] = ['file', 'module', 'underscore', 'all'];
 
-/** The span two columns hold at `at`: absent when both are, and `reject`ed when one is or it runs backwards. */
-export function spanAt(starts: Uint32Array, ends: Uint32Array, at: number, reject: () => never): TextSpan | undefined {
+/** A span's start, end and text columns. */
+export type SpanColumns = readonly [starts: Uint32Array, ends: Uint32Array, texts: Uint32Array];
+
+/**
+ * The span three columns hold at `at`, with the text the index kept of it:
+ * absent when both ends are, and `reject`ed when one is or it runs backwards.
+ */
+export function spanAt([starts, ends, texts]: SpanColumns, at: number, text: (value: number) => string, reject: () => never): TextSpan | undefined {
   const start = starts[at];
   const end = ends[at];
+  const kept = texts[at];
   if (start === NONE && end === NONE) return undefined;
-  if (start === undefined || end === undefined || start === NONE || end === NONE || end < start) reject();
-  return { start, end };
+  if (start === undefined || end === undefined || kept === undefined || start === NONE || end === NONE || end < start) reject();
+  return kept === NONE ? { start, end } : { start, end, text: text(kept) };
+}
+
+/** Open a span's three columns, `<name>-start`, `-end` and `-text`. */
+export function spanColumns(opened: OpenSegment, name: string): SpanColumns {
+  return [opened.u32(`${name}-start`), opened.u32(`${name}-end`), opened.u32(`${name}-text`)];
 }
 
 export interface HarvestReader {
@@ -39,29 +51,24 @@ export function openHarvest(
   const symbolName = opened.u32('symbols.name');
   const symbolKind = opened.u32('symbols.kind');
   const symbolLine = opened.u32('symbols.line');
-  const signatureStart = opened.u32('symbols.signature-start');
-  const signatureEnd = opened.u32('symbols.signature-end');
-  const docStart = opened.u32('symbols.doc-start');
-  const docEnd = opened.u32('symbols.doc-end');
+  const symbolSignature = spanColumns(opened, 'symbols.signature');
+  const symbolDoc = spanColumns(opened, 'symbols.doc');
   const symbolReach = opened.u8('symbols.reach');
-  const exportSignatureStart = opened.u32('exports.signature-start');
-  const exportSignatureEnd = opened.u32('exports.signature-end');
-  const exportDocStart = opened.u32('exports.doc-start');
-  const exportDocEnd = opened.u32('exports.doc-end');
-  const moduleDocStart = opened.u32('parses.doc-start');
-  const moduleDocEnd = opened.u32('parses.doc-end');
+  const exportSignature = spanColumns(opened, 'exports.signature');
+  const exportDoc = spanColumns(opened, 'exports.doc');
+  const moduleDoc = spanColumns(opened, 'parses.doc');
 
   validateOffsets(parseSymbols, symbolName.length, parseCount, reject);
-  sameLength(symbolName.length, [symbolKind, symbolLine, signatureStart, signatureEnd, docStart, docEnd, symbolReach], reject);
-  sameLength(exportCount, [exportSignatureStart, exportSignatureEnd, exportDocStart, exportDocEnd], reject);
-  sameLength(parseCount, [moduleDocStart, moduleDocEnd], reject);
+  sameLength(symbolName.length, [symbolKind, symbolLine, ...symbolSignature, ...symbolDoc, symbolReach], reject);
+  sameLength(exportCount, [...exportSignature, ...exportDoc], reject);
+  sameLength(parseCount, [...moduleDoc], reject);
 
-  const span = (starts: Uint32Array, ends: Uint32Array, row: number): TextSpan | undefined => spanAt(starts, ends, row, reject);
+  const span = (columns: SpanColumns, row: number): TextSpan | undefined => spanAt(columns, row, text, reject);
 
   return {
     symbols: (row) => rangeOf(parseSymbols, row, reject).map((at) => {
-      const signature = span(signatureStart, signatureEnd, at);
-      const doc = span(docStart, docEnd, at);
+      const signature = span(symbolSignature, at);
+      const doc = span(symbolDoc, at);
       const code = symbolReach[at]!;
       const reach = code === 0 ? undefined : REACHES[code - 1];
       if (code !== 0 && reach === undefined) throw opened.reject();
@@ -74,8 +81,8 @@ export function openHarvest(
         ...(reach === undefined ? {} : { reach }),
       };
     }),
-    exportSignature: (row) => span(exportSignatureStart, exportSignatureEnd, row),
-    exportDoc: (row) => span(exportDocStart, exportDocEnd, row),
-    moduleDoc: (row) => span(moduleDocStart, moduleDocEnd, row),
+    exportSignature: (row) => span(exportSignature, row),
+    exportDoc: (row) => span(exportDoc, row),
+    moduleDoc: (row) => span(moduleDoc, row),
   };
 }

@@ -256,7 +256,7 @@ export async function tryPublishWorkspaceSnapshot(
       packagesDigest: packages,
     });
     // Before anything is written: a value that could not be saved was read all the
-    // same, and what it answers is dated, and its text gated, by these times.
+    // same, and what it answers is dated by these times.
     const held = storeHeadOf(bytes);
     if (held !== undefined) snapshots.set(help, held);
     generated.set(help, generatedAt);

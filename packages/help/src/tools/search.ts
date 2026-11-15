@@ -2,7 +2,7 @@ import type { FileSet, Tool, ToolInvocation, Tree } from '@variance-authority/mc
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
-import { searchIndexOf, workspaceReadStarted } from '../snapshot.js';
+import { searchIndexOf } from '../snapshot.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { PublishedMatch } from './published-match.js';
@@ -416,7 +416,7 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
   const asked = JSON.stringify([question, invocation?.root]);
   const last = lastSearched.get(help);
   if (last?.asked === asked && last.tree === invocation?.tree) return last.found;
-  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root), workspaceReadStarted(help));
+  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root));
   lastSearched.set(help, { asked, tree: invocation?.tree, found });
   return found;
 }

@@ -1,7 +1,6 @@
-import { readFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
-import { isAbsolute, join, relative } from 'node:path';
-import type { Parsed, SourceSymbol, TextSpan } from '@variance-authority/sense';
+import { isAbsolute, relative } from 'node:path';
+import { cutDoc, cutHead, type Parsed, type SourceSymbol, type TextSpan } from '@variance-authority/sense';
 import {
   boundDeclaration,
   requested,
@@ -26,34 +25,16 @@ function add(into: Names, name: string, declaration: Reached): void {
   else if (!held.has(declaration.kind)) held.set(declaration.kind, declaration);
 }
 
-export function headOf(text: string, span: TextSpan | undefined): string | undefined {
-  if (span === undefined) return undefined;
-  const head = text.slice(span.start, span.end).trimEnd().replace(/;$/, '');
-  return head === '' ? undefined : head;
-}
-
-export function docOf(text: string, span: TextSpan | undefined): string | undefined {
-  if (span === undefined) return undefined;
-  const doc = text
-    .slice(span.start, span.end)
-    .split('\n')
-    // A JSDoc or Javadoc block's `*` margin, or a Rust or Swift doc line's `///` or `//!`.
-    .map((line) => line.replace(/^[ \t]*(?:\/\/[/!]|\*)[ \t]?/, ''))
-    .join('\n')
-    .trim();
-  return doc === '' ? undefined : doc;
-}
-
+/** A declaration's kind and place, with its head and doc cut from the text the parse kept of their spans. */
 function declaration(
   at: string,
   line: number,
   kind: DeclarationKind,
-  text: string,
   signature?: TextSpan,
   doc?: TextSpan,
 ): Declaration {
-  const head = headOf(text, signature);
-  const prose = docOf(text, doc);
+  const head = cutHead(signature?.text);
+  const prose = cutDoc(doc?.text);
   return {
     kind,
     at,
@@ -69,16 +50,16 @@ function symbolsByName(symbols: readonly SourceSymbol[]): Map<string, SourceSymb
   return named;
 }
 
-function declarationOfSymbol(at: string, symbol: SourceSymbol, text: string): Declaration {
-  return declaration(at, symbol.line, symbol.kind, text, symbol.signature, symbol.doc);
+function declarationOfSymbol(at: string, symbol: SourceSymbol): Declaration {
+  return declaration(at, symbol.line, symbol.kind, symbol.signature, symbol.doc);
 }
 
 /** Build the old published-name reading from facts Sense already harvested. */
-export async function indexedNames(
+export function indexedNames(
   root: string,
   offerings: readonly Offering[],
   sources: ReadonlyMap<string, IndexedSource>,
-): Promise<(source: string) => Names> {
+): (source: string) => Names {
   const entrypoints = new Map<string, string>();
   for (const offering of offerings) {
     for (const entry of offering.entrypoints) {
@@ -107,7 +88,6 @@ export async function indexedNames(
 
   const wanted = new Set<string>();
   const expanded = new Set<string>();
-  const texts = new Map<string, string>();
   const visit = (file: string): void => {
     if (expanded.has(file)) return;
     expanded.add(file);
@@ -124,16 +104,6 @@ export async function indexedNames(
     expanded.clear();
     for (const source of wanted) visit(source);
     let changed = false;
-
-    const unread = [...wanted].filter((file) => !texts.has(file));
-    let next = 0;
-    await Promise.all(Array.from({ length: Math.min(6, unread.length) }, async () => {
-      for (;;) {
-        const file = unread[next++];
-        if (file === undefined) return;
-        texts.set(file, await readFile(join(root, file), 'utf8'));
-      }
-    }));
 
     for (const file of wanted) {
       const source = sources.get(file);
@@ -165,8 +135,7 @@ export async function indexedNames(
     stack.add(file);
 
     const source = sources.get(file);
-    const text = texts.get(file);
-    if (source === undefined || text === undefined) {
+    if (source === undefined) {
       stack.delete(file);
       reached.set(file, found);
       return found;
@@ -181,7 +150,6 @@ export async function indexedNames(
         file,
         published.line,
         published.imported === NAMESPACE ? 'namespace-object' : 'foreign',
-        text,
         published.signature,
         published.doc,
       );
@@ -213,7 +181,7 @@ export async function indexedNames(
         const bound = published.local ?? name;
         const symbol = boundDeclaration(local.get(bound) ?? [], published.line);
         if (symbol !== undefined) {
-          add(found, name, { ...declarationOfSymbol(file, symbol, text), declared: name });
+          add(found, name, { ...declarationOfSymbol(file, symbol), declared: name });
           continue;
         }
         const imported = source.parsed.requests.flatMap((request, index) =>

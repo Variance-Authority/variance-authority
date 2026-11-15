@@ -5,27 +5,24 @@
  * A signature is what is written before the body, so an interface's answer
  * would stop at `interface Shape` and say nothing of what a value of it holds.
  * The scan records every member each file declares, on the container that
- * holds it, so the members are read off the source index and each is shown as
- * its line reads in the checkout now, or by its name when the file was written
- * since the read, whose lines say nothing of the text it holds today.
+ * holds it, with the text of the line it is declared on, so the members are
+ * read off the source index and each is shown as its line read when the index
+ * recorded it.
  */
 
 // compass: variance-authority.report.agent-surface
 
-import type { Help } from '@variance-authority/package/help';
 import { membersOn } from '@variance-authority/sense';
-import { textAsRead } from './as-read.js';
 
 /**
  * `Members:` and one row per line that declares a member of the container
- * `on` in `at`, the file relative to `root`, each as the checkout holds the
- * line, and by its recorded name when the file is gone or was written since
- * `help` was read; a line the declaration at `line` already shows is not shown
- * again.
+ * `on` in `at`, the file relative to `root`, each as the index recorded the
+ * line, and by its name when the index kept no text of it; a line the
+ * declaration at `line` already shows is not shown again.
  * Nothing when the name declares no members or no index is published; why,
  * when the index does not read.
  */
-export function memberRows(help: Help, root: string | undefined, at: string, on: string, line: number): readonly string[] {
+export function memberRows(root: string | undefined, at: string, on: string, line: number): readonly string[] {
   if (root === undefined) return [];
   let found: ReturnType<typeof membersOn>;
   try {
@@ -34,13 +31,12 @@ export function memberRows(help: Help, root: string | undefined, at: string, on:
     return ['', `Members were not read: ${error instanceof Error ? error.message : String(error)}; run \`variance index\`.`];
   }
   if (found === undefined || found.length === 0) return [];
-  const text = textAsRead(help, root, at)?.split(/\r?\n/);
   const shown = new Set([line]);
   const rows: string[] = [];
   for (const member of found) {
     if (shown.has(member.line)) continue;
     shown.add(member.line);
-    rows.push(`${at}:${member.line} — ${text?.[member.line - 1]?.trim() ?? member.name}`);
+    rows.push(`${at}:${member.line} — ${member.text?.trim() ?? member.name}`);
   }
   return rows.length === 0 ? [] : ['', 'Members:', ...rows];
 }

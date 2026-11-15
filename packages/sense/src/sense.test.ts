@@ -153,7 +153,7 @@ describe('reading a module', () => {
       source,
     );
 
-    expect(read.exports?.map(({ signature: _, doc: __, ...published }) => published)).toEqual([
+    expect(read.exports?.map(({ signature: _, doc: __, lineText: ___, ...published }) => published)).toEqual([
       { exported: 'x', local: 'x', type: false, line: 1 },
       // An anonymous default is exported and not locally accessible: what it
       // binds is the slot, the name the harvest gives its declaration.
@@ -177,7 +177,7 @@ describe('reading a module', () => {
 
   it('names the identifier behind `export default name`, imported or declared', () => {
     const published = (source: string) =>
-      readModule('index.ts', source).exports?.map(({ signature: _, doc: __, ...rest }) => rest);
+      readModule('index.ts', source).exports?.map(({ signature: _, doc: __, lineText: ___, ...rest }) => rest);
     const imported = "import OriginalLogger from './logger';\nexport default OriginalLogger;\nexport const logger = OriginalLogger;\n";
 
     // `default` is already the exported name, so a `local` of `default` said

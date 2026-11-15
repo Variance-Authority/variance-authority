@@ -7,7 +7,7 @@
 //! text is a necessary condition of a match, never a sufficient one, so a
 //! candidate is matched again as before and every other row is passed over
 //! unread. A row whose doc the writer could not cut is always a candidate,
-//! and is read from its file as it was. `Terms` cuts names into terms the
+//! and is cut from the slice the index keeps. `Terms` cuts names into terms the
 //! table does not hold, so it reads every symbol, as it did.
 //!
 //! Rust lowers a capital sigma by what stands beside it, so a stem lowered
@@ -128,54 +128,35 @@ pub(crate) fn candidates(layer: &Layer, query: &str, matching: &Matching, run: O
     Candidates { parses: Rows(held), symbols, nested, members }
 }
 
-/// The file as UTF-16, read once, and only when a doc is the one thing left to match.
-fn source_of<'s>(source: &'s mut Option<Option<Vec<u16>>>, root: &str, file: &str) -> Option<&'s [u16]> {
-    source
-        .get_or_insert_with(|| std::fs::read_to_string(std::path::Path::new(root).join(file)).ok().map(|text| text.encode_utf16().collect()))
-        .as_deref()
-}
-
-/// A doc comment as written, which `near` and `writes_run` read by paragraph,
-/// and as words, its lines joined by single spaces and lowercased, so text
-/// typed across a line break still matches.
-struct Prose { written: String, words: String }
-
-fn prose(source: &[u16], start: u32, end: u32) -> Option<Prose> {
-    let written = crate::dependency_namespace::doc(source, Some(crate::harvest::TextSpan { start, end }))?;
-    let words = crate::name_table::words_of(&written);
-    Some(Prose { written, words })
-}
-
 /// A doc's words, as the name table holds them, and its text as written,
-/// read from the file only when a phrase is asked of it. A doc the table
-/// does not hold the words of is read whole, as before.
+/// which `near` and `writes_run` read by paragraph, cut from the slice the
+/// index keeps only when a phrase is asked of it. A doc the table does not
+/// hold the words of is cut from that slice whole: its lines joined by
+/// single spaces and lowercased, so text typed across a line break still
+/// matches.
 pub(crate) struct Said<'a> {
     pub(crate) words: Cow<'a, str>,
     written: Option<Option<String>>,
-    span: Option<(u32, u32)>,
+    text: Option<&'a str>,
 }
 
 impl<'a> Said<'a> {
-    pub(crate) fn of(doc: Doc<'a>, (start, end): (Option<u32>, Option<u32>), source: &mut Option<Option<Vec<u16>>>, root: &str, file: &str) -> Option<Self> {
-        let span = start.zip(end);
+    /// `text` is the doc's slice as the index keeps it; absent when it keeps none.
+    pub(crate) fn of(doc: Doc<'a>, text: Option<&'a str>) -> Option<Self> {
         match doc {
             Doc::Absent => None,
-            Doc::Words(words) => Some(Said { words: Cow::Borrowed(words), written: None, span }),
+            Doc::Words(words) => Some(Said { words: Cow::Borrowed(words), written: None, text }),
             Doc::Unknown => {
-                let prose = source_of(source, root, file).and_then(|source| prose(source, start?, end?))?;
-                Some(Said { words: Cow::Owned(prose.words), written: Some(Some(prose.written)), span })
+                let written = crate::dependency_namespace::cut(text?)?;
+                let words = crate::name_table::words_of(&written);
+                Some(Said { words: Cow::Owned(words), written: Some(Some(written)), text })
             }
         }
     }
 
-    pub(crate) fn written(&mut self, source: &mut Option<Option<Vec<u16>>>, root: &str, file: &str) -> Option<&str> {
-        let span = self.span;
-        self.written
-            .get_or_insert_with(|| {
-                let (start, end) = span?;
-                source_of(source, root, file).and_then(|source| crate::dependency_namespace::doc(source, Some(crate::harvest::TextSpan { start, end })))
-            })
-            .as_deref()
+    pub(crate) fn written(&mut self) -> Option<&str> {
+        let text = self.text;
+        self.written.get_or_insert_with(|| text.and_then(crate::dependency_namespace::cut)).as_deref()
     }
 
     /// Whether every one of `stems` can be in the words: a phrase that needs a stem the words lack is not read for.

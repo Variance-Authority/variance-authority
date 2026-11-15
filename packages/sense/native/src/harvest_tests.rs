@@ -9,7 +9,7 @@ fn docs(source: &str, name: &str) -> (Option<String>, Option<String>) {
     let read = read_module("a.ts", source, &Allocator::default(), true);
     let text = |start: u32, end: u32| source[start as usize..end as usize].trim_start_matches('*').trim().to_owned();
     let symbol = read.symbols.iter().find(|symbol| symbol.name == name).expect("the name is declared");
-    (read.doc.map(|doc| text(doc.start, doc.end)), symbol.doc.map(|doc| text(doc.start, doc.end)))
+    (read.doc.map(|doc| text(doc.start, doc.end)), symbol.doc.as_ref().map(|doc| text(doc.start, doc.end)))
 }
 
 #[test]

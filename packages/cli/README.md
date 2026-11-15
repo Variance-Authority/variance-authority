@@ -241,8 +241,8 @@ name or pass it on, the entry that publishes it and each row `uses` lists, and `
 `docs_search` whose printed files, or the entry and barrels publishing them, did, which a stat of each decides, is asked again of a generation made now: an answer whose files
 are unchanged reads nothing more. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on
 is saved during the read that answers it, the answer or the refusal says it was not compared with the generation,
-and why, and gives what the generation recorded of a file written since, by name and with none of its
-text. An injected
+and why, and gives a file written since as the generation read it: its names, and the text of them
+it kept. An injected
 `AskRequest.source` is read again with `current` set when its answer outlived its generation. When no changed files are
 named, `search` is the exception: it reads the published generation, whatever
 its age, and says so on the same line. When nothing is published it reads the

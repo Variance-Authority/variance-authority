@@ -244,6 +244,9 @@ export interface Export {
    * best-effort basis: what an importer's `default` is, the reader does not say.
    */
   readonly assigned?: true;
+
+  /** The line {@link line} names, as the read saw it, its line end dropped; absent when the reader kept none. */
+  readonly lineText?: string;
 }
 
 /**

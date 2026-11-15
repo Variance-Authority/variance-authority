@@ -16,16 +16,14 @@
 //! declarations — is one UTF-8 column of entries and its offsets, row for row
 //! with the table it names. An entry is the name lowered, then, when the row
 //! has a doc span: a `0x00` and the doc's words, lowered and joined by single
-//! spaces, or a `0x01` when the writer did not hold the source the span is in
-//! (a parse JavaScript handed over), which leaves the doc to be read from the
-//! file. No name or word holds either byte, so a scan for text never matches
+//! spaces, or a `0x01` when the row spans a doc without keeping its text,
+//! which leaves the doc unknown. No name or word holds either byte, so a scan for text never matches
 //! one by accident.
 
 // compass: variance-authority.reach.source-index
 
 use memchr::memmem;
 
-use crate::read::Read;
 use crate::segment::{u32s, u8s, Column};
 use crate::stored::{Stored, U32s};
 
@@ -62,43 +60,6 @@ pub(crate) const UNKNOWN_TEXT: &str = "\u{1}";
 /// single spaces, so text typed across a line break still matches.
 pub(crate) fn words_of(written: &str) -> String {
     written.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
-}
-
-/// The words of every doc comment a read spans, cut from the source it was
-/// read from, while that source is still held. `held` is false for a read
-/// that was not worded — one carried through JavaScript — whose docs are
-/// unknown, not absent.
-#[derive(Clone, Debug, Default)]
-pub(crate) struct Words {
-    held: bool,
-    items: [Vec<Option<String>>; 4],
-}
-
-impl Words {
-    /// The words of the doc of the `at`-th row of `item`: `None` when they
-    /// were not held, and `Some(None)` when the row writes no doc.
-    pub(crate) fn at(&self, item: Item, at: usize) -> Option<Option<&str>> {
-        self.held.then(|| self.items[item as usize].get(at).and_then(Option::as_deref))
-    }
-}
-
-impl Read {
-    /// The read with the words of its docs, cut from `source`, the text it was read from.
-    pub(crate) fn worded(mut self, source: &str) -> Self {
-        let spans: [Vec<Option<crate::harvest::TextSpan>>; 4] = [
-            vec![self.doc],
-            self.symbols.iter().map(|symbol| symbol.doc).collect(),
-            self.nested.iter().map(|nested| nested.doc).collect(),
-            self.member_declarations.iter().map(|member| member.doc).collect(),
-        ];
-        // Doc spans are in UTF-16 units, so the source is encoded once, and only when one is written.
-        let utf16: Vec<u16> = if spans.iter().flatten().any(Option::is_some) { source.encode_utf16().collect() } else { Vec::new() };
-        let items = spans.map(|spans| {
-            spans.into_iter().map(|span| span.and_then(|span| crate::dependency_namespace::doc(&utf16, Some(span))).map(|doc| words_of(&doc))).collect()
-        });
-        self.words = Words { held: true, items };
-        self
-    }
 }
 
 /// One table's column as it is written.

@@ -4,12 +4,16 @@ import type { ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { asOneQuestion } from '@variance-authority/sense';
 import { workspaceGeneration, workspaceReadStarted } from './snapshot.js';
-import { writtenSince } from './tools/as-read.js';
 import { FoundNothing } from './tools/find.js';
 import { grep, grepPrinted } from './tools/grep.js';
 import { printedFiles, search } from './tools/search.js';
 import { restsOn, symbol } from './tools/symbol.js';
 import { uses, usesPrinted } from './tools/uses.js';
+
+/** Whether a file last written at `mtimeMs` was written after a read that began at `since`, as `movedSince` in sense compares one. */
+export function writtenSince(mtimeMs: number, since: number): boolean {
+  return Math.floor(mtimeMs) > since;
+}
 
 /** The files an answer rests on, read as the answer read them. */
 type Printed = (help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help>) => Iterable<string>;

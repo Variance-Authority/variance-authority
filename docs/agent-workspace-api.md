@@ -409,7 +409,7 @@ nothing changed. This is producer input: it replaces Git's changed-file
 discovery and cannot be combined with `--just-answer`. Such a refresh reads the
 files you listed and no others, so the generation keeps the time of the read it
 refreshed: an answer given with the list gives a listed file's names at the lines
-the file holds now, with none of its text, and the next question without one that
+the file holds now, with their text as the refresh read it, and the next question without one that
 rests on that file reads the checkout. A
 file you left off is unchanged for that request, and that next question is where
 it is looked at. With no generation to refresh, the read is whole and the list

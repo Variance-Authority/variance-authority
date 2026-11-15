@@ -160,16 +160,18 @@ export interface MemberDeclarations {
   readonly extensions: readonly string[];
 }
 
-/** One member a container declares: its name and its line. */
+/** One member a container declares: its name, its line, and that line's text. */
 export interface ContainerMember {
   readonly name: string;
   readonly line: number;
+  /** The line as the read the index recorded saw it, its line end dropped; absent when the index kept none. */
+  readonly text?: string | null;
 }
 
 /**
  * The declaration an export binds: the file that declares it, the name it has
- * there, its line and kind, and the spans of its signature and doc comment in
- * the file's UTF-16 offsets, when the parser kept them.
+ * there, its line and kind, and its head and doc comment as {@link cutHead}
+ * and {@link cutDoc} cut them, when the parser kept them.
  */
 export interface ExportedDeclaration {
   readonly at: string;
@@ -177,10 +179,8 @@ export interface ExportedDeclaration {
   readonly line: number;
   /** As the parser harvested it: `function`, `const`, … */
   readonly kind: string;
-  readonly signatureStart?: number | null;
-  readonly signatureEnd?: number | null;
-  readonly docStart?: number | null;
-  readonly docEnd?: number | null;
+  readonly signature?: string | null;
+  readonly doc?: string | null;
 }
 
 /** One line that uses a member, and how. */
@@ -223,6 +223,9 @@ export interface NativeHelp {
   memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
   membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
   declarationExportedOf?(index: OpenedIndex, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
+  exportLineOf?(index: OpenedIndex, file: string, line: number): string | null;
+  cutDoc?(slice: string): string | null;
+  cutHead?(slice: string): string | null;
   aliasesOf?(root: string, index: OpenedIndex, local: string): Alias[] | null;
   declaredOf?(root: string, index: OpenedIndex, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
   declaredDescribedOf?(root: string, index: OpenedIndex, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
@@ -423,6 +426,37 @@ export function membersOn(root: string, file: string, on: string, index: string 
 export function declarationExported(root: string, file: string, name: string, index: string = sourceIndexPath(root)): ExportedDeclaration | null | undefined {
   const read = onIndex(index, (opened) => entry('declarationExportedOf')(opened, file, name));
   return read === null ? undefined : (read.declaration ?? null);
+}
+
+/**
+ * The text of the line `line` of `file`, repo-relative, when the newest parse
+ * the index at `index` holds of the file records an export on it: the line as
+ * that read saw it, its line end dropped. `undefined` when it records none
+ * there, kept no text of it, or no index was published. Throws when the index
+ * does not read.
+ */
+export function exportLine(root: string, file: string, line: number, index: string = sourceIndexPath(root)): string | undefined {
+  return onIndex(index, (opened) => entry('exportLineOf')(opened, file, line)) ?? undefined;
+}
+
+/**
+ * A doc comment's prose, cut from the text a span keeps inside its marks: each
+ * line less its JSDoc or Javadoc `*` margin, or its Rust or Swift `///` or
+ * `//!`, and one space or tab after it, the whole trimmed. `undefined` for no
+ * text or when nothing is left. The index's own answers are cut by the same
+ * code, so a doc reads the same whichever side cut it.
+ */
+export function cutDoc(slice: string | undefined): string | undefined {
+  return slice === undefined ? undefined : (entry('cutDoc')(slice) ?? undefined);
+}
+
+/**
+ * A declaration's head, cut from the text its signature span keeps: less the
+ * whitespace it ends on and one `;` after that. `undefined` for no text or
+ * when nothing is left.
+ */
+export function cutHead(slice: string | undefined): string | undefined {
+  return slice === undefined ? undefined : (entry('cutHead')(slice) ?? undefined);
 }
 
 /**
