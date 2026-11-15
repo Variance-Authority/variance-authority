@@ -34,7 +34,7 @@ struct Manifest {
     working: usize,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize)]
 pub(crate) struct Reference {
     pub(crate) digest: String,
     pub(crate) length: u64,

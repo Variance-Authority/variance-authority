@@ -14,8 +14,9 @@
 //! last, so a reader never opens a manifest naming a segment that is not
 //! there. Each file is synced before its rename, and the segments' directory
 //! before the manifest's, so the order holds across a power loss as well as a
-//! killed process: a reader checks a segment's length, not its digest. A compaction names none of the segments it replaced, and they are
-//! removed only after the manifest that stopped naming them is in place. A
+//! killed process: a reader checks a segment's length, not its digest. A
+//! compaction names none of the segments it replaced, and they are removed
+//! only after the manifest that stopped naming them is in place. A
 //! cold build's two segments are made on this side, and publishing them from
 //! here means the bytes never become a JavaScript buffer at all.
 
