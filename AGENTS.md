@@ -224,6 +224,11 @@ edit: lint, the compiler, then the unit tests within one import of what
 changed. An edit that keeps no test says so in its `selected none of` line:
 nothing near it failed, and no test ran. A red is fixed before any other edit.
 
+An edit in another realm — Rust, the crate's manifests, its build scripts — does
+not run `test:loop` at all: no unit test covers it, and the loop would charge
+every test that loads the addon. Run `cargo test` in the crate, and leave the
+TypeScript side to CI.
+
 What the task needs, and a defect in its own diff, are fixed on its branch
 before it merges; a finding it neither needs nor wrote goes on its own branch,
 as [change](.agents/references/change.md) draws the line.

@@ -42,7 +42,8 @@ it.runIf(nativeAvailable())('reads local blobs and worktree fallbacks without fe
     const disk = addon.scanBatch(root, files, undefined, true, 1);
     expect(packed).toEqual(disk);
     const events = readFileSync(trace, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
-    expect(events.some((event) => event.event === 'start' && event.argv?.includes('cat-file'))).toBe(true);
+    // The store is read in-process: opening it asks Git where it lies and its object format.
+    expect(events.some((event) => event.event === 'start' && event.argv?.includes('--show-object-format'))).toBe(true);
     const commands = events.filter((event) => event.event === 'child_start').map((event) => event.argv);
     expect(commands.filter((args: string[]) => args.includes('fetch'))).toEqual([]);
     expect(files).toHaveLength(161);

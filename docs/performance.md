@@ -401,12 +401,15 @@ key carried to decide whether a file needs reading is the key that fetches it.
 Every `open` in the sections above took the long way round to bytes that a
 process one pipe away had indexed under an id the scan was already holding.
 
-`cat-file --batch` opens that pack once per process, and every object after
-that is a seek and an inflate: no path walk, no name cache, no vnode lock
-shared with five other readers, and nothing for a filter driver to intercept.
-Objects written since the last repack are loose rather than packed and cost one
-open each, which is the worktree price for the handful of files that have it —
-the same command answers for both and the caller never learns which it got.
+A reader opens that pack once, and every object after that is a seek and an
+inflate: no path walk, no name cache, no vnode lock shared with five other
+readers, and nothing for a filter driver to intercept. Objects written since the
+last repack are loose rather than packed and cost one open each, which is the
+worktree price for the handful of files that have it — the same lookup answers
+for both and the caller never learns which it got. The figures in this section
+up to the wave threshold were taken with `cat-file --batch`, the reader the scan
+had then; it now reads the store in the addon's own process, and the last
+paragraphs of the section say what that moved.
 
 Repository size decides this, and it decides it in opposite directions.
 
@@ -439,33 +442,41 @@ the same files; lookup with no content is 120.99 ms of that.
 So both paths ship, and what picks between them is the size of the wave — one
 wave being however many files a scan has decided it needs at once, which is
 every module in the repository on a cold run and a handful on a warm one.
-On Material UI, starting a `cat-file` process costs 7.08 ms and a blob saves
-about 53 µs against an open; the two divide to about 134 files, and
-`FILES_PER_PROCESS = 160` rounds it up rather than down, because a bucket that
-only just clears the line saves nothing worth a process. On Kibana a process
-costs 8.48 ms to start, and at the same 53 µs a blob the two divide to 160 files,
-which is the constant as it stands. A wave below 160 files reads from disk,
+On Material UI, starting a `cat-file` process cost 7.08 ms and a blob saved
+about 53 µs against an open; the two divide to about 134 files, and the
+threshold was rounded up to 160, because a wave that only just clears the line
+saves nothing worth the start. On Kibana a process cost 8.48 ms to start, and at
+the same 53 µs a blob the two divide to 160 files. The in-process reader has no
+process to start, but opening it asks git two questions, about 9 ms on either
+checkout, and `FILES_PER_WAVE` keeps the 160. On a warm page cache that line is
+low: over the same files, read and parsed, a 160-file wave takes 4.4 ms from
+disk and 14.0 from the store on Kibana, 5.0 and 15.0 on Material UI; 500 files
+take 15.1 and 20.8, 11.5 and 16.0; 2,000 take 52.7 and 38.1, 43.1 and 26.2. The
+two break even near 800 files. Where a cold cache puts the line is not measured,
+so it has not moved. A wave below it reads from disk,
 where the chunked pipeline overlaps the next open with the current parse. Both
 give the same answers, and the number is worth remembering for the incremental
 table below, where every wave is smaller than it.
 
 Nothing changes for dirty or untracked files. Those are hashed with
-`hash-object`, which does not write the object, so `cat-file` answers `missing`
-and the read falls back to opening the file — the path every other failure
-already used.
+`hash-object`, which does not write the object, so the store holds nothing by
+that id and the read falls back to opening the file — the path every other
+failure already used. So does a repository whose ids may not name the bytes
+checkout wrote: one with a replace ref, or an object format other than SHA-1,
+is read from disk whole.
 
 The two paths are shaped differently because the thing they are hiding is
 different. A worktree read is waiting on a descriptor, so it has a bounded read
 pool in front of a wide parse pool with the two overlapped. A pack read is not
-waiting on anything worth hiding, so each stream reads its blob and parses it
-before asking for the next, and the stream count is the only width there is.
+waiting on anything worth hiding, so each thread reads its blob and parses it
+before asking for the next.
 
 On a mid-sized subtree where both paths are viable, the pack takes a cold scan
 from 582 ms to 473 and drops its kernel half by forty percent. On the whole of
 Kibana it takes a cold scan from 7,945.7 ms to 7,723.9 and its system time from
 8,896.9 ms to 2,507.4: 72% less kernel time for 3% less wall clock. Those two
 Kibana scans come from a build of the addon forced onto one path for every
-wave, each the median of three. The shipped scan picks its path by wave size,
+wave, each the median of three, with the `cat-file` reader. The shipped scan picks its path by wave size,
 and its cold scan is the 6,344 ms below, the median of three runs taken apart
 from those two: read the forced builds against each other, not against it.
 
@@ -489,6 +500,39 @@ costs 1,543.8 ms, in the ripgrep table below. In a profiled cold run, 5,582 ms
 of the 6,757 ms sampled is one native call, the one that reads, parses and
 resolves the whole module closure. Against 1,543.8 ms, that leaves about four
 seconds of the call for resolving specifiers and walking the closure.
+
+The scan's wave and `ask grep` read the store through one reader, in the addon's
+own process through gitoxide's object database. Over every module, read and
+parsed, that reader leaves the scan's wave where six `cat-file` streams had it:
+1,456 ms against 1,411 on Kibana's 107,041, and 740 against 797 on 194,236 over
+seven copies of Material UI. A 200-file wave, which pays the opening and little
+else, takes 15 ms where the streams took 26 on Kibana and 21 on Material UI.
+
+A search needs one proof more than the scan does, because it holds no blob id:
+git's index. A file the index holds as an unconflicted regular file, with none
+of skip-worktree, assume-unchanged or intent-to-add set, whose `lstat` still
+matches the entry to the nanosecond and is not racy against the index, and whose
+blob is its size and no git-lfs pointer, is that blob, and is searched out of
+the store; every other file is opened. A checkout git rewrote to another length,
+by line endings, fails the size and is opened; `ident` can keep the length, so
+where an attributes file names it, a blob holding `$Id` is opened too. A
+checkout an encoding or a filter rewrote at its length, before the attribute
+was removed, is the one file searched as its blob and not its bytes: git's
+`status` calls it unchanged too, until it is checked out again. Opening the store for
+a search asks git four questions, loads the index and reads the attributes
+files git and the index name, about 18 ms, and a search from disk costs as much at about 3,000
+files, which is `STORE_CROSSOVER`; a shorter list opens nothing. Over Kibana's
+`x-pack`, 93,966 files, the search from disk takes 988 ms and the one from the
+store 217 ms, where `rg` over the same folder takes 1,027; over its `src`,
+38,463 files, 354 ms and 99; over one copy of Material UI, 28,395 files, 226 ms
+and 69, where `rg` takes 369. A repository whose blobs may not be the bytes on
+disk is searched from disk whole: one with a replace ref, a clean, smudge or
+process filter other than git-lfs's, a `working-tree-encoding` in any
+attributes file, which can rewrite a file at its length, an object format other
+than SHA-1, or more than fifty packs and no multi-pack index. The untracked
+attributes files below the root are read beside the search rather than before
+it, since on APFS the lookups queue behind each other; one naming
+`working-tree-encoding` or `ident` runs the search again from disk.
 
 ## After the first read, you do not read it again
 
@@ -826,6 +870,16 @@ the ripgrep comparison are each the **best of three**, which is the run least
 disturbed by the rest of the machine. On Kibana the pack-table row and the
 one-stream `cat-file` figures are the best of five, `cat-file` start-up is the
 median of 21, and the pack-against-disk cold scans are the median of three.
+The `ask grep` figures are each the **median of seven**, the search from the
+store and the one from disk run back to back on Kibana at `2df7209048` and
+Material UI at `37663aaa43`, under a load average between 4 and 13 on sixteen
+cores; the crossover is the median of eight per list size, from 100 files to
+the whole folder, the two paths interleaved, under a load between 4 and 5. The
+scan's wave figures are the median of seven, the `cat-file` build and the
+in-process one interleaved on the same files, under a load between 9 and 10; the
+disk-against-store waves are the median of eight, each run a different slice of
+files, under a load of 14; and each opening of the store is the median of nine,
+the scan's under a load of 9 and the search's under 14.
 **Every other row of the incremental table is one timing of one run**: read
 Material UI's column for its shape and not for a difference of a few tens of
 milliseconds, because a single sample is worth about that much either way. On
@@ -837,7 +891,8 @@ a clone of either checkout: `source-index.mjs` for the floor table, the
 incremental table and Material UI's git rows, `read-width.mjs` for the width
 sweep, `scan-cost.mjs` for ripgrep. The rest come from harnesses that are not
 in the repository. On both repositories, that is the probes, the chunk sweep,
-the pack table, the `cat-file` start-up and the pack-against-disk scans. On
+the pack table, the `cat-file` start-up, the pack-against-disk scans, the
+store's crossover, the scan's wave and the `ask grep` figures. On
 Kibana it is also the publish figures, the `status` figures and the profiled
 cold run. The TypeScript figure is the
 module reader Sense replaced with the addon, timed against it on the same files

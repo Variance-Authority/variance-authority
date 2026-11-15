@@ -1,17 +1,18 @@
 //! Bounded acquisition of worktree files and committed Git blobs.
 
 use std::fs;
-use std::io::{BufRead, BufReader, ErrorKind, Read as _, Write as _};
+use std::io::{ErrorKind, Read as _};
 use std::path::Path;
-use std::process::{Command, Stdio};
-use std::sync::mpsc;
+
+use gix_hash::ObjectId;
 
 use oxc_allocator::AllocatorPool;
 use rayon::prelude::*;
 use rayon::{ThreadPool, ThreadPoolBuildError, ThreadPoolBuilder};
 
 use crate::digest;
-use crate::git::{self, Oid};
+use crate::git::Oid;
+use crate::git_store::{Objects, Reader};
 use crate::read::{read_module, Read};
 
 /// What became of a file's bytes. `Declined` is a refusal the bytes decide —
@@ -36,28 +37,29 @@ pub(crate) type Answer = (Read, String, Outcome);
 /// An answer, and whether the bytes it parsed are the blob its request named:
 /// read out of Git's object store, or off the disk and hashed to that name.
 type Named = (Answer, bool);
-type Numbered = (usize, Named);
-type Requested = (usize, String, Option<Oid>);
 
 /// Worktree opens peak before the machine's core count on APFS.
 const READERS: usize = 6;
 /// Enough files to keep the readers busy while bounding held source bytes.
 const CHUNK: usize = 2048;
-/// How many files one `cat-file` process must answer to have been worth starting.
+/// The fewest files a wave must read for the object store to pay for opening.
 ///
-/// Starting one costs about 7 ms on this machine; reading a blob out of it
-/// instead of opening the file saves about 53 us, because what a worktree read
-/// costs is the descriptor rather than the bytes. The two divide to about a
-/// hundred and thirty files, and the number is rounded up rather than down: a
-/// bucket that only just clears the line saves nothing worth a process, while
-/// one that misses it pays 7 ms for a wave a disk read would have finished.
-const FILES_PER_PROCESS: usize = 160;
+/// The line was drawn for a `cat-file` process, whose start divided by the
+/// 53 us a blob saved against an open came to 160 files. The in-process store
+/// has no process, but opening it asks git two questions, about 9 ms, and on a
+/// warm page cache a wave read from it costs about 10 ms more than the disk
+/// read at 160 files and breaks even near 800 (`docs/performance.md`). The
+/// line stays where it was until a cold-cache measurement says where it moves.
+const FILES_PER_WAVE: usize = 160;
 /// The largest file a read opens when its caller names no limit.
 // FIXME: `LARGEST_FILE` in `scan.ts` is the same number, and a change to it
 // bumps `VERSION` in `reuse.ts` so that no index keeps what the old limit
 // declined. A change made only here moves the limit without that bump.
 pub(crate) const LARGEST_FILE: u32 = 1024 * 1024;
 
+/// Read `files` out of Git's object store by `oids`, each file's id or `None`
+/// for an untracked one, and off the disk wherever the store answers nothing;
+/// with each answer, whether its bytes are the blob its id names.
 pub(crate) fn read_git(
     root: String,
     files: Vec<String>,
@@ -67,147 +69,66 @@ pub(crate) fn read_git(
     readers: Option<u32>,
     symbols: bool,
 ) -> (Vec<Answer>, Vec<bool>) {
+    // A wave too small to pay for opening the store reads from disk, where the
+    // chunked pipeline overlaps the next open with the current parse. Both paths
+    // give the same answers; this one only ever decides which is cheaper.
+    let objects = (files.len() >= FILES_PER_WAVE).then(|| Objects::open(Path::new(&root))).flatten();
+    let Some(objects) = objects else {
+        return read_disk(root, files, &oids, largest_file, digests, readers, symbols).into_iter().unzip();
+    };
     let largest = u64::from(largest_file.unwrap_or(LARGEST_FILE));
     let wanted = digests.unwrap_or(false);
-    let count = files.len();
-    // A wave too small to pay for one process reads from disk, where the chunked
-    // pipeline overlaps the next open with the current parse. Both paths give the
-    // same answers; this one only ever decides which is cheaper.
-    if count < FILES_PER_PROCESS {
-        return read_disk(root, files, &oids, largest_file, digests, readers, symbols).into_iter().unzip();
-    }
-    let width = readers
-        .map_or(READERS, |value| value as usize)
-        .min(count / FILES_PER_PROCESS);
-    let arenas = AllocatorPool::new(width);
-    let (send, receive) = mpsc::channel();
-    let mut buckets: Vec<Vec<Requested>> = (0..width).map(|_| Vec::new()).collect();
-    for (index, (file, oid)) in files.into_iter().zip(oids).enumerate() {
-        buckets[index % width].push((index, file, oid));
-    }
-
-    std::thread::scope(|scope| {
-        for bucket in buckets {
-            let send = send.clone();
-            let root = root.clone();
-            let arenas = &arenas;
-            scope.spawn(move || {
-                for answer in read_git_bucket(&root, bucket, largest, wanted, arenas, symbols) {
-                    let _ = send.send(answer);
-                }
-            });
-        }
-    });
-    drop(send);
-    ordered(count, receive).into_iter().unzip()
-}
-
-fn read_git_bucket(
-    root: &str,
-    bucket: Vec<Requested>,
-    largest: u64,
-    digests: bool,
-    arenas: &AllocatorPool,
-    symbols: bool,
-) -> Vec<Numbered> {
-    let tracked: Vec<String> = bucket
-        .iter()
-        .filter_map(|(_, _, oid)| oid.as_ref().map(git::hex))
-        .collect();
-    let mut child = if tracked.is_empty() {
-        None
-    } else {
-        Command::new("git")
-            .args(["cat-file", "--batch"])
-            // Missing worktree hashes must reach the disk fallback, including
-            // in promisor repositories where Git otherwise tries a fetch.
-            .env("GIT_NO_LAZY_FETCH", "1")
-            .current_dir(root)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .ok()
+    let root = Path::new(&root);
+    let opening = opening_pool(readers, files.len());
+    let arenas = AllocatorPool::new(opening.as_ref().map_or(1, ThreadPool::current_num_threads));
+    let work = || -> Vec<Named> {
+        files
+            .par_iter()
+            .zip(&oids)
+            .map_init(
+                || objects.reader(),
+                |reader, (file, oid)| match oid {
+                    Some(oid) => read_blob(root, file, oid, reader, largest, wanted, &arenas, symbols),
+                    None => open_and_parse(root, file, None, largest, wanted, &arenas, symbols),
+                },
+            )
+            .collect()
     };
-    let mut reader = child
-        .as_mut()
-        .and_then(|held| held.stdout.take())
-        .map(BufReader::new);
-    if let Some(pipe) = child.as_mut().and_then(|held| held.stdin.take()) {
-        std::thread::spawn(move || {
-            let mut pipe = pipe;
-            for oid in tracked {
-                let _ = writeln!(pipe, "{oid}");
-            }
-        });
+    // A blob a wave cannot take from the store opens its file, at the disk reader's width.
+    match opening {
+        Ok(pool) => pool.install(work),
+        Err(_) => work(),
     }
-
-    let root = Path::new(root);
-    let mut answers = Vec::with_capacity(bucket.len());
-    for (index, file, oid) in bucket {
-        let answer = match (oid, reader.as_mut()) {
-            (Some(oid), Some(reader)) => {
-                read_blob(root, &file, &oid, reader, largest, digests, arenas, symbols)
-            }
-            (oid, _) => open_and_parse(root, &file, oid.as_ref(), largest, digests, arenas, symbols),
-        };
-        answers.push((index, answer));
-    }
-    if let Some(mut child) = child {
-        let _ = child.wait();
-    }
-    answers
+    .into_iter()
+    .unzip()
 }
 
 #[allow(clippy::too_many_arguments, reason = "one read's whole request")]
-fn read_blob<R: BufRead>(
+fn read_blob(
     root: &Path,
     file: &str,
     oid: &Oid,
-    reader: &mut R,
+    reader: &mut Reader,
     largest: u64,
     digests: bool,
     arenas: &AllocatorPool,
     symbols: bool,
 ) -> Named {
-    let mut header = String::new();
-    if reader.read_line(&mut header).is_err() || header.ends_with(" missing\n") {
-        return open_and_parse(root, file, Some(oid), largest, digests, arenas, symbols);
-    }
-    let Some(size) = header
-        .split_ascii_whitespace()
-        .nth(2)
-        .and_then(|value| value.parse::<u64>().ok())
-    else {
+    let id = ObjectId::from_bytes_or_panic(oid);
+    let Some(size) = reader.size(&id) else {
         return open_and_parse(root, file, Some(oid), largest, digests, arenas, symbols);
     };
     if size > largest {
-        let copied = {
-            let mut blob = (&mut *reader).take(size);
-            std::io::copy(&mut blob, &mut std::io::sink())
-        };
-        let mut newline = [0];
-        if !matches!(copied, Ok(read) if read == size) || reader.read_exact(&mut newline).is_err() {
-            return open_and_parse(root, file, Some(oid), largest, digests, arenas, symbols);
-        }
         let unknown = Some(too_large(file, size, largest));
         return ((Read { unknown, ..Read::default() }, String::new(), Outcome::Declined), false);
     }
-    let mut bytes = vec![0; size as usize];
-    if reader.read_exact(&mut bytes).is_err() {
-        return open_and_parse(root, file, Some(oid), largest, digests, arenas, symbols);
+    // A pointer git-lfs smudged, or bytes that are not UTF-8, are answered by the
+    // disk, which holds the content this scan reads or declines it by its bytes.
+    let source = reader.blob(&id).and_then(|bytes| std::str::from_utf8(bytes).ok()).map(str::to_owned);
+    match source {
+        Some(source) => (parsed(file, source, digests, arenas, symbols), true),
+        None => open_and_parse(root, file, Some(oid), largest, digests, arenas, symbols),
     }
-    let mut newline = [0];
-    let _ = reader.read_exact(&mut newline);
-    // A file git-lfs tracks is a pointer in git and its content on disk, where
-    // the checkout smudged it: the disk holds the bytes this scan reads.
-    if crate::lfs::pointer(&bytes) {
-        return open_and_parse(root, file, Some(oid), largest, digests, arenas, symbols);
-    }
-    let Ok(source) = String::from_utf8(bytes) else {
-        return open_and_parse(root, file, Some(oid), largest, digests, arenas, symbols);
-    };
-    (parsed(file, source, digests, arenas, symbols), true)
 }
 
 fn open_and_parse(
@@ -418,14 +339,6 @@ fn open<'a>(
     };
     let named = oid.is_some_and(|oid| crate::parse_origin::names(oid, source.as_bytes()));
     (file, Opened::Source(source), digest, named)
-}
-
-fn ordered(count: usize, answers: impl IntoIterator<Item = Numbered>) -> Vec<Named> {
-    let mut held: Vec<Option<Named>> = (0..count).map(|_| None).collect();
-    for (index, answer) in answers {
-        held[index] = Some(answer);
-    }
-    held.into_iter().flatten().collect()
 }
 
 fn too_large(file: &str, size: u64, largest: u64) -> String {

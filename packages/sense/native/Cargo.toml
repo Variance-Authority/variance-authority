@@ -47,6 +47,12 @@ dashmap = "6"
 # The matcher `oxc_resolver` already builds, and the one rolldown reads a
 # `sideEffects` glob with.
 fast-glob = "1"
+# git's index and object store, read in-process: a tracked file the index holds
+# as unchanged is inflated out of its pack instead of opened (`git_store.rs`).
+gix-hash = { version = "=0.28.0", features = ["sha1"] }
+gix-index = { version = "=0.57.0", features = ["sha1"] }
+gix-object = "=0.66.0"
+gix-odb = { version = "=0.86.0", features = ["sha1"] }
 # ripgrep's searcher and its regex matcher: `ask grep` and `discover` search
 # text in-process, with ripgrep's pattern language, encodings and binary rules.
 grep-regex = "0.1"
