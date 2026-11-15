@@ -58,7 +58,7 @@ describe('a module the run cut into more regions than the index holds', () => {
   ]);
 
   it('carries the cases of the region around a newly cut one onto it, as the rows take crossings from the region around', () => {
-    const { merged } = layerCaseIndex(held, fresh, { ...ran(['run.test.ts']), sameText: () => true });
+    const { merged } = layerCaseIndex(held, fresh, { ...ran(['run.test.ts']), sameText: ['src/durable.ts'] });
 
     expect(read(merged).regions['src/durable.ts']).toEqual({
       '': [observe, parity, run],
@@ -78,7 +78,7 @@ describe('a module the run cut into more regions than the index holds', () => {
       ['module', '', [1, 40], [run], true],
       ['function', 'helper', [32, 38], []],
     ]);
-    const { merged } = layerCaseIndex(loadedHeld, loadedFresh, { ...ran(['run.test.ts']), sameText: () => true });
+    const { merged } = layerCaseIndex(loadedHeld, loadedFresh, { ...ran(['run.test.ts']), sameText: ['src/durable.ts'] });
 
     expect(read(merged).regions['src/durable.ts']).toEqual({
       ' (loaded)': [observe, run],
@@ -100,7 +100,7 @@ describe('a module the run cut into more regions than the index holds', () => {
       ['continuation', 'put/first', [6, 12], []],
       ['branch', 'put/branch', [12, 12], []],
     ]);
-    const { merged } = layerCaseIndex(siblingHeld, siblingFresh, { ...ran(['run.test.ts']), sameText: () => true });
+    const { merged } = layerCaseIndex(siblingHeld, siblingFresh, { ...ran(['run.test.ts']), sameText: ['src/durable.ts'] });
 
     expect(read(merged).regions['src/durable.ts']).toEqual({
       '': [observe, parity, run],
@@ -120,7 +120,7 @@ describe('a module the run cut into more regions than the index holds', () => {
   });
 
   it('keeps the owners the run recorded, so a landing that lays its shard\'s index again walks them too', () => {
-    const { merged } = layerCaseIndex(held, fresh, { ...ran(['run.test.ts']), sameText: () => true });
+    const { merged } = layerCaseIndex(held, fresh, { ...ran(['run.test.ts']), sameText: ['src/durable.ts'] });
 
     expect(openSetExecutionIndex(merged)!.modules[0]!.owner).toEqual(openSetExecutionIndex(fresh)!.modules[0]!.owner);
   });
@@ -133,7 +133,7 @@ describe('a module the run cut into more regions than the index holds', () => {
       ['resume', 'put/continuation/resume', [29, 29], []],
     ]);
     const lay = (previous: Uint8Array, cut: Uint8Array) =>
-      layerCaseIndex(previous, cut, { ...ran(['run.test.ts']), sameText: () => true }).merged;
+      layerCaseIndex(previous, cut, { ...ran(['run.test.ts']), sameText: ['src/durable.ts'] }).merged;
     const first = lay(held, again);
     const second = lay(first, fresh);
     const third = lay(second, again);

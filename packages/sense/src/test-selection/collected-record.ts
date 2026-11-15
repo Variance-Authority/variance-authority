@@ -76,11 +76,11 @@ function withoutTests(coverage: TestCoverage, retired: ReadonlySet<string>): Tes
  */
 function withoutCases(sections: CaseSections, collected: ReadonlySet<string>): CaseSections {
   const nothing = encodeAsSetExecutionIndex({ tests: [], modules: [] });
-  const none = new Set<string>();
+  const among = [...collected];
   const cut = (index: Uint8Array | undefined): Uint8Array | undefined =>
     openPrevious(index) === undefined
       ? index
-      : layerCaseIndex(index, nothing, { ran: none, finished: none, present: (file) => collected.has(file) }).merged;
+      : layerCaseIndex(index, nothing, { ran: [], finished: [], presentAmong: among, before: false }).merged;
   const index = cut(sections.index);
   const before = cut(sections.before);
   const cases = openPrevious(index)?.tests;

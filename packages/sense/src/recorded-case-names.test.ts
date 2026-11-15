@@ -47,7 +47,7 @@ describe('the case names a record holds', () => {
 
   it('reads what a local run laid over its base, the run and the rest', () => {
     const base = index(['held.test.ts > carried', 'run.test.ts > before'], {});
-    const { merged } = layerCaseIndex(base, index(['run.test.ts > after'], {}), { ...ran(['run.test.ts']), sameText: () => true });
+    const { merged } = layerCaseIndex(base, index(['run.test.ts > after'], {}), { ...ran(['run.test.ts']), sameText: [] });
     record(merged);
 
     const [read] = recordedCaseNames(root);
