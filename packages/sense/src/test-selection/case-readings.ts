@@ -10,14 +10,8 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native, nativeRefusal } from '../addon.js';
 import { digestString } from '../digest.js';
-import { linesOf, valueAt } from './case-lines.js';
-import { openSetExecutionIndex, type OpenedSetExecutionIndex } from './execution-set-format.js';
 import type { CoverageModule, CoverageTest, TestCoverage } from './index.js';
-import { decodeCase, decodeReadings, type ReadRegion, type StoredReading } from './readings-bytes.js';
-
-/** Distinct readings kept per case, newest first. */
-export const READINGS = 16;
-
+import { decodeReadings, type ReadRegion } from './readings-bytes.js';
 
 /**
  * One recorded run of one case, and how many runs read it so: an equal reading
@@ -30,15 +24,6 @@ export interface Reading {
   readonly stopped?: boolean;
   /** Every region it crossed, in module and region order. */
   readonly regions: readonly ReadRegion[];
-}
-
-
-/** What a case's reading is, read off an index. */
-interface Read {
-  readonly file: string;
-  readonly stopped?: boolean;
-  readonly regions: ReadRegion[];
-  readonly modules: Set<string>;
 }
 
 /** What a run tells the readings of the cases it ran. */
@@ -88,7 +73,6 @@ export function layReadings(
 ): Buffer | undefined {
   const lay = native()?.layReadings;
   if (lay === undefined) throw new Error(`laying case readings requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `layReadings`'}`);
-  const buffer = (bytes: Uint8Array | undefined): Buffer | undefined => (bytes === undefined ? undefined : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength));
   return lay(
     buffer(kept),
     buffer(previous),
@@ -101,35 +85,6 @@ export function layReadings(
   ) ?? undefined;
 }
 
-/** The regions `stored` names over `base`, as {@link difference} wrote them; its own where it holds them. */
-function applied({ regions, gone, values, added }: Pick<StoredReading, 'regions' | 'gone' | 'values' | 'added'>, base: readonly ReadRegion[]): readonly ReadRegion[] {
-  if (regions !== undefined) return regions;
-  if (gone === undefined && values === undefined && added === undefined) return base;
-  const charged = new Map(values ?? []);
-  const dropped = new Set(gone ?? []);
-  const own: ReadRegion[] = base.flatMap((region, place) => dropped.has(place) ? [] : [
-    charged.has(place) ? [...region.slice(0, 5), charged.get(place)!] as unknown as ReadRegion : region,
-  ]);
-  for (const [place, region] of added ?? []) own.splice(place, 0, region);
-  return own;
-}
-
-/**
- * A case's stored readings in full: the newest over `base`, the regions the
- * index it was laid into holds of the case, and each earlier one over the
- * newest; absent where the newest holds no regions and `base` is absent.
- */
-function expanded(stored: readonly StoredReading[], base: readonly ReadRegion[] | undefined): Reading[] | undefined {
-  const [first] = stored;
-  if (first === undefined || (first.regions === undefined && base === undefined)) return undefined;
-  const newest = applied(first, base ?? []);
-  return stored.map((reading, at): Reading => ({
-    count: reading.count,
-    ...(reading.stopped === undefined ? {} : { stopped: reading.stopped }),
-    regions: at === 0 ? newest : applied(reading, newest),
-  }));
-}
-
 /** What each test file ran over when its cases were last read, as `section` names it; absent when it names none. */
 export function inputsIn(section: Uint8Array | undefined): ReadonlyMap<string, string> | undefined {
   const { inputs } = decodeReadings(section);
@@ -138,45 +93,20 @@ export function inputsIn(section: Uint8Array | undefined): ReadonlyMap<string, s
 
 /**
  * Every reading the record keeps of case `id`, newest first, the newest read
- * off `index`; absent when the record keeps no earlier reading of it.
+ * off `index`; absent when the record keeps no earlier reading of it. The
+ * addon reads it; nothing reads it without the addon.
  */
 export function readingsOf(section: Uint8Array | undefined, index: Uint8Array | undefined, id: string): readonly Reading[] | undefined {
-  const opened = index === undefined ? undefined : openSetExecutionIndex(index);
-  const bytes = decodeReadings(section).cases.get(id);
-  const stored = bytes === undefined ? [] : decodeCase(bytes);
-  if (stored.length === 0) return undefined;
-  const newest = opened === undefined || stored[0]?.regions !== undefined ? undefined : readsOf(opened, new Set([id])).get(id)?.regions;
-  return expanded(stored, newest ?? []);
+  if (section === undefined) return undefined;
+  const read = native()?.readingsOfCase;
+  if (read === undefined) throw new Error(`reading case readings requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `readingsOfCase`'}`);
+  return read(buffer(section)!, buffer(index), id)?.map(({ count, stopped, regions }): Reading => ({
+    count,
+    ...(stopped === undefined || stopped === null ? {} : { stopped }),
+    regions: regions.map(({ module, name, path, start, end, value }): ReadRegion => [module, name, path, start, end, value ?? null]),
+  }));
 }
 
-function stop(read: Pick<Read, 'stopped'>): { readonly stopped?: boolean } {
-  return read.stopped === undefined ? {} : { stopped: read.stopped };
-}
-
-/** The readings of the cases `wanted` names that `index` holds, by id. */
-function readsOf(index: OpenedSetExecutionIndex, wanted: ReadonlySet<string>): Map<string, Read> {
-  const rows = new Map<number, Read>();
-  const byId = new Map<string, Read>();
-  for (const [row, test] of index.tests.entries()) {
-    if (!wanted.has(test.id)) continue;
-    const read: Read = { file: test.file, ...stop(test), regions: [], modules: new Set() };
-    rows.set(row, read);
-    byId.set(test.id, read);
-  }
-  if (rows.size === 0) return byId;
-  const lines = new Map([...rows.keys()].map((row) => [row, linesOf(index.lines, row)]));
-  for (const [place, module] of index.modules.entries()) {
-    for (const [block, region] of module.blocks.entries()) {
-      const set = module.called[block]!;
-      for (const row of index.sets.members(set)) {
-        const read = rows.get(row);
-        if (read === undefined) continue;
-        const caseLines = lines.get(row);
-        const value = caseLines === undefined ? undefined : valueAt(caseLines, place, block);
-        read.regions.push([module.file, region.name, region.path, region.startLine, region.endLine, value ?? null]);
-        read.modules.add(module.file);
-      }
-    }
-  }
-  return byId;
+function buffer(bytes: Uint8Array | undefined): Buffer | undefined {
+  return bytes === undefined ? undefined : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }

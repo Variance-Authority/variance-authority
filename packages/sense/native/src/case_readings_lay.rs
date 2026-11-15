@@ -23,10 +23,6 @@ use crate::order;
 use crate::record_layout::LAYOUT;
 use crate::record_parts::{put_digest, put_fronted, read_readings};
 
-/// Distinct readings kept per case, newest first: `READINGS`.
-const READINGS: usize = 16;
-/// The version a case index wrote before regions were loaded by set, which still reads.
-const LOADED_SETS_FORMAT: u8 = 2;
 
 /// One recorded run of one case, and how many runs read it so.
 #[derive(Clone)]
@@ -73,7 +69,7 @@ fn open(bytes: &[u8]) -> Result<Option<Index>, String> {
         "modules.file", "modules.blocks", "blocks.calledSet", "blocks.name", "blocks.path", "blocks.start", "blocks.end", "sets.blob", "sets.off",
     ];
     let (version, decoded) = journey_columns::decode_wanted(bytes, &wanted)?;
-    if version != cases.format && version != LOADED_SETS_FORMAT {
+    if version != cases.format && version != cases.loaded_sets {
         return Ok(None);
     }
     let optional = |decoded: &Decoded, name: &str| if decoded.has(name) { decoded.bytes(name).map(Some) } else { Ok(None) };
@@ -263,7 +259,7 @@ pub(crate) fn lay(kept: Option<&[u8]>, previous: Option<&[u8]>, landed: Option<&
             Some(found) => Reading { count: found.count + 1, ..found },
         };
         readings.insert(0, first);
-        readings.truncate(READINGS);
+        readings.truncate(LAYOUT.cases.readings);
         laid.insert(id.clone(), readings);
     }
     // A case the run did not record keeps its readings while the code they
@@ -389,4 +385,62 @@ pub fn lay_readings(
     let run = fresh.as_deref().map(|fresh| Run { fresh, announced: announced.into_iter().collect(), same: same.into_iter().collect(), inputs });
     let cases: HashSet<String> = cases.into_iter().collect();
     lay(kept.as_deref(), previous.as_deref(), landed.as_deref(), &cases, run.as_ref()).map(|bytes| bytes.map(Buffer::from)).map_err(napi::Error::from_reason)
+}
+
+/// Every reading `section` keeps of case `id`, newest first, the newest read
+/// off `index` where it is stored as its difference from it; absent when the
+/// section keeps none of the case.
+pub(crate) fn readings_of(section: &[u8], index: Option<&[u8]>, id: &str) -> Result<Option<Vec<Reading>>, String> {
+    // A section an earlier build wrote as JSON holds none.
+    if section.starts_with(b"{\"") {
+        return Ok(None);
+    }
+    let section = read_readings(section).map_err(refused)?;
+    let Some((_, bytes)) = section.cases.iter().find(|(case, _)| case == id) else { return Ok(None) };
+    let stored = decode_case(bytes).map_err(refused)?;
+    let base = match (stored.first(), index) {
+        (Some(first), Some(index)) if first.regions.is_none() => match open(index)? {
+            Some(index) => index.reads(&HashSet::from([id]))?.remove(id).map(|read| read.regions),
+            None => None,
+        },
+        _ => None,
+    };
+    Ok(expanded(&stored, Some(base.as_deref().unwrap_or_default())))
+}
+
+/// One recorded run of one case, as `Reading` names it.
+#[napi(object)]
+pub struct CaseReading {
+    pub count: f64,
+    pub stopped: Option<bool>,
+    pub regions: Vec<CaseRegion>,
+}
+
+/// One region a reading crossed, as `ReadRegion` names it.
+#[napi(object)]
+pub struct CaseRegion {
+    pub module: String,
+    pub name: String,
+    pub path: String,
+    pub start: f64,
+    pub end: f64,
+    pub value: Option<f64>,
+}
+
+/// The readings of case `id`; see `readingsOf`.
+#[napi(catch_unwind)]
+pub fn readings_of_case(section: Buffer, index: Option<Buffer>, id: String) -> napi::Result<Option<Vec<CaseReading>>> {
+    let readings = readings_of(&section, index.as_deref(), &id).map_err(napi::Error::from_reason)?;
+    Ok(readings.map(|readings| readings.into_iter().map(|reading| CaseReading {
+        count: reading.count as f64,
+        stopped: reading.stopped,
+        regions: reading.regions.into_iter().map(|region| CaseRegion {
+            module: region.module.to_string(),
+            name: region.name.to_string(),
+            path: region.path.to_string(),
+            start: region.start as f64,
+            end: region.end as f64,
+            value: region.value.map(|value| value as f64),
+        }).collect(),
+    }).collect()))
 }

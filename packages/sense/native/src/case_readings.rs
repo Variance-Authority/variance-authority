@@ -2,7 +2,7 @@
 //! where `combine` folds a shard whose index holds a case's regions otherwise
 //! than the combined index does: the newest reading, stored as its difference
 //! from its shard's index, is laid again over the combined one, as
-//! `case-readings.ts` lays it. The earlier readings stand on the newest, which
+//! `case_readings_lay.rs` lays it. The earlier readings stand on the newest, which
 //! reads back the same, so they are kept as they are.
 
 use std::collections::{HashMap, HashSet};
@@ -101,7 +101,7 @@ pub(crate) fn decode_case(bytes: &[u8]) -> Result<Vec<Stored>, String> {
     Ok(readings)
 }
 
-/// One case's bytes, as `caseBytes` writes them: the strings in the order the
+/// One case's bytes, as `decodeCase` reads them: the strings in the order the
 /// readings first name them, then the readings.
 pub(crate) fn case_bytes(readings: &[Stored]) -> Vec<u8> {
     case_bytes_of(readings.len(), readings.iter().map(Stored::view))

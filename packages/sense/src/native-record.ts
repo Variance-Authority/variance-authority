@@ -73,6 +73,15 @@ export interface NativeRecords {
     inputs: [string, string][] | undefined,
   ): Buffer | null;
   /**
+   * Every reading `section` keeps of case `id`, newest first, as `readingsOf` documents it; `null`
+   * when it keeps none of the case. A region's value is absent where the case's lines name none.
+   */
+  readingsOfCase?(
+    section: Buffer,
+    index: Buffer | undefined,
+    id: string,
+  ): { count: number; stopped?: boolean; regions: { module: string; name: string; path: string; start: number; end: number; value?: number }[] }[] | null;
+  /**
    * Where each region of `inventories` lands among `table`'s, one file's own cut, by position:
    * at the region of its shape, else at the innermost source region enclosing it; `null` where none does.
    */

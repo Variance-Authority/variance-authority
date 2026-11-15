@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CaseLinesBuilder, lineValue } from './case-lines.js';
-import { inputsOf, layReadings, readingsOf, READINGS } from './case-readings.js';
+import { inputsOf, layReadings, readingsOf } from './case-readings.js';
+import { LAYOUT } from './record-layout.js';
 import { CrossingSets } from './crossing-sets.js';
 import { encodeSetExecutionIndex, openSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
 import { shapeOf } from './__fixtures__/readings.js';
@@ -171,11 +172,11 @@ describe('layReadings', () => {
   });
 
   it('drops the oldest distinct reading past the bound', () => {
-    const runs = Array.from({ length: READINGS + 1 }, (_, at) => run(at % 2 === 0, { wire: at + 1 }));
+    const runs = Array.from({ length: LAYOUT.cases.readings + 1 }, (_, at) => run(at % 2 === 0, { wire: at + 1 }));
     const { section, index } = laid(runs);
 
     const readings = readingsOf(section, index, ID)!;
-    expect(readings).toHaveLength(READINGS);
+    expect(readings).toHaveLength(LAYOUT.cases.readings);
     expect(readings.at(-1)!.regions).toEqual([['src/page.ts', 'wire', 'wire', 1, 1, lineValue(2, false)]]);
   });
 

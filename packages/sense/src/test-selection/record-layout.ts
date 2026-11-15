@@ -54,6 +54,8 @@ export interface RecordLayout {
   readonly cases: {
     readonly format: number;
     readonly loadedSets: number;
+    /** Distinct readings kept per case, newest first. */
+    readonly readings: number;
     readonly duration: string;
     readonly limit: string;
     readonly slowest: string;
