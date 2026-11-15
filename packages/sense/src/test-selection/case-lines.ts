@@ -225,28 +225,32 @@ export function decodeCaseLines(bytes: Uint8Array): CaseLines | undefined {
 /** Each case's lines as the column pair a case index stores, or no column where no case recorded any. */
 export function linesColumn(lines: readonly (CaseLines | undefined)[]): Readonly<Record<string, Stored>> {
   if (lines.every((held) => held === undefined)) return {};
-  const encoded = lines.map(encodeCaseLines);
-  const offsets = new Uint32Array(encoded.length + 1);
-  for (const [at, bytes] of encoded.entries()) offsets[at + 1] = offsets[at]! + bytes.length;
-  const bytes = new Uint8Array(offsets[encoded.length]!);
-  for (const [at, held] of encoded.entries()) bytes.set(held, offsets[at]!);
-  return { [LINES_COLUMN]: blob(bytes, offsets), [LINES_OFFSETS]: column(offsets) };
+  return rowsColumn(lines.map(encodeCaseLines), LINES_COLUMN, LINES_OFFSETS);
 }
 
-/** The column pair as a reader holds it: absent in an index written without cuts. */
-export interface LinesTable {
+/** One row of bytes a case as a blob and the offsets each row begins at, one past the last case's. */
+export function rowsColumn(rows: readonly Uint8Array[], name: string, offsetsName: string): Readonly<Record<string, Stored>> {
+  const offsets = new Uint32Array(rows.length + 1);
+  for (const [at, bytes] of rows.entries()) offsets[at + 1] = offsets[at]! + bytes.length;
+  const bytes = new Uint8Array(offsets[rows.length]!);
+  for (const [at, held] of rows.entries()) bytes.set(held, offsets[at]!);
+  return { [name]: blob(bytes, offsets), [offsetsName]: column(offsets) };
+}
+
+/** A column pair of one row a case as a reader holds it: absent in an index that wrote no row. */
+export interface RowsTable {
   readonly blob: Uint8Array;
   readonly offsets: Uint32Array;
 }
 
 /** One case's lines off the column pair, undefined where the index or the case recorded none. */
-export function linesOf(table: LinesTable | undefined, test: number): CaseLines | undefined {
+export function linesOf(table: RowsTable | undefined, test: number): CaseLines | undefined {
   if (table === undefined) return undefined;
   return decodeCaseLines(caseBytes(table, test));
 }
 
 /** One case's stored bytes, to copy as they are. */
-export function caseBytes(table: LinesTable, test: number): Uint8Array {
+export function caseBytes(table: RowsTable, test: number): Uint8Array {
   const from = table.offsets[test];
   const to = table.offsets[test + 1];
   if (from === undefined || to === undefined || to < from || to > table.blob.length) throw invalid();
@@ -257,6 +261,6 @@ function fail(): never {
   throw invalid();
 }
 
-function invalid(): Error {
+export function invalid(): Error {
   return new Error('not a variance-authority execution index');
 }

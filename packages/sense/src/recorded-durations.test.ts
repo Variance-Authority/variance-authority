@@ -228,10 +228,10 @@ describe('the cases closest to their limit', () => {
     expect(suite?.cases).toMatchObject({ closest: [{ name: 'half of much' }, { name: 'half of little' }] });
   });
 
-  it('carries the slowest statement a case names, and none for a case that names none', () => {
+  it('carries the statement times of a cut case, and none for an uncut one', () => {
     record(coverage([['test/a.test.ts', 300]]), {
       tests: [
-        { id: 'a', file: 'test/a.test.ts', name: 'waits', duration: 260, slowest: { line: 4, time: 210 } },
+        { id: 'a', file: 'test/a.test.ts', name: 'waits', duration: 260, times: [{ line: 4, time: 210_000 }, { line: 5, time: 12 }] },
         { id: 'b', file: 'test/a.test.ts', name: 'uncut', duration: 100 },
       ],
       modules: [],
@@ -241,7 +241,7 @@ describe('the cases closest to their limit', () => {
     const cases = suite !== undefined && !('unread' in suite) && !('unread' in suite.cases) ? suite.cases.slowest : [];
 
     expect(cases).toEqual([
-      { file: 'test/a.test.ts', name: 'waits', duration: 260, slowest: { line: 4, time: 210 } },
+      { file: 'test/a.test.ts', name: 'waits', duration: 260, times: [{ line: 4, time: 210_000 }, { line: 5, time: 12 }] },
       { file: 'test/a.test.ts', name: 'uncut', duration: 100 },
     ]);
   });

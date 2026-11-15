@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import caseOwner from './case-owner.cjs';
-import { slowestAcross } from './execution-set-columns.js';
+import { timesAcross } from './case-times.js';
 import journals from './journal-format.cjs';
 
 /** The collectors as a worker loads them: built, as `collectors.test.ts` says. */
@@ -25,7 +25,7 @@ function spin(ms: number): void {
   while (process.hrtime.bigint() < until);
 }
 
-/** One cut file's recording: its case scope, its cut, and each case's slowest statement once the file ends. */
+/** One cut file's recording: its case scope, its cut, and each case's statement times once the file ends. */
 function recording() {
   const holder: Record<PropertyKey, unknown> = {};
   const collector = collectors.scoped(holder, true);
@@ -34,13 +34,13 @@ function recording() {
   const read = () => {
     const frames = journals.unpackFrames(journals.packFrames(collector.finish(FILE).frames ?? []));
     const cases = frames.map((frame) => caseOwner.unpackCase(journals.decodeJournal(frame).testFile));
-    return Object.fromEntries(cases.filter((unpacked) => unpacked.name !== '').map((unpacked) => [unpacked.name, unpacked.slowest]));
+    return Object.fromEntries(cases.filter((unpacked) => unpacked.name !== '').map((unpacked) => [unpacked.name, unpacked.times]));
   };
   const engine = probeLog.engineOf(holder.__VA__)!;
   return { scope, cut, read, engine, key: (name: string) => caseOwner.packCase(FILE, name, name) };
 }
 
-/** Runs each body as a case of one cut file, and reads each case's slowest statement from its frame. */
+/** Runs each body as a case of one cut file, and reads each case's statement times from its frame. */
 function timed(bodies: Record<string, (cut: Cut) => void>, hook?: (cut: Cut) => void) {
   const { scope, cut, read, key } = recording();
   for (const [name, body] of Object.entries(bodies)) {
@@ -61,32 +61,45 @@ function stoppedAttempt({ scope, cut, key }: ReturnType<typeof recording>, ms: n
   scope.leave();
 }
 
+type Times = ReturnType<ReturnType<typeof recording>['read']>[string];
+
+/** The lines a case's times name, in the order it first reached them. */
+const linesOf = (times: Times) => times?.map(({ line }) => line);
+/** The microseconds `line` held, or undefined where the case did not time it. */
+const at = (times: Times, line: number) => times?.find((statement) => statement.line === line)?.time;
+/** A millisecond in the unit times are kept in. */
+const MS = 1000;
+
 describe('how a case times its statements', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('names the line that took longest, closes the last statement at the case\'s end, and says nothing under a millisecond', () => {
-    const slowest = timed({
+  it('times every line its body cut at, in the order it reached them, a statement under a millisecond included', () => {
+    const times = timed({
       waits: (cut) => { cut(3); spin(5); cut(4); spin(40); cut(6); },
       ends: (cut) => { cut(3); cut(4); spin(20); },
-      quick: (cut) => { cut(3); cut(4); },
+      quick: (cut) => { cut(9); cut(3); },
       uncut: () => { spin(5); },
     });
 
-    expect(slowest.waits?.line).toBe(4);
-    expect(slowest.waits?.time).toBeGreaterThanOrEqual(40);
-    expect(slowest.waits?.time).toBeLessThan(400);
-    expect(Number.isInteger(slowest.waits?.time)).toBe(true);
-    expect(slowest.ends?.line).toBe(4);
-    expect(slowest.ends?.time).toBeGreaterThanOrEqual(20);
+    expect(linesOf(times.waits)).toEqual([3, 4, 6]);
+    expect(at(times.waits, 3)).toBeGreaterThanOrEqual(5 * MS);
+    expect(at(times.waits, 4)).toBeGreaterThanOrEqual(40 * MS);
+    expect(at(times.waits, 4)).toBeLessThan(400 * MS);
+    // The last statement closes at the case's end, however short it was.
+    expect(at(times.waits, 6)).toBeLessThan(at(times.waits, 4)!);
+    expect(at(times.ends, 4)).toBeGreaterThanOrEqual(20 * MS);
+    // No threshold: a statement of a few microseconds keeps them.
+    expect(linesOf(times.quick)).toEqual([9, 3]);
+    expect(at(times.quick, 3)).toBeLessThan(at(times.waits, 4)!);
+    for (const { time } of [...times.waits!, ...times.quick!]) expect(Number.isInteger(time)).toBe(true);
     // Absent, never zero: a reader cannot take "untimed" for "instant".
-    expect(slowest.quick).toBeUndefined();
-    expect(slowest.uncut).toBeUndefined();
+    expect(times.uncut).toBeUndefined();
   });
 
   it('counts a statement inside a loop as the sum of its runs', () => {
-    const slowest = timed({
+    const times = timed({
       loops: (cut) => {
         cut(3);
         spin(30);
@@ -98,13 +111,12 @@ describe('how a case times its statements', () => {
       },
     });
 
-    // No single run of line 5 outlasted line 3; the three together did.
-    expect(slowest.loops?.line).toBe(5);
-    expect(slowest.loops?.time).toBeGreaterThanOrEqual(45);
+    expect(linesOf(times.loops)).toEqual([3, 5, 7]);
+    expect(at(times.loops, 5)).toBeGreaterThanOrEqual(45 * MS);
   });
 
   it('times a case on the real clock while the case fakes its timers', () => {
-    const slowest = timed({
+    const times = timed({
       fakes: (cut) => {
         cut(3);
         vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout'] });
@@ -116,16 +128,15 @@ describe('how a case times its statements', () => {
       },
     });
 
-    expect(slowest.fakes?.line).toBe(4);
-    expect(slowest.fakes?.time).toBeGreaterThanOrEqual(30);
-    expect(slowest.fakes?.time).toBeLessThan(10_000);
+    expect(at(times.fakes, 4)).toBeGreaterThanOrEqual(30 * MS);
+    expect(at(times.fakes, 5)).toBeLessThan(10_000 * MS);
   });
 
   it('times only the case\'s own statements, not the hooks around it', () => {
-    const slowest = timed({ hooked: (cut) => { cut(3); spin(10); cut(4); } }, (cut) => { cut(1); spin(40); });
+    const times = timed({ hooked: (cut) => { cut(3); spin(10); cut(4); } }, (cut) => { cut(1); spin(100); });
 
-    expect(slowest.hooked?.line).toBe(3);
-    expect(slowest.hooked?.time).toBeLessThan(40);
+    expect(linesOf(times.hooked)).toEqual([3, 4]);
+    expect(at(times.hooked, 3)! + at(times.hooked, 4)!).toBeLessThan(100 * MS);
   });
 
   it('closes the statement a stopped case was in as its attempt ends, not as its file does', () => {
@@ -134,12 +145,12 @@ describe('how a case times its statements', () => {
     file.scope.begin();
     file.scope.enter(file.key('slow'), () => { file.cut(3); spin(150); });
     file.scope.leave();
-    const slowest = file.read();
+    const times = file.read();
 
-    expect(slowest.hangs?.line).toBe(5);
-    expect(slowest.hangs?.time).toBeGreaterThanOrEqual(20);
-    expect(slowest.hangs?.time).toBeLessThan(150);
-    expect(slowest.slow?.time).toBeGreaterThanOrEqual(150);
+    expect(linesOf(times.hangs)).toEqual([4, 5]);
+    expect(at(times.hangs, 5)).toBeGreaterThanOrEqual(20 * MS);
+    expect(at(times.hangs, 5)).toBeLessThan(at(times.slow, 3)!);
+    expect(at(times.slow, 3)).toBeGreaterThanOrEqual(150 * MS);
   });
 
   it('adds a retry to the attempt before it, once each', () => {
@@ -148,11 +159,11 @@ describe('how a case times its statements', () => {
     spin(100);
     stoppedAttempt(file, 20);
     spin(100);
-    const slowest = file.read();
+    const times = file.read();
 
-    expect(slowest.hangs?.line).toBe(5);
-    expect(slowest.hangs?.time).toBeGreaterThanOrEqual(40);
-    expect(slowest.hangs?.time).toBeLessThan(100);
+    expect(linesOf(times.hangs)).toEqual([4, 5]);
+    expect(at(times.hangs, 5)).toBeGreaterThanOrEqual(40 * MS);
+    expect(at(times.hangs, 5)).toBeLessThan(100 * MS);
   });
 
   it('keeps the time of a case whose bucket is read out and emptied mid-case', () => {
@@ -168,8 +179,9 @@ describe('how a case times its statements', () => {
     file.scope.leave();
 
     const { read } = file.read();
-    expect(read?.line).toBe(3);
-    expect(read?.time).toBeGreaterThanOrEqual(20);
+    expect(linesOf(read)).toEqual([3, 4]);
+    expect(at(read, 3)).toBeGreaterThanOrEqual(20 * MS);
+    expect(at(read, 4)).toBeGreaterThanOrEqual(5 * MS);
   });
 
   it('leaves a case running beside another its whole time when the other attempt ends', async () => {
@@ -187,9 +199,8 @@ describe('how a case times its statements', () => {
     await long;
     file.scope.leave();
 
-    const slowest = file.read();
-    expect(slowest.long?.line).toBe(7);
-    expect(slowest.long?.time).toBeGreaterThanOrEqual(60);
+    const times = file.read();
+    expect(at(times.long, 7)).toBeGreaterThanOrEqual(60 * MS);
   });
 
   /** A case that waits on line 7 until `release`, entered in an attempt of its own. */
@@ -217,8 +228,7 @@ describe('how a case times its statements', () => {
     file.scope.leave();
 
     const { waits } = file.read();
-    expect(waits?.line).toBe(7);
-    expect(waits?.time).toBeGreaterThanOrEqual(60);
+    expect(at(waits, 7)).toBeGreaterThanOrEqual(60 * MS);
   });
 
   it('keeps the whole time of a case beside an attempt that ends without a body', async () => {
@@ -232,30 +242,29 @@ describe('how a case times its statements', () => {
     file.scope.leave();
 
     const { waits } = file.read();
-    expect(waits?.line).toBe(7);
-    expect(waits?.time).toBeGreaterThanOrEqual(60);
+    expect(at(waits, 7)).toBeGreaterThanOrEqual(60 * MS);
   });
 });
 
-describe('the slowest statement of a case that ran twice', () => {
-  const quick = { line: 4, time: 30 };
-  const long = { line: 9, time: 80 };
+describe('the times of a case that ran twice', () => {
+  const quick = [{ line: 4, time: 30 }, { line: 9, time: 10 }];
+  const long = [{ line: 9, time: 80 }];
 
-  it('is the longer of the two, whichever comes first', () => {
-    expect(slowestAcross(quick, long)).toEqual({ slowest: long });
-    expect(slowestAcross(long, quick)).toEqual({ slowest: long });
+  it('are the run that took longer in all, whichever comes first', () => {
+    expect(timesAcross(quick, long)).toEqual({ times: long });
+    expect(timesAcross(long, quick)).toEqual({ times: long });
   });
 
-  it('is the lower line where both took as long', () => {
-    const level = { line: 2, time: 80 };
+  it('are the lower run, line by line, where both took as long', () => {
+    const level = [{ line: 2, time: 80 }];
 
-    expect(slowestAcross(long, level)).toEqual({ slowest: level });
-    expect(slowestAcross(level, long)).toEqual({ slowest: level });
+    expect(timesAcross(long, level)).toEqual({ times: level });
+    expect(timesAcross(level, long)).toEqual({ times: level });
   });
 
-  it('is the one there is, and absent where neither run timed one', () => {
-    expect(slowestAcross(quick, undefined)).toEqual({ slowest: quick });
-    expect(slowestAcross(undefined, quick)).toEqual({ slowest: quick });
-    expect(slowestAcross(undefined, undefined)).toEqual({});
+  it('are the run there is, and absent where neither run was timed', () => {
+    expect(timesAcross(quick, undefined)).toEqual({ times: quick });
+    expect(timesAcross(undefined, quick)).toEqual({ times: quick });
+    expect(timesAcross(undefined, undefined)).toEqual({});
   });
 });

@@ -224,28 +224,32 @@ describe('how many rows it lists', () => {
 describe('the slowest statement of a listed case', () => {
   it('is one more line under the case: the file line, its time and its share of the case', () => {
     const slowest = [
-      { file: 'test/a.test.ts', name: 'waits', duration: 1_400, slowest: { line: 12, time: 1_204 } },
+      { file: 'test/a.test.ts', name: 'waits', duration: 1_400, times: [{ line: 10, time: 40 }, { line: 12, time: 1_204_000 }, { line: 11, time: 3_000 }] },
       { file: 'test/a.test.ts', name: 'uncut', duration: 250 },
-      { file: 'test/b.test.ts', name: 'stopped', duration: 200, slowest: { line: 7, time: 230 } },
+      { file: 'test/b.test.ts', name: 'stopped', duration: 200, times: [{ line: 7, time: 230_000 }] },
+      { file: 'test/b.test.ts', name: 'quick', duration: 1, times: [{ line: 3, time: 2 }, { line: 4, time: 412 }, { line: 5, time: 412 }] },
     ];
 
-    const answer = printed([suite(read({ slowest, timed: 3 }))]).split('\n');
+    const answer = printed([suite(read({ slowest, timed: 4 }))]).split('\n');
 
     // A case stopped among cases running at once is timed to where its file ended: never more than the whole case.
-    expect(answer.slice(-7)).toEqual([
+    // The slowest is read off every statement's time, first reached among equals, and printed under a millisecond too.
+    expect(answer.slice(-9)).toEqual([
       'Slowest recorded test cases, as their runner timed them:',
       '   1.4 s  test/a.test.ts  waits',
       '          slowest statement test/a.test.ts:12, 1.2 s, 86% of the case',
       '  250 ms  test/a.test.ts  uncut',
       '  200 ms  test/b.test.ts  stopped',
       '          slowest statement test/b.test.ts:7, 230 ms, 100% of the case',
-      '3 of 3 timed case(s) shown.',
+      '    1 ms  test/b.test.ts  quick',
+      '          slowest statement test/b.test.ts:4, 412 µs, 41% of the case',
+      '4 of 4 timed case(s) shown.',
     ]);
   });
 
   it('is under the case in each list that names it, when different cases top the two', () => {
-    const near = { file: 'test/a.test.ts', name: 'near', duration: 900, limit: 1_000, slowest: { line: 4, time: 800 } };
-    const long = { file: 'test/b.test.ts', name: 'long', duration: 3_000, limit: 30_000, slowest: { line: 9, time: 1_500 } };
+    const near = { file: 'test/a.test.ts', name: 'near', duration: 900, limit: 1_000, times: [{ line: 4, time: 800_000 }] };
+    const long = { file: 'test/b.test.ts', name: 'long', duration: 3_000, limit: 30_000, times: [{ line: 9, time: 1_500_000 }] };
     const bare = { file: 'test/c.test.ts', name: 'bare', duration: 500, limit: 1_000 };
 
     const answer = printed([suite(read({ closest: [near, bare, long], slowest: [long, near, bare], limited: 3, timed: 3 }))]);
