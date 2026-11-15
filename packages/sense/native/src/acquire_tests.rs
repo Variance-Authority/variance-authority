@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::{declined_for_size, open, read_all, read_git, still_too_large, too_large, Answer, Opened, Outcome, WaveStore};
+use super::{declined_for_size, open, read_all, read_git, still_too_large, too_large, Answer, Opened, Outcome, TreeObjects};
 use crate::git_store::{Objects, STORE_CROSSOVER};
 use crate::git_fixture::{git, repository, write};
 
@@ -162,12 +162,12 @@ fn a_checkout_holding_an_lfs_pointer_fails_the_file_and_says_why() {
 #[test]
 fn a_tree_opens_the_store_once_its_scans_have_read_the_crossover_and_keeps_it() {
     let root = repository("acquire-wave-store", &[("a.ts", b"export const a = 1;\n")]);
-    let store = WaveStore::default();
+    let store = TreeObjects::default();
 
     let short = store.objects(&root, STORE_CROSSOVER - 1).is_some();
     let reached = store.objects(&root, 1);
     let after = store.objects(&root, 1);
-    let alone = WaveStore::default().objects(&root, 10).is_some();
+    let alone = TreeObjects::default().objects(&root, 10).is_some();
     std::fs::remove_dir_all(&root).unwrap();
 
     assert!(!short, "scans that have read fewer files than the crossover open no store");

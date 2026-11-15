@@ -34,7 +34,7 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
     git('config', 'maintenance.auto', 'false');
     git('add', '.');
     git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'source');
-  });
+  }, 30_000);
 
   afterAll(() => {
     vi.unstubAllEnvs();

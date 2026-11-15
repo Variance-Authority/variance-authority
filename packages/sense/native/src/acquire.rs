@@ -57,11 +57,12 @@ pub(crate) const LARGEST_FILE: u32 = 1024 * 1024;
 /// `ask grep` opens its store at (`docs/performance.md`). So the store opens
 /// on the read, a wave or a slice of one, that brings the files the tree's
 /// scans have read to it, and every read after comes from it. The tree holds
-/// it, because a scan from the JavaScript side crosses once per wave.
+/// it, because a scan from the JavaScript side crosses once per wave. It opens
+/// under the root of the read that reaches the crossover, which is the tree's.
 #[derive(Default)]
-pub(crate) struct WaveStore(Mutex<(usize, Option<Option<Arc<Objects>>>)>);
+pub(crate) struct TreeObjects(Mutex<(usize, Option<Option<Arc<Objects>>>)>);
 
-impl WaveStore {
+impl TreeObjects {
     /// The store a read of `files` under `root` comes from, or `None` for the
     /// disk; a store that cannot open is not asked again.
     pub(crate) fn objects(&self, root: &Path, files: usize) -> Option<Arc<Objects>> {

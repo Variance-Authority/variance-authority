@@ -96,7 +96,7 @@ pub(crate) struct Tree<'t> {
     /// Told of each tracked file read, and asked which parses may be shared.
     pub from_blob: &'t crate::parse_origin::FromBlob,
     /// The object store every round's walk reads from.
-    pub store: &'t crate::acquire::WaveStore,
+    pub store: &'t crate::acquire::TreeObjects,
     /// What makes this tree carried by the segment the update writes, when a watch covers it.
     #[cfg(unix)]
     pub carry: Option<crate::held_listing::Meta>,

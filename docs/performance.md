@@ -445,8 +445,8 @@ start, but opening it asks git two questions, 15.5 to 16.3 ms on Kibana, and a
 walk that opened it once per wave paid that again on every wave of a deep
 import graph. Now a tree opens it once, when the files its scans have read
 reach `STORE_CROSSOVER`, the 3,000 at which `ask grep` opens its store, and
-every later wave of those scans reads from it. With the store already open, a warm page cache reads
-and parses Kibana's files faster from it than from disk at every size: 160
+every later wave of those scans reads from it. A tree lives for one index
+or one update. With the store already open, a warm page cache reads and parses Kibana's files faster from it than from disk at every size: 160
 files take 2.53 ms against 3.71, 500 take 7.83 against 10.34, 800 take 12.54
 against 15.59, and 2,000 take 28.91 against 38.41. That saving, about 5 µs a
 file, pays for the open after about 3,000 files. On a first pass over files not
@@ -878,8 +878,9 @@ the whole folder, the two paths interleaved, under a load between 4 and 5. The
 scan's wave figures are the median of seven, the `cat-file` build and the
 in-process one interleaved on the same files, under a load between 9 and 10; the
 disk-against-store waves with the store opened once are the median of seven,
-each run a different sample of Kibana's files, under a load near 26; and each opening of the store is the median of nine,
-the scan's under a load of 9 and the search's under 14.
+each run a different sample of Kibana's files, under a load near 26; and each
+opening of the store is the median of nine, the scan's under a load of 9 and the
+search's under 14.
 **Every other row of the incremental table is one timing of one run**: read
 Material UI's column for its shape and not for a difference of a few tens of
 milliseconds, because a single sample is worth about that much either way. On

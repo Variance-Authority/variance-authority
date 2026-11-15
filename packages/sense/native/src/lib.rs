@@ -205,7 +205,7 @@ pub struct GitTree {
     /// The parses this tree's reads made from the blob each is kept under.
     from_blob: parse_origin::FromBlob,
     /// The object store this tree's scans read from, once they have read enough.
-    store: acquire::WaveStore,
+    store: acquire::TreeObjects,
     /// How the tree was come by, when a change source other than git had a say.
     #[cfg(unix)]
     change: Option<held_listing::Change>,
@@ -276,7 +276,7 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
         listing: OnceLock::new(),
         stores: std::sync::Mutex::new(None),
         from_blob: parse_origin::FromBlob::default(),
-        store: acquire::WaveStore::default(),
+        store: acquire::TreeObjects::default(),
         #[cfg(unix)]
         change: None,
     }

@@ -8,7 +8,7 @@ use napi::bindgen_prelude::{Buffer, Uint32Array};
 use napi::Either;
 use napi_derive::napi;
 
-use crate::acquire::{read_all, Answer, Outcome, WaveStore};
+use crate::acquire::{read_all, Answer, Outcome, TreeObjects};
 use crate::emitted::{Emitted, Listing};
 use crate::git::Oid;
 use crate::parse_origin::FromBlob;
@@ -136,7 +136,7 @@ pub fn scan_batch(
         None,
         &|_, _| None,
         &FromBlob::default(),
-        &WaveStore::default(),
+        &TreeObjects::default(),
     )
 }
 
@@ -147,7 +147,7 @@ pub(crate) fn scan_batch_with_oids(
     listing: Option<Arc<Listing>>,
     kept: Kept,
     from_blob: &FromBlob,
-    store: &WaveStore,
+    store: &TreeObjects,
 ) -> ScanBatch {
     let ScanOptions {
         root,
@@ -187,7 +187,7 @@ pub(crate) fn scan_graph_with_tree(
     listing: Arc<Listing>,
     kept: Kept,
     from_blob: &FromBlob,
-    store: &WaveStore,
+    store: &TreeObjects,
 ) -> ScanBatch {
     let include_parses = options.include_parses;
     let Walked { files, identities, read, targets, kept: answered } =

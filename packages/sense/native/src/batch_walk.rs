@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
 use super::GraphOptions;
-use crate::acquire::{read_git, Answer, Outcome, WaveStore, LARGEST_FILE};
+use crate::acquire::{read_git, Answer, Outcome, TreeObjects, LARGEST_FILE};
 use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
 use crate::parse_origin::FromBlob;
@@ -52,7 +52,7 @@ pub(crate) fn walk_beyond(
     held: &dyn Fn(&str) -> bool,
     kept: Kept,
     from_blob: &FromBlob,
-    store: &WaveStore,
+    store: &TreeObjects,
 ) -> Walked {
     let GraphOptions {
         root,
@@ -133,7 +133,7 @@ fn read_resolved<'w, R>(
     wave: &'w [String],
     slice: usize,
     oids: Vec<Option<Oid>>,
-    mut reading: impl FnMut(&'w [String], Vec<Option<Oid>>) -> (Vec<R>, Vec<bool>),
+    reading: impl Fn(&'w [String], Vec<Option<Oid>>) -> (Vec<R>, Vec<bool>),
     resolving: impl Fn(&'w [String], &[R]) -> Vec<Vec<String>> + Sync,
 ) -> (Vec<R>, Vec<bool>, Vec<Vec<String>>)
 where
@@ -168,7 +168,7 @@ where
 #[allow(clippy::too_many_arguments)]
 pub(super) fn read_kept(
     root: &str,
-    store: &WaveStore,
+    store: &TreeObjects,
     files: &[String],
     oids: Vec<Option<Oid>>,
     largest_file: Option<u32>,
