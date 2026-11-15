@@ -197,6 +197,20 @@ fn a_gitlink_under_the_root_hands_the_comparison_to_status() {
 }
 
 
+/// A sparse checkout without a sparse index flags the paths outside its
+/// patterns skip-worktree, which gix-status passes over; one written back to
+/// disk is edited all the same, so `status` answers.
+#[test]
+fn a_skip_worktree_entry_hands_the_comparison_to_status() {
+    let root = git_fixture::repository("status-sparse", &[("a/x.ts", b"a\n"), ("b/y.ts", b"b\n")]);
+    git_fixture::git(&root, &["sparse-checkout", "set", "--no-cone", "a/"]);
+    git_fixture::write(&root, "b/y.ts", b"b, edited\n");
+
+    assert!(!compared(&root));
+    agrees(&root);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// Every spelling git accepts for a boolean reads as git reads it, so the
 /// in-process comparison never runs under a setting it misread.
 #[test]

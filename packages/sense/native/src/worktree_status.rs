@@ -107,7 +107,10 @@ pub(crate) fn changes(head: &Head, held: &[(Vec<u8>, ObjectId, bool)], config: &
     if index.untracked().is_some() {
         return None;
     }
-    if index.is_sparse() || index.entries().iter().any(|entry| entry.mode == Mode::COMMIT && below(entry)) {
+    // gix-status passes over a skip-worktree entry, which a sparse checkout
+    // sets without a sparse index; git reads one written back to disk.
+    let handed = |entry: &gix_index::Entry| entry.mode == Mode::COMMIT || entry.flags.contains(gix_index::entry::Flags::SKIP_WORKTREE);
+    if index.is_sparse() || index.entries().iter().any(|entry| handed(entry) && below(entry)) {
         return None;
     }
 
