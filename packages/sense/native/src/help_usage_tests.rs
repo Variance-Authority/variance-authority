@@ -79,7 +79,7 @@ fn chain(files: &[(String, String)]) -> Vec<u8> {
 
 fn read(root: &PathBuf, bytes: &[u8], files: &[&str], name: &str) -> Importers {
     let layer = Layer::open(bytes).unwrap();
-    importers(root.to_str().unwrap(), std::slice::from_ref(&layer), &Configurations::default(), &asked(files, name))
+    importers(root.to_str().unwrap(), std::slice::from_ref(&layer), &Configurations::default(), &[asked(files, name)])
 }
 
 /// Each of `files` asked under one `name`.
@@ -122,7 +122,7 @@ fn follows_a_barrel_two_re_exports_deep_and_lists_its_imports_by_file_then_line(
 }
 
 #[test]
-fn tells_each_file_asked_by_file_apart_as_it_would_answer_alone() {
+fn tells_each_group_apart_as_it_would_answer_alone() {
     let root = fixture("apart");
     let bytes = chain(&[
         file("src/greet.ts", &[], &[], &[]),
@@ -145,28 +145,26 @@ fn tells_each_file_asked_by_file_apart_as_it_would_answer_alone() {
         file("src/use_till.ts", &["src/till.ts"], &[request("./till", "imports", 1, &[("default", false, 1)])], &[]),
     ]);
     let layer = Layer::open(&bytes).unwrap();
-    // `greet.ts` asked twice keeps both answers.
-    let mut files = asked(&["src/greet.ts", "src/other.ts"], "greet");
-    files.extend(asked(&["src/till.ts"], "default"));
-    files.extend(asked(&["src/greet.ts"], "greet"));
+    // `greet.ts` asked twice keeps both answers; the last group asks two files as one question.
+    let groups = [asked(&["src/greet.ts"], "greet"), asked(&["src/other.ts"], "greet"), asked(&["src/till.ts"], "default"), asked(&["src/greet.ts"], "greet"), asked(&["src/greet.ts", "src/other.ts"], "greet")];
 
-    let all = importers(root.0.to_str().unwrap(), std::slice::from_ref(&layer), &Configurations::default(), &files);
+    let all = importers(root.0.to_str().unwrap(), std::slice::from_ref(&layer), &Configurations::default(), &groups);
 
     // A site two files reach is one use, a value use when either reached it as one.
     assert_eq!(
         uses(&all),
         ["src/direct.ts:1 greet via ./other", "src/use_a.ts:1 greet via ./a", "src/use_mix.ts:1 greet via ./mix", "src/use_till.ts:1 default via ./till"]
     );
-    assert_eq!(all.by_file.len(), files.len());
-    for (apart, one) in all.by_file.iter().zip(&files) {
-        let alone = read(&root.0, &bytes, &[one.file.as_str()], &one.name);
-        assert_eq!(apart.file, one.file);
+    assert_eq!(all.apart.len(), groups.len());
+    for (apart, group) in all.apart.iter().zip(&groups) {
+        let files: Vec<&str> = group.iter().map(|one| one.file.as_str()).collect();
+        let alone = read(&root.0, &bytes, &files, &group[0].name);
         assert_eq!(listed(&apart.uses), uses(&alone));
         assert_eq!(apart.through, alone.through);
     }
-    let both = all;
-    assert_eq!(listed(&both.by_file[0].uses), ["src/use_a.ts:1 greet via ./a", "src/use_mix.ts:1 greet via ./mix type"]);
-    assert_eq!(both.by_file[0].through, ["src/a.ts", "src/mix.ts"]);
+    assert_eq!(listed(&all.apart[0].uses), ["src/use_a.ts:1 greet via ./a", "src/use_mix.ts:1 greet via ./mix type"]);
+    assert_eq!(all.apart[0].through, ["src/a.ts", "src/mix.ts"]);
+    assert_eq!(listed(&all.apart[4].uses), ["src/direct.ts:1 greet via ./other", "src/use_a.ts:1 greet via ./a", "src/use_mix.ts:1 greet via ./mix"]);
 }
 
 #[test]

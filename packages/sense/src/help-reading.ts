@@ -218,7 +218,7 @@ export interface NativeHelp {
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   digestForwards?(forwards: string[]): string;
-  importersOf?(root: string, index: OpenedIndex, asked: NativeAsked[]): NativeImporters | null;
+  importersOf?(root: string, index: OpenedIndex, asked: NativeAsked[][]): NativeImporters | null;
   outsideSourcesOf?(root: string, index: OpenedIndex, name: string): string[] | null;
   memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
   membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
@@ -359,16 +359,18 @@ export function forwardsDigest(forwards: readonly string[]): string {
  * published. A file that passes the name on with `export … from` is followed
  * under the name it exports and named in `through`, and is no use. Each use's
  * `key` is the specifier as the importing file wrote it, and its `name` the
- * name it takes, which such a file can rename. `byFile` holds what each asked
- * file would answer alone, in the order asked, all of them read in one walk.
+ * name it takes, which such a file can rename. Each group is followed as one
+ * question, so a file passing on two of its names is read once, and `apart`
+ * holds what each group would answer alone, in the order asked, all of them
+ * read in one walk.
  * Throws when the index does not read.
  */
 export function importersOf(
   root: string,
-  asked: readonly NativeAsked[],
+  asked: readonly (readonly NativeAsked[])[],
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
-  return onIndex(index, (opened) => entry('importersOf')(root, opened, [...asked])) ?? undefined;
+  return onIndex(index, (opened) => entry('importersOf')(root, opened, asked.map((group) => [...group]))) ?? undefined;
 }
 
 /**

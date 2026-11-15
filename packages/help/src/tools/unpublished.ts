@@ -95,14 +95,14 @@ export type Within =
  * nothing: no checkout named, none published, or one that does not read.
  */
 export function importsOf(root: string | undefined, files: readonly string[], name: string): Within {
-  const read = importers(root, files.map((file) => ({ file, name })));
+  const read = importers(root, [files.map((file) => ({ file, name }))]);
   if ('unread' in read) return read;
   const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
   return { uses: read.uses.map(indexedUse), through: read.through, namespaces: read.namespaces, inFile, unresolved: read.unresolved };
 }
 
-/** The native answer to who imports each asked name out of its file, or why the index says nothing. */
-function importers(root: string | undefined, asked: readonly Asked[]): NonNullable<ReturnType<typeof importersOf>> | { readonly unread: string } {
+/** The native answer to who imports each asked name out of its file, one question per group, or why the index says nothing. */
+function importers(root: string | undefined, asked: readonly (readonly Asked[])[]): NonNullable<ReturnType<typeof importersOf>> | { readonly unread: string } {
   if (root === undefined) return { unread: 'this host named no checkout to read the source index of' };
   let read: ReturnType<typeof importersOf>;
   try {
@@ -129,9 +129,9 @@ export type Apart = { readonly uses: readonly IndexedUse[]; readonly through: re
  * from it, and the files passing it on, that file left out.
  */
 export function importsApart(root: string | undefined, asked: readonly Asked[]): readonly Apart[] {
-  const read = importers(root, asked);
+  const read = importers(root, asked.map((one) => [one]));
   if ('unread' in read) return asked.map(() => read);
-  return read.byFile.map((one) => ({ uses: one.uses.map(indexedUse), through: one.through }));
+  return read.apart.map((one) => ({ uses: one.uses.map(indexedUse), through: one.through }));
 }
 
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */

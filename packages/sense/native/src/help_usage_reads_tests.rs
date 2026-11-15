@@ -103,7 +103,7 @@ fn a_record_a_later_layer_replaces_or_deletes_imports_nothing() {
     }
     assert_eq!(record(&layers, "src/direct.ts"), None);
 
-    let answer = importers(root.0.to_str().unwrap(), &layers, &Configurations::default(), &super::asked(&["src/greet.ts"], "greet"));
+    let answer = importers(root.0.to_str().unwrap(), &layers, &Configurations::default(), &[super::asked(&["src/greet.ts"], "greet")]);
 
     assert_eq!(uses(&answer), ["src/late.ts:4 greet via ./greet", "src/use_b.ts:2 greet via ./b"]);
     assert_eq!(answer.through, ["src/a.ts", "src/b.ts"]);
