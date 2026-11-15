@@ -183,9 +183,10 @@ pub(crate) fn head(root: &Path) -> Option<Head> {
         root,
         &["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "objects", "--git-common-dir", "--git-path", "index", "--absolute-git-dir", "--show-toplevel", "HEAD^{tree}"],
     )?;
-    let mut lines = located.lines();
-    let (prefix, format, objects, common) = (lines.next()?, lines.next()?, lines.next()?, root.join(lines.next()?));
-    let (index, git_dir, top, tree) = (root.join(lines.next()?), PathBuf::from(lines.next()?), PathBuf::from(lines.next()?), lines.next()?);
+    // A newline in a path splits one answer in two, and more than eight lines
+    // is none git can be read by.
+    let [prefix, format, objects, common, index, git_dir, top, tree] = <[&str; 8]>::try_from(located.lines().collect::<Vec<_>>()).ok()?;
+    let (common, index, git_dir, top) = (root.join(common), root.join(index), PathBuf::from(git_dir), PathBuf::from(top));
     let blobs = replaced(root)
         .and_then(|replaced| Objects::at(format, &root.join(objects), replaced))
         .and_then(|objects| below(&mut objects.reader(), ObjectId::from_hex(tree.as_bytes()).ok()?, prefix));

@@ -212,6 +212,27 @@ fn a_skip_worktree_entry_hands_the_comparison_to_status() {
 }
 
 #[test]
+fn a_root_whose_path_holds_a_newline_never_keeps_a_committed_digest_for_an_edit() {
+    let root = git_fixture::repository("status-newline", &[("with\nline/a.ts", b"a\n")]);
+    git_fixture::write(&root, "with\nline/a.ts", b"a, edited\n");
+    let tree = snapshot(root.join("with\nline").to_str().unwrap()).unwrap();
+    let edited = gix_object::compute_hash(gix_hash::Kind::Sha1, gix_object::Kind::Blob, b"a, edited\n").unwrap();
+    let held = tree.paths.iter().position(|path| path == "a.ts").map(|at| hex(&tree.oids[at]));
+    assert!(held.as_ref().is_none_or(|held| *held == edited.to_string()), "a.ts carries {held:?}");
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn an_excludes_file_under_the_git_prefix_hands_the_comparison_to_status() {
+    let root = git_fixture::repository("status-excludes-prefix", &[("a.ts", b"a\n")]);
+    git_fixture::git(&root, &["config", "core.excludesFile", "%(prefix)/.va-ignore"]);
+    git_fixture::write(&root, "b.ts", b"b\n");
+    assert!(!compared(&root));
+    agrees(&root);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn an_excludes_file_in_another_users_home_hands_the_comparison_to_status() {
     let root = git_fixture::repository("status-excludes-user", &[("a.ts", b"a\n")]);
     git_fixture::git(&root, &["config", "core.excludesFile", "~root/.va-ignore"]);

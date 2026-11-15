@@ -370,7 +370,8 @@ impl Walker<'_> {
 }
 
 /// `core.excludesFile`, or git's default beside the user's configuration; none
-/// when it names another user's home, which only git resolves.
+/// when it names another user's home or git's install prefix, which only git
+/// resolves.
 fn excludes_file(config: &Config, top: &Path) -> Option<Option<PathBuf>> {
     match &config.excludes_file {
         Some(named) => match named.strip_prefix(b"~") {
@@ -379,6 +380,7 @@ fn excludes_file(config: &Config, top: &Path) -> Option<Option<PathBuf>> {
                 Some(gix_path::env::home_dir().map(|dir| dir.join(home)))
             }
             Some(_) => None,
+            None if named.starts_with(b"%(prefix)/") => None,
             None => Some(Some(top.join(gix_path::from_bstr(named.as_bstr()).ok()?))),
         },
         None => Some(gix_path::env::xdg_config("ignore", &mut |name| std::env::var_os(name))),
