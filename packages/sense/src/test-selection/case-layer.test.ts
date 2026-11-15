@@ -1,8 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { index, ran, read } from './__fixtures__/case-indexes.js';
 import { layerCaseIndex } from './case-layer.js';
 import { caseMotion } from './case-motion.js';
-import type { Said } from './case-said.js';
 import { coverageChange } from './coverage-count.js';
 import { CrossingSets } from './crossing-sets.js';
 import { decodeExecutionIndex } from './execution-format.js';
@@ -47,7 +46,7 @@ describe('layerCaseIndex', () => {
   it('retires the cases of a test file the checkout no longer holds', () => {
     const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']], ['rare', []]] });
 
-    const { merged } = layerCaseIndex(suite, fresh, ran(['a.test.ts'], ['a.test.ts'], ['b.test.ts']));
+    const { merged } = layerCaseIndex(suite, fresh, ran(['a.test.ts'], ['a.test.ts'], ['a.test.ts']));
 
     expect(read(merged)).toEqual({
       cases: ['a.test.ts > one'],
@@ -66,7 +65,7 @@ describe('layerCaseIndex', () => {
 
     // One line written in front of the first region: the two held ones stand a line lower.
     const written = { hunks: [{ oldStart: 0, oldCount: 0, newStart: 1, newCount: 1 }] };
-    const { merged } = layerCaseIndex(suite, fresh, { ...ran(['a.test.ts']), edit: () => written });
+    const { merged } = layerCaseIndex(suite, fresh, { ...ran(['a.test.ts']), }, (file) => (file === 'src/shared.ts' ? written : undefined));
 
     expect(read(merged).regions['src/shared.ts']).toEqual({
       added: ['a.test.ts > two'],
@@ -102,78 +101,8 @@ describe('layerCaseIndex', () => {
     for (const previous of [undefined, Buffer.from('not an index')]) {
       const { cases, ...layers } = layerCaseIndex(previous, fresh, ran(['a.test.ts']));
       expect(layers).toEqual(alone);
-      expect(cases()).toEqual(['a.test.ts > one']);
+      expect(cases).toEqual(['a.test.ts > one']);
     }
-  });
-
-  it('reads no string of a case or region the run did not touch, and asks once a file whether it is present', () => {
-    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
-    const layered = (files: number, each: number): { readonly decoded: number; readonly asked: number } => {
-      // The kept cases take turns across the files, so no two neighbours share one.
-      const kept = Array.from({ length: files * each }, (_, at) => `kept-${at % files}.test.ts > case ${at}`);
-      const held = index([...kept, 'a.test.ts > one'], {
-        'src/shared.ts': [['entry', ['a.test.ts > one']]],
-        ...Object.fromEntries(kept.map((id, at) => [`src/kept-${at}.ts`, [['entry', [id]], ['idle', []]]])),
-      });
-      let asked = 0;
-      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
-      try {
-        layerCaseIndex(held, fresh, { ...ran(['a.test.ts']), present: () => (asked += 1) > 0 });
-        return { decoded: decode.mock.calls.length, asked };
-      } finally {
-        decode.mockRestore();
-      }
-    };
-
-    expect(layered(4, 100)).toEqual(layered(4, 3));
-    const more = layered(5, 3);
-    const fewer = layered(4, 3);
-    expect(more.asked - fewer.asked).toBe(1);
-    expect(more.decoded - fewer.decoded).toBe(1);
-  });
-
-  it('reads no precondition of a case the run did not touch, however many spellings the index holds', () => {
-    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
-    const decoded = (untouched: number): number => {
-      const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
-      // Each case says it in its own body, so no two share a spelling.
-      const said = (id: string): Said => JSON.stringify({ said: [['fixture:flag', JSON.stringify(id), `kept.test.ts:${kept.indexOf(id) + 2}`, 65535]] });
-      const held = index([...kept, 'a.test.ts > one'], {
-        'src/shared.ts': [['entry', ['a.test.ts > one', ...kept]]],
-      }, said);
-      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
-      try {
-        const { merged } = layerCaseIndex(held, fresh, ran(['a.test.ts']));
-        const count = decode.mock.calls.length;
-        expect(decodeExecutionIndex(merged).tests.filter((test) => test.said !== undefined)).toHaveLength(untouched);
-        return count;
-      } finally {
-        decode.mockRestore();
-      }
-    };
-
-    expect(decoded(400)).toBe(decoded(10));
-  });
-
-  it('reads no module of the landing\'s base that no shard of it recorded', () => {
-    const fresh = index(['a.test.ts > one'], { 'src/shared.ts': [['entry', ['a.test.ts > one']]] });
-    const decoded = (untouched: number): number => {
-      const kept = Array.from({ length: untouched }, (_, at) => `kept.test.ts > case ${at}`);
-      const base = index([...kept, 'a.test.ts > one'], {
-        'src/shared.ts': [['entry', ['a.test.ts > one']]],
-        ...Object.fromEntries(kept.map((id, at) => [`src/kept-${at}.ts`, [['entry', [id]], ['idle', []]]])),
-      });
-      const files = { ...ran(['a.test.ts']), sameText: () => true, base, sameBeforeText: new Set(['src/shared.ts']) };
-      const decode = vi.spyOn(TextDecoder.prototype, 'decode');
-      try {
-        layerCaseIndex(base, fresh, files);
-        return decode.mock.calls.length;
-      } finally {
-        decode.mockRestore();
-      }
-    };
-
-    expect(decoded(400)).toBe(decoded(10));
   });
 });
 
@@ -211,7 +140,7 @@ describe('a module the index holds at an older text than the snapshot', () => {
   // same text, so every region stands one line lower than the index says.
   const held = cutAt([one], 'src/blocks.ts', [[414, []], [415, [one]], [416, []]]);
   const fresh = cutAt([one], 'src/blocks.ts', [[415, []], [416, [one]], [417, []]]);
-  const same = { ...ran(['blocks.test.ts']), sameText: () => true };
+  const same = { ...ran(['blocks.test.ts']), sameText: ['src/blocks.ts', 'src/changelog.ts'] };
 
   it('cuts the before layer at the lines the run recorded, so a line written above the region moves no case', () => {
     const { merged, before, unlined } = layerCaseIndex(held, fresh, same);
@@ -242,8 +171,8 @@ describe('a module the index holds at an older text than the snapshot', () => {
     const files = { ...same, base: held };
 
     expect(linesOf(layerCaseIndex(fresh, fresh, files).before)).toEqual([414, 415, 416]);
-    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: new Set<string>() }).before)).toEqual([414, 415, 416]);
-    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: new Set(['src/blocks.ts']) }).before)).toEqual([415, 416, 417]);
+    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: [] }).before)).toEqual([414, 415, 416]);
+    expect(linesOf(layerCaseIndex(fresh, fresh, { ...files, sameBeforeText: ['src/blocks.ts'] }).before)).toEqual([415, 416, 417]);
   });
 
   it('leaves out a region the recorded cut has no address for, since no line of the newer text holds it', () => {
@@ -301,7 +230,7 @@ describe('a module the index holds at an older text than the snapshot', () => {
     // A comment written on the second callback's own line: nothing that runs moved.
     const comment = { hunks: [{ oldStart: 283, oldCount: 1, newStart: 283, newCount: 1 }], reading: 'none' as const };
 
-    const { merged } = layerCaseIndex(lacking, whole, { ...ran(['blocks.test.ts']), edit: () => comment });
+    const { merged } = layerCaseIndex(lacking, whole, { ...ran(['blocks.test.ts']), }, (file) => (file === 'src/changelog.ts' ? comment : undefined));
 
     // The index holds `map` once and the run twice, so the address names neither.
     const regions = decodeExecutionIndex(merged).modules[0]!.blocks;
@@ -340,3 +269,33 @@ describe('a module the index holds at an older text than the snapshot', () => {
 function linesOf(layer: Uint8Array | undefined): number[] {
   return decodeExecutionIndex(layer!).modules[0]!.blocks.map((block) => block.startLine);
 }
+
+describe('the case layering without the native addon', () => {
+  afterEach(() => {
+    vi.doUnmock('../addon.js');
+    vi.resetModules();
+  });
+
+  const loaded = async (addon: () => object | undefined) => {
+    vi.resetModules();
+    vi.doMock('../addon.js', () => ({
+      native: addon,
+      nativeRefusal: () => (addon() === undefined ? '@variance-authority/sense-linux-x64-gnu is not installed' : undefined),
+    }));
+    return import('./case-layer.js');
+  };
+
+  it('refuses to lay a run, naming why the addon did not load', async () => {
+    const { layerCaseIndex: lay } = await loaded(() => undefined);
+
+    expect(() => lay(suite, suite, ran(['a.test.ts'])))
+      .toThrow('the case layering requires the Sense native addon: @variance-authority/sense-linux-x64-gnu is not installed');
+  });
+
+  it('refuses with an addon that has no case layering, naming the missing call', async () => {
+    const { layerBefore: lay } = await loaded(() => ({}));
+
+    expect(() => lay(suite, suite, new Set()))
+      .toThrow('the case layering requires the Sense native addon: the loaded addon has no `layerCaseBefore`');
+  });
+});

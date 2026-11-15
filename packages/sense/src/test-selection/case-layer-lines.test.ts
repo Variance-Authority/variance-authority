@@ -57,7 +57,7 @@ function lines(bytes: Uint8Array): Record<string, Record<string, number> | null>
 }
 
 function ran(files: readonly string[], finished: readonly string[] = files): CaseRunFiles {
-  return { ran: new Set(files), finished: new Set(finished), present: () => true };
+  return { ran: files, finished, before: true };
 }
 
 const suite = index(

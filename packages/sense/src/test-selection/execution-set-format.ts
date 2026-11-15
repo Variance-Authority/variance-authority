@@ -31,7 +31,6 @@ import {
 } from './execution-set-columns.js';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionModule, ExecutionTest } from './reverse.js';
 import { LAYOUT } from './record-layout.js';
-import { EMPTY } from './set-translation.js';
 
 /**
  * A journey-only execution index: every crossing has measured distance zero.
@@ -46,6 +45,9 @@ import { EMPTY } from './set-translation.js';
  * addon's journeys among them — reads as holding none of it.
  */
 export const SET_EXECUTION_FORMAT = LAYOUT.cases.format;
+
+/** The empty set's id: a pool that holds `overwritten` interns it first. */
+const EMPTY = 0;
 
 export interface SetExecutionModule {
   readonly file: string;
@@ -64,7 +66,7 @@ export interface SetExecutionModule {
    * Cases whose crossing of each block is not known, as ids in
    * {@link SetExecutionIndex.sets}, none of them in `called`: the record was
    * cut to a text an edit wrote over the region they were measured at
-   * (`landedThrough` in `region-edit.ts`), so they ran another text there.
+   * (`native/src/case_layer_landing.rs`), so they ran another text there.
    * Absent where no block holds one; the pool's first set, the empty one, is
    * what a module without it holds.
    */

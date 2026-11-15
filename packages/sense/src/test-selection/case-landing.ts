@@ -152,23 +152,24 @@ export function layCases(
   const ran = new Set(run.tests.map((test) => test.file));
   const recorded = textsOf(run);
   const edits = editsBetween(root, cacheRoot, [stands, run.commit]);
-  const sameText = (file: string): boolean => recorded.has(file) && recorded.get(file) === held?.get(file);
+  const sameText = [...recorded].filter(([file, text]) => text === held?.get(file)).map(([file]) => file);
   const { merged, cases, last, announced, before: retired, unlined } = layerCaseIndex(previous.index, fresh, {
-    ran,
-    finished: new Set(run.tests.filter((test) => test.complete).map((test) => test.file)),
-    present: (test) => existsSync(resolve(root, test)),
-    edit: (file) => {
-      const [from, to] = [held?.get(file), recorded.get(file)];
-      return from === undefined || to === undefined ? undefined : edits(file, from, to);
-    },
+    ran: [...ran],
+    finished: [...new Set(run.tests.filter((test) => test.complete).map((test) => test.file))],
+    presentUnder: root,
     sameText,
     ...(base === undefined ? {} : {
       base: base.index,
-      sameBeforeText: new Set([...recorded.keys(), ...(base.recorded?.keys() ?? [])].filter((file) => {
+      sameBeforeText: [...new Set([...recorded.keys(), ...(base.recorded?.keys() ?? [])])].filter((file) => {
         const text = recorded.get(file) ?? base.recorded?.get(file);
         return text !== undefined && text === base.texts?.get(file);
-      })),
+      }),
     }),
+    before: true,
+  }, (file) => {
+    // A module whose text is not known on both sides is unread.
+    const [from, to] = [held?.get(file), recorded.get(file)];
+    return from === undefined || to === undefined ? undefined : edits(file, from, to);
   });
   const prior = lastCaseRunOf(previous);
   const again = run.commit !== undefined && prior?.commit === run.commit;
@@ -207,12 +208,12 @@ export function layCases(
     ...(retired === undefined || began ? { began: true } : {}),
     cases: last,
   };
-  const journals = layEyes(previous.eyes, eyes, cases, announced);
-  const attempts = layAttempts(previous.attempts, run.attempts, cases, announced);
-  const readings = layReadings(previous.readings, previous.index, merged, new Set(cases()), {
+  const journals = layEyes(previous.eyes, eyes, () => cases, announced);
+  const attempts = layAttempts(previous.attempts, run.attempts, () => cases, announced);
+  const readings = layReadings(previous.readings, previous.index, merged, new Set(cases), {
     fresh,
     announced: new Set(announced),
-    same: [...recorded.keys()].filter(sameText),
+    same: sameText,
     ...(run.inputs === undefined ? {} : { inputs: run.inputs }),
   });
   return {

@@ -1,56 +1,15 @@
 /**
  * Where a held module's regions stand among a cut of it recorded now.
  *
- * A case index keeps each module at the lines it was recorded at. Laying a run
- * over one asks, of a module the run recorded again, which held region each
- * recorded one carries its cases from, and whether the held cut can be read at
- * the recorded lines at all.
+ * A case index keeps each module at the lines it was recorded at, and a
+ * snapshot's rows of it may stand at another cut. Reading the two together
+ * asks whether they are one cut of one text, and which held region each
+ * recorded one stands for. Laying a run's cases over an edit is the addon's
+ * (`native/src/case_layer_landing.rs`).
  */
 
 import type { SetExecutionModule } from './execution-set-format.js';
-import { NO_OWNER } from './format-layout.js';
-import { addressKey, sameNumbering, seatedAlike } from './carried-rows.js';
-
-/**
- * `held` at the lines `recorded` stands its regions on, when the two are named
- * at one text; `undefined` when `held` was cut at another text and cannot be
- * carried onto this one.
- *
- * Each held region is read at the recorded region of its address. When every
- * line agrees, `held` was cut at the text it is named at and comes back as it
- * was, whatever regions one cut holds and the other lacks. When a line does
- * not, `held` was cut at an older text, and its regions take the recorded
- * lines only where the two texts numbered alike ({@link sameNumbering}), the
- * rule the snapshot re-cut its rows to the newer text by. Then a held region
- * the recorded cut has no address for is left out: no line of the newer text
- * holds it, and kept at a line of the older one it would pair with whatever
- * region stands there now. A kept region's owner is the nearest region around
- * it that is kept too, so a region born under one still takes its cases.
- */
-// FIXME: regions told apart only by occurrence carry no seat for
-// `sameNumbering` to compare, so a sibling taken out in front of them and
-// another written behind keep their count and re-line each one onto its
-// neighbour without a signal — the limit the snapshot's
-// re-cut has. The index carrying the text each module was recorded from would
-// let a reader leave such a module uncompared instead.
-export function relined(held: SetExecutionModule, recorded: SetExecutionModule): SetExecutionModule | undefined {
-  if (cutAlike(held, recorded)) return held;
-  if (!sameNumbering(held.blocks, recorded.blocks)) return undefined;
-  const to = landedOn(held, recorded);
-  const kept = [...to.keys()].sort((left, right) => left - right);
-  return {
-    file: held.file,
-    blocks: kept.map((from) => ({
-      ...held.blocks[from]!,
-      startLine: recorded.blocks[to.get(from)!]!.startLine,
-      endLine: recorded.blocks[to.get(from)!]!.endLine,
-    })),
-    called: Uint32Array.from(kept, (from) => held.called[from]!),
-    loaded: Uint8Array.from(kept, (from) => held.loaded[from]!),
-    ...(held.owner === undefined ? {} : { owner: keptOwners(held.owner, kept) }),
-    ...(held.overwritten === undefined ? {} : { overwritten: Uint32Array.from(kept, (from) => held.overwritten![from]!) }),
-  };
-}
+import { addressKey } from './carried-rows.js';
 
 /**
  * Whether `held` was cut at the text `recorded` was: every region the two cuts
@@ -91,16 +50,6 @@ function landedOn(held: Cut, recorded: Cut): Map<number, number> {
   return to;
 }
 
-/** `owner` over the regions at `kept`, each walking out past the regions left out to the nearest kept one. */
-function keptOwners(owner: Uint32Array, kept: readonly number[]): Uint32Array {
-  const at = new Map(kept.map((from, position) => [from, position]));
-  return Uint32Array.from(kept, (from) => {
-    let around = owner[from]!;
-    while (around !== NO_OWNER && !at.has(around)) around = owner[around]!;
-    return around === NO_OWNER ? NO_OWNER : at.get(around)!;
-  });
-}
-
 /**
  * For each region recorded now, the held region of the same cut it stands for,
  * or -1.
@@ -115,7 +64,8 @@ function keptOwners(owner: Uint32Array, kept: readonly number[]): Uint32Array {
  * neighbours.
  *
  * This answers whether two cuts of one text agree. Where the cases of a region
- * go over an edit is {@link landedThrough}'s to say: it seats a region by the
+ * go over an edit is the case layering's to say
+ * (`native/src/case_layer_landing.rs`): it seats a region by the
  * lines the edit places it at first, and pairs by address only where both
  * cuts numbered their regions alike and the edit's reading spares the kind.
  */
@@ -161,33 +111,8 @@ function address(block: Region): string {
   return `${block.name}\0${block.path}`;
 }
 
-/**
- * Whether an address names one region in both cuts: each holds it as many
- * times, and every counter it passes through handed out the same seats in
- * each ({@link seatedAlike}). Where the counts differ, one cut holds a sibling
- * the other lacks, and the n-th of one is not the n-th of the other; where a
- * counter's seats differ, an edit renumbered what it counts.
- */
-export function addressedAlike(held: Cut, recorded: Cut): (block: Region) => boolean {
-  const [heldCount, recordedCount] = [addressCounts(held.blocks), addressCounts(recorded.blocks)];
-  const seated = seatedAlike(held.blocks, recorded.blocks);
-  return (block) => heldCount.get(address(block)) === recordedCount.get(address(block)) && seated(block);
-}
-
 function addressCounts(blocks: readonly Region[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const block of blocks) counts.set(address(block), (counts.get(address(block)) ?? 0) + 1);
   return counts;
-}
-
-/**
- * Whether a held region went unmatched among siblings the two cuts hold a
- * different number of times: its cut lacked one the run recorded, or the text
- * changed under a name that says it did not, and nothing tells which.
- */
-export function strayed(held: SetExecutionModule, recorded: SetExecutionModule): boolean {
-  const matched = new Set(landing(recorded, held));
-  const [heldCount, recordedCount] = [addressCounts(held.blocks), addressCounts(recorded.blocks)];
-  return held.blocks.some((block, at) =>
-    !matched.has(at) && recordedCount.has(address(block)) && heldCount.get(address(block)) !== recordedCount.get(address(block)));
 }

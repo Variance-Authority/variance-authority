@@ -16,6 +16,20 @@ use crate::record_layout::LAYOUT;
 pub(crate) mod journey_fold;
 #[path = "case_run.rs"]
 pub(crate) mod case_run;
+#[path = "case_layer_sets.rs"]
+pub(crate) mod case_layer_sets;
+#[path = "case_layer_landing.rs"]
+pub(crate) mod case_layer_landing;
+#[path = "case_layer.rs"]
+pub(crate) mod case_layer;
+#[path = "case_layer_before.rs"]
+pub(crate) mod case_layer_before;
+#[path = "case_layer_lines.rs"]
+pub(crate) mod case_layer_lines;
+#[path = "case_layer_modules.rs"]
+pub(crate) mod case_layer_modules;
+#[path = "case_layer_napi.rs"]
+pub(crate) mod case_layer_napi;
 
 use journey_fold::{fold, replay_run, Charge, Charged, Folded, Placed};
 

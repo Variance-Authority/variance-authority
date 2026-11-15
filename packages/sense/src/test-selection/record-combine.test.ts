@@ -42,7 +42,8 @@ afterEach(async () => {
  * TypeScript writers: the coverage through `format.ts`, the case index and the
  * last-run layer through `case-landing.ts`, and Eyes through `eyes-record.ts`.
  * The cases of `overwritten` ran `greet` in a text an edit wrote over, as a
- * layering cut to the edited text keeps them (`landedThrough`).
+ * layering cut to the edited text keeps them (`landed_through` in
+ * `native/src/case_layer_landing.rs`).
  */
 async function recordOf(name: string, files: readonly string[], overwritten: readonly string[] = [], retried: readonly string[] | undefined = undefined): Promise<string> {
   const tests = files.map((file) => ({ id: `${file} > greets`, file, name: 'greets', stopped: false }));

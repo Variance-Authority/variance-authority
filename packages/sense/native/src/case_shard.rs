@@ -57,13 +57,37 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     if version != cases.format {
         return Err(format!("it is written at version {version}, and this build reads version {}", cases.format));
     }
-    let strings = strings(&decoded)?;
+    let (mut shard, cuts) = read_decoded(&decoded, false)?;
+    for (module, cut) in shard.modules.iter_mut().zip(cuts) {
+        module.inventory = held_inventory(inventories.entry(module.file.clone()).or_default(), &module.file, cut.blocks, cut.owners)?;
+    }
+    Ok(shard)
+}
+
+/// A case index a run is laid over, each module with the cut it was recorded
+/// at; `None` where it is written at a version this build does not lay over.
+/// An index written at the version that held each region's loaded cases reads
+/// a region as loaded where its set holds one.
+pub(crate) fn read_held(bytes: &[u8]) -> Result<Option<(Shard, Vec<Inventory>)>, String> {
+    let (version, decoded) = journey_columns::decode_any(bytes)?;
+    let cases = &LAYOUT.cases;
+    if version != cases.format && version != cases.loaded_sets {
+        return Ok(None);
+    }
+    read_decoded(&decoded, version == cases.loaded_sets).map(Some)
+}
+
+/// An index's columns read whole; each module's cut beside it, by its row.
+fn read_decoded(decoded: &Decoded, loaded_sets: bool) -> Result<(Shard, Vec<Inventory>), String> {
+    let cases = &LAYOUT.cases;
+    let strings = strings(decoded)?;
     let ids = decoded.words("tests.id")?;
     let files = decoded.words("tests.file")?;
     let names = decoded.words("tests.name")?;
     let count = ids.len();
     let optional_words = |name: &str| if decoded.has(name) { decoded.words(name).map(Some) } else { Ok(None) };
-    let settled = decoded.bytes("tests.stopped")?;
+    // An index whose producer saw no case settle holds no column of it.
+    let settled = if decoded.has("tests.stopped") { decoded.bytes("tests.stopped")? } else { vec![0; count] };
     let runners = optional_words(case_id::COLUMN)?;
     let projects = optional_words(case_id::PROJECT_COLUMN)?;
     let durations = optional_words(&cases.duration)?;
@@ -110,7 +134,11 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let module_files = decoded.words("modules.file")?;
     let module_blocks = decoded.words("modules.blocks")?;
     let called = decoded.words("blocks.calledSet")?;
-    let loaded: Vec<bool> = decoded.held("blocks.loaded")?.iter().map(|flag| *flag == 1).collect();
+    let loaded: Vec<bool> = if loaded_sets {
+        decoded.words("blocks.loadedSet")?.into_iter().map(|set| Ok(!decode_set(set_slice(&set_bytes, &set_offsets, set)?, count)?.is_empty())).collect::<Result<_, String>>()?
+    } else {
+        decoded.held("blocks.loaded")?.iter().map(|flag| *flag == 1).collect()
+    };
     let kinds = decoded.words("blocks.kind")?;
     let block_names = decoded.words("blocks.name")?;
     let paths = decoded.words("blocks.path")?;
@@ -133,6 +161,7 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
         return Err("block columns disagree".to_owned());
     }
     let mut modules = Vec::with_capacity(module_files.len());
+    let mut cuts = Vec::with_capacity(module_files.len());
     for at in 0..module_files.len() {
         let first = module_blocks[at] as usize;
         let last = module_blocks[at + 1] as usize;
@@ -150,17 +179,16 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
                 source: sources[block] == 1,
             }))
             .collect::<Result<_, String>>()?;
-        let owned = owners.as_ref().map(|column| column[first..last].to_vec());
-        let inventory = held_inventory(inventories.entry(file.clone()).or_default(), &file, blocks, owned)?;
+        cuts.push(Inventory { blocks, owners: owners.as_ref().map(|column| column[first..last].to_vec()) });
         modules.push(ShardModule {
             file,
-            inventory,
+            inventory: at,
             called: called[first..last].to_vec(),
             loaded: loaded[first..last].to_vec(),
             overwritten: overwritten.as_ref().map_or_else(Vec::new, |column| column[first..last].to_vec()),
         });
     }
-    Ok(Shard {
+    let shard = Shard {
         name: String::new(),
         tests,
         durations,
@@ -171,8 +199,9 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
         set_bytes,
         set_offsets,
         local_to_global: Vec::new(),
-        gaps: journey_format::read_gaps(&decoded, &strings)?,
-    })
+        gaps: journey_format::read_gaps(decoded, &strings)?,
+    };
+    Ok((shard, cuts))
 }
 
 /// Where `blocks` stands among the cuts of `file` read so far, with the owners

@@ -57,6 +57,14 @@ pub(crate) fn addressed(before: impl Iterator<Item = (String, String)>, after: i
     }
 }
 
+/// Whether every counter both cuts hold handed out the same seats in each
+/// (`sameNumbering` in `carried-rows.ts`): no edit renumbered a region the two
+/// cuts share. A counter only one cut holds says nothing either way.
+pub(crate) fn same_numbering(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> bool {
+    let now = sites(after);
+    sites(before).iter().all(|(site, taken)| now.get(site).is_none_or(|holds| holds == taken))
+}
+
 /// The seats each site of a cut holds.
 fn sites(blocks: impl Iterator<Item = (String, String)>) -> FxHashMap<String, FxHashSet<u64>> {
     let mut sites: FxHashMap<String, FxHashSet<u64>> = FxHashMap::default();

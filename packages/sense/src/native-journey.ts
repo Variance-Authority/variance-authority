@@ -141,3 +141,42 @@ export interface NativeCaseJournals {
     budgetBytes?: number,
   ): { bytes: Buffer; passes: number; crossings: number };
 }
+
+/** One module's edit between two texts, as git's `-U0` hunks and the selector's reading; `edit` absent where a text could not be had. */
+export interface NativeCaseEdit {
+  readonly file: string;
+  readonly edit?: {
+    readonly hunks: readonly { readonly oldStart: number; readonly oldCount: number; readonly newStart: number; readonly newCount: number }[];
+    readonly reading?: string;
+  };
+}
+
+/** What a run knows about the test files it was handed, as the native layering reads it (`native/src/case_layer_napi.rs`). */
+export interface NativeCaseRunFiles {
+  readonly ran: readonly string[];
+  readonly finished: readonly string[];
+  /** A held test file is present when it is on disk under this root. */
+  readonly presentUnder?: string;
+  /** A held test file is present when it is one of these; wins over `presentUnder`. With neither, every one is. */
+  readonly presentAmong?: readonly string[];
+  readonly sameText?: readonly string[];
+  readonly sameBeforeText?: readonly string[];
+  readonly base?: Uint8Array;
+  readonly before: boolean;
+}
+
+export interface NativeCaseLayers {
+  readonly merged: Buffer;
+  readonly cases: string[];
+  readonly last: string[];
+  readonly announced: string[];
+  readonly before?: Buffer | null;
+  readonly unlined: string[];
+}
+
+/** A module's rows as a cut no case has entered yet. */
+export interface NativeCaseCut {
+  readonly file: string;
+  readonly blocks: NativeJourneyModule['blocks'];
+  readonly owners: readonly number[];
+}
