@@ -135,5 +135,5 @@ function declarationsIn(crossed: readonly OutcomeRegion[]): (regions: readonly O
 
 /** Every case {@link namedCases} finds, explained from its newest run. */
 export function recordedStatements(root: string, name: string, file?: string): RecordedExplanation[] {
-  return [...namedCases(root, name, file, ['index'])].map(({ record, opened, test }) => ({ ...statementsOf(test, newestRegions(opened, test.id) ?? []), record, id: test.id }));
+  return [...namedCases(root, name, file, ['index'])].map(({ record, sections, test }) => ({ ...statementsOf(test, newestRegions(sections.index!, test.id) ?? []), record, id: test.id }));
 }

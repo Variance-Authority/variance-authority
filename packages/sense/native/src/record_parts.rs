@@ -231,14 +231,19 @@ pub(crate) fn fold_eyes(shards: &[(&str, &[u8], &HashMap<String, String>)], case
     Ok(bytes)
 }
 
-/// A `cases.readings` section as `readings-bytes.ts` writes it: each case's
+/// A `cases.readings` section as `write_readings` writes it: each case's
 /// bytes, kept as written, and what each test file ran over.
 pub(crate) struct ReadingsIn<'a> {
     pub cases: Vec<(String, &'a [u8])>,
     pub inputs: Vec<(String, String)>,
 }
 
+/// The section in `bytes`; one an earlier build wrote as JSON holds nothing,
+/// since readings are only what earlier runs saw.
 pub(crate) fn read_readings(bytes: &[u8]) -> Result<ReadingsIn<'_>, String> {
+    if bytes.starts_with(b"{\"") {
+        return Ok(ReadingsIn { cases: Vec::new(), inputs: Vec::new() });
+    }
     let mut reader = Varints::new(bytes);
     let text = |bytes: Vec<u8>| String::from_utf8(bytes).map_err(|error| error.to_string());
     let count = reader.take()?;
@@ -280,7 +285,7 @@ fn fronted(reader: &mut Varints<'_>, last: &mut Vec<u8>) -> Result<Vec<u8>, Stri
     Ok(last.clone())
 }
 
-fn put_fronted(out: &mut Vec<u8>, last: &mut Vec<u8>, value: &str) {
+pub(crate) fn put_fronted(out: &mut Vec<u8>, last: &mut Vec<u8>, value: &str) {
     let bytes = value.as_bytes();
     let shared = last.iter().zip(bytes).take_while(|(left, right)| left == right).count();
     put(out, shared as u64);
@@ -290,7 +295,7 @@ fn put_fronted(out: &mut Vec<u8>, last: &mut Vec<u8>, value: &str) {
 }
 
 /// A digest as `format/hash.ts` spells it, `v1:` and lowercase hex, as its bytes; any other as a zero and its text.
-fn put_digest(out: &mut Vec<u8>, digest: &str) {
+pub(crate) fn put_digest(out: &mut Vec<u8>, digest: &str) {
     let hex = digest.strip_prefix("v1:").filter(|hex| !hex.is_empty() && hex.len() % 2 == 0 && hex.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')));
     match hex {
         Some(hex) => {
@@ -364,12 +369,7 @@ pub(crate) fn fold_readings(
     let mut readings: Settled<&[u8]> = Settled::new();
     let mut inputs: Settled<String> = Settled::new();
     for (name, bytes, renames) in shards {
-        // An earlier build's JSON holds no readings, which are only what earlier runs saw; bytes this build cannot read are refused.
-        let section = if bytes.starts_with(b"{\"") {
-            ReadingsIn { cases: Vec::new(), inputs: Vec::new() }
-        } else {
-            read_readings(bytes).map_err(|error| format!("{name}: its readings section is not one this build reads: {error}"))?
-        };
+        let section = read_readings(bytes).map_err(|error| format!("{name}: its readings section is not one this build reads: {error}"))?;
         let own = ran.get(*name).unwrap_or(&nothing);
         for (file, digest) in section.inputs {
             let by = own.files.contains(&file);
@@ -399,17 +399,22 @@ pub(crate) fn fold_readings(
         readings.held.into_iter().filter(|(case, (_, _, by))| *by || !ran_cases.contains(case)).map(|(case, (_, value, _))| (case, value)).collect();
     let inputs: HashMap<String, String> =
         inputs.held.into_iter().filter(|(file, (_, _, by))| *by || !ran_files.contains(file)).map(|(file, (_, digest, _))| (file, digest)).collect();
-    let mut ids: Vec<&String> = held.keys().collect();
-    ids.sort_by(|left, right| order::code_unit(left, right));
+    Ok(write_readings(held.iter().map(|(id, own)| (id.as_str(), *own)).collect(), &inputs))
+}
+
+/// A `cases.readings` section: each case's bytes under its id, and the digest
+/// of what each test file ran over, both in code-unit order of their names.
+pub(crate) fn write_readings<B: AsRef<[u8]>>(mut cases: Vec<(&str, B)>, inputs: &HashMap<String, String>) -> Vec<u8> {
+    cases.sort_by(|left, right| order::code_unit(left.0, right.0));
     let mut files: Vec<&String> = inputs.keys().collect();
     files.sort_by(|left, right| order::code_unit(left, right));
     let mut bytes = Vec::new();
     let mut last = Vec::new();
-    put(&mut bytes, ids.len() as u64);
-    for id in ids {
+    put(&mut bytes, cases.len() as u64);
+    for (id, own) in &cases {
         put_fronted(&mut bytes, &mut last, id);
-        put(&mut bytes, held[id].len() as u64);
-        bytes.extend_from_slice(held[id]);
+        put(&mut bytes, own.as_ref().len() as u64);
+        bytes.extend_from_slice(own.as_ref());
     }
     let mut last = Vec::new();
     put(&mut bytes, files.len() as u64);
@@ -417,7 +422,7 @@ pub(crate) fn fold_readings(
         put_fronted(&mut bytes, &mut last, file);
         put_digest(&mut bytes, &inputs[file]);
     }
-    Ok(bytes)
+    bytes
 }
 
 #[cfg(test)]
