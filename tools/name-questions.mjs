@@ -7,32 +7,22 @@ import { parseArgs } from 'node:util';
 import { digestString } from '@variance-authority/core/format';
 
 /**
- * Asks a fixed question set of a workspace through the built CLI, keeps each
- * answer and how long it took, and compares two kept runs line for line, with
- * only the `Snapshot` line masked. A change to how the name questions are
- * stored is judged by it: the answers stay the same and the times fall.
+ * Asks a fixed question set of a workspace through a built CLI, keeps each
+ * answer and how long it took, and compares two kept runs with the `Snapshot`
+ * line masked: a change to how the name questions are stored keeps the answers
+ * and cuts the times.
  *
  * `node tools/name-questions.mjs ask <set> --workspace <dir> --out <dir> [--runs <n>] [--bin <bin.js>]`
- * `node tools/name-questions.mjs digest <kept>` prints a kept run as one line per answer
- * `node tools/name-questions.mjs compare <kept|.out> <kept|.out>`
- *
- * A kept run is a folder of whole answers, megabytes on a large workspace; a
- * `.out` file is its digest, one line per answer — the file, the
- * `digestString` of its text with the `Snapshot` line masked, its bytes and its lines — small enough to check
- * in beside the set. Two kept runs compare line for line; a `.out` on either
- * side compares by digest and names the answers that differ.
- *
- * With `--runs`, every run's answer is held against the first: one a later run
- * gave otherwise is kept beside it in `<answer>.unstable`, and `compare` counts
- * it as not the same, on either side, kept or digested.
- *
- * `VARIANCE_AUTHORITY_CACHE` passes through, so the index asked is the caller's.
- * `--bin` asks another build, such as a checkout of `main`, the same questions.
+ * `node tools/name-questions.mjs digest <kept>` and `compare <kept|.out> <kept|.out>`
  */
 
 const BUILT = resolve(import.meta.dirname, '../packages/cli/dist/bin.js');
 const SNAPSHOT = /^Snapshot .*$/gm;
-/** Beside an answer, the answers later runs of the same build gave otherwise. */
+/**
+ * Beside an answer, what later runs of the same build answered otherwise. With
+ * `--runs`, each run is held against the first, and `compare` counts an answer
+ * kept with one as not the same, on either side, kept or digested.
+ */
 const UNSTABLE = '.unstable';
 /** An unstable answer's place in a digest, where its digest would be. */
 const MOVED = 'unstable';
@@ -93,8 +83,10 @@ const answersIn = (dir) => readdirSync(dir).filter((file) => file.endsWith('.txt
 const movedIn = (dir, name) => existsSync(join(dir, `${name}${UNSTABLE}`));
 
 /**
- * A kept run's digest: one line per answer, its file, the digest of its masked text, bytes and lines,
- * or `unstable` in their place for an answer another run of the build gave otherwise.
+ * A kept run's digest, its `.out`: one line per answer, its file, the `digestString` of its masked
+ * text, bytes and lines, or `unstable` in their place for an answer another run gave otherwise.
+ * A kept run is megabytes on a large workspace; its digest is small enough to check in beside
+ * the set, and `compare` reads it by digest where two kept runs compare line for line.
  */
 function digestOf(dir) {
   return answersIn(dir).map((name) => {
@@ -141,6 +133,7 @@ function compared(left, right) {
 }
 
 // Run as a command, not when a test imports `questionsOf` to read a set the same way.
+// `VARIANCE_AUTHORITY_CACHE` passes through, so the index asked is the caller's; `--bin` asks another build, such as `main`'s.
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { positionals: [command, ...paths], values } = parseArgs({
     allowPositionals: true,
