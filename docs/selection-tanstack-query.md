@@ -23,12 +23,14 @@ with 9.
 > - What limits `file-use` here is `query-core`'s index, which loads every
 >   module it re-exports: an edit to `hydration.ts` runs 149 test files, and
 >   21 of them call a function in it.
-> - One commit of setup, and recording costs **1.05×** to **1.13×** a suite run, by precision.
+> - One commit of setup, and recording costs **1.05×** to **1.13×** a suite
+>   run, by precision.
 
 Nothing in the repository was written with this in mind and no test was changed
 to accommodate it. One commit adds the instrumentation; the
 [fork](https://github.com/Variance-Authority/tanstack-query-example) carries
-it, along with the write-up and the scripts every figure below came from.
+it, along with the write-up and the scripts the selection figures below came
+from.
 
 ## The whole suite, once
 
@@ -56,7 +58,9 @@ separate runs cannot see it.
 | recording, `presence` (the default) | 15.94 s — **1.13×** |
 | `vitest --coverage`, V8 provider | 18.24 s — **1.29×** |
 
-Same pass and fail counts in every row — the 22 that fail in the upstream
+Every arm is timed side by side in each round, so its seconds compare with
+each other and not with the wall clock above. Same pass and fail counts in every
+row — the 22 that fail in the upstream
 repository fail in each — with the Vite cache and the record cache cleared
 before every run. This suite runs in jsdom, so a worker holds 193 scripts against
 Zod's 52. A probe is paid for by the test that reaches it and does not notice;

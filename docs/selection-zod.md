@@ -23,12 +23,13 @@ because the record shows which of the files that *reach* a module covered the
 > - Change one line in `locales/ru.ts` and the record selects **8 runs, 1.5s
 >   instead of 8.2s**, an **82%** shorter run. A package graph would still run
 >   201 of the 202 files.
-> - One commit of setup, and recording costs nothing measurable at any precision.
+> - One commit of setup, and no recording precision costs more than the
+>   run's own spread.
 
 Nothing in the repository was written with this in mind and no test was changed
 to accommodate it. One commit adds the instrumentation; the
 [fork](https://github.com/Variance-Authority/zod-example) carries it, along
-with the write-up and the scripts every figure below came from.
+with the write-up and the scripts the selection figures below came from.
 
 ## The whole suite, once
 
@@ -59,12 +60,15 @@ record stores the union rather than letting the second run overwrite the first.
 | `vitest --coverage`, V8 provider | 14.09 s — **1.27×** |
 
 Same pass and fail counts in every row, Vite cache and record cache cleared
-before every run. Every recording mode lands inside the band the two plain
-runs set; `loads` below the plain run is that band, not a saving. Zod runs in `node`, which is why the third row is the interesting
-one: the engine's counters are read per worker and answer with every script the
+before every run, every arm timed side by side in each round, so its seconds
+compare with each other and not with the wall clock above. `entries` and
+`presence` land inside the band the two plain runs set; `loads` runs faster than
+the plain suite, which a second measurement repeated at 3%, and is not counted
+as a saving. Zod runs in `node`, which is why the `--coverage` row is the
+interesting one: the engine's counters are read per worker and answer with every script the
 isolate has loaded, and a worker here holds 52. What it buys for that is one
 union per file — every region some test covered, with no record of which test —
-and the recorder, at any precision, costs less than the noise.
+and the recorder, at any precision, costs no more than the noise.
 
 ## One line, asked of the record
 

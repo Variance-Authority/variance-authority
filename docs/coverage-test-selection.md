@@ -3,7 +3,7 @@
 Coverage-based test selection runs, after a change, only the tests that
 executed the code you changed, according to a recording of an earlier run.
 [Variance Authority](README.md) records that relation on the suite you already
-run, for no more than 13% of its run time, and parses each changed file as it was
+run, for no more than 13% of its run time on two public suites, and parses each changed file as it was
 recorded and as your diff leaves it before it selects a test. On an unmodified
 Zod checkout, a one-line edit selects 6 test files, 8 runs in all, where
 rerunning every file that loads the changed module selects 197.
@@ -239,8 +239,8 @@ change is how it answers four questions.
 reads the engine's counters, and those counters cover every script the worker
 loaded, whether a test used it or not. On two public suites, `--coverage`
 adds 27% to 29% to every run and produces a union with no record of which test
-covered what. Reading those counters once per test costs 2.1× to 2.7× on a
-jsdom suite. At that cost the per-test relation is not
+covered what. Reading those counters once per test costs 2.1× to 2.7× on
+[a jsdom suite](selection-tanstack-query.md#what-the-recording-run-cost). At that cost the per-test relation is not
 recorded on every run, so it describes an older commit.
 
 **What grain does a change charge?** A selector that decides by package or by

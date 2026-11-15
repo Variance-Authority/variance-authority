@@ -10,14 +10,14 @@ watch.
 
 ## What you already believe this costs
 
-Recording costs less than coverage at every precision, and the finer the step
-you record, the more it costs:
+Recording costs less than coverage at every precision, and recording only the
+modules each test file loaded costs least:
 
 | added to the run | Zod | TanStack Query |
 |---|---|---|
-| `loads` — the modules each test file loaded | inside the noise | **+5%** |
-| `entries` — the functions each case entered | inside the noise | **+13%** |
-| `presence`, the default — the regions each case entered | inside the noise | **+13%** |
+| `loads` — the modules each test file loaded | none measured | **+5%** |
+| `entries` — the functions each case entered | none measured | **+13%** |
+| `presence`, the default — the regions each case entered | none measured | **+13%** |
 | `--coverage`, V8 — the union | **+27%** | **+29%** |
 
 You have turned coverage on in CI, watched the suite get slower, and turned it
@@ -54,7 +54,7 @@ less of the suite](selecting.md#what-recording-costs-while-the-suite-runs).)
 Per test, the gap stops being a percentage and becomes the reason this axis
 does not exist in your pipeline. Getting it out of the profiler means reading
 the native counters between every test rather than once at the end, and that
-costs 2.1× to 2.7× on a jsdom suite. Nobody pays that in CI, so nobody has the
+costs 2.1× to 2.7× on [a jsdom suite](selection-tanstack-query.md#what-the-recording-run-cost). Nobody pays that in CI, so nobody has the
 relation in CI.
 
 The second cost is the file, and it is the one that quietly decides whether a
@@ -73,8 +73,8 @@ answer something a job uploads without thinking about it.
 
 What it costs *you* is not what it cost us:
 
-- **Plan around +15% at the default precision, and treat anything under that
-  as luck.** How many regions a test crosses is a property of your code, not
+- **Plan around the +13% a jsdom suite paid at the default precision, and
+  treat anything under that as luck.** How many regions a test crosses is a property of your code, not
   of the recorder, and a suite that spends most of its time in one hot module pays differently from
   one that spends it starting workers.
 - **What those cycles buy is not a percentage.** It is the part worth putting
@@ -257,7 +257,7 @@ as your code is transformed, so what you pay tracks what your tests *ran*. The
 engine's own coverage is not fired but read, and the read hands back every
 script the worker had open — which is why reading native counters *per test*,
 the only way to get this axis out of the profiler, costs 2.1× to 2.7× on a
-jsdom suite and the probe costs a few percent.
+jsdom suite and the probe costs 13% at most.
 
 **A region is a block, not a line.** What gets an id is a lexical block — a
 function, a branch arm, a loop body, a handler — and what identifies it is its

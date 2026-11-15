@@ -1011,8 +1011,8 @@ and it is in [addressing scale](scale.md).
 ## What recording costs while the suite runs
 
 Recording costs less than coverage at every precision. A probe fires only when
-its code runs, so what you pay tracks what your tests ran, and the finer the
-step you record, the more probes there are to fire.
+its code runs, so what you pay tracks what your tests ran: `loads` places no
+probe at all and costs least, and `entries` and `presence` measure the same.
 
 | | the suite | `loads`, `file-use` | `entries`, `function-use` | `presence`, `region-use` | `--coverage`, V8 |
 |---|---|---|---|---|---|
@@ -1029,8 +1029,9 @@ every column. An Apple M4 Max, 64 GB, Node 26.
 
 Each round also runs the suite plain a second time, and the two plain arms are
 the band the rest is read against: 0.9% apart on Zod and 1.8% on TanStack
-Query. On Zod every mode lands inside that band — `loads` below the plain run
-is the band, not a saving. On TanStack Query, where jsdom loads far more code
+Query. On Zod `entries` and `presence` land inside that band, and `loads` runs
+faster than the plain suite, which a second measurement repeated at 3%; it is
+not counted as a saving. On TanStack Query, where jsdom loads far more code
 into every worker, each mode stands outside it, and `--coverage` still costs
 more than twice what the default `presence` does.
 

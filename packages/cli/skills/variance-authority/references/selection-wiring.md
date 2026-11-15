@@ -155,8 +155,8 @@ step; nothing composes them.
 ## Choose what the run records
 
 `withTestSelection` takes the same recording options under Vitest, Jest and
-Rstest. Record at the step the suite declares and no finer, because each step
-down costs run time. Added to TanStack Query's suite under Vitest, where
+Rstest. Record at the step the suite declares and no finer: below `file-use`
+every step costs run time. Added to TanStack Query's suite under Vitest, where
 `--coverage` adds 29%; on Zod no mode costs more than the run's own spread:
 
 | `mode` | the record holds | finest `precision` it answers | added |
