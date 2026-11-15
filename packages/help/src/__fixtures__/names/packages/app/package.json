@@ -1,0 +1,6 @@
+{
+  "name": "app",
+  "type": "module",
+  "exports": { ".": { "types": "./dist/main.d.ts", "default": "./dist/main.js" } },
+  "files": ["dist"]
+}
