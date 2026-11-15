@@ -318,8 +318,10 @@ Look around:
 - What Codex finds on the open PR: `yarn review:codex <n>`, a reader from another
   model family that knows nothing but the PR. A run that could not happen is
   named, not waited for.
-- The coverage and "What this change might do" comments CI posts. Do they
-  describe the change you meant to make?
+- The "Test evidence" comment CI posts, acted on mark by mark as
+  [the skill](packages/cli/skills/variance-testing/SKILL.md#the-pull-requests-review-act-on-every-mark)
+  says. Code the change wrote that no case ran gets a test or is deleted: that
+  the change meant it never to run is the case for deleting it.
 
 ### 7. Correct
 
