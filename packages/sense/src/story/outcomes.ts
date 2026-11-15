@@ -8,11 +8,11 @@
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { caseSectionsAt } from '../test-selection/case-record.js';
+import { caseSectionsAt, type CaseSections } from '../test-selection/case-record.js';
 import { lineOf } from '../test-selection/case-lines.js';
 import { readingsOf, type Reading } from '../test-selection/case-readings.js';
 import type { ReadRegion } from '../test-selection/readings-bytes.js';
-import { openSetExecutionIndex } from '../test-selection/execution-set-format.js';
+import { openSetExecutionIndex, type OpenedSetExecutionIndex } from '../test-selection/execution-set-format.js';
 import { steady } from './steady.js';
 import { checkoutRecords } from './directory.js';
 
@@ -64,23 +64,36 @@ export interface RecordedCase {
   readonly readings: readonly Reading[];
 }
 
+/** A case `name` names in one record of this checkout: the record, its case sections and opened index, and the case. */
+export interface NamedCase {
+  readonly record: string;
+  readonly sections: CaseSections;
+  readonly opened: OpenedSetExecutionIndex;
+  readonly test: OpenedSetExecutionIndex['tests'][number];
+}
+
 /**
- * Every case a record of this checkout keeps earlier readings of under `name`
- * (its whole name, or `<file> > <name>`), in `file` when given, with its
- * readings. A name two files hold is both, for the caller to refuse.
+ * Every case the records of this checkout hold under `name` (its whole name,
+ * or `<file> > <name>`), in `file` when given, read with the case sections
+ * `parts` names. A name two files hold is both, for the caller to refuse.
  */
-export function recordedReadings(root: string, name: string, file?: string): RecordedCase[] {
-  const found: RecordedCase[] = [];
+export function* namedCases(root: string, name: string, file: string | undefined, parts: readonly (keyof CaseSections)[]): Generator<NamedCase> {
   for (const record of checkoutRecords(root)) {
-    const { index, readings } = caseSectionsAt(record, ['index', 'readings']);
-    if (index === undefined || readings === undefined) continue;
-    const opened = openSetExecutionIndex(index);
+    const sections = caseSectionsAt(record, parts);
+    const opened = sections.index === undefined ? undefined : openSetExecutionIndex(sections.index);
     for (const test of opened?.tests ?? []) {
       if (file !== undefined && test.file !== file) continue;
-      if (test.name !== name && test.id !== name) continue;
-      const read = readingsOf(readings, index, test.id);
-      if (read !== undefined) found.push({ file: test.file, name: test.name, readings: read });
+      if (test.name === name || test.id === name) yield { record, sections, opened: opened!, test };
     }
+  }
+}
+
+/** Every case {@link namedCases} finds that keeps earlier readings, with its readings. */
+export function recordedReadings(root: string, name: string, file?: string): RecordedCase[] {
+  const found: RecordedCase[] = [];
+  for (const { sections: { index, readings }, test } of namedCases(root, name, file, ['index', 'readings'])) {
+    const read = readings === undefined ? undefined : readingsOf(readings, index!, test.id);
+    if (read !== undefined) found.push({ file: test.file, name: test.name, readings: read });
   }
   return found;
 }

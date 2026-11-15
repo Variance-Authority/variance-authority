@@ -3,20 +3,15 @@
  * so a reader can set one reading against another (spec 0072 item 2). A rerun
  * keeps the reading it replaces while its test file ran over the same inputs
  * and every module either reading entered stands at the same text; anything
- * that moved drops them, since they read other code. The section's bytes are
- * `readings-bytes.ts`'s, which selection never decodes.
+ * that moved drops them, since they read other code. The native addon lays and
+ * reads the section; selection never decodes it.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import { native, nativeRefusal } from '../addon.js';
 import { digestString } from '../digest.js';
-import { linesOf, valueAt } from './case-lines.js';
-import { openSetExecutionIndex, type OpenedSetExecutionIndex } from './execution-set-format.js';
 import type { CoverageModule, CoverageTest, TestCoverage } from './index.js';
-import { caseBytes, decodeCase, decodeReadings, encodeReadings, type ReadRegion, type StoredReading } from './readings-bytes.js';
-
-/** Distinct readings kept per case, newest first. */
-export const READINGS = 16;
-
+import { decodeReadings, type ReadRegion } from './readings-bytes.js';
 
 /**
  * One recorded run of one case, and how many runs read it so: an equal reading
@@ -31,23 +26,14 @@ export interface Reading {
   readonly regions: readonly ReadRegion[];
 }
 
-
-/** What a case's reading is, read off an index. */
-interface Read {
-  readonly file: string;
-  readonly stopped?: boolean;
-  readonly regions: ReadRegion[];
-  readonly modules: Set<string>;
-}
-
 /** What a run tells the readings of the cases it ran. */
 export interface ReadingsRun {
   /** The run's own case index. */
   readonly fresh: Uint8Array;
   /** The cases of `fresh` whose files the run announced: a shard's index also holds what its seed carried, which it did not run. */
   readonly announced: ReadonlySet<string>;
-  /** Whether the run recorded `file` from the text the index laid over holds it at. */
-  readonly same: (file: string) => boolean;
+  /** Every file the run recorded from the text the index laid over holds it at. */
+  readonly same: readonly string[];
   /** {@link inputsOf} the run's coverage; absent when it measured nothing. */
   readonly inputs?: ReadonlyMap<string, string>;
 }
@@ -75,7 +61,8 @@ export function inputsOf(coverage: Pick<TestCoverage, 'modules'> & { readonly te
  * the section the record held, and `cases` every case it holds. A case `run`
  * ran keeps its earlier readings while its file ran over the same inputs and
  * every module they entered stands at the same text. Absent when no case
- * holds a reading the index does not, and no file has inputs to name.
+ * holds a reading the index does not, and no file has inputs to name. The
+ * addon lays it; nothing lays it without the addon.
  */
 export function layReadings(
   kept: Uint8Array | undefined,
@@ -84,149 +71,18 @@ export function layReadings(
   cases: ReadonlySet<string>,
   run?: ReadingsRun,
 ): Buffer | undefined {
-  const before = previous === undefined ? undefined : openSetExecutionIndex(previous);
-  const { cases: stored, inputs: held } = decodeReadings(kept);
-  const fresh = run === undefined ? undefined : openSetExecutionIndex(run.fresh);
-  if (run !== undefined && fresh === undefined) throw new Error('a case fold wrote an index it cannot open');
-  const recorded = fresh?.modules.map((module) => module.file) ?? [];
-  const ran = run?.announced ?? new Set<string>();
-  const same = run?.same ?? (() => true);
-  const earlier = before === undefined ? new Map<string, Read>() : readsOf(before, new Set([...ran, ...stored.keys()]));
-  const holding = new Map<string, Reading[]>();
-  for (const [id, readings] of stored) {
-    const read = expanded(decodeCase(readings), earlier.get(id)?.regions);
-    if (read !== undefined && read.length > 0) holding.set(id, read);
-  }
-  const now = fresh === undefined ? new Map<string, Read>() : readsOf(fresh, ran);
-  const opened = landed === undefined ? undefined : openSetExecutionIndex(landed);
-  const there = opened === undefined ? new Map<string, Read>() : readsOf(opened, new Set([...ran, ...holding.keys()]));
-  const laid = new Map<string, readonly Reading[]>();
-  const entered = (id: string, readings: readonly Reading[]): Set<string> => new Set([
-    ...earlier.get(id)?.modules ?? [],
-    ...readings.flatMap((reading) => reading.regions.map(([file]) => file)),
-  ]);
-  // A case the run did not record keeps its readings while the code they read
-  // stands: a module the run recorded at another text drops them.
-  for (const [id, readings] of holding) {
-    if (ran.has(id) || !cases.has(id)) continue;
-    const modules = entered(id, readings);
-    if (recorded.some((file) => modules.has(file) && !same(file))) continue;
-    laid.set(id, readings);
-  }
-  for (const [id, reading] of now) {
-    const was = earlier.get(id);
-    const prior = holding.get(id) ?? (was === undefined ? [] : [{ count: 1, ...stop(was), regions: was.regions }]);
-    const modules = new Set([...reading.modules, ...entered(id, prior)]);
-    const stands = run?.inputs?.get(reading.file) === held.get(reading.file) && [...modules].every(same);
-    const readings = prior.length === 0 || !stands ? [] : [...prior];
-    const at = readings.findIndex((one) => alike(one, reading));
-    const [found] = at === -1 ? [] : readings.splice(at, 1);
-    const first = found === undefined
-      ? { count: 1, ...stop(reading), regions: reading.regions }
-      : { ...found, count: found.count + 1 };
-    laid.set(id, [first, ...readings].slice(0, READINGS));
-  }
-  // One run, as the index holds it, is what the index already says.
-  for (const [id, readings] of laid) if (readings.length === 1 && readings[0]!.count === 1 && alike(readings[0]!, there.get(id))) laid.delete(id);
-  const files = new Set(opened?.tests.map((test) => test.file));
-  // A file the run carried keeps what it ran over when it last ran.
-  const read = new Set([...now.values()].map((reading) => reading.file));
-  const inputs = new Map([...held, ...[...run?.inputs ?? []].filter(([file]) => read.has(file))].filter(([file]) => files.has(file)));
-  if (laid.size === 0 && inputs.size === 0) return undefined;
-  // The newest differs from the index where its file did not finish, laid
-  // over earlier crossings (`case-layer.ts`), or the index is cut.
-  return encodeReadings(
-    [...laid.keys()].sort(codeUnitOrder).map((id) => [id, packed(laid.get(id)!, there.get(id))]),
-    [...inputs].sort(([left], [right]) => codeUnitOrder(left, right)),
-  );
-}
-
-/**
- * A case's readings as stored, each as what it read otherwise than a base
- * (`difference`): the newest against the regions the landed index holds of the
- * case, so one the index holds as it ran costs its count, and each earlier one
- * against the newest. The newest keeps its regions where the index holds none
- * of the case, or where they cost fewer bytes than its difference.
- */
-function packed(readings: readonly Reading[], there: Read | undefined): StoredReading[] {
-  const [newest, ...rest] = readings;
-  const earlier = rest.map((reading) => ({ count: reading.count, ...stop(reading), ...against(reading.regions, newest!.regions) }));
-  const whole = [{ count: newest!.count, ...stop(newest!), regions: newest!.regions }, ...earlier];
-  if (there === undefined) return whole;
-  const differing = [{ count: newest!.count, ...stop(newest!), ...against(newest!.regions, there.regions) }, ...earlier];
-  return caseBytes(differing).length <= caseBytes(whole).length ? differing : whole;
-}
-
-/**
- * `regions` as their difference from `base`, or whole where the difference
- * would not read back as them: it holds the regions the two share in the
- * base's order, so one crossed in another order is kept as it ran.
- */
-function against(regions: readonly ReadRegion[], base: readonly ReadRegion[]): Pick<StoredReading, 'regions' | 'gone' | 'values' | 'added'> {
-  const held = difference(regions, base);
-  const back = applied(held, base);
-  return back.length === regions.length && back.every((region, at) => region.every((field, place) => field === regions[at]![place]))
-    ? held
-    : { regions };
-}
-
-/**
- * What `regions` crossed otherwise than `base`: the base's regions it did not
- * cross by position (`gone`), the values it charged them otherwise (`values`),
- * and the regions only it crossed, each at its position among its own
- * (`added`); none of the three where it crossed the base as it is. Regions
- * the base names alike, as a callback's entry and its body are, pair in order.
- */
-function difference(regions: readonly ReadRegion[], base: readonly ReadRegion[]): Pick<StoredReading, 'gone' | 'values' | 'added'> {
-  const places = new Map<string, number[]>();
-  base.forEach((region, at) => {
-    const key = region.slice(0, 5).join('\0');
-    places.set(key, [...(places.get(key) ?? []), at]);
-  });
-  const crossed = new Set<number>();
-  const values: [number, number | null][] = [];
-  const added: [number, ReadRegion][] = [];
-  regions.forEach((region, at) => {
-    const from = places.get(region.slice(0, 5).join('\0'))?.shift();
-    if (from === undefined) return void added.push([at, region]);
-    crossed.add(from);
-    if (base[from]![5] !== region[5]) values.push([from, region[5]]);
-  });
-  const gone = base.flatMap((_, at) => crossed.has(at) ? [] : [at]);
-  return {
-    ...(gone.length === 0 ? {} : { gone }),
-    ...(values.length === 0 ? {} : { values }),
-    ...(added.length === 0 ? {} : { added }),
-  };
-}
-
-/** The regions `stored` names over `base`, as {@link difference} wrote them; its own where it holds them. */
-function applied({ regions, gone, values, added }: Pick<StoredReading, 'regions' | 'gone' | 'values' | 'added'>, base: readonly ReadRegion[]): readonly ReadRegion[] {
-  if (regions !== undefined) return regions;
-  if (gone === undefined && values === undefined && added === undefined) return base;
-  const charged = new Map(values ?? []);
-  const dropped = new Set(gone ?? []);
-  const own: ReadRegion[] = base.flatMap((region, place) => dropped.has(place) ? [] : [
-    charged.has(place) ? [...region.slice(0, 5), charged.get(place)!] as unknown as ReadRegion : region,
-  ]);
-  for (const [place, region] of added ?? []) own.splice(place, 0, region);
-  return own;
-}
-
-/**
- * A case's stored readings in full: the newest over `base`, the regions the
- * index it was laid into holds of the case, and each earlier one over the
- * newest; absent where the newest holds no regions and `base` is absent.
- */
-function expanded(stored: readonly StoredReading[], base: readonly ReadRegion[] | undefined): Reading[] | undefined {
-  const [first] = stored;
-  if (first === undefined || (first.regions === undefined && base === undefined)) return undefined;
-  const newest = applied(first, base ?? []);
-  return stored.map((reading, at): Reading => ({
-    count: reading.count,
-    ...(reading.stopped === undefined ? {} : { stopped: reading.stopped }),
-    regions: at === 0 ? newest : applied(reading, newest),
-  }));
+  const lay = native()?.layReadings;
+  if (lay === undefined) throw new Error(`laying case readings requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `layReadings`'}`);
+  return lay(
+    buffer(kept),
+    buffer(previous),
+    buffer(landed),
+    [...cases],
+    buffer(run?.fresh),
+    [...run?.announced ?? []],
+    [...run?.same ?? []],
+    run?.inputs === undefined ? undefined : [...run.inputs],
+  ) ?? undefined;
 }
 
 /** What each test file ran over when its cases were last read, as `section` names it; absent when it names none. */
@@ -237,51 +93,30 @@ export function inputsIn(section: Uint8Array | undefined): ReadonlyMap<string, s
 
 /**
  * Every reading the record keeps of case `id`, newest first, the newest read
- * off `index`; absent when the record keeps no earlier reading of it.
+ * off `index`; absent when the record keeps no earlier reading of it. The
+ * addon reads it; nothing reads it without the addon.
  */
 export function readingsOf(section: Uint8Array | undefined, index: Uint8Array | undefined, id: string): readonly Reading[] | undefined {
-  const opened = index === undefined ? undefined : openSetExecutionIndex(index);
-  const bytes = decodeReadings(section).cases.get(id);
-  const stored = bytes === undefined ? [] : decodeCase(bytes);
-  if (stored.length === 0) return undefined;
-  const newest = opened === undefined || stored[0]?.regions !== undefined ? undefined : readsOf(opened, new Set([id])).get(id)?.regions;
-  return expanded(stored, newest ?? []);
+  if (section === undefined) return undefined;
+  const read = native()?.readingsOfCase;
+  if (read === undefined) throw new Error(`reading case readings requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `readingsOfCase`'}`);
+  return read(buffer(section)!, buffer(index), id)?.map(({ count, stopped, regions }): Reading => ({
+    count,
+    ...(stopped === undefined || stopped === null ? {} : { stopped }),
+    regions: regions.map(({ module, name, path, start, end, value }): ReadRegion => [module, name, path, start, end, value ?? null]),
+  }));
 }
 
-function stop(read: Pick<Read, 'stopped'>): { readonly stopped?: boolean } {
-  return read.stopped === undefined ? {} : { stopped: read.stopped };
+/**
+ * The regions case `id` crossed as `index` holds its newest run, each with the
+ * line charged; absent when the index holds no such case. The addon reads it.
+ */
+export function newestRegions(index: Uint8Array, id: string): readonly ReadRegion[] | undefined {
+  const read = native()?.newestRegionsOfCase;
+  if (read === undefined) throw new Error(`reading a case's regions requires the Sense native addon: ${nativeRefusal() ?? 'the loaded addon has no `newestRegionsOfCase`'}`);
+  return read(buffer(index)!, id)?.map(({ module, name, path, start, end, value }): ReadRegion => [module, name, path, start, end, value ?? null]);
 }
 
-function alike(reading: Pick<Reading, 'stopped' | 'regions'>, read: Pick<Read, 'stopped' | 'regions'> | undefined): boolean {
-  if (read === undefined) return false;
-  if (reading.stopped !== read.stopped || reading.regions.length !== read.regions.length) return false;
-  return reading.regions.every((region, at) => region.every((part, field) => part === read.regions[at]![field]));
-}
-
-/** The readings of the cases `wanted` names that `index` holds, by id. */
-function readsOf(index: OpenedSetExecutionIndex, wanted: ReadonlySet<string>): Map<string, Read> {
-  const rows = new Map<number, Read>();
-  const byId = new Map<string, Read>();
-  for (const [row, test] of index.tests.entries()) {
-    if (!wanted.has(test.id)) continue;
-    const read: Read = { file: test.file, ...stop(test), regions: [], modules: new Set() };
-    rows.set(row, read);
-    byId.set(test.id, read);
-  }
-  if (rows.size === 0) return byId;
-  const lines = new Map([...rows.keys()].map((row) => [row, linesOf(index.lines, row)]));
-  for (const [place, module] of index.modules.entries()) {
-    for (const [block, region] of module.blocks.entries()) {
-      const set = module.called[block]!;
-      for (const row of index.sets.members(set)) {
-        const read = rows.get(row);
-        if (read === undefined) continue;
-        const caseLines = lines.get(row);
-        const value = caseLines === undefined ? undefined : valueAt(caseLines, place, block);
-        read.regions.push([module.file, region.name, region.path, region.startLine, region.endLine, value ?? null]);
-        read.modules.add(module.file);
-      }
-    }
-  }
-  return byId;
+function buffer(bytes: Uint8Array | undefined): Buffer | undefined {
+  return bytes === undefined ? undefined : Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }

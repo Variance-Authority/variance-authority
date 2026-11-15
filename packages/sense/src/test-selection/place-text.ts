@@ -33,6 +33,8 @@ export type NotHeld = 'absent' | { readonly text: string | undefined; readonly n
 export interface HeldNames {
   readonly blob: string;
   readonly digest: string | undefined;
+  /** Its own digest, where the text is in hand: a run whose landing names it ran it, rows or none, as a test file's do not. */
+  readonly own?: string;
 }
 
 /** What telling which text a run ran over reads, read once for every run. */
@@ -96,7 +98,7 @@ export function ranOver(run: TestPlace, test: string, file: string, held: HeldNa
   if (run.texts === undefined) return { unknown: `the runs record does not say which text of ${file} its runs there ran over` };
   const named = run.texts[file];
   if (named !== undefined) {
-    if (named === held.digest) return 'held';
+    if (named === held.digest || named === held.own) return 'held';
     // Kept by a landing, or, where none kept it, the commit's own text when that is the one it names.
     const committed = run.commit === undefined ? undefined : evidence.committed.get(run.commit)?.get(file);
     const text = evidence.kept.get(named) ?? (committed !== undefined && digestString(committed) === named ? committed : undefined);

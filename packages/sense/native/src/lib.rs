@@ -27,6 +27,8 @@ mod case_fold;
 mod case_id;
 mod case_lines;
 mod case_readings;
+mod case_regions;
+mod case_readings_lay;
 mod case_owner;
 mod case_said;
 mod case_said_napi;
@@ -424,21 +426,21 @@ impl GitTree {
     pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
         #[cfg(unix)]
         let carry = match change_tree::carry(&self.change, &options.config, &options.index) { Ok(carry) => carry, Err(done) => return Ok(Some(done)) };
-        source_update::update(
-            options,
-            source_update::Tree {
-                paths: &self.paths,
-                at: &self.at,
-                oids: &self.oids,
-                seeds: &self.seeds,
-                listing: self.listing(),
-                regular: &self.regular,
-                unhashed: &self.unhashed,
-                from_blob: &self.from_blob,
-                #[cfg(unix)]
-                carry,
-            },
-        )
+        let tree = source_update::Tree {
+            paths: &self.paths,
+            at: &self.at,
+            oids: &self.oids,
+            seeds: &self.seeds,
+            listing: self.listing(),
+            regular: &self.regular,
+            unhashed: &self.unhashed,
+            from_blob: &self.from_blob,
+            #[cfg(unix)]
+            carry,
+        };
+        // A segment of the published length is read unhashed, so damaged bytes in it can panic a read:
+        // that declines, as any other unreadable chain does, and the JavaScript update rebuilds it.
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options, tree))).unwrap_or(Ok(None))
     }
 
     /// Every path, sorted by code unit.

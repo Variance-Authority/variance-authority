@@ -212,7 +212,7 @@ export function layCases(
   const readings = layReadings(previous.readings, previous.index, merged, new Set(cases()), {
     fresh,
     announced: new Set(announced),
-    same: sameText,
+    same: [...recorded.keys()].filter(sameText),
     ...(run.inputs === undefined ? {} : { inputs: run.inputs }),
   });
   return {

@@ -114,7 +114,9 @@ production markup with no runtime, read only inside the photographed roots.
   `readingsOf`: a case's earlier readings over unchanged module texts, kept
   beside the newest as what each read otherwise, and the newest as what it read
   otherwise than the case index, so a reader can set a failing run against a
-  passing one; `record_parts.rs` folds them across shards
+  passing one; the native `case_readings_lay.rs` lays and reads them over the
+  region walk in `case_regions.rs`, and `record_parts.rs` folds them across
+  shards
 
 ## Diagram
 

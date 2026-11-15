@@ -234,7 +234,8 @@ describe('the slowest statement of a listed case', () => {
     const answer = printed([suite(read({ slowest, timed: 5 }))]).split('\n');
 
     // A case stopped among cases running at once is timed to where its file ended: never more than the whole case.
-    // The slowest is read off every statement's time, the first reached among equals, in whole milliseconds and from one.
+    // The slowest is read off every statement's time, the first reached among equals, from a millisecond, its share of the case
+    // as `variance story` gives it: microseconds over the case's, before the time is rounded to print.
     expect(answer.slice(-10)).toEqual([
       'Slowest recorded test cases, as their runner timed them:',
       '   1.4 s  test/a.test.ts  waits',
@@ -243,7 +244,7 @@ describe('the slowest statement of a listed case', () => {
       '  200 ms  test/b.test.ts  stopped',
       '          slowest statement test/b.test.ts:7, 230 ms, 100% of the case',
       '    4 ms  test/c.test.ts  even',
-      '          slowest statement test/c.test.ts:5, 1 ms, 25% of the case',
+      '          slowest statement test/c.test.ts:5, 2 ms, 50% of the case',
       '    1 ms  test/b.test.ts  quick',
       '5 of 5 timed case(s) shown.',
     ]);
