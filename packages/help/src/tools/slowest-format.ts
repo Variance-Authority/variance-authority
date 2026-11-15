@@ -9,10 +9,11 @@
  * breach: the run spans hooks and attempts, the limit one attempt, so a passing
  * case can read above it.
  *
- * A cut case carries its slowest statement on one more line, read off the
- * time of every statement it ran, the first reached among equals: the file
- * line, its time, and its share of the case, never above the whole of it: two
- * clocks time them, and a case stopped beside others ends with its file.
+ * A cut case whose slowest statement held a millisecond or more carries it on
+ * one more line, read off the time of every statement it ran, the first
+ * reached among equals: the file line, its whole milliseconds, and its share of
+ * the case, never above the whole of it: two clocks time them, and a case
+ * stopped beside others ends with its file.
  *
  * A scope that matched nothing says which half matched nothing, and a `to`
  * path the record holds no row for is named as unrecorded: a table with no
@@ -131,10 +132,10 @@ const MICROS = 1000;
 /** The line under a case that names its slowest statement, indented to the case's label. */
 function statementLine({ file, duration, times }: Row, indent: number): string[] {
   const slowest = times?.reduce((held, time) => (time.time > held.time ? time : held));
-  if (slowest === undefined) return [];
-  const share = Math.min(WHOLE, Math.round((slowest.time / (duration * MICROS)) * WHOLE));
-  const took = slowest.time < MICROS ? `${slowest.time} µs` : spent(Math.round(slowest.time / MICROS));
-  return [`${' '.repeat(indent)}slowest statement ${file}:${slowest.line}, ${took}, ${share}% of the case`];
+  const took = slowest === undefined ? 0 : Math.floor(slowest.time / MICROS);
+  if (slowest === undefined || took < 1) return [];
+  const share = Math.min(WHOLE, Math.round((took / duration) * WHOLE));
+  return [`${' '.repeat(indent)}slowest statement ${file}:${slowest.line}, ${spent(took)}, ${share}% of the case`];
 }
 
 function section(

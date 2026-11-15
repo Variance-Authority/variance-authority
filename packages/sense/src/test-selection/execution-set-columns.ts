@@ -2,7 +2,7 @@ import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.
 import { durationWord, NO_DURATION, NO_OWNER, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import { saidRead, type Said } from './case-said.js';
-import { LINES_COLUMN, LINES_OFFSETS, type RowsTable } from './case-lines.js';
+import { checkedRows, LINES_COLUMN, LINES_OFFSETS, type RowsTable } from './case-lines.js';
 import { TIMES_COLUMN, TIMES_OFFSETS } from './case-times.js';
 import type { ExecutionTest } from './reverse.js';
 import { LAYOUT } from './record-layout.js';
@@ -81,16 +81,8 @@ export interface SetColumns extends TestColumns {
 }
 
 export function stringTable(opened: OpenedSections): StringTable {
-  return checkedRows(opened, 'strings.blob', columnWords(opened, 'strings.off'));
-}
-
-/** `name`'s bytes cut at `offsets`, each row inside the blob and none running backwards. */
-function checkedRows(opened: OpenedSections, name: string, offsets: Uint32Array): { blob: Uint8Array; offsets: Uint32Array } {
-  const blob = columnBlob(opened, name, offsets);
-  for (let row = 0; row + 1 < offsets.length; row += 1) {
-    if (offsets[row + 1]! < offsets[row]! || offsets[row + 1]! > blob.length) throw invalid();
-  }
-  return { blob, offsets };
+  const offsets = columnWords(opened, 'strings.off');
+  return checkedRows(columnBlob(opened, 'strings.blob', offsets), offsets);
 }
 
 /** The test columns, each id checked against a table of `strings` strings. */
@@ -152,7 +144,7 @@ function saidOf(opened: OpenedSections, testCount: number): readonly (Said | und
 function rowsTable(opened: OpenedSections, name: string, offsetsName: string, testCount: number): RowsTable {
   const offsets = columnWords(opened, offsetsName);
   if (offsets.length !== testCount + 1) throw invalid();
-  return checkedRows(opened, name, offsets);
+  return checkedRows(columnBlob(opened, name, offsets), offsets);
 }
 
 export function setColumns(opened: OpenedSections): SetColumns {

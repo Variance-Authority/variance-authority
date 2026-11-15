@@ -11,7 +11,7 @@ import type {
 } from './reverse.js';
 import { decodeSetExecutionIndex, executionTestsOf } from './execution-set-format.js';
 import { LAYOUT } from './record-layout.js';
-import type { RowsTable } from './case-lines.js';
+import { checkedRows, type RowsTable } from './case-lines.js';
 import { TIMES_COLUMN, TIMES_OFFSETS, timesColumn, timesFrom } from './case-times.js';
 import { durationColumn, durationFrom, limitColumn, limitFrom, stoppedColumn, stoppedFrom } from './execution-set-columns.js';
 
@@ -290,7 +290,7 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
     if (offsets.length !== count + 1) throw invalid();
     const section = at(TIMES_COLUMN);
     const blob = section.rows === undefined ? whole(TIMES_COLUMN) : openBlob(stored(TIMES_COLUMN), () => offsets).all();
-    return { blob, offsets };
+    return checkedRows(blob, offsets);
   }
 
   const stringOffsets = words('strings.off');

@@ -243,6 +243,14 @@ export interface RowsTable {
   readonly offsets: Uint32Array;
 }
 
+/** A column pair as read, each row inside the blob and none running backwards. */
+export function checkedRows(blob: Uint8Array, offsets: Uint32Array): RowsTable {
+  for (let row = 0; row + 1 < offsets.length; row += 1) {
+    if (offsets[row + 1]! < offsets[row]! || offsets[row + 1]! > blob.length) throw invalid();
+  }
+  return { blob, offsets };
+}
+
 /** One case's lines off the column pair, undefined where the index or the case recorded none. */
 export function linesOf(table: RowsTable | undefined, test: number): CaseLines | undefined {
   if (table === undefined) return undefined;
