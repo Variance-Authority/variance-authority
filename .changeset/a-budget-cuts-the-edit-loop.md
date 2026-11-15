@@ -3,4 +3,4 @@
 '@variance-authority/sense': minor
 ---
 
-A runner's seam reads `VARIANCE_AUTHORITY_BUDGET`, a ceiling in seconds of recorded test time, and runs only the changed files' own tests that fit in it, then the importers in order when `VARIANCE_AUTHORITY_AT_DISTANCE` is set. It only ever skips more, names what it left, and cuts nothing from a selection that declined to narrow.
+A runner's seam can cut its selection to a ceiling of recorded test time, taking the changed files' own tests first and the importers in order only when a distance is asked. It only ever skips more, names what it left, and cuts nothing from a selection that declined to narrow. This repository's edit loop sets it; it is not yet offered to adopters.

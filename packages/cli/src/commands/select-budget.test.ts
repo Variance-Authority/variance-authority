@@ -62,6 +62,14 @@ describe('the edit loop under a budget', () => {
     expect([...cut.left ?? []].sort()).toEqual([FAR, OTHER, UNTIMED, GHOST, USES]);
   });
 
+  it('takes the changed files\' own tests shortest first, whatever their hops', () => {
+    const times: SuiteTimes = { recording: '/cache/coverage.bin', times: new Map([...TIMES.times, [EDITED, 5000]]) };
+    const cut = withinBudget(suiteOf(input(), leg(0, 1)), times, { seconds: 4, asked: false }, home);
+
+    // The edited test is 0 hops and 5 s; the 4 s test one hop away is taken before it, and fits.
+    expect(runs(cut)).toEqual([OWN]);
+  });
+
   it('says what it ran and what it left', () => {
     const cut = withinBudget(suiteOf(input(), leg(0, 1)), TIMES, { seconds: 15, asked: false }, home);
 

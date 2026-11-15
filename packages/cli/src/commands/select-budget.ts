@@ -1,9 +1,11 @@
+// compass: variance-authority.reach
 /**
  * `VARIANCE_AUTHORITY_BUDGET`: a ceiling of recorded test time on one run of
  * the selection, which the edit loop sets so it answers in seconds.
  *
- * The cut is a prefix ordered by containment: a changed file's own tests, then
- * its importers in its package, then those in other packages, nearest first.
+ * The cut is a prefix ordered by containment: a changed file's own tests,
+ * shortest first, then its importers in its package, then those in other
+ * packages, nearest first.
  * It only adds to `skip`, and a selection that declined to narrow skips
  * nothing (ADR-0062), so it cuts nothing there either.
  */
@@ -125,7 +127,8 @@ function ranked(selection: SuiteReading, times: ReadonlyMap<string, number>, hom
       const hops = distance?.hops;
       return { test, tier: tierOf(test, distance, home), hops: hops ?? Number.MAX_SAFE_INTEGER, price: price(test) };
     })
-    .sort((a, b) => a.tier - b.tier || a.hops - b.hops || a.price - b.price || codeUnitOrder(a.test, b.test));
+    // Own tests are taken by recorded duration alone; importers nearest first, then by duration.
+    .sort((a, b) => a.tier - b.tier || (a.tier === 0 ? 0 : a.hops - b.hops) || a.price - b.price || codeUnitOrder(a.test, b.test));
 }
 
 /**
@@ -150,8 +153,8 @@ export async function budgetedSuite(
 ): Promise<SuiteReading> {
   const { budget, ...unbudgeted } = request;
   const asked = unbudgeted.atDistance !== undefined;
-  // Own tests are 0 hops, or 1 within the package; nothing past 1 hop is taken unasked.
-  const selection = await select(asked ? unbudgeted : { ...unbudgeted, atDistance: { from: 0, to: 1, by: 'environment' } });
+  // The open leg cuts nothing and measures every hop, so which tests are own is decided once, by the tier.
+  const selection = await select(asked ? unbudgeted : { ...unbudgeted, atDistance: { from: 0, to: Number.MAX_SAFE_INTEGER, by: 'environment' } });
   const times = await timesOf(unbudgeted);
   const top = (await topLevel(unbudgeted.root)) ?? unbudgeted.root;
   return withinBudget(selection, times, { seconds: budget, asked }, (file) => packageOf(top, file));

@@ -74,7 +74,7 @@ compiler, then the changed files' own tests — a test whose own file, setup or
 configuration changed, or one that imports a changed file of its own package
 directly — measured from the text each test last ran over, and cut to 15 s of
 recorded test time. Containment orders the cut: a change to a file is checked
-first by its own tests, nearest and shortest first, and the first file that
+first by its own tests, shortest first, and the first file that
 would pass the ceiling ends the run. A file the record holds no time for counts
 at the slowest of its package. The seam prints `ran <n> of <m> selected, <t> of
 <T> recorded` and names what it left for CI; the budget only ever adds to the

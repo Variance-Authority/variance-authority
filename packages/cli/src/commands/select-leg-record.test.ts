@@ -124,7 +124,7 @@ describe('a leg read from a real record and a real graph', () => {
     const asked = await selectSuite({ root, budget: 15, atDistance: { from: 0, to: 2, by: 'environment' } });
 
     expect([...own.skip].sort()).toEqual([FAR, GHOST, IDLE, MID]);
-    expect(own.notes[0]).toBe('`VARIANCE_AUTHORITY_BUDGET=15` ran 1 of 1 selected, 1.0 s of 1.0 s recorded');
+    expect(own.notes[0]).toBe('`VARIANCE_AUTHORITY_BUDGET=15` ran 1 of 4 selected, 1.0 s of 4.0 s recorded; 3 are left for CI:');
     expect([...asked.skip].sort()).toEqual([FAR, GHOST, IDLE]);
   });
 
