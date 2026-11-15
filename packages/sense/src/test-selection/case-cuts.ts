@@ -26,7 +26,7 @@
 import { native } from '../addon.js';
 import type { NativeCaseCut } from '../native-journey.js';
 import type { CaseSections } from './case-record.js';
-import { caseEdits } from './case-layer.js';
+import { nativeEdit } from './case-layer.js';
 import type { ModuleTexts } from './case-landing.js';
 import { indexCut, type CutRegion } from './cases.js';
 import { BLOCK_KINDS, NO_OWNER } from './format-layout.js';
@@ -122,6 +122,6 @@ function followed(sections: CaseSections, cuts: RowCuts, edit: EditOf): CaseSect
   if (sections.index === undefined || cuts.size === 0) return sections;
   const follow = native()?.followCaseCuts;
   if (follow === undefined) throw new Error(`following the case index onto its rows requires the Sense native addon: ${whyAbsent('followCaseCuts')}`);
-  const index = follow(sections.index, [...cuts.values()], caseEdits(cuts.keys(), edit));
+  const index = follow(sections.index, [...cuts.values()], (file) => nativeEdit(edit(file)));
   return index === null ? sections : { ...sections, index };
 }

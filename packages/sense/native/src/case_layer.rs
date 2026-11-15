@@ -352,7 +352,8 @@ pub(crate) struct RowCut {
 /// `None` when every one already stands at it, or the index is one this build
 /// does not lay over. A module none of whose cases land or are overwritten
 /// leaves the index; a held one already at its cut's lines is carried as it is.
-pub(crate) fn follow_cuts(bytes: &[u8], cuts: &[RowCut], edits: &FxHashMap<String, Option<Edit>>) -> Result<Option<Vec<u8>>, String> {
+/// `edit` is asked only of a held module laid onto another cut.
+pub(crate) fn follow_cuts(bytes: &[u8], cuts: &[RowCut], edit: &dyn Fn(&str) -> Result<Option<Edit>, String>) -> Result<Option<Vec<u8>>, String> {
     let Some((held, held_cuts)) = opened(bytes) else { return Ok(None) };
     let cut_at: FxHashMap<&str, &RowCut> = cuts.iter().map(|cut| (cut.file.as_str(), cut)).collect();
     let rows = module_rows(&held);
@@ -386,8 +387,8 @@ pub(crate) fn follow_cuts(bytes: &[u8], cuts: &[RowCut], edits: &FxHashMap<Strin
         // module that keeps none named nothing, and leaving it out shifts nobody.
         let (called, loaded) = (vec![EMPTY; cut.blocks.len()], vec![false; cut.blocks.len()]);
         let recorded = Recorded { file: &module.file, blocks: &cut.blocks, owners: Some(&cut.owners), called: &called, loaded: &loaded, overwritten: &[] };
-        let edit = edits.get(module.file.as_str()).and_then(Option::as_ref);
-        let over = Over { row: row as u32, module, pairing: landed_through(&held_cuts[row].blocks, &cut.blocks, Some(&cut.owners), edit) };
+        let edit = edit(&module.file)?;
+        let over = Over { row: row as u32, module, pairing: landed_through(&held_cuts[row].blocks, &cut.blocks, Some(&cut.owners), edit.as_ref()) };
         let at = laid.len() as u32;
         let followed = layer.laid_on(&recorded, None, Some(&over), at, 0)?;
         if followed.entered() {

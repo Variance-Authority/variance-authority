@@ -104,9 +104,15 @@ fn lays_a_retired_before_over_the_one_kept() {
 fn follows_a_module_onto_the_cut_its_rows_were_landed_at_and_nothing_already_there() {
     let held = index(&[case("a.test.ts", "one")], &[("m.ts", &[1, 2], vec![vec![], vec![0]])]);
     let at = |lines: &[u32]| RowCut { file: "m.ts".to_owned(), blocks: regions("m.ts", lines).blocks, owners: vec![NO_OWNER; lines.len()] };
-    let edits: FxHashMap<String, Option<Edit>> = [("m.ts".to_owned(), Some(Edit { hunks: vec![Hunk { old_start: 1, old_count: 0, new_start: 2, new_count: 3 }], reading: None }))].into_iter().collect();
-    assert!(follow_cuts(&held, &[at(&[1, 2])], &edits).unwrap().is_none());
-    let followed = follow_cuts(&held, &[at(&[1, 5])], &edits).unwrap().unwrap();
+    let asked = std::cell::Cell::new(0);
+    let edit = |_: &str| {
+        asked.set(asked.get() + 1);
+        Ok(Some(Edit { hunks: vec![Hunk { old_start: 1, old_count: 0, new_start: 2, new_count: 3 }], reading: None }))
+    };
+    assert!(follow_cuts(&held, &[at(&[1, 2])], &edit).unwrap().is_none());
+    // A module already at its cut asks no edit.
+    assert_eq!(asked.get(), 0);
+    let followed = follow_cuts(&held, &[at(&[1, 5])], &edit).unwrap().unwrap();
     assert_eq!(read(&followed), [("m.ts".to_owned(), vec![1, 5], vec![vec![], vec!["one".to_owned()]])]);
 }
 

@@ -142,13 +142,10 @@ export interface NativeCaseJournals {
   ): { bytes: Buffer; passes: number; crossings: number };
 }
 
-/** One module's edit between two texts, as git's `-U0` hunks and the selector's reading; `edit` absent where a text could not be had. */
+/** One module's edit between two texts, as git's `-U0` hunks and the selector's reading. */
 export interface NativeCaseEdit {
-  readonly file: string;
-  readonly edit?: {
-    readonly hunks: readonly { readonly oldStart: number; readonly oldCount: number; readonly newStart: number; readonly newCount: number }[];
-    readonly reading?: string;
-  };
+  readonly hunks: readonly { readonly oldStart: number; readonly oldCount: number; readonly newStart: number; readonly newCount: number }[];
+  readonly reading?: string;
 }
 
 /** What a run knows about the test files it was handed, as the native layering reads it (`native/src/case_layer_napi.rs`). */

@@ -72,15 +72,8 @@ export function layerBefore(kept: Uint8Array | undefined, retired: Uint8Array | 
   return layer(kept, retired, [...ran]) ?? undefined;
 }
 
-/** `edit`'s answer for each of `files`, as the addon reads it. */
-export function caseEdits(files: Iterable<string>, edit: EditOf): NativeCaseEdit[] {
-  return Array.from(files, (file) => {
-    const found = nativeEdit(edit(file));
-    return found === undefined ? { file } : { file, edit: found };
-  });
-}
-
-function nativeEdit(found: Edit | undefined): NativeCaseEdit['edit'] {
+/** `edit`'s answer, as the addon reads it. */
+export function nativeEdit(found: Edit | undefined): NativeCaseEdit | undefined {
   return found === undefined ? undefined : found.reading === undefined ? { hunks: found.hunks } : { hunks: found.hunks, reading: found.reading };
 }
 

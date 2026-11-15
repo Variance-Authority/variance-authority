@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use napi::bindgen_prelude::{Buffer, Function};
 use napi_derive::napi;
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 
 use crate::journey_record::Block;
 
@@ -25,13 +25,6 @@ pub struct CaseEdit {
     pub hunks: Vec<CaseHunk>,
     /// The selector's reading of the two texts; absent where no module reader claims the file.
     pub reading: Option<String>,
-}
-
-/// One module's edit; an absent `edit` is one that could not be read.
-#[napi(object)]
-pub struct CaseFileEdit {
-    pub file: String,
-    pub edit: Option<CaseEdit>,
 }
 
 #[napi(object)]
@@ -76,8 +69,9 @@ fn edit_of(edit: CaseEdit) -> Edit {
     }
 }
 
-fn edits_of(edits: Vec<CaseFileEdit>) -> FxHashMap<String, Option<Edit>> {
-    edits.into_iter().map(|each| (each.file, each.edit.map(edit_of))).collect()
+/// `edit`'s answer for `file`; `undefined` is an edit that could not be read.
+fn asked(edit: &Function<String, Option<CaseEdit>>, file: &str) -> Result<Option<Edit>, String> {
+    edit.call(file.to_owned()).map(|found| found.map(edit_of)).map_err(|error| error.reason.clone())
 }
 
 /// One run's case index laid over the one it replaces. `edit` answers a
@@ -86,10 +80,7 @@ fn edits_of(edits: Vec<CaseFileEdit>) -> FxHashMap<String, Option<Edit>> {
 /// module both indexes hold. Without it, every module reads as the one text.
 #[napi(catch_unwind)]
 pub fn layer_case_index(previous: Option<Buffer>, fresh: Buffer, files: CaseRunFiles, edit: Option<Function<String, Option<CaseEdit>>>) -> napi::Result<CaseLayers> {
-    let ask = |file: &str| -> Result<Option<Edit>, String> {
-        let asked = edit.as_ref().expect("asked only with an edit");
-        asked.call(file.to_owned()).map(|found| found.map(edit_of)).map_err(|error| error.reason.clone())
-    };
+    let ask = |file: &str| asked(edit.as_ref().expect("asked only with an edit"), file);
     let present = match (files.present_under, files.present_among) {
         (_, Some(among)) => Present::Among(among.into_iter().collect()),
         (Some(root), None) => Present::Under(PathBuf::from(root)),
@@ -121,10 +112,11 @@ pub fn layer_case_before(kept: Option<Buffer>, retired: Option<Buffer>, ran: Vec
     Ok(laid.map(Buffer::from))
 }
 
-/// The index with each module `cuts` names laid onto that cut, or absent when nothing moved.
+/// The index with each module `cuts` names laid onto that cut, or absent when
+/// nothing moved. `edit` is asked only of a held module laid onto another cut.
 #[napi(catch_unwind)]
-pub fn follow_case_cuts(index: Buffer, cuts: Vec<CaseCut>, edits: Vec<CaseFileEdit>) -> napi::Result<Option<Buffer>> {
+pub fn follow_case_cuts(index: Buffer, cuts: Vec<CaseCut>, edit: Function<String, Option<CaseEdit>>) -> napi::Result<Option<Buffer>> {
     let cuts: Vec<RowCut> = cuts.into_iter().map(|cut| RowCut { file: cut.file, blocks: cut.blocks, owners: cut.owners }).collect();
-    let followed = follow_cuts(&index, &cuts, &edits_of(edits)).map_err(napi::Error::from_reason)?;
+    let followed = follow_cuts(&index, &cuts, &|file| asked(&edit, file)).map_err(napi::Error::from_reason)?;
     Ok(followed.map(Buffer::from))
 }

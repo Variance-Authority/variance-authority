@@ -243,11 +243,11 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /** Union and write compressed journey artifacts without returning their bytes to JavaScript. */
   stitchJourneysTo?(files: string[], output: string): NativeJourneyStitchResult;
   /** One run's case index laid over the one it replaces, and the before it retired: `native/src/case_layer.rs`. */
-  layerCaseIndex?(previous: Uint8Array | undefined, fresh: Uint8Array, files: NativeCaseRunFiles, edit?: (file: string) => NativeCaseEdit['edit']): NativeCaseLayers;
+  layerCaseIndex?(previous: Uint8Array | undefined, fresh: Uint8Array, files: NativeCaseRunFiles, edit?: (file: string) => NativeCaseEdit | undefined): NativeCaseLayers;
   /** What the runs at one commit retired, as one before: `retired` laid over `kept`. */
   layerCaseBefore?(kept: Uint8Array | undefined, retired: Uint8Array | undefined, ran: string[]): Buffer | null;
-  /** The case index with each module `cuts` names laid onto that cut; `null` when every one already stands at it. */
-  followCaseCuts?(index: Uint8Array, cuts: NativeCaseCut[], edits: NativeCaseEdit[]): Buffer | null;
+  /** The case index with each module `cuts` names laid onto that cut; `null` when every one already stands at it. `edit` is asked only of a module laid onto another cut. */
+  followCaseCuts?(index: Uint8Array, cuts: NativeCaseCut[], edit: (file: string) => NativeCaseEdit | undefined): Buffer | null;
   /** Read a run's case journals for the case index a reporter lays. */
   openCaseJournals?(directory: string, root: string): NativeCaseJournals;
   /** A journey file cut down to the changed modules, with cases only on the regions the change can ask about. */
