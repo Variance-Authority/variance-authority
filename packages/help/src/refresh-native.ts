@@ -93,7 +93,6 @@ export async function publishWorkspaceFromIndex(root: string, options: FromIndex
     index,
     own,
     readStartedAt: options.readStartedAt,
-    indexDigest,
     ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
   return help === undefined ? undefined : workspaceGeneration(help.help);
@@ -112,8 +111,6 @@ export interface HelpPublication {
   /** The workspace's own index, beside which the value is published. */
   readonly own: string;
   readonly readStartedAt: string;
-  /** The digest of the manifest at `index`; absent when the value holds what no manifest says, such as a caller's taints. */
-  readonly indexDigest?: string;
   /** The tree to publish in place of the one the addon draws off the index, such as one a caller's taints joined. */
   readonly tree?: Uint8Array;
   readonly progress?: Progress;
@@ -131,6 +128,9 @@ export interface HelpPublication {
  */
 export async function publishHelp(publication: HelpPublication): Promise<{ readonly help: Help; readonly tree: Uint8Array } | undefined> {
   const { workspace, root, offerings, targets, index, progress } = publication;
+  // The manifest the value is read from names it, so the next index over the same manifest writes nothing; a tree handed
+  // in, such as one a caller's taints joined, holds what no manifest says.
+  const indexDigest = publication.tree === undefined ? await indexManifestDigest(index) : undefined;
   const sources = offerings.flatMap((offering) => offering.entrypoints.map((entry) => ({ offering, entry })));
   const entries = sources.map(({ offering, entry }) => ({ key: `${offering.name} ${entry.subpath}`, file: pathOf(root, entry.source) }));
   const reading = await stepped(progress, 'reading what each file imports and exports, from the index', () =>
@@ -161,7 +161,7 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
       graphRoot: realpathSync(root),
       generatedAt: new Date().toISOString(),
       readStartedAt: publication.readStartedAt,
-      ...(publication.indexDigest === undefined ? {} : { indexDigest: publication.indexDigest }),
+      ...(indexDigest === undefined ? {} : { indexDigest }),
       packagesDigest: packagesDigest(root, offerings),
       packages: storeOf(help).packages,
       unreadable: help.unreadable,
