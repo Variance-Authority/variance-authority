@@ -1,8 +1,10 @@
 //! Every tracked path under a root, with the digest of the bytes on disk.
 //!
-//! The same three questions `tree.ts` asks git, asked from here: `ls-tree` for
-//! the committed blob of every path, `status` for everything the working tree
-//! disagrees about, and `hash-object` for the bytes those paths actually hold.
+//! The same three questions `tree.ts` asks git, asked from here: the committed
+//! blob of every path, read from the object store; everything the working tree
+//! disagrees about, compared in-process by `worktree_status`; and the bytes those
+//! paths actually hold. `ls-tree` and `status` answer only where the in-process
+//! readers hand the question back.
 //! The overlay rules are that file's and are reproduced exactly — a digest may
 //! cause work to be skipped only when it names the bytes being scanned, and a
 //! stale digest on an edited file is the one unforgivable error.

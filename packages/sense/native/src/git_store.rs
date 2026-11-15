@@ -131,10 +131,10 @@ impl Objects {
     /// The object store behind the checkout `root` lies in, or `None` where an
     /// id may not name the bytes checkout wrote.
     pub(crate) fn open(root: &Path) -> Option<Objects> {
-        let located = git(root, &["rev-parse", "--show-object-format", "--git-path", "objects", "--git-common-dir"])?;
+        let located = git(root, &["rev-parse", "--show-object-format", "--git-path", "objects"])?;
         let mut lines = located.lines();
-        let (format, objects, common) = (lines.next()?, lines.next()?, lines.next()?);
-        Objects::at(format, &root.join(objects), replaced(root, &root.join(common))?)
+        let (format, objects) = (lines.next()?, lines.next()?);
+        Objects::at(format, &root.join(objects), replaced(root)?)
     }
 
     fn at(format: &str, objects: &Path, replaced: bool) -> Option<Objects> {
@@ -186,7 +186,7 @@ pub(crate) fn head(root: &Path) -> Option<Head> {
     let mut lines = located.lines();
     let (prefix, format, objects, common) = (lines.next()?, lines.next()?, lines.next()?, root.join(lines.next()?));
     let (index, git_dir, top, tree) = (root.join(lines.next()?), PathBuf::from(lines.next()?), PathBuf::from(lines.next()?), lines.next()?);
-    let blobs = replaced(root, &common)
+    let blobs = replaced(root)
         .and_then(|replaced| Objects::at(format, &root.join(objects), replaced))
         .and_then(|objects| below(&mut objects.reader(), ObjectId::from_hex(tree.as_bytes()).ok()?, prefix));
     Some(Head { prefix: prefix.to_owned(), blobs, format: format.to_owned(), top, git_dir, common, index })
@@ -303,11 +303,11 @@ impl Answers {
         std::thread::scope(|scope| {
             let unfiltered = scope.spawn(|| unfiltered(root));
             let attributes = scope.spawn(|| attributes(root));
-            let asked = ["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "index", "--git-path", "objects", "--git-path", "info/attributes", "--git-common-dir"];
+            let replaced = scope.spawn(|| replaced(root));
+            let asked = ["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "index", "--git-path", "objects", "--git-path", "info/attributes"];
             let located = git(root, &asked);
-            let common = located.as_deref().and_then(|located| located.lines().nth(5));
             Answers {
-                replaced: common.and_then(|common| replaced(root, &root.join(common))),
+                replaced: replaced.join().ok().flatten(),
                 located,
                 unfiltered: unfiltered.join().ok().flatten(),
                 attributes: attributes.join().ok().flatten(),
@@ -394,32 +394,9 @@ fn git(root: &Path, args: &[&str]) -> Option<String> {
 }
 
 /// Whether any replace ref exists; `None` when the refs could not be read.
-/// The files backend is read from the common directory, a loose ref and a
-/// packed one alike; reftable, whose format this does not decode, is asked of
-/// git.
-fn replaced(root: &Path, common: &Path) -> Option<bool> {
+fn replaced(root: &Path) -> Option<bool> {
     let base = std::env::var("GIT_REPLACE_REF_BASE").unwrap_or_else(|_| "refs/replace/".to_owned());
-    if common.join("reftable").is_dir() {
-        return git(root, &["for-each-ref", "--count=1", "--format=%(refname)", &base]).map(|first| !first.trim().is_empty());
-    }
-    if holds_a_file(&common.join(&base)) {
-        return Some(true);
-    }
-    match std::fs::read(common.join("packed-refs")) {
-        // `<object> <refname>` per ref; `#` opens the header and `^` a peeled object.
-        Ok(packed) => Some(packed.split(|byte| *byte == b'\n').any(|line| {
-            !line.starts_with(b"#") && !line.starts_with(b"^") && line.splitn(2, |byte| *byte == b' ').nth(1).is_some_and(|name| name.starts_with(base.as_bytes()))
-        })),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some(false),
-        Err(_) => None,
-    }
-}
-
-/// Whether `directory`, or any directory below it, holds a file: a loose ref.
-fn holds_a_file(directory: &Path) -> bool {
-    std::fs::read_dir(directory).is_ok_and(|entries| {
-        entries.flatten().any(|entry| entry.file_type().is_ok_and(|kind| if kind.is_dir() { holds_a_file(&entry.path()) } else { true }))
-    })
+    git(root, &["for-each-ref", "--count=1", "--format=%(refname)", &base]).map(|first| !first.trim().is_empty())
 }
 
 /// Whether no filter but git-lfs's cleans, smudges or processes a checkout; `None` when

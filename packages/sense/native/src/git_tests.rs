@@ -196,3 +196,54 @@ fn a_gitlink_under_the_root_hands_the_comparison_to_status() {
     let _ = std::fs::remove_dir_all(&module);
 }
 
+
+/// Every spelling git accepts for a boolean reads as git reads it, so the
+/// in-process comparison never runs under a setting it misread.
+#[test]
+fn a_boolean_setting_reads_as_git_reads_it() {
+    let root = checkout("booleans");
+    git(&root, &["init", "-q"]);
+    for spelling in ["true", "yes", "On", "1", "2", "-1", "1k", "false", "NO", "off", "0", "00", ""] {
+        for key in ["core.ignorecase", "core.filemode", "core.symlinks", "core.trustctime", "core.precomposeunicode"] {
+            git(&root, &["config", key, spelling]);
+            let config = crate::worktree_status::config_of(&crate::git_porcelain::configured(root.to_str().unwrap()));
+            let read = match key {
+                "core.ignorecase" => config.ignore_case,
+                "core.filemode" => config.file_mode,
+                "core.symlinks" => config.symlinks,
+                "core.trustctime" => config.trust_ctime,
+                _ => config.precompose_unicode,
+            };
+            assert_eq!(read.to_string(), git(&root, &["config", "--type=bool", key]), "{key} = {spelling:?}");
+            git(&root, &["config", "--unset", key]);
+        }
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// `git rm --cached` leaves a path staged away and back on disk untracked;
+/// git lists it both ways, and the snapshot lists its bytes.
+#[test]
+fn a_path_unstaged_but_kept_on_disk_is_listed_with_its_bytes() {
+    let root = git_fixture::repository("status-unstaged", &[("a.ts", b"a\n"), ("b.ts", b"b\n")]);
+    git_fixture::commit(&root);
+    git_fixture::git(&root, &["rm", "--cached", "-q", "a.ts"]);
+
+    assert!(compared(&root));
+    agrees(&root);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// An index holding git's untracked cache is git's to answer: the cache lets
+/// `status` skip the walk this comparison makes.
+#[test]
+fn an_untracked_cache_hands_the_comparison_to_status() {
+    let root = git_fixture::repository("status-untracked-cache", &[("a.ts", b"a\n")]);
+    git_fixture::commit(&root);
+    git_fixture::git(&root, &["-c", "core.untrackedCache=true", "update-index", "--untracked-cache"]);
+    git_fixture::write(&root, "new.ts", b"new\n");
+
+    assert!(!compared(&root));
+    agrees(&root);
+    let _ = std::fs::remove_dir_all(&root);
+}

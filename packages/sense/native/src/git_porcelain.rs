@@ -2,6 +2,8 @@
 //! `worktree_status` hands back: how git is asked about untracked files, and the
 //! porcelain it answers with, read as the paths it names gone and edited.
 
+// compass: variance-authority.reach.source-scan
+
 use std::collections::HashMap;
 
 use crate::git::{git, Moved};

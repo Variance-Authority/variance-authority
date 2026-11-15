@@ -16,6 +16,8 @@
 //! holds the answers, under a sparse index, with a submodule below the root,
 //! or in a repository that does not name its objects by SHA-1.
 
+// compass: variance-authority.reach.source-scan
+
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
@@ -60,8 +62,7 @@ pub(crate) const KEYS: &str = r"core\.(excludesfile|ignorecase|precomposeunicode
 /// `git config -z --get-regexp` output as the settings it names, a later file
 /// winning; none set is git's default.
 pub(crate) fn config_of(listed: &[u8]) -> Config {
-    let truthy = |value: &[u8]| matches!(value.to_ascii_lowercase().as_slice(), b"true" | b"yes" | b"on" | b"1");
-    let falsy = |value: &[u8]| matches!(value.to_ascii_lowercase().as_slice(), b"false" | b"no" | b"off" | b"0" | b"");
+    let on = |value: &[u8]| !falsy(value);
     let mut config = Config {
         fsmonitor: false,
         ignore_case: false,
@@ -78,18 +79,28 @@ pub(crate) fn config_of(listed: &[u8]) -> Config {
             None => (entry, b"true".as_slice()),
         };
         match key {
-            b"core.fsmonitor" => config.fsmonitor = !falsy(value),
-            b"core.ignorecase" => config.ignore_case = truthy(value),
-            b"core.precomposeunicode" => config.precompose_unicode = truthy(value),
-            b"core.filemode" => config.file_mode = !falsy(value),
-            b"core.symlinks" => config.symlinks = !falsy(value),
-            b"core.trustctime" => config.trust_ctime = !falsy(value),
+            b"core.fsmonitor" => config.fsmonitor = on(value),
+            b"core.ignorecase" => config.ignore_case = on(value),
+            b"core.precomposeunicode" => config.precompose_unicode = on(value),
+            b"core.filemode" => config.file_mode = on(value),
+            b"core.symlinks" => config.symlinks = on(value),
+            b"core.trustctime" => config.trust_ctime = on(value),
             b"core.checkstat" => config.check_stat = !value.eq_ignore_ascii_case(b"minimal"),
             b"core.excludesfile" => config.excludes_file = Some(value.to_vec()),
             _ => {}
         }
     }
     config
+}
+
+/// Whether git reads a boolean as false: `false`, `no`, `off`, the empty
+/// value, or an integer equal to zero. Anything else git accepts is true.
+fn falsy(value: &[u8]) -> bool {
+    let value = value.trim_ascii().to_ascii_lowercase();
+    let digits = value.strip_prefix(b"-").or_else(|| value.strip_prefix(b"+")).unwrap_or(&value);
+    let digits = digits.strip_suffix(b"k").or_else(|| digits.strip_suffix(b"m")).or_else(|| digits.strip_suffix(b"g")).unwrap_or(digits);
+    matches!(value.as_slice(), b"false" | b"no" | b"off" | b"")
+        || (!digits.is_empty() && digits.iter().all(|byte| *byte == b'0'))
 }
 
 /// Every path below the root the working tree or the index disagrees with
@@ -101,6 +112,11 @@ pub(crate) fn changes(head: &Head, held: &[(Vec<u8>, ObjectId, bool)], config: &
     let prefix = head.prefix.as_bytes();
     let index = gix_index::File::at(&head.index, gix_hash::Kind::Sha1, false, Default::default()).ok()?;
     let below = |entry: &gix_index::Entry| entry.path(&index).starts_with(prefix);
+    // An index holding git's untracked cache lets `status` skip the walk:
+    // on Kibana it answers in 0.28 s, against 0.6 s compared here.
+    if index.untracked().is_some() {
+        return None;
+    }
     if index.is_sparse() || index.entries().iter().any(|entry| entry.mode == Mode::COMMIT && below(entry)) {
         return None;
     }
@@ -110,7 +126,7 @@ pub(crate) fn changes(head: &Head, held: &[(Vec<u8>, ObjectId, bool)], config: &
         (worktree(head, &index, config), untracked.join().ok().flatten())
     });
     let (removed, mut dirty) = worktree?;
-    dirty.extend(untracked?);
+    let untracked = untracked?;
 
     // The index against `HEAD`: a path staged away is gone unless a conflict
     // holds it, and a path staged with other contents or another kind is edited.
@@ -138,6 +154,10 @@ pub(crate) fn changes(head: &Head, held: &[(Vec<u8>, ObjectId, bool)], config: &
             gone.insert(path.to_vec());
         }
     }
+    // A path unstaged with `git rm --cached` is gone from the index and back
+    // on disk as untracked: git lists it both ways, and its bytes are listed.
+    gone.retain(|path| !untracked.contains(path));
+    dirty.extend(untracked);
     dirty.retain(|path| !gone.contains(path));
     Some(Changes { gone: gone.into_iter().collect(), dirty: dirty.into_iter().collect() })
 }
@@ -220,21 +240,39 @@ fn untracked(head: &Head, index: &gix_index::File, config: &Config) -> Option<BT
                     };
                     let mut walker = Walker { head, index, config, lookup, git_dir, excludes, pathspec, queue, found: BTreeSet::new() };
                     while let Some(dir) = queue.take() {
+                        let _done = Done(queue);
                         if walker.walk(&dir).is_none() {
                             failed.store(true, Ordering::Relaxed);
                         }
-                        queue.done();
                     }
                     walker.found
                 })
             })
             .collect();
-        walkers.into_iter().map(|walker| walker.join().unwrap_or_default()).collect()
+        walkers
+            .into_iter()
+            .map(|walker| {
+                walker.join().unwrap_or_else(|_| {
+                    failed.store(true, Ordering::Relaxed);
+                    BTreeSet::new()
+                })
+            })
+            .collect()
     });
     if failed.load(Ordering::Relaxed) {
         return None;
     }
     Some(walked.into_iter().flatten().collect())
+}
+
+/// Marks a taken directory walked when dropped, so a walker that panics
+/// still lets the others finish.
+struct Done<'a>(&'a Queue);
+
+impl Drop for Done<'_> {
+    fn drop(&mut self) {
+        self.0.done();
+    }
 }
 
 /// How many walkers share the untracked walk. On Kibana's 134,729 paths four
