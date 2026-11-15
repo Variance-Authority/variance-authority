@@ -1,38 +1,27 @@
 # TanStack Query: 78% fewer test file runs than Nx
 
-[TanStack Query](https://github.com/TanStack/query) is 27 packages, so a
-package-grain selector already has a useful answer: change
-`query-core` and it runs the 24 packages that depend on it. That is the correct
-answer to the question a graph answers, and it is 168 of the 188 test files. Run
-the suite once through [Variance Authority](README.md) and the record answers
-the question you wanted asked — which tests covered the lines you changed —
-with 9.
+[TanStack Query](https://github.com/TanStack/query) is 27 packages. Change
+`query-core` and a package graph correctly runs the 24 packages that depend on
+it: 168 of the 188 test files. Run the suite once through
+[Variance Authority](README.md) and the record answers the question you wanted
+asked, which tests covered the lines you changed, with 9.
 
 > **TLDR**
 >
-> - Over the sixty commits before it landed, each checked against a record made
->   at its parent commit, `nx affected` selects 3,464 test file runs of 11,280.
->   The record selects **775, 78% fewer than Nx**.
-> - The walk from what the edit changed selects **441**, and the file graph
->   1,470. The record selects more than the walk on commits that change a
->   manifest the Vite configuration reads, and one file more on every commit.
-> - Change one line in `query-core` and the record selects **9 test files**,
->   where `nx affected` selects 168. A coarser
->   [precision](selecting.md#how-precisely-a-suite-selects) runs 83, then 149:
->   the import graph adds nothing to what coverage already says.
-> - What limits `file-use` here is `query-core`'s index, which loads every
->   module it re-exports: an edit to `hydration.ts` runs 149 test files, and
->   21 of them call a function in it.
-> - One commit of setup, and recording costs **1.05×** to **1.13×** a suite
->   run, by precision.
+> - Over sixty commits, each against a record made at its parent, `nx affected`
+>   selects 3,464 test file runs of 11,280. The record selects **775, 78% fewer
+>   than Nx**.
+> - One line in `query-core` selects **9 test files**, where `nx affected`
+>   selects 168.
+> - Recording costs **1.05×** to **1.13×** a suite run, by precision.
+
+## The whole suite, once
 
 Nothing in the repository was written with this in mind and no test was changed
 to accommodate it. One commit adds the instrumentation; the
 [fork](https://github.com/Variance-Authority/tanstack-query-example) carries
 it, along with the write-up and the scripts the selection figures below came
 from.
-
-## The whole suite, once
 
 | | |
 | --- | --- |

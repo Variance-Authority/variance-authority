@@ -1,37 +1,25 @@
 # Zod: 57% fewer test file runs
 
 [Zod](https://github.com/colinhacks/zod) is one package, and 196 of its 202 test
-files reach the code they exercise through a single barrel. A selector that
-decides at the grain of a package therefore has nothing to say about it, and a
-selector that decides at the grain of a file has little more: change one line
-in the core and either one selects most of the suite. Run the suite once
-through [Variance Authority](README.md) and a one-line edit selects 8 runs,
-because the record shows which of the files that *reach* a module covered the
-*lines* you changed.
+files reach the code they exercise through a single barrel, so a package graph
+or a file graph selects most of the suite for a one-line edit. Run the suite
+once through [Variance Authority](README.md) and the record selects 8 runs,
+because it shows which tests covered the *lines* you changed.
 
 > **TLDR**
 >
-> - Over the sixty commits before it landed, each checked against a record made
->   at its parent commit, the record selects **5,196 test file runs of 12,120,
->   57% fewer** than running everything, which is what Zod does. A package graph
->   selects 8,047.
-> - The walk from what the edit changed selects **4,142**, and the file graph
->   4,531. The record selects fewer than the walk where a commit changes the
->   inside of a function, and more where it changes code that runs as the core
->   loads, which Zod's compile-mode setup runs for every test. Manifest,
->   lockfile and build commits are 1,818 of the record's 5,196.
-> - Change one line in `locales/ru.ts` and the record selects **8 runs, 1.5s
->   instead of 8.2s**, an **82%** shorter run. A package graph would still run
->   201 of the 202 files.
-> - One commit of setup, and no recording precision costs more than the
->   run's own spread.
+> - Over sixty commits, each against a record made at its parent, the record
+>   selects **5,196 test file runs of 12,120, 57% fewer** than running
+>   everything. A package graph selects 8,047.
+> - One line in `locales/ru.ts` selects **8 runs, 1.5s instead of 8.2s**.
+> - No recording precision costs more than the run's own spread.
+
+## The whole suite, once
 
 Nothing in the repository was written with this in mind and no test was changed
 to accommodate it. One commit adds the instrumentation; the
 [fork](https://github.com/Variance-Authority/zod-example) carries it, along
 with the write-up and the scripts the selection figures below came from.
-
-## The whole suite, once
 
 | | |
 | --- | --- |
