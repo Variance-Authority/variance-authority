@@ -27,7 +27,7 @@ use crate::help_search::{exported_digest, set_digest};
 use crate::help_store::{encode, DeepRef, StoreMeta, StorePackage, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_origin::{declaration_exported, ExportedDeclaration};
-use crate::help_usage::{importers, usage, DeepRequest, Importers, IndexedUsage, NamedExport};
+use crate::help_usage::{importers, usage, Asked, DeepRequest, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::{tree, Mocking};
 
@@ -125,14 +125,16 @@ fn reading(root: &str, index: String, opened: &[String], published: &[String], u
     })
 }
 
-/// Every import of `name` out of one of `files`, which are repo-relative, by
-/// any file of the chain at `index`, relative imports included, and through
-/// each file that passes it on with `export … from`, which is named in
-/// `through` and is no use; `None` when there is no index. A use's `key` is the
-/// specifier as the importing file wrote it, and its `name` the name it takes.
+/// Every import of each asked name out of the file asked with it, which is
+/// repo-relative, by any file of the chain at `index`, relative imports
+/// included, and through each file that passes it on with `export … from`,
+/// which is named in `through` and is no use; `None` when there is no index. A
+/// use's `key` is the specifier as the importing file wrote it, and its `name`
+/// the name it takes. Each group is one question, answered in `groups` as it
+/// would be alone.
 #[napi(catch_unwind)]
-pub fn importers_of(root: String, index: &OpenedIndex, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
-    opened_chain(index, |layers| importers(&root, layers, &files, &name))
+pub fn importers_of(root: String, index: &OpenedIndex, asked: Vec<Vec<Asked>>) -> napi::Result<Option<Importers>> {
+    opened_chain(index, |layers| importers(&root, layers, &asked))
 }
 
 /// Every import on the chain at `index` that binds `local` to an export of

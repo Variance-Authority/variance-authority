@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use super::{importers, Importers};
+use super::{importers, Asked, Importers, NameUse};
 use crate::compact::Layer;
 use crate::generation::Delta;
 use crate::graph_index::merged;
@@ -79,12 +79,20 @@ fn chain(files: &[(String, String)]) -> Vec<u8> {
 
 fn read(root: &PathBuf, bytes: &[u8], files: &[&str], name: &str) -> Importers {
     let layer = Layer::open(bytes).unwrap();
-    let files: Vec<String> = files.iter().map(|file| (*file).to_owned()).collect();
-    importers(root.to_str().unwrap(), std::slice::from_ref(&layer), &files, name)
+    importers(root.to_str().unwrap(), std::slice::from_ref(&layer), &[asked(files, name)])
+}
+
+/// Each of `files` asked under one `name`.
+pub(super) fn asked(files: &[&str], name: &str) -> Vec<Asked> {
+    files.iter().map(|file| Asked { file: (*file).to_owned(), name: name.to_owned() }).collect()
 }
 
 fn uses(read: &Importers) -> Vec<String> {
-    read.uses.iter().map(|one| format!("{}:{} {} via {}{}", one.at, one.line, one.name, one.key, if one.r#type { " type" } else { "" })).collect()
+    listed(&read.groups[0].uses)
+}
+
+fn listed(uses: &[NameUse]) -> Vec<String> {
+    uses.iter().map(|one| format!("{}:{} {} via {}{}", one.at, one.line, one.name, one.key, if one.r#type { " type" } else { "" })).collect()
 }
 
 #[test]
@@ -109,8 +117,49 @@ fn follows_a_barrel_two_re_exports_deep_and_lists_its_imports_by_file_then_line(
     let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
 
     assert_eq!(uses(&read), ["src/direct.ts:1 greet via ./greet", "src/use_b.ts:2 greet via ./b", "src/use_b.ts:4 greet via ./b"]);
-    assert_eq!(read.through, ["src/a.ts", "src/b.ts"]);
-    assert!(read.uses.iter().all(|one| one.by == "@t/w"));
+    assert_eq!(read.groups[0].through, ["src/a.ts", "src/b.ts"]);
+    assert!(read.groups[0].uses.iter().all(|one| one.by == "@t/w"));
+}
+
+#[test]
+fn tells_each_group_apart_as_it_would_answer_alone() {
+    let root = fixture("apart");
+    let bytes = chain(&[
+        file("src/greet.ts", &[], &[], &[]),
+        file("src/other.ts", &[], &[], &[]),
+        // `export { greet } from './greet'`
+        file("src/a.ts", &["src/greet.ts"], &[request("./greet", "reexports", 1, &[("greet", false, 1)])], &[passes("greet", Some("greet"), "./greet", false)]),
+        file("src/use_a.ts", &["src/a.ts"], &[request("./a", "imports", 1, &[("greet", false, 1)])], &[]),
+        file("src/direct.ts", &["src/other.ts"], &[request("./other", "imports", 1, &[("greet", false, 1)])], &[]),
+        // `export { type greet } from './greet'; export { greet } from './other'`
+        file(
+            "src/mix.ts",
+            &["src/greet.ts", "src/other.ts"],
+            &[request("./greet", "reexports", 1, &[("greet", true, 1)]), request("./other", "reexports", 2, &[("greet", false, 2)])],
+            &[passes("greet", Some("greet"), "./greet", true), passes("greet", Some("greet"), "./other", false)],
+        ),
+        // One import, reached as a type from `greet.ts` and as a value from `other.ts`.
+        file("src/use_mix.ts", &["src/mix.ts"], &[request("./mix", "imports", 1, &[("greet", false, 1)])], &[]),
+        // `export default function greet()`, asked by the name it is exported as.
+        file("src/till.ts", &[], &[], &[]),
+        file("src/use_till.ts", &["src/till.ts"], &[request("./till", "imports", 1, &[("default", false, 1)])], &[]),
+    ]);
+    let layer = Layer::open(&bytes).unwrap();
+    // `greet.ts` asked twice keeps both answers; the last group asks two files as one question.
+    let groups = [asked(&["src/greet.ts"], "greet"), asked(&["src/other.ts"], "greet"), asked(&["src/till.ts"], "default"), asked(&["src/greet.ts"], "greet"), asked(&["src/greet.ts", "src/other.ts"], "greet")];
+
+    let all = importers(root.0.to_str().unwrap(), std::slice::from_ref(&layer), &groups);
+
+    assert_eq!(all.groups.len(), groups.len());
+    for (answer, group) in all.groups.iter().zip(&groups) {
+        let files: Vec<&str> = group.iter().map(|one| one.file.as_str()).collect();
+        let alone = read(&root.0, &bytes, &files, &group[0].name);
+        assert_eq!(listed(&answer.uses), uses(&alone));
+        assert_eq!(answer.through, alone.groups[0].through);
+    }
+    assert_eq!(listed(&all.groups[0].uses), ["src/use_a.ts:1 greet via ./a", "src/use_mix.ts:1 greet via ./mix type"]);
+    assert_eq!(all.groups[0].through, ["src/a.ts", "src/mix.ts"]);
+    assert_eq!(listed(&all.groups[4].uses), ["src/direct.ts:1 greet via ./other", "src/use_a.ts:1 greet via ./a", "src/use_mix.ts:1 greet via ./mix"]);
 }
 
 #[test]
@@ -126,7 +175,7 @@ fn follows_a_renamed_re_export_under_the_name_it_passes() {
     let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
 
     assert_eq!(uses(&read), ["src/saluted.ts:1 salute via ./alias"]);
-    assert_eq!(read.through, ["src/alias.ts"]);
+    assert_eq!(read.groups[0].through, ["src/alias.ts"]);
 }
 
 #[test]
@@ -152,7 +201,7 @@ fn passes_an_inline_type_re_export_on_as_a_type_and_a_namespace_on_only_as_its_m
     // Whatever the importer wrote, a name that came through a type-only hop is a type.
     assert_eq!(uses(&read), ["src/typeuse.ts:1 greet via ./typed type"]);
     // `ns.ts` passes `greet` on as `ns.greet`, so a binding of `greet` out of it is no use.
-    assert_eq!(read.through, ["src/ns.ts", "src/typed.ts"]);
+    assert_eq!(read.groups[0].through, ["src/ns.ts", "src/typed.ts"]);
 }
 
 #[test]
@@ -175,7 +224,7 @@ fn passes_on_what_export_type_re_exports_and_keeps_an_import_type_of_the_same_fi
     let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
 
     assert_eq!(uses(&read), ["src/types.ts:1 greet via ./greet type", "src/typeuse.ts:3 Greet via ./all type"]);
-    assert_eq!(read.through, ["src/all.ts", "src/types.ts"]);
+    assert_eq!(read.groups[0].through, ["src/all.ts", "src/types.ts"]);
 }
 
 #[test]
@@ -202,7 +251,7 @@ fn a_name_a_type_only_path_reached_first_is_a_value_once_a_longer_value_path_rea
     let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
 
     assert_eq!(uses(&read), ["src/use.ts:1 greet via ./barrel"]);
-    assert_eq!(read.through, ["src/barrel.ts", "src/hop.ts", "src/typed.ts", "src/value.ts"]);
+    assert_eq!(read.groups[0].through, ["src/barrel.ts", "src/hop.ts", "src/typed.ts", "src/value.ts"]);
 }
 
 #[test]
@@ -225,7 +274,7 @@ fn ends_a_cycle_of_re_exports_and_follows_each_file_once() {
     let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
 
     assert_eq!(uses(&read), ["src/use_c2.ts:1 greet via ./c2"]);
-    assert_eq!(read.through, ["src/c1.ts", "src/c2.ts"]);
+    assert_eq!(read.groups[0].through, ["src/c1.ts", "src/c2.ts"]);
 }
 
 #[test]
@@ -237,6 +286,6 @@ fn orders_two_bindings_of_one_name_on_one_line_by_what_they_bind_it_to() {
 
     let read = read(&root.0, &bytes, &["src/greet.ts"], "greet");
 
-    let locals: Vec<Option<&str>> = read.uses.iter().map(|one| one.local.as_deref()).collect();
+    let locals: Vec<Option<&str>> = read.groups[0].uses.iter().map(|one| one.local.as_deref()).collect();
     assert_eq!(locals, [Some("loud"), Some("quiet")]);
 }

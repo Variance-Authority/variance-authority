@@ -38,7 +38,7 @@ describe('variance ask uses answers from the resolved relations alone', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toMatch(/^`greet` \[function\] is imported in 1 place/m);
     expect(out).not.toContain('could not resolve');
-    expect(importersOf(root, ['packages/lib/src/greet.ts'], 'greet')).not.toHaveProperty('unresolved');
+    expect(importersOf(root, [[{ file: 'packages/lib/src/greet.ts', name: 'greet' }]])).not.toHaveProperty('unresolved');
   });
 
   it('names no package outside the workspace for a name no file here declares', async () => {

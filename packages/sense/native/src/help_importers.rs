@@ -26,10 +26,11 @@ pub(crate) struct Taken {
 }
 
 /// What `importers_from` walked: every use, every file that passes a wanted
-/// name on, and every namespace a file passes one on inside.
+/// name on with the origin it passed it on for, and every namespace a file passes
+/// one on inside.
 pub(crate) struct Walked {
     pub(crate) taken: Vec<Taken>,
-    pub(crate) through: HashSet<String>,
+    pub(crate) through: HashSet<(usize, String)>,
     pub(crate) namespaces: Vec<Namespace>,
 }
 
@@ -149,7 +150,7 @@ pub(crate) fn importers_from(root: &str, layers: &[Layer], asked: HashMap<String
             };
             if follow {
                 seen.insert(key, typed);
-                through.insert(file.clone());
+                through.insert((origin, file.clone()));
                 let held = wanted.entry(file).or_default().entry(want).or_default().entry(origin).or_insert(typed);
                 *held &= typed;
             }

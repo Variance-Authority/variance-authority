@@ -60,7 +60,7 @@ fn reads_the_records_of_the_files_the_walk_reaches_and_no_other() {
 
     let answer = answer.unwrap();
     assert_eq!(uses(&answer), ["src/direct.ts:3 greet via ./greet", "src/use_a.ts:1 greet via ./a", "src/use_b.ts:2 greet via ./b"]);
-    assert_eq!(answer.through, ["src/a.ts", "src/b.ts"]);
+    assert_eq!(answer.groups[0].through, ["src/a.ts", "src/b.ts"]);
     assert_eq!(records, ["src/a.ts", "src/b.ts", "src/direct.ts", "src/greet.ts", "src/use_a.ts", "src/use_b.ts"]);
 }
 
@@ -100,8 +100,8 @@ fn a_record_a_later_layer_replaces_or_deletes_imports_nothing() {
     }
     assert_eq!(record(&layers, "src/direct.ts"), None);
 
-    let answer = importers(root.0.to_str().unwrap(), &layers, &["src/greet.ts".to_owned()], "greet");
+    let answer = importers(root.0.to_str().unwrap(), &layers, &[super::asked(&["src/greet.ts"], "greet")]);
 
     assert_eq!(uses(&answer), ["src/late.ts:4 greet via ./greet", "src/use_b.ts:2 greet via ./b"]);
-    assert_eq!(answer.through, ["src/a.ts", "src/b.ts"]);
+    assert_eq!(answer.groups[0].through, ["src/a.ts", "src/b.ts"]);
 }
