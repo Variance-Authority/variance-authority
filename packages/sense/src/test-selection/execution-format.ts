@@ -11,7 +11,7 @@ import type {
 } from './reverse.js';
 import { decodeSetExecutionIndex, executionTestsOf } from './execution-set-format.js';
 import { LAYOUT } from './record-layout.js';
-import { checkedRows, type RowsTable } from './case-lines.js';
+import { checkedRows, invalid, type RowsTable } from './case-lines.js';
 import { TIMES_COLUMN, TIMES_OFFSETS, timesColumn, timesFrom } from './case-times.js';
 import { durationColumn, durationFrom, limitColumn, limitFrom, stoppedColumn, stoppedFrom } from './execution-set-columns.js';
 
@@ -390,9 +390,6 @@ export function decodeExecutionIndex(bytes: Uint8Array): ExecutionIndex {
   return { tests, modules };
 }
 
-function invalid(): Error {
-  return new Error('not a variance-authority execution index');
-}
 
 /**
  * Every string the index names, once. `intern` sorts them and numbers them.
@@ -418,4 +415,3 @@ function dictionary(index: ExecutionIndex): ReadonlySet<string> {
   }
   return held;
 }
-

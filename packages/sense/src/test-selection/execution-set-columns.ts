@@ -2,7 +2,7 @@ import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.
 import { durationWord, NO_DURATION, NO_OWNER, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import { saidRead, type Said } from './case-said.js';
-import { checkedRows, LINES_COLUMN, LINES_OFFSETS, type RowsTable } from './case-lines.js';
+import { checkedRows, invalid, LINES_COLUMN, LINES_OFFSETS, type RowsTable } from './case-lines.js';
 import { TIMES_COLUMN, TIMES_OFFSETS } from './case-times.js';
 import type { ExecutionTest } from './reverse.js';
 import { LAYOUT } from './record-layout.js';
@@ -340,8 +340,4 @@ export function durationFrom(column: Uint32Array | undefined, at: number): { rea
 
 export function fail(): never {
   throw invalid();
-}
-
-export function invalid(): Error {
-  return new Error('not a variance-authority execution index');
 }
