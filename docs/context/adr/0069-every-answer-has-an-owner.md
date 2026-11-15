@@ -101,9 +101,12 @@ held none and opened every file, ignoring an owner that already answered *is
 this file the blob*: git's index, whose stat data proves a tracked file
 unchanged since it was recorded. Asking it, and reading the proven files out of
 the object store in-process, takes a search over Kibana's 93,966 `x-pack` files
-from 988 ms to 217 ms. The scan keeps its `cat-file` processes: the bound above
-still stands for it, and whether it moves onto the same reader is its own
-question, measured on its own.
+from 988 ms to 217 ms. The scan moved onto the same reader, so one reader owns
+git's bytes for both, and the bound above held: its wave over every Kibana module
+takes 1,456 ms where the `cat-file` streams took 1,411, and 740 where they took
+797 over seven copies of Material UI. What moved was correctness, not speed: a
+scan in a repository with a replace ref parsed the replacement's bytes for a
+file whose checkout was the original, and now reads that file from disk.
 
 It puts a cost on our own configuration surface. A flag sense passes to a tool it
 does not own is now a claim that sense knows better than the repository, and it

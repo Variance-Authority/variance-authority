@@ -64,6 +64,7 @@ fn a_search_from_the_store_still_finds_what_only_the_worktree_holds() {
         ("clean.ts", b"needle clean\n"),
         ("crlf.txt", b"needle crlf\n"),
         ("edited.ts", b"needle before\n"),
+        ("deleted.ts", b"needle deleted\n"),
     ]);
     // git-lfs's clean turns the content into its pointer, so the blob is the
     // pointer and the stat the index records is the content's, at one length.
@@ -88,15 +89,18 @@ fn a_search_from_the_store_still_finds_what_only_the_worktree_holds() {
     git(&root, &["update-index", "--refresh"]);
     write(&root, "edited.ts", b"needle after!\n");
     write(&root, "untracked.ts", b"needle untracked\n");
+    std::fs::remove_file(root.join("deleted.ts")).unwrap();
     let packs = std::fs::read_dir(root.join(".git/objects/pack")).unwrap().flatten();
     assert_eq!(packs.filter(|entry| entry.path().extension().is_some_and(|ext| ext == "pack")).count(), 2);
     let files: Vec<String> =
-        ["clean.ts", "second.ts", "loose.ts", "crlf.txt", "edited.ts", "big.bin", "untracked.ts", "gone.ts"].map(String::from).to_vec();
+        ["clean.ts", "second.ts", "loose.ts", "crlf.txt", "edited.ts", "big.bin", "untracked.ts", "deleted.ts", "gone.ts"].map(String::from).to_vec();
 
     let (worktree, _) = answer(&root, "needle", &files, usize::MAX);
     let (stored, read) = answer(&root, "needle", &files, 0);
     assert_eq!(read, 3, "the packed, the second pack's and the loose file; every other is opened");
     assert_eq!(stored, worktree);
+    assert!(!worktree.iter().any(|line| line.starts_with("deleted.ts:1:")), "the index and the store still hold a file the worktree lost: {worktree:?}");
+    assert!(worktree.iter().any(|line| line.starts_with("error deleted.ts: ")), "{worktree:?}");
     for line in ["edited.ts:1:needle after!", "untracked.ts:1:needle untracked", &format!("big.bin:1:{}", String::from_utf8_lossy(&content[..content.len() - 1]))] {
         assert!(worktree.iter().any(|held| held == line), "{line} in {worktree:?}");
     }
@@ -115,18 +119,45 @@ fn a_repository_whose_checkout_may_differ_at_the_same_length_is_searched_from_th
     git(&smudged, &["checkout", "--", "a.txt"]);
     settle(&smudged);
     git(&smudged, &["update-index", "--refresh"]);
-    let ident = repository("help-grep-ident", &[(".gitattributes", b"*.txt ident\n"), ("a.txt", b"$Id$ bbbb\n"), ("plain.ts", b"bbbb\n")]);
-    std::fs::remove_file(ident.join("a.txt")).unwrap();
-    git(&ident, &["checkout", "--", "a.txt"]);
-    settle(&ident);
-    git(&ident, &["update-index", "--refresh"]);
     let files: Vec<String> = ["a.txt", "plain.ts"].map(String::from).to_vec();
 
-    for root in [smudged, ident] {
-        let (worktree, _) = answer(&root, "bbbb", &files, usize::MAX);
-        let (stored, read) = answer(&root, "bbbb", &files, 0);
-        assert_eq!(read, 0, "{}: refused whole, the clean file with it", root.display());
-        assert_eq!(stored, worktree);
-        assert!(worktree.iter().any(|line| line.starts_with("a.txt:1:")), "{worktree:?}");
-    }
+    let (worktree, _) = answer(&smudged, "bbbb", &files, usize::MAX);
+    let (stored, read) = answer(&smudged, "bbbb", &files, 0);
+    assert_eq!(read, 0, "refused whole, the clean file with it");
+    assert_eq!(stored, worktree);
+    assert!(worktree.iter().any(|line| line.starts_with("a.txt:1:")), "{worktree:?}");
+}
+
+#[test]
+fn an_ident_checkout_is_longer_than_its_blob_and_is_searched_from_the_worktree() {
+    let root = repository("help-grep-ident", &[(".gitattributes", b"*.txt ident\n"), ("a.txt", b"$Id$ bbbb\n"), ("plain.ts", b"bbbb\n")]);
+    std::fs::remove_file(root.join("a.txt")).unwrap();
+    git(&root, &["checkout", "--", "a.txt"]);
+    settle(&root);
+    git(&root, &["update-index", "--refresh"]);
+    let files: Vec<String> = ["a.txt", "plain.ts"].map(String::from).to_vec();
+
+    let (worktree, _) = answer(&root, r"\$Id: [0-9a-f]+ \$ bbbb", &files, usize::MAX);
+    let (stored, read) = answer(&root, r"\$Id: [0-9a-f]+ \$ bbbb", &files, 0);
+    assert_eq!(read, 1, "the clean file from the store, the expanded one from the disk");
+    assert_eq!(stored, worktree);
+    assert!(worktree.iter().any(|line| line.starts_with("a.txt:1:")), "{worktree:?}");
+}
+
+#[test]
+fn a_checkout_core_autocrlf_rewrote_is_searched_from_the_worktree() {
+    let root = repository("help-grep-autocrlf", &[("a.txt", b"needle crlf\n"), ("plain.ts", b"needle plain\n")]);
+    git(&root, &["config", "core.autocrlf", "true"]);
+    std::fs::remove_file(root.join("a.txt")).unwrap();
+    git(&root, &["checkout", "--", "a.txt"]);
+    assert_eq!(std::fs::read(root.join("a.txt")).unwrap(), b"needle crlf\r\n");
+    settle(&root);
+    git(&root, &["update-index", "--refresh"]);
+    let files: Vec<String> = ["a.txt", "plain.ts"].map(String::from).to_vec();
+
+    let (worktree, _) = answer(&root, r"crlf\r$", &files, usize::MAX);
+    let (stored, read) = answer(&root, r"crlf\r$", &files, 0);
+    assert_eq!(read, 1, "only the file checkout left as its blob");
+    assert_eq!(stored, worktree);
+    assert!(worktree.iter().any(|line| line.starts_with("a.txt:1:")), "the checkout's CRLF: {worktree:?}");
 }

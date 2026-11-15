@@ -45,6 +45,10 @@ pub fn ripgrep(root: String, pattern: String, files: Vec<String>) -> napi::Resul
     search(Path::new(&root), &pattern, &files, STORE_CROSSOVER).map(|(grepped, _)| grepped)
 }
 
+/// One file's matching lines, numbered, or why it could not be searched; and
+/// whether its bytes came out of the store.
+type Searched = (Result<Vec<(u32, String)>, String>, bool);
+
 /// The search, and how many files it read out of the store: none when `files`
 /// is under `crossover`, which pays for no git call and no index.
 fn search(root: &Path, pattern: &str, files: &[String], crossover: usize) -> napi::Result<(Grepped, usize)> {
@@ -56,7 +60,7 @@ fn search(root: &Path, pattern: &str, files: &[String], crossover: usize) -> nap
         .build(pattern)
         .map_err(|error| napi::Error::from_reason(format!("ripgrep refused the pattern: {error}")))?;
     let store = if files.len() >= crossover { Store::open(root) } else { None };
-    let search = || -> Vec<(Result<Vec<(u32, String)>, String>, bool)> {
+    let search = || -> Vec<Searched> {
         files
             .par_iter()
             .map_init(

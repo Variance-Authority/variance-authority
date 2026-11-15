@@ -1,20 +1,23 @@
-//! Checkout bytes out of git's object store, read in-process.
+//! Blobs out of git's object store, read in-process: the one reader of git's
+//! bytes, for the scan and for the search.
 //!
-//! One question: the bytes a tracked file was checked out from, as this
-//! repository's object store holds them, with no replacement and nothing
-//! fetched, or nothing — and then the caller reads the file. A file the index
-//! recorded as unchanged is its blob, so `ask grep` inflates it out of a pack
-//! instead of opening it: on Kibana an open costs about four times what an
-//! inflate does, because a worktree read pays for the descriptor, not the bytes.
+//! [`Objects`] answers the blob an id names, as this repository's object store
+//! holds it, with no replacement and nothing fetched, or nothing — and then the
+//! caller reads the file. [`Objects::open`] refuses a repository whose ids may
+//! not name the bytes checkout wrote: a replace ref (git owns the ref store, so
+//! `for-each-ref` reads packed and reftable refs too), an object format other
+//! than SHA-1, or a git call that failed. The scan's wave read asks it by the
+//! ids its listing holds (`acquire.rs`).
 //!
-//! [`Store::open`] refuses a whole repository where a blob may not be what
-//! checkout wrote at the same length: a replace ref (git owns the ref store, so
-//! `for-each-ref` reads packed and reftable refs too), a smudge or process
-//! filter other than git-lfs's, a `working-tree-encoding` or `ident` attribute
-//! in any attribute file git reads, an object format other than SHA-1, more
-//! packs than a lookup should walk without a multi-pack index, or any git call
-//! that failed. Every rewrite that changes the length is caught per file, by the
-//! blob's size against the file's, whenever it happened.
+//! [`Store`] is the search's: a file the index recorded as unchanged is its
+//! blob, so `ask grep` inflates it out of a pack instead of opening it. On
+//! Kibana an open costs about four times what an inflate does, because a
+//! worktree read pays for the descriptor, not the bytes. [`Store::open`] refuses
+//! too a smudge or process filter other than git-lfs's, which can rewrite a
+//! checkout and keep its length, and more packs than a lookup should walk
+//! without a multi-pack index. Every rewrite that changes the length — `eol`,
+//! `core.autocrlf`, `ident`, an encoding that is not one byte a character — is
+//! caught per file, by the blob's size against the file's, whenever it happened.
 //!
 //! [`Store::checked_out`] is the per-file proof, in order: an unconflicted entry,
 //! a regular file, none of skip-worktree, assume-valid or intent-to-add, an
@@ -43,22 +46,27 @@ use gix_odb::Header as _;
 pub(crate) const STORE_LARGEST: u64 = 64 * 1024;
 /// The fewest files a question must read for the store to pay for opening it.
 ///
-/// Opening asks git five questions and loads the index, which a list must earn
+/// Opening asks git three questions and loads the index, which a list must earn
 /// back at a few microseconds a file: on Kibana and on Material UI the two
-/// paths cost the same at about 3,000 files (`docs/performance.md`). A list
+/// paths cost the same at about this many files (`docs/performance.md`). A list
 /// under it opens nothing.
 pub(crate) const STORE_CROSSOVER: usize = 3_000;
 /// The packs a lookup walks before a repository without a multi-pack index is
-/// read from the worktree instead: each miss probes every pack's index.
+/// searched from the worktree instead: each miss probes every pack's index.
 const PACK_LIMIT: usize = 50;
 
 /// Strict, and never relaxed from configuration: a file that matches on mtime,
 /// ctime, size and inode is the one the index recorded.
 const STRICT: stat::Options = stat::Options { trust_ctime: true, check_stat: true, use_nsec: true, use_stdev: false };
 
-/// A repository's object store and index, opened for one question.
+/// A repository's object store, opened for one question.
+pub(crate) struct Objects {
+    store: Arc<gix_odb::Store>,
+}
+
+/// A repository's object store and index, opened for one search.
 pub(crate) struct Store {
-    objects: Arc<gix_odb::Store>,
+    objects: Objects,
     index: gix_index::File,
     /// Where `root` lies in the checkout, as `--show-prefix` spells it.
     prefix: String,
@@ -67,15 +75,13 @@ pub(crate) struct Store {
 
 /// What git answered before a store opens; each `None` is a call that failed.
 struct Answers {
-    /// `--show-prefix`, `--show-toplevel`, `--show-object-format` and the git
-    /// paths of the index, the objects and `info/attributes`, a line each.
+    /// `--show-prefix`, `--show-object-format` and the git paths of the index
+    /// and the objects, a line each.
     located: Option<String>,
     /// Whether no filter but git-lfs's smudges or processes a checkout.
     unfiltered: Option<bool>,
     /// The first replace ref, or nothing.
     replaced: Option<String>,
-    /// The system and global attribute files, where git reads one.
-    outside: Option<Vec<PathBuf>>,
 }
 
 /// A tracked file the index holds as unchanged, and its blob.
@@ -90,6 +96,37 @@ pub(crate) struct Reader {
     buffer: Vec<u8>,
 }
 
+impl Objects {
+    /// The object store behind the checkout `root` lies in, or `None` where an
+    /// id may not name the bytes checkout wrote.
+    pub(crate) fn open(root: &Path) -> Option<Objects> {
+        let (located, replaced) = std::thread::scope(|scope| {
+            let replaced = scope.spawn(|| replaced(root));
+            let located = git(root, &["rev-parse", "--show-object-format", "--git-path", "objects"]);
+            (located, replaced.join().ok().flatten())
+        });
+        let located = located?;
+        let mut lines = located.lines();
+        let format = lines.next()?;
+        Objects::at(format, &root.join(lines.next()?), &replaced?)
+    }
+
+    fn at(format: &str, objects: &Path, replaced: &str) -> Option<Objects> {
+        if format != "sha1" || !replaced.trim().is_empty() {
+            return None;
+        }
+        let store = gix_odb::Store::at_opts(objects.to_owned(), gix_hash::Kind::Sha1, &mut std::iter::empty(), Default::default()).ok()?;
+        Some(Objects { store: Arc::new(store) })
+    }
+
+    /// A handle for one thread; lookups never re-read the pack directory.
+    pub(crate) fn reader(&self) -> Reader {
+        let mut objects = self.store.to_handle_arc();
+        objects.refresh_never();
+        Reader { objects, buffer: Vec::new() }
+    }
+}
+
 impl Store {
     /// The store behind the checkout `root` lies in, or `None` wherever a blob
     /// may not be the bytes checkout wrote at the same length.
@@ -98,23 +135,20 @@ impl Store {
     }
 
     fn answered(root: &Path, answers: Answers) -> Option<Store> {
-        if !answers.unfiltered? || !answers.replaced?.trim().is_empty() {
+        if !answers.unfiltered? {
             return None;
         }
-        let (located, mut outside) = (answers.located?, answers.outside?);
+        let (located, replaced) = (answers.located?, answers.replaced?);
         let mut lines = located.lines();
-        let (prefix, top, format) = (lines.next()?, Path::new(lines.next()?), lines.next()?);
+        let (prefix, format) = (lines.next()?, lines.next()?);
         let mut paths = lines.map(|path| root.join(path));
-        let (index, objects, info) = (paths.next()?, paths.next()?, paths.next()?);
-        if format != "sha1" || !few_packs(&objects) {
+        let (index, objects) = (paths.next()?, paths.next()?);
+        if !few_packs(&objects) {
             return None;
         }
+        let objects = Objects::at(format, &objects, &replaced)?;
         let index = gix_index::File::at(&index, gix_hash::Kind::Sha1, true, Default::default()).ok()?;
-        let objects = gix_odb::Store::at_opts(objects, gix_hash::Kind::Sha1, &mut std::iter::empty(), Default::default()).ok()?;
-        let store = Store { objects: Arc::new(objects), index, prefix: prefix.to_owned(), root: root.to_owned() };
-        outside.push(info);
-        let outside = outside.iter().map(|path| top.join(path));
-        (!store.rewrites_in_place(top, outside)).then_some(store)
+        Some(Store { objects, index, prefix: prefix.to_owned(), root: root.to_owned() })
     }
 
     /// `file`, relative to the root this store was opened at, when the index
@@ -142,68 +176,47 @@ impl Store {
 
     /// A handle for one thread; lookups never re-read the pack directory.
     pub(crate) fn reader(&self) -> Reader {
-        let mut objects = self.objects.to_handle_arc();
-        objects.refresh_never();
-        Reader { objects, buffer: Vec::new() }
-    }
-
-    /// Whether an attribute that rewrites a checkout without changing its
-    /// length is named in a tracked `.gitattributes`, as committed or on disk,
-    /// or in one of the `outside` files git reads.
-    fn rewrites_in_place(&self, top: &Path, mut outside: impl Iterator<Item = PathBuf>) -> bool {
-        let tracked = self.index.entries().iter().filter(|entry| {
-            let path = entry.path(&self.index);
-            path == ".gitattributes" || path.ends_with(b"/.gitattributes")
-        });
-        let mut reader = self.reader();
-        for entry in tracked {
-            let path = top.join(entry.path(&self.index).to_string());
-            let held = std::fs::read(path).ok();
-            let committed = reader.objects.try_find(&entry.id, &mut reader.buffer).ok().flatten().map(|data| data.data.to_vec());
-            if held.is_none() && committed.is_none() {
-                return true;
-            }
-            if held.into_iter().chain(committed).any(|text| rewrites(&text)) {
-                return true;
-            }
-        }
-        outside.any(|path| std::fs::read(path).is_ok_and(|text| rewrites(&text)))
+        self.objects.reader()
     }
 }
 
 impl Answers {
     /// Every question at once, each its own git process.
     fn asked(root: &Path) -> Answers {
-        let replace_base = std::env::var("GIT_REPLACE_REF_BASE").unwrap_or_else(|_| "refs/replace/".to_owned());
         std::thread::scope(|scope| {
-            let located = scope.spawn(|| {
-                let asked = ["--show-prefix", "--show-toplevel", "--show-object-format", "--git-path", "index"];
-                git(root, &[&["rev-parse"][..], &asked, &["--git-path", "objects", "--git-path", "info/attributes"]].concat())
-            });
             let unfiltered = scope.spawn(|| unfiltered(root));
-            let replaced = scope.spawn(|| git(root, &["for-each-ref", "--count=1", "--format=%(refname)", &replace_base]));
-            let system = scope.spawn(|| attribute_file(root, "GIT_ATTR_SYSTEM"));
-            let global = attribute_file(root, "GIT_ATTR_GLOBAL");
-            let system = system.join().ok().flatten();
+            let replaced = scope.spawn(|| replaced(root));
+            let asked = ["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "index", "--git-path", "objects"];
             Answers {
-                located: located.join().ok().flatten(),
+                located: git(root, &asked),
                 unfiltered: unfiltered.join().ok().flatten(),
                 replaced: replaced.join().ok().flatten(),
-                outside: system.zip(global).map(|(system, global)| system.into_iter().chain(global).collect()),
             }
         })
     }
 }
 
 impl Reader {
+    /// The size of the blob `id` names, or `None` where the store holds no blob by it.
+    pub(crate) fn size(&mut self, id: &ObjectId) -> Option<u64> {
+        let header = self.objects.try_header(id).ok()??;
+        (header.kind() == Kind::Blob).then(|| header.size())
+    }
+
+    /// The bytes of the blob `id` names, or `None` to read the worktree: the
+    /// store holds no blob by it, or holds a git-LFS pointer, which checkout
+    /// smudged into other bytes.
+    pub(crate) fn blob(&mut self, id: &ObjectId) -> Option<&[u8]> {
+        let data = self.objects.try_find(id, &mut self.buffer).ok()??;
+        (data.kind == Kind::Blob && !crate::lfs::pointer(data.data)).then_some(data.data)
+    }
+
     /// The bytes `fresh` was checked out from, or `None` to read the worktree.
     pub(crate) fn checkout_bytes(&mut self, fresh: &Fresh) -> Option<&[u8]> {
-        let header = self.objects.try_header(&fresh.id).ok()??;
-        if header.kind() != Kind::Blob || header.size() != fresh.size {
+        if self.size(&fresh.id)? != fresh.size {
             return None;
         }
-        let data = self.objects.try_find(&fresh.id, &mut self.buffer).ok()??;
-        (data.kind == Kind::Blob && !crate::lfs::pointer(data.data)).then_some(data.data)
+        self.blob(&fresh.id)
     }
 }
 
@@ -211,6 +224,12 @@ impl Reader {
 fn git(root: &Path, args: &[&str]) -> Option<String> {
     let output = Command::new("git").args(args).current_dir(root).output().ok()?;
     output.status.success().then(|| String::from_utf8(output.stdout).ok()).flatten()
+}
+
+/// The first replace ref, or nothing; `None` when the refs could not be read.
+fn replaced(root: &Path) -> Option<String> {
+    let base = std::env::var("GIT_REPLACE_REF_BASE").unwrap_or_else(|_| "refs/replace/".to_owned());
+    git(root, &["for-each-ref", "--count=1", "--format=%(refname)", &base])
 }
 
 /// Whether no filter but git-lfs's smudges or processes a checkout; `None` when
@@ -229,34 +248,6 @@ fn unfiltered(root: &Path) -> Option<bool> {
         })),
         _ => None,
     }
-}
-
-/// The attribute file git names for `variable` (`git var`, git 2.42 on), or
-/// `Some(None)` when it reads none: `GIT_ATTR_NOSYSTEM` answers 1 and nothing.
-fn attribute_file(root: &Path, variable: &str) -> Option<Option<PathBuf>> {
-    let output = Command::new("git").args(["var", variable]).current_dir(root).output().ok()?;
-    let path = String::from_utf8(output.stdout).ok()?;
-    let path = path.trim_end_matches('\n');
-    match output.status.code() {
-        Some(0) => Some((!path.is_empty()).then(|| PathBuf::from(path))),
-        Some(1) if path.is_empty() => Some(None),
-        _ => None,
-    }
-}
-
-/// Whether attribute text names `working-tree-encoding` or `ident` in any
-/// token, set, unset or in a macro: either can rewrite a checkout and keep its
-/// length. A pattern spelt the same refuses too, which only costs speed.
-fn rewrites(text: &[u8]) -> bool {
-    text.split(|byte| *byte == b'\n').any(|line| {
-        let line = line.trim_ascii();
-        !line.starts_with(b"#")
-            && line.split(u8::is_ascii_whitespace).any(|token| {
-                let token = token.strip_prefix(b"-").or_else(|| token.strip_prefix(b"!")).unwrap_or(token);
-                let name = token.split(|byte| *byte == b'=').next().unwrap_or(token);
-                name == b"working-tree-encoding" || name == b"ident"
-            })
-    })
 }
 
 /// Whether a lookup that misses walks few enough pack indexes.

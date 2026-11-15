@@ -161,6 +161,7 @@ fn a_replace_ref_even_packed_keeps_the_store_shut() {
     git(&root, &["pack-refs", "--all"]);
 
     assert!(Store::open(&root).is_none());
+    assert!(super::Objects::open(&root).is_none(), "the scan's reader refuses it too");
 }
 
 #[test]
@@ -172,23 +173,6 @@ fn a_custom_smudge_filter_keeps_the_store_shut_and_lfs_does_not() {
 
     git(&root, &["config", "filter.same.smudge", "tr a b"]);
     assert!(Store::open(&root).is_none(), "a smudge that keeps the length is caught by nothing per file");
-}
-
-#[test]
-fn an_encoding_or_ident_attribute_anywhere_keeps_the_store_shut() {
-    for (name, place, line) in [
-        ("encoding", ".gitattributes", "*.txt text working-tree-encoding=UTF-16\n"),
-        ("ident", "deep/.gitattributes", "*.ts ident\n"),
-        ("macro", ".gitattributes", "[attr]stamped ident\n*.ts stamped\n"),
-        ("info", ".git/info/attributes", "*.ts -ident\n"),
-    ] {
-        let root = repository(&format!("git-store-{name}"), &[("a.ts", A), ("deep/b.ts", A)]);
-        write(&root, place, line.as_bytes());
-        if !place.starts_with(".git/") {
-            commit(&root);
-        }
-        assert!(Store::open(&root).is_none(), "{name}");
-    }
 }
 
 #[test]
@@ -205,6 +189,7 @@ fn a_root_outside_any_sha1_repository_opens_nothing() {
     write(&sha256, "a.ts", A);
     commit(&sha256);
     assert!(Store::open(&sha256).is_none());
+    assert!(super::Objects::open(&sha256).is_none() && super::Objects::open(&plain).is_none());
 }
 
 #[test]
@@ -247,29 +232,16 @@ fn more_packs_than_the_limit_keep_the_store_shut_until_a_multi_pack_index_covers
 }
 
 #[test]
-fn an_attribute_file_git_reads_outside_the_checkout_keeps_the_store_shut() {
-    let root = repository("git-store-global", &[("a.ts", A)]);
-    let global = root.with_file_name(format!("{}-attributes", root.file_name().unwrap().to_str().unwrap()));
-    std::fs::write(&global, "*.ts ident\n").unwrap();
-    git(&root, &["config", "core.attributesFile", global.to_str().unwrap()]);
-
-    assert!(Store::open(&root).is_none(), "git names the global file, and its ident is read");
-    std::fs::remove_file(&global).unwrap();
-    assert!(Store::open(&root).is_some(), "a named file that is not there sets nothing");
-}
-
-#[test]
 fn any_git_call_that_failed_keeps_the_store_shut() {
     let root = repository("git-store-asked", &[("a.ts", A)]);
     assert!(Store::answered(&root, super::Answers::asked(&root)).is_some());
 
-    for failed in ["located", "unfiltered", "replaced", "outside"] {
+    for failed in ["located", "unfiltered", "replaced"] {
         let mut answers = super::Answers::asked(&root);
         match failed {
             "located" => answers.located = None,
             "unfiltered" => answers.unfiltered = None,
-            "replaced" => answers.replaced = None,
-            _ => answers.outside = None,
+            _ => answers.replaced = None,
         }
         assert!(Store::answered(&root, answers).is_none(), "{failed}");
     }

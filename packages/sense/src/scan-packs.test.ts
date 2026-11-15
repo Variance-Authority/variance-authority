@@ -10,9 +10,9 @@ import { scanRelations } from './scan.js';
 /**
  * `packs: false` changes where bytes are read from, and nothing else.
  *
- * A hundred and sixty files, because that is the wave the native reader starts
- * `git cat-file` for; below it every read is a disk read either way, and the
- * assertion that no object store was opened would hold for any setting.
+ * A hundred and sixty files, because that is the wave the native reader opens
+ * Git's object store for; below it every read is a disk read either way, and
+ * the assertion that no object store was opened would hold for any setting.
  */
 
 describe.runIf(nativeAvailable())('reading from the working tree instead of the object store', () => {
@@ -58,8 +58,9 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
     }
   }
 
+  /** The store is read in-process; opening it asks Git where it lies and its object format. */
   const opensObjects = (commands: string[][]): boolean =>
-    commands.some((argv) => argv.includes('cat-file'));
+    commands.some((argv) => argv.includes('--show-object-format'));
 
   it('reads the same records without opening the object store, and still asks Git what the files are', async () => {
     const packed = await traced('packed', () => scanRelations({ root, dirs: ['.'] }));
