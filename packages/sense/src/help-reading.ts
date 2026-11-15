@@ -218,7 +218,7 @@ export interface NativeHelp {
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   digestForwards?(forwards: string[]): string;
-  importersOf?(root: string, index: OpenedIndex, files: string[], name: string): NativeImporters | null;
+  importersOf?(root: string, index: OpenedIndex, files: string[], name: string, byFile?: boolean): NativeImporters | null;
   outsideSourcesOf?(root: string, index: OpenedIndex, name: string): string[] | null;
   memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
   membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
@@ -359,15 +359,17 @@ export function forwardsDigest(forwards: readonly string[]): string {
  * A file that passes the name on with `export … from` is followed under the
  * name it exports and named in `through`, and is no use. Each use's `key` is
  * the specifier as the importing file wrote it, and its `name` the name it
- * takes, which such a file can rename. Throws when the index does not read.
+ * takes, which such a file can rename. `byFile` also says what each file would
+ * answer alone, in `byFile`. Throws when the index does not read.
  */
 export function importersOf(
   root: string,
   files: readonly string[],
   name: string,
   index: string = sourceIndexPath(root),
+  byFile = false,
 ): NativeImporters | undefined {
-  return onIndex(index, (opened) => entry('importersOf')(root, opened, [...files], name)) ?? undefined;
+  return onIndex(index, (opened) => entry('importersOf')(root, opened, [...files], name, byFile)) ?? undefined;
 }
 
 /**

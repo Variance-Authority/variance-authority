@@ -120,3 +120,22 @@ describe('the look at an answer whose files are unchanged', () => {
     expect(asked.reads).toBeGreaterThan(0);
   });
 });
+
+describe('a name several files declare', () => {
+  it('asks the source index who imports it once for all of them, and counts each apart', async () => {
+    const root = await fixture.published({
+      'packages/shop/package.json': JSON.stringify({ name: '@acme/shop' }),
+      'packages/shop/src/tax.ts': 'export function taxOf(amount: number): number {\n  return amount / 4;\n}\n',
+      'packages/shop/src/cart.ts': "import { taxOf } from './tax.js';\nimport { taxOf as kitTax } from '../../kit/src/tax.js';\nexport const due = taxOf(1) + kitTax(2);\n",
+      'packages/till/package.json': JSON.stringify({ name: '@acme/till' }),
+      'packages/till/src/tax.ts': 'export function taxOf(amount: number): number {\n  return amount / 3;\n}\n',
+    });
+    const help = await readWorkspace(root);
+    asked.importers = 0;
+
+    const answer = symbol.run(help, { name: 'taxOf' }, { root });
+    expect(asked.importers).toBe(1);
+    expect(answer.match(/Imported in 1 place;/gu)).toHaveLength(2);
+    expect(answer).toContain('Nothing in this workspace imports it');
+  });
+});

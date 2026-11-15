@@ -80,7 +80,7 @@ fn chain(files: &[(String, String)]) -> Vec<u8> {
 fn read(root: &PathBuf, bytes: &[u8], files: &[&str], name: &str) -> Importers {
     let layer = Layer::open(bytes).unwrap();
     let files: Vec<String> = files.iter().map(|file| (*file).to_owned()).collect();
-    importers(root.to_str().unwrap(), std::slice::from_ref(&layer), &Configurations::default(), &files, name)
+    importers(root.to_str().unwrap(), std::slice::from_ref(&layer), &Configurations::default(), &files, name, false)
 }
 
 fn uses(read: &Importers) -> Vec<String> {
@@ -111,6 +111,33 @@ fn follows_a_barrel_two_re_exports_deep_and_lists_its_imports_by_file_then_line(
     assert_eq!(uses(&read), ["src/direct.ts:1 greet via ./greet", "src/use_b.ts:2 greet via ./b", "src/use_b.ts:4 greet via ./b"]);
     assert_eq!(read.through, ["src/a.ts", "src/b.ts"]);
     assert!(read.uses.iter().all(|one| one.by == "@t/w"));
+}
+
+#[test]
+fn tells_each_file_asked_by_file_apart_as_it_would_answer_alone() {
+    let root = fixture("apart");
+    let bytes = chain(&[
+        file("src/greet.ts", &[], &[], &[]),
+        file("src/other.ts", &[], &[], &[]),
+        // `export { greet } from './greet'`
+        file("src/a.ts", &["src/greet.ts"], &[request("./greet", "reexports", 1, &[("greet", false, 1)])], &[passes("greet", Some("greet"), "./greet", false)]),
+        file("src/use_a.ts", &["src/a.ts"], &[request("./a", "imports", 1, &[("greet", false, 1)])], &[]),
+        file("src/direct.ts", &["src/other.ts"], &[request("./other", "imports", 1, &[("greet", false, 1)])], &[]),
+    ]);
+    let layer = Layer::open(&bytes).unwrap();
+    let files = ["src/greet.ts".to_owned(), "src/other.ts".to_owned()];
+
+    let both = importers(root.0.to_str().unwrap(), std::slice::from_ref(&layer), &Configurations::default(), &files, "greet", true);
+
+    assert_eq!(uses(&both), ["src/direct.ts:1 greet via ./other", "src/use_a.ts:1 greet via ./a"]);
+    for (apart, file) in both.by_file.iter().zip(&files) {
+        let alone = read(&root.0, &bytes, &[file.as_str()], "greet");
+        let picked: Vec<String> = apart.uses.iter().map(|&at| uses(&both)[at as usize].clone()).collect();
+        assert_eq!(&apart.file, file);
+        assert_eq!(picked, uses(&alone));
+        assert_eq!(apart.through, alone.through);
+    }
+    assert_eq!(both.by_file[0].through, ["src/a.ts"]);
 }
 
 #[test]

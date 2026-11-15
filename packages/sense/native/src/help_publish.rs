@@ -130,9 +130,10 @@ fn reading(root: &str, index: String, opened: &[String], published: &[String], u
 /// each file that passes it on with `export … from`, which is named in
 /// `through` and is no use; `None` when there is no index. A use's `key` is the
 /// specifier as the importing file wrote it, and its `name` the name it takes.
+/// `by_file` also says what each file would answer alone, in `by_file`.
 #[napi(catch_unwind)]
-pub fn importers_of(root: String, index: &OpenedIndex, files: Vec<String>, name: String) -> napi::Result<Option<Importers>> {
-    opened_chain(index, |layers| importers(&root, layers, &index.configurations, &files, &name))
+pub fn importers_of(root: String, index: &OpenedIndex, files: Vec<String>, name: String, by_file: Option<bool>) -> napi::Result<Option<Importers>> {
+    opened_chain(index, |layers| importers(&root, layers, &index.configurations, &files, &name, by_file.unwrap_or(false)))
 }
 
 /// Every specifier on the chain at `index` that names a package or a runtime

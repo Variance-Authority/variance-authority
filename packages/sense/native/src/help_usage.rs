@@ -373,6 +373,18 @@ pub struct Importers {
     /// Every file, in code-unit order, with an import the index resolved to
     /// no file that could take the name: a use there is not listed.
     pub unresolved: Vec<String>,
+    /// When asked by file, each file asked about in the order asked, with what
+    /// a question about it alone would list; empty otherwise.
+    pub by_file: Vec<FromFile>,
+}
+
+/// What one file asked about answers alone: the positions in `uses` of the
+/// uses of its own name, and the files passing it on, its own left out.
+#[napi(object)]
+pub struct FromFile {
+    pub file: String,
+    pub uses: Vec<u32>,
+    pub through: Vec<String>,
 }
 
 /// A namespace one file passes a name on inside: the name it exports the
@@ -406,15 +418,37 @@ pub struct Namespace {
 ///
 /// A file asked about that declares the name uses it by scope, not by import,
 /// and the scan read those lines with its parse: they are `in_file`.
-pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configurations, files: &[String], name: &str) -> Importers {
-    // Every file is one origin, so a file passed the name by two of them is followed once.
+///
+/// Asked `by_file`, each file is its own origin, and `by_file` says what each
+/// would answer alone, so the declarations of one name are told apart in one
+/// walk; a site two of them reach is one use, a value use when either reached
+/// it as one.
+pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configurations, files: &[String], name: &str, by_file: bool) -> Importers {
+    // Otherwise every file is one origin, so a file passed the name by two of them is followed once.
+    let origin = |at: usize| if by_file { at } else { 0 };
     let origins: HashMap<String, HashMap<String, HashSet<usize>>> =
-        files.iter().map(|file| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([0]))]))).collect();
+        files.iter().enumerate().map(|(at, file)| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([origin(at)]))]))).collect();
     let in_file = in_file(root, layers, files, name);
     let walked = importers_from(root, layers, origins);
     let unresolved = unresolved_walk::unresolved(root, layers, configurations, files, &walked.through, &walked.exports);
-    let mut found: Vec<NameUse> = walked.taken.into_iter().map(|taken| taken.taken).collect();
-    found.sort_by(|a, b| {
+    // The walk's own site, without its origin: a use two origins reach is one.
+    let mut merged: HashMap<(String, u32, String, String, String), (NameUse, Vec<usize>)> = HashMap::new();
+    for taken in walked.taken {
+        let site = (taken.taken.at.clone(), taken.taken.line, taken.taken.name.clone(), taken.taken.key.clone(), taken.local);
+        match merged.entry(site) {
+            std::collections::hash_map::Entry::Occupied(mut held) => {
+                let (held, origins) = held.get_mut();
+                held.r#type &= taken.taken.r#type;
+                held.through_default &= taken.taken.through_default;
+                origins.push(taken.origin);
+            }
+            std::collections::hash_map::Entry::Vacant(free) => {
+                free.insert((taken.taken, vec![taken.origin]));
+            }
+        }
+    }
+    let mut found: Vec<(NameUse, Vec<usize>)> = merged.into_values().collect();
+    found.sort_by(|(a, _), (b, _)| {
         crate::order::code_unit(&a.at, &b.at)
             .then(a.line.cmp(&b.line))
             .then_with(|| crate::order::code_unit(&a.name, &b.name))
@@ -428,7 +462,24 @@ pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configura
     namespaces.sort_unstable_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at).then_with(|| crate::order::code_unit(&a.name, &b.name)).then_with(|| a.members.len().cmp(&b.members.len()))
     });
-    Importers { uses: found, through, in_file, namespaces, unresolved }
+    let by_file = if by_file { split(files, &found, &walked.through_by) } else { Vec::new() };
+    let uses = found.into_iter().map(|(taken, _)| taken).collect();
+    Importers { uses, through, in_file, namespaces, unresolved, by_file }
+}
+
+/// Each file asked about, with the positions in `found` of the uses its origin
+/// reached and the files its origin was passed on through, its own left out.
+fn split(files: &[String], found: &[(NameUse, Vec<usize>)], through_by: &HashSet<(usize, String)>) -> Vec<FromFile> {
+    files
+        .iter()
+        .enumerate()
+        .map(|(origin, file)| {
+            let uses = found.iter().enumerate().filter(|(_, (_, origins))| origins.contains(&origin)).map(|(at, _)| at as u32).collect();
+            let mut through: Vec<String> = through_by.iter().filter(|(by, passing)| *by == origin && passing != file).map(|(_, passing)| passing.clone()).collect();
+            through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
+            FromFile { file: file.clone(), uses, through }
+        })
+        .collect()
 }
 
 #[cfg(test)]

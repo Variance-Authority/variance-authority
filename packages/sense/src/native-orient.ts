@@ -434,6 +434,15 @@ export interface NativeImporters {
    * file that could take the name: a use there is not listed.
    */
   unresolved: string[];
+  /** When asked by file, each file asked about in the order asked, with what it answers alone; empty otherwise. */
+  byFile: NativeFromFile[];
+}
+
+/** What one file asked about answers alone: the positions in `uses` of its uses, and the files passing it on, its own left out. */
+export interface NativeFromFile {
+  file: string;
+  uses: number[];
+  through: string[];
 }
 
 /** A namespace one file passes a name on inside, under the name it exports it as. */
