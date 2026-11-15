@@ -17,9 +17,9 @@ import { addressKey } from './carried-rows.js';
  * holds and the other lacks says nothing either way, so two cuts that share no
  * address are alike.
  */
-// FIXME: `cut_alike` in `native/src/case_layer_landing.rs` is the test a run
-// lays its cases by; this should ask the addon for it.
 export function cutAlike(held: Cut, recorded: Cut): boolean {
+  // FIXME: `cut_alike` in `native/src/case_layer_landing.rs` is the test a run
+  // lays its cases by; this should ask the addon for it.
   for (const [from, block] of landedOn(held, recorded)) {
     if (held.blocks[from]!.startLine !== recorded.blocks[block]!.startLine) return false;
     if (held.blocks[from]!.endLine !== recorded.blocks[block]!.endLine) return false;
