@@ -112,15 +112,6 @@ impl<'a> Records<'a> {
         rows.map(move |at| reverse_row.at(at) as usize)
     }
 
-    /// Every row whose record lists a specifier it resolved to no file, with
-    /// the dictionary ids of those specifiers: one id is one specifier.
-    pub fn with_unresolved(&self) -> impl Iterator<Item = (usize, impl Iterator<Item = u32> + use<'a>)> + use<'_, 'a> {
-        let (offsets, value) = (self.unresolved, self.unresolved_value);
-        (0..self.file.len())
-            .filter(move |&row| flag(self.unresolved_present, row) && !offsets.range(row).is_empty())
-            .map(move |row| (row, offsets.range(row).map(move |at| value.at(at))))
-    }
-
     /// The directories the record at `row` was answered from.
     pub fn witnesses_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> impl Iterator<Item = &'s str> + use<'s, 'a> {
         let (offsets, directory) = (self.witnesses, self.witness_directory);

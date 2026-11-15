@@ -3036,7 +3036,6 @@
         "openRecordCache": "function",
         "openSourceIndex": "function",
         "orientAround": "function",
-        "outsideSourcesOf": "function",
         "packageLayers": "function",
         "packageOwner": "function",
         "packagesAround": "function",

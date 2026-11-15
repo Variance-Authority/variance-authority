@@ -219,7 +219,6 @@ export interface NativeHelp {
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   digestForwards?(forwards: string[]): string;
   importersOf?(root: string, index: OpenedIndex, files: string[], name: string): NativeImporters | null;
-  outsideSourcesOf?(root: string, index: OpenedIndex, name: string): string[] | null;
   memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
   membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
   declarationExportedOf?(index: OpenedIndex, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
@@ -368,16 +367,6 @@ export function importersOf(
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
   return onIndex(index, (opened) => entry('importersOf')(root, opened, [...files], name)) ?? undefined;
-}
-
-/**
- * Every specifier, as written and in code-unit order, that names a package or
- * a runtime module the index at `index` resolved to no file, and out of which
- * an import takes `name`; `undefined` when no index was published. Throws
- * when the index does not read.
- */
-export function outsideSourcesOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly string[] | undefined {
-  return onIndex(index, (opened) => entry('outsideSourcesOf')(root, opened, name)) ?? undefined;
 }
 
 /**

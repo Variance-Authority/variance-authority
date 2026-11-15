@@ -23,10 +23,6 @@ use crate::package_owners::{owners, NO_OWNER};
 mod importers_walk;
 pub(crate) use importers_walk::importers_from;
 
-#[path = "help_unresolved.rs"]
-mod unresolved_walk;
-pub(crate) use unresolved_walk::{sources, Configurations};
-
 #[cfg(test)]
 thread_local! {
     /// The files whose record a question on this thread read.
@@ -370,9 +366,6 @@ pub struct Importers {
     /// Every namespace a file passes the name on inside, by file in code
     /// units, then by name: `export * as shout` passes `greet` as `shout.greet`.
     pub namespaces: Vec<Namespace>,
-    /// Every file, in code-unit order, with an import the index resolved to
-    /// no file that could take the name: a use there is not listed.
-    pub unresolved: Vec<String>,
 }
 
 /// A namespace one file passes a name on inside: the name it exports the
@@ -406,13 +399,12 @@ pub struct Namespace {
 ///
 /// A file asked about that declares the name uses it by scope, not by import,
 /// and the scan read those lines with its parse: they are `in_file`.
-pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configurations, files: &[String], name: &str) -> Importers {
+pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Importers {
     // Every file is one origin, so a file passed the name by two of them is followed once.
     let origins: HashMap<String, HashMap<String, HashSet<usize>>> =
         files.iter().map(|file| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([0]))]))).collect();
     let in_file = in_file(root, layers, files, name);
     let walked = importers_from(root, layers, origins);
-    let unresolved = unresolved_walk::unresolved(root, layers, configurations, files, &walked.through, &walked.exports);
     let mut found: Vec<NameUse> = walked.taken.into_iter().map(|taken| taken.taken).collect();
     found.sort_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at)
@@ -428,7 +420,7 @@ pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configura
     namespaces.sort_unstable_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at).then_with(|| crate::order::code_unit(&a.name, &b.name)).then_with(|| a.members.len().cmp(&b.members.len()))
     });
-    Importers { uses: found, through, in_file, namespaces, unresolved }
+    Importers { uses: found, through, in_file, namespaces }
 }
 
 #[cfg(test)]

@@ -69,10 +69,15 @@ it.each(['clamp', 'mount', 'limit'])('`symbol` answers `%s` without decoding the
   expect(decoded(help)).toEqual([]);
 });
 
-it.each(['clamp', 'mount', 'limit'])('`uses` answers `%s` without decoding the export list or the imports by path', async (name) => {
+// The fixture's imports resolve to no file: `clamp` and `limit` are found by the path they spell, a default import by none.
+it.each([
+  ['clamp', 'packages/app/src/bounded.ts'],
+  ['mount', 'packages/kit/src/internal/mount.ts'],
+  ['limit', 'packages/app/src/limited.ts'],
+])('`uses` answers `%s` without decoding the export list or the imports by path', async (name, place) => {
   const { root, help } = await published();
   const out = uses.run(help, { name }, { root });
-  expect(out).toContain('packages/app/src/');
+  expect(out).toContain(place);
   expect(decoded(help)).toEqual([]);
 });
 

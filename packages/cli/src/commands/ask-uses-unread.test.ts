@@ -1,15 +1,16 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { asOneQuestion, importersOf } from '@variance-authority/sense';
+import { importersOf } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN } from '../exit.js';
 import { checkout, run } from './ask-packages.fixture.js';
 
 /**
- * `variance ask uses` names the files whose imports the index could not
- * resolve to a file when one of them could take the name: a use there is not
- * listed, so an answer that lists none would otherwise hide it.
+ * `variance ask uses` answers from the relations the index resolved. An
+ * import the index resolved to no file resolves to none at question time
+ * either, so the answer guesses nothing about where it pointed: no file is
+ * named as one that could take the name, and no package as its source.
  */
 
 const cwd = process.cwd();
@@ -23,116 +24,30 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** The line `uses` names the unread files on. */
-const unreadOf = (out: string): readonly string[] => out.split('\n').filter((line) => line.includes('could not resolve'));
-
-describe('variance ask uses names the files whose imports did not resolve', () => {
-  it('names a file whose unresolved import takes the name or the module whole, and not one that takes another name or an installed package', async () => {
-    checkout({
+describe('variance ask uses answers from the resolved relations alone', () => {
+  it('lists the resolved uses and names no file whose import the index did not resolve', async () => {
+    const root = checkout({
       'packages/lib/src/lost.ts': "import { greet } from './gone.js';\nexport const lost = greet('lost');\n",
-      'packages/lib/src/whole.ts': "import * as all from './missing.js';\nexport const whole = all;\n",
-      'packages/lib/src/other.ts': "import { shout } from './gone.js';\nexport const other = shout;\n",
-      'packages/lib/src/installed.ts': "import { greet } from 'left-pad';\nexport const installed = greet;\n",
+      'apps/app/src/alias.ts': "import { greet } from '@/lib/greet';\nexport const alias = greet;\n",
+      'apps/app/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { 'internal/*': ['src/internal/*'] } } }),
+      'apps/app/src/bare.ts': "import { greet } from 'internal/greet';\nexport const bare = greet;\n",
     });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const { code, out } = await run(['ask', 'uses', '--name', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toMatch(/^`greet` \[function\] is imported in 1 place/m);
-    expect(unreadOf(out)).toEqual([
-      '2 files import a specifier the index could not resolve to a file, and each could take `greet`, so a use there is not listed: packages/lib/src/lost.ts, packages/lib/src/whole.ts.',
-    ]);
+    expect(out).not.toContain('could not resolve');
+    expect(importersOf(root, ['packages/lib/src/greet.ts'], 'greet')).not.toHaveProperty('unresolved');
   });
 
-  it('names them beside an answer that finds no import', async () => {
-    checkout({ 'packages/kit/src/lost.ts': "import { orphan } from './orphn.js';\nexport const lost = orphan;\n" });
+  it('names no package outside the workspace for a name no file here declares', async () => {
+    checkout({ 'packages/lib/src/parse.ts': "import { parseSync } from 'oxc-parser';\nexport const parsed = parseSync('a.ts', '');\n" });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
-    const { out } = await run(['ask', 'uses', '--name', 'orphan']);
-    expect(out).toMatch(/nothing in this workspace imports it/);
-    expect(unreadOf(out)).toEqual([
-      '1 file imports a specifier the index could not resolve to a file, and it could take `orphan`, so a use there is not listed: packages/kit/src/lost.ts.',
-    ]);
-  });
-
-  it('names a file whose import of the declaring package by name did not resolve, and not one of another package', async () => {
-    checkout({
-      'apps/app/src/gone.ts': "import { greet } from '@acme/lib/src/gone';\nexport const gone = greet('gone');\n",
-      'apps/app/src/elsewhere.ts': "import { greet } from '@acme/kit/src/gone';\nexport const elsewhere = greet('elsewhere');\n",
-    });
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    const { out } = await run(['ask', 'uses', '--name', 'greet']);
-    expect(unreadOf(out)).toEqual([
-      '1 file imports a specifier the index could not resolve to a file, and it could take `greet`, so a use there is not listed: apps/app/src/gone.ts.',
-    ]);
-  });
-
-  it('names a file whose unresolved import takes a name the walk passed the declaration on by, or passes the name on', async () => {
-    checkout({
-      'packages/kit-private/src/salute.ts': "export { greet as salute } from '@acme/lib';\n",
-      'packages/kit-private/src/lost.ts': "import { salute } from './gone.js';\nexport const lost = salute;\n",
-      'packages/lib/src/passed.ts': "export { greet } from './missing.js';\n",
-      'packages/lib/src/other.ts': "export { shout } from './missing.js';\n",
-    });
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    const { out } = await run(['ask', 'uses', '--name', 'greet']);
-    expect(unreadOf(out)).toEqual([
-      '2 files import a specifier the index could not resolve to a file, and each could take `greet`, so a use there is not listed: packages/kit-private/src/lost.ts, packages/lib/src/passed.ts.',
-    ]);
-  });
-
-  it('names a file whose unresolved path alias or subpath import takes the name', async () => {
-    checkout({
-      'apps/app/src/alias.ts': "import { greet } from '@/lib/greet';\nexport const alias = greet;\n",
-      'apps/app/src/tilde.ts': "import { greet } from '~/lib/greet';\nexport const tilde = greet;\n",
-      'apps/app/src/internal.ts': "import { greet } from '#lib/greet';\nexport const internal = greet;\n",
-    });
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    const { out } = await run(['ask', 'uses', '--name', 'greet']);
-    expect(unreadOf(out)).toEqual([
-      '3 files import a specifier the index could not resolve to a file, and each could take `greet`, so a use there is not listed: apps/app/src/alias.ts, apps/app/src/internal.ts, apps/app/src/tilde.ts.',
-    ]);
-  });
-
-  it('names a file whose unresolved import a bare `paths` mapping of a tsconfig takes', async () => {
-    checkout({
-      'apps/app/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { 'internal/*': ['src/internal/*'] } } }),
-      'apps/app/src/bare.ts': "import { greet } from 'internal/greet';\nexport const bare = greet;\n",
-    });
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    const { out } = await run(['ask', 'uses', '--name', 'greet']);
-    expect(unreadOf(out)).toEqual([
-      '1 file imports a specifier the index could not resolve to a file, and it could take `greet`, so a use there is not listed: apps/app/src/bare.ts.',
-    ]);
-  });
-
-  it('reads the configurations once for one question, however many declarations it asks about', async () => {
-    const root = checkout({
-      'apps/app/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { 'internal/*': ['src/internal/*'] } } }),
-      'apps/app/src/bare.ts': "import { greet } from 'internal/greet';\nexport const bare = greet;\n",
-      'packages/kit/src/greet.ts': 'export function greet(name: string): string {\n  return name;\n}\n',
-    });
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    // The configuration is gone before the second declaration is asked: read once, it still maps the import.
-    const [first, second] = asOneQuestion(() => {
-      const first = importersOf(root, ['packages/lib/src/greet.ts'], 'greet');
-      rmSync(join(root, 'apps/app/tsconfig.json'));
-      return [first, importersOf(root, ['packages/kit/src/greet.ts'], 'greet')];
-    });
-    expect(first?.unresolved).toEqual(['apps/app/src/bare.ts']);
-    expect(second?.unresolved).toEqual(['apps/app/src/bare.ts']);
-  });
-
-  it('says nothing when every import resolved', async () => {
-    checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-
-    const { out } = await run(['ask', 'uses', '--name', 'greet']);
-    expect(unreadOf(out)).toEqual([]);
+    const { out } = await run(['ask', 'uses', '--name', 'parseSync']);
+    expect(out).toContain('No file in this workspace declares `parseSync`');
+    expect(out).not.toContain('outside this workspace');
+    expect(out).not.toContain('discover');
   });
 });
