@@ -33,6 +33,7 @@ let made: { readonly config: string; readonly transformer: Promise<ScriptTransfo
 async function warm(warming: Warming): Promise<number> {
   const config = JSON.stringify(warming.config);
   if (made?.config !== config) {
+    // The project's own @jest/transform, at the path its Jest resolved: no import names the adopter's copy.
     const { createScriptTransformer } = require(warming.transform) as {
       createScriptTransformer: (config: object) => Promise<ScriptTransformer>;
     };

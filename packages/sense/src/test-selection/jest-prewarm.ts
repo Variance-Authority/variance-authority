@@ -109,6 +109,7 @@ export async function warmRecorded(tests: readonly Test[], globalConfig: GlobalC
 /** A `jest-worker` pool over the warming module, resolved through Jest's runner, which forks its own with it. */
 function workerPool(rootDir: string, workers: number): Pool {
   const runner = jestDependency(rootDir, 'jest-runner');
+  // The jest-worker the project's runner forks with, resolved from it: no import names the adopter's copy.
   const { Worker } = createRequire(runner)('jest-worker') as {
     Worker: new (path: string, options: object) => Pool;
   };
