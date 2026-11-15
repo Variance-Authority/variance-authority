@@ -19,6 +19,11 @@ const cases = process.env['FIXTURE_CASES'];
 const passes = process.env['FIXTURE_PASS_WITH_NO_TESTS'];
 // The pattern a run with a broken `testMatch` takes. Absent, it finds the cases.
 const testMatch = process.env['FIXTURE_TEST_MATCH'] ?? '<rootDir>/test/*.case.ts';
+// The file a run that counts its transforms writes each one to. Absent, SWC
+// transforms as it is, and nothing counts.
+const transformer = process.env['FIXTURE_TRANSFORM_LOG'] === undefined
+  ? ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }]
+  : '<rootDir>/test/counting-transform.cjs';
 const selection = skip === undefined
   ? {}
   : { selection: async () => ({
@@ -37,7 +42,7 @@ export default withTestSelection(
     ...(passes === undefined ? {} : { passWithNoTests: JSON.parse(passes) }),
     testMatch: [testMatch],
     transform: {
-      '\\.[jt]sx?$': ['@swc/jest', { jsc: { parser: { syntax: 'typescript' } } }],
+      '\\.[jt]sx?$': transformer,
     },
     setupFiles: ['<rootDir>/test/polyfill.cjs'],
     setupFilesAfterEnv: ['<rootDir>/test/setup.cjs'],

@@ -21,6 +21,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { projectPath } from './instrumented-modules.js';
 import { jestDependency } from './jest-dependency.js';
+import { warmRecorded } from './jest-prewarm.js';
 import { refuseUnfound } from './jest-selection.js';
 import { shardArgument, shardOf } from './shard-placement.js';
 import type { SuiteTimes } from './suite-selection.js';
@@ -61,6 +62,8 @@ export interface PlacingOptions {
    * what Jest hands it whatever an earlier run in the process left behind.
    */
   readonly placing?: () => readonly string[] | undefined;
+  /** Whether `sort` fills Jest's transform cache with what the record says the tests load: a selected run's. */
+  readonly warm?: boolean;
   readonly say?: (line: string) => void;
   /** The command line the configuration is evaluated under; `process.argv` unless handed. */
   readonly argv?: readonly string[];
@@ -93,6 +96,9 @@ export function placingSequencer(
   const handed = {
     made: (globalConfig: object) => options.sharded?.((globalConfig as { shard?: unknown }).shard != null),
     sorting: refuseUnfound,
+    ...(options.warm === true ? { warming: (tests: readonly unknown[], globalConfig: object) => warmRecorded(
+      tests as Parameters<typeof warmRecorded>[0], globalConfig, { root: options.root, rootDir: options.rootDir, record: () => (read ??= options.times()), say },
+    ) } : {}),
     own: (): SequencerClass => {
       const at = path === undefined ? jestDependency(options.rootDir, JEST_SEQUENCER) : from.resolve(path, { paths: [options.rootDir] });
       const module = from(at) as SequencerClass | { default: SequencerClass };

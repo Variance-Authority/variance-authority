@@ -9,6 +9,7 @@
  * `shard`, which places whole files by the rule every runner's shard is placed by,
  * and `sort`, which first asks whether a selected run found a file: Jest calls it
  * once, after every project's filter and before it decides the run has no tests.
+ * A selected run's `sort` then fills the transform cache before Jest's workers start.
  */
 
 /** Where the configuration leaves the sequencer; mirrors `HANDED` in `jest-placing.ts`. */
@@ -26,6 +27,8 @@ interface Handed {
   readonly sorting: (tests: readonly unknown[], globalConfig: object) => void;
   readonly own: () => new (options: unknown) => Sortable;
   readonly shard: (tests: { path: string }[], options: Shard) => Promise<unknown[]>;
+  /** Fills Jest's transform cache with what the record says `tests` load; absent on a run that selects nothing. */
+  readonly warming?: (tests: readonly unknown[], globalConfig: object) => Promise<void>;
 }
 
 class PlacingSequencer {
@@ -44,8 +47,9 @@ class PlacingSequencer {
       get(target, key) {
         if (key === 'shard') return (tests: { path: string }[], shard: Shard) => handed.shard(tests, shard);
         if (key === 'sort') {
-          return (tests: unknown[]) => {
+          return async (tests: unknown[]) => {
             handed.sorting(tests, options.globalConfig);
+            await handed.warming?.(tests, options.globalConfig);
             return target.sort(tests);
           };
         }

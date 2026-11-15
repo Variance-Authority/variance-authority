@@ -372,7 +372,7 @@ export function withTestSelection(
     ...(projects === undefined ? {} : { projects }),
     ...placingSequencer(config, {
       root, rootDir, times,
-      ...(selection === undefined ? {} : { placing: placingPaths }),
+      ...(selection === undefined ? {} : { placing: placingPaths, warm: true }),
       sharded: (asked) => { alone = recordsAlone(asked, selection !== undefined, handedRecord(root, coverageFile)); },
     }),
     ...(selection === undefined ? {} : selectingFilter(config, {
