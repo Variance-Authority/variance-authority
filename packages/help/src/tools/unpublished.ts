@@ -84,8 +84,6 @@ export type Within =
     readonly through: readonly string[];
     readonly namespaces: readonly PassedInside[];
     readonly inFile: readonly Use[];
-    /** Every file with an import the index resolved to no file that could take the name. */
-    readonly unresolved: readonly string[];
   }
   | { readonly unread: string };
 
@@ -100,7 +98,7 @@ export function importsOf(root: string | undefined, files: readonly string[], na
   const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
   const [asked] = read.groups;
   if (asked === undefined) return { unread: 'the source index answered no group for the one asked' };
-  return { uses: asked.uses.map(indexedUse), through: asked.through, namespaces: read.namespaces, inFile, unresolved: read.unresolved };
+  return { uses: asked.uses.map(indexedUse), through: asked.through, namespaces: read.namespaces, inFile };
 }
 
 /** The native answer to who imports each asked name out of its file, one question per group, or why the index says nothing. */

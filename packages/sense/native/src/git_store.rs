@@ -87,13 +87,14 @@ pub(crate) struct Store {
 
 /// What git answered before a store opens; each `None` is a call that failed.
 struct Answers {
-    /// `--show-prefix`, `--show-object-format` and the git paths of the index
-    /// and the objects, a line each.
+    /// `--show-prefix`, `--show-object-format`, the git paths of the index,
+    /// the objects and the repository's attributes, and `--git-common-dir`, a
+    /// line each.
     located: Option<String>,
     /// Whether no filter but git-lfs's cleans, smudges or processes a checkout.
     unfiltered: Option<bool>,
-    /// The first replace ref, or nothing.
-    replaced: Option<String>,
+    /// Whether any replace ref exists.
+    replaced: Option<bool>,
     /// The system and global attributes files, as `git var` names them; an
     /// empty path is none.
     attributes: Option<[String; 2]>,
@@ -130,19 +131,14 @@ impl Objects {
     /// The object store behind the checkout `root` lies in, or `None` where an
     /// id may not name the bytes checkout wrote.
     pub(crate) fn open(root: &Path) -> Option<Objects> {
-        let (located, replaced) = std::thread::scope(|scope| {
-            let replaced = scope.spawn(|| replaced(root));
-            let located = git(root, &["rev-parse", "--show-object-format", "--git-path", "objects"]);
-            (located, replaced.join().ok().flatten())
-        });
-        let located = located?;
+        let located = git(root, &["rev-parse", "--show-object-format", "--git-path", "objects"])?;
         let mut lines = located.lines();
-        let format = lines.next()?;
-        Objects::at(format, &root.join(lines.next()?), &replaced?)
+        let (format, objects) = (lines.next()?, lines.next()?);
+        Objects::at(format, &root.join(objects), replaced(root)?)
     }
 
-    fn at(format: &str, objects: &Path, replaced: &str) -> Option<Objects> {
-        if format != "sha1" || !replaced.trim().is_empty() {
+    fn at(format: &str, objects: &Path, replaced: bool) -> Option<Objects> {
+        if format != "sha1" || replaced {
             return None;
         }
         let store = gix_odb::Store::at_opts(objects.to_owned(), gix_hash::Kind::Sha1, &mut std::iter::empty(), Default::default()).ok()?;
@@ -155,6 +151,60 @@ impl Objects {
         objects.refresh_never();
         Reader { objects, buffer: Vec::new() }
     }
+
+}
+
+/// Where the root lies in its checkout, and the blobs `HEAD` holds below it.
+pub(crate) struct Head {
+    /// `--show-prefix`: the root's place in the checkout, from its top.
+    pub(crate) prefix: String,
+    /// Every blob below the root, as `ls-tree -r HEAD -- .` lists it run there:
+    /// in tree order, which is byte order over the path, each path from the
+    /// root, with whether it is a symbolic link. A gitlink is a commit, not a
+    /// blob, and is left out. `None` where the store will not open, or a tree
+    /// is missing or does not decode, and `ls-tree` answers instead.
+    pub(crate) blobs: Option<Vec<(Vec<u8>, ObjectId, bool)>>,
+    /// `--show-object-format`: `sha1` or `sha256`.
+    pub(crate) format: String,
+    /// `--show-toplevel`: the top of the checkout.
+    pub(crate) top: PathBuf,
+    /// `--absolute-git-dir`: this worktree's git directory.
+    pub(crate) git_dir: PathBuf,
+    /// `--git-common-dir`: the directory every worktree shares.
+    pub(crate) common: PathBuf,
+    /// `--git-path index`: the index, `GIT_INDEX_FILE` included.
+    pub(crate) index: PathBuf,
+}
+
+/// What `HEAD` holds below `root`, asked of git in one call, or `None` where
+/// git names no tree for `HEAD`, as on an unborn branch.
+pub(crate) fn head(root: &Path) -> Option<Head> {
+    let located = git(
+        root,
+        &["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "objects", "--git-common-dir", "--git-path", "index", "--absolute-git-dir", "--show-toplevel", "HEAD^{tree}"],
+    )?;
+    // A newline in a path splits one answer in two, and more than eight lines
+    // is none git can be read by.
+    let [prefix, format, objects, common, index, git_dir, top, tree] = <[&str; 8]>::try_from(located.lines().collect::<Vec<_>>()).ok()?;
+    let (common, index, git_dir, top) = (root.join(common), root.join(index), PathBuf::from(git_dir), PathBuf::from(top));
+    let blobs = replaced(root)
+        .and_then(|replaced| Objects::at(format, &root.join(objects), replaced))
+        .and_then(|objects| below(&mut objects.reader(), ObjectId::from_hex(tree.as_bytes()).ok()?, prefix));
+    Some(Head { prefix: prefix.to_owned(), blobs, format: format.to_owned(), top, git_dir, common, index })
+}
+
+/// The blobs below `prefix` in the tree `tree`; a prefix the tree does not
+/// hold has none.
+fn below(reader: &mut Reader, mut tree: ObjectId, prefix: &str) -> Option<Vec<(Vec<u8>, ObjectId, bool)>> {
+    for name in prefix.split('/').filter(|name| !name.is_empty()) {
+        let Some(next) = reader.subtree(&tree, name.as_bytes())? else {
+            return Some(Vec::new());
+        };
+        tree = next;
+    }
+    let mut blobs = Vec::new();
+    reader.blobs(&tree, &mut Vec::new(), &mut blobs)?;
+    Some(blobs)
 }
 
 impl Store {
@@ -176,7 +226,7 @@ impl Store {
         if !few_packs(&objects) {
             return None;
         }
-        let objects = Objects::at(format, &objects, &replaced)?;
+        let objects = Objects::at(format, &objects, replaced)?;
         let index = gix_index::File::at(&index, gix_hash::Kind::Sha1, true, Default::default()).ok()?;
         let top = root.ancestors().nth(prefix.matches('/').count())?;
         // Git resolves a relative `core.attributesFile` from the top of the worktree.
@@ -253,13 +303,14 @@ impl Answers {
     fn asked(root: &Path) -> Answers {
         std::thread::scope(|scope| {
             let unfiltered = scope.spawn(|| unfiltered(root));
-            let replaced = scope.spawn(|| replaced(root));
             let attributes = scope.spawn(|| attributes(root));
+            let replaced = scope.spawn(|| replaced(root));
             let asked = ["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "index", "--git-path", "objects", "--git-path", "info/attributes"];
+            let located = git(root, &asked);
             Answers {
-                located: git(root, &asked),
-                unfiltered: unfiltered.join().ok().flatten(),
                 replaced: replaced.join().ok().flatten(),
+                located,
+                unfiltered: unfiltered.join().ok().flatten(),
                 attributes: attributes.join().ok().flatten(),
             }
         })
@@ -281,6 +332,51 @@ impl Reader {
         (data.kind == Kind::Blob && !crate::lfs::pointer(data.data)).then_some(data.data)
     }
 
+    /// The tree `name` names in the tree `id`, `Some(None)` where it holds no
+    /// tree by that name, or `None` where `id` is no tree the store can decode.
+    fn subtree(&mut self, id: &ObjectId, name: &[u8]) -> Option<Option<ObjectId>> {
+        let data = self.objects.try_find(id, &mut self.buffer).ok()??;
+        if data.kind != Kind::Tree {
+            return None;
+        }
+        for entry in gix_object::TreeRefIter::from_bytes(data.data, gix_hash::Kind::Sha1) {
+            let entry = entry.ok()?;
+            if entry.filename == name {
+                return Some(entry.mode.is_tree().then(|| entry.oid.to_owned()));
+            }
+        }
+        Some(None)
+    }
+
+    /// Every blob below the tree `id`, each path behind `path`, depth first in
+    /// tree order.
+    fn blobs(&mut self, id: &ObjectId, path: &mut Vec<u8>, out: &mut Vec<(Vec<u8>, ObjectId, bool)>) -> Option<()> {
+        let data = self.objects.try_find(id, &mut self.buffer).ok()??;
+        if data.kind != Kind::Tree {
+            return None;
+        }
+        // Owned before the descent: a subtree's read reuses the buffer these borrow.
+        let mut entries = Vec::new();
+        for entry in gix_object::TreeRefIter::from_bytes(data.data, gix_hash::Kind::Sha1) {
+            let entry = entry.ok()?;
+            if entry.mode.is_tree() || entry.mode.is_blob_or_symlink() {
+                entries.push((entry.filename.to_vec(), entry.oid.to_owned(), entry.mode));
+            }
+        }
+        for (name, oid, mode) in entries {
+            let at = path.len();
+            path.extend_from_slice(&name);
+            if mode.is_tree() {
+                path.push(b'/');
+                self.blobs(&oid, path, out)?;
+            } else {
+                out.push((path.clone(), oid, mode.is_link()));
+            }
+            path.truncate(at);
+        }
+        Some(())
+    }
+
     /// The bytes `fresh` was checked out from, or `None` to read the worktree,
     /// as for a blob holding `$Id` where `ident` may have rewritten it.
     pub(crate) fn checkout_bytes(&mut self, fresh: &Fresh) -> Option<&[u8]> {
@@ -298,10 +394,10 @@ fn git(root: &Path, args: &[&str]) -> Option<String> {
     output.status.success().then(|| String::from_utf8(output.stdout).ok()).flatten()
 }
 
-/// The first replace ref, or nothing; `None` when the refs could not be read.
-fn replaced(root: &Path) -> Option<String> {
+/// Whether any replace ref exists; `None` when the refs could not be read.
+fn replaced(root: &Path) -> Option<bool> {
     let base = std::env::var("GIT_REPLACE_REF_BASE").unwrap_or_else(|_| "refs/replace/".to_owned());
-    git(root, &["for-each-ref", "--count=1", "--format=%(refname)", &base])
+    git(root, &["for-each-ref", "--count=1", "--format=%(refname)", &base]).map(|first| !first.trim().is_empty())
 }
 
 /// Whether no filter but git-lfs's cleans, smudges or processes a checkout; `None` when

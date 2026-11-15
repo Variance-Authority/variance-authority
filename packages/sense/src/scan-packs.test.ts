@@ -58,9 +58,13 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
     }
   }
 
-  /** The store is read in-process; opening it asks Git where it lies and its object format. */
+  /**
+   * The store is read in-process; opening it for a file's bytes asks Git where
+   * it lies and its object format. The listing walks HEAD's trees either way,
+   * as `ls-tree` did, and asks for the tree as it does.
+   */
   const opensObjects = (commands: string[][]): boolean =>
-    commands.some((argv) => argv.includes('--show-object-format'));
+    commands.some((argv) => argv.includes('--show-object-format') && !argv.includes('HEAD^{tree}'));
 
   it('reads the same records without opening the object store, and still asks Git what the files are', async () => {
     const packed = await traced('packed', () => scanRelations({ root, dirs: ['.'] }));

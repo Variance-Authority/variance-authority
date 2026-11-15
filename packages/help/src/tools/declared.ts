@@ -177,7 +177,7 @@ export function importLine(alias: Pick<AliasMatch, 'at' | 'line' | 'imported' | 
   return `${alias.at}:${alias.line} imports \`${named}\`${named === alias.imported ? '' : ` (its \`${alias.imported}\`)`} as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
 }
 
-/** How many files `unreadLine` and `unresolvedLine` name before they count the rest. */
+/** How many files `unreadLine` names before it counts the rest. */
 const UNREAD_NAMED = 3;
 
 /** The first files of `files`, then how many more there are. */
@@ -195,19 +195,6 @@ export function unreadLine(unread: readonly string[]): readonly string[] {
   if (unread.length === 0) return [];
   const files = unread.length === 1 ? '1 file' : `${unread.length} files`;
   return [`The declarations of ${files} were not read into the source index, so a name declared there is not known: ${firstNamed(unread)}.`];
-}
-
-/**
- * The sentence that names the files with an import the source index resolved
- * to no file and that could take `name`, so a use there is not listed, or
- * nothing when there is none.
- */
-export function unresolvedLine(name: string, unresolved: readonly string[]): readonly string[] {
-  if (unresolved.length === 0) return [];
-  const one = unresolved.length === 1;
-  return [
-    `${one ? '1 file imports' : `${unresolved.length} files import`} a specifier the index could not resolve to a file, and ${one ? 'it' : 'each'} could take \`${name}\`, so a use there is not listed: ${firstNamed(unresolved)}.`,
-  ];
 }
 
 function spanOf(start: number | null | undefined, end: number | null | undefined) {

@@ -22,10 +22,6 @@ use crate::package_owners::{owners, NO_OWNER};
 mod importers_walk;
 pub(crate) use importers_walk::importers_from;
 
-#[path = "help_unresolved.rs"]
-mod unresolved_walk;
-pub(crate) use unresolved_walk::{sources, Configurations};
-
 #[path = "help_usage_importers.rs"]
 mod importers_answer;
 pub(crate) use importers_answer::{importers, Asked, Importers, Namespace};

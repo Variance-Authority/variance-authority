@@ -107,8 +107,8 @@ export interface ScanOptions extends ResolveOptions {
    * Whether a file's bytes are read out of Git's object store. On when absent.
    *
    * `false` opens every file the scan reads from the working tree instead, and
-   * changes nothing else: Git still lists the files and names each one's blob,
-   * so reuse is keyed exactly as it is with packs. It is for a checkout whose
+   * changes nothing else: the files are still listed from HEAD's trees, each
+   * with its blob, so reuse is keyed exactly as it is with packs. It is for a checkout whose
    * object store is expensive or unsafe to open — a partial clone, a store on a
    * network filesystem — where the working tree is already on the disk.
    */

@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use super::{importers, Asked, Configurations, Importers, NameUse};
+use super::{importers, Asked, Importers, NameUse};
 use crate::compact::Layer;
 use crate::generation::Delta;
 use crate::graph_index::merged;
@@ -79,7 +79,7 @@ fn chain(files: &[(String, String)]) -> Vec<u8> {
 
 fn read(root: &PathBuf, bytes: &[u8], files: &[&str], name: &str) -> Importers {
     let layer = Layer::open(bytes).unwrap();
-    importers(root.to_str().unwrap(), std::slice::from_ref(&layer), &Configurations::default(), &[asked(files, name)])
+    importers(root.to_str().unwrap(), std::slice::from_ref(&layer), &[asked(files, name)])
 }
 
 /// Each of `files` asked under one `name`.
@@ -148,7 +148,7 @@ fn tells_each_group_apart_as_it_would_answer_alone() {
     // `greet.ts` asked twice keeps both answers; the last group asks two files as one question.
     let groups = [asked(&["src/greet.ts"], "greet"), asked(&["src/other.ts"], "greet"), asked(&["src/till.ts"], "default"), asked(&["src/greet.ts"], "greet"), asked(&["src/greet.ts", "src/other.ts"], "greet")];
 
-    let all = importers(root.0.to_str().unwrap(), std::slice::from_ref(&layer), &Configurations::default(), &groups);
+    let all = importers(root.0.to_str().unwrap(), std::slice::from_ref(&layer), &groups);
 
     assert_eq!(all.groups.len(), groups.len());
     for (answer, group) in all.groups.iter().zip(&groups) {

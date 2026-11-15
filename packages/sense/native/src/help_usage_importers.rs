@@ -8,7 +8,6 @@ use std::collections::{HashMap, HashSet};
 use napi_derive::napi;
 
 use super::importers_walk::importers_from;
-use super::unresolved_walk::{self, Configurations};
 use super::NameUse;
 use crate::compact::Layer;
 use crate::help_in_file::{in_file, InFile};
@@ -26,9 +25,6 @@ pub struct Importers {
     /// Every namespace a file passes a name asked on inside, by file in code
     /// units, then by name: `export * as shout` passes `greet` as `shout.greet`.
     pub namespaces: Vec<Namespace>,
-    /// Every file, in code-unit order, with an import the index resolved to
-    /// no file that could take the name: a use there is not listed.
-    pub unresolved: Vec<String>,
 }
 
 /// One file asked about, and the name it exports what is asked under.
@@ -84,7 +80,7 @@ pub struct Namespace {
 /// the names of two of its members is followed once. Each group's answer is
 /// what it would answer alone, so the declarations of one name, each asked as
 /// its own group, are told apart in one walk, a default export among them.
-pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configurations, asked: &[Vec<Asked>]) -> Importers {
+pub(crate) fn importers(root: &str, layers: &[Layer], asked: &[Vec<Asked>]) -> Importers {
     let mut origins: HashMap<String, HashMap<String, HashSet<usize>>> = HashMap::new();
     let mut by_name: HashMap<&str, Vec<String>> = HashMap::new();
     for (origin, group) in asked.iter().enumerate() {
@@ -93,12 +89,9 @@ pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configura
             by_name.entry(one.name.as_str()).or_default().push(one.file.clone());
         }
     }
-    let files: Vec<String> = asked.iter().flatten().map(|one| one.file.clone()).collect();
     let mut in_file: Vec<InFile> = by_name.into_iter().flat_map(|(name, files)| in_file(root, layers, &files, name)).collect();
     in_file.sort_by(|a, b| crate::order::code_unit(&a.at, &b.at).then(a.line.cmp(&b.line)));
     let walked = importers_from(root, layers, origins);
-    let passing: HashSet<String> = walked.through.iter().map(|(_, file)| file.clone()).collect();
-    let unresolved = unresolved_walk::unresolved(root, layers, configurations, &files, &passing, &walked.exports);
     let mut uses: Vec<Vec<NameUse>> = asked.iter().map(|_| Vec::new()).collect();
     for taken in walked.taken {
         uses[taken.origin].push(taken.taken);
@@ -127,5 +120,5 @@ pub(crate) fn importers(root: &str, layers: &[Layer], configurations: &Configura
     namespaces.sort_unstable_by(|a, b| {
         crate::order::code_unit(&a.at, &b.at).then_with(|| crate::order::code_unit(&a.name, &b.name)).then_with(|| a.members.len().cmp(&b.members.len()))
     });
-    Importers { groups, in_file, namespaces, unresolved }
+    Importers { groups, in_file, namespaces }
 }
