@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { defineConfig, mergeConfig } from 'vitest/config';
 import { withTestSelection } from '@variance-authority/sense/vitest';
 import { HANG } from './tools/hang-limit.mjs';
-import { nativeSources } from './tools/native-sources.mjs';
 import { marked, probeable } from './tools/page-side.mjs';
 import { MARKERS, PLACES, excludeOf, includeOf } from './tools/slices.mjs';
 
@@ -228,13 +227,13 @@ export const selectionOf = (name: SliceName) => ({
   // What governs every observation rather than any one of them. The seam
   // declares the config file Vite loaded and the local modules it imports, and
   // the selection reads the manifests and the lockfile as the install they
-  // record. What is left is what no import names: the compiler settings
-  // the built half is emitted under, and the crate the native addon is built
-  // from, which Node loads with `dlopen` and every instrumented module passed
-  // through (`tools/native-sources.mjs` says why that is every test). Editing a
-  // precondition retires every inherited crossing. A fixture or a workflow has
-  // no row of its own, and selects nothing until it is declared here.
-  preconditions: ['tsconfig.base.json', ...nativeSources(ROOT)],
+  // record. What is left is what no import names: the compiler settings the
+  // built half is emitted under. The crate the native addon is built from is
+  // declared by the module that loads it (`packages/sense/src/addon.ts`), so a
+  // crate edit charges the tests that import it rather than every test. Editing
+  // a precondition retires every inherited crossing. A fixture or a workflow
+  // has no row of its own, and selects nothing until it is declared here.
+  preconditions: ['tsconfig.base.json'],
 });
 
 /** The unit slice's, which `tools/native-sources.check.ts` holds to the crate. */
