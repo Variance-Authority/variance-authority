@@ -1,15 +1,15 @@
 # What a skipped test promises
 
 [Variance Authority](README.md) leaves a test file out of a run only when the
-record of its last run shows it ran none of the code you changed. A doubt
-about that record — there is none, it holds nothing whole, or git cannot
-compare the install — runs every test file at a gate, and on a laptop's edit
-loop runs only the tests that import a changed file; either way the first line
-names the doubt. A record that is there but cannot be reached stops the command
-instead. A changed file that neither the record nor your
-imports connect to any test keeps no test in the run, and the run names it so
-you can declare it. What no record can show is a short list, and the
-whole-suite run on your main branch is where a test it hid fails.
+record of its last run shows it ran none of the code you changed. When the
+record cannot answer — there is none, it holds nothing whole, or git cannot
+compare the install — the first line of output names why. In CI, `variance
+select` then runs every test file; in `yarn test:loop` or `variance select
+--local` it runs only the tests that import a changed file. A record that is
+there but cannot be read stops the command. A changed file that no import
+connects to a test runs no test, and is named so you can add a `/// <depends>`
+for it. The whole-suite run on your main branch is where a test a skip hid
+fails.
 
 ## One edit and its answer
 
@@ -160,7 +160,7 @@ non-zero rather than guess.
 
 The first line names the doubt and how many test files the importers selected.
 The test files it left are on the skip list and named on stderr; `--format
-json` carries no `widened`, and lists them under `fell.left`. A run without
+json` lists them under `fell.left`. A run without
 `--local` reads them from the commit they last ran at, so the next full run runs
 them.
 
