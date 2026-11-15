@@ -38,7 +38,6 @@ mod commit_text;
 mod compact;
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 mod large_alloc;
-
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 #[global_allocator]
 static ALLOCATOR: large_alloc::Mapped = large_alloc::Mapped;
@@ -85,6 +84,7 @@ mod journey_compose;
 mod journey_forks;
 mod journey_format;
 mod journey_graph;
+mod journal_scan;
 mod journey_journal;
 mod journey_lazy;
 mod journey_loaders;

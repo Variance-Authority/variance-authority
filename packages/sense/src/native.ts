@@ -25,7 +25,7 @@ import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-g
 import type {
   NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
   NativeJourneyProjection, NativeJourneyFold, NativeJourneyFoldResult,
-  NativeJourneyModule, NativeJourneyStitch, NativeJourneyStitchResult,
+  NativeJourneyModule, NativeJourneyStitch, NativeJourneyStitchResult, NativeCaseJournals,
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeCommitTexts } from './native-commit-text.js';
@@ -241,6 +241,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   stitchJourneys?(files: string[]): NativeJourneyStitch;
   /** Union and write compressed journey artifacts without returning their bytes to JavaScript. */
   stitchJourneysTo?(files: string[], output: string): NativeJourneyStitchResult;
+  /** Read a run's case journals for the case index a reporter lays. */
+  openCaseJournals?(directory: string, root: string): NativeCaseJournals;
   /** A journey file cut down to the changed modules, with cases only on the regions the change can ask about. */
   projectJourneys?(file: string, changed: NativeJourneyChange[]): NativeJourneyProjection;
   /** The test files a change needs, read off a journey file and the file graph; unsorted. */

@@ -1,7 +1,6 @@
 import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import caseOwner from './case-owner.cjs';
-import { timesAcross } from './case-times.js';
 import journals from './journal-format.cjs';
 
 /** The collectors as a worker loads them: built, as `collectors.test.ts` says. */
@@ -243,28 +242,5 @@ describe('how a case times its statements', () => {
 
     const { waits } = file.read();
     expect(at(waits, 7)).toBeGreaterThanOrEqual(60 * MS);
-  });
-});
-
-describe('the times of a case that ran twice', () => {
-  const quick = [{ line: 4, time: 30 }, { line: 9, time: 10 }];
-  const long = [{ line: 9, time: 80 }];
-
-  it('are the run that took longer in all, whichever comes first', () => {
-    expect(timesAcross(quick, long)).toEqual({ times: long });
-    expect(timesAcross(long, quick)).toEqual({ times: long });
-  });
-
-  it('are the lower run, line by line, where both took as long', () => {
-    const level = [{ line: 2, time: 80 }];
-
-    expect(timesAcross(long, level)).toEqual({ times: level });
-    expect(timesAcross(level, long)).toEqual({ times: level });
-  });
-
-  it('are the run there is, and absent where neither run was timed', () => {
-    expect(timesAcross(quick, undefined)).toEqual({ times: quick });
-    expect(timesAcross(undefined, quick)).toEqual({ times: quick });
-    expect(timesAcross(undefined, undefined)).toEqual({});
   });
 });
