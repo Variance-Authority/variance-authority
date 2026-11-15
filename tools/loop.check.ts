@@ -14,6 +14,8 @@ import { describe, expect, it } from 'vitest';
  *
  * Lint is the loop's first step and the same command the near wave starts
  * with, so a lint failure reaches the edit that made it and near finds no other.
+ * The near wave stands in front of every push, so its tests take at most 60 s
+ * of recorded test time per slice, at its own leg; CI runs what it leaves.
  */
 
 const steps = (line: string) => line.split('&&').map((step) => step.trim());
@@ -37,5 +39,14 @@ describe('the edit loop', () => {
   it('starts with the repository\'s lint, as the near wave does', () => {
     expect(steps(scripts['test:loop']!)[0]).toBe(scripts.lint);
     expect(steps(scripts['verify:near']!)[0]).toBe(scripts.lint);
+  });
+});
+
+describe('the near wave', () => {
+  const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<string, string>;
+
+  it('runs its leg within 60 s of recorded test time, so a push never waits on minutes of tests', () => {
+    expect(scripts['verify:near']).toContain('VARIANCE_AUTHORITY_BUDGET=60');
+    expect(scripts['verify:near']).toContain('VARIANCE_AUTHORITY_AT_DISTANCE=0-2');
   });
 });
