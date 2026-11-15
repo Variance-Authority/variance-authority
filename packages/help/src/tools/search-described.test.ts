@@ -7,7 +7,8 @@ import { declaredDescribedOf, describedWordsNative, sourceIndexPath } from '@var
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { queryDependencyLexicon, refreshDependencyLexicon } from '../dependency-lexicon.js';
-import { answerSearch, searchIndexOf } from './search.js';
+import { answerSearch } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 
 /**
  * A job is described in words, not in an identifier. A workspace that declares

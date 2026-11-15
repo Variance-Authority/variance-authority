@@ -1,7 +1,7 @@
 import type { Documented, Entry, Help, Opening } from '@variance-authority/package/help';
 import { everyEntry } from '@variance-authority/package/help';
-import { importsByPath } from './by-path.js';
-import { says } from './declaration-key.js';
+import { SLOT } from './declaration-key.js';
+import { exportedNamed, pathsWritten } from './rows.js';
 import { DECLARED_CAP, declarations, declaredAt, isNested, notShown, unreadLine } from './declared.js';
 import { CHECKER, checkerOf, type Members, membersStop } from './members.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
@@ -118,14 +118,14 @@ export function unfound(help: Help, name: string, within: string | undefined, sp
   // here only from outside the package asked about: the name is right, the
   // package is not, and the file says which one exports it.
   // `default` is a slot: a default nothing names was answered before here, and a named one is another name's.
-  const exported = help.exported.filter((held) => says(held.name, name) && held.kind === 'source');
+  const exported = name === SLOT ? [] : exportedNamed(help, name).filter((held) => held.kind === 'source');
   if (exported.length > 0) {
     const [first] = exported;
     const more = exported.length > 1 ? ` and ${exported.length - 1} more` : '';
     const unknown =
       within !== undefined &&
       exported.some((held) => within.startsWith(`${held.by}/`)) &&
-      !importsByPath(help, within).some(([deep]) => deep.specifier === within && deep.to !== undefined);
+      !pathsWritten(help, within).some(([deep]) => deep.to !== undefined);
     const why = unknown ? `; no import of ${where} in this workspace resolved to a file, so the file it names is not known` : '';
     return `\`${name}\` is not published by ${where}; it is exported, without being published, at ${first?.at}:${first?.line}${more}${why}.`;
   }

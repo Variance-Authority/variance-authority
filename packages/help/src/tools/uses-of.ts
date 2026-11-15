@@ -23,6 +23,7 @@ import { declarationsNamed } from './declared.js';
 import { FoundNothing, isPackage, nowhere, specifierOf } from './find.js';
 import { type Members, membersOf } from './members.js';
 import { answers, keyOf, originKey, originOf, says, SLOT } from './declaration-key.js';
+import { exportedIn } from './rows.js';
 import { type IndexedUse, type Within, exportsNamed, importsOf, indexMissing } from './unpublished.js';
 import { declaredIn, membersIn, notDeclaredIn, outsideLine } from './uses-declarations.js';
 
@@ -443,7 +444,7 @@ export function usesOf(help: Help, input: Readonly<Record<string, unknown>>, roo
 
 /** The package a published declaration is declared in, which a re-exporting door is not. */
 function homeOf(help: Help, declaration: PublishedDeclaration): string | undefined {
-  return packageOf(help.exported.find((held) => held.at === declaration.at)?.by ?? declaration.doors[0]![0].name);
+  return packageOf(exportedIn(help, declaration.at)[0]?.by ?? declaration.doors[0]![0].name);
 }
 
 /**

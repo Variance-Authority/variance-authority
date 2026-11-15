@@ -17,8 +17,8 @@
 import type { Help, Named, Taken, Use } from '@variance-authority/package/help';
 import { importersOf } from '@variance-authority/sense';
 import { useOf } from '../native-use.js';
-import { importsByPath } from './by-path.js';
-import { answers, says } from './declaration-key.js';
+import { answering as answersTo, says } from './declaration-key.js';
+import { pathsWritten } from './rows.js';
 
 /** What an import count leaves out: a use that names the export without importing it. */
 export const UNCOUNTED = 'a namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted';
@@ -28,7 +28,7 @@ export const UNCOUNTED = 'a namespace imported by name that goes somewhere whole
  * and every default export its declaration is named `name` by.
  */
 export function exportsNamed(help: Help, root: string | undefined, name: string, within: string | undefined): readonly Named[] {
-  const answering = help.exported.filter((held) => held.kind === 'source' && answers(help, root, held, name));
+  const answering = answersTo(help, root, name).filter((held) => held.kind === 'source');
   // A file that exports the binding by the name is answered by that export, not by its other names.
   const spelled = answering.filter((held) => says(held.name, name));
   const keyed = answering.filter((held) => !says(held.name, name) && !spelled.some((other) => other.at === held.at));
@@ -43,7 +43,7 @@ export function exportsNamed(help: Help, root: string | undefined, name: string,
  */
 function fileOf(help: Help, held: Named, within: string): boolean {
   if (!within.startsWith(`${held.by}/`)) return false;
-  return importsByPath(help, within).some(([deep]) => deep.specifier === within && deep.to === held.at);
+  return pathsWritten(help, within).some(([deep]) => deep.to === held.at);
 }
 
 /** `at:line`, and how many more exports there are past the first. */

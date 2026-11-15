@@ -1,42 +1,18 @@
-import type { Deep, Documented, Entry, Help, Named, Opening, Taken, Use } from '@variance-authority/package/help';
+import type { Deep, Documented, Entry, Help, Named, Opening, Use } from '@variance-authority/package/help';
 import { NONE } from '@variance-authority/core/segment';
-import { THROUGH, USE_KINDS, type Sections } from './store-layout.js';
+import type { Sections } from './store-layout.js';
+import { decodersOf } from './store-rows.js';
 
 /**
  * The Help value of one opened store, decoded a field at a time: a question
  * that reads only `packages` never decodes the export list.
  */
-export function helpOf({ bytesOf, u32, string, maybe, slice }: Sections): Help {
+export function helpOf(sections: Sections): Help {
+  const { bytesOf, u32, string, maybe, slice } = sections;
   const nameString = u32('names.name');
   const name = (id: number): string => string(nameString[id] ?? NONE);
-  const useAt = u32('use.at');
-  const use = {
-    by: u32('use.by'), line: u32('use.line'), flags: bytesOf('use.flags'),
-    throughLine: u32('use.throughLine'), local: u32('use.local'), name: u32('use.name'),
-  };
-  const useOf = (row: number): Use => {
-    const flags = use.flags[row] ?? 0;
-    const local = maybe(use.local[row]);
-    const through = THROUGH[(flags >> 3) & 3];
-    return {
-      by: string(use.by[row] ?? NONE),
-      at: string(useAt[row] ?? NONE),
-      line: use.line[row] ?? 0,
-      type: (flags & 1) === 1,
-      kind: USE_KINDS[(flags >> 1) & 3] ?? 'source',
-      ...(local === undefined ? {} : { local }),
-      ...(through === undefined
-        ? {}
-        : {
-            through: {
-              kind: through,
-              line: use.throughLine[row] ?? 0,
-              ...((flags & 32) === 0 ? {} : { throughDefault: true as const }),
-              ...((flags & 64) === 0 ? {} : { whole: true as const }),
-            },
-          }),
-    };
-  };
+  const decoders = decodersOf(sections);
+  const useOf = decoders.use;
   const usesIn = (from: number, to: number): Use[] => {
     const found: Use[] = [];
     for (let row = from; row < to; row += 1) found.push(useOf(row));
@@ -97,57 +73,15 @@ export function helpOf({ bytesOf, u32, string, maybe, slice }: Sections): Help {
     return found;
   };
   const deepGroup = (group: 0 | 1 | 2): Deep[] => {
-    const deep = {
-      specifier: u32('deep.specifier'), by: u32('deep.by'), at: u32('deep.at'), line: u32('deep.line'),
-      to: u32('deep.to'), namesOff: u32('deep.namesOff'), groups: u32('deep.groups'),
-    };
-    const from = group === 0 ? 0 : (deep.groups[group - 1] ?? 0);
+    const groups = u32('deep.groups');
     const found: Deep[] = [];
-    for (let row = from; row < (deep.groups[group] ?? 0); row += 1) {
-      const to = maybe(deep.to[row]);
-      const names: Taken[] = [];
-      for (let at = deep.namesOff[row] ?? 0; at < (deep.namesOff[row + 1] ?? 0); at += 1) {
-        names.push({ name: string(use.name[at] ?? NONE), ...useOf(at) });
-      }
-      found.push({
-        specifier: string(deep.specifier[row] ?? NONE),
-        by: string(deep.by[row] ?? NONE),
-        at: string(deep.at[row] ?? NONE),
-        line: deep.line[row] ?? 0,
-        ...(to === undefined ? {} : { to }),
-        names,
-      });
-    }
+    for (let row = group === 0 ? 0 : (groups[group - 1] ?? 0); row < (groups[group] ?? 0); row += 1) found.push(decoders.path(row));
     return found;
   };
   const exported = (): Named[] => {
-    const exp = { name: u32('exp.name'), at: u32('exp.at'), by: u32('exp.by'), line: u32('exp.line'), doc: u32('exp.doc') };
-    const expKind = bytesOf('exp.kind');
-    const more = {
-      type: bytesOf('exp.type'), bound: u32('exp.bound'), declaration: u32('exp.declaration'),
-      boundLine: u32('exp.boundLine'), signature: u32('exp.signature'),
-    };
     const found: Named[] = [];
-    for (let row = 0; row < exp.name.length; row += 1) {
-      const bound = maybe(more.bound[row]);
-      const declaration = maybe(more.declaration[row]);
-      const boundLine = more.boundLine[row] ?? NONE;
-      const doc = maybe(exp.doc[row]);
-      const signature = maybe(more.signature[row]);
-      found.push({
-        name: name(exp.name[row] ?? NONE),
-        at: string(exp.at[row] ?? NONE),
-        by: string(exp.by[row] ?? NONE),
-        line: exp.line[row] ?? 0,
-        type: more.type[row] === 1,
-        kind: USE_KINDS[expKind[row] ?? 0] ?? 'source',
-        ...(bound === undefined ? {} : { bound }),
-        ...(declaration === undefined ? {} : { declaration }),
-        ...(boundLine === NONE ? {} : { boundLine }),
-        ...(doc === undefined ? {} : { doc }),
-        ...(signature === undefined ? {} : { signature }),
-      });
-    }
+    const count = u32('exp.name').length;
+    for (let row = 0; row < count; row += 1) found.push(decoders.named(row));
     return found;
   };
   return lazily<Help>({

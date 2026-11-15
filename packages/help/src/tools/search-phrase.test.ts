@@ -5,7 +5,7 @@ import { nearOfNative } from '@variance-authority/sense';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import type { SearchIndex } from '../search-index.js';
 import { searchNames } from './search-answer.js';
-import { searchIndexOf } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 
 /**
  * A doc writes a question of several words when one paragraph holds them in

@@ -10,7 +10,7 @@
  * export that passes it on under a name.
  *
  * The package stage carries what each export binds in its own file, so a key
- * is computed in memory; only an anonymous default and an export that passes
+ * is computed from that file's rows; only an anonymous default and an export that passes
  * another file's declaration on read the source index, once each per `Help`.
  */
 
@@ -19,6 +19,8 @@
 import type { Help, Named } from '@variance-authority/package/help';
 import { aliasesOf, declarationExported, importersOf, type ExportedDeclaration } from '@variance-authority/sense';
 import { codeUnitOrder } from '@variance-authority/core/segment';
+import { exportedAmong, exportedIn } from './rows.js';
+import { searchIndexOf } from '../snapshot.js';
 import { nearestTo } from './shared-segments.js';
 
 /** The name a default export is published under, which names nothing. */
@@ -34,11 +36,15 @@ export interface Key {
   readonly spellings: readonly string[];
 }
 
+/** What one file's exports bind: the name each export of a binding of its own binds, and, by binding, every name the file exports it under. */
+interface FileKeys {
+  readonly binds: ReadonlyMap<string, string>;
+  readonly names: ReadonlyMap<string, readonly string[]>;
+}
+
 interface Keys {
-  /** By file, the name each export of a binding of its own binds. */
-  readonly binds: ReadonlyMap<string, ReadonlyMap<string, string>>;
-  /** By file, and by binding, every name the file exports it under. */
-  readonly names: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
+  /** By file, as each is asked about: a question names a few files, and the export list holds every file's. */
+  readonly files: Map<string, FileKeys>;
   readonly anonymous: Map<string, string | undefined>;
   readonly origins: Map<string, ExportedDeclaration | undefined>;
   readonly aliased: Map<string, ReadonlySet<string>>;
@@ -49,25 +55,28 @@ const memo = new WeakMap<Help, Map<string, Keys>>();
 function keysOf(help: Help, root: string | undefined): Keys {
   const byRoot = memo.get(help) ?? new Map<string, Keys>();
   memo.set(help, byRoot);
-  const held = byRoot.get(root ?? '');
-  if (held !== undefined) return held;
-  const binds = new Map<string, Map<string, string>>();
-  const names = new Map<string, Map<string, string[]>>();
-  for (const one of help.exported) {
-    if (one.bound === undefined) continue;
-    const file = binds.get(one.at) ?? new Map<string, string>();
-    binds.set(one.at, file);
-    file.set(one.name, one.bound);
-    const bound = names.get(one.at) ?? new Map<string, string[]>();
-    names.set(one.at, bound);
-    const spelled = bound.get(one.bound) ?? [];
-    bound.set(one.bound, spelled);
-    if (!spelled.includes(one.name)) spelled.push(one.name);
-  }
-  for (const file of names.values()) for (const spelled of file.values()) spelled.sort(codeUnitOrder);
-  const keys: Keys = { binds, names, anonymous: new Map(), origins: new Map(), aliased: new Map() };
-  byRoot.set(root ?? '', keys);
+  let keys = byRoot.get(root ?? '');
+  if (keys === undefined) byRoot.set(root ?? '', (keys = { files: new Map(), anonymous: new Map(), origins: new Map(), aliased: new Map() }));
   return keys;
+}
+
+/** What the exports of `at` bind, read off that file's rows alone. */
+function fileKeys(help: Help, keys: Keys, at: string): FileKeys {
+  let held = keys.files.get(at);
+  if (held === undefined) {
+    const binds = new Map<string, string>();
+    const names = new Map<string, string[]>();
+    for (const one of exportedIn(help, at)) {
+      if (one.bound === undefined) continue;
+      binds.set(one.name, one.bound);
+      const spelled = names.get(one.bound) ?? [];
+      names.set(one.bound, spelled);
+      if (!spelled.includes(one.name)) spelled.push(one.name);
+    }
+    for (const spelled of names.values()) spelled.sort(codeUnitOrder);
+    keys.files.set(at, (held = { binds, names }));
+  }
+  return held;
 }
 
 /**
@@ -78,7 +87,7 @@ function keysOf(help: Help, root: string | undefined): Keys {
  */
 export function keyOf(help: Help, root: string | undefined, held: Pick<Named, 'at' | 'name'>): Key {
   const keys = keysOf(help, root);
-  const bound = keys.binds.get(held.at)?.get(held.name);
+  const bound = fileKeys(help, keys, held.at).binds.get(held.name);
   if (bound !== undefined) return ownKey(help, root, keys, held.at, bound);
   const origin = originOf(help, root, held);
   if (origin === undefined) return { at: held.at, named: held.name, spellings: [held.name] };
@@ -88,12 +97,12 @@ export function keyOf(help: Help, root: string | undefined, held: Pick<Named, 'a
 /** The key of `origin`, a declaration the source index walked to: its declaring file's export of the same binding. */
 export function originKey(help: Help, root: string | undefined, origin: ExportedDeclaration): Key {
   const keys = keysOf(help, root);
-  const own = [...(keys.binds.get(origin.at) ?? [])].some(([, binds]) => binds === origin.name);
+  const own = [...fileKeys(help, keys, origin.at).binds].some(([, binds]) => binds === origin.name);
   return own ? ownKey(help, root, keys, origin.at, origin.name) : { at: origin.at, named: origin.name, spellings: [origin.name] };
 }
 
 function ownKey(help: Help, root: string | undefined, keys: Keys, at: string, bound: string): Key {
-  const spellings = keys.names.get(at)?.get(bound) ?? [bound];
+  const spellings = fileKeys(help, keys, at).names.get(bound) ?? [bound];
   const named = spellings.includes(bound) ? bound : (spellings.find((one) => one !== SLOT) ?? bound);
   return { at, named: named === SLOT ? (anonymousName(help, root, keys, at) ?? SLOT) : named, spellings };
 }
@@ -108,12 +117,35 @@ function ownKey(help: Help, root: string | undefined, keys: Keys, at: string, bo
  */
 export function answers(help: Help, root: string | undefined, held: Pick<Named, 'at' | 'name'>, name: string): boolean {
   if (says(held.name, name)) return true;
-  const bound = keysOf(help, root).binds.get(held.at)?.get(held.name);
+  const bound = fileKeys(help, keysOf(help, root), held.at).binds.get(held.name);
   if (bound === undefined) return name === SLOT && held.name === SLOT && keyOf(help, root, held).named === SLOT;
   // An anonymous default answers every local name an import of it gives, the one it is keyed by among them.
   if (bound === SLOT && name !== SLOT) return aliasedTo(help, root, name).has(held.at);
   const key = keyOf(help, root, held);
   return key.named === name || key.spellings.some((one) => says(one, name));
+}
+
+/**
+ * Every export that answers to `name`, in the order the export list holds
+ * them. An export answers by its own name, by a name its file exports the
+ * same binding under, by the name its file binds a default nothing else names
+ * as, or, for an anonymous default, by a local name an import gives it: so the
+ * rows that can answer are the ones written under the name, the other rows of
+ * their files, the rows bound as the name, and the rows of the files an import
+ * of `default` bound to the name reaches. Asked by the slot, the defaults and
+ * the rows bound as it.
+ */
+export function answering(help: Help, root: string | undefined, name: string): readonly Named[] {
+  const rows = searchIndexOf(help).rows;
+  const spelled = rows.exportedNamed(name);
+  const can = new Set<number>(spelled);
+  if (name !== SLOT) {
+    const files = new Set([...spelled].map((row) => rows.named(row).at));
+    for (const at of aliasedTo(help, root, name)) files.add(at);
+    for (const at of files) for (const row of rows.exportedIn(at)) can.add(row);
+  }
+  for (const row of rows.exportedBinding(name)) can.add(row);
+  return [...can].sort((left, right) => left - right).map(rows.named).filter((held) => answers(help, root, held, name));
 }
 
 /**
@@ -141,7 +173,7 @@ function whenRead<T>(read: () => T): T | undefined {
 
 /** The declaration `held` passes on from another file, as the source index walks to it; none when its own file declares it or the index does not read. */
 export function originOf(help: Help, root: string | undefined, held: Pick<Named, 'at' | 'name'>): ExportedDeclaration | undefined {
-  if (root === undefined || keysOf(help, root).binds.get(held.at)?.has(held.name) === true) return undefined;
+  if (root === undefined || fileKeys(help, keysOf(help, root), held.at).binds.has(held.name)) return undefined;
   const origins = keysOf(help, root).origins;
   const at = `${held.at}\0${held.name}`;
   if (!origins.has(at)) {
@@ -186,6 +218,6 @@ function anonymousName(help: Help, root: string | undefined, keys: Keys, at: str
 
 /** The name the export nearest `at` among `through`, the files that pass its default on, gives it. */
 function doorName(help: Help, root: string, at: string, through: ReadonlySet<string>): string | undefined {
-  const naming = help.exported.filter((door) => through.has(door.at) && door.bound === undefined && door.name !== SLOT && door.kind === 'source' && originOf(help, root, door)?.at === at && originOf(help, root, door)?.name === SLOT);
+  const naming = exportedAmong(help, through).filter((door) => door.bound === undefined && door.name !== SLOT && door.kind === 'source' && originOf(help, root, door)?.at === at && originOf(help, root, door)?.name === SLOT);
   return naming.sort(nearestTo(at))[0]?.name;
 }
