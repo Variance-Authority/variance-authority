@@ -8,9 +8,9 @@
  * The record names, per test, the files it loaded only after its first case, so
  * the sequencer's `sort`, which Jest awaits before its global setup and workers,
  * transforms those through Jest's own transformer across `maxWorkers`. Nothing
- * here decides what a test runs. Vitest and Rstest are not warmed on purpose:
- * Vite transforms in one main thread, and a Vitest warm-up made TanStack's suite
- * slower, 16.0 s to 16.7 s (issue #1402).
+ * here decides what a test runs. Vitest is not warmed: Vite transforms in one
+ * main thread, and a warm-up made TanStack's suite slower, 16.0 s to 16.7 s
+ * (issue #1402). Rstest is not: 0.12.6 was measured compiling nothing in a case.
  */
 
 // compass: variance-authority.reach
@@ -67,7 +67,8 @@ export interface WarmingOptions {
  * loaded late, before Jest starts a worker; with none, start no worker and say
  * nothing. An ES module project, an `.mjs` test and coverage over only the
  * changed files take options the copied CommonJS ones are not, and are left to
- * Jest. Never rejects: a warm-up that could not run leaves the run as it was.
+ * Jest. Never rejects: a warm-up that could not run says so and leaves the run
+ * as it was.
  */
 export async function warmRecorded(tests: readonly Test[], globalConfig: GlobalConfig, options: WarmingOptions): Promise<void> {
   // A run that lists or collects its tests transforms none of them.
@@ -114,8 +115,9 @@ export async function warmRecorded(tests: readonly Test[], globalConfig: GlobalC
     } finally {
       await pool.end();
     }
-  } catch {
+  } catch (error) {
     // Nothing was warmed, or not all of it: Jest transforms the rest where a test loads it.
+    say(`variance-authority: the warm-up stopped, and Jest transforms what it left: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

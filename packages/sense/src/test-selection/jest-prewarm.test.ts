@@ -39,4 +39,18 @@ describe('a selected Jest run', () => {
     expect(await reads(tests, { collectCoverage: true, onlyChanged: true })).toBe(false);
     expect(await reads(tests, { collectCoverage: false, onlyChanged: true })).toBe(true);
   });
+
+  it('says when a warm-up could not run, and leaves the run to Jest', async () => {
+    const said: string[] = [];
+    await warmRecorded([{ path: '/repo/a.test.ts', context: COMMONJS }], {}, {
+      root: '/repo',
+      rootDir: '/repo',
+      record: async () => {
+        throw new Error('the record is unreadable');
+      },
+      say: (line) => said.push(line),
+    });
+
+    expect(said).toEqual(['variance-authority: the warm-up stopped, and Jest transforms what it left: the record is unreadable']);
+  });
 });
