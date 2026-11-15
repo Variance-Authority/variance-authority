@@ -7,7 +7,6 @@
  * story's.
  */
 
-import { askCoverageFile } from '../test-selection/coverage-file.js';
 import { lineOf } from '../test-selection/case-lines.js';
 import { shareOf } from '../test-selection/case-times.js';
 import { newestRegions } from '../test-selection/case-readings.js';
@@ -42,10 +41,10 @@ export interface ExplainedCase {
   readonly unlined: readonly OutcomeRegion[];
 }
 
-/** A case explained, with the record it was read from and the commit that record was written at. */
+/** A case explained, with the record it was read from and its id there. */
 export interface RecordedExplanation extends ExplainedCase {
   readonly record: string;
-  readonly commit?: string;
+  readonly id: string;
 }
 
 /** A case's statements from its times and the regions its newest run crossed, as {@link ExplainedCase} lays them out. */
@@ -92,17 +91,5 @@ export function statementsOf(
 
 /** Every case {@link namedCases} finds, explained from its newest run. */
 export function recordedStatements(root: string, name: string, file?: string): RecordedExplanation[] {
-  return [...namedCases(root, name, file, ['index'])].map(({ record, opened, test }) => {
-    const commit = commitOf(record);
-    return { ...statementsOf(test, newestRegions(opened, test.id) ?? []), record, ...(commit === undefined ? {} : { commit }) };
-  });
-}
-
-/** The commit `record` was written at; absent outside a checkout or where it cannot be read. */
-function commitOf(record: string): string | undefined {
-  try {
-    return askCoverageFile(record, (coverage) => coverage.commit);
-  } catch {
-    return undefined;
-  }
+  return [...namedCases(root, name, file, ['index'])].map(({ record, opened, test }) => ({ ...statementsOf(test, newestRegions(opened, test.id) ?? []), record, id: test.id }));
 }

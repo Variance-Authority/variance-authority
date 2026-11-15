@@ -5,11 +5,13 @@
  * it, its time and the regions it was the first to run.
  */
 
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { recordedCommit } from '@variance-authority/sense/test-selection';
 import { recordedStatements, STORY_VARIABLE, type OutcomeRegion, type RecordedExplanation, type Statement, type StoryEntry } from '@variance-authority/sense/story';
 import { packageName, packageOf } from '../package-home.js';
+import { ranOf } from './covering-ran.js';
+import { runsOnce } from './record-runs.js';
 import { LISTED } from './story-compare.js';
 import { regionText, untapedCase } from './story-outcomes.js';
 
@@ -19,10 +21,10 @@ export interface ExplainedStatement extends Statement {
 }
 
 /** A case explained, with what the checkout says of it now. */
-export interface Explained extends Omit<RecordedExplanation, 'statements' | 'commit'> {
+export interface Explained extends Omit<RecordedExplanation, 'statements' | 'record' | 'id'> {
   readonly statements: readonly ExplainedStatement[];
-  /** Whether the test file changed since the record was written; absent where that could not be told. */
-  readonly moved?: boolean;
+  /** Whether the test file on disk is not the text its newest run ran over, as the runs record says, or why that is not known. */
+  readonly moved: boolean | { readonly unknown: string };
   /** The package each region's file is in, by its manifest; a file under none is absent. */
   readonly packages: Readonly<Record<string, string>>;
 }
@@ -32,21 +34,21 @@ export interface Explained extends Omit<RecordedExplanation, 'statements' | 'com
  * it is taped among `stories`, or no record holds it, so the story's own
  * answer is given.
  */
-export function explainedCase(root: string, stories: readonly StoryEntry[], name: string | undefined, file: string | undefined): { readonly explained: Explained } | undefined {
+export async function explainedCase(root: string, stories: readonly StoryEntry[], name: string | undefined, file: string | undefined): Promise<{ readonly explained: Explained } | undefined> {
   const found = untapedCase(stories, name, file, (named) => recordedStatements(root, named, file));
   if (found === undefined) return undefined;
-  const { commit, statements, ...rest } = found;
-  const source = sourceLines(root, rest.file);
+  const { record, id, statements, ...rest } = found;
+  const held = await readFile(join(root, rest.file), 'utf8').catch(() => undefined);
+  const source = held?.split('\n');
   const packages: Record<string, string> = {};
   for (const { file: at } of [...statements, ...rest.hooks].flatMap((statement) => statement.regions).concat(rest.unlined)) {
     const home = packageOf(root, at);
     if (home !== undefined) packages[at] = packageName(root, home);
   }
-  const moved = changedSince(root, commit, rest.file);
   return {
     explained: {
       ...rest,
-      ...(moved === undefined ? {} : { moved }),
+      moved: await movedSince(root, record, { id, file: rest.file, name: rest.name }, held),
       statements: statements.map((statement) => {
         const text = statement.line === 0 ? undefined : source?.[statement.line - 1]?.trim();
         return { ...statement, ...(text === undefined || text === '' ? {} : { text }) };
@@ -56,29 +58,23 @@ export function explainedCase(root: string, stories: readonly StoryEntry[], name
   };
 }
 
-function sourceLines(root: string, file: string): string[] | undefined {
-  try {
-    return readFileSync(join(root, file), 'utf8').split('\n');
-  } catch {
-    return undefined;
-  }
-}
-
-/** Whether `file` differs from what `commit` held; absent with no commit, or where git cannot say. */
-function changedSince(root: string, commit: string | undefined, file: string): boolean | undefined {
-  if (commit === undefined) return undefined;
-  try {
-    // A file the commit does not hold is not unchanged, and `git diff` says nothing of an untracked one.
-    execFileSync('git', ['cat-file', '-e', `${commit}:./${file}`], { cwd: root, stdio: 'pipe' });
-  } catch {
-    return undefined;
-  }
-  try {
-    execFileSync('git', ['diff', '--quiet', commit, '--', file], { cwd: root, stdio: 'pipe' });
-    return false;
-  } catch (error) {
-    return (error as { status?: number }).status === 1 ? true : undefined;
-  }
+/** Whether `held`, the test file as the checkout holds it, is not the text the case's newest run ran over, as {@link ranOf} reads the runs record. */
+async function movedSince(root: string, record: string, test: { id: string; file: string; name: string }, held: string | undefined): Promise<Explained['moved']> {
+  if (held === undefined) return { unknown: 'the test file is not on disk' };
+  const at = await recordedCommit(record);
+  const { ran } = await ranOf({ file: test.file, tests: [test] }, {
+    root,
+    snapshot: at === undefined ? undefined : record,
+    at,
+    runs: runsOnce(record, root),
+    held,
+  });
+  if (ran === undefined) return { unknown: 'the record names no run of it' };
+  if ('unread' in ran) return { unknown: ran.unread };
+  const stand = ran.stands[0];
+  if (stand?.text === 'held') return false;
+  if (stand?.text === 'other') return true;
+  return { unknown: stand?.unknown ?? 'the runs record holds no text it ran over' };
 }
 
 /** A case explained as text: its statements in the order first reached, each with the regions it was the first to run, then its hooks' and the unlined. */
@@ -89,8 +85,8 @@ export function formatExplained(explained: Explained, format: 'text' | 'json'): 
     '  each statement once, at the line that first reached it, with the regions it was the first to run;',
     `  for the order and the repeats, run the test with ${STORY_VARIABLE}=1 and read its story`,
   ];
-  if (explained.moved === true) text.push('  the test file changed since the record was written, so a line may have moved');
-  if (explained.moved === undefined) text.push('  could not tell whether the test file changed since the record was written');
+  if (explained.moved === true) text.push('  the test file changed since its run, so a line may have moved');
+  if (typeof explained.moved === 'object') text.push(`  could not tell whether the test file changed since its run: ${explained.moved.unknown}`);
   if (explained.duration !== undefined) text.push(`  ran ${explained.duration} ms`);
   if (!explained.lined) {
     text.push('  recorded without statement lines, so no region is charged to one');

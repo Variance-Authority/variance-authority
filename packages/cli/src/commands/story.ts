@@ -65,7 +65,7 @@ export type StoryAnswer =
   | { readonly stories: readonly StoryEntry[] };
 
 /** The story the flags name, read as a route; every candidate when they name several. */
-export function story(parsed: ParsedStory): StoryAnswer {
+export async function story(parsed: ParsedStory): Promise<StoryAnswer> {
   const file = parsed.file === undefined ? undefined : checkoutFile(parsed.root, parsed.file);
   const zoom = parsed.zoom !== undefined && 'in' in parsed.zoom ? { in: checkoutFile(parsed.root, parsed.zoom.in) } : parsed.zoom;
   const all = listStories(parsed.root);
@@ -74,7 +74,7 @@ export function story(parsed: ParsedStory): StoryAnswer {
   if (recorded !== undefined) return recorded;
   // The record keeps one run of a case, under no project, so a project asked for is a story's to tell.
   const plain = compare === undefined && parsed.zoom === undefined && parsed.label === undefined && parsed.project === undefined;
-  const explained = plain ? explainedCase(parsed.root, all, parsed.name, file) : undefined;
+  const explained = plain ? await explainedCase(parsed.root, all, parsed.name, file) : undefined;
   if (explained !== undefined) return explained;
   if (all.length === 0) {
     throw new OperatorError(
