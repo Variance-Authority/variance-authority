@@ -75,7 +75,7 @@ describe('a selection that cannot narrow, asked `--local`', () => {
 
     expect(kept(gate, [A, B, unseen])).toEqual([A, B, unseen]);
     expect(kept(local, [A, B, unseen])).toEqual([A]);
-    expect(local.reading.fell).toMatchObject({ only: [A] });
+    expect(local.reading.only).toEqual([A]);
   });
 
   it('runs a changed test file that nothing imports, as its own evidence', async () => {

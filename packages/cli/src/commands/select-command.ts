@@ -149,7 +149,7 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   const fall = async (input: SelectInput, held?: Held, record?: string): Promise<SuiteReading> => {
     const narrowed = suiteOf(input, leg);
     if (request.local !== true || narrowed.declined === undefined || input.ground.kind === 'before') return narrowed;
-    const answer = await localAnswer(request, input.ground, held, record);
+    const answer = await localAnswer(request, input.ground, narrowed.declined, held, record);
     return 'whole' in answer
       ? suiteOf({ ...input, ground: { kind: 'before', whole: answer.whole.says, rests: answer.whole.rests } }, leg)
       : suiteOf(input, leg, answer);

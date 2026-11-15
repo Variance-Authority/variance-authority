@@ -231,11 +231,9 @@ export interface TestSelection {
   /**
    * Under `--local`, the rung a reading the record could not answer fell to
    * (the changed files' importers), the reason, the test files that rung
-   * left, which `skip` holds, and `only`, the test files that run: a file a
-   * runner discovers outside it, one no index or record holds included, does
-   * not. Absent otherwise.
+   * left, which `skip` holds. Absent otherwise.
    */
-  readonly fell?: { readonly rung: 'importers'; readonly from: string; readonly left: readonly string[]; readonly only: readonly string[] };
+  readonly fell?: { readonly rung: 'importers'; readonly from: string; readonly left: readonly string[] };
 }
 
 /**

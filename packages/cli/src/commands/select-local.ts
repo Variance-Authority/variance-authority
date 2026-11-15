@@ -79,7 +79,7 @@ export interface Held {
 }
 
 /**
- * The ladder's answer for a reading declined on `ground`, or the changed files
+ * The ladder's answer for a reading declined on `ground` for the reason `declined`, or the changed files
  * the suite rests on, which run the whole suite. A change not yet read is the
  * patch handed in, or the diff from `--since`, else from `HEAD`'s merge base
  * with the mainline, so committed work counts, else from `HEAD`. A `--since`
@@ -90,6 +90,7 @@ export interface Held {
 export async function localAnswer(
   request: SuiteRequest,
   ground: SelectGround,
+  declined: string,
   held?: Held,
   record?: string,
 ): Promise<LocalAnswer | Required<Pick<Resting, 'whole'>>> {
@@ -98,7 +99,7 @@ export async function localAnswer(
   const changed = held?.changed ?? (diff === undefined ? undefined : [...changedLines(diff).keys()]);
   if (changed === undefined) {
     throw new OperatorError(
-      `${whyDeclined(ground)}, and \`--local\` could not read what changed from the mainline's merge base or from \`HEAD\` either. ` +
+      `${declined}, and \`--local\` could not read what changed from the mainline's merge base or from \`HEAD\` either. ` +
         'With no change there is nothing to select by, and an empty answer would look like a clean one, so it refuses. Run it in a git checkout.',
     );
   }
@@ -115,23 +116,6 @@ export async function localAnswer(
     changed,
     whole: [...(ground.kind === 'read' ? ground.narrowing.whole : []), ...recordedTests(record)],
   });
-}
-
-/** What a declined ground could not read, as the refusal opens. */
-function whyDeclined(ground: SelectGround): string {
-  switch (ground.kind) {
-    case 'no-diff':
-      return `the selection cannot read what changed since ${ground.from}`;
-    case 'no-journal':
-      return 'there is no execution journal to narrow by';
-    case 'no-coverage':
-      return 'the record holds no coverage';
-    case 'no-install':
-      return ground.whole;
-    case 'before':
-    case 'read':
-      return 'the record cannot narrow';
-  }
 }
 
 /** The diff from `since`, or, unasked, from the mainline fork, else `HEAD`; a `since` it cannot read is refused. */
@@ -184,7 +168,7 @@ export function fellTo(selection: TestSelection, answer: LocalAnswer): TestSelec
     skip: answer.left,
     // No evidence, no test: a file the seam discovers that neither the index nor the record holds is not selected.
     only: answer.selected,
-    fell: { rung: answer.rung, from: widened!, left: answer.left, only: answer.selected },
+    fell: { rung: answer.rung, from: widened!, left: answer.left },
     because: `${widened}, so \`--local\` selected the test files that import the changed files, by the source index: ${answer.selected.length} of ${many(total, 'test file')}`,
     notes: [
       ...(answer.unheld.length === 0
