@@ -258,9 +258,9 @@ pub(crate) fn read_all(
 }
 
 /// The threads that open `files` worktree files at once: `readers`, or
-/// `READERS`, and never more than there are files. Anything that opens a list
-/// of worktree files opens them here, because the width is the filesystem's
-/// answer, not the job's (journal 0065).
+/// `READERS`, and never more than there are files. The disk reader and the
+/// native search both open their files in it, because past a few threads at
+/// once each `open` costs the kernel more (journal 0065).
 pub(crate) fn opening_pool(readers: Option<u32>, files: usize) -> Result<ThreadPool, ThreadPoolBuildError> {
     ThreadPoolBuilder::new()
         .num_threads(readers.map_or(READERS, |count| count as usize).min(files.max(1)))

@@ -4,9 +4,9 @@
 //! are ripgrep's own crates, configured as `rg` configures them for files named
 //! on its command line, so a query matches here what it matches there. Hits
 //! cross as columns, and a line is cut before it crosses: one match in a
-//! minified bundle is a megabyte of line. The files are searched by the pool
-//! that opens worktree files, not on every core: past a few threads at once,
-//! each `open` costs more.
+//! minified bundle is a megabyte of line. The files are searched in the disk
+//! reader's opening pool, not on every core: past a few threads at once, each
+//! `open` costs more.
 
 // compass: variance-authority.report.agent-surface
 
@@ -63,7 +63,7 @@ pub fn ripgrep(root: String, pattern: String, files: Vec<String>) -> napi::Resul
             )
             .collect()
     };
-    // Every search opens its file, so the files are searched at the width that opens them.
+    // Every search opens its file, so the files are searched at the disk reader's width.
     let searched = match opening_pool(None, files.len()) {
         Ok(pool) => pool.install(search),
         Err(_) => search(),
