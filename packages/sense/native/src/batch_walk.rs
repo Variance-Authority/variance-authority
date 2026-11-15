@@ -18,6 +18,8 @@ use crate::parse_origin::FromBlob;
 use crate::resolve::Resolvers;
 
 const RESOLVERS: usize = 6;
+/// Files a wave reads before it resolves them while reading the next.
+const SLICE: usize = 16_384;
 
 /// What a walk of the module closure read: one row per file, in the order the
 /// waves reached them, with the digest each row is named by and the target of
@@ -98,10 +100,12 @@ pub(crate) fn walk_beyond(
         // parse segment is encoded after the walk, so a cold index of 288k paths
         // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
         // it is read would bound it.
-        let (opened, wave_kept) =
-            read_kept(&root, &wave, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob);
+        let reading = |slice: &[String], oids| {
+            read_kept(&root, slice, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
+        };
+        let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, Some(at));
+        let (opened, wave_kept, resolved) = read_resolved(&wave, SLICE, oids, reading, resolving);
         answered.extend(wave_kept);
-        let resolved = resolve_all(root_path, &wave, &opened, &resolvers, Some(at));
         for target in resolved.iter().flatten() {
             if is_module(target) && !held(target) && seen.insert(target.clone()) {
                 queue.push(target.clone());
@@ -118,6 +122,42 @@ pub(crate) fn walk_beyond(
         targets.extend(resolved);
     }
     Walked { files, identities, read, targets, kept: answered }
+}
+
+/// Reads `wave` `slice` files at a time and resolves each slice while the next is read.
+/// Reads parse on the cores and resolves wait on the file system's path lookups, so
+/// neither waits for the other's whole wave; the rows keep the wave's order.
+fn read_resolved<'w, R>(
+    wave: &'w [String],
+    slice: usize,
+    oids: Vec<Option<Oid>>,
+    reading: impl Fn(&'w [String], Vec<Option<Oid>>) -> (Vec<R>, Vec<bool>),
+    resolving: impl Fn(&'w [String], &[R]) -> Vec<Vec<String>> + Sync,
+) -> (Vec<R>, Vec<bool>, Vec<Vec<String>>)
+where
+    R: Send + Sync,
+{
+    let (mut read, mut answered, mut targets) =
+        (Vec::with_capacity(wave.len()), Vec::with_capacity(wave.len()), Vec::with_capacity(wave.len()));
+    let (mut slices, mut oids) = (wave.chunks(slice.max(1)), oids.into_iter());
+    let mut previous: Option<(&'w [String], Vec<R>)> = None;
+    loop {
+        let next = slices.next();
+        if next.is_none() && previous.is_none() {
+            return (read, answered, targets);
+        }
+        let (fresh, resolved) = std::thread::scope(|scope| {
+            let resolving = previous.as_ref().map(|(files, rows)| scope.spawn(|| resolving(files, rows)));
+            let fresh = next.map(|files| (files, reading(files, oids.by_ref().take(files.len()).collect())));
+            (fresh, resolving.map(|thread| thread.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))))
+        });
+        read.extend(previous.take().map(|(_, rows)| rows).into_iter().flatten());
+        targets.extend(resolved.into_iter().flatten());
+        if let Some((files, (rows, kept))) = fresh {
+            answered.extend(kept);
+            previous = Some((files, rows));
+        }
+    }
 }
 
 /// Read `files` from Git, answering from `kept` every tracked one whose
@@ -221,4 +261,46 @@ pub(crate) fn is_module(file: &str) -> bool {
         Path::new(file).extension().and_then(|part| part.to_str()),
         Some("ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs")
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    type Row = (String, Option<u8>);
+
+    /// Each file's row, kept flag and targets come from that file, in the wave's
+    /// order, whether the wave is one slice, a few, or slices that do not divide it.
+    #[test]
+    fn a_sliced_wave_keeps_every_file_on_its_own_row() {
+        let wave: Vec<String> = (0..7).map(|n| format!("f{n}.ts")).collect();
+        let oids: Vec<Option<Oid>> = (0..7u8).map(|n| (n % 2 == 0).then_some([n; 20])).collect();
+        let expected: Vec<Row> = wave.iter().zip(0u8..).map(|(file, n)| (file.clone(), (n % 2 == 0).then_some(n))).collect();
+        for slice in [1, 3, 7, 16] {
+            let reading = |files: &[String], oids: Vec<Option<Oid>>| {
+                assert_eq!(files.len(), oids.len());
+                let rows: Vec<Row> = files.iter().zip(&oids).map(|(file, oid)| (file.clone(), oid.map(|oid| oid[0]))).collect();
+                (rows, oids.iter().map(Option::is_some).collect())
+            };
+            let resolving = |files: &[String], rows: &[Row]| {
+                files.iter().zip(rows).map(|(file, (row, _))| vec![format!("{file} read {row}")]).collect()
+            };
+            let (read, kept, targets) = read_resolved(&wave, slice, oids.clone(), reading, resolving);
+            assert_eq!(read, expected, "slice {slice}");
+            assert_eq!(kept, oids.iter().map(Option::is_some).collect::<Vec<_>>(), "slice {slice}");
+            assert_eq!(targets, wave.iter().map(|file| vec![format!("{file} read {file}")]).collect::<Vec<_>>(), "slice {slice}");
+        }
+    }
+
+    #[test]
+    fn an_empty_wave_reads_and_resolves_nothing() {
+        let (read, kept, targets) = read_resolved(
+            &[],
+            SLICE,
+            Vec::new(),
+            |_: &[String], _| -> (Vec<Row>, Vec<bool>) { panic!("nothing to read") },
+            |_: &[String], _: &[Row]| -> Vec<Vec<String>> { panic!("nothing to resolve") },
+        );
+        assert!(read.is_empty() && kept.is_empty() && targets.is_empty());
+    }
 }
