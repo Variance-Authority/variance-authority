@@ -443,9 +443,9 @@ So both paths ship, and what picks between them is how many files a scan has
 read, not how many one wave holds. The in-process reader has no process to
 start, but opening it asks git two questions, 15.5 to 16.3 ms on Kibana, and a
 walk that opened it once per wave paid that again on every wave of a deep
-import graph. Now a scan opens it once, when the files it has read reach
-`STORE_CROSSOVER`, the 3,000 at which `ask grep` opens its store, and every
-wave after reads from it. With the store already open, a warm page cache reads
+import graph. Now a tree opens it once, when the files its scans have read
+reach `STORE_CROSSOVER`, the 3,000 at which `ask grep` opens its store, and
+every later wave of those scans reads from it. With the store already open, a warm page cache reads
 and parses Kibana's files faster from it than from disk at every size: 160
 files take 2.53 ms against 3.71, 500 take 7.83 against 10.34, 800 take 12.54
 against 15.59, and 2,000 take 28.91 against 38.41. That saving, about 5 µs a

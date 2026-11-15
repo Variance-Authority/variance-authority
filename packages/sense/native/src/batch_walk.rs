@@ -52,6 +52,7 @@ pub(crate) fn walk_beyond(
     held: &dyn Fn(&str) -> bool,
     kept: Kept,
     from_blob: &FromBlob,
+    store: &WaveStore,
 ) -> Walked {
     let GraphOptions {
         root,
@@ -77,7 +78,6 @@ pub(crate) fn walk_beyond(
         }
     }
     let mut head = 0;
-    let mut store = WaveStore::new(root_path);
 
     while head < queue.len() {
         let wave = queue[head..].to_vec();
@@ -103,7 +103,7 @@ pub(crate) fn walk_beyond(
         // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
         // it is read would bound it.
         let reading = |slice: &[String], oids| {
-            read_kept(&root, &mut store, slice, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
+            read_kept(&root, store, slice, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
         };
         let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, Some(at));
         let (opened, wave_kept, resolved) = read_resolved(&wave, SLICE, oids, reading, resolving);
@@ -168,7 +168,7 @@ where
 #[allow(clippy::too_many_arguments)]
 pub(super) fn read_kept(
     root: &str,
-    store: &mut WaveStore,
+    store: &WaveStore,
     files: &[String],
     oids: Vec<Option<Oid>>,
     largest_file: Option<u32>,
@@ -203,7 +203,7 @@ pub(super) fn read_kept(
     let (fresh, named) = if unread.is_empty() {
         (Vec::new(), Vec::new())
     } else {
-        read_git(store.objects(unread.len()), root.to_owned(), unread.clone(), unread_oids.clone(), largest_file, digests, readers, true)
+        read_git(store.objects(Path::new(root), unread.len()).as_deref(), root.to_owned(), unread.clone(), unread_oids.clone(), largest_file, digests, readers, true)
     };
     for ((file, oid), named) in unread.iter().zip(&unread_oids).zip(named) {
         if let Some(oid) = oid {

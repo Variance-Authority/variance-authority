@@ -77,6 +77,7 @@ pub(crate) fn index_graph(
     listing: Arc<Listing>,
     store: Option<&Opened>,
     from_blob: &crate::parse_origin::FromBlob,
+    wave_store: &crate::acquire::WaveStore,
 ) -> napi::Result<IndexGraph> {
     let aliases = options
         .aliases
@@ -106,6 +107,7 @@ pub(crate) fn index_graph(
         &|_| false,
         &kept,
         from_blob,
+        wave_store,
     );
     // The closure publishes its own index, so a kept row's parse goes into it
     // whole, from the store, as a warm update writes one (`source_update.rs`).

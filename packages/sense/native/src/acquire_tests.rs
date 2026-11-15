@@ -160,19 +160,18 @@ fn a_checkout_holding_an_lfs_pointer_fails_the_file_and_says_why() {
 }
 
 #[test]
-fn a_run_of_waves_opens_the_store_once_its_reads_reach_the_crossover_and_keeps_it() {
+fn a_tree_opens_the_store_once_its_scans_have_read_the_crossover_and_keeps_it() {
     let root = repository("acquire-wave-store", &[("a.ts", b"export const a = 1;\n")]);
-    let mut store = WaveStore::new(&root);
+    let store = WaveStore::default();
 
-    let short = store.objects(STORE_CROSSOVER - 1).is_some();
-    let reached = store.objects(1).map(std::ptr::from_ref);
-    let after = store.objects(1).map(std::ptr::from_ref);
-    let mut small = WaveStore::new(&root);
-    let alone = small.objects(10).is_some();
+    let short = store.objects(&root, STORE_CROSSOVER - 1).is_some();
+    let reached = store.objects(&root, 1);
+    let after = store.objects(&root, 1);
+    let alone = WaveStore::default().objects(&root, 10).is_some();
     std::fs::remove_dir_all(&root).unwrap();
 
-    assert!(!short, "fewer files than the crossover open no store");
-    assert!(reached.is_some(), "the wave that reaches the crossover reads from the store");
-    assert_eq!(reached, after, "every later wave reads from the store already open");
-    assert!(!alone);
+    assert!(!short, "scans that have read fewer files than the crossover open no store");
+    let (reached, after) = (reached.expect("the read that reaches the crossover comes from the store"), after.unwrap());
+    assert!(std::sync::Arc::ptr_eq(&reached, &after), "every later read comes from the store already open");
+    assert!(!alone, "a tree whose scans read a few files reads them off the disk");
 }

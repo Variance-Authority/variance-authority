@@ -3,6 +3,7 @@
 use std::fs;
 use std::io::{ErrorKind, Read as _};
 use std::path::Path;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use gix_hash::ObjectId;
 
@@ -48,33 +49,29 @@ const CHUNK: usize = 2048;
 // declined. A change made only here moves the limit without that bump.
 pub(crate) const LARGEST_FILE: u32 = 1024 * 1024;
 
-/// The object store a run of waves reads from, opened once.
+/// The object store a tree's scans read from, opened once.
 ///
 /// Opening the store asks git two questions, about 15 ms on Kibana, and a blob
 /// out of an open store saves about 5 us against opening its file on a warm
 /// page cache: the open pays after about `STORE_CROSSOVER` files, the line
 /// `ask grep` opens its store at (`docs/performance.md`). So the store opens
-/// when the files a run has read reach it, and every wave after reads from it.
-pub(crate) struct WaveStore<'a> {
-    root: &'a Path,
-    read: usize,
-    /// `None` until the store is asked for; then what opening it gave, and a
-    /// store that cannot open is not asked again.
-    objects: Option<Option<Objects>>,
-}
+/// on the read, a wave or a slice of one, that brings the files the tree's
+/// scans have read to it, and every read after comes from it. The tree holds
+/// it, because a scan from the JavaScript side crosses once per wave.
+#[derive(Default)]
+pub(crate) struct WaveStore(Mutex<(usize, Option<Option<Arc<Objects>>>)>);
 
-impl<'a> WaveStore<'a> {
-    pub(crate) fn new(root: &'a Path) -> WaveStore<'a> {
-        WaveStore { root, read: 0, objects: None }
-    }
-
-    /// The store a wave of `files` reads from, or `None` for the disk.
-    pub(crate) fn objects(&mut self, files: usize) -> Option<&Objects> {
-        self.read += files;
-        if self.objects.is_none() && self.read >= STORE_CROSSOVER {
-            self.objects = Some(Objects::open(self.root));
+impl WaveStore {
+    /// The store a read of `files` under `root` comes from, or `None` for the
+    /// disk; a store that cannot open is not asked again.
+    pub(crate) fn objects(&self, root: &Path, files: usize) -> Option<Arc<Objects>> {
+        let mut held = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let (read, objects) = &mut *held;
+        *read += files;
+        if objects.is_none() && *read >= STORE_CROSSOVER {
+            *objects = Some(Objects::open(root).map(Arc::new));
         }
-        self.objects.as_ref()?.as_ref()
+        objects.clone()?
     }
 }
 
