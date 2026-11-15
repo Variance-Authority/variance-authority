@@ -61,7 +61,12 @@ and a timeout that appears only under them says nothing about the change.
 
 ## The loop between waves
 
-`yarn test:loop` is what the edit loop runs after every edit, before any wave:
+`yarn test:loop` is what the edit loop runs after every edit in JavaScript or
+TypeScript, before any wave. A Rust edit runs `cargo test` instead and no
+`test:loop`: the unit tests run in another realm, the loop would charge every
+test that loads the addon through the crate's `/// <depends>`, and CI runs them.
+
+The loop is
 `oxlint && tsc --build && VARIANCE_AUTHORITY_SINCE=
 VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-0-1} vitest run
 "$@" && node tools/needs.mjs`. That is the lint `verify:near` starts with, the

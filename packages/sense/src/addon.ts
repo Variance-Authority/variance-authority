@@ -1,5 +1,21 @@
+/// <depends path="../native/src/lib.rs" />
+/// <depends path="../native/Cargo.lock" />
+/// <depends path="../native/Cargo.toml" />
+/// <depends path="../native/build.rs" />
+/// <depends path="../native/build.mjs" />
+/// <depends path="../native/instrument/Cargo.toml" />
+/// <depends path="../native/instrument/build.rs" />
+/// <depends path="../native/rust-toolchain.toml" />
+/// <depends path="../native/vendor/oxc_resolver/Cargo.toml" />
+/// <depends path="../record-layout.json" />
 /**
  * Loading the native addon, and nothing else.
+ *
+ * The `.node` it loads is built from the crate, which Node opens with `dlopen`
+ * and no import names, so the lines above declare it: the root module, which
+ * reaches every other through `mod` and `use`, and each input no Rust line
+ * names. A crate edit then charges the tests that import this file, and no
+ * other (`tools/native-sources.check.ts` holds the list to git).
  *
  * Kept apart from [`native.ts`](./native.ts), which describes what the addon
  * answers and adapts its batches, because the instrument asks for the addon
