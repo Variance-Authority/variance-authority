@@ -8,7 +8,7 @@ use napi::bindgen_prelude::{Buffer, Uint32Array};
 use napi::Either;
 use napi_derive::napi;
 
-use crate::acquire::{read_all, Answer, Outcome};
+use crate::acquire::{read_all, Answer, Outcome, WaveStore};
 use crate::emitted::{Emitted, Listing};
 use crate::git::Oid;
 use crate::parse_origin::FromBlob;
@@ -159,7 +159,7 @@ pub(crate) fn scan_batch_with_oids(
     let root_path = Path::new(&root);
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, listing));
     let (read, answered) = match oids {
-        Some(oids) => read_kept(&root, &files, oids, largest_file, digests, readers, kept, from_blob),
+        Some(oids) => read_kept(&root, &mut WaveStore::new(root_path), &files, oids, largest_file, digests, readers, kept, from_blob),
         None => (
             read_all(
                 root.clone(),

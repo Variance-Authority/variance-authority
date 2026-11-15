@@ -12,7 +12,7 @@ use rayon::{ThreadPool, ThreadPoolBuildError, ThreadPoolBuilder};
 
 use crate::digest;
 use crate::git::Oid;
-use crate::git_store::{Objects, Reader};
+use crate::git_store::{Objects, Reader, STORE_CROSSOVER};
 use crate::read::{read_module, Read};
 
 /// What became of a file's bytes. `Declined` is a refusal the bytes decide —
@@ -42,25 +42,49 @@ type Named = (Answer, bool);
 const READERS: usize = 6;
 /// Enough files to keep the readers busy while bounding held source bytes.
 const CHUNK: usize = 2048;
-/// The fewest files a wave must read for the object store to pay for opening.
-///
-/// The line was drawn for a `cat-file` process, whose start divided by the
-/// 53 us a blob saved against an open came to 160 files. The in-process store
-/// has no process, but opening it asks git two questions, about 9 ms, and on a
-/// warm page cache a wave read from it costs about 10 ms more than the disk
-/// read at 160 files and breaks even near 800 (`docs/performance.md`). The
-/// line stays where it was until a cold-cache measurement says where it moves.
-pub(crate) const FILES_PER_WAVE: usize = 160;
 /// The largest file a read opens when its caller names no limit.
 // FIXME: `LARGEST_FILE` in `scan.ts` is the same number, and a change to it
 // bumps `VERSION` in `reuse.ts` so that no index keeps what the old limit
 // declined. A change made only here moves the limit without that bump.
 pub(crate) const LARGEST_FILE: u32 = 1024 * 1024;
 
-/// Read `files` out of Git's object store by `oids`, each file's id or `None`
-/// for an untracked one, and off the disk wherever the store answers nothing;
-/// with each answer, whether its bytes are the blob its id names.
+/// The object store a run of waves reads from, opened once.
+///
+/// Opening the store asks git two questions, about 15 ms on Kibana, and a blob
+/// out of an open store saves about 5 us against opening its file on a warm
+/// page cache: the open pays after about `STORE_CROSSOVER` files, the line
+/// `ask grep` opens its store at (`docs/performance.md`). So the store opens
+/// when the files a run has read reach it, and every wave after reads from it.
+pub(crate) struct WaveStore<'a> {
+    root: &'a Path,
+    read: usize,
+    /// `None` until the store is asked for; then what opening it gave, and a
+    /// store that cannot open is not asked again.
+    objects: Option<Option<Objects>>,
+}
+
+impl<'a> WaveStore<'a> {
+    pub(crate) fn new(root: &'a Path) -> WaveStore<'a> {
+        WaveStore { root, read: 0, objects: None }
+    }
+
+    /// The store a wave of `files` reads from, or `None` for the disk.
+    pub(crate) fn objects(&mut self, files: usize) -> Option<&Objects> {
+        self.read += files;
+        if self.objects.is_none() && self.read >= STORE_CROSSOVER {
+            self.objects = Some(Objects::open(self.root));
+        }
+        self.objects.as_ref()?.as_ref()
+    }
+}
+
+/// Read `files` out of `objects` by `oids`, each file's id or `None` for an
+/// untracked one, and off the disk wherever the store answers nothing; with
+/// each answer, whether its bytes are the blob its id names. No store reads
+/// every file off the disk.
+#[allow(clippy::too_many_arguments, reason = "one read's whole request")]
 pub(crate) fn read_git(
+    objects: Option<&Objects>,
     root: String,
     files: Vec<String>,
     oids: Vec<Option<Oid>>,
@@ -69,10 +93,8 @@ pub(crate) fn read_git(
     readers: Option<u32>,
     symbols: bool,
 ) -> (Vec<Answer>, Vec<bool>) {
-    // A wave too small to pay for opening the store reads from disk, where the
-    // chunked pipeline overlaps the next open with the current parse. Both paths
-    // give the same answers; this one only ever decides which is cheaper.
-    let objects = (files.len() >= FILES_PER_WAVE).then(|| Objects::open(Path::new(&root))).flatten();
+    // Without a store the chunked disk pipeline overlaps the next open with the
+    // current parse. Both paths give the same answers.
     let Some(objects) = objects else {
         return read_disk(root, files, &oids, largest_file, digests, readers, symbols).into_iter().unzip();
     };

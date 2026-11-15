@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
 use super::GraphOptions;
-use crate::acquire::{read_git, Answer, Outcome, FILES_PER_WAVE, LARGEST_FILE};
+use crate::acquire::{read_git, Answer, Outcome, WaveStore, LARGEST_FILE};
 use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
 use crate::parse_origin::FromBlob;
@@ -77,6 +77,7 @@ pub(crate) fn walk_beyond(
         }
     }
     let mut head = 0;
+    let mut store = WaveStore::new(root_path);
 
     while head < queue.len() {
         let wave = queue[head..].to_vec();
@@ -89,10 +90,11 @@ pub(crate) fn walk_beyond(
             .iter()
             .map(|oid| oid.as_ref().map(git::spell))
             .collect::<Vec<_>>();
-        // The wave's OIDs already name every tracked file's content, so the blobs
-        // come out of the pack rather than off the disk. `read_git` falls back to
-        // opening the file whenever a blob is missing or unreadable, which is what
-        // answers for the dirty and untracked members of the wave. Declarations
+        // The wave's OIDs already name every tracked file's content, so once the
+        // walk has read enough to open the store the blobs come out of the pack
+        // rather than off the disk. `read_git` falls back to opening the file
+        // whenever a blob is missing or unreadable, which is what answers for
+        // the dirty and untracked members of the wave. Declarations
         // come out of the same parse: `ask symbol` reads them from the rows this
         // walk publishes, and a walk that left them out answered a checkout of
         // ten thousand modules as if it declared nothing.
@@ -101,7 +103,7 @@ pub(crate) fn walk_beyond(
         // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
         // it is read would bound it.
         let reading = |slice: &[String], oids| {
-            read_kept(&root, slice, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
+            read_kept(&root, &mut store, slice, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
         };
         let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, Some(at));
         let (opened, wave_kept, resolved) = read_resolved(&wave, SLICE, oids, reading, resolving);
@@ -131,7 +133,7 @@ fn read_resolved<'w, R>(
     wave: &'w [String],
     slice: usize,
     oids: Vec<Option<Oid>>,
-    reading: impl Fn(&'w [String], Vec<Option<Oid>>) -> (Vec<R>, Vec<bool>),
+    mut reading: impl FnMut(&'w [String], Vec<Option<Oid>>) -> (Vec<R>, Vec<bool>),
     resolving: impl Fn(&'w [String], &[R]) -> Vec<Vec<String>> + Sync,
 ) -> (Vec<R>, Vec<bool>, Vec<Vec<String>>)
 where
@@ -139,10 +141,7 @@ where
 {
     let (mut read, mut answered, mut targets) =
         (Vec::with_capacity(wave.len()), Vec::with_capacity(wave.len()), Vec::with_capacity(wave.len()));
-    // Equal slices, so a wave over one slice reads none smaller than half of one:
-    // `read_git` picks the store or the disk by how many files it is handed.
-    let even = wave.len().div_ceil(wave.len().div_ceil(slice.max(1)).max(1)).max(1);
-    let (mut slices, mut oids) = (wave.chunks(even), oids.into_iter());
+    let (mut slices, mut oids) = (wave.chunks(slice.max(1)), oids.into_iter());
     let mut previous: Option<(&'w [String], Vec<R>)> = None;
     loop {
         let next = slices.next();
@@ -169,6 +168,7 @@ where
 #[allow(clippy::too_many_arguments)]
 pub(super) fn read_kept(
     root: &str,
+    store: &mut WaveStore,
     files: &[String],
     oids: Vec<Option<Oid>>,
     largest_file: Option<u32>,
@@ -203,7 +203,7 @@ pub(super) fn read_kept(
     let (fresh, named) = if unread.is_empty() {
         (Vec::new(), Vec::new())
     } else {
-        read_git(root.to_owned(), unread.clone(), unread_oids.clone(), largest_file, digests, readers, true)
+        read_git(store.objects(unread.len()), root.to_owned(), unread.clone(), unread_oids.clone(), largest_file, digests, readers, true)
     };
     for ((file, oid), named) in unread.iter().zip(&unread_oids).zip(named) {
         if let Some(oid) = oid {
@@ -292,25 +292,6 @@ mod tests {
             assert_eq!(read, expected, "slice {slice}");
             assert_eq!(kept, oids.iter().map(Option::is_some).collect::<Vec<_>>(), "slice {slice}");
             assert_eq!(targets, wave.iter().map(|file| vec![format!("{file} read {file}")]).collect::<Vec<_>>(), "slice {slice}");
-        }
-    }
-
-    /// `read_git` takes the object store or the disk by how many files it is
-    /// handed, so a wave read in slices hands it no slice the wave's own size
-    /// would not have read the same way.
-    #[test]
-    fn no_slice_of_a_wave_is_too_small_for_the_store() {
-        for len in [SLICE + 1, 2 * SLICE + 1, 3 * SLICE - 1] {
-            let wave: Vec<String> = (0..len).map(|n| format!("f{n}.ts")).collect();
-            let sizes = std::cell::RefCell::new(Vec::new());
-            let reading = |files: &[String], oids: Vec<Option<Oid>>| {
-                sizes.borrow_mut().push(files.len());
-                (vec![(); files.len()], oids.iter().map(Option::is_some).collect())
-            };
-            read_resolved(&wave, SLICE, vec![None; len], reading, |files: &[String], _: &[()]| vec![Vec::new(); files.len()]);
-            let sizes = sizes.into_inner();
-            assert_eq!(sizes.iter().sum::<usize>(), len);
-            assert!(sizes.iter().all(|size| *size >= FILES_PER_WAVE), "a wave of {len} read in slices of {sizes:?}");
         }
     }
 

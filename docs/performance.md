@@ -439,24 +439,24 @@ real repository, and one `cat-file` stream on its own reads all of its module
 blobs in 1,024.75 ms, ahead of the 1,274.3 ms six readers take to open and read
 the same files; lookup with no content is 120.99 ms of that.
 
-So both paths ship, and what picks between them is the size of the wave — one
-wave being however many files a scan has decided it needs at once, which is
-every module in the repository on a cold run and a handful on a warm one.
-On Material UI, starting a `cat-file` process cost 7.08 ms and a blob saved
-about 53 µs against an open; the two divide to about 134 files, and the
-threshold was rounded up to 160, because a wave that only just clears the line
-saves nothing worth the start. On Kibana a process cost 8.48 ms to start, and at
-the same 53 µs a blob the two divide to 160 files. The in-process reader has no
-process to start, but opening it asks git two questions, about 9 ms on either
-checkout, and `FILES_PER_WAVE` keeps the 160. On a warm page cache that line is
-low: over the same files, read and parsed, a 160-file wave takes 4.4 ms from
-disk and 14.0 from the store on Kibana, 5.0 and 15.0 on Material UI; 500 files
-take 15.1 and 20.8, 11.5 and 16.0; 2,000 take 52.7 and 38.1, 43.1 and 26.2. The
-two break even near 800 files. Where a cold cache puts the line is not measured,
-so it has not moved. A wave below it reads from disk,
-where the chunked pipeline overlaps the next open with the current parse. Both
-give the same answers, and the number is worth remembering for the incremental
-table below, where every wave is smaller than it.
+So both paths ship, and what picks between them is how many files a scan has
+read, not how many one wave holds. The in-process reader has no process to
+start, but opening it asks git two questions, 15.5 to 16.3 ms on Kibana, and a
+walk that opened it once per wave paid that again on every wave of a deep
+import graph. Now a scan opens it once, when the files it has read reach
+`STORE_CROSSOVER`, the 3,000 at which `ask grep` opens its store, and every
+wave after reads from it. With the store already open, a warm page cache reads
+and parses Kibana's files faster from it than from disk at every size: 160
+files take 2.53 ms against 3.71, 500 take 7.83 against 10.34, 800 take 12.54
+against 15.59, and 2,000 take 28.91 against 38.41. That saving, about 5 µs a
+file, pays for the open after about 3,000 files. On a first pass over files not
+read before, the disk is ahead up to 160 files and the store from 300 (9.50 ms
+against 10.18), and at 2,000 it takes 30.20 against 58.58. A cold cache, and a
+machine whose endpoint agent inspects every open, are where the store should
+win most, and neither is measured here. Below the crossover a scan reads from
+disk, where the chunked pipeline overlaps the next open with the current
+parse. Both give the same answers, and the incremental table below is all
+below it.
 
 Nothing changes for dirty or untracked files. Those are hashed with
 `hash-object`, which does not write the object, so the store holds nothing by
@@ -567,8 +567,8 @@ path, and the 78 is whatever that path picked up afterwards, as Kibana's 265 is.
 On the warm rows of both checkouts they count everything.
 
 **Every warm row reads from the worktree, not the pack.** A hundred and four
-files re-read is a wave of a hundred and four, which is below the 160 the
-section above spends a paragraph deriving, so it takes the disk path — and the
+files re-read is a scan of a hundred and four, far below the 3,000 a scan reads
+before it opens the store, so it takes the disk path — and the
 files in these waves are the ones that just changed, which git has no object
 for until somebody commits them. The pack is the cold path's answer. The warm
 path's answer is that there are four files.
@@ -877,8 +877,8 @@ cores; the crossover is the median of eight per list size, from 100 files to
 the whole folder, the two paths interleaved, under a load between 4 and 5. The
 scan's wave figures are the median of seven, the `cat-file` build and the
 in-process one interleaved on the same files, under a load between 9 and 10; the
-disk-against-store waves are the median of eight, each run a different slice of
-files, under a load of 14; and each opening of the store is the median of nine,
+disk-against-store waves with the store opened once are the median of seven,
+each run a different sample of Kibana's files, under a load near 26; and each opening of the store is the median of nine,
 the scan's under a load of 9 and the search's under 14.
 **Every other row of the incremental table is one timing of one run**: read
 Material UI's column for its shape and not for a difference of a few tens of
