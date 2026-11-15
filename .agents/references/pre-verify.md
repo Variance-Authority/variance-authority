@@ -91,7 +91,7 @@ that keeps no test exits 0, and the words tell that exit from a green run:
 test files found` under it is the same answer, and the seam's reading says why. `none (the record was taken over this text)` means the tests
 that entered the edit already ran it, and what the loop left is
 `verify:near`'s and CI's. To see why a file was kept, ask `yarn variance
-select --suite unit --at-distance 0-1`. Integration and chromium tests never
+select --suite unit`. Integration and chromium tests never
 run in it. A green run ends with the needs list: for each function new on the
 branch in the package sources, the scripts a package ships and `tools/`, with
 five needs or more, the existing functions there that need what it needs.
