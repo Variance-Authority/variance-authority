@@ -1,5 +1,5 @@
 /**
- * A case's slowest statement is read by a report and by nothing that selects:
+ * A case's statement times are read by a report and by nothing that selects:
  * one record written with it and without it answers every change alike, read
  * in TypeScript and in the addon.
  */
@@ -22,9 +22,9 @@ const UNTIMED: readonly ExecutionTest[] = [
   { id: 'b > one', file: 'test/b.test.ts', name: 'one', duration: 250 },
 ];
 const TIMED: readonly ExecutionTest[] = [
-  { ...UNTIMED[0]!, slowest: { line: 12, time: 1200 } },
+  { ...UNTIMED[0]!, times: [{ line: 11, time: 4 }, { line: 12, time: 1_200_000 }] },
   UNTIMED[1]!,
-  { ...UNTIMED[2]!, slowest: { line: 7, time: 249 } },
+  { ...UNTIMED[2]!, times: [{ line: 7, time: 249_000 }] },
 ];
 
 function record(tests: readonly ExecutionTest[]): Uint8Array {

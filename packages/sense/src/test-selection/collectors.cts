@@ -272,7 +272,7 @@ function scoped(
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
     // Read before the bucket closes: the case's end is its last statement's.
-    const slowest = cuts?.slowest(bucket);
+    const times = cuts?.times(bucket);
     const view = engine.close(bucket);
     const settled = stopped.get(bucket.key);
     const journey = journeys.get(bucket.key);
@@ -285,7 +285,7 @@ function scoped(
     // has nothing to write when it entered nothing.
     if (view.rows.length === 0 && settled === undefined && journey === undefined && !spoke) return undefined;
     const settledOwner = settled === undefined ? name : caseOwner.settledCase(name, settled);
-    const timedOwner = slowest === undefined ? settledOwner : caseOwner.slowestCase(settledOwner, slowest);
+    const timedOwner = times === undefined ? settledOwner : caseOwner.timesCase(settledOwner, times);
     const owner = journey === undefined ? timedOwner : caseOwner.packJourney(timedOwner, journey);
     frames.push(journals.encodeLog(heard === undefined ? owner : caseOwner.packHeard(owner, heard), view));
     foldInto(union, view);

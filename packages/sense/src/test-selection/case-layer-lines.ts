@@ -1,4 +1,4 @@
-import { CaseLinesBuilder, linesOf, valueAt, type CaseLines, type LinesTable, type Segment } from './case-lines.js';
+import { CaseLinesBuilder, linesOf, valueAt, type CaseLines, type RowsTable, type Segment } from './case-lines.js';
 
 /**
  * Each case's lines as a layer lays them: a carried module keeps the segments
@@ -29,8 +29,8 @@ export class LaidLines {
    * `runAt` each run case's.
    */
   static open(
-    heldTable: LinesTable | undefined,
-    runTable: LinesTable | undefined,
+    heldTable: RowsTable | undefined,
+    runTable: RowsTable | undefined,
     heldAt: Int32Array,
     runAt: readonly number[],
     count: number,
@@ -40,8 +40,8 @@ export class LaidLines {
   }
 
   private constructor(
-    heldTable: LinesTable | undefined,
-    runTable: LinesTable | undefined,
+    heldTable: RowsTable | undefined,
+    runTable: RowsTable | undefined,
     heldAt: Int32Array,
     runAt: readonly number[],
     count: number,

@@ -1,6 +1,6 @@
 /**
- * Which test line first reached each region a case logged, and which of a
- * case's statements took longest.
+ * Which test line first reached each region a case logged, and how long each
+ * of a case's statements took.
  *
  * A cut test file calls the root's `c(line)` before each statement of a test or
  * a hook (`native/instrument/src/cadence.rs`). The engine keeps each bucket's
@@ -16,7 +16,7 @@
 
 /**
  * A bucket as the engine keeps it: its cuts, in an array every read replaces.
- * An alias, as the answer of `slowest` is spelled out: the engine hands these
+ * An alias, as the answer of `times` is spelled out: the engine hands these
  * out, and a declaration cannot name what an `export =` module keeps.
  */
 type Cut = { cuts: number[] | null };
@@ -117,24 +117,19 @@ function createCuts() {
       if (timer !== undefined) stop(timer);
     },
     /**
-     * The statement that took longest since {@link time}, called as the case
-     * ends, which closes its last statement. A statement in a loop is the sum
-     * of its runs, and of two equal the first reached stands. Undefined where
-     * nothing was timed or nothing took a whole millisecond: absent, never zero.
-     * @returns The statement's line in the test file, and whole milliseconds.
+     * Every statement timed since {@link time}, called as the case ends, which
+     * closes its last statement: each line in the order the case first reached
+     * it, a loop's runs summed, in whole microseconds on the real clock. No line
+     * is left out, however short. Undefined where nothing was timed: absent,
+     * never zero.
      */
-    slowest(bucket: Cut): { readonly line: number; readonly time: number } | undefined {
+    times(bucket: Cut): ReadonlyArray<{ readonly line: number; readonly time: number }> | undefined {
       const timer = timers.get(bucket);
       if (timer === undefined) return undefined;
       timers.delete(bucket);
       stop(timer);
-      let line = 0;
-      let most = 0;
-      for (const [at, spent] of timer.times) {
-        if (spent > most) [line, most] = [at, spent];
-      }
-      const time = Math.floor(most);
-      return time < 1 ? undefined : { line, time };
+      if (timer.times.size === 0) return undefined;
+      return [...timer.times].map(([line, spent]) => ({ line, time: Math.round(spent * 1000) }));
     },
   };
 }

@@ -183,11 +183,11 @@ explains recording across navigation. A case recorded without statement lines
 has no attribution to read; it is not a case whose statements ran nothing.
 
 Under Vitest, Jest and Rstest the same recording times the case's own
-statements on the real clock and keeps the slowest: its line and how long it
-took, with a loop's runs summed and hooks left out. `variance ask
-slowest-tests` prints it under each case it lists, with its share of the case,
-so a slow test points at the line to read first. A case whose statements all
-took under a millisecond records none.
+statements on the real clock and keeps every one: each line and how long it
+took in microseconds, with a loop's runs summed and hooks left out. `variance
+ask slowest-tests` prints the slowest under each case it lists, when it held a
+millisecond or more, with its share of the case, so a slow test points at the
+line to read first.
 
 Use those lines to connect the regions in [coverage
 composition](own-fewer-tests.md#connect-the-regions-to-test-statements) to the

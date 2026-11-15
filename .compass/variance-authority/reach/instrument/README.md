@@ -66,8 +66,8 @@ nested function, because the callback a statement hands over is part of that
 statement. The close charges each region to the last cut before its first
 entry, so a case records which of its own lines, or a hook's, first reached
 each region it crossed. Inside a case's body a cut also reads the clock: the
-time since the cut before it is its statement's, and the case keeps the line
-that took longest.
+time since the cut before it is its statement's, and the case keeps every
+line's time.
 
 Regions are always cut from the text the author wrote, because a diff speaks
 in the coordinates of the file the author edited and extents taken from
