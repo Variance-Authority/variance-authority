@@ -13,10 +13,8 @@ import { packageName, packageOf } from '../package-home.js';
 import { LISTED } from './story-compare.js';
 import { regionText, untapedCase } from './story-outcomes.js';
 
-/** A statement with its source text, as the checkout holds the line, and its share of the case. */
+/** A statement with its source text, as the checkout holds the line. */
 export interface ExplainedStatement extends Statement {
-  /** Whole percent of the case's duration, absent where either was not reported. */
-  readonly share?: number;
   readonly text?: string;
 }
 
@@ -51,10 +49,7 @@ export function explainedCase(root: string, stories: readonly StoryEntry[], name
       ...(moved === undefined ? {} : { moved }),
       statements: statements.map((statement) => {
         const text = statement.line === 0 ? undefined : source?.[statement.line - 1]?.trim();
-        const share = statement.time === undefined || rest.duration === undefined || rest.duration === 0
-          ? undefined
-          : Math.min(100, Math.round(statement.time / (rest.duration * 1000) * 100));
-        return { ...statement, ...(share === undefined ? {} : { share }), ...(text === undefined || text === '' ? {} : { text }) };
+        return { ...statement, ...(text === undefined || text === '' ? {} : { text }) };
       }),
       packages,
     },
@@ -74,7 +69,7 @@ function changedSince(root: string, commit: string | undefined, file: string): b
   if (commit === undefined) return undefined;
   try {
     // A file the commit does not hold is not unchanged, and `git diff` says nothing of an untracked one.
-    execFileSync('git', ['cat-file', '-e', `${commit}:${file}`], { cwd: root, stdio: 'pipe' });
+    execFileSync('git', ['cat-file', '-e', `${commit}:./${file}`], { cwd: root, stdio: 'pipe' });
   } catch {
     return undefined;
   }

@@ -9,6 +9,7 @@
 
 import { askCoverageFile } from '../test-selection/coverage-file.js';
 import { lineOf } from '../test-selection/case-lines.js';
+import { shareOf } from '../test-selection/case-times.js';
 import { newestRegions } from '../test-selection/case-readings.js';
 import type { ReadRegion } from '../test-selection/readings-bytes.js';
 import type { ExecutionTest } from '../test-selection/reverse.js';
@@ -18,6 +19,8 @@ import { namedCases, type OutcomeRegion } from './outcomes.js';
 export interface Statement {
   readonly line: number;
   readonly time?: number;
+  /** Whole percent of the case, as {@link shareOf} reads it; absent where either time was not reported. */
+  readonly share?: number;
   readonly regions: readonly OutcomeRegion[];
 }
 
@@ -69,7 +72,10 @@ export function statementsOf(
   const before = rest[0] === 0 ? [rest.shift()!] : [];
   const statements: Statement[] = [
     ...before.map((line) => ({ line, regions: body.get(line)! })),
-    ...times.map(({ line, time }) => ({ line, time, regions: body.get(line) ?? [] })),
+    ...times.map(({ line, time }) => {
+      const share = shareOf(time, test.duration);
+      return { line, time, ...(share === undefined ? {} : { share }), regions: body.get(line) ?? [] };
+    }),
     ...rest.map((line) => ({ line, regions: body.get(line)! })),
   ];
   return {

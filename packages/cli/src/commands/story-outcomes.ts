@@ -45,7 +45,7 @@ export function recordedOutcomes(root: string, stories: readonly StoryEntry[], n
   const runsOf = (readings: readonly { readonly count: number }[]) => readings.reduce((sum, reading) => sum + reading.count, 0);
   const told = recorded.readings.filter((reading) => reading.stopped !== undefined);
   const untold = runsOf(recorded.readings) - runsOf(told);
-  const which = `${recorded!.file} > ${recorded!.name}`;
+  const which = `${recorded.file} > ${recorded.name}`;
   const again = 'run it until it has passed and thrown, twice each';
   if (told.length === 0) {
     throw new OperatorError(`none of the ${untold} runs the record keeps of ${which} says how it ended, so there is no outcome to compare; ${again}`);

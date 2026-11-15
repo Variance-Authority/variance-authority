@@ -33,9 +33,9 @@ describe('statementsOf', () => {
       timed: true,
       lined: true,
       statements: [
-        { line: 9, time: 400, regions: [HANDLE, ERROR] },
-        { line: 4, time: 8000, regions: [WIRE] },
-        { line: 11, time: 30, regions: [] },
+        { line: 9, time: 400, share: 3, regions: [HANDLE, ERROR] },
+        { line: 4, time: 8000, share: 67, regions: [WIRE] },
+        { line: 11, time: 30, share: 0, regions: [] },
       ],
       hooks: [],
       unlined: [],
@@ -109,7 +109,7 @@ describe('recordedStatements', () => {
       ...CASE,
       duration: 2,
       record: testCoverageFile(root),
-      statements: [{ line: 9, time: 300, regions: [HANDLE] }, { line: 4, time: 1500, regions: [WIRE] }],
+      statements: [{ line: 9, time: 300, share: 15, regions: [HANDLE] }, { line: 4, time: 1500, share: 75, regions: [WIRE] }],
     });
   });
 

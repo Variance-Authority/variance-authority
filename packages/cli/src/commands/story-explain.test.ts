@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { encodeAsSetExecutionIndex, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
+import { story } from './story.js';
 import { explainedCase, formatExplained, type Explained } from './story-explain.js';
 
 const roots: string[] = [];
@@ -72,6 +73,19 @@ describe('explainedCase', () => {
     expect(explainedCase(root, [{ path: 'a.story', file: 'test/page.spec.ts', name: 'clicks', visits: 1 }], 'clicks', undefined)).toBeUndefined();
     expect(explainedCase(root, [], 'missing', undefined)).toBeUndefined();
     expect(explainedCase(root, [], undefined, undefined)).toBeUndefined();
+  });
+});
+
+describe('variance story --name with no story taped', () => {
+  it('explains the case from the record, and leaves a zoom, a label, a comparison or a project to the story', async () => {
+    const root = await checkout();
+    const asked = { command: 'story', root, format: 'text', name: 'clicks' } as const;
+
+    expect(story(asked)).toHaveProperty('explained');
+    // The record keeps one run of a case, under no project: a story is what tells one project's run from another's.
+    for (const narrowed of [{ zoom: { in: 'src/page.ts' } }, { label: 'before' }, { compare: 'outcome' }, { project: 'firefox' }] as const) {
+      expect(() => story({ ...asked, ...narrowed })).toThrow(/no story in this checkout|earlier reading|none of/);
+    }
   });
 });
 

@@ -72,7 +72,8 @@ export function story(parsed: ParsedStory): StoryAnswer {
   const { compare } = parsed;
   const recorded = compare === 'outcome' ? recordedOutcomes(parsed.root, all, parsed.name, file) : undefined;
   if (recorded !== undefined) return recorded;
-  const plain = compare === undefined && parsed.zoom === undefined && parsed.label === undefined;
+  // The record keeps one run of a case, under no project, so a project asked for is a story's to tell.
+  const plain = compare === undefined && parsed.zoom === undefined && parsed.label === undefined && parsed.project === undefined;
   const explained = plain ? explainedCase(parsed.root, all, parsed.name, file) : undefined;
   if (explained !== undefined) return explained;
   if (all.length === 0) {

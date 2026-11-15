@@ -3572,6 +3572,7 @@
         "shardOf": "function",
         "shardsInstall": "function",
         "shardsTexts": "function",
+        "shareOf": "function",
         "sharedPreconditions": "function",
         "sharedRecord": "function",
         "sourceCut": "function",
