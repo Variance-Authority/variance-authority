@@ -514,18 +514,18 @@ of skip-worktree, assume-unchanged or intent-to-add set, whose `lstat` still
 matches the entry to the nanosecond and is not racy against the index, and whose
 blob is its size and no git-lfs pointer, is that blob, and is searched out of
 the store; every other file is opened. A checkout git rewrote to another length,
-by line endings, `ident` or an encoding, fails the size and is opened; a rewrite
-that keeps the length, such as an encoding that maps byte for byte, is not
-caught. Opening the store for a search asks git three questions and loads the
-index, about 18 ms, and a search from disk costs as much at about 3,000
+by line endings or `ident`, fails the size and is opened. Opening the store for
+a search asks git four questions, loads the index and reads every attributes
+file, about 18 ms, and a search from disk costs as much at about 3,000
 files, which is `STORE_CROSSOVER`; a shorter list opens nothing. Over Kibana's
 `x-pack`, 93,966 files, the search from disk takes 988 ms and the one from the
 store 217 ms, where `rg` over the same folder takes 1,027; over its `src`,
 38,463 files, 354 ms and 99; over one copy of Material UI, 28,395 files, 226 ms
 and 69, where `rg` takes 369. A repository whose blobs may not be the bytes on
-disk is searched from disk whole: one with a replace ref, a smudge or process
-filter other than git-lfs's, an object format other than SHA-1, or more than
-fifty packs and no multi-pack index.
+disk is searched from disk whole: one with a replace ref, a clean, smudge or
+process filter other than git-lfs's, a `working-tree-encoding` in any
+attributes file, which can rewrite a file at its length, an object format other
+than SHA-1, or more than fifty packs and no multi-pack index.
 
 ## After the first read, you do not read it again
 

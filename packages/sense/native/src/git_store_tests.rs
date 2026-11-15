@@ -184,6 +184,19 @@ fn a_custom_clean_filter_alone_keeps_the_store_shut() {
 }
 
 #[test]
+fn a_working_tree_encoding_anywhere_keeps_the_store_shut() {
+    // `中中a\n` is eight bytes in UTF-8 and in UTF-16LE: the size proves nothing.
+    let utf16: Vec<u8> = "中中a\n".encode_utf16().flat_map(u16::to_le_bytes).collect();
+    assert_eq!(utf16.len(), "中中a\n".len());
+    let root = repository("git-store-encoding", &[(".gitattributes", b"a.ts working-tree-encoding=UTF-16LE\n"), ("a.ts", &utf16)]);
+    assert!(Store::open(&root).is_none(), "a checked-in attribute");
+
+    let root = repository("git-store-encoding-info", &[("a.ts", A)]);
+    write(&root, ".git/info/attributes", b"*.ts working-tree-encoding=UTF-16LE\n");
+    assert!(Store::open(&root).is_none(), "the repository's own attributes");
+}
+
+#[test]
 fn a_root_outside_any_sha1_repository_opens_nothing() {
     let plain = std::env::temp_dir().join(format!("sense-git-store-none-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&plain);
@@ -244,12 +257,13 @@ fn any_git_call_that_failed_keeps_the_store_shut() {
     let root = repository("git-store-asked", &[("a.ts", A)]);
     assert!(Store::answered(&root, super::Answers::asked(&root)).is_some());
 
-    for failed in ["located", "unfiltered", "replaced"] {
+    for failed in ["located", "unfiltered", "replaced", "attributes"] {
         let mut answers = super::Answers::asked(&root);
         match failed {
             "located" => answers.located = None,
             "unfiltered" => answers.unfiltered = None,
-            _ => answers.replaced = None,
+            "replaced" => answers.replaced = None,
+            _ => answers.attributes = None,
         }
         assert!(Store::answered(&root, answers).is_none(), "{failed}");
     }

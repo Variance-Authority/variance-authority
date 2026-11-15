@@ -13,11 +13,13 @@
 //! blob, so `ask grep` inflates it out of a pack instead of opening it. On
 //! Kibana an open costs about four times what an inflate does, because a
 //! worktree read pays for the descriptor, not the bytes. [`Store::open`] refuses
-//! too a clean, smudge or process filter other than git-lfs's, which can make a
-//! checkout and its blob differ at one length, and more packs than a lookup should walk
-//! without a multi-pack index. Every rewrite that changes the length — `eol`,
-//! `core.autocrlf`, `ident`, an encoding that is not one byte a character — is
-//! caught per file, by the blob's size against the file's, whenever it happened.
+//! too a clean, smudge or process filter other than git-lfs's, and any
+//! attributes source that names `working-tree-encoding`: either can make a
+//! checkout and its blob differ at one length (`中中a\n` is eight bytes in UTF-8
+//! and in UTF-16LE). It refuses as well more packs than a lookup should walk
+//! without a multi-pack index. Every rewrite that always changes the length —
+//! `eol`, `core.autocrlf`, `ident` — is caught per file, by the blob's size
+//! against the file's, whenever it happened.
 //!
 //! [`Store::checked_out`] is the per-file proof, in order: an unconflicted entry,
 //! a regular file, none of skip-worktree, assume-valid or intent-to-add, an
@@ -82,6 +84,9 @@ struct Answers {
     unfiltered: Option<bool>,
     /// The first replace ref, or nothing.
     replaced: Option<String>,
+    /// The system and global attributes files, as `git var` names them; an
+    /// empty path is none.
+    attributes: Option<[String; 2]>,
 }
 
 /// A tracked file the index holds as unchanged, and its blob.
@@ -138,16 +143,21 @@ impl Store {
         if !answers.unfiltered? {
             return None;
         }
-        let (located, replaced) = (answers.located?, answers.replaced?);
+        let (located, replaced, [system, global]) = (answers.located?, answers.replaced?, answers.attributes?);
         let mut lines = located.lines();
         let (prefix, format) = (lines.next()?, lines.next()?);
         let mut paths = lines.map(|path| root.join(path));
-        let (index, objects) = (paths.next()?, paths.next()?);
+        let (index, objects, info) = (paths.next()?, paths.next()?, paths.next()?);
         if !few_packs(&objects) {
             return None;
         }
         let objects = Objects::at(format, &objects, &replaced)?;
         let index = gix_index::File::at(&index, gix_hash::Kind::Sha1, true, Default::default()).ok()?;
+        let top = root.ancestors().nth(prefix.matches('/').count())?;
+        let outside = [Path::new(&system), Path::new(&global), &info];
+        if encoded(&index, top, &objects, &outside) {
+            return None;
+        }
         Some(Store { objects, index, prefix: prefix.to_owned(), root: root.to_owned() })
     }
 
@@ -186,11 +196,13 @@ impl Answers {
         std::thread::scope(|scope| {
             let unfiltered = scope.spawn(|| unfiltered(root));
             let replaced = scope.spawn(|| replaced(root));
-            let asked = ["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "index", "--git-path", "objects"];
+            let attributes = scope.spawn(|| attributes(root));
+            let asked = ["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "index", "--git-path", "objects", "--git-path", "info/attributes"];
             Answers {
                 located: git(root, &asked),
                 unfiltered: unfiltered.join().ok().flatten(),
                 replaced: replaced.join().ok().flatten(),
+                attributes: attributes.join().ok().flatten(),
             }
         })
     }
@@ -248,6 +260,39 @@ fn unfiltered(root: &Path) -> Option<bool> {
         })),
         _ => None,
     }
+}
+
+/// The system and global attributes files `git var` names; `None` when it
+/// names neither, as git before 2.42 does.
+fn attributes(root: &Path) -> Option<[String; 2]> {
+    let listed = git(root, &["var", "-l"])?;
+    let named = |key: &str| listed.lines().find_map(|line| line.strip_prefix(key)?.strip_prefix('=')).map(str::to_owned);
+    Some([named("GIT_ATTR_SYSTEM")?, named("GIT_ATTR_GLOBAL")?])
+}
+
+/// Whether any attributes source may name `working-tree-encoding`, which can
+/// rewrite a file into other bytes at its blob's length: every `.gitattributes`
+/// the index holds, as checked out and as committed, and the files `outside`
+/// it. A source that cannot be read is read as naming it.
+fn encoded(index: &gix_index::File, top: &Path, objects: &Objects, outside: &[&Path]) -> bool {
+    let names = |bytes: &[u8]| memchr::memmem::find(bytes, b"working-tree-encoding").is_some();
+    let read = |path: &Path| match std::fs::read(path) {
+        Ok(bytes) => names(&bytes),
+        Err(error) => error.kind() != std::io::ErrorKind::NotFound,
+    };
+    if outside.iter().any(|path| !path.as_os_str().is_empty() && read(path)) {
+        return true;
+    }
+    let mut reader = objects.reader();
+    index.entries().iter().any(|entry| {
+        let path = entry.path(index);
+        if path != ".gitattributes" && !path.ends_with(b"/.gitattributes") {
+            return false;
+        }
+        let Ok(relative) = std::str::from_utf8(path) else { return true };
+        let committed = reader.objects.try_find(&entry.id, &mut reader.buffer).ok().flatten().map(|data| names(data.data));
+        committed != Some(false) || read(&top.join(relative))
+    })
 }
 
 /// Whether a lookup that misses walks few enough pack indexes.

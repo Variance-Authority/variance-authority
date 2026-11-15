@@ -129,6 +129,21 @@ fn a_repository_whose_checkout_may_differ_at_the_same_length_is_searched_from_th
 }
 
 #[test]
+fn a_working_tree_encoding_that_keeps_the_length_is_searched_from_the_worktree() {
+    // `中中a\n` is eight bytes in UTF-8 and in UTF-16LE.
+    let utf16: Vec<u8> = "中中a\n".encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let root = repository("help-grep-encoding", &[(".gitattributes", b"a.ts working-tree-encoding=UTF-16LE\n"), ("a.ts", &utf16), ("plain.ts", b"\xe4\xb8\xad\n")]);
+    let files: Vec<String> = ["a.ts", "plain.ts"].map(String::from).to_vec();
+
+    for pattern in ["中", "-N"] {
+        let (worktree, _) = answer(&root, pattern, &files, usize::MAX);
+        let (stored, read) = answer(&root, pattern, &files, 0);
+        assert_eq!(read, 0, "refused whole, the plain file with it");
+        assert_eq!(stored, worktree, "{pattern}");
+    }
+}
+
+#[test]
 fn an_ident_checkout_is_longer_than_its_blob_and_is_searched_from_the_worktree() {
     let root = repository("help-grep-ident", &[(".gitattributes", b"*.txt ident\n"), ("a.txt", b"$Id$ bbbb\n"), ("plain.ts", b"bbbb\n")]);
     std::fs::remove_file(root.join("a.txt")).unwrap();
