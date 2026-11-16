@@ -1,0 +1,45 @@
+name: variance jest-cache
+description: >-
+  Restores Jest's transform cache before a shard's tests, and saves it after
+  them on the week's first green run of that shard. `variance carry` names the path,
+  Jest's own default cache directory, and a key per suite, shard and ISO week,
+  so a new week starts from an empty cache. Add it as the step before the
+  tests; a project whose Jest does not resolve restores nothing.
+
+inputs:
+  suite:
+    description: The declared suite the shard runs.
+    required: true
+  shard:
+    description: >-
+      The shard this job runs, as Jest's `--shard` takes it, such as `2/3`.
+      Empty for a suite run in one job.
+    required: false
+    default: ''
+  command:
+    description: How to run the variance CLI.
+    required: false
+    default: npx --no-install variance
+
+runs:
+  using: composite
+  steps:
+    - id: carry
+      name: what the host carries
+      shell: bash
+      env:
+        VARIANCE_COMMAND: ${{ inputs.command }}
+        SHARD: ${{ inputs.shard }}
+      run: |
+        # shellcheck disable=SC2086
+        $VARIANCE_COMMAND carry restore --transform jest ${SHARD:+--shard "$SHARD"} --format github >> "$GITHUB_OUTPUT"
+
+    # The cache action saves in its post step, after the job's tests, on a
+    # miss of the exact key.
+    - if: steps.carry.outputs[format('transform-{0}-key', inputs.suite)] != ''
+      name: restore Jest's transform cache
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.carry.outputs[format('transform-{0}-path', inputs.suite)] }}
+        key: ${{ steps.carry.outputs[format('transform-{0}-key', inputs.suite)] }}
+        restore-keys: ${{ steps.carry.outputs[format('transform-{0}-restore-keys', inputs.suite)] }}

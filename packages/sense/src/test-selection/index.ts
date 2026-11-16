@@ -104,6 +104,7 @@ export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export { kept, placed, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { askedSelection, landingTimes } from './selection-environment.js';
+export { jestCacheDirectory } from './jest-cache-directory.js';
 export { shardArgument, shardOf, type ShardAsked, type ShardPart } from './shard-placement.js';
 export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };
