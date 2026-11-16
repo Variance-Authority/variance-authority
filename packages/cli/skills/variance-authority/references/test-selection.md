@@ -170,7 +170,9 @@ variance reach --since origin/main              # files a diff reaches over impo
   one block per hop count the change travelled, nearest first, each with its
   test files, their seconds as the record times them, and the `variance
   select --at-distance` command that runs that block. Each test line
-  names the trail from the changed file. A test no hop placed sits in the
+  names the trail from the changed file. Beside a leg, the hops the leg left
+  are laid out too, marked as left, so their cost shows before you widen. A
+  test no hop placed sits in the
   block whose leg runs it; with no hops measured, as under `--execution`, or
   under the rung `--local` fell to, the selection is one block and its command
   carries no leg. A test file the record never saw runs in every block, and a

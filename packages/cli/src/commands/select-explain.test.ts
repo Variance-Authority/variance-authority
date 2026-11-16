@@ -58,13 +58,19 @@ describe('select --format explain', () => {
     }
   });
 
-  it('under a closed leg, closes every block on a range that runs exactly it', async () => {
+  it('under a closed leg, lays out what the leg left as its own marked blocks, every block closed on a range that runs exactly it', async () => {
     const root = await changed();
 
     const { out } = await selectOutput({ cwd: root, format: 'explain', atDistance: { from: 0, to: 1 } });
     const blocks = blocksOf(out);
 
-    expect(blocks.map(({ command }) => /--at-distance (\S+)$/.exec(command)?.[1])).toEqual(['0', '1']);
+    expect(out).toContain('the change selects 2 of 4 recorded test files, 3.0 s recorded.');
+    expect(blocks.map(({ head }) => head)).toEqual([
+      '0 hops: 1 test file, 1.0 s recorded',
+      '1 hop: 1 test file, 2.0 s recorded',
+      '2 hops, left by the leg asked: 1 test file, 3.0 s recorded',
+    ]);
+    expect(blocks.map(({ command }) => /--at-distance (\S+)$/.exec(command)?.[1])).toEqual(['0', '1', '2']);
     for (const block of blocks) {
       const atDistance = parseAtDistance(/--at-distance (\S+)$/.exec(block.command)?.[1]);
       const { skip } = JSON.parse((await selectOutput({ cwd: root, format: 'json', ...(atDistance === undefined ? {} : { atDistance }) })).out);
@@ -90,6 +96,17 @@ describe('select --format explain', () => {
 
     expect(out).toContain('no measured distance: 3 test files, 6.0 s recorded — variance select --execution j.bin\n');
     expect(out).not.toContain('--at-distance');
+  });
+
+  it('gives a recorded test never seen whole that no hop placed a block past the furthest hop, which only the open leg runs', () => {
+    const selection = {
+      ground: 'read', skip: [IDLE], because: 'b', notes: [], at: 'a', unread: [], stale: [], recorded: { whole: 3, entered: 2 },
+      incomplete: [MID], distances: [{ test: SELF, bearing: 'direct', hops: 0 }, { test: NEAR, bearing: 'direct', hops: 1 }],
+    } as const;
+
+    const out = explainOf(selection, new Set([IDLE, NEAR, SELF]), { recording: 'r', times: new Map(Object.entries(TIMES)) }, 'variance select');
+
+    expect(out).toContain(`no measured distance: 1 test file, 3.0 s recorded — variance select --at-distance 2-\n  ${MID}, `);
   });
 
   it('names on each test line the changed file and the trail `--format json` measured', async () => {
@@ -143,7 +160,7 @@ describe('select --format explain', () => {
 
     expect(out).toContain('the suite unit rests on test/setup.ts before any test imports it, through its `before` entry `test/setup.ts`, and this diff moves it, so `--local` selected the test files');
     expect(out).toContain(`no measured distance: 4 test files, 10.0 s recorded — variance select --suite unit --local\n`);
-    for (const test of WHOLE.filter((file) => !plain.includes(file))) expect(out).toContain(`  ${test}, `);
+    for (const test of WHOLE.filter((file) => !plain.includes(file))) expect(out).toContain(`  ${test}, ${TIMES[test]! / 1000}.0 s: the package rung \`--local\` fell to\n`);
   });
 
   it('is a format `select` takes', () => {
@@ -155,7 +172,7 @@ describe('select --format explain', () => {
 function blocksOf(out: string): readonly { readonly head: string; readonly command: string; readonly tests: readonly string[] }[] {
   return out.split('\n\n').flatMap((part) => {
     const [first = '', ...lines] = part.split('\n').filter(Boolean);
-    const matched = /^(\d+ hops?: [^—]+) — (variance select .*)$/.exec(first);
+    const matched = /^(\d+ hops?[^:]*: [^—]+) — (variance select .*)$/.exec(first);
     if (matched === null) return [];
     return [{ head: matched[1]!.trim(), command: matched[2]!, tests: lines.map((line) => line.trim().split(',')[0]!) }];
   });
