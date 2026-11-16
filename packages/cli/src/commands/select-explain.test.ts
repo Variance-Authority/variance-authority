@@ -78,6 +78,7 @@ describe('select --format explain', () => {
     const { out } = await selectOutput({ cwd: root, format: 'explain' });
 
     expect(out).toContain('a test file the record never saw, such as one the change adds, is in no skip list, and runs in every block');
+    expect(out).toContain('a block past 0 hops also runs any nearer test file the last run left unrun');
   });
 
   it('gives a selection with no measured hops the command that runs it whole, with no leg a journey would refuse', () => {
@@ -130,6 +131,19 @@ describe('select --format explain', () => {
 
     expect(out).toContain('the whole suite runs: the suite unit rests on test/setup.ts before any test imports it, through its `before` entry `test/setup.ts`');
     expect(out).toContain('the record times 4 test files, 10.0 s');
+  });
+
+  it('under `--local`, says why the selection fell to a rung, and lays out what the rung runs', async () => {
+    const root = await changed({ 'test/setup.ts': 'export const ready = 2;\n' }, {
+      suites: { unit: { kind: 'unit', before: ['vitest.config.ts', 'test/setup.ts'] } },
+    });
+
+    const { out } = await selectOutput({ cwd: root, format: 'explain', suite: 'unit', local: true });
+    const plain = (await selectOutput({ cwd: root, format: 'plain', suite: 'unit', local: true })).out.split('\n').filter(Boolean);
+
+    expect(out).toContain('the suite unit rests on test/setup.ts before any test imports it, through its `before` entry `test/setup.ts`, and this diff moves it, so `--local` selected the test files');
+    expect(out).toContain(`no measured distance: 4 test files, 10.0 s recorded — variance select --suite unit --local\n`);
+    for (const test of WHOLE.filter((file) => !plain.includes(file))) expect(out).toContain(`  ${test}, `);
   });
 
   it('is a format `select` takes', () => {

@@ -169,11 +169,12 @@ variance reach --since origin/main              # files a diff reaches over impo
 - **`--format explain` is how far to test.** Read it before you choose a leg:
   one block per hop count the change travelled, nearest first, each with its
   test files, their seconds as the record times them, and the `variance
-  select --at-distance` command that runs exactly that block. Each test line
+  select --at-distance` command that runs that block. Each test line
   names the trail from the changed file. A test no hop placed sits in the
-  block whose leg runs it; with no hops measured, as under `--execution`, the
-  selection is one block and its command carries no leg. A test file the record
-  never saw runs in every block. A selection that runs the whole suite says why
+  block whose leg runs it; with no hops measured, as under `--execution`, or
+  under the rung `--local` fell to, the selection is one block and its command
+  carries no leg. A test file the record never saw runs in every block, and a
+  block past 0 hops also runs a nearer test the last run left unrun. A selection that runs the whole suite says why
   and what the record times the suite at; a changed file nothing reaches is
   named, with where to declare it: `/// <depends>` or `before`. It is no
   runner's input.

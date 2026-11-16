@@ -5,10 +5,11 @@
  *
  * One block per hop count the change travelled, nearest first, each with its
  * test files, their recorded seconds and the `--at-distance` command that runs
- * exactly that block. The hops are the leg's distances, cut by `atDistance`
- * as a leg cuts them, and the seconds the budget's (`select-budget.ts`): this
- * reads both, and decides nothing.
- * A selection that ran the whole suite says why, and what the record times it at.
+ * that block, beside any nearer test the last run left unrun. The hops are the
+ * leg's distances, cut by `atDistance` as a leg cuts them, and the seconds the
+ * budget's (`select-budget.ts`): this reads both, and decides nothing.
+ * A selection that ran the whole suite says why, and what the record times it
+ * at; one `--local` narrowed says why, and is one block of what its rung runs.
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -55,10 +56,11 @@ export function explainOf(selection: TestSelection, whole: ReadonlySet<string>, 
 
   const skip = new Set(selection.skip);
   const runs = (test: string) => !skip.has(test) && (selection.only === undefined || selection.only.includes(test));
-  const blocks = blocksOf(selection, whole, runs);
+  const blocks = blocksOf(selection, whole, recorded, runs);
   const selected = blocks.flatMap((block) => block.tests);
   const of = selection.recorded === undefined ? '' : ` of ${selection.recorded.whole} recorded`;
-  const head = `the change selects ${selected.length}${of} test file${selected.length === 1 ? '' : 's'}, ${priced(recorded, selected)}.`;
+  const fell = selection.fell === undefined ? '' : `\n${selection.because}.`;
+  const head = `the change selects ${selected.length}${of} test file${selected.length === 1 ? '' : 's'}, ${priced(recorded, selected)}.${fell}`;
 
   const byTest = new Map((selection.distances ?? []).map((distance) => [distance.test, distance] as const));
   const said = blocks.map((block) => {
@@ -66,11 +68,16 @@ export function explainOf(selection: TestSelection, whole: ReadonlySet<string>, 
     const lines = block.tests.map((test) => `  ${test}, ${priceOf(recorded, test)}: ${pathOf(byTest.get(test))}`);
     return [`${block.label}: ${many(block.tests.length, 'test file')}, ${priced(recorded, block.tests)} — ${runsIt}`, ...lines].join('\n');
   });
-  const unseen = 'a test file the record never saw, such as one the change adds, is in no skip list, and runs in every block\n';
-  const left = (selection.left?.length ?? 0) > 0
+  const unseen = blocks.length === 0
+    ? []
+    : ['a test file the record never saw, such as one the change adds, is in no skip list, and runs in every block\n'];
+  const overdue = blocks.some((block) => block.range !== undefined && !block.range.startsWith('0'))
+    ? ['a block past 0 hops also runs any nearer test file the last run left unrun\n']
+    : [];
+  const left =(selection.left?.length ?? 0) > 0
     ? [`${many(selection.left!.length, 'selected test file')} the leg asked leaves to another leg\n`]
     : [];
-  return [`${head}\n`, ...said.map((block) => `${block}\n`), unseen, ...left, ...unread].join('\n');
+  return [`${head}\n`, ...said.map((block) => `${block}\n`), ...unseen, ...overdue, ...left, ...unread].join('\n');
 }
 
 /**
@@ -78,12 +85,18 @@ export function explainOf(selection: TestSelection, whole: ReadonlySet<string>, 
  * `atDistance` returns for that one hop, so the tests no path placed sit in
  * the block whose leg runs them. A recorded test never seen whole that no hop
  * placed runs in the open leg alone, so its block starts past the furthest
- * hop. With no hops measured, the selection is one block, run as it is.
+ * hop. With no hops measured, or under the rung `--local` fell to, the
+ * selection is one block of every recorded test it does not skip, run as it is.
  */
-function blocksOf(selection: TestSelection, whole: ReadonlySet<string>, runs: (test: string) => boolean): readonly Block[] {
+function blocksOf(
+  selection: TestSelection,
+  whole: ReadonlySet<string>,
+  recorded: ReadonlyMap<string, number>,
+  runs: (test: string) => boolean,
+): readonly Block[] {
   const measured = selection.distances;
-  if (measured === undefined) {
-    const tests = [...new Set([...whole, ...(selection.incomplete ?? [])])].filter(runs).sort(codeUnitOrder);
+  if (measured === undefined || selection.fell !== undefined) {
+    const tests = [...new Set([...whole, ...recorded.keys(), ...(selection.incomplete ?? [])])].filter(runs).sort(codeUnitOrder);
     return tests.length === 0 ? [] : [{ label: 'no measured distance', tests }];
   }
   const hops = groupByDistance(measured).flatMap((group) => (group.hops === undefined ? [] : [group.hops]));
