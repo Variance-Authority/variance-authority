@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { carryPlan, carryText, githubOutput, type HostRun } from './carry.js';
+import type { ParsedCarry } from '../carry-args.js';
+import { carryPlan, carryText, githubOutput, type HostRun, runCarry } from './carry.js';
 import { isoWeek } from './carry-transform.js';
 
 const SHA = 'c'.repeat(40);
@@ -113,6 +114,17 @@ describe("Jest's transform cache", () => {
 
     expect(githubOutput(plan)).not.toContain('transform-');
     expect(plan.notes).toEqual([]);
+  });
+
+  it('is what `variance carry restore --transform jest` prints, its note on the error stream and never in the outputs', async () => {
+    let out = '';
+    let err = '';
+    const parsed: ParsedCarry = { command: 'carry', direction: 'restore', transform: 'jest', shard: { index: 1, total: 3 }, format: 'github' };
+    const exit = await runCarry(parsed, { out: (text) => void (out += text), err: (text) => void (err += text) }, async () => MAINLINES, {});
+
+    expect(exit).toBe(0);
+    expect(out).not.toMatch(/^transform-/mu);
+    expect(err).toContain("Jest's transform cache is carried by the host cache, and this is not a host run, so it has no key here");
   });
 
   it('is not saved by `carry save`, whose host step is the cache action restoring it', () => {
