@@ -26,6 +26,16 @@ describe('the testIgnore pattern a selection drops by', () => {
     expect(fileSelection()!.dropped).toEqual(new Set(['tests/b.spec.ts']));
   });
 
+  it('drops a file outside the files a selection names as the only ones that run', async () => {
+    const only = async () => ({ ...(await read()), skip: new Set<string>(), only: new Set(['tests/a.spec.ts']) });
+    selectFiles(root, only);
+    fileSelection()!.selection = await only();
+    const drop = new SkippedFiles();
+
+    expect(drop.test(resolve(root, 'tests/a.spec.ts'))).toBe(false);
+    expect(drop.test(resolve(root, 'tests/c.spec.ts'))).toBe(true);
+  });
+
   it('keeps the spec files it let through that a project matches, and not the helpers beside them', async () => {
     selectFiles(root, read);
     fileSelection()!.selection = await read();

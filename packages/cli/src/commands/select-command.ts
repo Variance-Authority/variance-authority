@@ -86,7 +86,7 @@ export interface SelectRequest {
   readonly atDistance?: Leg;
   /** `--ran-at <commit>`: the pull request's tested tree, which a merge queue merged onto `since`. */
   readonly ranAt?: string;
-  /** `--local`: a reading that cannot narrow falls to the changed files' importers or packages. */
+  /** `--local`: a reading that cannot narrow falls to the changed files' importers, never to every test file. */
   readonly local?: boolean;
 }
 
@@ -143,16 +143,18 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // A snapshot handed in by path — the JVM agent's `coverage.va` — is read the
   // way this checkout's own is. Anything else `--execution` names is a journey
   // file.
-  // Under `--local`, a reading that cannot narrow falls to the changed files the caller already holds, or reads them.
+  // Under `--local`, a reading that cannot narrow falls to the changed files' importers; a moved `before` runs all.
   // The waves of one shard read one record, so each runs only what it placed in them.
   const leg = request.atDistance !== undefined && request.beneath === true
     ? { ...request.atDistance, partition: true as const, ...(request.placeAtDistance === undefined ? {} : { placing: request.placeAtDistance }) }
     : request.atDistance;
   const fall = async (input: SelectInput, held?: Held, record?: string): Promise<SuiteReading> => {
     const narrowed = suiteOf(input, leg);
-    return request.local === true && narrowed.declined !== undefined
-      ? suiteOf(input, leg, await localAnswer(request, input.ground, held, record))
-      : narrowed;
+    if (request.local !== true || narrowed.declined === undefined || input.ground.kind === 'before') return narrowed;
+    const answer = await localAnswer(request, input.ground, narrowed.declined, held, record);
+    return 'whole' in answer
+      ? suiteOf({ ...input, ground: { kind: 'before', whole: answer.whole.says, rests: answer.whole.rests } }, leg)
+      : suiteOf(input, leg, answer);
   };
   if (
     request.execution !== undefined &&

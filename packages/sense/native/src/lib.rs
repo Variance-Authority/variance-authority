@@ -204,6 +204,8 @@ pub struct GitTree {
     stores: std::sync::Mutex<Option<(Vec<String>, Arc<parse_store::Stores>)>>,
     /// The parses this tree's reads made from the blob each is kept under.
     from_blob: parse_origin::FromBlob,
+    /// The object store this tree's scans read from, once they have read enough.
+    store: acquire::TreeObjects,
     /// How the tree was come by, when a change source other than git had a say.
     #[cfg(unix)]
     change: Option<held_listing::Change>,
@@ -274,6 +276,7 @@ fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
         listing: OnceLock::new(),
         stores: std::sync::Mutex::new(None),
         from_blob: parse_origin::FromBlob::default(),
+        store: acquire::TreeObjects::default(),
         #[cfg(unix)]
         change: None,
     }
@@ -321,10 +324,7 @@ impl GitTree {
 
     /// Read tracked files from Git's pack streams and every other file from disk.
     #[napi]
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "stable positional N-API contract"
-    )]
+    #[allow(clippy::too_many_arguments, reason = "stable positional N-API contract")]
     pub fn scan_batch(
         &self,
         root: String,
@@ -358,6 +358,7 @@ impl GitTree {
             Some(self.listing()),
             &kept,
             &self.from_blob,
+            &self.store,
         )
     }
 
@@ -373,10 +374,7 @@ impl GitTree {
 
     /// Follow every module reachable from `seeds` in one native operation.
     #[napi]
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "stable positional N-API contract"
-    )]
+    #[allow(clippy::too_many_arguments, reason = "stable positional N-API contract")]
     pub fn scan_graph(
         &self,
         root: String,
@@ -406,6 +404,7 @@ impl GitTree {
             self.listing(),
             &kept,
             &self.from_blob,
+            &self.store,
         )
     }
 
@@ -415,7 +414,7 @@ impl GitTree {
     pub fn index_graph(&self, mut options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
         let stores = self.stores(options.stores.take());
         let opened = stores.as_deref().map(parse_store::Stores::open);
-        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), opened.as_ref(), &self.from_blob)
+        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), opened.as_ref(), &self.from_blob, &self.store)
     }
 
     /// Bring the source index at `options.index` up to this tree, on this
@@ -433,6 +432,7 @@ impl GitTree {
             regular: &self.regular,
             unhashed: &self.unhashed,
             from_blob: &self.from_blob,
+            store: &self.store,
             #[cfg(unix)]
             carry,
         };
