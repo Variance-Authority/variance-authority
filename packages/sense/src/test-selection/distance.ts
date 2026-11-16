@@ -227,13 +227,17 @@ function place(
   options: DistanceOptions,
 ): TestDistance {
   const seeds: string[] = [];
+  const changed = new Set<string>();
   for (const reason of cause.via) {
     if (reason.kind === 'precondition') {
       return { test: cause.test, bearing: 'precondition', hops: 0, from: reason.name, trail: [reason.name] };
     }
     // A reader is measured from the file that declares the value it reads:
     // that is the file the change is in.
-    if (reason.kind === 'region' || reason.kind === 'reader') seeds.push(reason.file);
+    if (reason.kind === 'region' || reason.kind === 'reader') {
+      seeds.push(reason.file);
+      changed.add(reason.file);
+    }
     // An importer chain is already a measured path from the changed file to the
     // module whose row answered. Its far end is where the walk below picks up,
     // and the chain is spliced back on once there is something to splice it to.
@@ -247,7 +251,10 @@ function place(
     }
   }
 
-  return measure(cause.test, seeds, chains, entered.get(findTest(coverage, cause.test) ?? -1) ?? new Set(), options);
+  // A chain's far end answered for the change and did not change itself, so a
+  // test entering it enters nothing changed.
+  const enterable = (file: string): boolean => changed.has(file) || !chains.has(file);
+  return measure(cause.test, seeds, chains, entered.get(findTest(coverage, cause.test) ?? -1) ?? new Set(), options, enterable);
 }
 
 /** Walk from `test` through the modules it `ran` to the nearest seed, and splice that seed's chain back on. */
@@ -257,6 +264,7 @@ function measure(
   chains: ReadonlyMap<string, readonly string[]>,
   ran: ReadonlySet<string>,
   options: DistanceOptions,
+  enterable: (file: string) => boolean = (): boolean => true,
 ): TestDistance {
   const walked = walk(test, seeds, ran, options);
   if ('because' in walked) {
@@ -272,6 +280,7 @@ function measure(
   const trail = [...prefix, ...walked.trail];
   const through = reachThroughs(trail, options.faces);
   const hops = trail.length - 1;
+  const enters = walked.enters.filter(enterable);
   return {
     test,
     bearing: through.length > 0 ? 'reach-through' : hops <= 1 ? 'direct' : 'transitive',
@@ -279,7 +288,7 @@ function measure(
     from: trail[0]!,
     trail,
     ...(through.length === 0 ? {} : { through }),
-    ...(walked.enters.length === 0 ? {} : { enters: walked.enters }),
+    ...(enters.length === 0 ? {} : { enters }),
   };
 }
 

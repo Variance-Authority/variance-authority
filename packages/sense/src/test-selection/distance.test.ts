@@ -86,6 +86,18 @@ describe('distanceFromView', () => {
     expect(of(read({ relations: beside }), 'test/button.test.tsx').enters).toEqual(['src/button/abstract-button.tsx']);
   });
 
+  it('names no file an importer chain ends at, which did not change', () => {
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    // The report's stylesheet changed, and the report, which reads it, answered for it.
+    const chain = { kind: 'importer', trail: ['src/report/report.css', 'src/report/report.tsx'] } as const;
+    const because = narrowing.because!.map((cause) => (cause.test === 'test/report.test.tsx' ? { ...cause, via: [chain] } : cause));
+    const report = of(distanceFromView(coverage, { ...narrowing, because }, { relations }), 'test/report.test.tsx');
+
+    expect(report).toMatchObject({ hops: 2, from: 'src/report/report.css' });
+    expect(report.enters).toBeUndefined();
+  });
+
   it('names every changed file a test enters, though the walk measured from one it loads under another', () => {
     const beside = relationsOfFiles(
       layerRecords.map((record) =>
