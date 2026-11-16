@@ -1,17 +1,14 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::{declined_for_size, open, read_all, read_git, still_too_large, too_large, Answer, Opened, Outcome, FILES_PER_WAVE};
+use super::{declined_for_size, open, read_all, read_git, still_too_large, too_large, Answer, Opened, Outcome, TreeObjects};
+use crate::git_store::{Objects, STORE_CROSSOVER};
 use crate::git_fixture::{git, repository, write};
 
-/// `files`, padded with committed files to one wave the store reads, as
-/// `read_git` answers each under `largest`, with whether its bytes were the
-/// blob the index names.
+/// `files`, committed, as `read_git` answers each out of the repository's
+/// store under `largest`, with whether its bytes were the blob the index names.
 fn wave(name: &str, files: &[(&str, &[u8])], largest: u32, edit: impl FnOnce(&Path)) -> HashMap<String, (Answer, bool)> {
-    let pad: Vec<(String, Vec<u8>)> =
-        (0..FILES_PER_WAVE).map(|at| (format!("pad/{at}.ts"), format!("export const p{at} = {at};\n").into_bytes())).collect();
-    let all: Vec<(&str, &[u8])> = files.iter().copied().chain(pad.iter().map(|(path, bytes)| (path.as_str(), bytes.as_slice()))).collect();
-    let root = repository(name, &all);
+    let root = repository(name, files);
     edit(&root);
     let staged = git(&root, &["ls-files", "-s"]);
     let ids: HashMap<&str, crate::git::Oid> = staged
@@ -21,9 +18,10 @@ fn wave(name: &str, files: &[(&str, &[u8])], largest: u32, edit: impl FnOnce(&Pa
             Some((path, crate::git::parse_oid(meta.split(' ').nth(1)?.as_bytes())?))
         })
         .collect();
-    let paths: Vec<String> = all.iter().map(|(path, _)| (*path).to_owned()).collect();
+    let paths: Vec<String> = files.iter().map(|(path, _)| (*path).to_owned()).collect();
     let oids = paths.iter().map(|path| ids.get(path.as_str()).copied()).collect();
-    let (answers, named) = read_git(root.to_string_lossy().into_owned(), paths.clone(), oids, Some(largest), Some(true), None, true);
+    let objects = Objects::open(&root);
+    let (answers, named) = read_git(objects.as_ref(), root.to_string_lossy().into_owned(), paths.clone(), oids, Some(largest), Some(true), None, true);
     std::fs::remove_dir_all(&root).unwrap();
     paths.into_iter().zip(answers.into_iter().zip(named)).collect()
 }
@@ -159,4 +157,21 @@ fn a_checkout_holding_an_lfs_pointer_fails_the_file_and_says_why() {
     let Opened::Settled(read, outcome) = opened else { panic!("a pointer is never parsed as source") };
     assert_eq!(outcome, Outcome::Failed, "a `git lfs pull` changes the bytes, not the object a decline is kept by");
     assert!(read.unknown.unwrap().starts_with("a.ts is a git-LFS pointer"));
+}
+
+#[test]
+fn a_tree_opens_the_store_once_its_scans_have_read_the_crossover_and_keeps_it() {
+    let root = repository("acquire-wave-store", &[("a.ts", b"export const a = 1;\n")]);
+    let store = TreeObjects::default();
+
+    let short = store.objects(&root, STORE_CROSSOVER - 1).is_some();
+    let reached = store.objects(&root, 1);
+    let after = store.objects(&root, 1);
+    let alone = TreeObjects::default().objects(&root, 10).is_some();
+    std::fs::remove_dir_all(&root).unwrap();
+
+    assert!(!short, "scans that have read fewer files than the crossover open no store");
+    let (reached, after) = (reached.expect("the read that reaches the crossover comes from the store"), after.unwrap());
+    assert!(std::sync::Arc::ptr_eq(&reached, &after), "every later read comes from the store already open");
+    assert!(!alone, "a tree whose scans read a few files reads them off the disk");
 }
