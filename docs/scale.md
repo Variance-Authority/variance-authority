@@ -299,8 +299,8 @@ one about the clock:
 - **That a suite under instrumentation crawls.** This one is answered where the
   suites are timed, in
   [what recording costs while the suite runs](selecting.md#what-recording-costs-while-the-suite-runs):
-  1.02× on Zod and 1.08× on TanStack Query, against 1.30× for the same suites
-  under `--coverage`.
+  at the default precision 0.99× on Zod and 1.16× on TanStack Query, against
+  1.36× and 1.34× for the same suites under classic coverage.
 
 The figures below come from two recordings:
 
