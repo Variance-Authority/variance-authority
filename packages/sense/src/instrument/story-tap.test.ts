@@ -323,7 +323,7 @@ describe('what a case says on the way', () => {
     expect(lines.map(([, , line, said]) => [line, said])).toEqual([[10, 0], [11, 1], [13, 2]]);
   });
 
-  it('says what the last line changed when the case settles, and nothing its cleanup changes', async () => {
+  it('says what the last line changed when the case settles, and nothing its hooks or cleanup change', async () => {
     const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));
     const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
@@ -334,8 +334,12 @@ describe('what a case says on the way', () => {
     tap.root.c(4);
     document.body.append(document.createElement('dialog'));
     tap.settle();
+    tap.root.c(6, undefined, true);
+    document.body.append(document.createElement('hr'));
     document.body.replaceChildren();
     await Promise.resolve();
+    tap.root.c(2, undefined, true);
+    document.body.append(document.createElement('main'));
     tap.root.c(9);
     document.body.append(document.createElement('p'));
     tap.settle();

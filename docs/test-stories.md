@@ -664,11 +664,11 @@ Nodes added and removed, attributes set, and text changed since the line
 opened. A subtree added at once counts as one node, and `textContent` set on an
 element replaces its nodes rather than changing text. A line that awaits says
 it again for what arrived while it waited. A line that changed nothing says
-nothing, so a `findBy` or `waitFor` that passed on a line with no `page` note
-waited for nothing: what it looked for was already there, and a `getBy` finds it as well.
-What a hook the test file does not write changes after the test, such as a
-testing library's cleanup, is no line's and has no note; a hook written in the
-test file is a line of it, and says what it changed.
+nothing. A `findBy` or `waitFor` that passed on such a line waited on no
+change to the markup: what it looked for was there, unless it waited on a
+property the markup does not carry, such as an input's `value` set by a timer.
+Hooks are no test line: what they and a testing library's cleanup change, before
+the first line or after the last, has no note.
 
 The note counts; it does not show the markup, or say which component made the
 change. For the React commits behind it, use [Eyes](eyes.md), which writes each

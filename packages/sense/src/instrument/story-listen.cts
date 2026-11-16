@@ -62,8 +62,9 @@ function pageNote(changes: readonly Change[]): string {
  * Watch the realm's document, once, and have `tap` say what changed on it at
  * each test line: drained when the line ends, so a change lands on the line
  * that made it, and said by the observer for what an `await` let through.
- * Once the case's body settles, what its hooks and the cases' cleanup change
- * is no line's, and nothing is said until the next line opens.
+ * What runs before a case's first line and after its body settles, its hooks
+ * and their cleanup, is no line's: nothing is said until the next test line
+ * opens.
  * A later call moves the watch to the tap it is given.
  */
 function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
@@ -86,7 +87,8 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
   tap.drainWith((ending) => {
     const changes = held.observer.takeRecords();
     if (changes.length > 0 && !held.quiet) held.tap.note(pageNote(changes));
-    held.quiet = ending === 'case';
+    // A hook's line is no test line: it neither opens the watch nor closes it.
+    if (ending !== 'hook') held.quiet = ending === 'case';
   });
 }
 
