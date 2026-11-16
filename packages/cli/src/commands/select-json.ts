@@ -26,6 +26,7 @@ export function jsonOf(selection: TestSelection): object {
     skip: selection.skip,
     ...(selection.widened === undefined ? {} : { widened: selection.widened }),
     ...(selection.fell === undefined ? {} : { fell: selection.fell }),
+    ...(selection.only === undefined ? {} : { only: selection.only }),
     because: selection.because,
     ...(selection.rests === undefined ? {} : { rests: selection.rests }),
     ...(selection.causes === undefined ? {} : causesOf(selection.causes, skipped)),

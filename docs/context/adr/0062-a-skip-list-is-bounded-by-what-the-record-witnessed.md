@@ -5,6 +5,8 @@
 **Superseded in part by:** [spec 0091](../../specs/0091-a-suite-is-selected-by-a-machine.md)
 item 5, for `unread`: absence widens nothing, and the Route stage's `nothing`
 with its reason replaces the run-level retirement.
+**Superseded in part by:** [ADR-0102](./0102-a-doubt-on-a-local-seam-runs-only-what-evidence-reaches.md),
+for the local seams: a doubt there runs only the importers of a changed file.
 **Relates to:** [journal 0052](../journal/0052-five-ways-the-skip-list-spoke-for-tests-nothing-witnessed.md), [journal 0053](../journal/0053-one-file-cost-four-fifths-of-the-suite.md), [ADR-0056](./0056-a-journey-is-the-places-visited.md)
 
 ## Context
