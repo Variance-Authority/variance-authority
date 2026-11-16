@@ -476,6 +476,40 @@ recorded per case. For us, it means an answer names the facts and the
 questions they open, and a workflow instruction is no substitute for them
 ([spec 0106](../specs/0106-a-need-names-its-next-move.md)).
 
+**CodeScaleBench** (Jarmak, [Why coding agents fail in large
+codebases](https://sourcegraph.com/blog/why-coding-agents-fail-large-codebases),
+Sourcegraph, 2026) scores 1,281 agent runs on tasks in more than 40 large open
+source repositories in nine languages. It compares runs with local tools alone
+(grep, file read, glob) against runs that also had Sourcegraph's keyword search,
+semantic search and find-references. It names five failures and calls them
+"context problems, not intelligence problems": lost in the codebase,
+wrong file or wrong symbol, partial completion, tool thrashing, and context
+overflow. The reported effect of search on reward changes sign with size: −0.080
+below about 400K lines, +0.259 from 400K to 2M. Multi-repository tasks gained
+more F1 than single-repository tasks (+0.209 against +0.085). Runs with search
+cost 30% less and took 38% less time, which the post attributes to no longer
+thrashing. In one case, an agent tracing a feature through the 1.4M lines of Go
+in Kubernetes had nothing after 6,000 s with local tools alone. With search it made 8
+keyword and 6 semantic searches, then one find-references call, and finished in
+89 s. In another, a refactor reached 2 of the 7 files it had to change. One
+finding cuts the other way: more tools sometimes made a run worse, which the
+post puts down to agents not being told when to use each one. The benchmark and
+the post come from the vendor whose tools they test. The post leaves its
+methodology to a [companion post](https://sourcegraph.com/blog/codescalebench-testing-coding-agents-on-large-codebases-and-multi-repo-software-engineering-tasks),
+names no model, and cites nothing for its claim about long contexts.
+
+**What it means here.** `search`, `symbol` and `uses` are the nearest we have
+to its keyword, name and find-references calls; `uses` reads imports, not calls. Its warning applies to them too: a tool the agent is
+not told when to call is the `@codemap` step again. So the skill states an order
+and a completion check, not only a list of commands. The order is to name the
+code before opening it. The check is that the importers `uses` lists for a
+changed name are in the diff or named as left alone. None of the five failures
+is read from what ran, and partial completion is where the record adds most: a
+changed name's `uses` lists the importers, and `covering` names the tests that
+ran each one. Whether `ask` helps an agent is measured the way this post
+measured it, on large public repositories, never on this
+repository.
+
 **Crossing facts about files** is a query language's job, and the field has
 two ends of it. Code search — Sourcegraph's `file:`, `content:` and
 `type:symbol` filters, GitHub code search's `path:` and `symbol:` qualifiers —

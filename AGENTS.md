@@ -119,6 +119,10 @@ A word the asker uses for a mechanism is looked up here first. The industry's
 equivalent names something not built here, and its answer differs from the
 code's.
 
+Name the code before you open it, and account in the change for every use of
+a name you change: the `variance-authority` skill's "Rules every answer
+shares" says how.
+
 A subagent you dispatch works from its prompt. Put this rule in the prompt of
 every subagent you send to search code, and the order in
 [change](.agents/references/change.md) in the prompt of every subagent you send
