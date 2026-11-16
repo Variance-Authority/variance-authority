@@ -5,13 +5,15 @@
  *
  * One block per hop count the change travelled, nearest first, each with its
  * test files, their recorded seconds and the `--at-distance` command that runs
- * exactly that block. The hops are the leg's (`select-leg.ts`) and the seconds
- * the budget's (`select-budget.ts`): this reads both, and decides nothing.
+ * exactly that block. The hops are the leg's distances, cut by `atDistance`
+ * as a leg cuts them, and the seconds the budget's (`select-budget.ts`): this
+ * reads both, and decides nothing.
  * A selection that ran the whole suite says why, and what the record times it at.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { durationText } from '@variance-authority/core/shard';
-import type { SuiteTimes, TestDistance } from '@variance-authority/sense/test-selection';
+import { atDistance, groupByDistance, type SuiteTimes, type TestDistance } from '@variance-authority/sense/test-selection';
 import { quoted } from '../direct-call.js';
 import { many } from './prose-counts.js';
 import { timesOf } from './select-budget.js';
@@ -32,10 +34,11 @@ export async function explainedOutput(
   return { out: explainOf(reading, whole, await timesOf(request), commandOf(request)), err: selectionNotes(reading) };
 }
 
-/** One hop count's tests, or the tests no hop placed. */
+/** The tests one command runs: one hop count's, or those no hop placed. */
 interface Block {
-  readonly hops?: number;
-  readonly range: string;
+  readonly label: string;
+  /** The `--at-distance` range that runs exactly this block; absent when the selection measured no hops. */
+  readonly range?: string;
   readonly tests: readonly string[];
 }
 
@@ -45,55 +48,62 @@ export function explainOf(selection: TestSelection, whole: ReadonlySet<string>, 
   const unread = unreadOf(selection);
   if (selection.widened !== undefined) {
     const total = [...recorded.values()].reduce((sum, ms) => sum + ms, 0);
-    const priced = 'unread' in times ? `the record times no test file: ${times.unread}` : `the record times ${many(recorded.size, 'test file')}, ${durationText(total)}`;
-    return [`the whole suite runs: ${selection.widened}.\n${priced}\n`, ...unread].join('\n');
+    const of = whole.size > recorded.size ? ` of ${whole.size}` : '';
+    const timed = 'unread' in times ? `the record times no test file: ${times.unread}` : `the record times ${many(recorded.size, 'test file')}${of}, ${durationText(total)}`;
+    return [`the whole suite runs: ${selection.widened}.\n${timed}\n`, ...unread].join('\n');
   }
 
   const skip = new Set(selection.skip);
   const runs = (test: string) => !skip.has(test) && (selection.only === undefined || selection.only.includes(test));
-  const distances = (selection.distances ?? []).filter((distance) => runs(distance.test));
-  const placed = new Set(distances.map((distance) => distance.test));
-  const unplaced = [...new Set([...whole, ...(selection.incomplete ?? [])])].filter((test) => runs(test) && !placed.has(test)).sort();
-  const selected = [...placed, ...unplaced];
-  const total = selected.reduce((sum, test) => sum + (recorded.get(test) ?? 0), 0);
+  const blocks = blocksOf(selection, whole, runs);
+  const selected = blocks.flatMap((block) => block.tests);
   const of = selection.recorded === undefined ? '' : ` of ${selection.recorded.whole} recorded`;
-  const head = `the change selects ${selected.length}${of} test file${selected.length === 1 ? '' : 's'}, ${durationText(total)} recorded.`;
+  const head = `the change selects ${selected.length}${of} test file${selected.length === 1 ? '' : 's'}, ${priced(recorded, selected)}.`;
 
-  const byTest = new Map(distances.map((distance) => [distance.test, distance] as const));
-  const lines = (tests: readonly string[]) => tests.map((test) => `  ${test}, ${priceOf(recorded, test)}: ${pathOf(byTest.get(test))}`);
-  const blocks = blocksOf(distances, unplaced, selection.distances !== undefined);
+  const byTest = new Map((selection.distances ?? []).map((distance) => [distance.test, distance] as const));
   const said = blocks.map((block) => {
-    const untimed = block.tests.filter((test) => !recorded.has(test)).length;
-    const seconds = block.tests.reduce((sum, test) => sum + (recorded.get(test) ?? 0), 0);
-    const counted = `${many(block.tests.length, 'test file')}, ${durationText(seconds)} recorded${untimed === 0 ? '' : `, ${untimed} with no recorded time`}`;
-    const label = block.hops === undefined ? 'unmeasured' : many(block.hops, 'hop');
-    return [`${label}: ${counted} — ${command} --at-distance ${block.range}`, ...lines(block.tests)].join('\n');
+    const runsIt = block.range === undefined ? command : `${command} --at-distance ${block.range}`;
+    const lines = block.tests.map((test) => `  ${test}, ${priceOf(recorded, test)}: ${pathOf(byTest.get(test))}`);
+    return [`${block.label}: ${many(block.tests.length, 'test file')}, ${priced(recorded, block.tests)} — ${runsIt}`, ...lines].join('\n');
   });
-  const unmeasured = selection.distances === undefined && selected.length > 0
-    ? ['no hops were measured, so the selection is one block: the leg says why in the notes on stderr\n']
-    : [];
+  const unseen = 'a test file the record never saw, such as one the change adds, is in no skip list, and runs in every block\n';
   const left = (selection.left?.length ?? 0) > 0
     ? [`${many(selection.left!.length, 'selected test file')} the leg asked leaves to another leg\n`]
     : [];
-  return [`${head}\n`, ...said.map((block) => `${block}\n`), ...unmeasured, ...left, ...unread].join('\n');
+  return [`${head}\n`, ...said.map((block) => `${block}\n`), unseen, ...left, ...unread].join('\n');
 }
 
 /**
- * One block per measured hop count, nearest first. The tests no path placed
- * run with the furthest leg, which is open, so they close the last block.
+ * One block per hop count the leg measured, nearest first, each the tests
+ * `atDistance` returns for that one hop, so the tests no path placed sit in
+ * the block whose leg runs them. A recorded test never seen whole that no hop
+ * placed runs in the open leg alone, so its block starts past the furthest
+ * hop. With no hops measured, the selection is one block, run as it is.
  */
-function blocksOf(distances: readonly TestDistance[], unplaced: readonly string[], measured: boolean): readonly Block[] {
-  const hops = [...new Set(distances.flatMap((distance) => (distance.hops === undefined ? [] : [distance.hops])))].sort((a, b) => a - b);
-  if (!measured || hops.length === 0) {
-    const tests = [...distances.map((distance) => distance.test), ...unplaced].sort();
-    return tests.length === 0 ? [] : [{ range: '0-', tests }];
+function blocksOf(selection: TestSelection, whole: ReadonlySet<string>, runs: (test: string) => boolean): readonly Block[] {
+  const measured = selection.distances;
+  if (measured === undefined) {
+    const tests = [...new Set([...whole, ...(selection.incomplete ?? [])])].filter(runs).sort(codeUnitOrder);
+    return tests.length === 0 ? [] : [{ label: 'no measured distance', tests }];
   }
-  const last = hops.length - 1;
-  return hops.map((hop, index) => {
-    const at = distances.filter((distance) => distance.hops === hop).map((distance) => distance.test);
-    const rest = index === last ? [...distances.filter((distance) => distance.hops === undefined).map((distance) => distance.test), ...unplaced] : [];
-    return { hops: hop, range: index === last ? `${hop}-` : `${hop}`, tests: [...at, ...rest].sort() };
-  });
+  const hops = groupByDistance(measured).flatMap((group) => (group.hops === undefined ? [] : [group.hops]));
+  const blocks: Block[] = hops.map((hop) => ({ label: many(hop, 'hop'), range: `${hop}`, tests: atDistance(measured, hop, hop).filter(runs) }));
+  const furthest = hops.at(-1);
+  const named = new Set(measured.map((distance) => distance.test));
+  const open = [
+    // With no hop measured, `atDistance` carries the unplaced in the open leg.
+    ...(furthest === undefined ? measured.map((distance) => distance.test) : []),
+    ...(selection.incomplete ?? []).filter((test) => !named.has(test)),
+  ].filter(runs).sort(codeUnitOrder);
+  if (open.length > 0) blocks.push({ label: 'no measured distance', range: `${furthest === undefined ? 0 : furthest + 1}-`, tests: open });
+  return blocks.filter((block) => block.tests.length > 0);
+}
+
+/** The recorded seconds of `tests`, and how many the record holds no time for. */
+function priced(times: ReadonlyMap<string, number>, tests: readonly string[]): string {
+  const seconds = tests.reduce((sum, test) => sum + (times.get(test) ?? 0), 0);
+  const untimed = tests.filter((test) => !times.has(test)).length;
+  return `${durationText(seconds)} recorded${untimed === 0 ? '' : `, ${untimed} with no recorded time`}`;
 }
 
 function priceOf(times: ReadonlyMap<string, number>, test: string): string {

@@ -8,6 +8,7 @@ import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@varianc
 import { parseArgs } from '../parse.js';
 import { indexOutput } from './index-command.js';
 import { selectOutput } from './select-command.js';
+import { explainOf } from './select-explain.js';
 import { parseAtDistance } from './select-leg.js';
 
 // A workstation's selection brings the index up to the checkout; CI's does not.
@@ -55,6 +56,39 @@ describe('select --format explain', () => {
       const { skip } = JSON.parse((await selectOutput({ cwd: root, format: 'json', ...(atDistance === undefined ? {} : { atDistance }) })).out);
       expect(WHOLE.filter((test) => !skip.includes(test))).toEqual(block.tests);
     }
+  });
+
+  it('under a closed leg, closes every block on a range that runs exactly it', async () => {
+    const root = await changed();
+
+    const { out } = await selectOutput({ cwd: root, format: 'explain', atDistance: { from: 0, to: 1 } });
+    const blocks = blocksOf(out);
+
+    expect(blocks.map(({ command }) => /--at-distance (\S+)$/.exec(command)?.[1])).toEqual(['0', '1']);
+    for (const block of blocks) {
+      const atDistance = parseAtDistance(/--at-distance (\S+)$/.exec(block.command)?.[1]);
+      const { skip } = JSON.parse((await selectOutput({ cwd: root, format: 'json', ...(atDistance === undefined ? {} : { atDistance }) })).out);
+      expect(WHOLE.filter((test) => !skip.includes(test))).toEqual(block.tests);
+    }
+  });
+
+  it('says a test file the record never saw runs in every block', async () => {
+    const root = await changed({ 'src/widget.ts': WIDGET.replace("return 'a';", "return 'z';"), 'test/fresh.test.ts': SELF_TEXT });
+
+    const { out } = await selectOutput({ cwd: root, format: 'explain' });
+
+    expect(out).toContain('a test file the record never saw, such as one the change adds, is in no skip list, and runs in every block');
+  });
+
+  it('gives a selection with no measured hops the command that runs it whole, with no leg a journey would refuse', () => {
+    const selection = {
+      ground: 'read', skip: [IDLE], because: 'b', notes: [], at: 'a', unread: [], stale: [], recorded: { whole: 4, entered: 3 },
+    } as const;
+
+    const out = explainOf(selection, new Set(WHOLE), { recording: 'r', times: new Map(Object.entries(TIMES)) }, 'variance select --execution j.bin');
+
+    expect(out).toContain('no measured distance: 3 test files, 6.0 s recorded — variance select --execution j.bin\n');
+    expect(out).not.toContain('--at-distance');
   });
 
   it('names on each test line the changed file and the trail `--format json` measured', async () => {
