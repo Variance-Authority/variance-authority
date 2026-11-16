@@ -5,34 +5,18 @@ import { formatGrepRan, grepRan } from './grep-ran.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
 /**
- * `docs_grep` — ripgrep, over the files a start point reaches.
+ * `docs_grep` — ripgrep, over the files a start point reaches, or the files one
+ * recorded test entered (`grep-ran.ts`).
  *
- * Text is not ours to search. ripgrep owns it: the pattern language, the
- * encodings, the binary detection, through its crates in the native addon. What
- * ripgrep cannot know is which files are in reach of the one being edited, and
- * that is the fact `search --from` already resolves. So this hands the closure
- * to ripgrep as its file list and reports what it found, nearest first, and adds
- * nothing to the matching — a regex here means what it means to `rg`.
+ * Text is ripgrep's: its pattern language, encodings and binary detection,
+ * unchanged. What it cannot know is which files are in reach, and `search
+ * --from` already resolves that, so the closure is ripgrep's file list. The
+ * closure is the whole value, so a call without a start point is refused, and
+ * the root too: a top folder is the widest single path.
  *
- * ## A start point is required
- *
- * The closure is the whole value: nearest first needs a place to measure from.
- * So a call without one is refused with how to say one, the root is refused so
- * the caller names a place, and a top folder is the widest single path.
- *
- * ## Nearest first
- *
- * ripgrep answers in the order the files were given, which is not distance.
- * The lines are regrouped by import distance from the start point, then by path
- * in code-unit order and line, so the same question gives the same bytes, and
- * the file one import away is read before the one nine away.
- *
- * ## Or a recorded test
- *
- * `test`, with `name` to choose one of its tests, replaces the start point: the
- * files searched are the ones that test entered, and each line is marked by
- * whether it ran — see `grep-ran.ts`. It is refused beside `from` or `to`, for
- * the two areas answer different questions.
+ * ripgrep answers in the order it was given files, which is not distance, so
+ * the lines are regrouped by import distance, then path in code-unit order and
+ * line: the same question gives the same bytes, nearest first.
  */
 
 /** Matching lines shown when `limit` is not said. */
