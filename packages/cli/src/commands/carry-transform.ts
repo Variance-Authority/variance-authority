@@ -2,8 +2,8 @@
  * Jest's transform cache, restored by the host cache before a shard's tests.
  *
  * A CI runner's disk is new each job, so every shard transforms every file it
- * loads again; on jestjs/jest's own suite that was 43% of a shard's wall time,
- * and a restore of the cache took 0.05 s (issue #1403). `actions/cache` is the
+ * loads again; on jestjs/jest's own suite a restored cache cut a shard's wall
+ * time by 43%, and the restore took 0.05 s (issue #1403). `actions/cache` is the
  * transport, and it asks for a path and a key. The path is Jest's own answer,
  * `defaults.cacheDirectory` from the `jest-config` the project's Jest resolves.
  * The key holds the suite, the shard and the ISO week: a shard placed by time
@@ -37,18 +37,14 @@ export interface TransformAsked {
 export interface TransformAsk extends TransformAsked {
   readonly root: string;
   readonly suites: readonly DeclaredSuite[];
-  /** The line the keys are cut for; absent off a host run. */
-  readonly line: string | undefined;
+  /** The line the keys are cut for. */
+  readonly line: string;
   /** The other mainlines, whose entries for the same week a restore falls back to. */
   readonly mainlines: readonly string[];
 }
 
-/** One cached transform cache per declared suite, or a note saying why there is none. */
+/** One cached transform cache per declared suite on a host run, or a note saying why there is none. */
 export function transformCached(ask: TransformAsk): { readonly cached: readonly Cached[]; readonly notes: readonly string[] } {
-  if (ask.suites.length === 0) return { cached: [], notes: [] };
-  if (ask.line === undefined) {
-    return { cached: [], notes: ["Jest's transform cache is carried by the host cache, and this is not a host run, so it has no key here"] };
-  }
   const found = jestCacheDirectory(ask.root);
   if ('unknown' in found) return { cached: [], notes: [`no Jest's transform cache is carried: ${found.unknown}`] };
   const week = isoWeek(ask.now);
@@ -56,7 +52,7 @@ export function transformCached(ask: TransformAsk): { readonly cached: readonly 
   return {
     cached: ask.suites.map((suite) => {
       const at = (line: string): string => `variance-transform-${suite.name}${shard}:${line}:${week}`;
-      return { artifact: `transform-${suite.name}`, paths: [found.directory], key: at(ask.line ?? ''), restoreKeys: ask.mainlines.map(at) };
+      return { artifact: `transform-${suite.name}`, paths: [found.directory], key: at(ask.line), restoreKeys: ask.mainlines.map(at) };
     }),
     notes: [],
   };

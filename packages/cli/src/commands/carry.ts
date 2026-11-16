@@ -227,6 +227,11 @@ export interface CarryInput {
   readonly transform?: TransformAsked;
 }
 
+/** Why an artifact has no key: only the host cache carries it, and this run is not on a host. */
+function offHost(artifact: string): string {
+  return `${artifact} is carried by the host cache, and this is not a host run, so it has no key here`;
+}
+
 /** What to carry, where it is, and under which keys. */
 export function carryPlan(input: CarryInput): CarryPlan {
   const { direction, config, run } = input;
@@ -238,7 +243,7 @@ export function carryPlan(input: CarryInput): CarryPlan {
   const mainlines = 'names' in input.mainlines ? input.mainlines.names.filter((name) => name !== line) : [];
   const keyed = (artifact: string, paths: readonly string[], prefix: string, restoreFrom: string | undefined): void => {
     if (line === undefined || run.sha === undefined) {
-      notes.push(`${artifact} is carried by the host cache, and this is not a host run, so it has no key here`);
+      notes.push(offHost(artifact));
       return;
     }
     const at = `variance-${prefix}:${line}:`;
@@ -278,10 +283,13 @@ export function carryPlan(input: CarryInput): CarryPlan {
     keyed(artifact, [top, `!${top}/**/.run-*`, `!${top}/.work`], prefix, run.base);
   }
 
-  if (direction === 'restore' && input.transform !== undefined) {
-    const transform = transformCached({ ...input.transform, root: input.root, suites: input.suites ?? [], line, mainlines });
-    cached.push(...transform.cached);
-    notes.push(...transform.notes);
+  if (direction === 'restore' && input.transform !== undefined && (input.suites ?? []).length > 0) {
+    if (line === undefined) notes.push(offHost("Jest's transform cache"));
+    else {
+      const transform = transformCached({ ...input.transform, root: input.root, suites: input.suites ?? [], line, mainlines });
+      cached.push(...transform.cached);
+      notes.push(...transform.notes);
+    }
   }
 
   const pushed = pushedOf(direction, input.root, run, input.suites ?? []);

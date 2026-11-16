@@ -312,7 +312,7 @@ How the suite is split is in
 ## Restoring Jest's transform cache in a shard
 
 A CI runner starts with an empty disk, so every Jest shard transforms every file
-it loads again. On Jest's own suite that was 43% of a shard's time.
+it loads again. On Jest's own suite, a restored cache cut a shard's time by 43%.
 `Variance-Authority/action/jest-cache` restores the transform cache a run of the
 same shard saved earlier in the week, as the step before the tests:
 
