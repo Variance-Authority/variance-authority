@@ -3,9 +3,9 @@
  * `VARIANCE_AUTHORITY_BUDGET`: a ceiling of recorded test time on one run of
  * the selection, which the edit loop sets so it answers in seconds.
  *
- * The cut is a prefix ordered by containment: a changed file's own tests,
- * shortest first, then its importers in its package, then those in other
- * packages, nearest first.
+ * The cut is a prefix ordered by containment: a changed file's own tests —
+ * those in its package that enter it — shortest first, then its importers in
+ * its package, then those in other packages, nearest first.
  * It only adds to `skip`, and a selection that declined to narrow skips
  * nothing (ADR-0062), so it cuts nothing there either.
  */
@@ -137,15 +137,16 @@ function ranked(selection: SuiteReading, times: ReadonlyMap<string, number>, hom
 }
 
 /**
- * A test's own file, setup or configuration changed (0 hops), or it imports a
- * changed file of its own package directly: own. Further in that package, or
- * in another, it is an importer. With no measured path it is placed by none.
+ * A test's own file, setup or configuration changed (0 hops), or it enters a
+ * changed file of its own package — imports it directly, and through no other
+ * module it imports (`enters`): own. Otherwise, in that package or another, it
+ * is an importer. With no measured path it is placed by none.
  */
 function tierOf(test: string, distance: TestDistance | undefined, home: (file: string) => string | undefined): Tier {
   if (distance?.hops === undefined) return 3;
-  const same = distance.from === undefined || home(distance.from) === home(test);
-  if (distance.hops === 0 || (distance.hops === 1 && same)) return 0;
-  return same ? 1 : 2;
+  const at = home(test);
+  if (distance.hops === 0 || distance.enters?.some((file) => home(file) === at) === true) return 0;
+  return distance.from === undefined || home(distance.from) === at ? 1 : 2;
 }
 
 /**

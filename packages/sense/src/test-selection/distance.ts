@@ -46,7 +46,7 @@ import { RUNTIME_EDGES, dependenciesOf, nodeAt, trailOf, type NodeId, type Relat
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
-import { nodesOf, ownName } from './from-test.js';
+import { RUNTIME_KINDS, nodesOf, ownName } from './from-test.js';
 import { findTest } from './lookup.js';
 import { reachesThrough } from './reading.js';
 import type { ExecutionNarrowing, SelectionCause } from './narrowing.js';
@@ -109,6 +109,13 @@ export interface TestDistance {
   readonly trail?: readonly string[];
   /** Every hop on `trail` that landed inside a unit. Absent when none did. */
   readonly through?: readonly ReachThrough[];
+  /**
+   * The changed files this test enters: it imports each one directly, and no
+   * other module it imports directly, along edges the test ran, imports it too.
+   * `checkout.test.ts` imports `checkout.ts` and the `money.ts` it uses, and
+   * enters `checkout.ts` alone. Absent when it enters none of them.
+   */
+  readonly enters?: readonly string[];
   /**
    * Why nothing could be measured, in the words of the walk that gave up.
    *
@@ -272,6 +279,7 @@ function measure(
     from: trail[0]!,
     trail,
     ...(through.length === 0 ? {} : { through }),
+    ...(walked.enters.length === 0 ? {} : { enters: walked.enters }),
   };
 }
 
@@ -282,7 +290,7 @@ function measure(
  * that adding a reason somewhere is a compile error rather than a silent
  * reclassification of somebody's unscanned directory as effect at a distance.
  */
-type Walked = { readonly trail: readonly string[] } | { readonly because: string | undefined };
+type Walked = { readonly trail: readonly string[]; readonly enters: readonly string[] } | { readonly because: string | undefined };
 
 /**
  * The shortest executed path from this test's file to any of the seeds.
@@ -327,7 +335,7 @@ function walk(
     };
   }
 
-  const { traversal, blind } = executed(relations, start, entered, [...wanted.keys()], nodes);
+  const { traversal, blind, open } = executed(relations, start, entered, [...wanted.keys()], nodes);
   let best: readonly NodeId[] | undefined;
   for (const id of wanted.keys()) {
     if (traversal.mask[id] !== 1) continue;
@@ -364,8 +372,35 @@ function walk(
 
   const named: string[] = [];
   for (const id of best) named.push(nodeAt(relations, id)?.name ?? '');
-  return { trail: named.reverse() };
+  const enters = new Set<string>();
+  for (const id of entries(relations, start, open)) {
+    const seed = wanted.get(id);
+    if (seed !== undefined) enters.add(seed);
+  }
+  return { trail: named.reverse(), enters: [...enters].sort(codeUnitOrder) };
 }
+
+/**
+ * The modules a test enters: what its file imports directly, along edges into
+ * modules it ran, less those another of them imports too. No entry is guessed
+ * away: a fixture its subject does not import stays one beside it.
+ */
+function entries(relations: Relations, start: readonly NodeId[], open: Uint8Array): readonly NodeId[] {
+  const { offset, target, kind } = relations.depends;
+  const ran = (from: NodeId): NodeId[] => {
+    const found: NodeId[] = [];
+    for (let edge = offset[from]!; edge < offset[from + 1]!; edge += 1) {
+      if (RUNTIME_KINDS[kind[edge]!] && open[target[edge]!] === 1) found.push(target[edge]!);
+    }
+    return found;
+  };
+  const direct = new Set(start.flatMap(ran));
+  for (const id of start) direct.delete(id);
+  const below = new Set<NodeId>();
+  for (const id of direct) for (const to of ran(id)) if (to !== id) below.add(to);
+  return [...direct].filter((id) => !below.has(id));
+}
+
 /**
  * The walk from a test's file with everything the test did not enter removed
  * from the graph. The test's own file is never a module row — nothing
@@ -380,7 +415,7 @@ function executed(
   entered: ReadonlySet<string>,
   admitted: readonly NodeId[],
   nodes: (file: string) => readonly NodeId[],
-): { readonly traversal: Traversal; readonly blind: number } {
+): { readonly traversal: Traversal; readonly blind: number; readonly open: Uint8Array } {
   const open = new Uint8Array(relations.names.length);
   for (const id of start) open[id] = 1;
   for (const id of admitted) open[id] = 1;
@@ -392,7 +427,7 @@ function executed(
   }
   const avoid: NodeId[] = [];
   for (let id = 0; id < open.length; id += 1) if (open[id] !== 1) avoid.push(id);
-  return { traversal: dependenciesOf(relations, start, { through: RUNTIME_EDGES, avoid }), blind };
+  return { traversal: dependenciesOf(relations, start, { through: RUNTIME_EDGES, avoid }), blind, open };
 }
 
 /**

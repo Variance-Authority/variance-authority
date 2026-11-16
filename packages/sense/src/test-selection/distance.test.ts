@@ -54,6 +54,47 @@ describe('distanceFromView', () => {
     });
   });
 
+  it('names a changed file a test imports and nothing it imports imports, and not one it loads under another import', () => {
+    // The report test imports the base beside the report, which imports the
+    // base too: it is written for the report, and loads the base under it.
+    const beside = relationsOfFiles(
+      layerRecords.map((record) =>
+        record.file === 'test/report.test.tsx'
+          ? { ...record, edges: [...record.edges, { to: 'src/button/abstract-button.tsx', kind: 'imports' as const }] }
+          : record,
+      ),
+    );
+    const distances = read({ relations: beside });
+
+    expect(of(distances, 'test/report.test.tsx')).toMatchObject({ hops: 1 });
+    expect(of(distances, 'test/report.test.tsx').enters).toBeUndefined();
+    expect(of(distances, 'test/abstract-button.test.tsx').enters).toEqual(['src/button/abstract-button.tsx']);
+    expect(of(read({ relations }), 'test/report.test.tsx').enters).toBeUndefined();
+  });
+
+  it('names every changed file a test enters, though the walk measured from one it loads under another', () => {
+    const beside = relationsOfFiles(
+      layerRecords.map((record) =>
+        record.file === 'test/report.test.tsx'
+          ? { ...record, edges: [...record.edges, { to: 'src/button/abstract-button.tsx', kind: 'imports' as const }] }
+          : record,
+      ),
+    );
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    // The report changed too, listed after the base: both are one hop, and the walk keeps the first.
+    const report = { kind: 'region', file: 'src/report/report.tsx', name: 'Report', path: 'Report', startLine: 1, endLine: 1 } as const;
+    const because = narrowing.because!.map((cause) =>
+      cause.test === 'test/report.test.tsx' ? { ...cause, via: [...cause.via, report] } : cause,
+    );
+
+    expect(of(distanceFromView(coverage, { ...narrowing, because }, { relations: beside }), 'test/report.test.tsx')).toMatchObject({
+      hops: 1,
+      from: 'src/button/abstract-button.tsx',
+      enters: ['src/report/report.tsx'],
+    });
+  });
+
   it('refuses to place a test the change reached by no route it executed', () => {
     // The registry test entered the changed module and imports nothing that
     // leads to it. That is effect at a distance in the literal sense, and the
