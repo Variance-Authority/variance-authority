@@ -39,3 +39,15 @@ describe('the edit loop', () => {
     expect(steps(scripts['verify:near']!)[0]).toBe(scripts.lint);
   });
 });
+
+describe('the near wave', () => {
+  const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<string, string>;
+
+  it('runs its leg within 60 s of recorded test time across its slices, so a push never waits on minutes of tests', () => {
+    // Set flat: the wave a push waits on is not widened by an outer value. Each slice is its own runner with its own
+    // budget, so the 60 s is shared out evenly among the slices `yarn test` runs.
+    const slices = scripts.test!.split(' && ').length;
+    expect(scripts['verify:near']).toMatch(new RegExp(` VARIANCE_AUTHORITY_BUDGET=${60 / slices} `, 'u'));
+    expect(scripts['verify:near']).toContain('VARIANCE_AUTHORITY_AT_DISTANCE=0-2');
+  });
+});
