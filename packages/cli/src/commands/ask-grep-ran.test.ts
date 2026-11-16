@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { encodeExecutionIndex, landCases, testCoverageFile, withCaseSections, writeTestCoverage } from '@variance-authority/sense/test-selection';
@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { askSource } from './ask.js';
 
 /** `variance ask grep --test`, through the command a person types. */
 
@@ -77,10 +78,10 @@ describe('variance ask grep --test', () => {
     const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/ship.test.ts']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out.split('\n').slice(0, 11)).toEqual([
+    expect(answered.out.split('\n').slice(0, 13)).toEqual([
       'test/ship.test.ts  ships entered 1 recorded file; files no recording instruments were not searched.',
       '',
-      '3 matching lines in 1 file.',
+      '4 matching lines in 1 file.',
       '',
       'Ran:',
       "src/ship.ts:4:  } else { note('give up slow');",
@@ -89,7 +90,54 @@ describe('variance ask grep --test', () => {
       'Not taken:',
       "src/ship.ts:9:export function check(bad: boolean): void { if (bad) { throw new Error('give up guard'); } }",
       '  in branch src/ship.ts:9-9 of check, which it did not enter; the rest of the line ran',
+      "src/ship.ts:11:export function stop(late: boolean): void { if (late) { note('give up stop'); } }",
+      '  in function stop src/ship.ts:11-11, which it did not enter',
     ]);
+  });
+
+  it('searches a file the test entered without a match, and says when nothing matches', async () => {
+    await recorded();
+
+    const refund = await run(['ask', 'grep', '--query', 'refund', '--test', 'test/refund.test.ts']);
+    const nowhere = await run(['ask', 'grep', '--query', 'nowhere', '--test', 'test/refund.test.ts']);
+
+    expect([refund.code, refund.err, nowhere.code, nowhere.err]).toEqual([EXIT_CLEAN, '', EXIT_CLEAN, '']);
+    expect(refund.out).toContain('1 matching line in 1 file.');
+    expect(nowhere.out).toContain('Nothing in those files matches `nowhere`.');
+  });
+
+  it('counts the lines the limit leaves out', async () => {
+    await recorded();
+
+    const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/ship.test.ts', '--limit', '1']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain("Ran:\nsrc/ship.ts:4:  } else { note('give up slow');\n\n");
+    expect(answered.out).not.toContain('Not taken:');
+    expect(answered.out).toContain('3 more');
+  });
+
+  it('names a file it could not read, and a file git could not diff against the recorded commit', async () => {
+    const root = await recorded();
+    rmSync(join(root, 'src/refund.ts'));
+    rmSync(join(root, '.git'), { recursive: true });
+    execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
+
+    const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/refund.test.ts']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out).toContain('ripgrep reported 1 error reading them; the first: ');
+    expect(answered.out).toMatch(/^src\/order\.ts: .+, so each line is read where it stands now\.$/m);
+  });
+
+  it('answers a question intersected with another by the files the test entered', async () => {
+    await recorded();
+
+    const text = await askSource({ question: 'intersection', reports: ['grep --query give --test test/refund.test.ts', 'grep --query give --test test/order.test.ts'] });
+
+    expect(text).toContain('1 file in all of them.');
+    expect(text).toContain('src/order.ts —');
+    expect(text).not.toContain('src/refund.ts —');
   });
 
   it('reads a line of a file edited since the recording where it stood then', async () => {
@@ -127,6 +175,19 @@ describe('variance ask grep --test', () => {
     expect(answered.err).toContain('No recorded test in test/order.test.ts has ships in its name. Its 1 recorded test:\n  pays for an order');
   });
 
+  it('refuses a checkout with no recording, and a test file outside the checkout', async () => {
+    const bare = realpathSync(mkdtempSync(join(tmpdir(), 'va-grep-ran-bare-')));
+    execFileSync('git', ['init', '--quiet'], { cwd: bare, stdio: 'pipe' });
+    process.chdir(bare);
+    const unrecorded = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/order.test.ts']);
+    await recorded();
+    const outside = await run(['ask', 'grep', '--query', 'give up', '--test', '../elsewhere.test.ts']);
+
+    expect([unrecorded.code, outside.code]).toEqual([EXIT_OPERATOR, EXIT_OPERATOR]);
+    expect(unrecorded.err).toContain('holds no suite to read');
+    expect(outside.err).toContain('is outside the checkout');
+  });
+
   it('refuses a test name without the test file it is a name in', async () => {
     await recorded();
 
@@ -152,7 +213,7 @@ describe('variance ask grep --test', () => {
  * on a line two arms share, and which the first test never entered; `ships`
  * enters the else-branch of `src/ship.ts`, which opens on the line the
  * then-branch closes, the one-line `check` but not the branch it holds, and
- * `told` but not `untold`, which shares its line.
+ * `told` but not `untold`, which shares its line, and not `stop`.
  */
 async function recorded(): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-grep-ran-')));
@@ -176,7 +237,7 @@ async function recorded(): Promise<string> {
   writeFileSync(join(root, 'src/refund.ts'), "export const refund = (paid: boolean): string => (paid ? 'give up refund' : 'keep');\n");
   writeFileSync(
     join(root, 'src/ship.ts'),
-    ['export function ship(fast: boolean): void {', '  if (fast) {', '    go();', "  } else { note('give up slow');", '    wait();', '    wait();', '  }', '}', "export function check(bad: boolean): void { if (bad) { throw new Error('give up guard'); } }", "export function told(): void { note('give up told'); } export function untold(): void {}", ''].join('\n'),
+    ['export function ship(fast: boolean): void {', '  if (fast) {', '    go();', "  } else { note('give up slow');", '    wait();', '    wait();', '  }', '}', "export function check(bad: boolean): void { if (bad) { throw new Error('give up guard'); } }", "export function told(): void { note('give up told'); } export function untold(): void {}", "export function stop(late: boolean): void { if (late) { note('give up stop'); } }", ''].join('\n'),
   );
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git('add', '.');
@@ -192,10 +253,12 @@ async function recorded(): Promise<string> {
   // `} else {` closes the then-branch and opens the else on line 4; `ships` entered only the else.
   // `check` is a one-line guard: `ships` entered the function and not its branch.
   // `told` and `untold` share line 10 side by side; `ships` entered `told`.
+  // `stop` and the branch it holds on line 11 were never entered.
   const ship = [
     region('function', 'ship', 1, 8, [2]), region('branch', '', 2, 4, []), region('branch', '', 4, 7, [2]),
     region('function', 'check', 9, 9, [2]), region('branch', '', 9, 9, []),
     region('function', 'told', 10, 10, [2]), region('function', 'untold', 10, 10, []),
+    region('function', 'stop', 11, 11, []), region('branch', '', 11, 11, []),
   ];
   const covered = (file: string, blocks: readonly ReturnType<typeof region>[]) => ({
     file,
