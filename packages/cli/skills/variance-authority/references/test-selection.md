@@ -166,6 +166,14 @@ variance reach --since origin/main              # files a diff reaches over impo
   checked and it has no line ranges (a rename, mode or binary change), or when
   the record has no rows for it. A placed test counts toward the furthest hop,
   so it decides which leg is the end leg.
+- **`--format explain` is how far to test.** Read it before you choose a leg:
+  one block per hop count the change travelled, nearest first, each with its
+  test files, their seconds as the record times them, and the `variance
+  select --at-distance` command that runs exactly that block. Each test line
+  names the trail from the changed file. A selection that runs the whole suite
+  says why and what the record times the suite at; a changed file nothing reaches
+  is named with the `/// <depends>` or `before` entry that would bring it into
+  reach. It is no runner's input.
 - **`reach` needs no recording**, and reads JavaScript, TypeScript, Python,
   Rust, Java, Kotlin and Swift. It prints a run list, so a reading that cannot
   produce one exits `2` with an empty stdout rather than print a short list.
