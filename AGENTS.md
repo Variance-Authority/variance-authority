@@ -220,9 +220,12 @@ Look around:
   [positions](.agents/references/positions.md).
 
 After each edit, run `yarn test:loop` and read its verdict before the next
-edit: lint, the compiler, then the unit tests within one import of what
-changed. An edit that keeps no test says so in its `selected none of` line:
-nothing near it failed, and no test ran. A red is fixed before any other edit.
+edit: lint, the compiler, then the changed files' own tests, as many as fit in
+15 s of recorded test time, and the names of those it left for CI. Widening is
+a decision: `VARIANCE_AUTHORITY_AT_DISTANCE=0-` takes the importers too,
+nearest first, under the same budget. An edit that keeps no test says so in its
+`selected none of` line: nothing near it failed, and no test ran. A red is
+fixed before any other edit.
 
 An edit in another realm — Rust, the crate's manifests, its build scripts — does
 not run `test:loop` at all: no unit test covers it, and the loop would charge
@@ -249,7 +252,7 @@ Verify in waves, nearest first. Each wave starts only when the one before it is
 green, and a red wave sends you back to the edit, then to wave 1:
 
 ```bash
-yarn verify:near    # 1. lint, types, tests within two imports — repeat freely
+yarn verify:near    # 1. lint, types, tests within two imports, 60 s across the slices — repeat freely
 yarn verify:rules   # 2. the repository checks, once near is green
 ```
 

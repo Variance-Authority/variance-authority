@@ -8,7 +8,7 @@ import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@varianc
 import { parseArgs } from '../parse.js';
 import { answerConfigless, withoutConfig } from './configless.js';
 import { indexOutput } from './index-command.js';
-import { selectOutput } from './select-command.js';
+import { selectOutput, selectSuite } from './select-command.js';
 import { shardsOutput } from './shards-command.js';
 
 // These cases are a workstation's: there a selection brings the index up to
@@ -110,6 +110,22 @@ describe('a leg read from a real record and a real graph', () => {
 
     expect(await count()).toMatchObject({ files: 4, skipped: 1, shards: 4 });
     expect(await count({ from: 0, to: 2 })).toMatchObject({ files: 2, skipped: 3, shards: 2, matrix: ['1/2', '2/2'] });
+  });
+
+  it('runs only the changed file\'s own tests under a budget, and its importers when a leg is asked', async () => {
+    const { root, head } = checkout();
+    const recorded = snapshot(head);
+    await writeTestCoverage(testCoverageFile(root), { ...recorded, tests: recorded.tests.map((test) => ({ ...test, duration: 1_000 })) });
+    writeFileSync(join(root, 'src/widget.ts'), WIDGET.replace("return 'a';", "return 'z';"));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const own = await selectSuite({ root, budget: 15 });
+    const asked = await selectSuite({ root, budget: 15, atDistance: { from: 0, to: 2, by: 'environment' } });
+
+    expect([...own.skip].sort()).toEqual([FAR, GHOST, IDLE, MID]);
+    expect(own.notes[0]).toBe('`VARIANCE_AUTHORITY_BUDGET=15` ran 1 of 4 selected, 1.0 s of 4.0 s recorded; 3 are left for CI:');
+    expect([...asked.skip].sort()).toEqual([FAR, GHOST, IDLE]);
   });
 
   it('carries `--at-distance` from the command line to the count', () => {

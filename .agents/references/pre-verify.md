@@ -68,21 +68,30 @@ test that loads the addon through the crate's `/// <depends>`, and CI runs them.
 
 The loop is
 `oxlint && tsc --build && VARIANCE_AUTHORITY_SINCE=
-VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-0-1} vitest run
-"$@" && node tools/needs.mjs`. That is the lint `verify:near` starts with, the
-compiler, then the unit tests at distance `0-1` (the tests that entered the
-change and those one import away; `VARIANCE_AUTHORITY_AT_DISTANCE` sets
-another), measured from the text each test last ran over. The compiler and the
-runner are the loop
+VARIANCE_AUTHORITY_BUDGET=${VARIANCE_AUTHORITY_BUDGET:-15} vitest run "$@" &&
+node tools/needs.mjs`. That is the lint `verify:near` starts with, the
+compiler, then the changed files' own tests — a test whose own file, setup or
+configuration changed, or one that imports a changed file of its own package
+directly — measured from the text each test last ran over, and cut to 15 s of
+recorded test time. Containment orders the cut: a change to a file is checked
+first by its own tests, shortest first, and the first file that
+would pass the ceiling ends the run. A file the record holds no time for counts
+at the slowest of its package. The seam prints `ran <n> of <m> selected, <t> of
+<T> recorded` and names what it left for CI; the budget only ever adds to the
+skip list, and a selection that declined to narrow is not cut. Widening is the
+caller's decision: `VARIANCE_AUTHORITY_AT_DISTANCE=0-` takes the importers in
+the same package, then those in other packages, nearest first, under the same
+budget, and `VARIANCE_AUTHORITY_BUDGET` sets another ceiling. The compiler and
+the runner are the loop
 [`docs/test-an-edit.md`](../../docs/test-an-edit.md#the-loop-an-agent-runs-after-each-edit)
 publishes, with no script of ours in them. Lint adds about 0.15 s, and it stops
 the run before the compiler, as a type error stops it before any test. An edit
 that keeps no test exits 0, and the words tell that exit from a green run:
 `selected none of 1075, so none of them runs` is the verdict, the runner's `No
 test files found` under it is the same answer, and the seam's reading says why. `none (the record was taken over this text)` means the tests
-that entered the edit already ran it, and a test further than one import is left
-for `verify:near`. To see why a file was kept, ask `yarn variance
-select --suite unit --at-distance 0-1`. Integration and chromium tests never
+that entered the edit already ran it, and what the loop left is
+`verify:near`'s and CI's. To see why a file was kept, ask `yarn variance
+select --suite unit`. Integration and chromium tests never
 run in it. A green run ends with the needs list: for each function new on the
 branch in the package sources, the scripts a package ships and `tools/`, with
 five needs or more, the existing functions there that need what it needs.
@@ -97,7 +106,7 @@ Verification runs in waves, nearest and cheapest first, and each wave starts
 only when the one before it is green:
 
 ```bash
-yarn verify:near    # 1. lint, tsc --build, the selection within two imports
+yarn verify:near    # 1. lint, tsc --build, the selection within two imports, 60 s of it across the slices
 yarn verify:rules   # 2. yarn check, once near is green
 ```
 
@@ -110,8 +119,9 @@ The repository checks are minutes and cannot be selected, so they run once the
 change has stopped moving.
 
 **The far wave is CI's.** `yarn verify:far` is the rest of the selection — `0-2`
-and `3-` partition it, so together they run every selected file once, and a test
-file the recording never saw in both. An agent runs near and rules, then opens
+and `3-` partition it, so in CI together they run every selected file once, and
+a test file the recording never saw in both. Locally near runs 60 s of its leg,
+20 s for each of its three slices; CI runs the leg whole. An agent runs near and rules, then opens
 the pull request: a local far run costs many minutes and repeats what CI runs. A
 failure CI reports is reproduced per file, never by re-running the wave.
 

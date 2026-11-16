@@ -2,12 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 /**
- * The legs a script runs are asked for the way the leg's note says to ask.
- *
- * A seam leg's note names `VARIANCE_AUTHORITY_AT_DISTANCE` as the knob that
- * runs another leg: "the same run with `VARIANCE_AUTHORITY_AT_DISTANCE=2-`".
- * The edit loop is the script that note is printed under, so it sets its own
- * leg, `0-1`, as the default an outer value overrides.
+ * The edit loop answers in seconds: it runs the changed files' own tests, as
+ * many as fit in `VARIANCE_AUTHORITY_BUDGET` seconds of recorded test time, 15
+ * unless an outer value says otherwise. Widening past them is the caller's
+ * decision, asked the way a leg's note says to ask, with
+ * `VARIANCE_AUTHORITY_AT_DISTANCE`; the loop sets no leg of its own.
  *
  * An argument goes to the runner, which runs a file or a filter it is given
  * and refuses a flag it does not take, rather than to the step after it, which
@@ -23,8 +22,12 @@ const VITEST = /\bvitest run\b/;
 describe('the edit loop', () => {
   const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<string, string>;
 
-  it('takes its leg from an outer VARIANCE_AUTHORITY_AT_DISTANCE', () => {
-    expect(scripts['test:loop']).toContain('VARIANCE_AUTHORITY_AT_DISTANCE=${VARIANCE_AUTHORITY_AT_DISTANCE:-0-1}');
+  it('runs within 15 s of recorded test time unless an outer VARIANCE_AUTHORITY_BUDGET says otherwise', () => {
+    expect(scripts['test:loop']).toContain('VARIANCE_AUTHORITY_BUDGET=${VARIANCE_AUTHORITY_BUDGET:-15}');
+  });
+
+  it('widens past the own tests only when the caller asks a leg', () => {
+    expect(scripts['test:loop']).not.toMatch(/VARIANCE_AUTHORITY_AT_DISTANCE=\S/);
   });
 
   it('selects as a local seam, which a doubt never widens, and the gate does not', () => {
@@ -40,5 +43,17 @@ describe('the edit loop', () => {
   it('starts with the repository\'s lint, as the near wave does', () => {
     expect(steps(scripts['test:loop']!)[0]).toBe(scripts.lint);
     expect(steps(scripts['verify:near']!)[0]).toBe(scripts.lint);
+  });
+});
+
+describe('the near wave', () => {
+  const scripts = JSON.parse(readFileSync('package.json', 'utf8')).scripts as Record<string, string>;
+
+  it('runs its leg within 60 s of recorded test time across its slices, so a push never waits on minutes of tests', () => {
+    // Set flat: the wave a push waits on is not widened by an outer value. Each slice is its own runner with its own
+    // budget, so the 60 s is shared out evenly among the slices `yarn test` runs.
+    const slices = scripts.test!.split(' && ').length;
+    expect(scripts['verify:near']).toMatch(new RegExp(` VARIANCE_AUTHORITY_BUDGET=${60 / slices} `, 'u'));
+    expect(scripts['verify:near']).toContain('VARIANCE_AUTHORITY_AT_DISTANCE=0-2');
   });
 });

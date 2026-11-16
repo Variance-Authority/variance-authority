@@ -248,8 +248,9 @@ change over, run the same line with `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
 Every selected file runs in one of `0-1` and `2-`, by the same rules that place
 it in `0-2` or `3-` above.
 
-This repository's own agents run that line after each edit, as
-`yarn test:loop`, with their linter in front of it. [What a selection
+This repository's own agents run a narrower line after each edit, as
+`yarn test:loop`: their linter in front of it, and only the changed files' own
+tests, as many as 15 s of recorded test time holds. [What a selection
 costs](#what-a-selection-costs) gives the times of the line alone.
 
 ## Run it on a pull request

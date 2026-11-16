@@ -42,6 +42,7 @@ import type { CommitRuns, ExecutionNarrowing, Stand, StandQuestion, StandReading
 import { OperatorError } from '../exit.js';
 import { installDiffs, installDiffOfPatch, ranOn, withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf, compared, installReached, withWhole } from './select-beyond.js';
+import { budgetedSuite } from './select-budget.js';
 import { journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
 import { many } from './prose-counts.js';
@@ -129,6 +130,7 @@ function deprecated(format: SelectFormat): string {
  * drops the files in `skip` inside its runner.
  */
 export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> {
+  if (request.budget !== undefined) return await budgetedSuite({ ...request, budget: request.budget }, selectSuite);
   const { ranAt, ...asked } = request;
   const full = await untested(asked);
   if (ranAt === undefined || asked.since === undefined) return full;
