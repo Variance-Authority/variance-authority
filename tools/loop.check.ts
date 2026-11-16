@@ -30,6 +30,12 @@ describe('the edit loop', () => {
     expect(scripts['test:loop']).not.toMatch(/VARIANCE_AUTHORITY_AT_DISTANCE=\S/);
   });
 
+  it('selects as a local seam, which a doubt never widens, and the gate does not', () => {
+    expect(scripts['test:loop']).toContain('VARIANCE_AUTHORITY_LOCAL=1');
+    expect(scripts['verify:near']).toContain('VARIANCE_AUTHORITY_LOCAL=1');
+    expect(readFileSync('.github/workflows/check.yml', 'utf8')).not.toContain('VARIANCE_AUTHORITY_LOCAL');
+  });
+
   it('hands its arguments to the runner', () => {
     expect(steps(scripts['test:loop']!).find((step) => VITEST.test(step))).toContain('"$@"');
   });

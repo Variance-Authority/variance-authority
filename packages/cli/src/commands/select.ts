@@ -29,9 +29,9 @@
  *
  * ## The four ways it declines to narrow, each said out loud
  *
- * Skipping nothing is a correct answer and a common one, and it is also what a
- * broken invocation looks like. So every one of them is a sentence on stderr
- * rather than an empty stdout an operator has to interpret:
+ * Skipping nothing is the gate's answer (`--local` falls to importers instead,
+ * `select-local.ts`), and also what a broken invocation looks like. So each is
+ * a sentence on stderr rather than an empty stdout an operator interprets:
  *
  * - **No journal.** The ordinary state of a repository whose suite has never
  *   been recorded. Nothing is skipped, and the path a recording would be at is
@@ -221,8 +221,10 @@ export interface TestSelection {
   readonly left?: readonly string[];
   /**
    * The only test files this leg runs, present when it is a later wave of one
-   * shard (`Leg.partition`): those the record placed in its range. Absent,
-   * every file not in `skip` runs, a file the record never saw included.
+   * shard (`Leg.partition`): those the record placed in its range; or under
+   * `--local`, every file a changed file reaches, of which the runner runs
+   * those it discovers. Absent, every file not in `skip`
+   * runs, a file the record never saw included.
    */
   readonly only?: readonly string[];
   /** How far the change travelled to each test it entered. Present when a leg cut a narrowed selection. */
@@ -230,10 +232,11 @@ export interface TestSelection {
   /** The test files the run landed at HEAD left unrun: a leg past 0 hops also runs the nearer of them. Present when a leg was cut beside such a run. */
   readonly unrunAtHead?: readonly string[];
   /**
-   * Under `--local`, the rung a widened reading fell to, the reason it widened,
-   * the test files that rung left, which `skip` holds, and those it chose. Absent otherwise.
+   * Under `--local`, the rung a reading the record could not answer fell to
+   * (the changed files' importers), the reason, the test files that rung
+   * left, which `skip` holds, and the test files it chose. Absent otherwise.
    */
-  readonly fell?: { readonly rung: 'importers' | 'package'; readonly from: string; readonly left: readonly string[]; readonly selected: readonly string[] };
+  readonly fell?: { readonly rung: 'importers'; readonly from: string; readonly left: readonly string[]; readonly selected: readonly string[] };
 }
 
 /**

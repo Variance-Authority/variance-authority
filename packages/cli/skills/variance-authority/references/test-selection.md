@@ -223,9 +223,9 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 - **Do not put paths on the command line.** The configuration drops the files
   itself; `variance select --format vitest|jest` is deprecated.
 - **Get a smaller answer when the record cannot narrow.** On a laptop, add
-  `VARIANCE_AUTHORITY_LOCAL=1`: in place of `declined:` and every file, the
-  tests that import a changed file run, or a changed file's package. stderr
-  names the test files it left; run once without it before you call the change
+  `VARIANCE_AUTHORITY_LOCAL=1`: in place of every file, only the tests that
+  import a changed file run, and the first line names the doubt. stderr names
+  the test files it left; run once without it before you call the change
   done. Never set it in CI.
 - **Skip cases, too, under Jest and Vitest.** `VARIANCE_AUTHORITY_GRAIN=case`
   also skips the cases of each selected file that entered none of the changed

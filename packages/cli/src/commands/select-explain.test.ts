@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -167,22 +167,22 @@ describe('select --format explain', () => {
   });
 
   it('under `--local`, says why the selection fell to a rung, and lays out what the rung runs', async () => {
-    const root = await changed({ 'test/setup.ts': 'export const ready = 2;\n' }, {
-      suites: { unit: { kind: 'unit', before: ['vitest.config.ts', 'test/setup.ts'] } },
-    });
+    const root = await changed({ 'src/widget.ts': WIDGET.replace("return 'a';", "return 'z';") }, { suites: { unit: { kind: 'unit' } } });
+    rmSync(testCoverageFile(root, { suite: 'unit' }));
 
     const { out } = await selectOutput({ cwd: root, format: 'explain', suite: 'unit', local: true });
-    const plain = (await selectOutput({ cwd: root, format: 'plain', suite: 'unit', local: true })).out.split('\n').filter(Boolean);
 
-    expect(out).toContain('the suite unit rests on test/setup.ts before any test imports it, through its `before` entry `test/setup.ts`, and this diff moves it, so `--local` selected the test files');
-    expect(out).toContain(`no measured distance: 5 test files, 10.0 s recorded, 1 with no recorded time — variance select --suite unit --local\n`);
-    for (const test of WHOLE.filter((file) => !plain.includes(file))) expect(out).toContain(`  ${test}, ${TIMES[test]! / 1000}.0 s: the package rung \`--local\` fell to\n`);
+    expect(out).toContain('the change selects 3 test files, 0 ms recorded, 3 with no recorded time.\n');
+    expect(out).toContain('so `--local` selected the test files that import the changed files, by the source index: 3 of 5 test files.');
+    expect(out).toContain(`no measured distance: 3 test files, 0 ms recorded, 3 with no recorded time — variance select --suite unit --local\n`);
+    for (const test of [MID, NEAR, SELF]) expect(out).toContain(`  ${test}, no recorded time: the importers rung \`--local\` fell to\n`);
+    expect(out).not.toContain('src/widget.ts,');
   });
 
   it('under `--local` with no record, lays out the test files the rung chose by the source index', () => {
     const selection = {
       ground: 'read', skip: [], because: 'w, so `--local` selected', notes: [], at: 'a', unread: [], stale: [],
-      fell: { rung: 'importers', from: 'w', left: [], selected: [NEAR] },
+      only: [NEAR, 'src/widget.ts'], fell: { rung: 'importers', from: 'w', left: [], selected: [NEAR] },
     } as const;
 
     const out = explainOf(selection, new Set(), { unread: 'no record' }, 'variance select --local');

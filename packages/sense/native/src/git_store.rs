@@ -56,10 +56,11 @@ use gix_odb::Header as _;
 pub(crate) const STORE_LARGEST: u64 = 64 * 1024;
 /// The fewest files a question must read for the store to pay for opening it.
 ///
-/// Opening asks git three questions and loads the index, which a list must earn
-/// back at a few microseconds a file: on Kibana and on Material UI the two
-/// paths cost the same at about this many files (`docs/performance.md`). A list
-/// under it opens nothing.
+/// Opening asks git its questions, and a search's store loads the index too,
+/// which the files read must earn back at a few microseconds a file: on Kibana
+/// and on Material UI the two paths cost the same at about this many files
+/// (`docs/performance.md`). A search's list under it opens nothing, and a
+/// tree's scans open `Objects` once the files they have read reach it.
 pub(crate) const STORE_CROSSOVER: usize = 3_000;
 /// The packs a lookup walks before a repository without a multi-pack index is
 /// searched from the worktree instead: each miss probes every pack's index.
@@ -69,7 +70,7 @@ const PACK_LIMIT: usize = 50;
 /// ctime, size and inode is the one the index recorded.
 const STRICT: stat::Options = stat::Options { trust_ctime: true, check_stat: true, use_nsec: true, use_stdev: false };
 
-/// A repository's object store, opened for one question.
+/// A repository's object store, opened for one search or for a tree's scans.
 pub(crate) struct Objects {
     store: Arc<gix_odb::Store>,
 }
