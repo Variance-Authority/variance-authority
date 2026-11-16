@@ -214,7 +214,9 @@ about it.
 what a name takes, returns or means, or rename it, run `uses --name <name>` to
 list every file that imports it. Each one is in the diff, or the change names
 it as left alone and says why. A change that reaches some of those files and
-not the others looks finished and leaves them disagreeing. `uses` reads
+not the others looks finished and leaves them disagreeing. A compiler catches
+an importer a changed signature breaks; a changed meaning compiles, so
+`covering --file <importer>` names the tests to run for each. `uses` reads
 imports. For a call the type checker has to infer, use the language's
 find-references on the declaration `uses` names.
 

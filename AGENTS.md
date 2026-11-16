@@ -119,12 +119,9 @@ A word the asker uses for a mechanism is looked up here first. The industry's
 equivalent names something not built here, and its answer differs from the
 code's.
 
-An answer names what to open. Open a file at the lines an answer named, never
-because the file before it imported it: following imports by hand is how an
-agent gets lost in a large codebase. Before you change what a name takes,
-returns or means, `ask uses` lists every file that imports it, and each one is
-in the diff or named in the PR as left alone. The `variance-authority` skill
-holds both rules.
+Name the code before you open it, and account in the change for every use of
+a name you change: the `variance-authority` skill's "Rules every answer
+shares" says how.
 
 A subagent you dispatch works from its prompt. Put this rule in the prompt of
 every subagent you send to search code, and the order in
