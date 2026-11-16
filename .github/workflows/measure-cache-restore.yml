@@ -12,15 +12,15 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
-      - name: a public Jest suite transformed by @swc/jest (Docusaurus)
+      - name: a public Jest suite transformed by @swc/jest (Docusaurus, pnpm)
         run: |
           git clone -q --depth 1 https://github.com/facebook/docusaurus /tmp/d
           set +e -x
           cd /tmp/d && git log -1 --format='docusaurus %H'
-          grep -n packageManager package.json; yarn --version
-          yarn install --frozen-lockfile > /tmp/install.log 2>&1; echo "install exit $?"; tail -15 /tmp/install.log
+          npm i -g -s pnpm@12.3.4; pnpm --version
+          pnpm install --frozen-lockfile > /tmp/install.log 2>&1; echo "install exit $?"; tail -15 /tmp/install.log
           ls -la node_modules/.bin/jest; nproc; grep -n -E "transform|swc" jest.config.* | head
-          yarn build:packages > /tmp/build.log 2>&1; echo "build exit $?"; tail -10 /tmp/build.log
+          pnpm build:packages > /tmp/build.log 2>&1; echo "build exit $?"; tail -10 /tmp/build.log
           node_modules/.bin/jest --ci --shard=1/3 --cacheDirectory /tmp/probe 2>&1 | grep -m1 -A25 "FAIL"
           rm -rf /tmp/probe; true
       - name: cold, warm, and restored shard 1/3
