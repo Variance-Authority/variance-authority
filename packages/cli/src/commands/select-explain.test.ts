@@ -201,6 +201,19 @@ describe('select --format explain', () => {
     expect(out).toContain('the record times 4 test files, 10.0 s');
   });
 
+  it('counts the whole suite a `before` change runs, those the record does not time among it', async () => {
+    const root = await changed({ 'test/setup.ts': 'export const ready = 2;\n' }, {
+      suites: { unit: { kind: 'unit', before: ['vitest.config.ts', 'test/setup.ts'] } },
+    });
+    const held = snapshot(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim());
+    const tests = held.tests.map((test) => (test.file === IDLE ? { ...test, duration: undefined } : test));
+    await writeTestCoverage(testCoverageFile(root, { suite: 'unit' }), { ...held, tests });
+
+    const { out } = await selectOutput({ cwd: root, format: 'explain', suite: 'unit' });
+
+    expect(out).toContain('the record times 3 of 4 test files, 6.0 s; 1 has no recorded time\n');
+  });
+
   it('under `--local`, says why the selection fell to a rung, and lays out what the rung runs', async () => {
     const root = await changed({ 'src/widget.ts': WIDGET.replace("return 'a';", "return 'z';") }, { suites: { unit: { kind: 'unit' } } });
     rmSync(testCoverageFile(root, { suite: 'unit' }));

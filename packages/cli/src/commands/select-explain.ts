@@ -66,8 +66,11 @@ export function explainOf(
   const unread = unreadOf(selection);
   if (selection.widened !== undefined) {
     const total = [...recorded.values()].reduce((sum, ms) => sum + ms, 0);
-    const of = whole.size > recorded.size ? ` of ${whole.size}` : '';
-    const timed = 'unread' in times ? `the record times no test file: ${times.unread}` : `the record times ${many(recorded.size, 'test file')}${of}, ${durationText(total)}`;
+    const untimed = 'unread' in times ? 0 : (times.untimed?.length ?? 0);
+    const held = Math.max(whole.size, recorded.size + untimed);
+    const of = held > recorded.size ? ` of ${held}` : '';
+    const apart = untimed > 0 ? `; ${untimed} ${untimed === 1 ? 'has' : 'have'} no recorded time` : '';
+    const timed = 'unread' in times ? `the record times no test file: ${times.unread}` : `the record times ${recorded.size}${of} test file${held === 1 ? '' : 's'}, ${durationText(total)}${apart}`;
     return [`the whole suite runs: ${selection.widened}.\n${timed}\n`, ...unread].join('\n');
   }
 

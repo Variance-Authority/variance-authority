@@ -385,13 +385,13 @@ describe('slowest where', () => {
 });
 
 describe('the times a shard places its files by', () => {
-  it('holds every timed file, the commit it was recorded at and the record it read, and leaves an untimed one out', () => {
+  it('holds every timed file, the commit it was recorded at and the record it read, and lists an untimed one apart', () => {
     const at = record({ ...coverage([['test/a.test.ts', 40], ['test/b.test.ts', undefined], ['test/c.test.ts', 0]]), commit: 'c'.repeat(40) });
 
     const times = recordedTimes(at);
 
     const read = `sha256:${createHash('sha256').update(readFileSync(at)).digest('hex')}`;
-    expect(times).toEqual({ recording: at, read, commit: 'c'.repeat(40), times: new Map([['test/a.test.ts', 40], ['test/c.test.ts', 0]]) });
+    expect(times).toEqual({ recording: at, read, commit: 'c'.repeat(40), times: new Map([['test/a.test.ts', 40], ['test/c.test.ts', 0]]), untimed: ['test/b.test.ts'] });
   });
 
   it('places a file by what running it cost, the phases before its first case included', () => {

@@ -179,7 +179,8 @@ variance reach --since origin/main              # files a diff reaches over impo
   under the command itself when no recorded test runs. A
   block past 0 hops lists, and prices, the nearer tests the last run left
   unrun, which its command also runs. A selection that runs the whole suite says why
-  and what the record times the suite at; a changed file nothing reaches is
+  and what the record times the suite at, counting the test files it holds
+  no time for; a changed file nothing reaches is
   named, with where to declare it: `/// <depends>` or `before`. It is no
   runner's input.
 - **`reach` needs no recording**, and reads JavaScript, TypeScript, Python,
