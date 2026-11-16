@@ -5,6 +5,7 @@
 // compass: variance-authority.reach.relations
 
 use std::collections::{HashMap, HashSet};
+use std::sync::OnceLock;
 
 use rayon::prelude::*;
 
@@ -12,7 +13,8 @@ use super::{kind_of, taken, Namespace, NameUse};
 use crate::compact::Layer;
 use crate::help_origin::star_passes;
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, passed_on, At, Crossing};
+use crate::chain_lookup::importers;
+use crate::package_graph::{join_parses, passed_on, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 
 /// One use `importers_from` found, of the `origin` it was asked for, with the
@@ -24,13 +26,12 @@ pub(crate) struct Taken {
 }
 
 /// What `importers_from` walked: every use, every file that passes a wanted
-/// name on, every namespace a file passes one on inside, and every name a
-/// wanted name is exported by along the way.
+/// name on with the origin it passed it on for, and every namespace a file passes
+/// one on inside.
 pub(crate) struct Walked {
     pub(crate) taken: Vec<Taken>,
-    pub(crate) through: HashSet<String>,
+    pub(crate) through: HashSet<(usize, String)>,
     pub(crate) namespaces: Vec<Namespace>,
-    pub(crate) exports: HashSet<String>,
 }
 
 /// A name wanted out of a file: an export of it, and the names read off that
@@ -81,17 +82,9 @@ type Wanted = HashMap<String, HashMap<Want, HashMap<usize, bool>>>;
 /// origin, and whether only a type-only path reached it.
 type Pass = (String, Want, usize, bool);
 
-/// `importers` for several names at once: each `(file, name)` of `asked`
-/// carries the origins it answers for, and every use and every file passing
-/// one on carries them along, so one walk answers them all. Each file is
-/// followed once per name and origin, and once more when a value path reaches
-/// it after a type-only one; a site reached both ways is a value use.
-pub(crate) fn importers_from(root: &str, layers: &[Layer], asked: HashMap<String, HashMap<String, HashSet<usize>>>) -> Walked {
-    importers_folded(root, layers, &fold(layers), asked)
-}
-
 /// The most names any recorded read reaches off an export, `lib.a.b.x` reads
-/// three: a want deeper than that no read answers.
+/// three: a want deeper than that no read answers. Only an `export * as`
+/// asks, so it is read the first time one is met.
 fn deepest(layers: &[Layer]) -> usize {
     layers
         .iter()
@@ -103,13 +96,13 @@ fn deepest(layers: &[Layer]) -> usize {
         .unwrap_or(0)
 }
 
-pub(super) fn importers_folded(
-    root: &str,
-    layers: &[Layer],
-    folded: &HashMap<&str, At>,
-    asked: HashMap<String, HashMap<String, HashSet<usize>>>,
-) -> Walked {
-    let deepest = deepest(layers);
+/// `importers` for several names at once: each `(file, name)` of `asked`
+/// carries the origins it answers for, and every use and every file passing
+/// one on carries them along, so one walk answers them all. Each file is
+/// followed once per name and origin, and once more when a value path reaches
+/// it after a type-only one; a site reached both ways is a value use.
+pub(crate) fn importers_from(root: &str, layers: &[Layer], asked: HashMap<String, HashMap<String, HashSet<usize>>>) -> Walked {
+    let deepest = OnceLock::new();
     let mut wanted: Wanted = asked
         .into_iter()
         .map(|(file, names)| {
@@ -124,12 +117,11 @@ pub(super) fn importers_folded(
             seen.extend(origins.keys().map(|&origin| ((file.clone(), want.clone(), origin), false)));
         }
     }
-    let mut exports: HashSet<String> = wanted.values().flat_map(|names| names.keys().map(|want| want.export.clone())).collect();
     let mut found: HashMap<(usize, String, u32, String, String, String), Taken> = HashMap::new();
     let mut through = HashSet::new();
     let mut namespaces = HashSet::new();
     while !wanted.is_empty() {
-        let (uses, passed) = importers_of(root, layers, folded, &wanted, deepest);
+        let (uses, passed) = importers_of(root, layers, &wanted, &deepest);
         for one in uses {
             let site = (one.origin, one.taken.at.clone(), one.taken.line, one.taken.name.clone(), one.taken.key.clone(), one.local.clone());
             match found.entry(site) {
@@ -157,31 +149,32 @@ pub(super) fn importers_folded(
                 Some(&held) => held && !typed,
             };
             if follow {
-                exports.insert(want.export.clone());
                 seen.insert(key, typed);
-                through.insert(file.clone());
+                through.insert((origin, file.clone()));
                 let held = wanted.entry(file).or_default().entry(want).or_default().entry(origin).or_insert(typed);
                 *held &= typed;
             }
         }
     }
-    Walked { taken: found.into_values().collect(), through, namespaces: namespaces.into_iter().collect(), exports }
+    Walked { taken: found.into_values().collect(), through, namespaces: namespaces.into_iter().collect() }
 }
 
 /// One step of `importers_from`: the uses of each wanted name out of its
 /// file, and each re-export passing one of them on.
-fn importers_of(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, wanted: &Wanted, deepest: usize) -> (Vec<Taken>, Vec<Pass>) {
-    let lands = |at: At| {
-        let (stored, records) = (&layers[at.0].stored, &layers[at.0].records);
-        records.targets_present[at.1] == 1
-            && records.targets.range(at.1).any(|target| stored.optional(records.target_path.at(target)).is_some_and(|path| wanted.contains_key(path)))
-    };
-    let mut crossings: Vec<Crossing> = folded
-        .iter()
-        .filter(|&(_, &at)| lands(at))
-        .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
+///
+/// The files importing a wanted file are read off the wanted files alone
+/// (`importers` in `chain_lookup.rs`), not off every record of the chain.
+fn importers_of(root: &str, layers: &[Layer], wanted: &Wanted, deepest: &OnceLock<usize>) -> (Vec<Taken>, Vec<Pass>) {
+    let mut crossings: Vec<Crossing> = wanted
+        .keys()
+        .flat_map(|path| importers(layers, path))
+        .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
         .collect();
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
+    crossings.dedup_by(|a, b| a.file == b.file);
+    for crossing in &crossings {
+        super::read_record(crossing.file);
+    }
     join_parses(layers, &mut crossings);
     let paths = beside(root, crossings.iter().map(|crossing| crossing.file));
     let owners = owners(root, &paths);
@@ -226,13 +219,13 @@ fn importers_of(root: &str, layers: &[Layer], folded: &HashMap<&str, At>, wanted
                     Some(listed) => {
                         for one in listed {
                             if one.exported.is_none() && one.imported == "*" {
-                                passed.extend(pass(&|name| star_passes(layers, folded, crossing.file, from, name), one.type_only));
+                                passed.extend(pass(&|name| star_passes(layers, crossing.file, from, name), one.type_only));
                                 continue;
                             }
                             for (want, origins) in names {
                                 let exported = match one.exported {
                                     // `export * as G` passes a namespace: each name is a member read off `G`.
-                                    Some(namespace) if one.imported == "*" => want.inside(namespace, deepest),
+                                    Some(namespace) if one.imported == "*" => want.inside(namespace, *deepest.get_or_init(|| self::deepest(layers))),
                                     Some(exported) if one.imported == want.export => Want { export: exported.to_owned(), within: want.within.clone() },
                                     _ => continue,
                                 };

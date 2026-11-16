@@ -230,14 +230,9 @@
     "count": 1
   },
   {
-    "idiom": "code-unit-order",
-    "at": "packages/help/src/read.ts",
-    "count": 1
-  },
-  {
     "idiom": "atomic-write",
     "at": "packages/help/src/snapshot.ts",
-    "count": 3
+    "count": 1
   },
   {
     "idiom": "digest",
@@ -435,6 +430,11 @@
     "count": 1
   },
   {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-cache-directory.ts",
+    "count": 1
+  },
+  {
     "idiom": "atomic-write",
     "at": "packages/sense/src/test-selection/jest-journey-artifact.ts",
     "count": 1
@@ -447,6 +447,16 @@
   {
     "idiom": "commonjs-load",
     "at": "packages/sense/src/test-selection/jest-preset.ts",
+    "count": 1
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-prewarm-worker.cts",
+    "count": 2
+  },
+  {
+    "idiom": "commonjs-load",
+    "at": "packages/sense/src/test-selection/jest-prewarm.ts",
     "count": 1
   },
   {

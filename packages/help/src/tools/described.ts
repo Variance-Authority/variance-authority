@@ -2,7 +2,6 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { heldWeight, rarity } from '@variance-authority/mcp/tools';
 import { declaredDescribedOf, describedWordsNative, nearOfNative, type DescribedFile } from '@variance-authority/sense';
 import type { SearchIndex } from '../search-index.js';
-import { saidAt } from './as-read.js';
 import { holdersOf, representedBy } from './carried.js';
 import { declaredMatch } from './declared.js';
 import type { Said } from './held-sentence.js';
@@ -77,6 +76,7 @@ export interface DescribedKey {
   readonly near: number;
   /** Rows that publish or export it, in an area only those {@link rowWithin} it. */
   readonly rows: number;
+  /** The name id, which is its place in code-unit order; after every name for what is not one. */
   readonly rank: number;
   /** The bytes of the doc it is judged by, absent when it has none: what a word its doc holds is counted against. */
   readonly docLength?: number;
@@ -244,7 +244,7 @@ export function describedNames(
       const pick = { through: row, words: wordsOf(heldThrough(name, row)), named: own, signed: wordsOf(signedThrough(name, row)), ...docLengthOf(rowDocLength(index, row)) };
       return { ...pick, weighs: weight(pick) };
     }).sort((a, b) => b.weighs - a.weighs || order(a.through, b.through));
-    return { name, ...representedBy(picks), rows: rows.length, rank: index.rank(name), holds, docLengths, picks };
+    return { name, ...representedBy(picks), rows: rows.length, rank: name, holds, docLengths, picks };
   });
 }
 
@@ -390,13 +390,11 @@ export function describedDeclarations(
 }
 
 /**
- * A described file as a `search` section holds it, what `said` makes of its doc read from
- * the checkout; none when the file is gone or, for a generation whose read began
- * at `since`, was written after it.
+ * A described file as a `search` section holds it, with what `said` makes of
+ * the module doc the index recorded; none when it recorded none.
  */
-export function fileMatch(root: string | undefined, file: DescribedFile, since: number | undefined, said: Said): FileMatch {
-  const span = file.docStart == null || file.docEnd == null ? undefined : { start: file.docStart, end: file.docEnd };
-  const summary = saidAt(root, file.at, span, since, said);
+export function fileMatch(file: DescribedFile, said: Said): FileMatch {
+  const summary = file.doc === undefined || file.doc === null ? undefined : said(file.doc);
   return { source: 'file', at: file.at, ...(file.by === '' ? {} : { package: file.by }), ...(summary === undefined ? {} : { summary }) };
 }
 

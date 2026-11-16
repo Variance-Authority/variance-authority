@@ -11,7 +11,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { inspectCaseRun } from './case-fold.js';
+import { foldCases } from './case-fold.js';
+import { decodeExecutionIndex } from './execution-format.js';
 import { readJournals } from './finished-files.js';
 // The runner's modules `require` the collectors, so they are loaded built, and
 // through the export a runner's author imports.
@@ -63,10 +64,10 @@ describe('what a run wrote, read back', () => {
   it('names the cases the same whichever worker finished first', async () => {
     const root = await mkdtemp(resolve(tmpdir(), 'variance-authority-write-order-'));
     temporary.push(root);
-    const forwards = await inspectCaseRun((await finishedIn(root, workers)).caseDirectory, root);
-    const backwards = await inspectCaseRun((await finishedIn(root, [...workers].reverse())).caseDirectory, root);
+    const forwards = foldCases((await finishedIn(root, workers)).caseDirectory, root, new Map());
+    const backwards = foldCases((await finishedIn(root, [...workers].reverse())).caseDirectory, root, new Map());
 
-    expect(backwards.tests).toEqual(forwards.tests);
-    expect(backwards.tests).toHaveLength(workers.length);
+    expect(decodeExecutionIndex(backwards.bytes).tests).toEqual(decodeExecutionIndex(forwards.bytes).tests);
+    expect(backwards.cases).toBe(workers.length);
   });
 });

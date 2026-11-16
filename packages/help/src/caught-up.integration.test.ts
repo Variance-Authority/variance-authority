@@ -8,9 +8,9 @@ import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js
 
 /**
  * A question about a name written after the last published generation, asked
- * of `variance-authority-help`. A generation is reused for an hour, so the name
- * was refused as not published — an answer that reads as a real absence —
- * while `variance ask` read the checkout again first.
+ * of `variance-authority-help`. A generation is reused for an hour, and a name
+ * it does not hold is answered from it, as `variance ask` answers it: the
+ * answer says the checkout was not compared with it.
  */
 
 const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
@@ -28,11 +28,13 @@ function bin(root: string, args: readonly string[]): Promise<{ code: number; out
 }
 
 describe('variance-authority-help about a name written after the published generation', () => {
-  it('reads the checkout again before refusing `symbol`', async () => {
+  it('answers `symbol` for a name written since from the generation, saying the checkout was not compared with it', async () => {
     const { code, out, err } = await bin(await fixture.published(), ['symbol', '--name', 'keptOf']);
     expect(err).toBe('');
     expect(code).toBe(0);
-    expect(out).toContain('packages/kit/src/kept.ts');
+    expect(out).toContain('`keptOf` is not published by this workspace');
+    expect(out).not.toContain('packages/kit/src/kept.ts');
+    expect(out).toMatch(UNCOMPARED);
   });
 
   it('reads the checkout again before answering `symbol` for a name renamed since the generation', async () => {

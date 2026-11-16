@@ -104,8 +104,8 @@ runs` and whether the change reached none of them or a leg or `--local` left the
 for a later run, or
 `declined:` and the reason the selection could not be read, in which case every
 file runs. `VARIANCE_AUTHORITY_LOCAL=1` is `variance select --local`: where the
-record cannot narrow, the files that import a changed file run, or a changed
-file's package, instead of every file; any value other than `1` or `0` fails
+record cannot narrow, only the files that import a changed file run, instead
+of every file; any value other than `1` or `0` fails
 the run. `VARIANCE_AUTHORITY_RAN_AT=<commit>` is `variance select --ran-at`:
 in a merge queue's group of one, it names the pull request's tested commit,
 and `VARIANCE_AUTHORITY_SINCE` the base the queue merged onto; beside an empty
@@ -480,7 +480,7 @@ The optional second argument accepts `root`, `suite`, `coverageFile`,
 | `mode` | `'presence'` | `'entries'` records module and function entries only, and nothing inside them. `'loads'` records which files each test file loaded and nothing inside them: no module is probed, each one runs with one line added after its own text, and a change to a file selects every test file that loaded it. A record made so has no cases, so `continuations` and stories do not apply to it ([below](#record-only-what-each-test-file-loaded)). Which `precision` each mode answers, and what each costs: [record as finely as you select](https://variance-authority.dev/docs/selecting#record-as-finely-as-you-select) |
 | `placement` | `'after-transforms'` | `'before-transforms'` places the probes in the file as read, ahead of your transforms, for a run whose transforms only strip types or JSX ([below](#place-the-probes-ahead-of-your-transforms)) |
 | `continuations` | off | a case's work outlives it, or the suite is deliberately concurrent ([below](#record-which-case-covered-a-region)) |
-| `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region and without each case's slowest statement ([below](#record-which-test-line-reached-a-region)) |
+| `cadence` | on | `false` leaves test files as you wrote them, and the record without the test line that reached each region and without the time of each case's statements ([below](#record-which-test-line-reached-a-region)) |
 | `selection` | read from `@variance-authority/cli` when `VARIANCE_AUTHORITY_SINCE` is set | you compute the selection yourself: a function returning the `SuiteSelection` whose `skip` the run removes |
 
 The config file Vite loaded, the local modules it imports and the configured

@@ -12,6 +12,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { ModuleId } from '../instrument/index.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
+import probeSet from '../instrument/probe-set.cjs';
 import caseOwner from './case-owner.cjs';
 import journalFormat from './journal-format.cjs';
 import type { JourneyCollector, JourneyTrace } from './journey.js';
@@ -90,7 +91,7 @@ export function writeParts(
   const previous = Object.getOwnPropertyDescriptor(globalThis, '__VA__');
   const store = new AsyncLocalStorage<string>();
   const depth = new Map<string, number>();
-  const engine = probeLog.createEngine(true);
+  const engine = probeLog.createEngine(true, probeSet.probeSet);
   type Bucket = ReturnType<typeof engine.open>;
   const buckets = new Map<string, Bucket>();
   const bucketFor = (journey: string): Bucket => {

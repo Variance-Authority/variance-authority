@@ -116,8 +116,8 @@ fn stamped(inputs: &[PathBuf]) -> Vec<(String, Option<Stamp>)> {
 /// The listing the newest segment of the chain at `index` holds, when it stands, and the manifest it was read under.
 fn held(index: &str) -> Option<(Snapshot, Meta, Vec<u8>)> {
     let manifest = std::fs::read(index).ok()?;
-    let (digests, _) = crate::index_chain::manifest_digests_of(&manifest)?;
-    let newest = crate::index_chain::read_tail(index, &digests, digests.len().checked_sub(1)?)?.pop()?;
+    let (references, _) = crate::index_chain::manifest_references_of(&manifest)?;
+    let newest = crate::index_chain::read_tail(index, &references, references.len().checked_sub(1)?)?.pop()?;
     let stored = Stored::open(&newest).ok()?;
     let meta: Meta = serde_json::from_slice(stored.maybe_u8s(META).ok()??).ok()?;
     let strings = |name| -> Option<Vec<String>> {

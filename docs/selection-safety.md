@@ -1,14 +1,15 @@
 # What a skipped test promises
 
 [Variance Authority](README.md) leaves a test file out of a run only when the
-record of its last run shows it ran none of the code you changed. Every doubt
-about that record — there is none, it holds nothing whole, or the change touched
-what every test rests on — runs more of the suite, up to all of it, and the run
-prints which doubt it was; a record that is there but cannot be reached stops
-the command instead. A changed file that neither the record nor your
-imports connect to any test keeps no test in the run, and the run names it so
-you can declare it. What no record can show is a short list, and the
-whole-suite run on your main branch is where a test it hid fails.
+record of its last run shows it ran none of the code you changed. When the
+record cannot answer — there is none, it holds nothing whole, or git cannot
+compare the install — the first line of output names why. In CI, `variance
+select` then runs every test file; in `yarn test:loop` or `variance select
+--local` it runs only the tests that import a changed file. A record that is
+there but cannot be read stops the command. A changed file that no import
+connects to a test runs no test, and is named so you can add a `/// <depends>`
+for it. The whole-suite run on your main branch is where a test a skip hid
+fails.
 
 ## One edit and its answer
 
@@ -76,14 +77,17 @@ Each changed file gets one `read` line on stderr, with one of these verdicts:
 Stdout carries skip data and nothing else. The explanation is on stderr, or in
 the same JSON document under `--format json`.
 
-## Every doubt about the record runs more
+## Every doubt about the record is named first
 
-When the record cannot answer for the whole diff, the answer skips nothing. The
-first line on stderr then reads `skipping nothing: <why>.`, followed by the
-sentence that says what runs. Through a runner's seam — a config wrapped by
-`withTestSelection` with `VARIANCE_AUTHORITY_SINCE` set, as
-[testing an edit](test-an-edit.md) sets it up — the same doubt is the line
-`variance-authority: declined: <why>`, and every test file runs.
+When the record cannot answer for the whole diff, the first line on stderr names
+the doubt. What runs then depends on where you asked. At a gate — `variance
+select` without `--local`, or a runner's seam with `VARIANCE_AUTHORITY_SINCE`
+set and nothing else, as [testing an edit](test-an-edit.md) sets it up — the
+answer skips nothing: the first line reads `skipping nothing: <why>.`, or
+`variance-authority: declined: <why>` through the seam, and every test file
+runs. On a laptop's edit loop, [`--local`](#ask-for-a-local-answer-with---local)
+runs only the tests that import a changed file, and the table's "What runs"
+column is the gate's.
 
 The output calls the file the record is kept in the *journal*. Each line range in
 it was cut from a module's text at the journal's commit, so a range is checked
@@ -96,7 +100,7 @@ against that text before it is compared with your diff.
 | The record holds no test file whole | every test file | `the journal holds no whole observation of any test file` / `nothing recorded whole, so every test file runs` |
 | git cannot produce the diff | every test file | `cannot read what changed since <ref>` / `no diff, so every test file runs` |
 | The install cannot be compared with the one the record ran over | every test file | the reason the lockfile could not be compared, then `a package bump shows in no covered line, so every test file runs` |
-| The diff moves a file the suite declares in `before` | every test file | `the suite <name> rests on <files> before any test imports it, and this diff moves it` / `what a suite rests on runs before every test in it, so every test file runs` |
+| The diff moves a file the suite declares in `before` | every test file | `` the suite <name> rests on <files> before any test imports it, through its `before` entry `<entry>`, and this diff moves it `` / `what a suite rests on runs before every test in it, so every test file runs` |
 | A changed module was recorded from a text nobody kept | every test that ran any region of it | `N changed modules were recorded from a text the journal's own commit does not hold and the cache did not keep, so every region of them was charged rather than read` |
 | The record names no commit, and `--since` names the base | every test that ran a changed module | `the journal names no commit, so none of its line ranges could be checked against the text they were cut from; every changed module with a row was charged whole` |
 | Some test files last ran at an earlier commit | those files are read against both texts | `N test files last ran at <commit>, before the journal's commit <commit>, so the K files changed between the two are read from both texts for them` |
@@ -128,32 +132,41 @@ shows the declaration.
 
 ## Ask for a local answer with `--local`
 
-Running every test file is the right answer for a gate, and a long wait on a
-laptop where you want a verdict after each edit. `variance select --local`, or
+Running every test file is the right answer for a gate, and minutes of every
+core on a laptop where you want a verdict after each edit. On a local run, no
+evidence means no test. `variance select --local`, or
 `VARIANCE_AUTHORITY_LOCAL=1` beside `VARIANCE_AUTHORITY_SINCE` for a runner's
-seam, answers the first six doubts in the table with a smaller selection
-instead of every test file:
+seam, answers the first five doubts in the table with the tests evidence
+reaches, never every test file:
 
 - **The tests that import a changed file.** The
-  [source index](source-index.md) lists the importers of each
-  changed file, and the test files among them run.
-- **The tests in a changed file's package**, beside its importers. A changed
-  file the index does not list, or one the suite declares in `before`, runs
-  every test file in its package. The root is a package too: a lockfile runs
-  the tests of each package whose `package.json` changed beside it, and every
-  test file when none did, and any other file at the root runs every test file.
+  [source index](source-index.md) lists the importers of each changed file, and
+  the test files among them run, and no other: one the record holds is on the
+  skip list, and one your runner finds that neither the index nor the record
+  holds does not run either.
+- **Nothing for a file the index does not hold.** A lockfile, a fixture read
+  with `fs`, or prose selects no test file, and stderr names it. A file your
+  tests read without importing it is declared with `/// <depends path="…" />` in
+  the module that reads it, and a change to it then runs the tests that load
+  that module.
+
+A diff that moves a file the suite declares in `before` still runs the whole
+suite: the declaration asks for it.
 
 The change is the diff from `--since`, else from `HEAD`'s merge base with the
 mainline, else from `HEAD`. A `--since` git cannot read is refused, never
-answered from another base.
+answered from another base, and when no base gives a diff the command exits
+non-zero rather than guess.
 
-The first line after the reason says which one ran and how many test files it
-selected. The test files it left are on the skip list and named on stderr, and
-`--format json` lists them under `fell.left`. A run without `--local` reads them
-from the commit they last ran at, so the next full run runs them.
+The first line names the doubt and how many test files the importers selected.
+The test files it left are on the skip list and named on stderr; `--format
+json` lists them under `fell.left`. A run without
+`--local` reads them from the commit they last ran at, so the next full run runs
+them.
 
 `--local` is never on by default, and CI should not set it: it is for a run
-whose answer you check again before the change merges.
+whose answer you check again before the change merges. The whole run on main
+[catches what it hid](#the-whole-run-on-main-catches-what-a-skip-hid).
 
 ## A file nothing connects to a test keeps none, and is named
 
@@ -250,7 +263,13 @@ So a miss costs a late failure, not a silent one: the failing test names the
 file, and the fix is the declaration or the change to the test that the
 earlier sections name. The narrowed
 runs on your branches buy time; the whole run on main is the backstop for the
-short list above.
+short list above, and for what a `--local` run left out when the record could
+not answer. Such misses are real, and measured on this repository: one
+narrowing that read less than the record holds dropped 3 of 2,000 tests a run of
+everything kept, and killing mutants found five selection defects, each of
+which returned a smaller answer with nothing in it looking wrong. A local run
+accepts that kind of miss for a verdict in seconds; a gate does not, and the
+whole run on main is where one fails.
 
 ## How sure you can be of one run
 

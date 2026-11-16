@@ -3,7 +3,7 @@
 import { NONE, rangeOf, sameLength, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
 import type { NestedDeclaration } from './cache.js';
 import type { TextSpan } from './harvest.js';
-import { spanAt } from './source-index-harvest.js';
+import { spanAt, spanColumns, type SpanColumns } from './source-index-harvest.js';
 
 /**
  * The nested columns of a source-index generation: per parse, every function
@@ -18,6 +18,7 @@ import { spanAt } from './source-index-harvest.js';
 export function openNested(
   opened: OpenSegment,
   text: (value: number) => string,
+  kept: (value: number) => string | undefined,
   parseCount: number,
 ): (row: number) => { readonly nested?: readonly NestedDeclaration[] } {
   const reject = (): never => { throw opened.reject(); };
@@ -25,25 +26,23 @@ export function openNested(
   const name = opened.u32('nested.name');
   const kind = opened.u32('nested.kind');
   const line = opened.u32('nested.line');
-  const signatureStart = opened.u32('nested.signature-start');
-  const signatureEnd = opened.u32('nested.signature-end');
-  const docStart = opened.u32('nested.doc-start');
-  const docEnd = opened.u32('nested.doc-end');
+  const signature = spanColumns(opened, 'nested.signature');
+  const docs = spanColumns(opened, 'nested.doc');
   const holder = opened.u32('nested.holder');
   const holderLine = opened.u32('nested.holder-line');
   validateOffsets(offsets, name.length, parseCount, reject);
-  sameLength(name.length, [kind, line, signatureStart, signatureEnd, docStart, docEnd, holder, holderLine], reject);
+  sameLength(name.length, [kind, line, ...signature, ...docs, holder, holderLine], reject);
 
-  const span = (starts: Uint32Array, ends: Uint32Array, at: number): TextSpan | undefined => spanAt(starts, ends, at, reject);
+  const span = (columns: SpanColumns, at: number): TextSpan | undefined => spanAt(columns, at, kept, reject);
 
   return (row) => {
     const nested = rangeOf(offsets, row, reject).map((at): NestedDeclaration => {
-      const doc = span(docStart, docEnd, at);
+      const doc = span(docs, at);
       return {
         name: text(name[at]!),
         kind: text(kind[at]!),
         line: line[at]!,
-        signature: span(signatureStart, signatureEnd, at) ?? reject(),
+        signature: span(signature, at) ?? reject(),
         ...(doc === undefined ? {} : { doc }),
         ...(holder[at] === NONE ? {} : { holder: text(holder[at]!) }),
         holderLine: holderLine[at]!,

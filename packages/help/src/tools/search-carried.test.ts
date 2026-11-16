@@ -3,7 +3,8 @@ import { treeOf } from '@variance-authority/mcp/tools';
 import { readHelp } from '@variance-authority/package/help';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
-import { answerSearch, searchIndexOf } from './search.js';
+import { answerSearch } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 
 /**
  * A row sharing one common word with a question is no evidence of what was

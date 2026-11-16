@@ -47,6 +47,27 @@ dashmap = "6"
 # The matcher `oxc_resolver` already builds, and the one rolldown reads a
 # `sideEffects` glob with.
 fast-glob = "1"
+# git's index and object store, read in-process: a tracked file the index holds
+# as unchanged is inflated out of its pack instead of opened (`git_store.rs`).
+gix-hash = { version = "=0.28.0", features = ["sha1"] }
+gix-index = { version = "=0.57.0", features = ["sha1"] }
+gix-object = "=0.66.0"
+gix-odb = { version = "=0.86.0", features = ["sha1"] }
+# `status` in-process (`worktree_status.rs`): the index against the worktree,
+# and the untracked files beside it, under the repository's ignore rules.
+bstr = { version = "1", default-features = false, features = ["std"] }
+gix-command = "=0.12.1"
+gix-dir = "=0.31.0"
+gix-error = "=0.5.2"
+gix-filter = { version = "=0.36.0", default-features = false }
+gix-fs = "=0.24.1"
+gix-ignore = "=0.24.1"
+gix-path = "=0.14.1"
+gix-parallel = { version = "=0.50.1", features = ["parallel"] }
+gix-pathspec = "=0.22.1"
+gix-status = { version = "=0.36.0", default-features = false, features = ["sha1"] }
+gix-utils = "=0.5.2"
+gix-worktree = { version = "=0.58.0", default-features = false }
 # ripgrep's searcher and its regex matcher: `ask grep` and `discover` search
 # text in-process, with ripgrep's pattern language, encodings and binary rules.
 grep-regex = "0.1"
@@ -54,6 +75,8 @@ grep-searcher = "0.1"
 # The comment and trailing-comma stripper `oxc_resolver` reads a `tsconfig` with,
 # so `customConditions` is read from the same text it parses.
 json-strip-comments = "3"
+# The SIMD substring search a name question scans the lowered name table with.
+memchr = "2"
 oxc_allocator = { version = "0.157.0", features = ["pool"] }
 oxc_ast = "0.157.0"
 oxc_ast_visit = "0.157.0"
@@ -63,6 +86,9 @@ oxc_semantic = "0.157.0"
 oxc_span = "0.157.0"
 oxc_syntax = { version = "0.157.0", features = ["to_js_string"] }
 rayon = "1"
+# Holds an opened chain's layers beside the segment bytes they borrow, which
+# `oxc_resolver` already builds with.
+self_cell = "1"
 regex = "1"
 rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }

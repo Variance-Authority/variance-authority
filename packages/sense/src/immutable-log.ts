@@ -16,7 +16,6 @@
 
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { digestBytes } from './digest.js';
 import type { Digest } from '@variance-authority/core/format';
 
 const MAGIC = Buffer.from('VAIDXLSM');
@@ -67,7 +66,7 @@ export interface ImmutableLog {
 
 /**
  * Open the committed chain. Missing state is an empty chain and a malformed
- * manifest throws; a segment that is missing or fails its digest ends the chain
+ * manifest throws; a segment that is missing or of another length ends the chain
  * there, and `dropped` counts what it cost.
  */
 export async function openImmutableLog(path: string): Promise<ImmutableLog> {
@@ -90,9 +89,9 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
     const read = await Promise.all(references.map(async (reference) => {
       try {
         const segment = await readFile(join(directory, fileName(reference.digest)));
-        return segment.length === reference.length && digestBytes(segment) === reference.digest
-          ? segment
-          : undefined;
+        // The digest names the file, computed by the writer from the bytes it
+        // renamed into place: hashing them again on every open was most of its cost.
+        return segment.length === reference.length ? segment : undefined;
       } catch {
         return undefined;
       }

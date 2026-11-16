@@ -20,79 +20,8 @@ use crate::members::{members_and_loads_in, BindingMember, Member};
 use crate::mocks::{mocks_in, Mocks};
 use crate::source_size::{size_of, Size};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Kind {
-    Imports = 0,
-    Reexports,
-    Dynamic,
-    Type,
-    Depends,
-}
-
-impl Kind {
-    pub const ALL: [Kind; 5] = [Kind::Imports, Kind::Reexports, Kind::Dynamic, Kind::Type, Kind::Depends];
-    pub fn code(self) -> u8 {
-        self as u8
-    }
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Imports => "imports",
-            Self::Reexports => "reexports",
-            Self::Dynamic => "dynamic",
-            Self::Type => "type",
-            Self::Depends => "depends",
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct Binding {
-    pub(crate) imported: String,
-    pub(crate) local: String,
-    #[serde(rename = "type")]
-    pub(crate) type_only: bool,
-    pub(crate) line: u32,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct Request {
-    pub value: String,
-    pub kind: Kind,
-    pub(crate) bindings: Vec<Binding>,
-    pub(crate) line: u32,
-    /// An `export … from` group: what it binds it passes on, and takes for no
-    /// use of its own. Every `reexports` request is one, and a `type` one is
-    /// when `export type` writes it, which its kind alone cannot tell from
-    /// `import type`.
-    #[serde(skip_serializing_if = "is_false")]
-    pub(crate) republishes: bool,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct Export {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) exported: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) local: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) from: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) imported: Option<String>,
-    #[serde(rename = "type")]
-    pub(crate) type_only: bool,
-    pub(crate) line: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) signature: Option<TextSpan>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) doc: Option<TextSpan>,
-    /// The role tags its doc declares, as `declared_role` bits.
-    #[serde(rename = "roles", skip_serializing_if = "is_zero", serialize_with = "crate::declared_role::serialize")]
-    pub(crate) tags: u8,
-    /// A key of the object `export =` or `module.exports =` hands out.
-    #[serde(skip_serializing_if = "is_false")]
-    pub(crate) assigned: bool,
-}
+pub use crate::read_rows::{Binding, Export, Kind, Request};
+use crate::read_rows::{is_false};
 
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct Read {
@@ -144,6 +73,11 @@ impl Lines {
 
     pub(crate) fn at(&self, offset: u32) -> u32 {
         self.0.partition_point(|start| *start <= offset as usize) as u32
+    }
+
+    /// The byte each line starts at, the first line first.
+    pub(crate) fn starts(&self) -> &[usize] {
+        &self.0
     }
 }
 
@@ -299,6 +233,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
             doc: harvest.doc(entry.statement_span.start),
             assigned: false,
             tags,
+            line_text: None,
         });
 
         let Some(value) = from else { continue };
@@ -344,6 +279,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
             doc: harvest.doc(at.start),
             assigned: false,
             tags,
+            line_text: None,
         });
     }
     // An object the module hands out whole exports each key, when it spells them all.
@@ -366,6 +302,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
                 doc,
                 tags,
                 assigned: true,
+                line_text: None,
             });
         }
     }
@@ -432,7 +369,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         unknown: (!reasons.is_empty()).then(|| reasons.join("; ")),
         size: Some(size),
         doc: harvest.module_doc,
-    };
+    }.texted(&crate::span_text::Source::new(source, lines.starts()));
     drop(built);
     (read, parsed.program)
 }
@@ -447,14 +384,6 @@ fn unread_statement(statement: &Statement) -> bool {
         _ => return false,
     };
     source.value.as_str().is_none()
-}
-
-fn is_false(value: &bool) -> bool {
-    !*value
-}
-
-fn is_zero(value: &u8) -> bool {
-    *value == 0
 }
 
 fn import_name(name: &ImportImportName<'_>) -> String {

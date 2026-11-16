@@ -2,8 +2,7 @@ import type { FileSet, Tool, ToolInvocation, Tree } from '@variance-authority/mc
 import { START_POINT_SCHEMA, startPointArg, stringArg } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import type { SearchIndex } from '../search-index.js';
-import { workspaceReadStarted } from '../snapshot.js';
-import { encodeSearchIndex, openSearchIndex } from '../search-index.js';
+import { searchIndexOf } from '../snapshot.js';
 import { areaLine } from './area.js';
 import { describedLine, thirdLine, thirdScope } from './third-party.js';
 import type { PublishedMatch } from './published-match.js';
@@ -167,18 +166,6 @@ const describedRow = (match: DescribedMatch): string =>
  * keeps to itself, and what they found is the `loose` section of the answer
  * `search-answer.ts` builds.
  */
-
-const encoded = new WeakMap<Help, SearchIndex>();
-
-/**
- * The search index one Help value encodes to, for callers that hold the value
- * itself rather than the file published beside it. Encoded once per value.
- */
-export function searchIndexOf(help: Help): SearchIndex {
-  let index = encoded.get(help);
-  if (index === undefined) encoded.set(help, (index = openSearchIndex(encodeSearchIndex(help))));
-  return index;
-}
 
 /** The question `search` is asked by `input`, as its schema accepted it. */
 export function searchQuestionOf(input: Readonly<Record<string, unknown>>): SearchQuestion {
@@ -429,7 +416,7 @@ function searchedOnce(help: Help, input: Readonly<Record<string, unknown>>, invo
   const asked = JSON.stringify([question, invocation?.root]);
   const last = lastSearched.get(help);
   if (last?.asked === asked && last.tree === invocation?.tree) return last.found;
-  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root), workspaceReadStarted(help));
+  const found = searched(searchIndexOf(help), question, invocation?.tree, invocation?.root, importingOf(help, invocation?.root));
   lastSearched.set(help, { asked, tree: invocation?.tree, found });
   return found;
 }

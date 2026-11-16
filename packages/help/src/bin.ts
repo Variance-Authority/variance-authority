@@ -3,7 +3,7 @@ import { relative } from 'node:path';
 import type { Tree } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
-import { caughtUp, foundNothingAnswer, outlived, refusalFooter, snapshotLine } from './caught-up.js';
+import { caughtUp, foundNothingAnswer, madeBefore, outlived, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer } from './read.js';
 import { workspaceGeneration } from './snapshot.js';
 import { readNamedTree } from './names-read.js';
@@ -195,31 +195,27 @@ if (asking(verb) && verb !== undefined) {
     const read = await answering(false);
     // An answer whose named files changed since its generation is asked again
     // first; one that could not be, or whose files moved again, says so where it is dated.
-    const again = (from: Answering): ReturnType<typeof caughtUp<Answering>> =>
-      caughtUp(from.at, started, root, answering, async (subject = from) => (await subject.outlived?.(started, from.help)) === true);
-    const looked = !justAnswer && (await read.outlived?.(started)) === true ? await again(read) : undefined;
+    const looked = !justAnswer && (await read.outlived?.(started)) === true
+      ? await caughtUp(read.at, started, () => answering(true), async (subject = read) => (await subject.outlived?.(started, read.help)) === true)
+      : undefined;
     const first = looked?.subject ?? read;
     let answer: string;
     try {
       answer = first.answer(looked?.unseen);
     } catch (refusal) {
-      // A refusal from a reused generation is asked again of one read now;
-      // `--just-answer` and `search` read only what was published, so theirs stands.
-      // A refusal whose checkout could not be compared says why.
-      const caught = justAnswer || tool === search ? undefined : (looked ?? (await again(first)));
-      const footer = refusalFooter(caught, caught?.subject?.at ?? first.at, justAnswer);
-      try {
-        if (caught?.subject === undefined) throw refusal;
-        answer = caught.subject.answer(caught.unseen);
-      } catch (still) {
-        // A name not found is an answer once nothing newer can be read, dated as any other.
-        const found = foundNothingAnswer(still, caught, caught?.subject !== undefined ? caught.subject.at : first.at, justAnswer);
-        if (found === undefined) {
-          if (footer !== undefined && still instanceof Error) still.message += `\n\n${footer}`;
-          throw still;
-        }
-        answer = found;
+      // A refusal answers from the generation it was refused from: keeping that
+      // fresh is `variance index`'s job, not a question's. One made before the
+      // question was not compared with the checkout, and its date line says so;
+      // `search` says that of its own reading.
+      const stale = justAnswer || (tool !== search && madeBefore(first.at, started));
+      // A name not found is an answer, dated as any other.
+      const found = foundNothingAnswer(refusal, looked, first.at, stale);
+      if (found === undefined) {
+        const footer = refusalFooter(looked, first.at, stale);
+        if (footer !== undefined && refusal instanceof Error) refusal.message += `\n\n${footer}`;
+        throw refusal;
       }
+      answer = found;
     }
 
     process.stdout.write(`${answer}\n`);

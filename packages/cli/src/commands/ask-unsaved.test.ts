@@ -42,7 +42,7 @@ afterEach(() => {
 });
 
 describe('variance ask when what it read again cannot be saved', () => {
-  it('says a moved file was not compared, and prints no text of it, for a name the file keeps to itself', async () => {
+  it('says a moved file was not compared, and prints the text it read of it, for a name the file keeps to itself', async () => {
     const root = checkout({ [HIDDEN]: HIDDEN_TEXT });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     writeFileSync(join(root, HIDDEN), `// one\n// two\n${HIDDEN_TEXT}`);
@@ -53,7 +53,7 @@ describe('variance ask when what it read again cannot be saved', () => {
     expect(code).toBe(EXIT_CLEAN);
     expect(out).toMatch(NOT_COMPARED);
     expect(out).toContain(`declared, not exported, at ${HIDDEN}:3`);
-    expect(out).not.toContain('Halves it');
+    expect(out).toContain('Halves it.');
     expect(out).not.toContain('// two');
   });
 
@@ -66,8 +66,8 @@ describe('variance ask when what it read again cannot be saved', () => {
     const { out } = await run(['ask', 'symbol', '--name', 'Options']);
 
     expect(out).toMatch(NOT_COMPARED);
-    expect(out).toContain(`${OPTIONS}:3 — ci`);
-    expect(out).toContain(`${OPTIONS}:5 — step`);
+    expect(out).toContain(`${OPTIONS}:3 — readonly ci: boolean;`);
+    expect(out).toContain(`${OPTIONS}:5 — readonly step: string;`);
   });
 
   it('answers a renamed name from the last read, and refuses the new one without saying it was looked for', async () => {
@@ -78,7 +78,8 @@ describe('variance ask when what it read again cannot be saved', () => {
 
     expect((await run(['ask', 'symbol', '--name', 'hiddenOf'])).out).toMatch(NOT_COMPARED);
     const renamed = await run(['ask', 'symbol', '--name', 'halfOf']);
-    expect(`${renamed.out}${renamed.err}`).toContain('could not be read again');
+    expect(renamed.out).toMatch(/Snapshot \S+Z, not compared with the checkout: run `variance index` if files changed since\./u);
+    expect(`${renamed.out}${renamed.err}`).not.toContain('could not be read again');
   });
 
   it('answers as ever when nothing an answer rests on moved', async () => {

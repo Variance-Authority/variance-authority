@@ -166,6 +166,23 @@ variance reach --since origin/main              # files a diff reaches over impo
   checked and it has no line ranges (a rename, mode or binary change), or when
   the record has no rows for it. A placed test counts toward the furthest hop,
   so it decides which leg is the end leg.
+- **`--format explain` is how far to test.** Read it before you choose a leg:
+  one block per hop count the change travelled, nearest first, each with its
+  test files, their seconds as the record times them, and the `variance
+  select --at-distance` command that runs that block. Each test line
+  names the trail from the changed file. Beside a leg, the hops the leg left
+  are laid out too, marked as left, so their cost shows before you widen. A
+  test no hop placed sits in the
+  block whose leg runs it; with no hops measured, as under a journey file, or
+  under the rung `--local` fell to, the selection is one block and its command
+  carries no leg. A test file the record never saw runs in every block, and
+  under the command itself when no recorded test runs. A
+  block past 0 hops lists, and prices, the nearer tests the last run left
+  unrun, which its command also runs. A selection that runs the whole suite says why
+  and what the record times the suite at, counting the test files it holds
+  no time for; a changed file nothing reaches is
+  named, with where to declare it: `/// <depends>` or `before`. It is no
+  runner's input.
 - **`reach` needs no recording**, and reads JavaScript, TypeScript, Python,
   Rust, Java, Kotlin and Swift. It prints a run list, so a reading that cannot
   produce one exits `2` with an empty stdout rather than print a short list.
@@ -208,9 +225,9 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 - **Do not put paths on the command line.** The configuration drops the files
   itself; `variance select --format vitest|jest` is deprecated.
 - **Get a smaller answer when the record cannot narrow.** On a laptop, add
-  `VARIANCE_AUTHORITY_LOCAL=1`: in place of `declined:` and every file, the
-  tests that import a changed file run, or a changed file's package. stderr
-  names the test files it left; run once without it before you call the change
+  `VARIANCE_AUTHORITY_LOCAL=1`: in place of every file, only the tests that
+  import a changed file run, and the first line names the doubt. stderr names
+  the test files it left; run once without it before you call the change
   done. Never set it in CI.
 - **Skip cases, too, under Jest and Vitest.** `VARIANCE_AUTHORITY_GRAIN=case`
   also skips the cases of each selected file that entered none of the changed

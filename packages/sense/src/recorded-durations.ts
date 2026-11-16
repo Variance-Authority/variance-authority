@@ -54,11 +54,11 @@ export interface TimedTestCase {
   /** The milliseconds its runner allowed one attempt; absent where no limit was recorded. */
   readonly limit?: number;
   /**
-   * The statement of the case that took longest, as its line in `file` and its
-   * whole milliseconds on the real clock; absent where the case was not cut or
-   * no statement took a millisecond.
+   * Every statement the case's body ran, as its line in `file` and its whole
+   * microseconds on the real clock, in the order it first reached them;
+   * absent where the case was not cut.
    */
-  readonly slowest?: { readonly line: number; readonly time: number };
+  readonly times?: readonly { readonly line: number; readonly time: number }[];
 }
 
 /** One suite's slowest recorded cases, or why there is no case index to read. */
@@ -174,8 +174,8 @@ function costs(view: TestCoverageView): (test: number) => number | undefined {
 }
 
 /**
- * Every test file the snapshot at `recording` holds a duration for, and the
- * commit it was taken at: what a sharded run places its files by. A file whose
+ * Every test file the snapshot at `recording` holds a duration for, those it
+ * holds none for, and the commit it was taken at: what a sharded run places its files by. A file whose
  * runner reported none is absent rather than zero, so the placement prices it
  * the way it prices a file the record never saw.
  *
@@ -189,11 +189,13 @@ export function recordedTimes(recording: string): SuiteTimes {
     const paths = view.testPath.all();
     const costOf = costs(view);
     const times = new Map<string, number>();
+    const untimed: string[] = [];
     paths.forEach((path, test) => {
       const duration = costOf(test);
-      if (duration !== undefined) times.set(view.string(path), duration);
+      if (duration === undefined) untimed.push(view.string(path));
+      else times.set(view.string(path), duration);
     });
-    return { times, ...(view.commit === undefined ? {} : { commit: view.commit }) };
+    return { times, untimed, ...(view.commit === undefined ? {} : { commit: view.commit }) };
   });
   // The record read, which a shard's record names (`record-base.ts`).
   return { recording, read: recordDigestAt(recording), ...placed };
@@ -220,10 +222,10 @@ function caseDurations(recording: string, limit: number, scope: DurationScope, o
     let untimed = 0;
     let faster = 0;
     const counts = countScope(scopeOfCases(index, scope), scope, index.tests.length, (at) => {
-      const { file, name, duration, limit: allowed, slowest } = index.tests[at]!;
+      const { file, name, duration, limit: allowed, times } = index.tests[at]!;
       if (duration === undefined) untimed += 1;
       else if (duration < over) faster += 1;
-      else timed.push({ file, name, duration, ...(allowed === undefined ? {} : { limit: allowed }), ...(slowest === undefined ? {} : { slowest }) });
+      else timed.push({ file, name, duration, ...(allowed === undefined ? {} : { limit: allowed }), ...(times === undefined ? {} : { times }) });
     });
     timed.sort((left, right) =>
       right.duration - left.duration || codeUnitOrder(left.file, right.file) || codeUnitOrder(left.name, right.name));

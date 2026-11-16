@@ -59,6 +59,12 @@ import { namesOf, type FileNames, type SourceNames } from './names.js';
 export interface Tree {
   /** The repository the coordinates are relative to. */
   readonly root: string;
+  /**
+   * Where the walks' answers are relative to, when it is not `root`: the graph
+   * a workspace nested below it was drawn over. A start point is said from
+   * `root`; a file a walk names is opened from here.
+   */
+  readonly graphRoot?: string;
   /** Every file the scan holds a coordinate for, repo-relative, forward slashes. */
   readonly files: ReadonlySet<string>;
   /**
@@ -197,6 +203,7 @@ export function treeAtWorkspace(tree: Tree, workspace: string): Tree {
     [...values].map((value) => actual.get(value) ?? value);
   return {
     root: workspace,
+    graphRoot: tree.graphRoot ?? tree.root,
     files: new Set(actual.keys()),
     reachedFrom: (values) => tree.reachedFrom(seeds(values)),
     reaching: (values) => tree.reaching(seeds(values)),

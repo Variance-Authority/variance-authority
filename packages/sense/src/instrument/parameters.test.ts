@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { instrument } from './index.js';
 import probeLists from './probe-lists.cjs';
 import probeLog from './probe-log.cjs';
+import probeSet from './probe-set.cjs';
 
 /**
  * A parameter list that can throw while it binds carries its function's probe.
@@ -28,7 +29,7 @@ async function trace(source: string, root?: unknown): Promise<readonly unknown[]
 }
 
 function recorder(): { root: unknown; entered(count: number): number[] } {
-  const engine = probeLog.createEngine(false);
+  const engine = probeLog.createEngine(false, probeSet.probeSet);
   const bucket = engine.open('');
   engine.use(bucket);
   return {

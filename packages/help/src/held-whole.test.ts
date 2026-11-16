@@ -59,7 +59,7 @@ beforeAll(async () => {
   }
   execFileSync('git', ['init', '--quiet'], { cwd: temporary });
   execFileSync('git', ['add', '.'], { cwd: temporary });
-  help = await readWorkspace(temporary, { index: join(temporary, 'source-index.bin'), save: false });
+  help = await readWorkspace(temporary, { index: join(temporary, 'source-index.bin') });
 });
 
 afterAll(async () => {

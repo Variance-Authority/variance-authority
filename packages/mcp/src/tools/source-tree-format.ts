@@ -19,7 +19,8 @@ import {
 import { treeAtWorkspace, treeFromRelations, type Tree } from './tree.js';
 
 const FORMAT = 'variance-authority-source-tree';
-const VERSION = 1;
+/** 2: the tree carries what tests load for real beside their mocks. */
+const VERSION = 2;
 const WHAT = 'source tree';
 
 /** Encode the path graph a source question needs, without parse-cache columns. */

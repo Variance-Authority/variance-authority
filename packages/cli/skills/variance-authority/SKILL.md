@@ -200,6 +200,29 @@ everything under it at any depth. Write the parent with the file name —
 `Provider.tsx` alone is not unique. A path is a fact about the source tree, so
 ask from a checkout at the revision you are asking about.
 
+**Name the code before you open it.** Reading a file and then the files it
+imports branches faster than you can prune it, and on a large repository the
+session runs out while it is still exploring. Ask first, then read: a few
+`search` queries, one for each likely spelling, name the candidates; `symbol`
+pins down the one you mean; `uses` lists the files that import it, and
+`discover --to <file>#<name>` walks on to what depends on those, at any
+depth. Open the files those answers named, at the lines they named. A file that
+no answer named, but that you want to open, is the next question rather than
+the next read: ask `orient --files <path>` about it.
+
+**The uses of a name you change are part of the change.** Before you change
+what a name takes, returns or means, or rename it, list the files that import
+it: `uses --name <name> --file <declaring file>`, widened with `--limit` until
+no row is left unshown. Each one is in the diff, or the change names
+it as left alone and says why. A change that reaches some of those files and
+not the others looks finished and leaves them disagreeing. A compiler catches
+an importer a changed signature breaks; a changed meaning compiles, so
+`covering --file <importer>` names the tests to run for each. `uses` reads
+imports, through re-exports, but not `require` calls, a namespace passed on
+whole, or a call through a qualified path. For those, and for a call the type
+checker has to infer, use the language's find-references on the declaration
+`uses` names.
+
 **A distance is a hop count.** Every `--at-distance` and every distance range
 is a count of imports: `2`, `0-2` (no more than two), `3-` (three and beyond).
 Zero is a test whose own source changed.

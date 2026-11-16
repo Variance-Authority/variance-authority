@@ -16,6 +16,7 @@ import { builtMap, handedTexts, namesItsMap } from './source-lines.js';
 import { type UnmappedNotes, refuseTransformsAfter, unmappedSteps, watchUnmapped } from './unmapped-transforms.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
+import probeSet from '../instrument/probe-set.cjs';
 import preconditions from './case-preconditions.cjs';
 import { PAGE_STORY, type PageStory } from '../story/page-story.js';
 import { CARRIED_SOURCE } from './carried.js';
@@ -73,8 +74,12 @@ export interface ExecutionJournal {
 export interface ExecutionCollector {
   readonly version: 1;
   readonly instrumentation: string;
-  /** Everything entered since the previous drain. Empties the log. */
-  readonly drain: () => ExecutionJournal;
+  /**
+   * Everything entered since the previous drain. Empties the log. `opens`, from
+   * a runner whose test lines run outside the page, says whether the page's tape
+   * hears what the page changes next as a test line's.
+   */
+  readonly drain: (opens?: boolean) => ExecutionJournal;
   /** Forget everything entered so far without reporting it. */
   readonly reset: () => void;
   /**
@@ -373,9 +378,9 @@ function pageReaderSource(): string {
  * The page half, as source, because it has to cross `page.evaluate` or a bundler.
  *
  * The engine is `instrument/probe-log.cts`, sent as its own source with
- * `instrument/probe-lists.cts`, so a page records with the code a test runner
- * records with. A page has one bucket and never
- * switches it: a drain reads it out and empties it in place.
+ * `instrument/probe-set.cts` and `instrument/probe-lists.cts`, so a page
+ * records with the code a test runner records with. A page has one bucket and
+ * never switches it: a drain reads it out and empties it in place.
  *
  * `globalThis.__VA__` keeps its identity for the life of the page, because
  * every module reads it once and keeps it, and the drain on
@@ -384,7 +389,7 @@ function pageReaderSource(): string {
 export function executionCollectorSource(mode?: InstrumentMode): string {
   const instrumentation = instrumentationId(mode);
   return `
-const engine = (${probeLog.createEngine.toString()})(false);
+const engine = (${probeLog.createEngine.toString()})(false, ${probeSet.probeSet.toString()});
 const lists = ${probeLists.lists.toString()};
 const bucket = engine.open('');
 engine.use(bucket);
@@ -408,7 +413,7 @@ if (globalThis.__VA__ === undefined) {
   // What the page's code reads goes out with what it entered, for the driver
   // to lay on the case it drained.
   const reader = ${pageReaderSource()};
-  const drain = () => {
+  const drain = (opens) => {
     // In the order the page first registered each module, drain after drain.
     const own = lists(engine.take(bucket), true);
     if (carries) engine.carry();
@@ -417,7 +422,7 @@ if (globalThis.__VA__ === undefined) {
     if (before !== undefined) drained.replaced = 1 + (before.replaced ?? 0);
     if (reader !== undefined || before?.read !== undefined) drained.read = [...(before?.read ?? []), ...(reader?.take() ?? [])];
     if (story !== undefined) {
-      drained.story = story.take();
+      drained.story = story.take(opens);
       if (before?.story !== undefined) drained.story.before = [before.story];
     }
     return drained;

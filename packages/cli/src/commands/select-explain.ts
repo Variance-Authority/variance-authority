@@ -1,0 +1,184 @@
+// compass: variance-authority.reach
+/**
+ * `variance select --format explain`: the selection `plain` makes, read for
+ * the agent deciding how far to test.
+ *
+ * One block per hop count the change travelled, nearest first, each with its
+ * test files, their recorded seconds and the `--at-distance` command that runs
+ * that block, with any nearer test the last run left unrun, which that command
+ * also runs. The hops are the
+ * leg's distances, cut by `atDistance` as a leg cuts them, and the seconds the
+ * budget's (`select-budget.ts`): this reads both, and decides nothing.
+ * A selection that ran the whole suite says why, and what the record times it
+ * at; one `--local` narrowed says why, and is one block of what its rung runs.
+ */
+
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import { durationText } from '@variance-authority/core/shard';
+import { recordedTimes } from '@variance-authority/sense';
+import { atDistance, groupByDistance, isTestCoverageFile, type SuiteTimes, type TestDistance } from '@variance-authority/sense/test-selection';
+import { quoted } from '../direct-call.js';
+import { recordHeld } from './mainline-selected.js';
+import { many } from './prose-counts.js';
+import { overdueOf } from './select-leg.js';
+import { timesOf } from './select-budget.js';
+import type { SuiteReading, SuiteRequest } from './select-suite.js';
+import { selectionNotes, type TestSelection } from './select.js';
+
+/** The open leg: it cuts nothing and measures every hop. */
+const OPEN = { from: 0, to: Number.MAX_SAFE_INTEGER } as const;
+
+/** The explanation on stdout, and the selection's notes on stderr. */
+export async function explainedOutput(
+  request: SuiteRequest,
+  select: (request: SuiteRequest) => Promise<SuiteReading>,
+): Promise<{ readonly out: string; readonly err: string }> {
+  // Every hop is selected, and reconciled as a leg's would be under `--ran-at`;
+  // the leg asked is marked on the blocks. A journey file has no graph to
+  // measure hops on, and a leg beside it is refused; a snapshot is the record.
+  const named = request.execution;
+  const snapshot = named !== undefined && (await recordHeld(named)) && isTestCoverageFile(named);
+  const { reading, whole } = await select(named === undefined || snapshot ? { ...request, atDistance: OPEN } : request);
+  // The record a caller already answered from prices the selection it made, as a named snapshot does.
+  const priced = request.record ?? (snapshot ? named : undefined);
+  const times = priced !== undefined ? await recordedTimes(priced) : await timesOf(request);
+  return { out: explainOf(reading, whole, times, commandOf(request), request.atDistance), err: selectionNotes(reading) };
+}
+
+/** The tests one command runs: one hop count's, or those no hop placed. */
+interface Block {
+  readonly label: string;
+  /** The `--at-distance` range that runs this block; absent when the selection measured no hops. */
+  readonly range?: string;
+  readonly tests: readonly string[];
+}
+
+/**
+ * The explanation of `selection`, every hop's, over the record's `whole`,
+ * priced by `times`; `command` runs it, and the blocks outside `leg` are marked left.
+ */
+export function explainOf(
+  selection: TestSelection,
+  whole: ReadonlySet<string>,
+  times: SuiteTimes,
+  command: string,
+  leg?: { readonly from: number; readonly to: number },
+): string {
+  const recorded = 'unread' in times ? new Map<string, number>() : times.times;
+  const unread = unreadOf(selection);
+  if (selection.widened !== undefined) {
+    const total = [...recorded.values()].reduce((sum, ms) => sum + ms, 0);
+    const untimed = 'unread' in times ? 0 : (times.untimed?.length ?? 0);
+    const held = Math.max(whole.size, recorded.size + untimed);
+    const of = held > recorded.size ? ` of ${held}` : '';
+    const apart = untimed > 0 ? `; ${untimed} ${untimed === 1 ? 'has' : 'have'} no recorded time` : '';
+    const timed = 'unread' in times ? `the record times no test file: ${times.unread}` : `the record times ${recorded.size}${of} test file${held === 1 ? '' : 's'}, ${durationText(total)}${apart}`;
+    return [`the whole suite runs: ${selection.widened}.\n${timed}\n`, ...unread].join('\n');
+  }
+
+  const skip = new Set(selection.skip);
+  const runs = (test: string) => !skip.has(test) && (selection.only === undefined || selection.only.includes(test));
+  const blocks = blocksOf(selection, whole, recorded, runs);
+  // The blocks the leg asked leaves are laid out too, marked, so their cost and command show.
+  const asked = (block: Block) => leg === undefined || block.range === undefined || (block.range.endsWith('-')
+    ? leg.to === Number.MAX_SAFE_INTEGER
+    : leg.from <= Number(block.range) && Number(block.range) <= leg.to);
+  // A leg past 0 hops also runs the nearer tests the run landed at HEAD left unrun, as `inLeg` takes them.
+  const unrun = new Set(selection.unrunAtHead ?? []);
+  const overdue = (from: number) => (selection.distances === undefined ? [] : overdueOf(selection.distances, from, unrun).filter(runs));
+  const selected = [...new Set([...blocks.filter(asked).flatMap((block) => block.tests), ...overdue(leg?.from ?? 0)])];
+  const of = selection.recorded === undefined ? '' : ` of ${selection.recorded.whole} recorded`;
+  const fell = selection.fell === undefined ? '' : `\n${selection.because}.`;
+  const head = `the change selects ${selected.length}${of} test file${selected.length === 1 ? '' : 's'}, ${priced(recorded, selected)}.${fell}`;
+
+  const byTest = new Map((selection.distances ?? []).map((distance) => [distance.test, distance] as const));
+  const said = blocks.map((block) => {
+    const runsIt = block.range === undefined ? command : `${command} --at-distance ${block.range}`;
+    const why = (test: string) => (selection.fell === undefined ? pathOf(byTest.get(test)) : `the ${selection.fell.rung} rung \`--local\` fell to`);
+    const lines = block.tests.map((test) => `  ${test}, ${priceOf(recorded, test)}: ${why(test)}`);
+    const late = overdue(block.range === undefined ? 0 : Number.parseInt(block.range, 10));
+    const runsAll = [...block.tests, ...late];
+    const lateLines = late.map((test) => `  ${test}, ${priceOf(recorded, test)}: nearer, and the run that landed at HEAD left it unrun`);
+    const label = asked(block) ? block.label : `${block.label}, left by the leg asked`;
+    return [`${label}: ${many(runsAll.length, 'test file')}, ${priced(recorded, runsAll)} — ${runsIt}`, ...lines, ...lateLines].join('\n');
+  });
+  // Under `only`, a test outside it does not run, seen or not.
+  const where = selection.only !== undefined ? undefined : blocks.length > 0 ? 'in every block' : `under \`${command}\``;
+  const unseen = where === undefined ? [] : [`a test file the record never saw, such as one the change adds, is in no skip list, and runs ${where}\n`];
+  return [`${head}\n`, ...said.map((block) => `${block}\n`), ...unseen, ...unread].join('\n');
+}
+
+/**
+ * One block per hop count the leg measured, nearest first, each the tests
+ * `atDistance` returns for that one hop, so the tests no path placed sit in
+ * the block whose leg runs them. A recorded test never seen whole that no hop
+ * placed runs in the open leg alone, so its block starts past the furthest
+ * hop. With no hops measured, or under the rung `--local` fell to, the
+ * selection is one block of every recorded test it does not skip, run as it is.
+ * `lays` says which tests a block holds: those the selection runs.
+ */
+function blocksOf(
+  selection: TestSelection,
+  whole: ReadonlySet<string>,
+  recorded: ReadonlyMap<string, number>,
+  lays: (test: string) => boolean,
+): readonly Block[] {
+  const measured = selection.distances;
+  if (measured === undefined || selection.fell !== undefined) {
+    const tests = [...new Set([...whole, ...recorded.keys(), ...(selection.incomplete ?? []), ...(selection.fell?.selected ?? [])])].filter(lays).sort(codeUnitOrder);
+    return tests.length === 0 ? [] : [{ label: 'no measured distance', tests }];
+  }
+  const hops = groupByDistance(measured).flatMap((group) => (group.hops === undefined ? [] : [group.hops]));
+  const blocks: Block[] = hops.map((hop) => ({ label: many(hop, 'hop'), range: `${hop}`, tests: atDistance(measured, hop, hop).filter(lays) }));
+  const furthest = hops.at(-1);
+  const named = new Set(measured.map((distance) => distance.test));
+  const open = [
+    // With no hop measured, `atDistance` carries the unplaced in the open leg.
+    ...(furthest === undefined ? measured.map((distance) => distance.test) : []),
+    ...(selection.incomplete ?? []).filter((test) => !named.has(test)),
+  ].filter(lays).sort(codeUnitOrder);
+  if (open.length > 0) blocks.push({ label: 'no measured distance', range: `${furthest === undefined ? 0 : furthest + 1}-`, tests: open });
+  return blocks.filter((block) => block.tests.length > 0);
+}
+
+/** The recorded seconds of `tests`, and how many the record holds no time for. */
+function priced(times: ReadonlyMap<string, number>, tests: readonly string[]): string {
+  const seconds = tests.reduce((sum, test) => sum + (times.get(test) ?? 0), 0);
+  const untimed = tests.filter((test) => !times.has(test)).length;
+  return `${durationText(seconds)} recorded${untimed === 0 ? '' : `, ${untimed} with no recorded time`}`;
+}
+
+function priceOf(times: ReadonlyMap<string, number>, test: string): string {
+  const ms = times.get(test);
+  return ms === undefined ? 'no recorded time' : durationText(ms);
+}
+
+/** The trail the change took to the test, or why none was measured. */
+function pathOf(distance: TestDistance | undefined): string {
+  if (distance?.trail !== undefined && distance.trail.length > 0) return distance.trail.join(' → ');
+  return `no measured path (${distance?.because ?? distance?.bearing ?? 'the record did not see it entered'})`;
+}
+
+/** The changed files neither the record nor the graph knows, and what brings each into reach. */
+function unreadOf(selection: TestSelection): readonly string[] {
+  if (selection.unread.length === 0) return [];
+  return [
+    `${many(selection.unread.length, 'changed file')} the record and the graph know nothing of:\n` +
+      selection.unread.map((file) => `  ${file}\n`).join('') +
+      'Name each in a `/// <depends>` line of the module that reads it, or in the suite\'s `before` when the suite rests on it before any test imports it.\n',
+  ];
+}
+
+/** `variance select` with the flags that read this selection, each quoted when the shell would split it. */
+function commandOf(request: SuiteRequest): string {
+  const flags: [string, string | undefined][] = [
+    ['--since', request.since],
+    ['--suite', request.suite],
+    ['--execution', request.execution],
+    ['--diff', request.diff],
+    ['--ran-at', request.ranAt],
+  ];
+  const named = flags.flatMap(([flag, value]) => (value === undefined ? [] : [`${flag} ${quoted(value)}`]));
+  const switches = [...(request.local === true ? ['--local'] : []), ...(request.noGit === true ? ['--no-git'] : [])];
+  return ['variance select', ...named, ...switches].join(' ');
+}

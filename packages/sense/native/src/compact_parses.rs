@@ -3,12 +3,12 @@
 
 // compass: variance-authority.reach.source-index
 
+use crate::harvest::REACHES;
+use crate::name_table::{Item, Names};
 use crate::stored::{same_length, Stored, U32s};
 
-use super::span;
-
-/// A span column's two ends.
-type Ends<'a> = [U32s<'a>; 2];
+/// A span column's two ends and its text.
+pub(crate) type Ends<'a> = [U32s<'a>; 3];
 
 pub(crate) struct Parses<'a> {
     pub key: U32s<'a>,
@@ -45,6 +45,8 @@ pub(crate) struct Parses<'a> {
     pub export_signature: Ends<'a>,
     pub export_doc: Ends<'a>,
     pub export_tags: &'a [u8],
+    /// The id of the text of the line the export is written on, or `NONE`.
+    pub export_line_text: U32s<'a>,
     pub symbols: U32s<'a>,
     pub symbol_name: U32s<'a>,
     pub symbol_kind: U32s<'a>,
@@ -68,6 +70,8 @@ pub(crate) struct Parses<'a> {
     pub member_declaration_line: U32s<'a>,
     pub member_declaration_on: U32s<'a>,
     pub member_declaration_doc: Ends<'a>,
+    /// As [`Self::export_line_text`] is of an export.
+    pub member_declaration_line_text: U32s<'a>,
     pub member_uses: U32s<'a>,
     pub member_use_name: U32s<'a>,
     pub member_use_line: U32s<'a>,
@@ -93,6 +97,9 @@ pub(crate) struct Parses<'a> {
     pub binding_member_within: U32s<'a>,
     pub binding_within_name: U32s<'a>,
     pub declare_name: U32s<'a>,
+    /// Each table's names and doc words, in [`Item`]'s order, so a
+    /// question about a name scans them rather than decode a row.
+    pub names: [Names<'a>; 4],
 }
 
 impl<'a> Parses<'a> {
@@ -100,7 +107,7 @@ impl<'a> Parses<'a> {
     /// row read later is a row in bounds.
     pub fn open(stored: &Stored<'a>) -> Result<Self, String> {
         let u32s = |name: &str| stored.u32s(name);
-        let ends = |start: &str, end: &str| -> Result<Ends<'a>, String> { Ok([u32s(start)?, u32s(end)?]) };
+        let ends = |start: &str, end: &str, text: &str| -> Result<Ends<'a>, String> { Ok([u32s(start)?, u32s(end)?, u32s(text)?]) };
         let key = u32s("parses.key")?;
         let rows = key.len();
         let (request_value, binding_imported) = (u32s("requests.value")?, u32s("bindings.imported")?);
@@ -120,40 +127,41 @@ impl<'a> Parses<'a> {
             deleted_way: stored.maybe_u32s("parses.deleted-way")?,
             requests: stored.offsets("parses.requests", rows, request_value.len())?,
             exports: stored.offsets("parses.exports", rows, export_exported.len())?,
-            exports_present: stored.u8s("parses.exports-present")?,
+            exports_present: stored.codes("parses.exports-present", 1)?,
             declares: stored.offsets("parses.declares", rows, declare_name.len())?,
-            declares_present: stored.u8s("parses.declares-present")?,
+            declares_present: stored.codes("parses.declares-present", 1)?,
             unknown: u32s("parses.unknown")?,
-            harvested: stored.u8s("parses.harvested")?,
+            harvested: stored.codes("parses.harvested", 1)?,
             bytes: u32s("parses.bytes")?,
             lines: u32s("parses.lines")?,
             blocks: u32s("parses.blocks")?,
-            doc: ends("parses.doc-start", "parses.doc-end")?,
+            doc: ends("parses.doc-start", "parses.doc-end", "parses.doc-text")?,
             request_kind: u32s("requests.kind")?,
             request_line: u32s("requests.line")?,
             request_flags: stored.u8s("requests.flags")?,
-            request_republishes: stored.u8s("requests.republishes")?,
+            request_republishes: stored.codes("requests.republishes", 1)?,
             request_bindings: stored.offsets("requests.bindings", request_value.len(), binding_imported.len())?,
             request_value,
             binding_local: u32s("bindings.local")?,
-            binding_type: stored.u8s("bindings.type")?,
+            binding_type: stored.codes("bindings.type", 1)?,
             binding_line: u32s("bindings.line")?,
             binding_imported,
             export_local: u32s("exports.local")?,
             export_from: u32s("exports.from")?,
             export_imported: u32s("exports.imported")?,
-            export_type: stored.u8s("exports.type")?,
+            export_type: stored.codes("exports.type", 1)?,
             export_line: u32s("exports.line")?,
-            export_signature: ends("exports.signature-start", "exports.signature-end")?,
-            export_doc: ends("exports.doc-start", "exports.doc-end")?,
+            export_signature: ends("exports.signature-start", "exports.signature-end", "exports.signature-text")?,
+            export_doc: ends("exports.doc-start", "exports.doc-end", "exports.doc-text")?,
             export_tags: stored.u8s("exports.tags")?,
+            export_line_text: u32s("exports.line-text")?,
             export_exported,
             symbols: stored.offsets("parses.symbols", rows, symbol_name.len())?,
             symbol_kind: u32s("symbols.kind")?,
             symbol_line: u32s("symbols.line")?,
-            symbol_signature: ends("symbols.signature-start", "symbols.signature-end")?,
-            symbol_doc: ends("symbols.doc-start", "symbols.doc-end")?,
-            symbol_reach: stored.u8s("symbols.reach")?,
+            symbol_signature: ends("symbols.signature-start", "symbols.signature-end", "symbols.signature-text")?,
+            symbol_doc: ends("symbols.doc-start", "symbols.doc-end", "symbols.doc-text")?,
+            symbol_reach: stored.codes("symbols.reach", REACHES.len() as u8)?,
             symbol_name,
             mocks_minus: stored.offsets("parses.mocks-minus", rows, mock_minus.len())?,
             mocks_plus: stored.offsets("parses.mocks-plus", rows, mock_plus.len())?,
@@ -167,7 +175,8 @@ impl<'a> Parses<'a> {
             member_declarations: stored.offsets("parses.member-declarations", rows, member_declaration_name.len())?,
             member_declaration_line: u32s("member-declarations.line")?,
             member_declaration_on: u32s("member-declarations.on")?,
-            member_declaration_doc: ends("member-declarations.doc-start", "member-declarations.doc-end")?,
+            member_declaration_doc: ends("member-declarations.doc-start", "member-declarations.doc-end", "member-declarations.doc-text")?,
+            member_declaration_line_text: u32s("member-declarations.line-text")?,
             member_declaration_name,
             member_uses: stored.offsets("parses.member-uses", rows, member_use_name.len())?,
             member_use_line: u32s("member-uses.line")?,
@@ -180,8 +189,8 @@ impl<'a> Parses<'a> {
             nested: stored.offsets("parses.nested", rows, nested_name.len())?,
             nested_kind: u32s("nested.kind")?,
             nested_line: u32s("nested.line")?,
-            nested_signature: ends("nested.signature-start", "nested.signature-end")?,
-            nested_doc: ends("nested.doc-start", "nested.doc-end")?,
+            nested_signature: ends("nested.signature-start", "nested.signature-end", "nested.signature-text")?,
+            nested_doc: ends("nested.doc-start", "nested.doc-end", "nested.doc-text")?,
             nested_holder: u32s("nested.holder")?,
             nested_holder_line: u32s("nested.holder-line")?,
             nested_name,
@@ -193,6 +202,12 @@ impl<'a> Parses<'a> {
             binding_within_name,
             binding_member_name,
             declare_name,
+            names: [
+                Names::open(stored, Item::Module, rows)?,
+                Names::open(stored, Item::Symbol, symbol_name.len())?,
+                Names::open(stored, Item::Nested, nested_name.len())?,
+                Names::open(stored, Item::Member, member_declaration_name.len())?,
+            ],
         };
         parses.lengths()?;
         Ok(parses)
@@ -205,28 +220,32 @@ impl<'a> Parses<'a> {
         (bytes != crate::segment::NONE && lines != crate::segment::NONE).then_some(lines)
     }
 
-    /// The module's own doc comment span, in UTF-16 units of its file;
-    /// absent when it writes none.
-    pub fn doc_of_module(&self, row: usize) -> Option<crate::harvest::TextSpan> {
-        span(self.doc[0], self.doc[1], row).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    /// The module's own doc comment as written inside its marks; absent
+    /// when it writes none or its parse kept no text of it.
+    pub fn doc_of_module(&self, stored: &Stored<'a>, row: usize) -> Option<&'a str> {
+        stored.kept(self.doc[2].at(row))
     }
 
-    /// The doc comment span of one export, in UTF-16 units of its file;
-    /// absent when the reader found none.
-    pub fn doc_of_export(&self, export: usize) -> Option<crate::harvest::TextSpan> {
-        span(self.export_doc[0], self.export_doc[1], export).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    /// The doc comment of one export, as [`Self::doc_of_module`] is of the module.
+    pub fn doc_of_export(&self, stored: &Stored<'a>, export: usize) -> Option<&'a str> {
+        stored.kept(self.export_doc[2].at(export))
     }
 
-    /// The doc comment span of one declaration, as [`Self::doc_of_export`]
-    /// is of an export.
-    pub fn doc_of_symbol(&self, symbol: usize) -> Option<crate::harvest::TextSpan> {
-        span(self.symbol_doc[0], self.symbol_doc[1], symbol).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    /// What one export writes before its body, as written; absent when the
+    /// reader spanned none or the parse kept no text of it.
+    pub fn signature_of_export(&self, stored: &Stored<'a>, export: usize) -> Option<&'a str> {
+        stored.kept(self.export_signature[2].at(export))
     }
 
-    /// What one declaration writes before its body, as a span in UTF-16
-    /// units of its file; absent when the reader spanned none.
-    pub fn signature_of_symbol(&self, symbol: usize) -> Option<crate::harvest::TextSpan> {
-        span(self.symbol_signature[0], self.symbol_signature[1], symbol).map(|(start, end)| crate::harvest::TextSpan { start, end })
+    /// The doc comment of one declaration, as [`Self::doc_of_export`] is of an export.
+    pub fn doc_of_symbol(&self, stored: &Stored<'a>, symbol: usize) -> Option<&'a str> {
+        stored.kept(self.symbol_doc[2].at(symbol))
+    }
+
+    /// What one declaration writes before its body, as written; absent when
+    /// the reader spanned none.
+    pub fn signature_of_symbol(&self, stored: &Stored<'a>, symbol: usize) -> Option<&'a str> {
+        stored.kept(self.symbol_signature[2].at(symbol))
     }
 
     fn lengths(&self) -> Result<(), String> {
@@ -242,6 +261,7 @@ impl<'a> Parses<'a> {
             ("parses.blocks", self.blocks.len()),
             ("parses.doc-start", self.doc[0].len()),
             ("parses.doc-end", self.doc[1].len()),
+            ("parses.doc-text", self.doc[2].len()),
         ])?;
         same_length(self.deleted.len(), &[("parses.deleted-way", self.deleted_way.len())])?;
         same_length(self.request_value.len(), &[
@@ -255,8 +275,8 @@ impl<'a> Parses<'a> {
             ("bindings.type", self.binding_type.len()),
             ("bindings.line", self.binding_line.len()),
         ])?;
-        let [signature_start, signature_end] = self.export_signature;
-        let [doc_start, doc_end] = self.export_doc;
+        let [signature_start, signature_end, signature_text] = self.export_signature;
+        let [doc_start, doc_end, doc_text] = self.export_doc;
         same_length(self.export_exported.len(), &[
             ("exports.local", self.export_local.len()),
             ("exports.from", self.export_from.len()),
@@ -265,19 +285,24 @@ impl<'a> Parses<'a> {
             ("exports.line", self.export_line.len()),
             ("exports.signature-start", signature_start.len()),
             ("exports.signature-end", signature_end.len()),
+            ("exports.signature-text", signature_text.len()),
             ("exports.doc-start", doc_start.len()),
             ("exports.doc-end", doc_end.len()),
+            ("exports.doc-text", doc_text.len()),
             ("exports.tags", self.export_tags.len()),
+            ("exports.line-text", self.export_line_text.len()),
         ])?;
-        let [signature_start, signature_end] = self.symbol_signature;
-        let [doc_start, doc_end] = self.symbol_doc;
+        let [signature_start, signature_end, signature_text] = self.symbol_signature;
+        let [doc_start, doc_end, doc_text] = self.symbol_doc;
         same_length(self.symbol_name.len(), &[
             ("symbols.kind", self.symbol_kind.len()),
             ("symbols.line", self.symbol_line.len()),
             ("symbols.signature-start", signature_start.len()),
             ("symbols.signature-end", signature_end.len()),
+            ("symbols.signature-text", signature_text.len()),
             ("symbols.doc-start", doc_start.len()),
             ("symbols.doc-end", doc_end.len()),
+            ("symbols.doc-text", doc_text.len()),
             ("symbols.reach", self.symbol_reach.len()),
         ])?;
         same_length(self.member_name.len(), &[
@@ -290,6 +315,8 @@ impl<'a> Parses<'a> {
             ("member-declarations.on", self.member_declaration_on.len()),
             ("member-declarations.doc-start", self.member_declaration_doc[0].len()),
             ("member-declarations.doc-end", self.member_declaration_doc[1].len()),
+            ("member-declarations.doc-text", self.member_declaration_doc[2].len()),
+            ("member-declarations.line-text", self.member_declaration_line_text.len()),
         ])?;
         same_length(self.member_use_name.len(), &[
             ("member-uses.line", self.member_use_line.len()),
@@ -302,8 +329,10 @@ impl<'a> Parses<'a> {
             ("nested.line", self.nested_line.len()),
             ("nested.signature-start", self.nested_signature[0].len()),
             ("nested.signature-end", self.nested_signature[1].len()),
+            ("nested.signature-text", self.nested_signature[2].len()),
             ("nested.doc-start", self.nested_doc[0].len()),
             ("nested.doc-end", self.nested_doc[1].len()),
+            ("nested.doc-text", self.nested_doc[2].len()),
             ("nested.holder", self.nested_holder.len()),
             ("nested.holder-line", self.nested_holder_line.len()),
         ])?;

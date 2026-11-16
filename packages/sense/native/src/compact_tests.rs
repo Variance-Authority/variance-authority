@@ -87,6 +87,47 @@ fn a_layer_that_is_not_a_generation_is_refused_with_its_place() {
 }
 
 #[test]
+fn a_layer_whose_reverse_edge_names_a_row_it_does_not_hold_is_refused() {
+    let good = encoded(FULL);
+    let stored = crate::stored::Stored::open(&good).unwrap();
+    let columns = stored.columns().into_iter().map(|(name, width, bytes)| match name {
+        "targets.reverse-row" => crate::segment::u32s("targets.reverse-row", vec![999]),
+        _ => crate::segment::column(name.to_owned(), width, bytes.to_vec()),
+    });
+    let broken = crate::segment::encode(columns.collect());
+    let error = compacted(&[&broken]).unwrap_err();
+    assert!(error.contains("targets.reverse-row names row 999 of 2 records"), "{error}");
+}
+
+/// `FULL` with the first byte of the one-byte column `name` set to `value`.
+fn with_byte(name: &str, value: u8) -> Vec<u8> {
+    let good = encoded(FULL);
+    let stored = crate::stored::Stored::open(&good).unwrap();
+    let columns = stored.columns().into_iter().map(|(column, width, bytes)| {
+        let mut bytes = bytes.to_vec();
+        if column == name { bytes[0] = value; }
+        crate::segment::column(column.to_owned(), width, bytes)
+    });
+    crate::segment::encode(columns.collect())
+}
+
+#[test]
+fn a_layer_whose_flag_is_neither_zero_nor_one_is_refused_as_the_typescript_reader_refuses_it() {
+    for name in ["records.edges-present", "parses.harvested", "bindings.type"] {
+        let error = compacted(&[&with_byte(name, 3)]).err().unwrap_or_else(|| panic!("{name} = 3 was read"));
+        assert!(error.contains(name), "{error}");
+    }
+}
+
+#[test]
+fn a_layer_whose_reach_is_past_the_reaches_known_is_refused_as_the_typescript_reader_refuses_it() {
+    let past = crate::harvest::REACHES.len() as u8 + 1;
+    let error = compacted(&[&with_byte("symbols.reach", past)]).err().unwrap_or_else(|| panic!("reach {past} was read"));
+    assert!(error.contains("symbols.reach"), "{error}");
+    assert!(compacted(&[&with_byte("symbols.reach", past - 1)]).is_ok());
+}
+
+#[test]
 fn a_working_layer_writes_no_row_the_base_already_holds() {
     let base = encoded(FULL);
     // Everything again, as an update that read every file writes it: one record

@@ -4,7 +4,7 @@ import { readHelp } from '@variance-authority/package/help';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import type { SearchIndex } from '../search-index.js';
 import { searchNames } from './search-answer.js';
-import { searchIndexOf } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 
 /**
  * Which names `search` puts first, as a fixed set of questions and the names

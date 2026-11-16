@@ -1,31 +1,42 @@
 //! What a repository imports from what it publishes, read off the folded chain.
 //!
-//! `collectingUsage` in `packages/help/src/read.ts` is the twin: same joins,
-//! same rule for which request counts, so the two answer alike. It exists here
-//! because the chain is already open in this process and the JavaScript twin
-//! decoded every record of it to be handed the same columns.
+//! The only reader of it: every publish of the Help value reads its uses here,
+//! where the chain is already open, rather than decoding every record of it
+//! into JavaScript to be handed the same columns.
 
 // compass: variance-authority.reach.relations
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use napi_derive::napi;
 use rayon::prelude::*;
 
+use crate::chain_lookup::fold;
 use crate::compact::Layer;
-use crate::help_in_file::{in_file, InFile};
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
+use crate::segment::NONE;
 
 #[path = "help_importers.rs"]
 mod importers_walk;
-use importers_walk::importers_folded;
 pub(crate) use importers_walk::importers_from;
 
-#[path = "help_unresolved.rs"]
-mod unresolved_walk;
-pub(crate) use unresolved_walk::sources;
+#[path = "help_usage_importers.rs"]
+mod importers_answer;
+pub(crate) use importers_answer::{importers, Asked, Importers, Namespace};
+
+#[cfg(test)]
+thread_local! {
+    /// The files whose record a question on this thread read.
+    pub(crate) static READ: std::cell::RefCell<Vec<String>> = const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// The record of `file` is read: a test holds `importers` to the rows it reaches.
+pub(crate) fn read_record(_file: &str) {
+    #[cfg(test)]
+    READ.with(|read| read.borrow_mut().push(_file.to_owned()));
+}
 
 #[napi(object)]
 #[derive(Clone, serde::Serialize)]
@@ -51,13 +62,13 @@ pub struct NamedExport {
     #[serde(rename = "boundLine", skip_serializing_if = "Option::is_none")]
     pub bound_line: Option<u32>,
     /// The doc comment above the export, or above the declaration it binds in
-    /// the same file, as `dependency_namespace::doc` cuts it from the file at the
-    /// span the index holds; absent when nothing documents it.
+    /// the same file, as [`crate::text_cut::doc`] cuts it from the text the
+    /// index keeps; absent when nothing documents it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub doc: Option<String>,
     /// What the declaration the export binds in the same file writes before its
-    /// body, as `dependency_namespace::text` cuts it from the file at the span
-    /// the index holds, its parameter comments included; absent for an
+    /// body, as [`crate::text_cut::head`] cuts it from the text the index
+    /// keeps, its parameter comments included; absent for an
     /// `export … from` and when the parse spans none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signature: Option<String>,
@@ -109,8 +120,6 @@ pub struct NameUse {
 #[napi(object)]
 pub struct IndexedUsage {
     pub exported: Vec<NamedExport>,
-    /// Each `export … from`, named or `*`, as `forward_row` writes it.
-    pub forwards: Vec<String>,
     pub deep: Vec<DeepRequest>,
     /// Imports of a package that declares no entry: every one is by path.
     pub by_path: Vec<DeepRequest>,
@@ -138,7 +147,7 @@ fn own_binding<'a>(local: Option<&'a str>, imported: &HashSet<&str>) -> Option<&
 }
 
 /// `requested` in `package/src/manifest.ts`: `"<package> .<rest>"`.
-fn requested(specifier: &str) -> (&str, String) {
+pub(crate) fn requested(specifier: &str) -> (&str, String) {
     let name = if specifier.starts_with('@') {
         specifier.match_indices('/').nth(1).map_or(specifier, |(at, _)| &specifier[..at])
     } else {
@@ -150,7 +159,6 @@ fn requested(specifier: &str) -> (&str, String) {
 #[derive(Default)]
 struct Part {
     exported: Vec<NamedExport>,
-    forwards: Vec<String>,
     deep: Vec<DeepRequest>,
     by_path: Vec<DeepRequest>,
     unfollowed: Vec<DeepRequest>,
@@ -211,14 +219,7 @@ fn taken<'a>(layer: &'a Layer, row: usize, request: usize, key: &str, by: &str, 
     names
 }
 
-/// One `export … from` of the file `at`, as `collect-usage.ts` writes it: `*`
-/// exports no name of its own, so no row of the export list holds it, and
-/// `imported` is what the row leads to, which no name or specifier says.
-fn forward_row(at: &str, exported: Option<&str>, from: &str, imported: Option<&str>) -> String {
-    format!("{at}\0{}\0{from}\0{}", exported.unwrap_or(""), imported.unwrap_or(""))
-}
-
-fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
+fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -> Part {
     let mut part = Part::default();
     let (stored, records) = (&layers[crossing.at.0].stored, &layers[crossing.at.0].records);
     let at = crossing.file;
@@ -228,18 +229,16 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
     if text.optional(parses.unknown.at(row)).is_some() { part.unreadable.push(at.to_owned()); }
     let kind = kind_of(at);
     if parses.exports_present[row] == 1 {
-        // The file is read only when an export of it is documented or binds a
-        // declaration: the index holds where each span is, and the text is the file's.
-        let mut source: Option<Vec<u16>> = None;
+        // The index keeps each span's text; a span it holds no text of is a
+        // file the parse could not read back, and its docs are unknown.
+        let unkept = |[start, _, kept]: [crate::stored::U32s; 3], at: usize| start.at(at) != NONE && kept.at(at) == NONE;
+        let mut unread = false;
         let imported_here: HashSet<&str> = parses.requests.range(row)
             .flat_map(|request| parses.request_bindings.range(request))
             .map(|binding| text.text(parses.binding_local.at(binding)))
             .collect();
         for export in parses.exports.range(row) {
             let id = parses.export_exported.at(export);
-            if let Some(from) = text.optional(parses.export_from.at(export)) {
-                part.forwards.push(forward_row(at, text.optional(id), from, text.optional(parses.export_imported.at(export))));
-            }
             let Some(name) = text.optional(id) else { continue };
             let local = text.optional(parses.export_local.at(export));
             let passed_on = text.optional(parses.export_from.at(export)).is_some();
@@ -255,22 +254,14 @@ fn collect(root: &str, layers: &[Layer], crossing: &Crossing, by: &str, targets:
             });
             let declaration = bound.map(|symbol| text.text(parses.symbol_kind.at(symbol)).to_owned());
             let bound_line = bound.map(|symbol| parses.symbol_line.at(symbol)).filter(|&line| line != parses.export_line.at(export));
-            let doc = parses.doc_of_export(export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(symbol)));
-            let signature = bound.and_then(|symbol| parses.signature_of_symbol(symbol));
-            let utf16: &[u16] = if doc.is_none() && signature.is_none() { &[] } else {
-                source.get_or_insert_with(|| {
-                    std::fs::read_to_string(std::path::Path::new(root).join(at)).map(|text| text.encode_utf16().collect()).unwrap_or_default()
-                })
-            };
-            let doc = doc.and_then(|span| crate::dependency_namespace::doc(utf16, Some(span)));
-            // The head as `headOf` keeps it: its trailing `;` dropped, and nothing when nothing is left.
-            let signature = signature.and_then(|span| crate::dependency_namespace::text(utf16, Some(span))).and_then(|head| {
-                let head = head.trim_end();
-                let head = head.strip_suffix(';').unwrap_or(head);
-                (!head.is_empty()).then(|| head.to_owned())
-            });
+            unread |= unkept(parses.export_doc, export)
+                || bound.is_some_and(|symbol| unkept(parses.symbol_doc, symbol) || unkept(parses.symbol_signature, symbol));
+            let doc = parses.doc_of_export(text, export).or_else(|| bound.and_then(|symbol| parses.doc_of_symbol(text, symbol)));
+            let doc = doc.and_then(crate::text_cut::doc);
+            let signature = bound.and_then(|symbol| parses.signature_of_symbol(text, symbol)).and_then(crate::text_cut::head);
             part.exported.push(NamedExport { name: name.to_owned(), at: at.to_owned(), by: by.to_owned(), line: parses.export_line.at(export), r#type: parses.export_type[export] == 1, kind: kind.to_owned(), bound: own.map(str::to_owned), declaration, bound_line, doc, signature });
         }
+        if unread && part.unreadable.last().map(String::as_str) != Some(at) { part.unreadable.push(at.to_owned()); }
     }
     let first = parses.requests.at(row) as usize;
     // The index resolved each request when it wrote the record; a record whose
@@ -325,15 +316,14 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
         .par_iter()
         .map(|crossing| {
             let by = if crossing.owner == NO_OWNER { "" } else { owners.packages[crossing.owner as usize].name.as_str() };
-            collect(root, layers, crossing, by, &targets)
+            collect(layers, crossing, by, &targets)
         })
         .collect();
-    let mut out = IndexedUsage { exported: Vec::new(), forwards: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
+    let mut out = IndexedUsage { exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
     let mut reasons = Vec::new();
     for part in parts {
         reasons.extend(part.reasons);
         out.exported.extend(part.exported);
-        out.forwards.extend(part.forwards);
         out.deep.extend(part.deep);
         out.by_path.extend(part.by_path);
         out.unfollowed.extend(part.unfollowed);
@@ -342,82 +332,6 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
     }
     out.unreadable.extend(reasons);
     out
-}
-
-/// Who imports one name out of a set of files, and which files pass it on.
-#[napi(object)]
-pub struct Importers {
-    /// Every use, ordered by the importing file in code units, then by line.
-    pub uses: Vec<NameUse>,
-    /// Every file that passes the name on with `export … from`, under the name
-    /// it exports, in code-unit order; none of the files asked about.
-    pub through: Vec<String>,
-    /// Every line of one of the files asked about that uses the name the file
-    /// declares at its top level, by file in code units, then by line.
-    pub in_file: Vec<InFile>,
-    /// Every namespace a file passes the name on inside, by file in code
-    /// units, then by name: `export * as shout` passes `greet` as `shout.greet`.
-    pub namespaces: Vec<Namespace>,
-    /// Every file, in code-unit order, with an import the index resolved to
-    /// no file that could take the name: a use there is not listed.
-    pub unresolved: Vec<String>,
-}
-
-/// A namespace one file passes a name on inside: the name it exports the
-/// namespace as, and the names read off it to reach the name, nearest first,
-/// the last the name itself.
-#[napi(object)]
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct Namespace {
-    pub at: String,
-    pub name: String,
-    pub members: Vec<String>,
-}
-
-/// Every import, by any file on the chain, of `name` out of one of `files`:
-/// the bindings and member reads that take it through a request the index
-/// resolved to one of them. A relative import is read like one between
-/// packages, which `usage` does not record. Each use's `key` is the specifier
-/// as written, and its `name` the name it takes, which a re-export can rename.
-///
-/// What an `export … from` passes on is `passed_on`'s answer, the one the
-/// package graph reads: that is no use, and the file that writes it is
-/// followed instead under the name it exports, so an import through a barrel
-/// is listed and the barrel is not. A bare `export *` passes a name on only
-/// where ECMAScript's export resolution says it does (`star_passes`): never
-/// `default`, never past the file's own export or named `export … from` of the
-/// name, and never when another star reaches a different declaration. The
-/// question is about source, so a type-only re-export passes its names on too,
-/// and every use that came through one is a type use, whatever its importer
-/// wrote. Each file is followed once per name, and once more when a value path
-/// reaches a name a type-only one reached first, so a cycle of re-exports ends.
-///
-/// A file asked about that declares the name uses it by scope, not by import,
-/// and the scan read those lines with its parse: they are `in_file`.
-pub(crate) fn importers(root: &str, layers: &[Layer], files: &[String], name: &str) -> Importers {
-    // Every file is one origin, so a file passed the name by two of them is followed once.
-    let origins: HashMap<String, HashMap<String, HashSet<usize>>> =
-        files.iter().map(|file| (file.clone(), HashMap::from([(name.to_owned(), HashSet::from([0]))]))).collect();
-    let folded = fold(layers);
-    let in_file = in_file(root, layers, &folded, files, name);
-    let walked = importers_folded(root, layers, &folded, origins);
-    let unresolved = unresolved_walk::unresolved(root, layers, &folded, files, &walked.through, &walked.exports);
-    let mut found: Vec<NameUse> = walked.taken.into_iter().map(|taken| taken.taken).collect();
-    found.sort_by(|a, b| {
-        crate::order::code_unit(&a.at, &b.at)
-            .then(a.line.cmp(&b.line))
-            .then_with(|| crate::order::code_unit(&a.name, &b.name))
-            .then_with(|| crate::order::code_unit(&a.key, &b.key))
-            // Two bindings of one name on one line differ by what they bind it to.
-            .then_with(|| crate::order::code_unit(a.local.as_deref().unwrap_or(""), b.local.as_deref().unwrap_or("")))
-    });
-    let mut through: Vec<String> = walked.through.into_iter().filter(|file| !files.contains(file)).collect();
-    through.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
-    let mut namespaces = walked.namespaces;
-    namespaces.sort_unstable_by(|a, b| {
-        crate::order::code_unit(&a.at, &b.at).then_with(|| crate::order::code_unit(&a.name, &b.name)).then_with(|| a.members.len().cmp(&b.members.len()))
-    });
-    Importers { uses: found, through, in_file, namespaces, unresolved }
 }
 
 #[cfg(test)]

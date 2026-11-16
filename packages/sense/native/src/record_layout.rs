@@ -110,15 +110,20 @@ impl Sets {
 #[serde(rename_all = "camelCase")]
 pub struct Cases {
     pub format: u8,
+    /// The format an index holding each case's loaded sets is written in.
+    pub loaded_sets: u8,
+    /// Distinct readings kept per case, newest first.
+    pub readings: usize,
     /// Each case's duration, a word a case, `coverage.no_duration` where none was reported.
     pub duration: String,
     /// Each case's limit in milliseconds, a word a case, `coverage.no_duration` where none is named.
     pub limit: String,
-    /// Each case's slowest statement, two words a case: its line and its whole milliseconds, both zero where none is named.
-    pub slowest: String,
     /// Each case's lines, a blob of one row a case.
     pub lines: String,
     pub lines_offsets: String,
+    /// Each case's statement times, a blob of one row a case, as `case_times` lays it.
+    pub times: String,
+    pub times_offsets: String,
 }
 
 pub static LAYOUT: LazyLock<Layout> = LazyLock::new(|| {

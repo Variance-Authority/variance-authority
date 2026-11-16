@@ -2,7 +2,8 @@ import { openBlob, openBytes, openWords, resident, type Bytes } from './columns.
 import { durationWord, NO_DURATION, NO_OWNER, validSections, type Header, type Section } from './format-layout.js';
 import { openCrossingSets, type CrossingSetsView } from './crossing-sets-read.js';
 import { saidRead, type Said } from './case-said.js';
-import { LINES_COLUMN, LINES_OFFSETS, type LinesTable } from './case-lines.js';
+import { checkedRows, invalid, LINES_COLUMN, LINES_OFFSETS, type RowsTable } from './case-lines.js';
+import { TIMES_COLUMN, TIMES_OFFSETS } from './case-times.js';
 import type { ExecutionTest } from './reverse.js';
 import { LAYOUT } from './record-layout.js';
 
@@ -30,12 +31,12 @@ export interface TestColumns {
   /** Absent in an index written before cases carried a duration. */
   readonly testDuration: Uint32Array | undefined;
   readonly testLimit: Uint32Array | undefined;
-  /** Two words a case, as {@link slowestColumn} lays them; absent in an index no case timed a statement in. */
-  readonly testSlowest: Uint32Array | undefined;
+  /** Each case's statement times, as `case-times.ts` lays them; absent in an index no case was timed in. */
+  readonly testTimes: RowsTable | undefined;
   /** What each case said, `undefined` where none listened; absent in an index that listened to no case. */
   readonly testSaid: readonly (Said | undefined)[] | undefined;
   /** The line that reached each region a case crossed; absent in an index written without cuts. */
-  readonly testLines: LinesTable | undefined;
+  readonly testLines: RowsTable | undefined;
 }
 
 /** The string table: sorted by code unit, each string once. */
@@ -81,11 +82,7 @@ export interface SetColumns extends TestColumns {
 
 export function stringTable(opened: OpenedSections): StringTable {
   const offsets = columnWords(opened, 'strings.off');
-  const blob = columnBlob(opened, 'strings.blob', offsets);
-  for (let id = 0; id + 1 < offsets.length; id += 1) {
-    if (offsets[id + 1]! < offsets[id]! || offsets[id + 1]! > blob.length) throw invalid();
-  }
-  return { blob, offsets };
+  return checkedRows(columnBlob(opened, 'strings.blob', offsets), offsets);
 }
 
 /** The test columns, each id checked against a table of `strings` strings. */
@@ -100,21 +97,20 @@ export function testColumns(opened: OpenedSections, strings: number): TestColumn
   const testDuration = opened.found.has('tests.duration') ? columnWords(opened, 'tests.duration') : undefined;
   // Written since a case carries the limit it ran under; a file without it names none.
   const testLimit = opened.found.has(LAYOUT.cases.limit) ? columnWords(opened, LAYOUT.cases.limit) : undefined;
-  // Written where a cut case timed a statement; a file without it timed none.
-  const testSlowest = opened.found.has(LAYOUT.cases.slowest) ? columnWords(opened, LAYOUT.cases.slowest) : undefined;
   const testCount = testId.length;
   // Written since a case's said items are crossing sets; a file without it listened to none.
   const testSaid = Object.values(HEARD_SECTIONS).some((name) => opened.found.has(name)) ? saidOf(opened, testCount) : undefined;
   if (testFile.length !== testCount || testName.length !== testCount) throw invalid();
   if (testDuration !== undefined && testDuration.length !== testCount) throw invalid();
   if (testLimit !== undefined && testLimit.length !== testCount) throw invalid();
-  if (testSlowest !== undefined && testSlowest.length !== testCount * 2) throw invalid();
   for (let test = 0; test < testCount && testStopped !== undefined; test += 1) {
     if ((testStopped[test] ?? 0) > STOPPED) throw invalid();
   }
   // Written since a cut case carries the line that reached each region; a file without it cut none.
-  const testLines = opened.found.has(LINES_COLUMN) ? linesTable(opened, testCount) : undefined;
-  return { testId, testFile, testName, testStopped, testDuration, testLimit, testSlowest, testSaid, testLines };
+  const testLines = opened.found.has(LINES_COLUMN) ? rowsTable(opened, LINES_COLUMN, LINES_OFFSETS, testCount) : undefined;
+  // Written where a cut case timed its statements; a file without it timed none.
+  const testTimes = opened.found.has(TIMES_COLUMN) ? rowsTable(opened, TIMES_COLUMN, TIMES_OFFSETS, testCount) : undefined;
+  return { testId, testFile, testName, testStopped, testDuration, testLimit, testTimes, testSaid, testLines };
 }
 
 /** The section `case_said.rs` lays what each case said in. */
@@ -144,14 +140,11 @@ function saidOf(opened: OpenedSections, testCount: number): readonly (Said | und
   );
 }
 
-function linesTable(opened: OpenedSections, testCount: number): LinesTable {
-  const offsets = columnWords(opened, LINES_OFFSETS);
+/** A column of one row of bytes a case, as the lines and the times are kept. */
+function rowsTable(opened: OpenedSections, name: string, offsetsName: string, testCount: number): RowsTable {
+  const offsets = columnWords(opened, offsetsName);
   if (offsets.length !== testCount + 1) throw invalid();
-  const blob = columnBlob(opened, LINES_COLUMN, offsets);
-  for (let test = 0; test < testCount; test += 1) {
-    if (offsets[test + 1]! < offsets[test]! || offsets[test + 1]! > blob.length) throw invalid();
-  }
-  return { blob, offsets };
+  return checkedRows(columnBlob(opened, name, offsets), offsets);
 }
 
 export function setColumns(opened: OpenedSections): SetColumns {
@@ -340,35 +333,6 @@ export function limitAcross(first: number | undefined, second: number | undefine
   return { limit: Math.max(first ?? 0, second ?? 0) };
 }
 
-/**
- * `tests.slowest` for `count` cases: two words a case, its slowest statement's
- * line and its whole milliseconds, both zero where the case names none.
- * Undefined where no case names one, so a record of uncut files gains no section.
- */
-export function slowestColumn(count: number, of: (at: number) => ExecutionTest['slowest']): Uint32Array | undefined {
-  const column = new Uint32Array(count * 2);
-  let named = false;
-  for (let at = 0; at < count; at += 1) {
-    const slowest = of(at);
-    if (slowest === undefined) continue;
-    column[at * 2] = slowest.line;
-    column[at * 2 + 1] = slowest.time;
-    named = true;
-  }
-  return named ? column : undefined;
-}
-
-export function slowestFrom(column: Uint32Array | undefined, at: number): Pick<ExecutionTest, 'slowest'> {
-  const time = column?.[at * 2 + 1];
-  return time === undefined || time === 0 ? {} : { slowest: { line: column![at * 2]!, time } };
-}
-
-/** The slowest statement of one case across its frames: the one that took longer, the lower line of two equal, so no order of frames changes it. */
-export function slowestAcross(first: ExecutionTest['slowest'], second: ExecutionTest['slowest']): Pick<ExecutionTest, 'slowest'> {
-  const slowest = second !== undefined && (first === undefined || second.time > first.time || (second.time === first.time && second.line < first.line)) ? second : first;
-  return slowest === undefined ? {} : { slowest };
-}
-
 export function durationFrom(column: Uint32Array | undefined, at: number): { readonly duration?: number } {
   const held = column?.[at];
   return held === undefined || held === NO_DURATION ? {} : { duration: held };
@@ -376,8 +340,4 @@ export function durationFrom(column: Uint32Array | undefined, at: number): { rea
 
 export function fail(): never {
   throw invalid();
-}
-
-export function invalid(): Error {
-  return new Error('not a variance-authority execution index');
 }

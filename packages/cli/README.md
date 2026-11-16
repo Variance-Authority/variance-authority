@@ -160,7 +160,7 @@ ids are the safe default after initial setup.
 ```bash
 variance run     [--config <path>] [--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>] [--run <id> --commit <sha>] [--since <ref>] [--against <ref>] [--suite <name>] [--flakes] [--exit-zero-on-changes]
 variance index   [--no-git] [--wait | --follow-ups]
-variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest] [--no-git]
+variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file> [--diff <patch>|-] | --suite <name>] [--at-distance <hops>] [--local] [--format plain|json|vitest|jest|explain] [--no-git]
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
@@ -184,7 +184,7 @@ variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
-variance carry   restore | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
+variance carry   restore [--transform jest [--shard <k>/<n>]] | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared
 ```
 
@@ -233,19 +233,17 @@ status or refresh, refuse when no generation exists, and print when the value
 was produced, saying under an answer or a refusal that the checkout was not
 compared with it; `search --format json` carries `compared: false` instead.
 Without the flag a generation is reused for one hour before the next source
-question refreshes it. A question refused from a reused generation, on `ask`
-or `serve`, is asked again of one made now, with the dependency lexicon built
-when it is missing or behind, before the refusal is given; on `ask` that holds
-under `--changed-file` and `--taint-file` too. So is a `symbol` or `uses`
-whose files changed or went away after the generation, the ones that declare the
+question refreshes it. A question refused from a reused generation, a name not
+found among them, is answered from it, and says the checkout was not compared
+with it: `variance index` refreshes the generation and builds the dependency
+lexicon. A `symbol` or `uses` whose files changed or went away after the generation, the ones that declare the
 name or pass it on, the entry that publishes it and each row `uses` lists, and `serve`'s
-`docs_search` whose printed files, or the entry and barrels publishing them, did, which a stat of each decides: an answer whose files
+`docs_search` whose printed files, or the entry and barrels publishing them, did, which a stat of each decides, is asked again of a generation made now: an answer whose files
 are unchanged reads nothing more. When the checkout cannot be read again, or the read cannot be saved, or a file the answer rests on
 is saved during the read that answers it, the answer or the refusal says it was not compared with the generation,
-and why, and gives what the generation recorded of a file written since, by name and with none of its
-text; when the lexicon cannot be built, it says the installed packages were not compared,
-and why. An injected
-`AskRequest.source` is read again with `current` set, and owns its own lexicon. When no changed files are
+and why, and gives a file written since as the generation read it: its names, and the text of them
+it kept. An injected
+`AskRequest.source` is read again with `current` set when its answer outlived its generation. When no changed files are
 named, `search` is the exception: it reads the published generation, whatever
 its age, and says so on the same line. When nothing is published it reads the
 checkout and publishes the search, unless you passed `--just-answer`, which
@@ -2219,7 +2217,7 @@ source index updated: 2215 files, 0 read again, at <cache>/test-selection/<diges
 code map: 71 packages in 16 areas, 2 deep, over 8 dependency layers
 journeys, suite unit: 5718 cases walked; a caller is placed for 216327 of the 253543 functions the cases entered, counted once per case that entered each (85%); 8895 distinct calls, 204 distinct package flows; 2 import specifiers the index did not resolve were resolved by the walk
 dependency lexicon: 213 workspace-dependency pairs, 309 public entrypoints, 213 reused, 167 unavailable, at <cache>/test-selection/<digest>/dependency-lexicon.bin
-questions: published at <cache>/test-selection/<digest>/source-index.bin.help.json
+questions: published at <cache>/test-selection/<digest>/source-index.bin.help.bin
 ```
 
 It scans the whole checkout, rebuilds only the records of files whose bytes
@@ -2395,14 +2393,17 @@ journal holds no answer: no record of the suite, neither this checkout's nor the
 mainline's, a diff git would not produce, a lockfile that cannot be compared at the diff's base, or a journal
 with no whole observation in it.
 
-`--local` answers each of those, and a diff that moves what the suite rests on,
-with a smaller selection instead: the test files that import a changed file, by
-the [source index](#index-publish-the-file-graph-once), or every test file in a
-changed file's package when the index does not list it. stderr names which one
-ran and the test files it left, which stay on the skip list, and `--format json`
-gives them under `fell`, with its `rung`, `importers` or `package`, and `left`.
-It is for a laptop's edit loop, never a gate, and `VARIANCE_AUTHORITY_LOCAL=1`
-asks the same of a runner's seam.
+`--local` answers each of those with only the test files that import a changed
+file, by the [source index](#index-publish-the-file-graph-once), and never with
+every test file: a changed file the index does not hold selects none, and
+stderr names it. The first line names the doubt; stderr names the test files
+the importers left, which stay on the skip list, and `--format json` carries no
+`widened` and gives them under `fell`, with its `rung`, `importers`, `left`, and
+`only`, the test files that run: a runner's seam runs none outside it.
+A diff that moves what the suite rests on still runs every test file, and with
+no diff from any base `--local` exits non-zero. It is for a laptop's edit loop,
+never a gate, and `VARIANCE_AUTHORITY_LOCAL=1` asks the same of a runner's
+seam.
 
 A changed file the journal records nothing about is not one of those. Prose, a
 workflow, or a fixture your tests read with `fs` keeps no test in the run, and
@@ -3369,6 +3370,27 @@ accept wrote, so the workflow names no path and no key:
   with:
     config: variance.config.json
 ```
+
+`carry restore --transform jest` also restores Jest's transform cache for every
+declared suite, where the project resolves Jest's `jest-config`:
+`transform-<suite>-path` is Jest's default `cacheDirectory`, and the key holds
+the suite, the shard `--shard <k>/<n>` names, and the ISO week. A shard keeps its own entry, the
+cache action writes it once, on the week's first green run of that shard, and no
+restore key names an earlier week, so a new week starts from an empty cache.
+Each shard then transforms only the files that changed since that run.
+[`Variance-Authority/action/jest-cache`](https://github.com/Variance-Authority/action#restoring-jests-transform-cache-in-a-shard)
+is that restore, as one step:
+
+```yaml
+- uses: Variance-Authority/action/jest-cache@v1
+  with:
+    suite: unit
+    shard: ${{ matrix.shard }}/3
+- run: npx jest --shard ${{ matrix.shard }}/3
+```
+
+A config that sets its own `cacheDirectory` is not read: Jest writes there,
+nothing is restored to it, and nothing is saved.
 
 A suite with `"carry": "share"` gets no key: its record travels through
 [`variance share`](https://variance-authority.dev/docs/sharing), which lays the

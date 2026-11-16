@@ -50,7 +50,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Digest } from '@variance-authority/core/format';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
-import { shapeOf, type RecordCache } from './reuse.js';
+import { shapeOf, unlistedShapeOf, type RecordCache } from './reuse.js';
 import { nativeFrontier, nativeGraph, type NativeBuilt, type NativeGitTree } from './native.js';
 import { native, nativeRefusal } from './addon.js';
 import { adoptNativeParses } from './source-index.js';
@@ -107,8 +107,8 @@ export interface ScanOptions extends ResolveOptions {
    * Whether a file's bytes are read out of Git's object store. On when absent.
    *
    * `false` opens every file the scan reads from the working tree instead, and
-   * changes nothing else: Git still lists the files and names each one's blob,
-   * so reuse is keyed exactly as it is with packs. It is for a checkout whose
+   * changes nothing else: the files are still listed from HEAD's trees, each
+   * with its blob, so reuse is keyed exactly as it is with packs. It is for a checkout whose
    * object store is expensive or unsafe to open — a partial clone, a store on a
    * network filesystem — where the working tree is already on the disk.
    */
@@ -297,10 +297,12 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   const world = tree === undefined ? worldOn(root, parse) : worldIn(tree.paths(), root, parse);
   resolvers.tree = world;
 
-  // No digests, no reuse. Not a policy — a record that names no bytes cannot be
-  // checked against the bytes on disk, so there is nothing to reuse it against.
-  const reuse = tree === undefined ? undefined : options.reuse;
+  // No digests, no reuse: a record that names no bytes cannot be checked against the
+  // bytes on disk. A directory git cannot list still keeps what it read, under a shape
+  // no listed scan reuses, since the index is read for it; `digests: false` keeps none.
+  const reuse = tree === undefined && options.digests === false ? undefined : options.reuse;
   const shape = tree === undefined ? undefined : await shapeOf({ root, tree, options });
+  if (tree === undefined) reuse?.under(await unlistedShapeOf({ root, options }));
   // FIXME: under a clean or smudge filter — LFS, `core.autocrlf`, `working-tree-encoding` —
   // a blob and its checked-out file differ, both parse under the blob's digest, and an
   // index keeps whichever it read first until the blob changes. A decline for size is

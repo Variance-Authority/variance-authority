@@ -88,7 +88,7 @@ describe('the probes loader', () => {
     // The second line opens with the header, where the map says.
     const lines = code!.split('\n');
     const columns = decode((map as { mappings: string }).mappings)[1]!.map((segment) => segment.column);
-    expect(lines[1]!.indexOf('var __vaK')).toBe(0);
+    expect(lines[1]!.indexOf('var __vaL')).toBe(0);
     expect(columns).toEqual([0]);
   });
 
@@ -113,11 +113,11 @@ describe('the probes loader', () => {
     expect(error).toBeNull();
     const first = code!.split('\n')[0]!;
     expect(first.startsWith('"use strict";')).toBe(true);
-    expect(first.indexOf('require("!!')).toBeLessThan(first.indexOf('var __vaK'));
+    expect(first.indexOf('require("!!')).toBeLessThan(first.indexOf('var __vaL'));
     expect(imported(code!)).toEqual([]);
     // The header, which the map maps to the function, is where the map says, past the require.
     const columns = decode((map as { mappings: string }).mappings)[0]!.map((segment) => segment.column);
-    expect(columns).toEqual([0, first.indexOf('var __vaK')]);
+    expect(columns).toEqual([0, first.indexOf('var __vaL')]);
   });
 
   it('takes a map handed on as its JSON text ahead of the loaders, as `swc-loader` hands one without `parseMap`', async () => {
@@ -129,7 +129,7 @@ describe('the probes loader', () => {
 
     expect(error).toBeNull();
     const first = code!.split('\n')[0]!;
-    expect(first.indexOf('require("!!')).toBeLessThan(first.indexOf('var __vaK'));
+    expect(first.indexOf('require("!!')).toBeLessThan(first.indexOf('var __vaL'));
     expect(map).toMatchObject({ sources: ['total.js'] });
     // Read as an object, the map moves past the require like one handed on as an object.
     const required = first.slice(first.indexOf('require("!!'), first.indexOf(');', first.indexOf('require("!!')) + 2);

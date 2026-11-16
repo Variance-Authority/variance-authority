@@ -11,6 +11,7 @@ import {
 } from './index.js';
 import probeLists from './probe-lists.cjs';
 import probeLog from './probe-log.cjs';
+import probeSet from './probe-set.cjs';
 
 /**
  * Differential execution, in miniature.
@@ -61,7 +62,7 @@ function realm(out: unknown[], extra: Record<string, unknown> = {}): object {
  * module evaluated, and the evaluating bit and 2 for entered both ways.
  */
 function recorder(): { root: unknown; read(id: ModuleId, count: number): Uint32Array } {
-  const engine = probeLog.createEngine(false);
+  const engine = probeLog.createEngine(false, probeSet.probeSet);
   const bucket = engine.open('');
   engine.use(bucket);
   return {
@@ -260,7 +261,7 @@ describe('instrumented code does what the original did', () => {
       'fixture.js',
     )!.code;
 
-    expect(code.startsWith('var __vaK,')).toBe(true);
+    expect(code.startsWith('var __vaL,')).toBe(true);
   });
 
   it('calls its generated runtime without a guard', () => {
@@ -363,7 +364,7 @@ import x from 'y';`,
     for (const source of shapes) {
       const code = instrument(source, 'fixture.js')!.code;
       expect(code, source).toContain(';__vaE();');
-      expect(code.indexOf(';__vaE();'), source).toBeGreaterThan(code.indexOf('|__vaB);'));
+      expect(code.indexOf(';__vaE();'), source).toBeGreaterThan(code.indexOf('.T();'));
       expect(code.split('\n'), source).toHaveLength(source.split('\n').length);
       expect(parseSync('fixture.js', code, { sourceType: 'module' }).errors, source).toEqual([]);
     }

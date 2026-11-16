@@ -1,22 +1,20 @@
-import { createHash } from 'node:crypto';
-import { realpathSync } from 'node:fs';
-import { mkdir, open, readFile, rename, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { closeSync, openSync, readSync, realpathSync } from 'node:fs';
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import {
   decodeSourceTree,
-  encodeSourceTree,
+  treeAtWorkspace,
+  treeOf,
   type FileRecord,
   type Tree,
 } from '@variance-authority/mcp/tools';
+import { SegmentCutShort } from '@variance-authority/core/segment';
 import type { Help } from '@variance-authority/package/help';
-import {
-  type SearchGeneration,
-  encodeSearch,
-  exportedDigest,
-  readSourceRecords,
-  sourceIndexPath,
-} from '@variance-authority/sense';
-import { openSearchIndex, publishedRows, type SearchIndex } from './search-index.js';
+import { readSourceRecords, restampHelpStore, sourceIndexPath } from '@variance-authority/sense';
+import { openHelpStore, openSearchIndex, type SearchIndex } from './search-index.js';
+import { encodeStore } from './store-encode.js';
+import { storeHeadOf, type StoreHead } from './store-layout.js';
 
 export interface SnapshotOptions {
   /** The source index this reading was published beside. */
@@ -27,47 +25,10 @@ export interface SnapshotOptions {
   readonly tree?: (tree: Tree) => void;
 }
 
-export const SNAPSHOT_FORMAT = 'variance-authority-help';
-export const SNAPSHOT_VERSION = 13;
-
-interface WorkspaceSnapshot {
-  readonly format: typeof SNAPSHOT_FORMAT;
-  readonly version: typeof SNAPSHOT_VERSION;
-  readonly root: string;
-  /** Repository root every recorded file is relative to. */
-  readonly graphRoot: string;
-  readonly graphDigest: string;
-  readonly generatedAt: string;
-  /**
-   * When the read behind the value began, before any of it was read: a file
-   * written before this is in the value, and one written after it may not be. A
-   * refresh of listed files keeps the time of the read it refreshed, because it
-   * read nothing else, so a file it listed counts as written after. `generatedAt`
-   * is taken after the read, so it says neither.
-   */
-  readonly readStartedAt: string;
-  /**
-   * The export list as a set, as the search encoder states it; absent on a
-   * value published before it was kept.
-   */
-  readonly exportedDigest?: string;
-  /**
-   * Every `export … from` as a set, as `forwardsDigest` states it: what the
-   * export list does not hold, an `export *` and where a named one leads, and
-   * so what the published names rest on past it. A value without it is read again.
-   */
-  readonly forwardsDigest?: string;
-  /**
-   * The index manifest the value was read from, as `indexManifestDigest`
-   * states it; absent when the value was not refreshed from a published index.
-   */
-  readonly indexDigest?: string;
-  readonly help: Help;
-}
-
 const generated = new WeakMap<Help, string>();
-const snapshots = new WeakMap<Help, Omit<WorkspaceSnapshot, 'help'>>();
+const snapshots = new WeakMap<Help, StoreHead>();
 const searches = new WeakMap<Help, SearchIndex>();
+const stores = new WeakMap<Help, Uint8Array>();
 
 /** When the workspace value was published, absent on an unrecorded reading. */
 export function workspaceGeneration(help: Help): string | undefined {
@@ -80,9 +41,13 @@ export function workspaceReadStarted(help: Help): number | undefined {
   return held === undefined ? undefined : Date.parse(held.readStartedAt);
 }
 
-/** The answerable workspace value published beside one source-index generation. */
+/**
+ * The answerable workspace value published beside one source-index generation:
+ * one binary store holding the packages, the imports by path, the export list
+ * and the search over them, opened in place, with the generation in its head.
+ */
 export function workspaceSnapshotPath(index: string): string {
-  return `${index}.help.json`;
+  return `${index}.help.bin`;
 }
 
 /** Read the last published value without inspecting the checkout or asking Git. */
@@ -93,92 +58,124 @@ export async function readWorkspaceSnapshot(
   const where = realpathSync(resolve(root));
   const index = options.index ?? sourceIndexPath(where);
   const at = workspaceSnapshotPath(index);
-  let decoded: unknown;
+  let bytes: Uint8Array;
+  let opened: ReturnType<typeof openHelpStore>;
   try {
-    decoded = JSON.parse(await readFile(at, 'utf8'));
+    bytes = await readFile(at);
+    opened = openHelpStore(bytes);
   } catch (error) {
     throw new Error(
       `no readable workspace snapshot at ${at}: ${error instanceof Error ? error.message : String(error)}`,
       { cause: error },
     );
   }
-  if (!isWorkspaceSnapshot(decoded)) {
-    throw new Error(`the workspace snapshot at ${at} is not a ${SNAPSHOT_FORMAT} v${SNAPSHOT_VERSION} value`);
-  }
-  if (decoded.root !== where) {
-    throw new Error(`the workspace snapshot at ${at} belongs to ${decoded.root}, not ${where}`);
+  const held = opened.generation;
+  if (held === undefined) throw new Error(`the workspace snapshot at ${at} carries no generation`);
+  if (held.root !== where) {
+    throw new Error(`the workspace snapshot at ${at} belongs to ${held.root}, not ${where}`);
   }
   if (options.tree !== undefined) {
-    const bytes = await readFile(workspaceTreePath(index, decoded.graphDigest));
-    if (digest(bytes) !== decoded.graphDigest) {
+    const tree = await readFile(workspaceTreePath(index, held.graphDigest));
+    if (hexDigestOf(tree) !== held.graphDigest) {
       throw new Error(`the workspace source tree beside ${at} does not belong to that generation`);
     }
-    options.tree(decodeSourceTree(bytes, decoded.graphRoot, decoded.root));
+    options.tree(publishedTree(tree, held.graphRoot, held.root));
   }
   if (options.records !== undefined) {
-    options.records(await readSourceRecords(index), decoded.graphRoot);
+    options.records(await readSourceRecords(index), held.graphRoot);
   }
-  generated.set(decoded.help, decoded.generatedAt);
-  snapshots.set(decoded.help, {
-    format: decoded.format,
-    version: decoded.version,
-    root: decoded.root,
-    graphRoot: decoded.graphRoot,
-    graphDigest: decoded.graphDigest,
-    generatedAt: decoded.generatedAt,
-    readStartedAt: decoded.readStartedAt,
-    ...(decoded.exportedDigest === undefined ? {} : { exportedDigest: decoded.exportedDigest }),
-    ...(decoded.forwardsDigest === undefined ? {} : { forwardsDigest: decoded.forwardsDigest }),
-    ...(decoded.indexDigest === undefined ? {} : { indexDigest: decoded.indexDigest }),
-  });
-  return decoded.help;
+  const { help } = opened;
+  generated.set(help, held.generatedAt);
+  snapshots.set(help, held);
+  searches.set(help, opened.search);
+  stores.set(help, bytes);
+  return help;
 }
 
 /**
- * When the value at `index` was published, read off its head alone: the value
- * after it is every export of the repository, and a caller asking whether its
- * write landed has no use for it. Absent when there is no value, or it belongs
- * to another checkout or format.
+ * The generation published at `index`, read off the store's head alone: the
+ * rest is every export of the repository, and a caller asking whether its write
+ * landed has no use for it. Absent when there is none, or it is not this format.
+ */
+export function publishedHead(index: string): StoreHead | undefined {
+  let file: number;
+  try {
+    file = openSync(workspaceSnapshotPath(index), 'r');
+  } catch {
+    return undefined;
+  }
+  try {
+    // The header's length, then the header, then the head: each read names the next.
+    let length = 4;
+    for (let read = 0; read < 3; read += 1) {
+      const held = Buffer.alloc(length);
+      if (readSync(file, held, 0, length, 0) !== length) return undefined;
+      try {
+        return storeHeadOf(held);
+      } catch (error) {
+        if (!(error instanceof SegmentCutShort) || error.needed <= length) return undefined;
+        length = error.needed;
+      }
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  } finally {
+    closeSync(file);
+  }
+}
+
+/**
+ * When the value at `index` was published, as {@link publishedHead} reads it.
+ * Absent when there is no value, or it belongs to another checkout or format.
  */
 export async function publishedGeneration(root: string, index: string): Promise<string | undefined> {
   const where = realpathSync(resolve(root));
-  let head: string;
-  try {
-    const file = await open(workspaceSnapshotPath(index), 'r');
-    try {
-      const bytes = Buffer.alloc(64 * 1024);
-      const { bytesRead } = await file.read(bytes, 0, bytes.length, 0);
-      head = bytes.toString('utf8', 0, bytesRead);
-    } finally {
-      await file.close();
-    }
-  } catch {
-    return undefined;
-  }
-  const end = head.indexOf(',"help":');
-  if (end === -1) return undefined;
-  let held: Partial<WorkspaceSnapshot>;
-  try {
-    held = JSON.parse(`${head.slice(0, end)}}`) as Partial<WorkspaceSnapshot>;
-  } catch {
-    return undefined;
-  }
-  return held.format === SNAPSHOT_FORMAT && held.version === SNAPSHOT_VERSION && held.root === where ? held.generatedAt : undefined;
+  const held = publishedHead(index);
+  return held?.root === where ? held.generatedAt : undefined;
 }
 
-/** The digest of the value's export list: the one published beside it, or computed. */
-export function workspaceExportedDigest(help: Help): string {
-  return snapshots.get(help)?.exportedDigest ?? exportedDigest(help.exported);
-}
-
-/** The digest of the value's `export … from` rows, absent when it was not kept beside it. */
-export function workspaceForwardsDigest(help: Help): string | undefined {
-  return snapshots.get(help)?.forwardsDigest;
+/**
+ * Whether a server holding `held` reads the workspace again before it answers:
+ * when it holds none, when a generation newer than `held` was published since —
+ * `variance index`, or another reader — as {@link publishedGeneration} reads it
+ * off the value's head, or, unless `justAnswer`, when `held` is older than
+ * `refreshAfterMs`. A call where nothing was published costs that head's read.
+ */
+export async function readAgain(held: Help | undefined, root: string, options: { readonly index?: string; readonly justAnswer?: boolean; readonly refreshAfterMs: number }): Promise<boolean> {
+  const at = held === undefined ? undefined : workspaceGeneration(held);
+  if (at === undefined) return true;
+  if (options.justAnswer !== true && Date.now() - Date.parse(at) > options.refreshAfterMs) return true;
+  const published = await publishedGeneration(root, options.index ?? sourceIndexPath(realpathSync(resolve(root))));
+  return published !== undefined && Date.parse(published) > Date.parse(at);
 }
 
 /** The index manifest the value was refreshed from, absent when it was read another way. */
 export function workspaceIndexDigest(help: Help): string | undefined {
   return snapshots.get(help)?.indexDigest;
+}
+
+/**
+ * Whether the tree published beside `help` at `index` opens in this build. A
+ * tree of another format version, or one whose bytes moved, is published
+ * again rather than kept, though the index it was drawn from did not move.
+ */
+export async function workspaceTreeOpens(help: Help, index: string): Promise<boolean> {
+  const held = snapshots.get(help);
+  if (held === undefined) return false;
+  try {
+    const tree = await readFile(workspaceTreePath(index, held.graphDigest));
+    if (hexDigestOf(tree) !== held.graphDigest) return false;
+    decodeSourceTree(tree, held.graphRoot, held.root);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The package manifests the value was joined against, as `packagesDigest` states them; absent on an unrecorded reading. */
+export function workspacePackagesDigest(help: Help): string | undefined {
+  return snapshots.get(help)?.packagesDigest;
 }
 
 /**
@@ -188,7 +185,7 @@ export function workspaceIndexDigest(help: Help): string | undefined {
  */
 export async function indexManifestDigest(index: string): Promise<string | undefined> {
   const bytes = await readFile(index).catch(() => undefined);
-  return bytes === undefined ? undefined : digest(bytes);
+  return bytes === undefined ? undefined : hexDigestOf(bytes);
 }
 
 /**
@@ -197,163 +194,82 @@ export async function indexManifestDigest(index: string): Promise<string | undef
  */
 export async function republishWorkspaceSnapshot(help: Help, index: string): Promise<void> {
   const held = snapshots.get(help);
-  if (held === undefined) return;
+  const bytes = stores.get(help);
+  if (held === undefined || bytes === undefined) return;
   const generatedAt = new Date().toISOString();
-  const next: WorkspaceSnapshot = { ...held, generatedAt, help };
   try {
-    const at = workspaceSnapshotPath(index);
-    const temporary = `${at}.${String(process.pid)}.tmp`;
-    await writeFile(temporary, `${JSON.stringify(next)}\n`, 'utf8');
-    await rename(temporary, at);
+    const next = restampHelpStore(bytes, generatedAt);
+    await writeReplacing(workspaceSnapshotPath(index), next);
     generated.set(help, generatedAt);
     snapshots.set(help, { ...held, generatedAt });
-    await writeSearch(help, index);
+    stores.set(help, next);
+    searches.set(help, openSearchIndex(next));
   } catch {
     // The previously committed generation remains answerable and keeps its time.
   }
 }
 
-/** Publish one complete answerable value without making publication its success. */
-export async function tryPublishWorkspaceSnapshot(
-  root: string,
-  graphRoot: string,
-  help: Help,
-  records: readonly FileRecord[] | Uint8Array,
-  readStartedAt: string,
-  forwards: string,
-  index?: string,
-): Promise<void> {
-  try {
-    const at = workspaceSnapshotPath(index ?? sourceIndexPath(root));
-    const temporary = `${at}.${String(process.pid)}.tmp`;
-    const generatedAt = new Date().toISOString();
-    const tree = records instanceof Uint8Array ? records : encodeSourceTree(records);
-    const graphDigest = digest(tree);
-    const treeAt = workspaceTreePath(index ?? sourceIndexPath(root), graphDigest);
-    const treeTemporary = `${treeAt}.${String(process.pid)}.tmp`;
-    const generation = { root: realpathSync(root), graphRoot: realpathSync(graphRoot), graphDigest, generatedAt };
-    // The search is encoded first: it states the digest the value carries.
-    const search = encodeSearch(publishedRows(help), help.exported, generation);
-    const snapshot: WorkspaceSnapshot = {
-      format: SNAPSHOT_FORMAT,
-      version: SNAPSHOT_VERSION,
-      ...generation,
-      readStartedAt,
-      exportedDigest: search.exported,
-      forwardsDigest: forwards,
-      help,
-    };
-    // Before anything is written: a value that could not be saved was read all the
-    // same, and what it answers is dated, and its text gated, by these times.
-    generated.set(help, generatedAt);
-    const { help: _, ...held } = snapshot;
+/** The tree published from `graph`, drawn over `graphRoot` and answered for `root`: the encoded bytes, or the records they encode. */
+export function publishedTree(graph: readonly FileRecord[] | Uint8Array, graphRoot: string, root: string): Tree {
+  return graph instanceof Uint8Array ? decodeSourceTree(graph, graphRoot, root) : treeAtWorkspace(treeOf(graph, graphRoot), root);
+}
+
+/**
+ * The value the store `store` holds, published at `index` with the tree
+ * `tree` beside it under `graphDigest`: opened first, so it answers whether or
+ * not it could be written, then the tree, which a store on disk names, then the
+ * store. A tree of that digest and length already there is kept, since its
+ * name is its content.
+ */
+export async function publishStore(index: string, store: Uint8Array, tree: Uint8Array, graphDigest: string): Promise<Help> {
+  const opened = openHelpStore(store);
+  const { help, generation: held } = opened;
+  if (held !== undefined) {
     snapshots.set(help, held);
+    generated.set(help, held.generatedAt);
+  }
+  stores.set(help, store);
+  searches.set(help, opened.search);
+  try {
+    const at = workspaceSnapshotPath(index);
     await mkdir(dirname(at), { recursive: true });
-    await writeFile(treeTemporary, tree);
-    await rename(treeTemporary, treeAt);
-    await writeFile(temporary, `${JSON.stringify(snapshot)}\n`, 'utf8');
-    await rename(temporary, at);
-    await writeSearch(help, index ?? sourceIndexPath(root), search.bytes);
+    const graph = workspaceTreePath(index, graphDigest);
+    if ((await stat(graph).catch(() => undefined))?.size !== tree.length) await writeReplacing(graph, tree);
+    await writeReplacing(at, store);
   } catch {
     // This value is complete. An unwritable cache costs reuse, not this answer.
   }
+  return help;
 }
 
 /**
- * The search over one generation, published beside it as its own file.
- *
- * `search` reads names, docs and sites and nothing else, and the value above
- * holds every signature, comment and README mention too. Parsing all of it to
- * answer a substring is the whole cost of the question on a large repository —
- * hundreds of megabytes of JSON for a lookup that touches a few rows — so the
- * search reads a columnar file it opens in place instead. It is written from
- * the same value in the same publication and carries that generation, so the
- * two cannot describe different checkouts under one timestamp.
+ * The search over one Help value, and the rows of it a question names: the
+ * one the store it was read from or published to holds, or one encoded in
+ * memory, once per value.
  */
-export function workspaceSearchPath(index: string): string {
-  return `${index}.help-search.bin`;
+export function searchIndexOf(help: Help): SearchIndex {
+  let index = searches.get(help);
+  if (index === undefined) searches.set(help, (index = openSearchIndex(encodeStore(help).bytes)));
+  return index;
 }
 
-/** Read the last published search without inspecting the checkout or asking Git. */
-export async function readSearchSnapshot(root: string, index?: string): Promise<SearchIndex> {
-  const where = realpathSync(resolve(root));
-  const at = workspaceSearchPath(index ?? sourceIndexPath(where));
-  const search = openSearchIndex(await readFile(at));
-  const root_ = search.generation?.root;
-  if (root_ === undefined) throw new Error(`the search at ${at} carries no generation`);
-  if (root_ !== where) throw new Error(`the search at ${at} belongs to ${root_}, not ${where}`);
-  return search;
+async function writeReplacing(at: string, bytes: Uint8Array): Promise<void> {
+  // Its own name, so two replacements of one path never write the same file.
+  const temporary = `${at}.${randomUUID()}.tmp`;
+  await writeFile(temporary, bytes);
+  await rename(temporary, at);
 }
 
-/** The graph a published search was generated with, read only for a path-shaped question. */
-export async function readSearchTree(search: SearchIndex, root: string, index?: string): Promise<Tree> {
-  const generation = search.generation;
-  if (generation === undefined) throw new Error('a search built in memory has no published graph');
-  const bytes = await readFile(workspaceTreePath(index ?? sourceIndexPath(generation.root), generation.graphDigest));
-  if (digest(bytes) !== generation.graphDigest) {
-    throw new Error(`the workspace source tree for ${root} does not belong to the published search`);
-  }
-  return decodeSourceTree(bytes, generation.graphRoot, generation.root);
-}
-
-/**
- * The search over a value already read, published when it has a generation.
- *
- * A value read from the JSON of an earlier release has no search beside it;
- * this is where that file first appears, so the next question opens it.
- */
-export async function searchOf(help: Help, index: string): Promise<SearchIndex> {
-  return searches.get(help) ?? (await writeSearch(help, index));
-}
-
-async function writeSearch(help: Help, index: string, encoded?: Uint8Array): Promise<SearchIndex> {
-  const held = snapshots.get(help);
-  const generation: SearchGeneration | undefined = held === undefined
-    ? undefined
-    : { root: held.root, graphRoot: held.graphRoot, graphDigest: held.graphDigest, generatedAt: held.generatedAt };
-  const bytes = encoded ?? encodeSearch(publishedRows(help), help.exported, generation).bytes;
-  const search = openSearchIndex(bytes);
-  searches.set(help, search);
-  if (held === undefined) return search;
-  try {
-    const at = workspaceSearchPath(index);
-    const temporary = `${at}.${String(process.pid)}.tmp`;
-    await writeFile(temporary, bytes);
-    await rename(temporary, at);
-  } catch {
-    // The value answers from memory. An unwritable cache costs the next reading.
-  }
-  return search;
-}
-
-function isWorkspaceSnapshot(value: unknown): value is WorkspaceSnapshot {
-  if (value === null || typeof value !== 'object') return false;
-  const held = value as Partial<WorkspaceSnapshot>;
-  return held.format === SNAPSHOT_FORMAT
-    && held.version === SNAPSHOT_VERSION
-    && typeof held.root === 'string'
-    && typeof held.graphRoot === 'string'
-    && typeof held.graphDigest === 'string'
-    && typeof held.generatedAt === 'string'
-    && Number.isFinite(Date.parse(held.generatedAt))
-    && typeof held.readStartedAt === 'string'
-    && Number.isFinite(Date.parse(held.readStartedAt))
-    && (held.exportedDigest === undefined || typeof held.exportedDigest === 'string')
-    && (held.forwardsDigest === undefined || typeof held.forwardsDigest === 'string')
-    && (held.indexDigest === undefined || typeof held.indexDigest === 'string')
-    && held.help !== null
-    && typeof held.help === 'object';
-}
-
-/** Where the graph of one generation is written: this prefix, its digest, `.bin`. */
-export function workspaceTreePrefix(index: string): string {
-  return `${index}.help-tree.`;
-}
-
+/** Where the graph of one generation is written: beside `index`, under its digest. */
 function workspaceTreePath(index: string, graphDigest: string): string {
-  return `${workspaceTreePrefix(index)}${graphDigest}.bin`;
+  return `${index}.help-tree.${graphDigest}.bin`;
 }
 
-function digest(bytes: Uint8Array): string {
+/**
+ * The digest a generation names its tree and its index by: SHA-256 in hex, as
+ * the addon names a tree it draws, which no prefixed digest of
+ * `@variance-authority/core/format` spells.
+ */
+export function hexDigestOf(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
 }

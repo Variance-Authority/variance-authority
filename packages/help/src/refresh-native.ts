@@ -1,42 +1,40 @@
-import { resolve } from 'node:path';
+import { digestString } from '@variance-authority/core/format';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { realpathSync } from 'node:fs';
 import {
-  forwardsDigest,
   readHelp,
   sourceIndexPath,
   stepped,
   updateSourceIndex,
   type Progress,
+  type PublishedName,
 } from '@variance-authority/sense';
 
 import {
-  everyEntry,
+  assembleHelp,
   readWorkspaceManifests,
-  type Deep,
+  type DeclarationKind,
   type Help,
   type HelpOptions,
-  type Taken,
-  type Usage,
+  type ImportTargets,
+  type Names,
+  type Offering,
+  type Reached,
   type Use,
-  type WorkspaceManifests,
 } from '@variance-authority/package/help';
-import { joinUsage, readWorkspaceOver, sameExportedSurface, samePackages } from './read.js';
 import {
-  SNAPSHOT_FORMAT,
-  SNAPSHOT_VERSION,
+  hexDigestOf,
   indexManifestDigest,
+  publishStore,
   readWorkspaceSnapshot,
-  workspaceExportedDigest,
-  workspaceForwardsDigest,
   workspaceGeneration,
   workspaceIndexDigest,
-  workspaceSearchPath,
-  workspaceSnapshotPath,
-  workspaceTreePrefix,
+  workspacePackagesDigest,
+  workspaceTreeOpens,
 } from './snapshot.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
-import { publishedRows } from './search-index.js';
-import { type NativeUsage, useOf } from './native-use.js';
+import { storeOf } from './store-encode.js';
+import { useOf } from './native-use.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -53,49 +51,20 @@ export type FromIndexOptions = HelpOptions & {
 
 /**
  * Publish the questions about the workspace at `root` from an index that was
- * just written: the value published last refreshed from it, or the workspace
- * read when that value is missing or cannot be refreshed. The generation
- * published, `undefined` when nothing was.
+ * just written, and keep the value published last when that index did not
+ * move. The generation published or kept, `undefined` when there is no index
+ * to read.
  *
- * Both halves start from the manifests, which on a workspace that lists
- * thousands of members are the costliest read before the index, so they are
- * read once here and handed to whichever half runs.
+ * The manifests are the costliest read before the index on a workspace that
+ * lists thousands of members, so they are read once here.
  */
 export async function publishWorkspaceFromIndex(root: string, options: FromIndexOptions): Promise<string | undefined> {
   const where = resolve(root);
   const previous = await stepped(options.progress, 'reading the questions published last', () =>
     readWorkspaceSnapshot(where, options.index === undefined ? {} : { index: options.index }).catch(() => undefined));
-  const manifests = await manifestsOf(where, options);
-  const refreshed = previous === undefined ? undefined : await refreshOver(where, previous, manifests, options);
-  // The index is the caller's, written a moment ago and saved by it.
-  return refreshed ?? workspaceGeneration(await readWorkspaceOver(where, manifests, options.readStartedAt, { ...options, saveIndex: false }));
-}
-
-function manifestsOf(where: string, options: FromIndexOptions): Promise<WorkspaceManifests> {
-  return stepped(options.progress, `reading the package manifests of ${where}`, () =>
+  const { offerings, targets } = await stepped(options.progress, `reading the package manifests of ${where}`, () =>
     readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
-}
-
-/**
- * Refresh a published value from an index that was just written, which the
- * caller says is current, with the chain read and the value written by the
- * native scanner, keeping the documented surface as `refreshWorkspace` does.
- *
- * The export list never crosses into JavaScript: it is compared by digest and
- * written by the addon, and only the rows of files an entry prints cross. So
- * this answers the generation it published, not the value, and `undefined` when
- * it cannot refresh: the offerings, the exported set, an `export … from` or a
- * row an entry prints changed, or there is no native scanner.
- */
-async function refreshOver(
-  where: string,
-  documented: Help,
-  { offerings, targets }: WorkspaceManifests,
-  options: FromIndexOptions,
-): Promise<string | undefined> {
   const scope = scanScope(where, offerings);
-  if (!samePackages({ root: scope.root, offerings }, documented)) return undefined;
-  const opened = offerings.flatMap((offering) => offering.entrypoints.map((entry) => `${offering.name} ${entry.subpath}`));
   const own = options.index ?? sourceIndexPath(where);
   const index = scopeSourceIndexPath(own, scope.dirs);
   // A member list reaching beside the root keeps its own index, which only the list can update.
@@ -109,23 +78,66 @@ async function refreshOver(
   }
   const indexDigest = await indexManifestDigest(index);
   if (indexDigest === undefined) return undefined;
-  const kept = workspaceGeneration(documented);
-  // A value refreshed from this very manifest is what this refresh would write: an index that did not move costs nothing.
-  if (kept !== undefined && workspaceIndexDigest(documented) === indexDigest) return kept;
-  let reading: Awaited<ReturnType<typeof readHelp>>;
-  try {
-    reading = await stepped(options.progress, 'reading what each file imports and exports, from the index', () =>
-      readHelp(scope.root, opened, targets, index));
-  } catch {
-    return undefined;
-  }
-  if (reading === null || reading.exportedDigest !== workspaceExportedDigest(documented)) return undefined;
-  const read = reading.usage();
-  const forwards = forwardsDigest(read.forwards);
-  if (forwards !== workspaceForwardsDigest(documented)) return undefined;
-  const printed = [...new Set([...everyEntry(documented)].map(([, , entry]) => entry.at))];
-  if (!sameExportedSurface(printed, reading.exportedOf(printed), documented)) return undefined;
+  const kept = previous === undefined ? undefined : workspaceGeneration(previous);
+  // A value published from this very manifest over these manifests is what this publish would write: an index that did
+  // not move costs nothing, while the tree beside it still opens.
+  if (
+    previous !== undefined && kept !== undefined && samePackages({ root: scope.root, offerings }, previous)
+    && workspaceIndexDigest(previous) === indexDigest && await workspaceTreeOpens(previous, own)
+  ) return kept;
+  const help = await publishHelp({
+    workspace: where,
+    root: scope.root,
+    offerings,
+    targets,
+    index,
+    own,
+    readStartedAt: options.readStartedAt,
+    ...(options.progress === undefined ? {} : { progress: options.progress }),
+  });
+  return help === undefined ? undefined : workspaceGeneration(help.help);
+}
 
+/** What {@link publishHelp} reads and writes. */
+export interface HelpPublication {
+  /** The workspace the value answers about. */
+  readonly workspace: string;
+  /** The repository root whose graph carries that workspace: what every recorded path is relative to. */
+  readonly root: string;
+  readonly offerings: readonly Offering[];
+  readonly targets: ImportTargets;
+  /** The index the value is read from: the workspace's own, or the scope's beside it. */
+  readonly index: string;
+  /** The workspace's own index, beside which the value is published. */
+  readonly own: string;
+  readonly readStartedAt: string;
+  /** The tree to publish in place of the one the addon draws off the index, such as one a caller's taints joined. */
+  readonly tree?: Uint8Array;
+  readonly progress?: Progress;
+}
+
+/**
+ * The one producer of the published value: the chain at `index` read by the
+ * addon — the uses, the names each entry hands out and the declarations they
+ * are read from, the export list, the imports by path and the tree — joined
+ * here with the manifests and the READMEs into the documented surface,
+ * encoded, and published beside `own`. No parse row crosses into JavaScript.
+ * The value as published, and the tree it was published with; `undefined`
+ * when no index was published at `index`. Throws with the first export whose
+ * declaration the chain cannot say.
+ */
+export async function publishHelp(publication: HelpPublication): Promise<{ readonly help: Help; readonly tree: Uint8Array } | undefined> {
+  const { workspace, root, offerings, targets, index, progress } = publication;
+  // The manifest the value is read from names it, so the next index over the same manifest writes nothing; a tree handed
+  // in, such as one a caller's taints joined, holds what no manifest says.
+  const indexDigest = publication.tree === undefined ? await indexManifestDigest(index) : undefined;
+  const sources = offerings.flatMap((offering) => offering.entrypoints.map((entry) => ({ offering, entry })));
+  const entries = sources.map(({ offering, entry }) => ({ key: `${offering.name} ${entry.subpath}`, file: pathOf(root, entry.source) }));
+  const reading = await stepped(progress, 'reading what each file imports and exports, from the index', () =>
+    readHelp(root, entries, targets, index, publication.tree === undefined));
+  if (reading === null) return undefined;
+
+  const read = reading.usage();
   const names = new Map<string, Map<string, Use[]>>();
   for (const use of read.names) {
     const held = names.get(use.key) ?? new Map<string, Use[]>();
@@ -134,49 +146,75 @@ async function refreshOver(
     held.set(use.name, uses);
     uses.push(useOf(use));
   }
-  // The export list is the reading's; the value joined here carries none of it.
-  const usage: Usage = {
-    names,
-    deep: read.deep.map(byPathOf),
-    byPath: read.byPath.map(byPathOf),
-    unfollowed: read.unfollowed.map(byPathOf),
-    exported: [],
-    unreadable: read.unreadable,
-  };
-  const help: Help = joinUsage(documented, offerings, usage);
-  const generatedAt = new Date().toISOString();
-  try {
-    await stepped(options.progress, 'publishing the questions', () => reading.publish({
-      snapshot: workspaceSnapshotPath(own),
-      search: workspaceSearchPath(own),
-      graph: workspaceTreePrefix(own),
-      format: SNAPSHOT_FORMAT,
-      version: SNAPSHOT_VERSION,
-      root: realpathSync(where),
-      graphRoot: realpathSync(scope.root),
-      generatedAt,
-      readStartedAt: options.readStartedAt,
-      indexDigest,
-      forwardsDigest: forwards,
-      packages: JSON.stringify(help.packages),
-      deep: JSON.stringify(help.deep),
-      byPath: JSON.stringify(help.byPath),
-      unfollowed: JSON.stringify(help.unfollowed),
-      unreadable: JSON.stringify(help.unreadable),
-      published: publishedRows(help),
-    }));
-  } catch {
-    // The value is complete. An unwritable cache costs reuse, and the caller reads it back.
-  }
-  return generatedAt;
+  const published = reading.names();
+  const namesBySource = new Map<string, Names>();
+  sources.forEach(({ entry }, at) => namesBySource.set(entry.source, namesOf(published[at]!)));
+  // The export list and the imports by path are the reading's, encoded by the addon; the value joined here carries the packages.
+  const help = await stepped(progress, 'reading the signatures and comments of the exported names', async () =>
+    assembleHelp(root, offerings, { names, deep: [], byPath: [], unfollowed: [], exported: [], unreadable: read.unreadable }, (source) =>
+      namesBySource.get(source) ?? new Map()));
+
+  return stepped(progress, 'publishing the questions', async () => {
+    const graphDigest = publication.tree === undefined ? undefined : hexDigestOf(publication.tree);
+    const encoded = await reading.encode({
+      root: realpathSync(workspace),
+      graphRoot: realpathSync(root),
+      generatedAt: new Date().toISOString(),
+      readStartedAt: publication.readStartedAt,
+      ...(indexDigest === undefined ? {} : { indexDigest }),
+      packagesDigest: packagesDigest(root, offerings),
+      packages: storeOf(help).packages,
+      unreadable: help.unreadable,
+      ...(graphDigest === undefined ? {} : { graphDigest }),
+    });
+    const tree = publication.tree ?? encoded.tree;
+    if (tree === undefined || tree === null) throw new Error('the reading drew no tree, and none was handed to it');
+    return { help: await publishStore(publication.own, encoded.store, tree, encoded.graphDigest), tree };
+  });
 }
 
-/** An import by path as the addon hands it over. */
-function byPathOf(held: NativeUsage['deep'][number]): Deep {
-  const names: Taken[] = held.names.map((use) => ({ name: use.name, ...useOf(use) }));
-  return {
-    specifier: held.specifier, by: held.by, at: held.at, line: held.line,
-    ...(held.to === undefined || held.to === null ? {} : { to: held.to }),
-    names,
-  };
+/** One entry's names as the documented surface reads them: by name, then by kind. */
+function namesOf(published: readonly PublishedName[]): Names {
+  return new Map(published.map(({ name, kinds }) => [name, new Map(kinds.map((kind): [DeclarationKind, Reached] => [kind.kind as DeclarationKind, {
+    kind: kind.kind as DeclarationKind,
+    at: kind.at,
+    line: kind.line,
+    ...(kind.signature === undefined || kind.signature === null ? {} : { signature: kind.signature }),
+    ...(kind.doc === undefined || kind.doc === null ? {} : { doc: kind.doc }),
+    declared: kind.declared,
+  }]))]));
+}
+
+/** An entry's file as the index records it: relative to `root`, through any link on the way. */
+function pathOf(root: string, file: string): string {
+  if (!isAbsolute(file)) return file;
+  try {
+    return relative(root, realpathSync(file));
+  } catch {
+    return relative(root, file);
+  }
+}
+
+/**
+ * The offerings a value is documented from, as a digest: names, declarations,
+ * whether each declares an entry, and openings. The store keeps it in its head,
+ * so a refresh compares manifests without keeping them.
+ */
+export function packagesDigest(root: string, offerings: readonly Offering[]): string {
+  const shape = offerings.map((offering) => ({
+    name: offering.name,
+    declared: offering.declared,
+    entry: offering.entry,
+    openings: offering.entrypoints.map((entry) => ({
+      subpath: entry.subpath,
+      source: relative(root, entry.source),
+    })),
+  }));
+  return digestString(JSON.stringify(shape));
+}
+
+/** Whether the offerings are the ones `documented` was published from; never for a value published without them. */
+export function samePackages(read: { readonly root: string; readonly offerings: readonly Offering[] }, documented: Help): boolean {
+  const held = workspacePackagesDigest(documented);
+  return held !== undefined && held === packagesDigest(read.root, read.offerings);
 }

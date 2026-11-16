@@ -1,36 +1,26 @@
 # Zod: 57% fewer test file runs
 
 [Zod](https://github.com/colinhacks/zod) is one package, and 196 of its 202 test
-files reach the code they exercise through a single barrel. A selector that
-decides at the grain of a package therefore has nothing to say about it, and a
-selector that decides at the grain of a file has little more: change one line
-in the core and either one selects most of the suite. Run the suite once
-through [Variance Authority](README.md) and a one-line edit selects 8 runs,
-because the record shows which of the files that *reach* a module covered the
-*lines* you changed.
+files reach the code they exercise through a single barrel, so a package graph
+or a file graph selects most of the suite for a one-line edit. Run the suite
+once through [Variance Authority](README.md) and the record selects 8 runs,
+because it shows which tests covered the *lines* you changed.
 
 > **TLDR**
 >
-> - Over the sixty commits before it landed, each checked against a record made
->   at its parent commit, the record selects **5,196 test file runs of 12,120,
->   57% fewer** than running everything, which is what Zod does. A package graph
->   selects 8,047.
-> - The walk from what the edit changed selects **4,142**, and the file graph
->   4,531. The record selects fewer than the walk where a commit changes the
->   inside of a function, and more where it changes code that runs as the core
->   loads, which Zod's compile-mode setup runs for every test. Manifest,
->   lockfile and build commits are 1,818 of the record's 5,196.
-> - Change one line in `locales/ru.ts` and the record selects **8 runs, 1.5s
->   instead of 8.2s**, an **82%** shorter run. A package graph would still run
->   201 of the 202 files.
-> - One commit of setup, and recording costs **1.02×** a suite run.
+> - Over sixty commits, each against a record made at its parent, the record
+>   selects **5,196 test file runs of 12,120, 57% fewer** than running
+>   everything. A package graph selects 8,047.
+> - One line in `locales/ru.ts` selects **8 runs, 1.5s instead of 8.2s**.
+> - No recording precision costs anything measurable; classic coverage takes
+>   **1.36×** the run.
+
+## The whole suite, once
 
 Nothing in the repository was written with this in mind and no test was changed
 to accommodate it. One commit adds the instrumentation; the
 [fork](https://github.com/Variance-Authority/zod-example) carries it, along
-with the write-up and the scripts every figure below came from.
-
-## The whole suite, once
+with the write-up and the scripts the selection figures below came from.
 
 | | |
 | --- | --- |
@@ -49,18 +39,26 @@ record stores the union rather than letting the second run overwrite the first.
 
 ## What the recording run cost
 
-| | median of five |
-|---|---|
-| the suite as it ships | 8.87 s |
-| recording | 9.05 s — **1.02×** |
-| `vitest --coverage`, V8 provider | 11.56 s — **1.30×** |
+| median of five | time in tests | the whole run |
+|---|---|---|
+| the suite as it ships | 15.21 s | 8.67 s |
+| recording, `loads` | −4% | 0.95× |
+| recording, `entries` | −1% | 0.97× |
+| recording, `presence` (the default) | −1% | 0.99× |
+| classic coverage, `vitest --coverage` with V8 | **+12%** | **1.36×** |
 
-Same pass and fail counts in all three, Vite cache and record cache cleared
-between runs. Zod runs in `node`, which is why the third row is the interesting
-one: the engine's counters are read per worker and answer with every script the
+At no precision does recording cost anything measurable, inside the tests or
+around them: the plain suite's own time in tests moves 6% from round to round,
+and a figure below it is noise, not a saving. Writing the record and the
+transform that places the probes do not show either. Same pass and fail counts
+in every row; every arm keeps its own caches warm, two warm-up rounds and then
+five measured with the order alternating, as the
+[method](selecting.md#what-recording-costs-while-the-suite-runs) lays out. Zod
+runs in `node`, which is why the classic coverage row is the
+interesting one: the engine's counters are read per worker and answer with every script the
 isolate has loaded, and a worker here holds 52. What it buys for that is one
 union per file — every region some test covered, with no record of which test —
-and its overhead is about fifteen times the recorder's.
+and the recorder, at any precision, costs no more than the noise.
 
 ## One line, asked of the record
 

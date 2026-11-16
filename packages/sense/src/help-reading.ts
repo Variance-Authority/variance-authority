@@ -13,79 +13,158 @@
 // compass: variance-authority.report.agent-surface
 
 import { native, nativeRefusal } from './addon.js';
-import type { NativeImporters, NativeIndexedUsage } from './native-orient.js';
-import type { SourceSymbolReach } from './harvest.js';
+import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
+import type { DeclaredNames, NameTerms } from './declared-names.js';
 import { sourceIndexPath } from './source-index.js';
+import { CODE_EXTENSIONS } from './language.js';
+import type { ResolveOptions } from './resolve.js';
+import { withDeclaredTsconfig } from './typescript.js';
 
 type NamedExport = NativeIndexedUsage['exported'][number];
 
-/** The published rows of a Help value, a column per field, in `everyEntry` order. */
-export interface PublishedRows {
-  readonly name: string[];
-  /** `specifierOf` the row's package and opening. */
-  readonly spec: string[];
-  readonly kind: string[];
-  readonly doc: (string | null)[];
-  /** What each row's declaration writes before its body; null when its entry holds none. */
-  readonly signature: (string | null)[];
-  readonly at: string[];
-  readonly usedBy: number[];
-  readonly uses: number[];
-  /** How many sites each row has; their files follow in `sites`, row by row. */
-  readonly siteCounts: number[];
-  readonly sites: string[];
+/** One place a name is used, its `through` laid flat: `Use`, and `Taken`'s `name` for an import by path. */
+export interface StoreUse {
+  readonly by: string;
+  readonly at: string;
+  readonly line: number;
+  readonly type: boolean;
+  readonly kind: string;
+  readonly local?: string;
+  /** `dynamic` or `namespace`; absent for a named import, and the three after it are then unread. */
+  readonly through?: string;
+  readonly throughLine: number;
+  readonly throughDefault: boolean;
+  readonly whole: boolean;
+  readonly name?: string;
 }
 
-/** The published generation a search file carries in its head, so it cannot describe another checkout. */
-export interface SearchGeneration {
+/** `Entry`, with its uses as {@link StoreUse}. */
+export interface StoreEntry {
+  readonly name: string;
+  readonly kind: string;
+  readonly at: string;
+  readonly declared: string;
+  readonly line: number;
+  readonly signature?: string;
+  readonly doc?: string;
+  readonly usedBy: readonly string[];
+  readonly uses: number;
+  readonly sites: readonly StoreUse[];
+  readonly throughDefault: readonly StoreUse[];
+  readonly mention?: { readonly at: string; readonly line: number; readonly text: string };
+}
+
+/** `Documented`, each opening with the specifier a search line prints for it. */
+export interface StorePackage {
+  readonly name: string;
+  readonly entry: boolean;
+  readonly openings: readonly {
+    readonly subpath: string;
+    readonly source: string;
+    readonly spec: string;
+    readonly entries: readonly StoreEntry[];
+    readonly whole: readonly StoreUse[];
+  }[];
+}
+
+/** `Deep`, with its names as {@link StoreUse}. */
+export interface StoreDeep {
+  readonly specifier: string;
+  readonly by: string;
+  readonly at: string;
+  readonly line: number;
+  readonly to?: string;
+  readonly names: readonly StoreUse[];
+}
+
+/** A Help value but its export list, laid out as the store's encoder takes it. */
+export interface HelpStore {
+  readonly packages: readonly StorePackage[];
+  readonly deep: readonly StoreDeep[];
+  readonly byPath: readonly StoreDeep[];
+  readonly unfollowed: readonly StoreDeep[];
+  readonly unreadable: readonly string[];
+}
+
+/** The generation a store carries in its head, so it cannot describe another checkout. */
+export interface StoreMeta {
   readonly root: string;
   readonly graphRoot: string;
   readonly graphDigest: string;
   readonly generatedAt: string;
+  /** When the read behind the value began, before any of it was read. */
+  readonly readStartedAt: string;
+  readonly indexDigest?: string;
+  readonly packagesDigest?: string;
 }
 
-/** A search file's bytes, and the digest of the export list it was encoded from. */
-export interface EncodedSearch {
+/** A store's bytes, and the digest of the export list it was encoded from. */
+export interface EncodedStore {
   readonly bytes: Uint8Array;
   readonly exported: string;
 }
 
-/** What `HelpReading.publish` writes, beside what the reading holds. */
-export interface HelpPublish {
-  readonly snapshot: string;
-  readonly search: string;
-  /** The graph is written at this prefix, its digest and `.bin`. */
-  readonly graph: string;
-  readonly format: string;
-  readonly version: number;
+/** One opening the workspace publishes: its `<package> .<subpath>` key, and the repo-relative file its entry is read from. */
+export interface HelpEntry {
+  readonly key: string;
+  readonly file: string;
+}
+
+/** One kind of one published name, as the chain reads its declaration. */
+export interface ReachedDeclaration {
+  /** As the parser harvested it, or `foreign` for a name read from no declaration of the checkout, `namespace-object` for a module held whole. */
+  readonly kind: string;
+  readonly at: string;
+  readonly line: number;
+  readonly signature?: string | null;
+  readonly doc?: string | null;
+  /** The name it is declared under there. */
+  readonly declared: string;
+}
+
+/** One name an entry hands out, and its kinds, the first declaration read of each kind kept, in the order they were read. */
+export interface PublishedName {
+  readonly name: string;
+  readonly kinds: readonly ReachedDeclaration[];
+}
+
+/** What `HelpReading.encode` stamps the store with, beside what the reading holds. */
+export interface HelpEncode {
   readonly root: string;
   readonly graphRoot: string;
   readonly generatedAt: string;
   /** When the read behind the value began, before any of it was read. */
   readonly readStartedAt: string;
-  /** The digest of the index manifest the reading was made from. */
-  readonly indexDigest: string;
-  /** What {@link forwardsDigest} states of the reading's `forwards`. */
-  readonly forwardsDigest: string;
-  /** JSON of the value's `packages`, `deep`, `byPath`, `unfollowed` and `unreadable`. */
-  readonly packages: string;
-  readonly deep: string;
-  readonly byPath: string;
-  readonly unfollowed: string;
-  readonly unreadable: string;
-  readonly published: PublishedRows;
+  /** The digest of the index manifest the reading was made from; absent when the value holds what no manifest says. */
+  readonly indexDigest?: string;
+  /** What the package manifests the value was joined against state, as the store keeps it. */
+  readonly packagesDigest: string;
+  readonly packages: readonly StorePackage[];
+  readonly unreadable: readonly string[];
+  /** The digest of the tree the caller publishes, when the reading drew none. */
+  readonly graphDigest?: string;
 }
 
-/** The chain's answer for a Help value; the export list stays with the addon. */
+/** The store's bytes, and the tree's when the reading drew it, under its digest. */
+export interface HelpEncoded {
+  readonly store: Uint8Array;
+  readonly tree?: Uint8Array | null;
+  readonly graphDigest: string;
+}
+
+/** The chain's answer for a Help value; the export list and the imports by path stay with the addon. */
 export interface HelpReading {
-  /** The export list as a set, as `EncodedSearch.exported` states it. */
-  readonly exportedDigest: string;
-  /** The rows of the export list that `files` write; the rest stays with the addon. */
-  exportedOf(files: string[]): NativeIndexedUsage['exported'];
-  /** The uses, deep requests and unreadable files, handed over once; `exported` is empty. */
+  /** The uses and unreadable files, handed over once; `exported`, `deep`, `byPath` and `unfollowed` are empty. */
   usage(): NativeIndexedUsage;
-  /** Write the graph, the value and its search; a graph already written under its digest is kept. */
-  publish(options: HelpPublish): Promise<{ readonly graphDigest: string }>;
+  /**
+   * The names each entry hands out, in the order the entries were given,
+   * handed over once. Throws with the first export whose declaration the
+   * reading cannot say: a name nothing in its file binds, or one the file it
+   * leads to does not hand out.
+   */
+  names(): PublishedName[][];
+  /** The store's bytes and the tree's, once. */
+  encode(options: HelpEncode): Promise<HelpEncoded>;
 }
 
 /** One declaration of a member, `on` the interface, type alias or class that holds it. */
@@ -111,16 +190,18 @@ export interface MemberDeclarations {
   readonly extensions: readonly string[];
 }
 
-/** One member a container declares: its name and its line. */
+/** One member a container declares: its name, its line, and that line's text. */
 export interface ContainerMember {
   readonly name: string;
   readonly line: number;
+  /** The line as the read the index recorded saw it, its line end dropped; absent when the index kept none. */
+  readonly text?: string | null;
 }
 
 /**
  * The declaration an export binds: the file that declares it, the name it has
- * there, its line and kind, and the spans of its signature and doc comment in
- * the file's UTF-16 offsets, when the parser kept them.
+ * there, its line and kind, and its head and doc comment as the index cuts
+ * them, when the parser kept them.
  */
 export interface ExportedDeclaration {
   readonly at: string;
@@ -128,10 +209,8 @@ export interface ExportedDeclaration {
   readonly line: number;
   /** As the parser harvested it: `function`, `const`, … */
   readonly kind: string;
-  readonly signatureStart?: number | null;
-  readonly signatureEnd?: number | null;
-  readonly docStart?: number | null;
-  readonly docEnd?: number | null;
+  readonly signature?: string | null;
+  readonly doc?: string | null;
 }
 
 /** One line that uses a member, and how. */
@@ -162,21 +241,22 @@ export interface Alias {
 }
 
 export interface NativeHelp {
-  readHelp?(root: string, index: string, opened: string[], published: string[], unentered: string[], declared: string[]): Promise<HelpReading | null>;
-  encodeSearchIndex?(published: PublishedRows, exported: NamedExport[], generation: SearchGeneration | null): EncodedSearch;
-  digestExported?(exported: NamedExport[]): string;
-  digestForwards?(forwards: string[]): string;
-  importersOf?(root: string, index: string, files: string[], name: string): NativeImporters | null;
-  outsideSourcesOf?(root: string, index: string, name: string): string[] | null;
-  memberDeclarationsOf?(root: string, index: string, name: string): MemberDeclarations | null;
-  membersOnOf?(index: string, file: string, on: string): ContainerMember[] | null;
-  declarationExportedOf?(index: string, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
-  aliasesOf?(root: string, index: string, local: string): Alias[] | null;
-  declaredOf?(root: string, index: string, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
-  declaredDescribedOf?(root: string, index: string, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
-  declaredTermsOf?(index: string, files: string[] | null): string[] | null;
+  /** The chain at `index`, read and checked once, for the readers below to share. */
+  openIndex?(index: string): OpenedIndex;
+  readHelp?(root: string, index: string, entries: HelpEntry[], published: string[], unentered: string[], declared: string[], drawn: boolean, tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
+  encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
+  restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
+  importersOf?(root: string, index: OpenedIndex, asked: NativeAsked[][]): NativeImporters | null;
+  memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
+  membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
+  declarationExportedOf?(index: OpenedIndex, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
+  exportLineOf?(index: OpenedIndex, file: string, line: number): string | null;
+  aliasesOf?(root: string, index: OpenedIndex, local: string): Alias[] | null;
+  declaredOf?(root: string, index: OpenedIndex, query: string, containing: boolean, files: string[] | null): DeclaredNames | null;
+  declaredDescribedOf?(root: string, index: OpenedIndex, query: string, stems: string[], files: string[] | null): DeclaredNames | null;
+  declaredTermsOf?(index: OpenedIndex, files: string[] | null): string[] | null;
   nameTerms?(names: string[]): NameTerms;
-  declaredLooseOf?(root: string, index: string, groups: string[][], files: string[] | null): DeclaredNames | null;
+  declaredLooseOf?(root: string, index: OpenedIndex, groups: string[][], files: string[] | null): DeclaredNames | null;
   /** ripgrep's matching lines of `files` under `root`, as columns; throws `ripgrep refused the pattern: …` for an invalid one. */
   ripgrep?(root: string, pattern: string, files: string[]): Grepped;
 }
@@ -199,7 +279,8 @@ export function ripgrepNative(root: string, pattern: string, files: readonly str
   return entry('ripgrep')(root, pattern, [...files]);
 }
 
-function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHelp[Name]> {
+/** The addon's `name`, or a refusal that says why the scanner cannot answer. */
+export function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHelp[Name]> {
   const scanner = native() as (NativeHelp & object) | undefined;
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -208,65 +289,97 @@ function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<NativeHel
   return (call as (...args: never[]) => unknown).bind(scanner) as NonNullable<NativeHelp[Name]>;
 }
 
+/** The source index the addon read and checked once for one question; `close` lets its bytes go. */
+export interface OpenedIndex {
+  close(): void;
+}
+
+/** The indexes the running question opened, by path; `undefined` outside one. */
+let question: Map<string, OpenedIndex> | undefined;
+
 /**
- * The reading of the index at `index` for the entrypoints in `opened`, the
+ * `ask`, run as one question: each source index the readers here ask during it
+ * is read and checked the first time one asks, held while `ask` runs, and closed
+ * when it returns. Reading the chain is most of what one reader costs, and an
+ * answer about a name declared in ten files asks ten times. Nothing is held
+ * between questions, so a question never answers from a chain an index
+ * replaced before it began. `ask` is synchronous: no other question can run
+ * inside it, and a question asked within it is part of it.
+ */
+export function asOneQuestion<T>(ask: () => T): T {
+  if (question !== undefined) return ask();
+  const held = new Map<string, OpenedIndex>();
+  question = held;
+  try {
+    return ask();
+  } finally {
+    question = undefined;
+    for (const opened of held.values()) opened.close();
+  }
+}
+
+/** `read` over the index at `index` as the running question holds it, or as a question of its own. */
+export function onIndex<T>(index: string, read: (opened: OpenedIndex) => T): T {
+  return asOneQuestion(() => {
+    const held = question!;
+    let opened = held.get(index);
+    if (opened === undefined) {
+      opened = entry('openIndex')(index);
+      held.set(index, opened);
+    }
+    return read(opened);
+  });
+}
+
+/**
+ * The reading of the index at `index` for the openings in `entries`, the
  * imports into the packages in `targets.published` that no entry opens, the
  * packages in `targets.unentered`, which declare no entry, and the specifiers
  * in `targets.declared`, which a manifest names whether or not the reading
- * could follow them; `null` when none was published. `opened` and
- * `targets.declared` are `<package> .<subpath>` keys.
+ * could follow them; `null` when none was published. Entry keys and
+ * `targets.declared` are `<package> .<subpath>` keys. Unless `drawn` is
+ * `false`, for a caller that publishes a graph of its own, the reading draws
+ * the graph too, carrying what each test loads for real beside its mocks,
+ * resolved under the `tsconfig` the repository declares, as `mockTaint` joins them.
  */
 export function readHelp(
   root: string,
-  opened: readonly string[],
+  entries: readonly HelpEntry[],
   targets: { readonly published: Iterable<string>; readonly unentered: Iterable<string>; readonly declared: Iterable<string> },
   index: string = sourceIndexPath(root),
+  drawn = true,
 ): Promise<HelpReading | null> {
-  return entry('readHelp')(root, index, [...opened], [...targets.published], [...targets.unentered], [...targets.declared]);
+  return entry('readHelp')(root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root));
 }
 
-/** The search over `published` and `exported`, and the digest of `exported`. */
-export function encodeSearch(published: PublishedRows, exported: readonly NamedExport[], generation?: SearchGeneration): EncodedSearch {
-  return entry('encodeSearchIndex')(published, [...exported], generation ?? null);
+/** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */
+function mocking(root: string): [string | boolean | null, string[]] {
+  const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
+  return [tsconfig ?? null, [...CODE_EXTENSIONS]];
 }
 
-/** The digest `HelpReading.exportedDigest` states, of a list JavaScript holds. */
-export function exportedDigest(exported: readonly NamedExport[]): string {
-  return entry('digestExported')([...exported]);
+/** The store of `store` and `exported`, stamped with `meta` when it is published, and the digest of `exported`. */
+export function encodeHelpStore(store: HelpStore, exported: readonly NamedExport[], meta?: StoreMeta): EncodedStore {
+  return entry('encodeHelpStore')(store, [...exported], meta ?? null);
 }
 
-/** The `export … from` rows of a reading as a set, which the export list does not hold. */
-export function forwardsDigest(forwards: readonly string[]): string {
-  return entry('digestForwards')([...forwards]);
+/** The same store with a new `generatedAt`: the body is copied as it is. */
+export function restampHelpStore(bytes: Uint8Array, generatedAt: string): Uint8Array {
+  return entry('restampHelpStore')(bytes, generatedAt);
 }
 
 /**
- * Every import of `name` out of one of `files`, repo-relative, by any file the
- * index at `index` holds — an import within a package as well as one across
- * packages, which the Help value does not record — ordered by the importing
- * file in code units, then by line; `undefined` when no index was published.
- * A file that passes the name on with `export … from` is followed under the
- * name it exports and named in `through`, and is no use. Each use's `key` is
- * the specifier as the importing file wrote it, and its `name` the name it
- * takes, which such a file can rename. Throws when the index does not read.
+ * Every import, by any file the index at `index` holds, of each asked name out
+ * of the file asked with it, each group followed as one question and answered
+ * in `groups`: `importers_of` in `native/src/help_publish.rs` says how.
+ * `undefined` when no index was published; throws when it does not read.
  */
 export function importersOf(
   root: string,
-  files: readonly string[],
-  name: string,
+  asked: readonly (readonly NativeAsked[])[],
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
-  return entry('importersOf')(root, index, [...files], name) ?? undefined;
-}
-
-/**
- * Every specifier, as written and in code-unit order, that names a package or
- * a runtime module the index at `index` resolved to no file, and out of which
- * an import takes `name`; `undefined` when no index was published. Throws
- * when the index does not read.
- */
-export function outsideSourcesOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly string[] | undefined {
-  return entry('outsideSourcesOf')(root, index, name) ?? undefined;
+  return onIndex(index, (opened) => entry('importersOf')(root, opened, asked.map((group) => [...group]))) ?? undefined;
 }
 
 /**
@@ -280,7 +393,7 @@ export function outsideSourcesOf(root: string, name: string, index: string = sou
  * index was published. Throws when the index does not read.
  */
 export function memberDeclarationsOf(root: string, name: string, index: string = sourceIndexPath(root)): MemberDeclarations | undefined {
-  return entry('memberDeclarationsOf')(root, index, name) ?? undefined;
+  return onIndex(index, (opened) => entry('memberDeclarationsOf')(root, opened, name)) ?? undefined;
 }
 
 /**
@@ -292,7 +405,7 @@ export function memberDeclarationsOf(root: string, name: string, index: string =
  * index was published; throws when the index does not read.
  */
 export function membersOn(root: string, file: string, on: string, index: string = sourceIndexPath(root)): readonly ContainerMember[] | undefined {
-  return entry('membersOnOf')(index, file, on) ?? undefined;
+  return onIndex(index, (opened) => entry('membersOnOf')(opened, file, on)) ?? undefined;
 }
 
 /**
@@ -310,8 +423,19 @@ export function membersOn(root: string, file: string, on: string, index: string 
  * read.
  */
 export function declarationExported(root: string, file: string, name: string, index: string = sourceIndexPath(root)): ExportedDeclaration | null | undefined {
-  const read = entry('declarationExportedOf')(index, file, name);
+  const read = onIndex(index, (opened) => entry('declarationExportedOf')(opened, file, name));
   return read === null ? undefined : (read.declaration ?? null);
+}
+
+/**
+ * The text of the line `line` of `file`, repo-relative, when the newest parse
+ * the index at `index` holds of the file records an export on it: the line as
+ * that read saw it, its line end dropped. `undefined` when it records none
+ * there, kept no text of it, or no index was published. Throws when the index
+ * does not read.
+ */
+export function exportLine(root: string, file: string, line: number, index: string = sourceIndexPath(root)): string | undefined {
+  return onIndex(index, (opened) => entry('exportLineOf')(opened, file, line)) ?? undefined;
 }
 
 /**
@@ -323,145 +447,5 @@ export function declarationExported(root: string, file: string, name: string, in
  * out. Throws when the index does not read.
  */
 export function aliasesOf(root: string, local: string, index: string = sourceIndexPath(root)): readonly Alias[] | undefined {
-  return entry('aliasesOf')(root, index, local) ?? undefined;
-}
-
-/** One declaration no export of its file binds: at its top level, inside a function, or a member of a container. */
-export interface DeclaredName {
-  readonly name: string;
-  /** The declaration's kind as the parser harvested it: `function`, `const`, … */
-  readonly kind: string;
-  readonly at: string;
-  /** The package whose source it is; empty at the repository root. */
-  readonly by: string;
-  readonly line: number;
-  /** `source`, `test` or `story`, as `kindOf` says of the file. */
-  readonly fileKind: 'source' | 'test' | 'story';
-  /** The signature's span in the file's UTF-16 offsets, when the parser kept one. */
-  readonly signatureStart?: number | null;
-  readonly signatureEnd?: number | null;
-  /** The doc comment's span, inside its opening and closing marks, when one is written above. */
-  readonly docStart?: number | null;
-  readonly docEnd?: number | null;
-  /** Who can name it, as the reader of its language recorded; absent when the reader cannot tell. */
-  readonly reach?: SourceSymbolReach | null;
-  /** Asked by `declaredDescribedOf`: the positions, ascending, of the asked stems its name or doc holds. */
-  readonly held?: readonly number[] | null;
-  /** Asked by `declaredDescribedOf`: the positions, ascending, of those its name holds. */
-  readonly named?: readonly number[] | null;
-  /** Asked by `declaredDescribedOf`: how many of the question's adjacent word pairs its doc writes as a phrase, by `near`. */
-  readonly near?: number | null;
-  /** Asked by `declaredDescribedOf`: the bytes of the doc the words were held against, its lines joined by single spaces; absent when it writes none. */
-  readonly docLength?: number | null;
-  /** The name of the function whose body declares it, when that function has one. */
-  readonly holder?: string | null;
-  /** The line the function whose body declares it starts on: present only for a declaration inside a function. */
-  readonly holderLine?: number | null;
-  /** The container it is a member of: present only for a member. */
-  readonly on?: string | null;
-}
-
-/** A file a description reached by its own name and the doc it opens with. */
-export interface DescribedFile {
-  readonly at: string;
-  /** The package whose source it is; empty at the repository root. */
-  readonly by: string;
-  /** The module doc's span, inside its marks, when the file opens with one. */
-  readonly docStart?: number | null;
-  readonly docEnd?: number | null;
-  /** The positions, ascending, of the asked stems its name or its module doc holds. */
-  readonly held: readonly number[];
-  /** The positions, ascending, of those its name holds. */
-  readonly named: readonly number[];
-  /** How many of the question's adjacent word pairs its module doc writes as a phrase. */
-  readonly near: number;
-  /** The bytes of the module doc the words were held against, its lines joined by single spaces; absent when it writes none. */
-  readonly docLength?: number | null;
-}
-
-/** What `declaredOf` found, and the files whose declarations it could not read. */
-export interface DeclaredNames {
-  /** Ordered by file in code units, then by line. */
-  readonly names: readonly DeclaredName[];
-  /** Files whose declarations were not read — no parse, or one its reader did not harvest: unknown, not empty. */
-  readonly unread: readonly string[];
-  /** Asked by `declaredDescribedOf`: the files whose name and module doc hold any of the question; empty otherwise. */
-  readonly files: readonly DescribedFile[];
-}
-
-/**
- * Every top-level declaration the index at `index` holds that no export of its
- * file binds — the names a file keeps to itself, which no export list holds —
- * named `query` exactly, or, given `containing`, whose name or doc comment
- * holds it in any case; only in `files`, repo-relative, when they are named. A name declared
- * twice in one file is answered once. A function inside a function answers
- * either question by its name, and a member answers `containing`, by its name,
- * its doc or `container.member`: each says what holds it. `undefined` when no index was
- * published; throws when the index does not read.
- */
-export function declaredOf(
-  root: string,
-  query: string,
-  options: { readonly containing?: boolean; readonly files?: Iterable<string> } = {},
-  index: string = sourceIndexPath(root),
-): DeclaredNames | undefined {
-  const containing = options.containing === true;
-  const files = options.files === undefined ? null : [...options.files];
-  return entry('declaredOf')(root, index, containing ? query.toLowerCase() : query, containing, files) ?? undefined;
-}
-
-/**
- * Every top-level declaration the index at `index` holds that no export of its
- * file binds, whose name and doc comment, cut into stems by the rule
- * `describedWordsNative` cuts `query` by, hold any of `stems`, in any
- * order; only in `files`, repo-relative, when they are named.
- * Each carries the positions of the stems it holds, how many its name holds,
- * and how many of the question's adjacent word pairs its doc writes as a phrase.
- * Beside them, the files whose name and module doc hold any, the same way.
- * `undefined` when no index was published; throws when the index does not read.
- */
-export function declaredDescribedOf(
-  root: string,
-  query: string,
-  stems: readonly string[],
-  files?: Iterable<string>,
-  index: string = sourceIndexPath(root),
-): DeclaredNames | undefined {
-  return entry('declaredDescribedOf')(root, index, query, [...stems], files === undefined ? null : [...files]) ?? undefined;
-}
-
-/** Names cut into terms: the distinct terms, sorted by their UTF-8 bytes, and per name the positions of those it holds. */
-export interface NameTerms {
-  readonly terms: readonly string[];
-  readonly held: readonly (readonly number[])[];
-}
-
-/** `names` cut by the rule the search file cuts an exported name, for text that writes names to be asked by a name's words. */
-export function nameTermsOf(names: readonly string[]): NameTerms {
-  return entry('nameTerms')([...names]);
-}
-
-/**
- * The distinct search terms of every top-level name the index at `index`
- * harvested, cut as the search file cuts an exported name, in `files` when they
- * are named, sorted by their UTF-8 bytes as the search file's dictionary is.
- * `undefined` when no index was published; throws when the index does not read.
- */
-export function declaredTermsOf(root: string, files?: Iterable<string>, index: string = sourceIndexPath(root)): readonly string[] | undefined {
-  return entry('declaredTermsOf')(index, files === undefined ? null : [...files]) ?? undefined;
-}
-
-/**
- * Every top-level declaration the index at `index` holds that no export of its
- * file binds, whose name's terms hold one of every group of `groups`: the
- * terms the loose pass let each word of a question stand for. `undefined` when
- * no index was published; throws when the index does not read.
- */
-export function declaredLooseOf(
-  root: string,
-  groups: readonly (readonly string[])[],
-  files?: Iterable<string>,
-  index: string = sourceIndexPath(root),
-): DeclaredNames | undefined {
-  return entry('declaredLooseOf')(root, index, groups.map((group) => [...group]), files === undefined ? null : [...files]) ?? undefined;
+  return onIndex(index, (opened) => entry('aliasesOf')(root, opened, local)) ?? undefined;
 }

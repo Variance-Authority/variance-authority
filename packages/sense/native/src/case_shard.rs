@@ -20,9 +20,8 @@ pub(crate) struct Shard {
     pub durations: Vec<Option<u32>>,
     /// Each case's limit in milliseconds, where the record names one.
     pub limits: Vec<Option<u32>>,
-    /// Each case's slowest statement as its line and whole milliseconds, where
-    /// the record names one.
-    pub slowest: Vec<Option<(u32, u32)>>,
+    /// Each case's statement times as stored; empty where the case was not timed.
+    pub times: Vec<Vec<u8>>,
     /// Each case's lines as stored, its modules named by their row in this
     /// shard; empty where the case recorded none.
     pub lines: Vec<Vec<u8>>,
@@ -58,25 +57,49 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     if version != cases.format {
         return Err(format!("it is written at version {version}, and this build reads version {}", cases.format));
     }
-    let strings = strings(&decoded)?;
+    let (mut shard, cuts) = read_decoded(&decoded, false)?;
+    for (module, cut) in shard.modules.iter_mut().zip(cuts) {
+        module.inventory = held_inventory(inventories.entry(module.file.clone()).or_default(), &module.file, cut.blocks, cut.owners)?;
+    }
+    Ok(shard)
+}
+
+/// A case index a run is laid over, each module with the cut it was recorded
+/// at; `None` where it is written at a version this build does not lay over.
+/// An index written at the version that held each region's loaded cases reads
+/// a region as loaded where its set holds one.
+pub(crate) fn read_held(bytes: &[u8]) -> Result<Option<(Shard, Vec<Inventory>)>, String> {
+    let (version, decoded) = journey_columns::decode_any(bytes)?;
+    let cases = &LAYOUT.cases;
+    if version != cases.format && version != cases.loaded_sets {
+        return Ok(None);
+    }
+    read_decoded(&decoded, version == cases.loaded_sets).map(Some)
+}
+
+/// An index's columns read whole; each module's cut beside it, by its row.
+fn read_decoded(decoded: &Decoded, loaded_sets: bool) -> Result<(Shard, Vec<Inventory>), String> {
+    let cases = &LAYOUT.cases;
+    let strings = strings(decoded)?;
     let ids = decoded.words("tests.id")?;
     let files = decoded.words("tests.file")?;
     let names = decoded.words("tests.name")?;
     let count = ids.len();
     let optional_words = |name: &str| if decoded.has(name) { decoded.words(name).map(Some) } else { Ok(None) };
-    let settled = decoded.bytes("tests.stopped")?;
+    // An index whose producer saw no case settle holds no column of it.
+    let settled = if decoded.has("tests.stopped") { decoded.bytes("tests.stopped")? } else { vec![0; count] };
     let runners = optional_words(case_id::COLUMN)?;
     let projects = optional_words(case_id::PROJECT_COLUMN)?;
     let durations = optional_words(&cases.duration)?;
     let limits = optional_words(&cases.limit)?;
-    let slowest = optional_words(&cases.slowest)?;
-    let lines = if decoded.has(&cases.lines) { Some((decoded.bytes(&cases.lines)?, decoded.words(&cases.lines_offsets)?)) } else { None };
+    let blob = |name: &str, offsets: &str| if decoded.has(name) { Ok::<_, String>(Some((decoded.bytes(name)?, decoded.words(offsets)?))) } else { Ok(None) };
+    let lines = blob(&cases.lines, &cases.lines_offsets)?;
+    let times = blob(&cases.times, &cases.times_offsets)?;
     if files.len() != count
         || names.len() != count
         || settled.len() != count
         || [&runners, &projects, &durations, &limits].into_iter().flatten().any(|column| column.len() != count)
-        || slowest.as_ref().is_some_and(|column| column.len() != count * 2)
-        || lines.as_ref().is_some_and(|(_, offsets)| offsets.len() != count + 1)
+        || [&lines, &times].into_iter().flatten().any(|(_, offsets)| offsets.len() != count + 1)
     {
         return Err("test columns disagree".to_owned());
     }
@@ -95,23 +118,13 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let no_duration = LAYOUT.coverage.no_duration;
     let durations = (0..count).map(|at| durations.as_ref().map(|column| column[at]).filter(|word| *word != no_duration)).collect();
     let limits = (0..count).map(|at| limits.as_ref().map(|column| column[at]).filter(|word| *word != no_duration)).collect();
-    // A pair with no time is a case that names no statement.
-    let slowest = (0..count).map(|at| slowest.as_ref().map(|column| (column[at * 2], column[at * 2 + 1])).filter(|(_, time)| *time != 0)).collect();
-    let lines = match &lines {
-        None => vec![Vec::new(); count],
-        Some((blob, offsets)) => offsets
-            .windows(2)
-            .map(|bounds| {
-                let (from, to) = (bounds[0] as usize, bounds[1] as usize);
-                if to < from || to > blob.len() {
-                    return Err("case lines bounds are invalid".to_owned());
-                }
-                Ok(blob[from..to].to_vec())
-            })
-            .collect::<Result<_, String>>()?,
-    };
+    let lines = split_rows(lines.as_ref(), count, "case lines")?;
     let set_bytes = decoded.bytes("sets.blob")?;
     let set_offsets = decoded.words("sets.off")?;
+    if set_offsets.windows(2).any(|bounds| bounds[1] < bounds[0]) || set_offsets.last().is_some_and(|last| *last as usize > set_bytes.len()) {
+        return Err("journey set bounds are invalid".to_owned());
+    }
+    let pool = set_offsets.len().saturating_sub(1);
     let section = |name: &str| if decoded.has(name) { decoded.bytes(name).map(Some) } else { Ok(None) };
     let [said, read, misused] = case_said::SECTIONS.map(section);
     let [said, read, misused] = [said?, read?, misused?];
@@ -125,7 +138,11 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     let module_files = decoded.words("modules.file")?;
     let module_blocks = decoded.words("modules.blocks")?;
     let called = decoded.words("blocks.calledSet")?;
-    let loaded: Vec<bool> = decoded.held("blocks.loaded")?.iter().map(|flag| *flag == 1).collect();
+    let loaded: Vec<bool> = if loaded_sets {
+        decoded.words("blocks.loadedSet")?.into_iter().map(|set| Ok(!decode_set(set_slice(&set_bytes, &set_offsets, set)?, count)?.is_empty())).collect::<Result<_, String>>()?
+    } else {
+        decoded.held("blocks.loaded")?.iter().map(|flag| *flag == 1).collect()
+    };
     let kinds = decoded.words("blocks.kind")?;
     let block_names = decoded.words("blocks.name")?;
     let paths = decoded.words("blocks.path")?;
@@ -147,7 +164,12 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
     {
         return Err("block columns disagree".to_owned());
     }
+    // Every set a region names is in the pool, so a carry never meets one that is not.
+    if let Some(set) = called.iter().chain(overwritten.iter().flatten()).find(|set| **set as usize >= pool) {
+        return Err(format!("journey set id {set} is out of bounds"));
+    }
     let mut modules = Vec::with_capacity(module_files.len());
+    let mut cuts = Vec::with_capacity(module_files.len());
     for at in 0..module_files.len() {
         let first = module_blocks[at] as usize;
         let last = module_blocks[at + 1] as usize;
@@ -165,29 +187,29 @@ pub(crate) fn read_shard(bytes: &[u8], inventories: &mut HashMap<String, Vec<Inv
                 source: sources[block] == 1,
             }))
             .collect::<Result<_, String>>()?;
-        let owned = owners.as_ref().map(|column| column[first..last].to_vec());
-        let inventory = held_inventory(inventories.entry(file.clone()).or_default(), &file, blocks, owned)?;
+        cuts.push(Inventory { blocks, owners: owners.as_ref().map(|column| column[first..last].to_vec()) });
         modules.push(ShardModule {
             file,
-            inventory,
+            inventory: at,
             called: called[first..last].to_vec(),
             loaded: loaded[first..last].to_vec(),
             overwritten: overwritten.as_ref().map_or_else(Vec::new, |column| column[first..last].to_vec()),
         });
     }
-    Ok(Shard {
+    let shard = Shard {
         name: String::new(),
         tests,
         durations,
         limits,
-        slowest,
+        times: split_rows(times.as_ref(), count, "case times")?,
         lines,
         modules,
         set_bytes,
         set_offsets,
         local_to_global: Vec::new(),
-        gaps: journey_format::read_gaps(&decoded, &strings)?,
-    })
+        gaps: journey_format::read_gaps(decoded, &strings)?,
+    };
+    Ok((shard, cuts))
 }
 
 /// Where `blocks` stands among the cuts of `file` read so far, with the owners
@@ -300,6 +322,24 @@ pub(crate) fn remap_lines(bytes: &[u8], rows: &[Result<u32, &str>]) -> Result<Ve
         head.extend_from_slice(&segment);
     }
     Ok(head)
+}
+
+/// Each case's row of a blob section by its offsets; no section is a row of
+/// no bytes for every case.
+fn split_rows<B: AsRef<[u8]>, O: AsRef<[u32]>>(section: Option<&(B, O)>, count: usize, what: &str) -> Result<Vec<Vec<u8>>, String> {
+    let Some((blob, offsets)) = section else { return Ok(vec![Vec::new(); count]) };
+    let blob = blob.as_ref();
+    offsets
+        .as_ref()
+        .windows(2)
+        .map(|bounds| {
+            let (from, to) = (bounds[0] as usize, bounds[1] as usize);
+            if to < from || to > blob.len() {
+                return Err(format!("{what} bounds are invalid"));
+            }
+            Ok(blob[from..to].to_vec())
+        })
+        .collect()
 }
 
 pub(crate) struct Varints<'a> {

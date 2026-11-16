@@ -80,6 +80,7 @@ import { UNATTRIBUTED, type JourneyAccount } from './stitch.js';
 import type { ExecutedModule } from './probes.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
+import probeSet from '../instrument/probe-set.cjs';
 import { isThenable, journeyScope, TOLD, writeParts } from './journey-parts.js';
 import { journeyOf, type JourneyTrace } from './journey-carrier.js';
 import { tapeJourneys } from './journey-story.js';
@@ -259,7 +260,7 @@ function installJourneys(options: JourneyCollectorOptions): JourneyCollector {
   // One bucket per journey, and the root asks the store on every probe, which
   // is what lets two concurrent requests each keep their own. See
   // `instrument/probe-log.cts` for what a switch between them costs.
-  const engine = probeLog.createEngine(true);
+  const engine = probeLog.createEngine(true, probeSet.probeSet);
   type Bucket = ReturnType<typeof engine.open>;
   const buckets = new Map<string, Bucket>();
   const bucketFor = (journey: string): Bucket => {

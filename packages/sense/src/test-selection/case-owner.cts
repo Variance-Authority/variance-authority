@@ -84,13 +84,14 @@ const PROJECT = 6;
 const LIMIT = 7;
 
 /**
- * The case's slowest statement, as `<line> <milliseconds>`: the line in the
- * test file and the whole milliseconds it took. Absent where the file was not
- * cut or no statement took a millisecond, which is not a case that took none.
+ * The case's statement times, as `<line> <microseconds>` pairs one after
+ * another: every line of the test file the case cut at, in the order it first
+ * reached them, and the whole microseconds it held. Absent where the file was
+ * not cut, which is not a case that took no time.
  */
-const SLOWEST = 8;
+const TIMES = 8;
 
-interface Slowest {
+interface Time {
   readonly line: number;
   readonly time: number;
 }
@@ -117,22 +118,30 @@ function settledCase(packed: string, stopped: boolean): string {
   return withField(packed, SETTLED, stopped ? STOPPED : FINISHED);
 }
 
-function slowestCase(packed: string, slowest: Slowest): string {
-  return withField(packed, SLOWEST, `${slowest.line} ${slowest.time}`);
+function timesCase(packed: string, times: readonly Time[]): string {
+  return withField(packed, TIMES, times.map(({ line, time }) => `${line} ${time}`).join(' '));
 }
 
-function unpackCase(packed: string): { file: string; name: string; id: string; project?: string; limit?: number; slowest?: Slowest; stopped?: boolean } {
+function timesOf(field: string | undefined): Time[] | undefined {
+  if (field === undefined || field === '') return undefined;
+  const words = field.split(' ').map(Number);
+  const times: Time[] = [];
+  for (let at = 0; at + 1 < words.length; at += 2) times.push({ line: words[at]!, time: words[at + 1]! });
+  return times;
+}
+
+function unpackCase(packed: string): { file: string; name: string; id: string; project?: string; limit?: number; times?: Time[]; stopped?: boolean } {
   const parts = packed.split('\u0000');
   const project = parts[PROJECT];
   const limit = parts[LIMIT];
-  const [line, time] = (parts[SLOWEST] ?? '').split(' ').map(Number);
+  const times = timesOf(parts[TIMES]);
   const coordinate = {
     file: parts[0] ?? packed,
     name: parts[1] ?? AMBIENT,
     id: parts[2] ?? AMBIENT,
     ...(project === undefined || project === '' ? {} : { project }),
     ...(limit === undefined || limit === '' ? {} : { limit: Number(limit) }),
-    ...(line === undefined || time === undefined ? {} : { slowest: { line, time } }),
+    ...(times === undefined ? {} : { times }),
   };
   if (parts[SETTLED] === STOPPED) return { ...coordinate, stopped: true };
   if (parts[SETTLED] === FINISHED) return { ...coordinate, stopped: false };
@@ -155,4 +164,4 @@ function journeyOf(packed: string): string {
   return packed.split('\u0000')[JOURNEY] ?? '';
 }
 
-export = { packCase, settledCase, slowestCase, unpackCase, packJourney, journeyOf, packHeard, heardField };
+export = { packCase, settledCase, timesCase, unpackCase, packJourney, journeyOf, packHeard, heardField };

@@ -90,7 +90,9 @@ describe('React Compiler ahead of the probes', () => {
       ['Badge', 'if#0/else', 6, 6],
       ['Badge', 'if#0/after', 7, 8],
     ]);
-    const badge = code!.slice(code!.indexOf('function Badge('));
+    // Every module of the bundle declares `__va`, so the bundler may rename this
+    // one: the probe is the same whatever it is called.
+    const badge = code!.slice(code!.indexOf('function Badge(')).replace(/__va\$\d+\(/g, '__va(');
     // The compiler wrote its cache: the probes went in after it.
     expect(badge).toMatch(/const \$ = (?:\(0, )?(?:\w+\.)?c\)?\(\d+\);/);
     // Every region has a probe, each on the path that runs it: the branch's

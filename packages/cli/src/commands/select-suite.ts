@@ -56,9 +56,10 @@ export interface SuiteRequest {
    */
   readonly grain?: 'file' | 'case';
   /**
-   * A reading that cannot narrow falls to the changed files' importers, or
-   * their packages, instead of running every test file (`select-local.ts`).
-   * Asked by name: a gate never sets it.
+   * A local seam: a reading the record cannot answer runs only the changed
+   * files' importers, by the source index, and names the rest, instead of
+   * running every test file (`select-local.ts`). Asked by name: a gate never
+   * sets it.
    */
   readonly local?: boolean;
   /**
@@ -73,6 +74,12 @@ export interface SuiteRequest {
    * (`select-tested.ts`). Read only beside `since`.
    */
   readonly ranAt?: string;
+  /**
+   * A ceiling, in seconds of recorded test time, that the selection is cut to:
+   * the edit loop's, never a gate's (`select-budget.ts`). Without `atDistance`,
+   * only the changed files' own tests are taken.
+   */
+  readonly budget?: number;
 }
 
 function placingOf(span: TestSelection): NonNullable<SuiteSelection['placing']> {
@@ -99,7 +106,8 @@ export function suiteOf(input: SelectInput, atDistance: Leg | undefined, fell?: 
     ...(reading.only === undefined ? {} : { only: new Set(reading.only) }),
     // The waves the shard was told it runs read one selection, and place it as one.
     ...(atDistance?.placing === undefined ? {} : { placing: placingOf(inLeg(base, input, { ...atDistance.placing, partition: true })) }),
-    notes: reading.notes,
+    // A fallen reading prints no `declined`, so the seam says why the record could not narrow first.
+    notes: reading.fell === undefined ? reading.notes : [reading.because, ...reading.notes],
     reading,
   };
 }

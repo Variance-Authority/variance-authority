@@ -325,10 +325,11 @@ The persisted generation is an ordered chain of immutable segments behind one
 manifest. The manifest is the commit: a segment written without it is
 unreachable, and a manifest is published only after every segment it names
 exists. Each segment reference gives the segment's content digest and byte
-length, and a reader rejects the whole chain when any member is missing or does
-not hash to its name, so a cache left half-written by a killed process is
-rejected whole and the next run is cold. [The byte layout](source-index.md) is
-elsewhere.
+length. The writer computes the digest once, from the bytes it writes, and a
+reader checks only that each segment is there at that length: hashing every byte
+again was most of what opening the index cost. The chain ends at the first
+segment that is missing or of another length, and what follows it is read
+again. [The byte layout](source-index.md) is elsewhere.
 
 **Key.** Position in the chain. A segment has no key of its own beyond its
 digest-derived file name; its meaning is its place in the order.
@@ -351,10 +352,13 @@ committed state by deep structural equality, O(r) comparisons, and only the delt
 is encoded. Nothing is written when the shape is unchanged and every delta is
 empty.
 
-**Publish.** The segment is written under a scratch name, renamed into the segment
-directory, a scratch manifest written, and that renamed over the manifest path. A
-failure before the manifest rename unlinks the scratch files and leaves the
-previous manifest in place. Cost is O(size of the segment written).
+**Publish.** The segment is written under a scratch name, synced to disk, and
+renamed into the segment directory, which is synced in turn; then a scratch
+manifest is written, synced, and renamed over the manifest path. So the manifest
+never reaches the disk ahead of a segment it names, after a killed process or a
+power loss alike. A failure before the manifest rename unlinks the scratch files
+and leaves the previous manifest in place. Cost is O(size of the segment
+written), plus one flush to the disk per file.
 
 **Writers.** Every write takes an exclusive lock on a file beside the manifest,
 checks that the manifest is still the one the writer read, and publishes under

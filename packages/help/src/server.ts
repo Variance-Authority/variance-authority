@@ -2,9 +2,9 @@ import type { Readable, Writable } from 'node:stream';
 import { serve } from '@variance-authority/mcp';
 import type { Tree } from '@variance-authority/mcp/tools';
 import { readOfferings, type Help } from '@variance-authority/package/help';
-import { caughtUp, foundNothingAnswer, outlived } from './caught-up.js';
+import { caughtUp, foundNothingAnswer, madeBefore, outlived } from './caught-up.js';
 import { readWorkspaceForAnswer, type AnsweringOptions } from './read.js';
-import { workspaceGeneration } from './snapshot.js';
+import { readAgain, workspaceGeneration } from './snapshot.js';
 import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
 
 /**
@@ -12,9 +12,8 @@ import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
  *
  * The decision is when to produce another generation. Asking a question is a
  * read of the last value the producer published; it is not permission to ask
- * Git what changed or to rebuild that value. The ordinary server refreshes a
- * generation after one hour, while `justAnswer` keeps serving the recorded one
- * until another process deliberately replaces it. Every answer says when that
+ * Git what changed or to rebuild that value, and {@link readAgain} decides when
+ * the generation held is replaced: expired, or one newer was published. Every answer says when that
  * generation was produced, so freshness is evidence rather than hidden work,
  * and a `justAnswer` answer says it was not compared with the checkout. A
  * refusal from a reused generation, or an answer whose named files changed
@@ -97,20 +96,21 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     root,
     // `justAnswer` reads nothing but what was published, so its answer stands.
     ...(justAnswer ? {} : {
-      again: async (asked: string | undefined, refused: Help, started: number, input: Readonly<Record<string, unknown>>) => {
+      again: async (asked: string | undefined, subject: Help, started: number, input: Readonly<Record<string, unknown>>) => {
         return caughtUp(
-          workspaceGeneration(refused),
+          workspaceGeneration(subject),
           started,
-          root,
-          async (current) => (current ? readNow(0) : refused),
-          (read = refused) => outlived(asked, read, input, { root, ...(tree === undefined ? {} : { tree }) }, started, refused),
+          () => readNow(0),
+          (read = subject) => outlived(asked, read, input, { root, ...(tree === undefined ? {} : { tree }) }, started, subject),
         );
       },
       outlived: (asked: string | undefined, input: Readonly<Record<string, unknown>>, subject: Help, started: number) =>
         outlived(asked, subject, input, { root, ...(tree === undefined ? {} : { tree }) }, started),
     }),
-    // A name nothing declares is the answer once it has been read again, said as `variance ask` says it.
-    answered: (thrown: unknown, subject: Help, again) => foundNothingAnswer(thrown, again, workspaceGeneration(subject), justAnswer),
+    // A name nothing declares is the answer, said as `variance ask` says it: from
+    // the generation it was refused from, which says when it was made before the
+    // call and so not compared with the checkout. Keeping it fresh is `variance index`'s job.
+    answered: (thrown: unknown, subject: Help, again, started) => foundNothingAnswer(thrown, again, workspaceGeneration(subject), justAnswer || (again === undefined && madeBefore(workspaceGeneration(subject), started))),
     // No question here compares one call with the last, and a copy of the whole
     // reading, held beside the one a changed file asks for, is what ran a large
     // checkout's server out of heap.
@@ -118,9 +118,7 @@ export function serveWorkspace(root: string, options: WorkspaceOptions = {}): ()
     subject: async (asked) => {
       if (asked === containment.name) return NOTHING_READ;
       try {
-        const at = cached === undefined ? undefined : workspaceGeneration(cached);
-        const stale = at === undefined || Date.now() - Date.parse(at) > refreshAfterMs;
-        if (cached === undefined || (!justAnswer && stale)) cached = await readNow(refreshAfterMs);
+        if (cached === undefined || await readAgain(cached, root, { ...(reading.index === undefined ? {} : { index: reading.index }), justAnswer, refreshAfterMs })) cached = await readNow(refreshAfterMs);
       } catch (failure) {
         // A workspace mid-edit — a manifest saved half-written, a file being
         // rewritten — must not take the server down. The previous reading is

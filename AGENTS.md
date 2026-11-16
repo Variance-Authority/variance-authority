@@ -119,6 +119,10 @@ A word the asker uses for a mechanism is looked up here first. The industry's
 equivalent names something not built here, and its answer differs from the
 code's.
 
+Name the code before you open it, and account in the change for every use of
+a name you change: the `variance-authority` skill's "Rules every answer
+shares" says how.
+
 A subagent you dispatch works from its prompt. Put this rule in the prompt of
 every subagent you send to search code, and the order in
 [change](.agents/references/change.md) in the prompt of every subagent you send
@@ -220,9 +224,17 @@ Look around:
   [positions](.agents/references/positions.md).
 
 After each edit, run `yarn test:loop` and read its verdict before the next
-edit: lint, the compiler, then the unit tests within one import of what
-changed. An edit that keeps no test says so in its `selected none of` line:
-nothing near it failed, and no test ran. A red is fixed before any other edit.
+edit: lint, the compiler, then the changed files' own tests, as many as fit in
+15 s of recorded test time, and the names of those it left for CI. Widening is
+a decision: `VARIANCE_AUTHORITY_AT_DISTANCE=0-` takes the importers too,
+nearest first, under the same budget. An edit that keeps no test says so in its
+`selected none of` line: nothing near it failed, and no test ran. A red is
+fixed before any other edit.
+
+An edit in another realm — Rust, the crate's manifests, its build scripts — does
+not run `test:loop` at all: no unit test covers it, and the loop would charge
+every test that loads the addon. Run `cargo test` in the crate, and leave the
+TypeScript side to CI.
 
 What the task needs, and a defect in its own diff, are fixed on its branch
 before it merges; a finding it neither needs nor wrote goes on its own branch,
@@ -244,7 +256,7 @@ Verify in waves, nearest first. Each wave starts only when the one before it is
 green, and a red wave sends you back to the edit, then to wave 1:
 
 ```bash
-yarn verify:near    # 1. lint, types, tests within two imports — repeat freely
+yarn verify:near    # 1. lint, types, tests within two imports, 60 s across the slices — repeat freely
 yarn verify:rules   # 2. the repository checks, once near is green
 ```
 
@@ -313,8 +325,10 @@ Look around:
 - What Codex finds on the open PR: `yarn review:codex <n>`, a reader from another
   model family that knows nothing but the PR. A run that could not happen is
   named, not waited for.
-- The coverage and "What this change might do" comments CI posts. Do they
-  describe the change you meant to make?
+- The "Test evidence" comment CI posts, acted on mark by mark as
+  [the skill](packages/cli/skills/variance-testing/SKILL.md#the-pull-requests-review-act-on-every-mark)
+  says. Code the change wrote that no case ran gets a test or is deleted: that
+  the change meant it never to run is the case for deleting it.
 
 ### 7. Correct
 

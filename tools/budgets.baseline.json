@@ -222,12 +222,6 @@
   "docs/selecting.md lead": [
     88
   ],
-  "docs/selection-tanstack-query.md lead": [
-    27
-  ],
-  "docs/selection-zod.md lead": [
-    27
-  ],
   "docs/sensitivity.md lead": [
     23
   ],
@@ -430,7 +424,7 @@
     14
   ],
   "packages/cli/src/commands/ask.ts block": [
-    7
+    6
   ],
   "packages/cli/src/commands/ask.ts overview": [
     47
@@ -752,12 +746,6 @@
   ],
   "packages/cli/src/commands/step-progress.ts docblock": [
     13
-  ],
-  "packages/sense/src/story/levels.ts overview": [
-    20
-  ],
-  "packages/sense/src/story/tree.ts overview": [
-    19
   ],
   "packages/cli/src/commands/suite-base.ts docblock": [
     14
@@ -1415,9 +1403,6 @@
   "packages/help/src/index.ts overview": [
     22
   ],
-  "packages/help/src/indexed-surface.ts block": [
-    11
-  ],
   "packages/help/src/read.ts block": [
     6
   ],
@@ -1435,7 +1420,7 @@
     17
   ],
   "packages/help/src/search-read.ts docblock": [
-    15
+    14
   ],
   "packages/help/src/server.ts block": [
     14
@@ -1565,7 +1550,6 @@
     22
   ],
   "packages/mcp/src/server.ts docblock": [
-    12,
     11
   ],
   "packages/mcp/src/tools.ts docblock": [
@@ -2458,11 +2442,11 @@
     16
   ],
   "packages/sense/src/instrument/index.ts docblock": [
-    28,
+    27,
     12
   ],
   "packages/sense/src/instrument/index.ts overview": [
-    109
+    108
   ],
   "packages/sense/src/instrument/probe-log.cts block": [
     8
@@ -2575,8 +2559,14 @@
   "packages/sense/src/story/format.cts overview": [
     39
   ],
+  "packages/sense/src/story/levels.ts overview": [
+    20
+  ],
   "packages/sense/src/story/read.ts overview": [
     30
+  ],
+  "packages/sense/src/story/tree.ts overview": [
+    19
   ],
   "packages/sense/src/style.ts docblock": [
     12
@@ -2621,7 +2611,6 @@
     11
   ],
   "packages/sense/src/test-selection/carried-rows.ts docblock": [
-    41,
     18
   ],
   "packages/sense/src/test-selection/carried-sources.ts block": [
@@ -2629,12 +2618,6 @@
   ],
   "packages/sense/src/test-selection/carried-sources.ts docblock": [
     19
-  ],
-  "packages/sense/src/test-selection/case-cuts.ts block": [
-    6
-  ],
-  "packages/sense/src/test-selection/case-cuts.ts overview": [
-    18
   ],
   "packages/sense/src/test-selection/case-fold.ts docblock": [
     23
@@ -2646,8 +2629,7 @@
     26
   ],
   "packages/sense/src/test-selection/case-layer.ts docblock": [
-    30,
-    11
+    12
   ],
   "packages/sense/src/test-selection/case-lines.ts overview": [
     23
@@ -3018,13 +3000,6 @@
   ],
   "packages/sense/src/test-selection/recorded-text.ts overview": [
     48
-  ],
-  "packages/sense/src/test-selection/region-landing.ts block": [
-    13,
-    6
-  ],
-  "packages/sense/src/test-selection/region-landing.ts docblock": [
-    14
   ],
   "packages/sense/src/test-selection/reporter-hooks.integration.test.ts block": [
     6
@@ -3913,9 +3888,6 @@
   ],
   "tools/native-packages.check.ts overview": [
     19
-  ],
-  "tools/native-sources.mjs docblock": [
-    18
   ],
   "tools/package-links.check.ts block": [
     8

@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 import { casesCutApart } from './case-index-cut.js';
 import { encodeTestCoverage } from './format.js';
 import type { TestCoverage } from './index.js';
@@ -85,5 +85,31 @@ describe('a case index read beside the snapshot it was recorded with', () => {
 
   it('reads nothing when it is asked of no module', () => {
     expect(casesCutApart(join(dir, 'absent.bin'), []).size).toBe(0);
+  });
+});
+
+describe('a case index read beside its snapshot without the native addon', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'case-index-cut-'));
+  const record = join(dir, 'coverage.bin');
+  writeFileSync(record, encodeTestCoverage({
+    version: 3,
+    instrumentation: 'fixture',
+    commit: 'a'.repeat(40),
+    tests: [{ file: 'test/total.test.ts', complete: true, preconditions: [] }],
+    modules: [module('src/moved.ts', LEAD)],
+  }));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  afterEach(() => {
+    vi.doUnmock('../addon.js');
+    vi.resetModules();
+  });
+
+  it('refuses to compare the cuts, naming why the addon did not load', async () => {
+    vi.resetModules();
+    vi.doMock('../addon.js', () => ({ native: () => undefined, nativeRefusal: () => '@variance-authority/sense-linux-x64-gnu is not installed' }));
+    const { casesCutApart: apart } = await import('./case-index-cut.js');
+
+    expect(() => apart(record, [indexed('src/moved.ts', BASE)]))
+      .toThrow('comparing the case index with its snapshot requires the Sense native addon: @variance-authority/sense-linux-x64-gnu is not installed');
   });
 });

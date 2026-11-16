@@ -1,5 +1,6 @@
 import type { Served, Tool } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { asOneQuestion } from '@variance-authority/sense';
 import { snapshotLine } from './caught-up.js';
 import { operatorError } from './operator.js';
 import { workspaceGeneration } from './snapshot.js';
@@ -25,7 +26,8 @@ import { uses } from './tools/uses.js';
  * `tool`, its answer dated by the workspace generation it was read from. With
  * `unseen`, that generation was never compared with the checkout: the date says
  * so, and a refusal adds that the name may only be newer than it. An invocation's
- * `unseen` is the reason a host has for this one call.
+ * `unseen` is the reason a host has for this one call. Each answer is one
+ * question to the source index, which it opens once however many readers ask it.
  */
 function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
   return {
@@ -35,7 +37,7 @@ function dated(tool: Tool<Help>, unseen: boolean): Tool<Help> {
       const caveat = invocation?.unseen ?? unseen;
       let answer: string;
       try {
-        answer = tool.run(subject, input, invocation);
+        answer = asOneQuestion(() => tool.run(subject, input, invocation));
       } catch (refusal) {
         // A name refused by a generation nothing compared with the checkout
         // may only be newer than it, and the refusal says so. A name found
@@ -142,7 +144,8 @@ export { containment, discover, entrypoint, gaps, grep, intersection, journeyMap
 export { containmentOf, formatContainment, type Containment } from './tools/containment.js';
 export { namesWanted } from './tools/intersection.js';
 export { formatOrientation, type OrientReading } from './tools/orient-format.js';
-export { answerSearch, searchIndexOf, searchQuestionOf } from './tools/search.js';
+export { answerSearch, searchQuestionOf } from './tools/search.js';
+export { searchIndexOf } from './snapshot.js';
 export type {
   ExportedMatch,
   Matches,

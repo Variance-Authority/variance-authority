@@ -19,7 +19,6 @@
 // compass: variance-authority.report.agent-surface
 
 import { aliasesOf, declaredOf, type DeclaredName } from '@variance-authority/sense';
-import { docOf, headOf } from '../indexed-surface.js';
 import type { Said } from './held-sentence.js';
 import type { AliasMatch, DeclaredMatch, DeclaredRead, HeldMatch, Matches } from './search-matches.js';
 import { boundOf, SLOT } from './declaration-key.js';
@@ -27,7 +26,6 @@ import { isUnnamedContainer } from './members.js';
 import { sharedSegments } from './shared-segments.js';
 import type { Spelling } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { saidAt, textAsRead } from './as-read.js';
 import { askedOnce } from './asked-once.js';
 import { grep } from './grep.js';
 
@@ -77,33 +75,24 @@ export const declarationsNamed = askedOnce((_help: Help, root: string | undefine
 
 /**
  * One declaration, as `symbol` writes it: the name and its kind, where it is
- * declared, its signature and its documentation as the checkout holds them,
- * and who can reach it. The signature and the documentation are left out of a
- * file written since `help` was read, as {@link textRows} says.
+ * declared, its signature and its documentation as the index recorded them,
+ * and who can reach it.
  */
-function declaredBlock(help: Help, root: string, held: DeclaredName, spell: Spelling): string {
+function declaredBlock(held: DeclaredName, spell: Spelling): string {
   return [
     `${held.name} [${held.kind}]`,
     `declared, not exported, at ${held.at}:${held.line}${held.by === '' ? '' : ` by ${held.by}`}`,
-    ...textRows(help, root, held),
+    ...textRows(held),
     reachSentences(held, spell).block,
   ].join('\n');
 }
 
-/** Where a declaration is, and the spans of its signature and documentation. */
-type Spanned = Pick<DeclaredName, 'at' | 'signatureStart' | 'signatureEnd' | 'docStart' | 'docEnd'>;
-
 /**
- * A declaration's signature and documentation, as the checkout holds them;
- * neither when the file is gone or was written since `help` was read, since the
- * spans are of the text that read saw.
+ * A declaration's signature and documentation, as the index recorded them from
+ * the text its read saw; either is left out when the index kept none.
  */
-export function textRows(help: Help, root: string, held: Spanned): readonly string[] {
-  const text = textAsRead(help, root, held.at);
-  if (text === undefined) return [];
-  const signature = headOf(text, spanOf(held.signatureStart, held.signatureEnd));
-  const doc = docOf(text, spanOf(held.docStart, held.docEnd));
-  return [...(signature === undefined ? [] : [signature]), ...(doc === undefined ? [] : [doc])];
+export function textRows(held: { readonly signature?: string | null; readonly doc?: string | null }): readonly string[] {
+  return [held.signature, held.doc].filter((text): text is string => text !== undefined && text !== null);
 }
 
 /**
@@ -177,7 +166,7 @@ export function importLine(alias: Pick<AliasMatch, 'at' | 'line' | 'imported' | 
   return `${alias.at}:${alias.line} imports \`${named}\`${named === alias.imported ? '' : ` (its \`${alias.imported}\`)`} as \`${local}\` from '${alias.specifier}'${alias.type ? ' (type only)' : ''}`;
 }
 
-/** How many files `unreadLine` and `unresolvedLine` name before they count the rest. */
+/** How many files `unreadLine` names before it counts the rest. */
 const UNREAD_NAMED = 3;
 
 /** The first files of `files`, then how many more there are. */
@@ -195,23 +184,6 @@ export function unreadLine(unread: readonly string[]): readonly string[] {
   if (unread.length === 0) return [];
   const files = unread.length === 1 ? '1 file' : `${unread.length} files`;
   return [`The declarations of ${files} were not read into the source index, so a name declared there is not known: ${firstNamed(unread)}.`];
-}
-
-/**
- * The sentence that names the files with an import the source index resolved
- * to no file and that could take `name`, so a use there is not listed, or
- * nothing when there is none.
- */
-export function unresolvedLine(name: string, unresolved: readonly string[]): readonly string[] {
-  if (unresolved.length === 0) return [];
-  const one = unresolved.length === 1;
-  return [
-    `${one ? '1 file imports' : `${unresolved.length} files import`} a specifier the index could not resolve to a file, and ${one ? 'it' : 'each'} could take \`${name}\`, so a use there is not listed: ${firstNamed(unresolved)}.`,
-  ];
-}
-
-function spanOf(start: number | null | undefined, end: number | null | undefined) {
-  return start === undefined || start === null || end === undefined || end === null ? undefined : { start, end };
 }
 
 /**
@@ -238,7 +210,7 @@ export function declaredBlocks(
   );
   if (held.length === 0) return { blocks: [] };
   const blocks = [
-    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(help, root, one, spell)),
+    ...held.slice(0, DECLARED_CAP).map((one) => declaredBlock(one, spell)),
     ...notShown(held.length, 'declaration', name),
     ...unreadLine(read.unread),
   ];
@@ -361,13 +333,13 @@ export const declaredMatch = (one: DeclaredName): DeclaredRead => ({
   ...(one.by === '' ? {} : { package: one.by }),
   at: one.at,
   line: one.line,
-  ...(one.docStart == null || one.docEnd == null ? {} : { doc: { start: one.docStart, end: one.docEnd } }),
+  ...(one.doc === undefined || one.doc === null ? {} : { doc: one.doc }),
 });
 
-/** A declaration a row prints: what `said` makes of its doc, read from the checkout; nothing when the file is gone or was written after the read at `since`. */
-export function declaredTold(root: string | undefined, said: Said, since: number | undefined): (one: DeclaredRead) => DeclaredMatch {
-  return ({ doc: span, ...match }) => {
-    const summary = saidAt(root, match.at, span, since, said);
+/** A declaration a row prints: what `said` makes of the doc the index recorded; nothing when it recorded none. */
+export function declaredTold(said: Said): (one: DeclaredRead) => DeclaredMatch {
+  return ({ doc, ...match }) => {
+    const summary = doc === undefined ? undefined : said(doc);
     return summary === undefined ? match : { ...match, summary };
   };
 }

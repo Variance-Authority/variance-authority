@@ -1,6 +1,5 @@
 import type { ModuleId } from '../instrument/index.js';
 import { CrossingSets, type SetId } from './crossing-sets.js';
-import journalFormat from './journal-format.cjs';
 
 /**
  * The crossings of a whole run, folded out of its journals without the run ever
@@ -225,9 +224,4 @@ function intern(
     }
   }
   return sets.intern(scratch.subarray(0, held));
-}
-
-/** Read one frame into a visitor without it becoming rows. */
-export function scanJournal(raw: Uint8Array, visit: JournalVisitor): void {
-  journalFormat.scanJournal(raw, visit);
 }

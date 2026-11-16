@@ -184,6 +184,35 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     ]);
   }, 120_000);
 
+  it('notes what a statement changed on the page on its line, and nothing for one that read it or for a hook', async () => {
+    const { byName } = await storiesWritten();
+    const story = byName.get('changes the page it chose on')!;
+
+    expect(story.stopped).toBe(false);
+    expect(await toldIn('changes.spec.ts', story)).toEqual([
+      'test line opens',
+      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'test line adds',
+      'page +1 −0 nodes, 0 attributes, 0 text',
+      // The line that read the page did nothing a story tells, so it is not told.
+      'test line adds again',
+    ]);
+  }, 120_000);
+
+  it('notes nothing for a cleanup declared in another file, and what the line before it changed', async () => {
+    const { byName } = await storiesWritten();
+    const story = byName.get('changes the page before a cleanup declared in another file')!;
+
+    expect(story.stopped).toBe(false);
+    expect(await toldIn('changes-imported.spec.ts', story)).toEqual([
+      'test line opens',
+      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'test line adds',
+      // The cleanup's own click is no line of the spec's.
+      'page +1 −0 nodes, 0 attributes, 0 text',
+    ]);
+  }, 120_000);
+
   it('records what a replaced document entered at the statement that replaced it', async () => {
     const { directory } = await storiesWritten();
     const cases = (await caseIndexOf(resolve(directory, 'coverage.bin')))!;

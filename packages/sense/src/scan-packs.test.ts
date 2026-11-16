@@ -10,10 +10,13 @@ import { scanRelations } from './scan.js';
 /**
  * `packs: false` changes where bytes are read from, and nothing else.
  *
- * A hundred and sixty files, because that is the wave the native reader starts
- * `git cat-file` for; below it every read is a disk read either way, and the
- * assertion that no object store was opened would hold for any setting.
+ * A hundred and sixty files, because that is the wave the native reader opens
+ * Git's object store for; below it every read is a disk read either way, and
+ * the assertion that no object store was opened would hold for any setting.
  */
+
+/** The files a scan reads before it opens the object store: `STORE_CROSSOVER` in `git_store.rs`. */
+const CROSSOVER = 3_000;
 
 describe.runIf(nativeAvailable())('reading from the working tree instead of the object store', () => {
   let root: string;
@@ -22,14 +25,16 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
   beforeAll(() => {
     root = mkdtempSync(join(tmpdir(), 'sense-packs-'));
     cache = mkdtempSync(join(tmpdir(), 'sense-packs-index-'));
-    for (let index = 0; index < 160; index += 1) {
-      const next = index === 159 ? '' : `import { value${index + 1} } from './${index + 1}.js';\n`;
+    for (let index = 0; index < CROSSOVER; index += 1) {
+      const next = index === CROSSOVER - 1 ? '' : `import { value${index + 1} } from './${index + 1}.js';\n`;
       writeFileSync(join(root, `${index}.ts`), `${next}export const value${index} = ${index};\n`);
     }
     git('init', '--quiet');
+    // Three thousand loose objects start a detached `git maintenance` that outlives the test.
+    git('config', 'maintenance.auto', 'false');
     git('add', '.');
     git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'source');
-  });
+  }, 30_000);
 
   afterAll(() => {
     vi.unstubAllEnvs();
@@ -58,8 +63,13 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
     }
   }
 
+  /**
+   * The store is read in-process; opening it for a file's bytes asks Git where
+   * it lies and its object format. The listing walks HEAD's trees either way,
+   * as `ls-tree` did, and asks for the tree as it does.
+   */
   const opensObjects = (commands: string[][]): boolean =>
-    commands.some((argv) => argv.includes('cat-file'));
+    commands.some((argv) => argv.includes('--show-object-format') && !argv.includes('HEAD^{tree}'));
 
   it('reads the same records without opening the object store, and still asks Git what the files are', async () => {
     const packed = await traced('packed', () => scanRelations({ root, dirs: ['.'] }));
@@ -74,8 +84,8 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
   it('publishes an index that the next update builds on', async () => {
     const index = join(cache, 'disk', 'source-index.bin');
     expect(await updateSourceIndex(root, { index, packs: false }))
-      .toMatchObject({ was: 'missing', files: 160, reread: 160 });
+      .toMatchObject({ was: 'missing', files: CROSSOVER, reread: CROSSOVER });
     expect(await updateSourceIndex(root, { index, packs: false }))
-      .toMatchObject({ was: 'published', files: 160, reread: 0 });
+      .toMatchObject({ was: 'published', files: CROSSOVER, reread: 0 });
   });
 });

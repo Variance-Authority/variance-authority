@@ -164,6 +164,9 @@ interface Statement {
   readonly hook: boolean;
 }
 
+/** The statement after a drain that closes the page watch: one no test line is on. */
+const CLOSES: Statement = { line: 0, hook: true };
+
 /** A context this test adopted. */
 interface Adopted {
   readonly watch: Watch;
@@ -214,12 +217,12 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     recorder.cut?.(owner, subject, statement.line, statement.hook);
   };
   const framesOf = (context: BrowserContext): Frame[] => context.pages().flatMap((page) => page.frames());
-  /** Drain `frames` under `statement`; resolves to whether every one was read. */
-  const drain = async (frames: readonly Frame[], statement: Statement | undefined): Promise<boolean> => {
+  /** Drain `frames` under `statement`, before `next`; resolves to whether every one was read. */
+  const drain = async (frames: readonly Frame[], statement: Statement | undefined, next?: Statement): Promise<boolean> => {
     let read = true;
     for (const frame of frames) {
       try {
-        carried.set(frame, (carried.get(frame) ?? 0) + (await recorder.note(frame, owner, subject, lineOf(statement), statement?.hook)));
+        carried.set(frame, (carried.get(frame) ?? 0) + (await recorder.note(frame, owner, subject, lineOf(statement), statement?.hook, next !== undefined && !next.hook)));
       } catch {
         // A frame detached between listing and draining, or a document torn
         // down mid-evaluation: its window is gone, which is the same fact as
@@ -238,12 +241,16 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     const theirs = outer?.(line, file, hook);
     // Once a drain was late no statement records its line, so none waits on
     // the held drain again: the teardown drain reads what they reached.
-    if (file !== testInfo.file || late) return theirs;
+    if (late) return theirs;
+    // A hook or a helper declared in another file is no line of this spec's:
+    // what the line before it changed is said, and what it changes is not.
+    const ours = file === testInfo.file;
     const reached = last;
-    last = { line, hook };
+    const next = ours ? { line, hook } : CLOSES;
+    if (ours) last = next;
     draining = draining.then(async () => {
       open(reached);
-      for (const context of await unsettled()) await drain(framesOf(context), reached);
+      for (const context of await unsettled()) await drain(framesOf(context), reached, next);
     });
     const waited = settlesInTime(draining).then((inTime) => {
       if (!inTime) late = true;

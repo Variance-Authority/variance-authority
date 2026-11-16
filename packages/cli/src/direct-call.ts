@@ -86,6 +86,6 @@ function sameFile(a: string, b: string): boolean {
 }
 
 /** An argument as a POSIX shell reads it back: bare when it is safe, single-quoted otherwise. */
-function quoted(arg: string): string {
+export function quoted(arg: string): string {
   return /^[\w@%+=:,./-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", `'\\''`)}'`;
 }

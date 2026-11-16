@@ -31,6 +31,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
 use crate::batch::{is_module, walk_beyond, GraphOptions, Walked};
+use crate::chain_lookup::{fold, At};
 use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Generation};
@@ -39,7 +40,7 @@ use crate::index::way;
 use crate::index_chain::read_chain;
 use crate::log::{written, LogSegment, Over};
 use crate::order::code_unit;
-use crate::package_graph::{fold, names_object, At};
+use crate::package_graph::names_object;
 use crate::parse_store::{self, Parse, Stores};
 use crate::read::Read;
 use crate::record::{built, Indexed, Settling};
@@ -94,6 +95,8 @@ pub(crate) struct Tree<'t> {
     pub unhashed: &'t [String],
     /// Told of each tracked file read, and asked which parses may be shared.
     pub from_blob: &'t crate::parse_origin::FromBlob,
+    /// The object store every round's walk reads from.
+    pub store: &'t crate::acquire::TreeObjects,
     /// What makes this tree carried by the segment the update writes, when a watch covers it.
     #[cfg(unix)]
     pub carry: Option<crate::held_listing::Meta>,
@@ -297,6 +300,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             &|file| valid.contains_key(file) || walked.contains_key(file),
             &kept,
             tree.from_blob,
+            tree.store,
         );
         let settling = Settling { builtins, code, remembering: true, directories: dirs, aliases: aliases.as_ref() };
         let before = walked.len();

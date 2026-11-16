@@ -172,35 +172,14 @@ describe('variance ask search counts the places that import a published name as 
     expect(out.split('\n').filter((line) => / · toneQuiet \[/u.test(line))).toEqual(['@acme/lib · toneQuiet [const] no other package imports it by its published path — UNDOCUMENTED']);
   });
 
-  it('reads no value for a question whose rows include no published name', async () => {
-    const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    // A value read at all says it did not open; a question that counts no row never reads it.
-    writeFileSync(workspaceSnapshotPath(sourceIndexPath(root)), 'not a value');
-
-    const { code, out } = await run(['ask', 'search', '--query', 'stamp']);
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out).toMatch(/^stamp /mu);
-    expect(out).not.toMatch(/did not open/u);
-  });
-
-  it('says the value did not open when it counts by published path instead', async () => {
+  it('says the published store did not open, and counts from the checkout it read instead', async () => {
     const root = checkout(FIVE_WITHIN);
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    writeFileSync(workspaceSnapshotPath(sourceIndexPath(root)), 'not a value');
+    writeFileSync(workspaceSnapshotPath(sourceIndexPath(root)), 'not a store');
 
     const { code, out } = await run(['ask', 'search', '--query', 'greet']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(greetRows(out)).toEqual(['@acme/lib · greet [function] 1 import by published path from 1 other package — UNDOCUMENTED']);
-    expect(out).toMatch(/^The published value at .* did not open \(.*\); the published search, with the counts it carries, was read instead\.$/mu);
-  });
-
-  it('says no other package imports a name by its published path when that count is zero', async () => {
-    const root = checkout({ ...FIVE_WITHIN, 'apps/app/src/hello.ts': 'export const hello = 1;\n' });
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    writeFileSync(workspaceSnapshotPath(sourceIndexPath(root)), 'not a value');
-
-    const { out } = await run(['ask', 'search', '--query', 'greet']);
-    expect(greetRows(out)).toEqual(['@acme/lib · greet [function] no other package imports it by its published path — UNDOCUMENTED']);
+    expect(greetRows(out)).toEqual(['@acme/lib · greet [function] imported in 6 places in 2 packages — UNDOCUMENTED']);
+    expect(out).toMatch(/^The published value at .* did not open \(.*\); the checkout was read instead\.$/mu);
   });
 });

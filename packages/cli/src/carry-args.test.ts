@@ -24,6 +24,24 @@ describe('the arguments', () => {
     expect(() => parse('keep', 'here', '--as-base')).toThrow('`--as-base` belongs to `carry take`, not `carry keep`');
   });
 
+  it('read the transform cache a restore is asked for, and the shard it is keyed by, only for a restore', () => {
+    const parse = (...argv: string[]) => parseCarryArgs(readFlags(argv, 'carry', ['--config', '--format', '--transform', '--shard']));
+
+    expect(parse('restore', '--transform', 'jest', '--shard', '2/3')).toEqual({
+      command: 'carry',
+      direction: 'restore',
+      transform: 'jest',
+      shard: { index: 2, total: 3 },
+      format: 'text',
+    });
+    expect(parse('restore', '--transform', 'jest')).toEqual({ command: 'carry', direction: 'restore', transform: 'jest', format: 'text' });
+    expect(() => parse('restore', '--transform', 'vitest')).toThrow('`--transform vitest`: only `jest` keeps a transform cache carry restores');
+    expect(() => parse('restore', '--shard', '2/3')).toThrow('`--shard` keys a transform cache, and no `--transform` is asked');
+    expect(() => parse('restore', '--transform', 'jest', '--shard', '4/3')).toThrow('`--shard 4/3` names no shard');
+    expect(() => parse('save', '--transform', 'jest')).toThrow('`--transform` belongs to `carry restore`, not `carry save`');
+    expect(() => parse('save', '--shard', '1/3')).toThrow('`--shard` belongs to `carry restore`, not `carry save`');
+  });
+
   it('name the directory the host moves between a run\'s jobs', () => {
     const parse = (...argv: string[]) => parseCarryArgs(readFlags(argv, 'carry', ['--config', '--format']));
 

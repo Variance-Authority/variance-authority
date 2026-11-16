@@ -1,36 +1,29 @@
 # TanStack Query: 78% fewer test file runs than Nx
 
-[TanStack Query](https://github.com/TanStack/query) is 27 packages, so a
-package-grain selector already has a useful answer: change
-`query-core` and it runs the 24 packages that depend on it. That is the correct
-answer to the question a graph answers, and it is 168 of the 188 test files. Run
-the suite once through [Variance Authority](README.md) and the record answers
-the question you wanted asked — which tests covered the lines you changed —
-with 9.
+[TanStack Query](https://github.com/TanStack/query) is 27 packages. Change
+`query-core` and a package graph correctly runs the 24 packages that depend on
+it: 168 of the 188 test files. Run the suite once through
+[Variance Authority](README.md) and the record answers the question you wanted
+asked, which tests covered the lines you changed, with 9.
 
 > **TLDR**
 >
-> - Over the sixty commits before it landed, each checked against a record made
->   at its parent commit, `nx affected` selects 3,464 test file runs of 11,280.
->   The record selects **775, 78% fewer than Nx**.
-> - The walk from what the edit changed selects **441**, and the file graph
->   1,470. The record selects more than the walk on commits that change a
->   manifest the Vite configuration reads, and one file more on every commit.
-> - Change one line in `query-core` and the record selects **9 test files**,
->   where `nx affected` selects 168. A coarser
->   [precision](selecting.md#how-precisely-a-suite-selects) runs 83, then 149:
->   the import graph adds nothing to what coverage already says.
-> - What limits `file-use` here is `query-core`'s index, which loads every
->   module it re-exports: an edit to `hydration.ts` runs 149 test files, and
->   21 of them call a function in it.
-> - One commit of setup, and recording costs **1.08×** a suite run.
+> - Over sixty commits, each against a record made at its parent, `nx affected`
+>   selects 3,464 test file runs of 11,280. The record selects **775, 78% fewer
+>   than Nx**.
+> - One line in `query-core` selects **9 test files**, where `nx affected`
+>   selects 168.
+> - Recording costs nothing measurable inside the tests, where classic coverage
+>   adds **37%**. The whole run takes **1.05×** to **1.16×**, by precision,
+>   against **1.34×**.
+
+## The whole suite, once
 
 Nothing in the repository was written with this in mind and no test was changed
 to accommodate it. One commit adds the instrumentation; the
 [fork](https://github.com/Variance-Authority/tanstack-query-example) carries
-it, along with the write-up and the scripts every figure below came from.
-
-## The whole suite, once
+it, along with the write-up and the scripts the selection figures below came
+from.
 
 | | |
 | --- | --- |
@@ -47,15 +40,23 @@ separate runs cannot see it.
 
 ## What the recording run cost
 
-| | median of five |
-|---|---|
-| the suite as it ships | 11.78 s |
-| recording | 12.77 s — **1.08×** |
-| `vitest --coverage`, V8 provider | 15.25 s — **1.29×** |
+| median of five | time in tests | writing the record | transform, all workers | the whole run |
+|---|---|---|---|---|
+| the suite as it ships | 28.15 s | — | 36.8 s | 12.47 s |
+| recording, `loads` | −2% | +0.18 s | +3.0 s | **1.05×** |
+| recording, `entries` | +2% | +0.44 s | +11.6 s | **1.15×** |
+| recording, `presence` (the default) | +2% | +0.55 s | +11.9 s | **1.16×** |
+| classic coverage, `vitest --coverage` with V8 | **+37%** | +0.03 s | +2.5 s | **1.34×** |
 
-Same pass and fail counts in all three — the 22 that fail in the upstream
-repository fail in each — with the Vite cache and the record cache cleared
-between runs. This suite runs in jsdom, so a worker holds 193 scripts against
+Inside the tests, recording costs nothing measurable at any precision: the plain
+suite's own time in tests moves 8% from round to round. What a mode adds to the
+run is the transform that places its probes and the record it writes once the
+last test reports. Classic coverage pays inside the tests instead. Every arm
+keeps its own caches warm, two warm-up rounds and then five measured with the
+order alternating; the
+[method](selecting.md#what-recording-costs-while-the-suite-runs) is shared with
+Zod. Same pass and fail counts in every row — the 22 that fail in the upstream
+repository fail in each. This suite runs in jsdom, so a worker holds 193 scripts against
 Zod's 52. A probe is paid for by the test that reaches it and does not notice;
 the engine's counters are read rather than fired, and a read answers with the
 whole isolate. Read as often as a selector needs them — after every test, not

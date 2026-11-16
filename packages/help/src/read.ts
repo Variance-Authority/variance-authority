@@ -12,9 +12,9 @@
  * done. [`sense`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/sense) keeps a durable, content-keyed index of exactly
  * these bytes: git names each file's content without opening it, the digest
  * names what parsing that content produced, and a scan of an unchanged tree
- * costs a map lookup per file. What was missing was not a cache but a door —
- * `ScanOptions.parsed` hands each file's parse out as the scan settles it, so a
- * second reading of the same bytes joins the first instead of repeating it.
+ * costs a map lookup per file. So a read here scans to bring the index up to
+ * date, saves it, and reads the value off the saved index in the addon, as
+ * `variance index` does: one producer, and no parse row handed to JavaScript.
  *
  * ## Two readings, one index
  *
@@ -31,43 +31,29 @@
  * already said what the file imports also says what it exports.
  */
 
-import { relative, resolve } from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
-import { treeAtWorkspace, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
+import { resolve } from 'node:path';
+import { encodeSourceTree, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import {
   openSourceIndex,
   placesOf,
-  forwardsDigest,
   scanRelations,
   sourceIndexPath,
   stepped,
-  type ParseCache,
   type Progress,
 } from '@variance-authority/sense';
-import { taintRecords, type Taint } from '@variance-authority/sense/taint';
+import { mockTaint, taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
-  assembleHelp,
-  everyEntry,
-  ownership,
-  passedOn,
-  reachedFrom,
   readWorkspaceManifests,
   type Help,
   type HelpOptions,
-  type ImportTargets,
-  type Offering,
-  type Usage,
-  type WorkspaceManifests,
 } from '@variance-authority/package/help';
-import { collectingUsage } from './collect-usage.js';
-import { indexedNames, type IndexedSource } from './indexed-surface.js';
 import { operatorError } from './operator.js';
-import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
+import { publishHelp } from './refresh-native.js';
+import { scanScope, scopeSourceIndexPath } from './scan-scope.js';
 import {
+  publishedTree,
   readWorkspaceSnapshot,
   republishWorkspaceSnapshot,
-  tryPublishWorkspaceSnapshot,
-  workspaceForwardsDigest,
   workspaceGeneration,
   workspaceReadStarted,
 } from './snapshot.js';
@@ -157,16 +143,6 @@ export interface IndexedUsageOptions {
   readonly index?: string;
   /** Read each file's bytes from Git's object store, as `variance index --no-git` turns off. On when absent. */
   readonly packs?: boolean;
-  /** Whether to publish what this scan learned. On, because the next question is the point. */
-  readonly save?: boolean;
-  /**
-   * Whether that publication also saves this scan's records into the source
-   * index. On. `variance index` turns it off: it published the index this scan
-   * read a moment before, and it is the index's owner. A scan over part of the
-   * checkout, a workspace's root and the members it lists outside it, keeps an
-   * index of its own that nothing else saves, and saves it whatever this says.
-   */
-  readonly saveIndex?: boolean;
   /**
    * Authoritative changed file paths, relative to the scan root.
    * Present skips Git status discovery; renames name both paths.
@@ -193,92 +169,15 @@ export interface IndexedUsageOptions {
    * scan the repository a second time to learn something the first scan had
    * already worked out and dropped on the floor.
    *
-   * So it is a door rather than a return value, for the same reason
-   * `ScanOptions.parsed` is one: the reading that wants it is not the reading
-   * this function performs, and a caller that does not want it should not be
-   * handed a graph it has to ignore.
+   * So it is a door rather than a return value: the reading that wants it is
+   * not the reading this function performs, and a caller that does not want it
+   * should not be handed a graph it has to ignore.
    */
   readonly records?: (records: readonly FileRecord[], graphRoot: string) => void;
-  /** Handed the queryable graph when a caller asks a path-shaped question. */
+  /** Handed the queryable graph when a caller asks a path-shaped question: the tree this reading publishes. */
   readonly tree?: (tree: Tree) => void;
   /** Told each step as it starts and ends: the manifests, the source, the names, the publish. */
   readonly progress?: Progress;
-}
-
-async function scanIndexed(
-  root: string,
-  opened: ReadonlySet<string>,
-  targets: ImportTargets,
-  options: IndexedUsageOptions,
-  dirs: readonly string[],
-  at: string,
-): Promise<{
-  readonly usage: Usage;
-  readonly sources: Map<string, IndexedSource>;
-  readonly records: readonly FileRecord[];
-  readonly cache: ParseCache;
-  /** Whether the index is the one the reading keeps for itself, beside its root's, which nobody else saves. */
-  readonly ownIndex: boolean;
-  /** The digest of every `export … from` this scan read, as `forwardsDigest` states it. */
-  readonly forwards: string;
-  /** Save what this scan read, or throw {@link UnsavedRead}. */
-  save(): Promise<void>;
-}> {
-  const where = resolve(root);
-  const index = await openSourceIndex(at);
-  const owner = ownership(where);
-  const usage = collectingUsage(where, opened, targets);
-  const sources = new Map<string, IndexedSource>();
-
-  const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(where, dirs)}`, () => scanRelations({
-    // What `scanScope` names: the workspace's own directory whole, not only its
-    // members, since it holds source no `workspaces` entry claims — `tools/`, a
-    // scripts directory, a config that imports from a package — and each member
-    // it lists outside that directory. Nothing beside what it lists can import
-    // from it. The scan declines to descend into a checkout that is not this
-    // one, so the root means this repository.
-    root: where,
-    dirs,
-    cache: index.cache,
-    reuse: index.reuse,
-    ...(options.changed === undefined ? {} : { changed: options.changed }),
-    ...(options.packs === undefined ? {} : { packs: options.packs }),
-    parsed: (file, parsed) => {
-      usage.accept(file, owner(file), parsed);
-    },
-    indexed: (file, parsed, targets) => {
-      sources.set(file, { parsed, targets });
-      usage.targets(file, targets);
-    },
-  }));
-  const tainted = await taintRecords(records, options.taints ?? [], { root: where, cache: index.cache });
-  if (tainted.shadows.size > 0) {
-    throw new Error(
-      `Help source areas cannot apply subtractive taints: ${tainted.shadows.size} file(s) shadow a module. ` +
-      'Pass addition-only taints for declarative module loads.',
-    );
-  }
-  options.records?.(tainted.records, where);
-
-  const joined = usage.read();
-  const recordUnknown = records.flatMap((record) => record.unknown === undefined ? [] : [record.unknown]);
-  return {
-    usage: recordUnknown.length === 0
-      ? joined
-      : { ...joined, unreadable: [...joined.unreadable, ...recordUnknown] },
-    sources,
-    records: tainted.records,
-    cache: index.cache,
-    // A save keeps only the records this scan touched, and the index at `at`
-    // covers exactly what this scan reads: the root's own, or the scope's.
-    ownIndex: !coversWhole(dirs),
-    forwards: forwardsDigest(usage.forwards()),
-    save: async () => {
-      const refused = await index.save();
-      // An index that is not there, or does not open, holds no lines to pair with.
-      if (refused !== undefined && index.state !== 'missing' && index.state !== 'damaged') throw new UnsavedRead(refused);
-    },
-  };
 }
 
 /**
@@ -291,182 +190,84 @@ async function scanIndexed(
  * from a walk, so asking a second question about an unchanged checkout costs the
  * manifests and nothing else.
  *
- * Asynchronous because the index is a file. That is the whole of the difference
- * at the call site, and it is why the synchronous door is still there: a caller
- * with no cache directory to write to, or one reading a tree it does not own,
- * wants `readHelp` and should keep having it.
+ * The scan brings the index up to date and saves it, and the value is read off
+ * the saved index and published beside it, so a read whose index could not be
+ * saved throws {@link UnsavedRead}. Asynchronous because the index is a file: a
+ * caller with no cache directory to write to, or one reading a tree it does not
+ * own, wants `readHelp` and should keep having it.
  */
 export async function readWorkspace(root: string, options: ReadingOptions = {}): Promise<Help> {
-  const read = await scanWorkspace(root, options);
-  return documentWorkspace(read, options);
-}
-
-/** `readWorkspace` over the manifests a caller read from `root` a moment before. */
-export async function readWorkspaceOver(root: string, manifests: WorkspaceManifests, readStartedAt: string, options: ReadingOptions = {}): Promise<Help> {
-  const read = await scanWorkspace(root, options, { manifests, readStartedAt });
-  return documentWorkspace(read, options);
+  return readAndPublish(root, options, new Date().toISOString());
 }
 
 /**
- * Refresh volatile source facts while retaining a previously documented surface.
+ * Read the workspace again over a value published before it.
  *
- * Usage, exported names, unreadable files and the graph are always taken from
- * the new Sense scan. The entries — their lines, signatures, comments and README
- * mentions — stay on the supplied reading until what they were cut from changes:
- * the exported name set, an `export … from`, or the line or the text of a row an
- * entry prints. Any of those rebuilds documentation immediately rather than
- * waiting for the caller's slower documentation cadence. A refresh of `changed`
- * files keeps the time the supplied reading began, as `readStartedAt` says.
+ * Every read publishes the whole value off the saved index, so `documented`
+ * says only when its read began: a refresh of `changed` files read those files
+ * and nothing else, so every other file is as old as `documented` read it, and
+ * the value keeps that time as `readStartedAt`.
  */
 export async function refreshWorkspace(
   root: string,
   documented: Help,
   options: ReadingOptions = {},
 ): Promise<Help> {
-  // A listed refresh read those files and nothing else, so every other file is as old as `documented` read it.
   const kept = options.changed === undefined ? undefined : workspaceReadStarted(documented);
-  const read = await scanWorkspace(root, options, kept === undefined ? undefined : { readStartedAt: new Date(kept).toISOString() });
-  if (!sameSurface(read, documented)) return documentWorkspace(read, options);
-  const help = joinUsage(documented, read.offerings, read.scanned.usage);
-  if (options.save !== false) {
-    if (options.saveIndex !== false || read.scanned.ownIndex) await read.scanned.save();
-    await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, read.scanned.records, read.readStartedAt, read.scanned.forwards, options.index);
-  }
-  return help;
+  return readAndPublish(root, options, kept === undefined ? new Date().toISOString() : new Date(kept).toISOString());
 }
 
-interface WorkspaceScan {
-  /** The workspace the caller asked to answer about. */
-  readonly workspace: string;
-  /** The repository root whose graph carries that workspace. */
-  readonly root: string;
-  readonly offerings: readonly Offering[];
-  readonly scanned: Awaited<ReturnType<typeof scanIndexed>>;
-  readonly changed?: readonly string[];
-  /** When this read began, before it read anything: what a caller who read first says, or now. */
-  readonly readStartedAt: string;
-}
-
-async function scanWorkspace(
-  root: string,
-  options: ReadingOptions,
-  over?: { readonly manifests?: WorkspaceManifests; readonly readStartedAt: string },
-): Promise<WorkspaceScan> {
-  const readStartedAt = over?.readStartedAt ?? new Date().toISOString();
+async function readAndPublish(root: string, options: ReadingOptions, readStartedAt: string): Promise<Help> {
   const where = resolve(root);
-  const { offerings, targets } = over?.manifests ?? await stepped(options.progress, `reading the package manifests of ${where}`, () =>
+  const { offerings, targets } = await stepped(options.progress, `reading the package manifests of ${where}`, () =>
     readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
+  // What `scanScope` names: the workspace's own directory whole, not only its
+  // members, since it holds source no `workspaces` entry claims — `tools/`, a
+  // scripts directory, a config that imports from a package — and each member
+  // it lists outside that directory. Nothing beside what it lists can import
+  // from it. The scan declines to descend into a checkout that is not this
+  // one, so the root means this repository.
   const scope = scanScope(where, offerings);
-  const opened = new Set(
-    offerings.flatMap((offering) =>
-      offering.entrypoints.map((entry) => `${offering.name} ${entry.subpath}`),
-    ),
-  );
+  const own = options.index ?? sourceIndexPath(where);
+  const at = scopeSourceIndexPath(own, scope.dirs);
+  const index = await openSourceIndex(at);
+  const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(scope.root, scope.dirs)}`, () => scanRelations({
+    root: scope.root,
+    dirs: scope.dirs,
+    cache: index.cache,
+    reuse: index.reuse,
+    ...(options.changed === undefined ? {} : { changed: options.changed }),
+    ...(options.packs === undefined ? {} : { packs: options.packs }),
+  }));
+  const given = await taintRecords(records, options.taints ?? [], { root: scope.root, cache: index.cache });
+  if (given.shadows.size > 0) {
+    throw new Error(
+      `Help source areas cannot apply subtractive taints: ${given.shadows.size} file(s) shadow a module. ` +
+      'Pass addition-only taints for declarative module loads.',
+    );
+  }
+  // What a test loads for real beside its mocks joins the published tree. The
+  // addon draws it off the saved index; only a caller's taints, which the index
+  // never holds, keep the published tree on this side, and then this side joins
+  // the mocks the same way. A mock's cut is one test's run and stays out of either.
+  const tainted = options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root, cache: index.cache });
+  options.records?.(tainted.records, scope.root);
 
-  const at = scopeSourceIndexPath(options.index ?? sourceIndexPath(where), scope.dirs);
-  const scanned = await scanIndexed(scope.root, opened, targets, options, scope.dirs, at);
-  options.tree?.(treeAtWorkspace(treeOf(scanned.records, scope.root), where));
-  return {
+  // A tool reads lines out of the index on disk, so the value is read off the index this scan saved, or not at all.
+  const refused = await stepped(options.progress, 'saving the source index', () => index.save());
+  if (refused !== undefined) throw new UnsavedRead(refused);
+  const published = await publishHelp({
     workspace: where,
     root: scope.root,
     offerings,
-    scanned,
-    ...(options.changed === undefined ? {} : { changed: options.changed }),
+    targets,
+    index: at,
+    own,
     readStartedAt,
-  };
-}
-
-async function documentWorkspace(read: WorkspaceScan, options: ReadingOptions): Promise<Help> {
-  const { root, offerings, scanned } = read;
-  const help = await stepped(options.progress, 'reading the signatures and comments of the exported names', async () => {
-    const names = await indexedNames(root, offerings, scanned.sources);
-    return assembleHelp(root, offerings, scanned.usage, names);
+    ...(options.taints === undefined ? {} : { tree: encodeSourceTree(tainted.records) }),
+    ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
-  // `assembleHelp` has consumed the lazy name reader. Keeping every transient
-  // parse alive while two large artifacts are encoded turns a cold publication
-  // into garbage-collection work proportional to the repository.
-  scanned.sources.clear();
-  if (options.save !== false) {
-    await stepped(options.progress, 'publishing the questions', async () => {
-      if (options.saveIndex !== false || scanned.ownIndex) await scanned.save();
-      await tryPublishWorkspaceSnapshot(read.workspace, read.root, help, scanned.records, read.readStartedAt, scanned.forwards, options.index);
-    });
-  }
-  return help;
-}
-
-function sameSurface(read: WorkspaceScan, documented: Help): boolean {
-  if (!samePackages(read, documented)) return false;
-  if (read.changed?.length === 0) return true;
-  return read.scanned.forwards === workspaceForwardsDigest(documented) && sameExportedSurface(read.changed, read.scanned.usage.exported, documented);
-}
-
-/** The offerings as `documented` published them: names, declarations, whether each declares an entry, and openings. */
-export function samePackages(read: Pick<WorkspaceScan, 'root' | 'offerings'>, documented: Help): boolean {
-  const shape = read.offerings.map((offering) => ({
-    name: offering.name,
-    declared: offering.declared,
-    entry: offering.entry,
-    openings: offering.entrypoints.map((entry) => ({
-      subpath: entry.subpath,
-      source: relative(read.root, entry.source),
-    })),
-  }));
-  const previous = documented.packages.map((published) => ({
-    name: published.name,
-    declared: published.declared,
-    entry: published.entry,
-    openings: published.openings.map(({ subpath, source }) => ({ subpath, source })),
-  }));
-  return isDeepStrictEqual(shape, previous);
-}
-
-/**
- * Whether the rows of `files`, every file when absent, say what `documented`'s
- * do: which names they export, and for a name an entry prints, the lines and
- * the text the entry was cut from. A row nothing publishes moves freely.
- */
-export function sameExportedSurface(files: readonly string[] | undefined, exported: Usage['exported'], documented: Help): boolean {
-  const changed = files === undefined ? undefined : new Set(files);
-  const shown = new Set([...everyEntry(documented)].map(([, , entry]) => `${entry.at}\0${entry.declared}`));
-  const keys = (values: Help['exported']): Set<string> => new Set(
-    values
-      .filter((value) => changed === undefined || changed.has(value.at))
-      .map((value) => {
-        const key = `${value.at}\0${value.name}\0${value.kind}\0${Number(value.type)}`;
-        return shown.has(`${value.at}\0${value.name}`) ? `${key}\0${value.line}\0${value.boundLine ?? ''}\0${value.doc ?? ''}\0${value.signature ?? ''}` : key;
-      }),
-  );
-  const before = keys(documented.exported);
-  const after = keys(exported);
-  return before.size === after.size && [...before].every((key) => after.has(key));
-}
-
-export function joinUsage(documented: Help, offerings: readonly Offering[], usage: Usage): Help {
-  const packages = documented.packages.map((published) => ({
-    ...published,
-    openings: published.openings.map((opening) => ({
-      ...opening,
-      whole: passedOn(usage, `${published.name} ${opening.subpath}`),
-      entries: opening.entries
-        .map((entry) => ({
-          ...entry,
-          ...reachedFrom(usage, `${published.name} ${opening.subpath}`, entry.name, published.name),
-        }))
-        .sort(
-          (a, b) =>
-            b.usedBy.length - a.usedBy.length ||
-            b.uses - a.uses ||
-            (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
-        ),
-    })),
-  }));
-  return {
-    packages,
-    deep: usage.deep,
-    byPath: usage.byPath,
-    unfollowed: usage.unfollowed,
-    exported: usage.exported,
-    unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
-  };
+  if (published === undefined) throw new UnsavedRead(`no source index opens at ${at}`);
+  options.tree?.(publishedTree(published.tree, scope.root, where));
+  return published.help;
 }

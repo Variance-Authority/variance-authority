@@ -4,7 +4,8 @@ import MiniSearch from 'minisearch';
 import { describe, expect, it } from 'vitest';
 import type { Help, Named } from '@variance-authority/package/help';
 import { everyEntry, readHelp } from '@variance-authority/package/help';
-import { SPACE_OR_PUNCTUATION, encodeSearchIndex, openSearchIndex } from '../search-index.js';
+import { SPACE_OR_PUNCTUATION, openSearchIndex } from '../search-index.js';
+import { encodeStore } from '../store-encode.js';
 import { looseNames } from './loose.js';
 
 /**
@@ -91,7 +92,7 @@ const HELP: Help = (() => {
   return { ...read, exported: [...read.exported, ...extra.map(odd), SPANNED] };
 })();
 
-const INDEX = openSearchIndex(encodeSearchIndex(HELP));
+const INDEX = openSearchIndex(encodeStore(HELP).bytes);
 
 /** Every name with its docs, as the pass held them before it asked MiniSearch. */
 function reference(query: string): ReadonlySet<string> {

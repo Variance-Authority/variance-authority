@@ -4,11 +4,11 @@ import { readHelp } from '@variance-authority/package/help';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { readWorkspace } from '../read.js';
 import { publishWorkspaceFromIndex } from '../refresh-native.js';
-import { readSearchSnapshot } from '../snapshot.js';
+import { readWorkspaceSnapshot } from '../snapshot.js';
 import type { SearchIndex } from '../search-index.js';
 import { describedShown, type DescribedDeclaration } from './described.js';
 import { searchNames } from './search-answer.js';
-import { searchIndexOf } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 
 /**
  * A declaration's signature says what it takes and what it returns, so the
@@ -64,7 +64,7 @@ describe.each<[string, () => Promise<SearchIndex>]>([
   ['refreshed by the scanner', async () => {
     await publishWorkspaceFromIndex(root, { readStartedAt: new Date().toISOString() });
     await publishWorkspaceFromIndex(root, { readStartedAt: new Date().toISOString() });
-    return readSearchSnapshot(root);
+    return searchIndexOf(await readWorkspaceSnapshot(root));
   }],
 ])('the words a signature holds, %s', (_, read) => {
   let index: SearchIndex;

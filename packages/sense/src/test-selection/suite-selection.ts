@@ -40,7 +40,8 @@ export interface SuiteSelection {
   /**
    * The only test files that run, when a later wave of one shard was asked: a
    * file outside it, one the record never saw included, runs in an earlier
-   * wave. Absent, every file not in `skip` runs.
+   * wave. A local selection names every file a change reaches here, and a
+   * file outside them runs in no wave. Absent, every file not in `skip` runs.
    */
   readonly only?: ReadonlySet<string>;
   /**
@@ -64,6 +65,8 @@ export type SuiteTimes =
       readonly read?: string;
       /** Repository-relative test file to the milliseconds its runner reported; an untimed file is absent. */
       readonly times: ReadonlyMap<string, number>;
+      /** The test files the record holds that its runner timed nothing for; absent where the reader did not list them. */
+      readonly untimed?: readonly string[];
       /** The commit the record was taken at; absent when it has no position. */
       readonly commit?: string;
     }

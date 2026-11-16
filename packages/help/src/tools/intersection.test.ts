@@ -165,7 +165,7 @@ describe('an intersection over a name nothing declares', () => {
       { question: 'symbol', input: { name: 'selectBalance' } },
       { question: 'uses', input: { name: 'gone' } },
     ]);
-    // Found nothing, so a host reading a reused generation asks it again before it believes it.
+    // Found nothing, so every surface says it as it says a name not found.
     expect(answer).toBeInstanceOf(FoundNothing);
     expect((answer as FoundNothing).message).toBe(
       [

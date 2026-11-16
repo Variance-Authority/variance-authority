@@ -5,7 +5,7 @@ import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import type { SearchIndex } from '../search-index.js';
 import { describedShown, type DescribedDeclaration } from './described.js';
 import { searchNames } from './search-answer.js';
-import { searchIndexOf } from './search.js';
+import { searchIndexOf } from '../snapshot.js';
 
 /**
  * A word most of what a description reaches holds says little about which of

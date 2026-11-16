@@ -93,13 +93,32 @@ describe('the server `variance serve` starts', () => {
     expect(result.content[0]!.text).toContain('mounted');
   });
 
-  it('reads the checkout again before refusing a name written since the generation it holds', async () => {
-    // The generation is reused for an hour, so a name written after it was
-    // refused as not published: an answer that reads as a real absence.
+  it('answers a name written since the generation it holds from that generation, saying the checkout was not compared with it', async () => {
+    // The generation is reused for an hour, and a miss reads nothing more:
+    // keeping it fresh is `variance index`'s job, so the answer says it is old.
     const server = session();
     try {
       expect((await server.request<Answer>('tools/call', { name: 'docs_packages' })).isError).toBeUndefined();
       await writeFile(join(workspace, 'src/kept.ts'), 'export function keptOf(amount: number): number {\n  return amount;\n}\n');
+      const result = await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'keptOf' } });
+      expect(result.isError).toBeUndefined();
+      expect(result.content[0]!.text).toContain('`keptOf` is not');
+      expect(result.content[0]!.text).not.toContain('src/kept.ts');
+      expect(result.content[0]!.text).toMatch(/^Snapshot \S+, not compared with the checkout: run `variance index` if files changed since\.$/mu);
+    } finally {
+      server.close();
+      await rm(join(workspace, 'src/kept.ts'), { force: true });
+    }
+  });
+
+  it('answers from the generation `variance index` published since the one it holds, on the same connection', async () => {
+    const server = session();
+    try {
+      expect((await server.request<Answer>('tools/call', { name: 'docs_packages' })).isError).toBeUndefined();
+      await writeFile(join(workspace, 'src/kept.ts'), 'export function keptOf(amount: number): number {\n  return amount;\n}\n');
+      const missed = await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'keptOf' } });
+      expect(missed.content[0]!.text).toContain('`keptOf` is not');
+      indexed();
       const result = await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'keptOf' } });
       expect(result.isError).toBeUndefined();
       expect(result.content[0]!.text).toContain('src/kept.ts');
@@ -111,10 +130,9 @@ describe('the server `variance serve` starts', () => {
 
   it('reads the checkout again before `docs_search` lists a name renamed since the generation it holds', async () => {
     await writeFile(join(workspace, 'src/renamed.ts'), 'export function oldName(): number {\n  return 1;\n}\n');
+    indexed();
     const server = session();
     try {
-      // A refusal reads the checkout again, so the generation held from here on holds the name.
-      await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'oldName' } });
       const before = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'oldName' } });
       expect(before.content[0]!.text).toContain('src/renamed.ts');
       await writeFile(join(workspace, 'src/renamed.ts'), 'export function newName(): number {\n  return 1;\n}\n');
@@ -134,10 +152,9 @@ describe('the server `variance serve` starts', () => {
     await writeFile(join(workspace, 'src/passed.ts'), 'export const passedOn = 1;\n');
     await writeFile(join(workspace, 'src/index.ts'), `${entry}export * from './mid.js';\n`);
     execFileSync('git', ['init', '--quiet'], { cwd: workspace });
+    indexed();
     const server = session();
     try {
-      // A refusal reads the checkout again, so the generation held from here on holds the barrel.
-      await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'passedOn' } });
       const before = await server.request<Answer>('tools/call', { name: 'docs_search', arguments: { query: 'passedOn' } });
       expect(before.content[0]!.text).toContain('mounted · passedOn [const]');
       await writeFile(join(workspace, 'src/mid.ts'), 'export const stayed = 1;\n');
@@ -156,6 +173,7 @@ describe('the server `variance serve` starts', () => {
 
   it('reads the checkout again before `docs_symbol` answers a name renamed since the generation it holds', async () => {
     await writeFile(join(workspace, 'src/renamed.ts'), 'export function oldName(): number {\n  return 1;\n}\n');
+    indexed();
     const server = session();
     try {
       expect((await server.request<Answer>('tools/call', { name: 'docs_symbol', arguments: { name: 'oldName' } })).content[0]!.text).toContain('src/renamed.ts');
@@ -388,6 +406,11 @@ async function git(cwd: string, ...args: string[]): Promise<string> {
 /** The time an answer's generation was made, from its date line. */
 function snapshotOf(text: string): string | undefined {
   return /^Snapshot (\S+?)\.$/mu.exec(text)?.[1];
+}
+
+/** `variance index`, so that the generation a server reads from holds what the checkout holds now. */
+function indexed(cwd = workspace): void {
+  execFileSync(process.execPath, [BIN, 'index', '--wait'], { cwd, env: { ...process.env, NO_COLOR: '1', VARIANCE_AUTHORITY_CACHE: join(cwd, 'cache') }, stdio: 'ignore' });
 }
 
 async function ask<Result>(method: string, params?: Record<string, unknown>, cwd = workspace): Promise<Result> {

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { probeRecipe } from '../instrument/index.js';
 import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
+import probeSet from '../instrument/probe-set.cjs';
 import { createTransformer, type JestTransformRequest, type JestTransformedSource } from './jest-transform.js';
 import { deriveModules, markedId, moduleId } from './captured-modules.js';
 import { sourceLines, type TransformSourceMap } from './source-lines.js';
@@ -142,7 +143,7 @@ describe('the Jest transformer over a module named unprobed', () => {
  * map, and the regions the probes logged.
  */
 function run(file: string, done: JestTransformedSource): { calls: string[]; line: number | undefined; entered: number } {
-  const engine = probeLog.createEngine(false);
+  const engine = probeLog.createEngine(false, probeSet.probeSet);
   const bucket = engine.open('');
   engine.use(bucket);
   const calls: string[] = [];

@@ -20,6 +20,7 @@ import { entriesNamed, isPackage, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block } from './format.js';
 import { keyOf, SLOT } from './declaration-key.js';
+import { exportedIn } from './rows.js';
 import { importLine } from './declared.js';
 import { exportedRows } from './passed-on.js';
 import { thirdBlock } from './third-party.js';
@@ -91,7 +92,7 @@ export const localNames = askedOnce((
     const [first] = group;
     if (first === undefined) continue;
     // `import greet from` a file exporting `greet` as `default` too binds the declaration by its own name: no local name.
-    const held = first.to == null ? undefined : help.exported.find((one) => one.at === first.to && one.name === first.imported);
+    const held = first.to == null ? undefined : exportedIn(help, first.to).find((one) => one.name === first.imported);
     const declared = held === undefined ? undefined : keyOf(help, root, held).named;
     if (declared === local) continue;
     // The slot `default` is said by the name its declaration is keyed by.
@@ -132,18 +133,18 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
     if (wanted !== undefined && !isPackage(published, held, wanted)) return undefined;
     // The original's own sites are not read here, so the entry's are what may read it.
     const may = undecided(published.name, held, entry);
-    return { text: [block(published, held, entry, { may, imported: false }), ...memberRows(help, root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
+    return { text: [block(published, held, entry, { may, imported: false }), ...memberRows(root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
   }
   const to = alias.to ?? undefined;
   if (to !== undefined) {
-    const held = help.exported.find((one) => one.name === name && one.at === to);
+    const held = exportedIn(help, to).find((one) => one.name === name);
     if (held !== undefined) {
       if (wanted !== undefined && held.by !== wanted) return undefined;
       const { declared, rows } = exportedRows(help, root, said, held);
       return {
         text: [
           ...rows,
-          ...memberRows(help, root, declared.at, declared.name, declared.line),
+          ...memberRows(root, declared.at, declared.name, declared.line),
         ].join('\n'),
         at: [[held.at, held.line], ...(declared === held ? [] : [[declared.at, declared.line] as const])],
       };

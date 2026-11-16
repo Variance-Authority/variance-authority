@@ -42,6 +42,8 @@ import type { CommitRuns, ExecutionNarrowing, Stand, StandQuestion, StandReading
 import { OperatorError } from '../exit.js';
 import { installDiffs, installDiffOfPatch, ranOn, withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf, compared, installReached, withWhole } from './select-beyond.js';
+import { budgetedSuite } from './select-budget.js';
+import { explainedOutput } from './select-explain.js';
 import { journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
 import { many } from './prose-counts.js';
@@ -73,7 +75,8 @@ export interface SelectRequest {
   readonly cwd: string;
   /** `--since <ref>`: where to measure from when the journal names no commit of its own. */
   readonly since?: string;
-  readonly format: SelectFormat;
+  /** `explain` reads the selection by hops for an agent, and is no runner's input (`select-explain.ts`). */
+  readonly format: SelectFormat | 'explain';
   readonly noGit?: boolean;
   /** `--execution <file>`: a journey file to read instead of the recorded journal. */
   readonly execution?: string;
@@ -85,7 +88,7 @@ export interface SelectRequest {
   readonly atDistance?: Leg;
   /** `--ran-at <commit>`: the pull request's tested tree, which a merge queue merged onto `since`. */
   readonly ranAt?: string;
-  /** `--local`: a reading that cannot narrow falls to the changed files' importers or packages. */
+  /** `--local`: a reading that cannot narrow falls to the changed files' importers, never to every test file. */
   readonly local?: boolean;
 }
 
@@ -106,6 +109,7 @@ export interface SelectOutput {
 /** Read the journal against what has changed, and say what may be skipped. */
 export async function selectOutput(request: SelectRequest): Promise<SelectOutput> {
   const { cwd, format, ...asked } = request;
+  if (format === 'explain') return await explainedOutput({ root: cwd, ...asked }, selectSuite);
   const { reading } = await selectSuite({ root: cwd, ...asked });
   return { out: formatSelection(reading, format, cwd), err: deprecated(format) + selectionNotes(reading) };
 }
@@ -129,6 +133,7 @@ function deprecated(format: SelectFormat): string {
  * drops the files in `skip` inside its runner.
  */
 export async function selectSuite(request: SuiteRequest): Promise<SuiteReading> {
+  if (request.budget !== undefined) return await budgetedSuite({ ...request, budget: request.budget }, selectSuite);
   const { ranAt, ...asked } = request;
   const full = await untested(asked);
   if (ranAt === undefined || asked.since === undefined) return full;
@@ -141,16 +146,18 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // A snapshot handed in by path — the JVM agent's `coverage.va` — is read the
   // way this checkout's own is. Anything else `--execution` names is a journey
   // file.
-  // Under `--local`, a reading that cannot narrow falls to the changed files the caller already holds, or reads them.
+  // Under `--local`, a reading that cannot narrow falls to the changed files' importers; a moved `before` runs all.
   // The waves of one shard read one record, so each runs only what it placed in them.
   const leg = request.atDistance !== undefined && request.beneath === true
     ? { ...request.atDistance, partition: true as const, ...(request.placeAtDistance === undefined ? {} : { placing: request.placeAtDistance }) }
     : request.atDistance;
   const fall = async (input: SelectInput, held?: Held, record?: string): Promise<SuiteReading> => {
     const narrowed = suiteOf(input, leg);
-    return request.local === true && narrowed.declined !== undefined
-      ? suiteOf(input, leg, await localAnswer(request, input.ground, held, record))
-      : narrowed;
+    if (request.local !== true || narrowed.declined === undefined || input.ground.kind === 'before') return narrowed;
+    const answer = await localAnswer(request, input.ground, narrowed.declined, held, record);
+    return 'whole' in answer
+      ? suiteOf({ ...input, ground: { kind: 'before', whole: answer.whole.says, rests: answer.whole.rests } }, leg)
+      : suiteOf(input, leg, answer);
   };
   if (
     request.execution !== undefined &&
@@ -333,12 +340,12 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // answered by the comparisons above, which have already said what moved.
   const manifests = [...installs.values()].flatMap((installed) => compared(installed)?.manifests ?? []);
   const unplaced = [...beyond.values()].flatMap((one) => one.unplaced);
-  // A leg past 0 hops cut after a run landed at HEAD also runs the nearer tests
-  // that run left standing: `inLeg` says why.
+  // A leg past 0 hops also runs the nearer tests the run landed at HEAD left
+  // standing (`inLeg`); read for any leg, so `explain` can price them.
   // FIXME: a run landed at HEAD stands in for the earlier leg's, so a commit
   // made between the legs leaves the far leg cut by hops alone, and the near
   // tests its wider reading finds run in neither leg.
-  const later = (request.atDistance?.from ?? 0) > 0 && stands.length > 0 && commit === (await headOf(here));
+  const later = request.atDistance !== undefined && stands.length > 0 && commit === (await headOf(here));
   const unrunAtHead = later ? stands.flatMap((stand) => stand.tests).sort() : [];
   const ground: SelectGround =
     narrowing === undefined

@@ -7,15 +7,15 @@
  * reads. A story is a different question — *in what order* — and it is asked of
  * one case at a time, when somebody runs it with `VARIANCE_AUTHORITY_STORY=1`. So
  * it is not a mode of the engine. It is a second root in front of it, and the
- * emitted probe does not change.
+ * emitted header does not change.
  *
  * ## How the probe is made to report every hit
  *
- * The probe's side of the contract is in [`index.ts`](index.ts). It tests a
- * region's gate byte against the passing byte `p`, and skips when both are set.
- * The tap registers every module with a `p` of zero, so no hit is ever skipped
- * and every one reaches `__vaS`. There the probe appends to `L` while `n < l`,
- * and calls the slow write `g` otherwise. The tap's `n` and `l` are zero, so
+ * The probe is [`probe-set.cts`](probe-set.cts). It tests a region's gate byte
+ * against the passing byte `p`, and skips when both are set. The tap makes
+ * every module's probes with a `p` of zero, so no hit is ever skipped and every
+ * one reaches the slow path. There the probe appends to `L` while `n < l`, and
+ * calls the slow write `g` otherwise. The tap's `n` and `l` are zero, so
  * `g` receives every hit: the region's index across the realm, with the
  * evaluating bit. `g` puts it on the tape and hands it to the engine's own `g`,
  * which logs it as a first touch and compacts the repeats away.
@@ -135,6 +135,15 @@ interface Tap {
    * {@link NOTE_LIMIT} nothing is shown, only counted.
    */
   say(strings: readonly string[], values: readonly unknown[]): void;
+  /**
+   * Have `drain` said before each line opens, `opens` true where it is a test
+   * line and false where it is a hook's, and false when a case's body settles:
+   * what it notes then lands on the line that caused it. The last one given is
+   * the one called.
+   */
+  drainWith(drain: (opens: boolean) => void): void;
+  /** Say the running case's body has settled: its last line hears what it changed. */
+  settle(): void;
   /** Ask the namers in `scope`'s kind array, as it holds them then, what each object is. */
   nameIn(scope: object): void;
   /** Start the tape again, keeping what the realm registered and the refs it gave. */
@@ -179,11 +188,12 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   // One entry per row the engine made, in the order it made them, each with
   // the base it gave the row's regions, so the bases ascend. A module that
   // registers again with another count is a new row with a new base, as it is
-  // in the engine; one that registers again unchanged is the row it had.
+  // in the engine; one that registers again unchanged is the row it had, and
+  // the probes the tap made for it, by the row's base.
   const rowIds: ModuleId[] = [];
   const rowCounts: number[] = [];
   const rowBases: number[] = [];
-  const known = new Set<number>();
+  const known = new Map<number, ReturnType<Engine['probes']>>();
 
   let tape = new Int32Array(1 << 12);
   let taped = 0;
@@ -205,6 +215,8 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   const held = new Map<ModuleId, string>();
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
+  // What has more to say about the line that is ending; see `drainWith`.
+  let drain: ((opens: boolean) => void) | undefined;
 
   // Made only when live: a page's tap is this function's source alone, without the module.
   const parts = live ? storyParts.createParts(engine, limit, { ids: rowIds, bases: rowBases }) : undefined;
@@ -353,13 +365,15 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     },
     r(id: ModuleId, count: number) {
       const registered = inner.r(id, count);
-      if (!known.has(registered.b)) {
-        known.add(registered.b);
+      let probes = known.get(registered.b);
+      if (probes === undefined) {
+        probes = engine.probes(root, registered.f, registered.s, registered.b, pass, handing(id));
+        known.set(registered.b, probes);
         rowIds.push(id);
         rowCounts.push(count);
         rowBases.push(registered.b);
       }
-      return { f: registered.f, s: registered.s, b: registered.b, p: pass, V: handing(id) };
+      return probes;
     },
     e(): void {
       inner.e();
@@ -383,6 +397,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     // A hook's cut says so, as the cut test file marks it.
     // FIXME: under `sequence.hooks: 'parallel'` hooks' lines interleave as they ran.
     c(line: number, _file?: string, hook?: boolean): void {
+      drain?.(hook !== true);
       inner.c(line);
       inner.s?.();
       const key = engine.current().key;
@@ -413,6 +428,12 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       let text = String(strings[0] ?? '');
       for (let index = 1; index < strings.length; index += 1) text += shown(values[index - 1]) + String(strings[index]);
       put(text);
+    },
+    drainWith(given: (opens: boolean) => void): void {
+      drain = given;
+    },
+    settle(): void {
+      drain?.(false);
     },
     nameIn(scope: object): void {
       namers = scope as { [KIND]?: unknown };

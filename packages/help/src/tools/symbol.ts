@@ -13,10 +13,11 @@ import { uses } from './uses.js';
 import { type Members, containerOf, membersOf, membersStop } from './members.js';
 import { exportedRows } from './passed-on.js';
 import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
-import { UNCOUNTED, exportsNamed, importsOf } from './unpublished.js';
+import { UNCOUNTED, exportsNamed, importsApart } from './unpublished.js';
 import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { type PublishedDeclaration, publishedDeclarations, publishingFiles, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
+import { exportedIn, exportedNamed } from './rows.js';
 
 /**
  * `docs_symbol` — what a name is and where it is declared, in full.
@@ -280,7 +281,7 @@ function publishedBlock(help: Help, input: Readonly<Record<string, unknown>>, ro
   // A default export is headed by the name its declaration is keyed by, as every import of it is read.
   const named = entry.name === SLOT ? keyOf(help, root, { at: entry.at, name: entry.declared }).named : entry.name;
   const renamed = renamedSites(named, listed.sites);
-  return [block(published, opening, entry, { may, imported: split.certain.length > 0 }, named), ...memberRows(help, root, entry.at, entry.declared, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n');
+  return [block(published, opening, entry, { may, imported: split.certain.length > 0 }, named), ...memberRows(root, entry.at, entry.declared, entry.line), ...renamed.map((line) => `\n${line}`), ...also, ...shown].join('\n');
 }
 
 /**
@@ -333,7 +334,7 @@ function importedByPath(help: Help, root: string | undefined, name: string, site
       ...(name === SLOT ? [] : [`import { ${name} } from '${first.held.specifier}';`]),
       ...(declared === undefined ? [] : [`declared at ${declared.at}:${declared.line}`]),
       why,
-      ...(root === undefined || bound === undefined ? [] : textRows(help, root, bound)),
+      ...(bound === undefined ? [] : textRows(bound)),
       '',
       `Imported by path in ${held.length} ${held.length === 1 ? 'place' : 'places'}:`,
       ...held.map((site) => `  ${site.taken.at}:${site.taken.line} — ${site.taken.by}${how(site)}${site.taken.local === undefined ? '' : ` (as ${site.taken.local})`}${site.taken.type ? ' (type only)' : ''}`),
@@ -369,8 +370,8 @@ function listedLine(tool: string, owner: string, count: Counted, may: boolean, u
  */
 function declaration(help: Help, name: string, site: PathSite): Named | undefined {
   const to = site.held.to;
-  if (to !== undefined) return help.exported.find((held) => held.name === name && held.at === to);
-  const owned = help.exported.filter((held) => held.name === name && held.by === site.owner);
+  if (to !== undefined) return exportedIn(help, to).find((held) => held.name === name);
+  const owned = exportedNamed(help, name).filter((held) => held.by === site.owner);
   return owned.length === 1 ? owned[0] : undefined;
 }
 
@@ -391,7 +392,7 @@ function exportedOnly(help: Help, name: string, exported: readonly Named[], root
       return [
         ...rows,
         ...('uses' in within ? [importedIn(within.uses.length, spell), ...renamedSites(name, within.uses)] : root === undefined ? [] : [`Who imports it is read from the source index, and ${within.unread}.`]),
-        ...memberRows(help, root, declared.at, declared.name, declared.line),
+        ...memberRows(root, declared.at, declared.name, declared.line),
       ].join('\n');
     })
     .join('\n\n');
@@ -402,7 +403,8 @@ function exportedOnly(help: Help, name: string, exported: readonly Named[], root
  * resolved to it: a file that passes on another one's export is left out.
  */
 function declaringExports(name: string, exported: readonly Named[], root: string | undefined) {
-  const read = exported.map((held) => [held, importsOf(root, [held.at], held.name)] as const);
+  const apart = importsApart(root, exported.map((held) => ({ file: held.at, name: held.name })));
+  const read = exported.map((held, at) => [held, apart[at]!] as const);
   const passing = new Set(read.flatMap(([, within]) => ('through' in within ? within.through : [])));
   // Files that pass the name on to each other and declare it nowhere else are all shown.
   const declaring = read.filter(([held]) => !passing.has(held.at));

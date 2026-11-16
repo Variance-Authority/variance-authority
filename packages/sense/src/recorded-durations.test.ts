@@ -228,10 +228,10 @@ describe('the cases closest to their limit', () => {
     expect(suite?.cases).toMatchObject({ closest: [{ name: 'half of much' }, { name: 'half of little' }] });
   });
 
-  it('carries the slowest statement a case names, and none for a case that names none', () => {
+  it('carries the statement times of a cut case, and none for an uncut one', () => {
     record(coverage([['test/a.test.ts', 300]]), {
       tests: [
-        { id: 'a', file: 'test/a.test.ts', name: 'waits', duration: 260, slowest: { line: 4, time: 210 } },
+        { id: 'a', file: 'test/a.test.ts', name: 'waits', duration: 260, times: [{ line: 4, time: 210_000 }, { line: 5, time: 12 }] },
         { id: 'b', file: 'test/a.test.ts', name: 'uncut', duration: 100 },
       ],
       modules: [],
@@ -241,7 +241,7 @@ describe('the cases closest to their limit', () => {
     const cases = suite !== undefined && !('unread' in suite) && !('unread' in suite.cases) ? suite.cases.slowest : [];
 
     expect(cases).toEqual([
-      { file: 'test/a.test.ts', name: 'waits', duration: 260, slowest: { line: 4, time: 210 } },
+      { file: 'test/a.test.ts', name: 'waits', duration: 260, times: [{ line: 4, time: 210_000 }, { line: 5, time: 12 }] },
       { file: 'test/a.test.ts', name: 'uncut', duration: 100 },
     ]);
   });
@@ -385,13 +385,13 @@ describe('slowest where', () => {
 });
 
 describe('the times a shard places its files by', () => {
-  it('holds every timed file, the commit it was recorded at and the record it read, and leaves an untimed one out', () => {
+  it('holds every timed file, the commit it was recorded at and the record it read, and lists an untimed one apart', () => {
     const at = record({ ...coverage([['test/a.test.ts', 40], ['test/b.test.ts', undefined], ['test/c.test.ts', 0]]), commit: 'c'.repeat(40) });
 
     const times = recordedTimes(at);
 
     const read = `sha256:${createHash('sha256').update(readFileSync(at)).digest('hex')}`;
-    expect(times).toEqual({ recording: at, read, commit: 'c'.repeat(40), times: new Map([['test/a.test.ts', 40], ['test/c.test.ts', 0]]) });
+    expect(times).toEqual({ recording: at, read, commit: 'c'.repeat(40), times: new Map([['test/a.test.ts', 40], ['test/c.test.ts', 0]]), untimed: ['test/b.test.ts'] });
   });
 
   it('places a file by what running it cost, the phases before its first case included', () => {

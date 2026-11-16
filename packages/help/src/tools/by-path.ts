@@ -1,6 +1,8 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Deep, Documented, Help, Taken } from '@variance-authority/package/help';
 import { requested } from '@variance-authority/package/help';
+import type { PathGroup } from '../store-rows.js';
+import { pathsTaking } from './rows.js';
 
 /**
  * Names imported by the path of a file, or through an entry no file was read
@@ -18,7 +20,7 @@ import { requested } from '@variance-authority/package/help';
  */
 
 /** How an import names what it takes, when no entry the reading opened carries it. */
-export type PathKind = 'deep' | 'byPath' | 'unfollowed';
+export type PathKind = PathGroup;
 
 /** One name one import takes by path. */
 export interface PathSite {
@@ -47,13 +49,17 @@ export function importsByPath(help: Help, within?: string): readonly (readonly [
   ];
   return within === undefined
     ? all
-    : all.filter(([held]) => ownerOf(held.specifier) === within || held.specifier === within);
+    : all.filter(([held]) => isWithin(held, within));
 }
+
+/** Whether an import by path is written into the package `within`, or as exactly `within`. */
+const isWithin = (held: Deep, within: string): boolean => ownerOf(held.specifier) === within || held.specifier === within;
 
 /** Every place `name` is taken by path. */
 export function sitesByPath(help: Help, name: string, within?: string): readonly PathSite[] {
   const sites: PathSite[] = [];
-  for (const [held, kind] of importsByPath(help, within)) {
+  for (const [held, kind] of pathsTaking(help, name)) {
+    if (within !== undefined && !isWithin(held, within)) continue;
     for (const taken of held.names) {
       if (taken.name === name) sites.push({ held, taken, kind, owner: ownerOf(held.specifier) });
     }

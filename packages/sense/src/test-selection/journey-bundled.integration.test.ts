@@ -29,7 +29,7 @@ it('tells a story from a head a bundler packed, with no file of the package besi
   const probeLog = (await import('../../dist/instrument/probe-log.cjs')).default as typeof import('../instrument/probe-log.cjs');
   const storyFormat = (await import('../../dist/story/format.cjs')).default as typeof import('../story/format.cjs');
 
-  const tape = tapeJourneys(probeLog.createEngine(true));
+  const tape = tapeJourneys(probeLog.createEngine(true, (await import('../../dist/instrument/probe-set.cjs')).default.probeSet));
 
   expect(storyFormat.decodeStory(Buffer.from(tape.storyOf('j-1'), 'base64')).notes).toEqual([]);
 });

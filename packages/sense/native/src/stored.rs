@@ -3,12 +3,12 @@
 //! (`compact.rs`).
 //!
 //! What a column *means* is `decodeSourceIndex`'s to say, in
-//! `source-index-format.ts`, and it decides whether a segment is believed at
-//! all: a chain is cut at the first segment it refuses. What reaches this side
-//! is a chain it accepted and layers this side encoded. So this checks framing
-//! and bounds — enough that a bad offset is a refusal with a name rather than a
-//! read past the end — and a segment that breaks them is a defect in whoever
-//! handed it over.
+//! `source-index-format.ts`, and this side refuses what it refuses. A segment
+//! is opened by its length, not its digest, so a damaged segment of the right
+//! length reaches here. This checks framing and bounds — enough that a bad
+//! offset is a refusal with a name rather than a read past the end — and the
+//! range of every one-byte code column, so a damaged flag is refused rather
+//! than read as false.
 
 // compass: variance-authority.reach.source-index
 
@@ -50,6 +50,12 @@ impl U32s<'_> {
         u32::from_le_bytes([self.0[at], self.0[at + 1], self.0[at + 2], self.0[at + 3]])
     }
 
+    /// Where `value` stands in a column that ascends, when it is there.
+    pub fn search(&self, value: u32) -> Option<usize> {
+        let at = partition(self.len(), |index| self.at(index) < value);
+        (at < self.len() && self.at(at) == value).then_some(at)
+    }
+
     /// The children of `row`, from an offset column already checked by
     /// [`Stored::offsets`].
     pub fn range(&self, row: usize) -> Range<usize> {
@@ -61,6 +67,8 @@ pub struct Stored<'a> {
     bytes: &'a [u8],
     sections: HashMap<String, (usize, usize, u8)>,
     strings: Vec<&'a str>,
+    /// The text heap, `texts.blob` and `texts.off`, when the segment has one.
+    texts: Option<(&'a str, U32s<'a>)>,
 }
 
 impl<'a> Stored<'a> {
@@ -108,7 +116,7 @@ impl<'a> Stored<'a> {
                 return Err(format!("section {} is named twice", section.name));
             }
         }
-        let mut stored = Stored { bytes, sections, strings: Vec::new() };
+        let mut stored = Stored { bytes, sections, strings: Vec::new(), texts: None };
         let blob = std::str::from_utf8(stored.u8s("strings.blob")?).map_err(|_| "a dictionary that is not UTF-8")?;
         let off = stored.u32s("strings.off")?;
         if off.len() == 0 || off.at(0) != 0 || off.at(off.len() - 1) as usize != blob.len() {
@@ -118,6 +126,14 @@ impl<'a> Stored<'a> {
             .map(|at| blob.get(off.at(at) as usize..off.at(at + 1) as usize))
             .collect::<Option<_>>()
             .ok_or("a dictionary entry that is not a string")?;
+        if let Some(blob) = stored.section("texts.blob", 1)? {
+            let blob = std::str::from_utf8(blob).map_err(|_| "a text heap that is not UTF-8")?;
+            let off = stored.u32s("texts.off")?;
+            if off.len() == 0 || off.at(0) != 0 || off.at(off.len() - 1) as usize != blob.len() {
+                return Err("a text heap whose offsets do not span it".to_owned());
+            }
+            stored.texts = Some((blob, off));
+        }
         Ok((stored, written))
     }
 
@@ -143,6 +159,16 @@ impl<'a> Stored<'a> {
 
     pub fn u8s(&self, name: &str) -> Result<&'a [u8], String> {
         self.section(name, 1)?.ok_or_else(|| format!("no section {name}"))
+    }
+
+    /// A one-byte column of codes from zero to `most`, as a flag (`most` one)
+    /// or an enumeration: the TypeScript reader refuses the segment for one
+    /// code past it anywhere, so this side refuses it at open, not when a row
+    /// is read. A segment is read by its length, not its digest, so a damaged
+    /// byte reaches here. One pass of a byte maximum, which vectorises.
+    pub fn codes(&self, name: &str, most: u8) -> Result<&'a [u8], String> {
+        let column = self.u8s(name)?;
+        if column.iter().fold(0, |high, &code| high.max(code)) <= most { Ok(column) } else { Err(format!("column {name} holds a code past {most}")) }
     }
 
     pub fn u32s(&self, name: &str) -> Result<U32s<'a>, String> {
@@ -180,11 +206,39 @@ impl<'a> Stored<'a> {
         (id != NONE).then(|| self.text(id))
     }
 
-    /// The ids the dictionary holds `value` under, so a column is asked by id
-    /// rather than read string by string; none when the segment never names it.
-    pub fn ids_of(&self, value: &str) -> Vec<u32> {
-        self.strings.iter().enumerate().filter(|(_, text)| **text == value).map(|(at, _)| at as u32).collect()
+    /// A text the heap keeps under `id`, absent for `NONE`. An id past the
+    /// heap, or offsets that cut a character, panic as [`Self::text`] does.
+    pub fn kept(&self, id: u32) -> Option<&'a str> {
+        if id == NONE {
+            return None;
+        }
+        let at = id as usize;
+        let text = self.texts.and_then(|(blob, off)| (at + 1 < off.len()).then(|| blob.get(off.at(at) as usize..off.at(at + 1) as usize)).flatten());
+        match text {
+            Some(text) => Some(text),
+            None => panic!("source index: text {id} is not one the heap holds"),
+        }
     }
+
+    /// The id the dictionary holds `value` under. Every writer of the framing
+    /// sorts its dictionary in code-unit order (`Strings` in `segment.rs`), so
+    /// it is searched rather than read string by string.
+    pub fn id_of(&self, value: &str) -> Option<u32> {
+        let strings = &self.strings;
+        let at = partition(strings.len(), |index| crate::order::code_unit(strings[index], value).is_lt());
+        (strings.get(at) == Some(&value)).then_some(at as u32)
+    }
+}
+
+/// The first of `0..length` for which `before` is false, where it is true of
+/// every index before that one and of none after.
+pub fn partition(length: usize, before: impl Fn(usize) -> bool) -> usize {
+    let (mut low, mut high) = (0, length);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        if before(middle) { low = middle + 1 } else { high = middle }
+    }
+    low
 }
 
 /// Every column in `columns` holds `length` entries.

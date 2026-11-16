@@ -76,6 +76,7 @@ export {
   type NativeCombinedShard as CombinedShard,
 } from '../native-record.js';
 export { finalizeJestJourneys, pendingJourneyDirectory, stitchJourneyArtifacts, type JourneyArtifactResult } from './jest-journey-artifact.js';
+export { shareOf } from './case-times.js';
 export { encodeAsSetExecutionIndex, journeyGaps, openSetColumns, type JourneyGaps } from './execution-set-format.js';
 export { type SetColumns, type StringTable, type TestColumns } from './execution-set-columns.js';
 export type { BlockKind, ExecutionNarrowing, ExecutionNarrowingOptions, ImporterReason, SelectionCause, SelectionReason };
@@ -103,6 +104,7 @@ export { sourceCut } from './coverage-rows.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export { kept, placed, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { askedSelection, landingTimes } from './selection-environment.js';
+export { jestCacheDirectory } from './jest-cache-directory.js';
 export { shardArgument, shardOf, type ShardAsked, type ShardPart } from './shard-placement.js';
 export { eitherFace, indexFaces, type Face, type Faces, type ReachThrough } from './faces.js';
 export type { JourneyDivergence, JourneyDivergenceOptions, JourneyRegion };

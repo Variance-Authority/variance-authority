@@ -9,7 +9,7 @@ export interface ParsedSelect {
   readonly since?: string;
   /** `--ran-at <commit>`: the pull request's tested tree, which a merge queue merged onto `--since`. */
   readonly ranAt?: string;
-  readonly format: SelectFormat;
+  readonly format: SelectFormat | 'explain';
   readonly noGit?: boolean;
   /** `--execution <path>`: a journey file to read instead of this checkout's snapshot. */
   readonly execution?: string;
@@ -22,7 +22,7 @@ export interface ParsedSelect {
   readonly suite?: string;
   /** `--at-distance <hops>`: one leg of the selection, the text as typed, read by `parseAtDistance`. */
   readonly atDistance?: string;
-  /** `--local`: a reading that cannot narrow falls to the changed files' importers or packages. */
+  /** `--local`: a reading that cannot narrow falls to the changed files' importers, never to every test file. */
   readonly local?: boolean;
 }
 
@@ -40,8 +40,8 @@ export interface ParsedSelect {
 export function parseSelectArgs(flags: Flags): ParsedSelect {
   noPositionals(flags.positionals, 'select');
   const format = flags.values.get('--format') ?? 'plain';
-  if (format !== 'plain' && format !== 'json' && format !== 'vitest' && format !== 'jest') {
-    throw new OperatorError(`--format must be plain, json, vitest or jest, not \`${format}\``);
+  if (format !== 'plain' && format !== 'json' && format !== 'vitest' && format !== 'jest' && format !== 'explain') {
+    throw new OperatorError(`--format must be plain, json, vitest, jest or explain, not \`${format}\``);
   }
   const since = flags.values.get('--since');
   const execution = flags.values.get('--execution');

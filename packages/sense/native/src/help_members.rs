@@ -26,11 +26,12 @@ use oxc_ast_visit::{walk, Visit};
 use oxc_span::GetSpan;
 use serde::Serialize;
 
+use crate::chain_lookup::{fold, record};
 use crate::compact::Layer;
 use crate::harvest::{Harvest, TextSpan};
 use crate::help_usage::{importers_from, kind_of};
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 use crate::read::Lines;
 
@@ -45,6 +46,9 @@ pub struct MemberDeclaration {
     pub(crate) on: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) doc: Option<TextSpan>,
+    /// The line it is declared on, as [`crate::span_text`] keeps it.
+    #[serde(rename = "lineText", skip_serializing_if = "Option::is_none")]
+    pub(crate) line_text: Option<String>,
 }
 
 /// Every member `program` declares, in source order.
@@ -165,11 +169,14 @@ pub(crate) fn indexed_extensions(layers: &[Layer]) -> Vec<String> {
     held
 }
 
-/// One member a container declares: its name and its line.
+/// One member a container declares: its name, its line, and that line's text.
 #[napi(object)]
 pub struct ContainerMember {
     pub name: String,
     pub line: u32,
+    /// The line as the read the index recorded saw it, its line end dropped;
+    /// absent when the index kept none.
+    pub text: Option<String>,
 }
 
 /// Every member the interface, type alias or class named `on` declares in
@@ -177,8 +184,7 @@ pub struct ContainerMember {
 /// member of a type literal inside it is the literal's, not the container's.
 /// Empty when the chain holds no parse of the file.
 pub(crate) fn members_on(layers: &[Layer], file: &str, on: &str) -> Vec<ContainerMember> {
-    let folded = fold(layers);
-    let Some((&file, &at)) = folded.get_key_value(file) else { return Vec::new() };
+    let Some((file, at)) = record(layers, file) else { return Vec::new() };
     let mut crossings = [Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }];
     join_parses(layers, &mut crossings);
     let Some((layer, row)) = crossings[0].parse else { return Vec::new() };
@@ -191,7 +197,11 @@ pub(crate) fn members_on(layers: &[Layer], file: &str, on: &str) -> Vec<Containe
         .member_declarations
         .range(row)
         .filter(|&at| stored.text(parses.member_declaration_on.at(at)) == on)
-        .map(|at| ContainerMember { name: stored.text(parses.member_declaration_name.at(at)).to_owned(), line: parses.member_declaration_line.at(at) })
+        .map(|at| ContainerMember {
+            name: stored.text(parses.member_declaration_name.at(at)).to_owned(),
+            line: parses.member_declaration_line.at(at),
+            text: stored.kept(parses.member_declaration_line_text.at(at)).map(str::to_owned),
+        })
         .collect();
     members.sort_by_key(|member| member.line);
     members
@@ -224,9 +234,9 @@ fn used(root: &str, layers: &[Layer], name: &str, found: &mut [MemberSite]) {
         if one.taken.through.is_some() || one.local.is_empty() { continue; }
         written.entry(one.taken.at).or_default().entry(one.local).or_default().insert(one.origin);
     }
-    let mut crossings: Vec<Crossing> = fold(layers)
-        .into_iter()
-        .filter(|(file, _)| written.contains_key(*file))
+    let mut crossings: Vec<Crossing> = written
+        .keys()
+        .filter_map(|file| record(layers, file))
         .map(|(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
         .collect();
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
@@ -276,7 +286,7 @@ impl Walker<'_> {
     fn declare(&mut self, key: Option<oxc_ast::StaticPropertyName<'_>>, at: u32, start: u32) {
         let Some(key) = key.and_then(|name| name.into_cow_str()) else { return };
         let on = self.containers.last().cloned().unwrap_or_default();
-        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on, doc: self.harvest.doc(start) });
+        self.declared.push(MemberDeclaration { name: key.into_owned(), line: self.lines.at(at), on, doc: self.harvest.doc(start), line_text: None });
     }
 
     fn within(&mut self, container: String, walk: impl FnOnce(&mut Self)) {

@@ -1,21 +1,51 @@
 # Read what one test ran, in order
 
-A **test story** is the order one test ran its code in, written out as
-numbered steps: each function the test ran, the branch it took at each `if`,
-how many times each loop ran, the values each function was handed, and the
-lines the code printed. Every run already records which code each test ran. A
-story adds the order, the counts, the values and the printed lines, and you
-read it from top to bottom. When a test fails only on
-some runs, you [compare the stories](#why-does-this-test-fail-on-some-runs) of
-runs that passed with runs that failed.
-When one test passes and another fails, such as the same checkout with a
-feature flag off and on, you compare the stories of the two tests. Either way
-what each function was handed is compared with the rest, and any other value
-you suspect you print from the code under test, never from the test.
+A **test story** is the order one test ran its code in, as numbered steps:
+each function it ran, the branch taken at each `if`, how often each loop ran,
+the values each function was handed and the lines the code printed. Every
+ordinary run already records which line of the test first ran each piece of
+code and how long each line took, and `variance story --name`
+[explains a test from that](#explain-a-test-without-recording-a-story). Record
+a story when you need what happened next or how often it repeated, or to
+[compare runs](#why-does-this-test-fail-on-some-runs), or tests, that passed and failed.
 
-If you only need which line of the test first ran a piece of code, every
-ordinary run [already records that](test-level-coverage.md#which-test-statement-first-ran-a-region).
-Record a story when you need what happened next or how often it repeated.
+## Explain a test without recording a story
+
+Name a test no story was recorded for, and `variance story` explains it from
+the record every ordinary run keeps:
+
+```bash
+variance story --file src/cart.test.ts --name "cart > removes the last item"
+```
+
+```text
+explain  src/cart.test.ts > cart > removes the last item, from the record
+  each statement once, at the line that first reached it, with the regions it was the first to run;
+  for the order and the repeats, run the test with VARIANCE_AUTHORITY_STORY=1 and read its story
+  ran 4 ms
+
+  line 4    3.1 ms   78%  cart.removeItem('C3');
+    @shop/cart
+      Cart/removeItem  src/cart.ts:13-23, and 2 branches or loops in it
+      applyTier  src/price.ts:6-9, and 1 branch or loop in it
+      formatPrice  src/format.ts:14-18
+
+  line 5     40 µs    1%  expect(cart.lines).toEqual(['5.00', '2.70']);
+```
+
+Each line of the test's body is listed in the order the test first reached it,
+with its source as the checkout holds it now, how long it took in all, and its
+share of the test's time. Under it are the functions that line was the first to
+run, grouped by package. A function an earlier line already ran is listed
+under that line only, and nothing says what ran in what order or how many
+times: that is what a [story](#record-one) records. What a `beforeEach` or
+another hook ran is listed apart, and when the test file changed since the
+record was written, the answer says a line may have moved.
+
+The record keeps the newest run of each test. A test the record holds but whose
+lines were not timed is listed by line, and a test from a run recorded without
+statement lines lists only the functions it ran. When a story is recorded for
+the test, `variance story` prints the story instead.
 
 ## What you already know, and what you do not
 
@@ -628,7 +658,8 @@ neither is what a function returned.
 ## What the code prints
 
 For any other value — one inside an object, or one no function was handed —
-the lines the code prints are what give it, and three sources write them under
+the lines the code prints are what give it, printed from the code under test,
+never from the test, and three sources write them under
 their step:
 
 - **`console`.** Each line printed with `console.log`, `info`, `warn`, `error`
@@ -655,6 +686,39 @@ that pass and runs that throw, and [compare them](#compare-readings-of-one-test)
 a line every run on one side printed, and no run on the other, is listed with
 the step that printed it.
 Take the `console.log` out before you change the code.
+
+## What each line did to the page
+
+When the test has a document, as under jsdom, in the browser modes of Vitest
+and Rstest, or in the page a Playwright spec drives, each line of the test that
+changed the page says how much it changed:
+
+```text
+page +1 −0 nodes, 2 attributes, 0 text
+```
+
+Nodes added and removed, attributes set, and text nodes changed since the
+line opened, what arrived while it awaited included. A subtree added at once
+counts as one node, and `textContent` set on an element replaces its nodes
+rather than changing text. A line that changed nothing says nothing. A
+`findBy` or `waitFor` that passed on such a line waited on no change to the
+markup: what it looked for was there, unless it waited on a
+property the markup does not carry, such as an input's `value` set by a timer.
+Hooks are no test line: a hook's line, and the end of the test, close the
+watch until the next test line opens, so what hooks and a testing library's
+cleanup change has no note. In a browser page one still can: a cleanup imported
+from a package, in a test file that writes no hook of its own, runs before the
+test ends and lands its change on the test's last line. Under Playwright, a
+hook declared in a helper file closes the watch as the spec's own hooks do,
+but a fixture's code after `use` runs no statement, so what it changes lands on
+the test's last line unless one of the spec's `afterEach` hooks ran before it.
+A document a statement loads is counted from the statement after it. Changes
+inside a shadow root are not counted.
+
+The note counts; it does not show the markup, or say which component made the
+change. For the React commits behind it, use [Eyes](eyes.md), which writes each
+commit under its step with the components that rendered. A test run without a
+document has no `page` note.
 
 ## What a story does not show
 

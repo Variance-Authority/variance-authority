@@ -22,6 +22,7 @@ import preconditions = require('./case-preconditions.cjs');
 import presence = require('./presence.cjs');
 import probeCuts = require('../instrument/probe-cuts.cjs');
 import probeLog = require('../instrument/probe-log.cjs');
+import probeSet = require('../instrument/probe-set.cjs');
 import storyListen = require('../instrument/story-listen.cjs');
 import storyTap = require('../instrument/story-tap.cjs');
 import stories = require('../story/format.cjs');
@@ -117,7 +118,7 @@ function attach(holder: Holder, continuations: boolean, story = false): Engine {
     }
     return found;
   }
-  const engine = probeLog.createEngine(continuations, probeCuts.createCuts());
+  const engine = probeLog.createEngine(continuations, probeSet.probeSet, probeCuts.createCuts());
   holder.__VA__ = story ? storyTap.createTap(engine, storyTap.TAPE_LIMIT).root : engine.root;
   return engine;
 }
@@ -271,7 +272,7 @@ function scoped(
   const close = (bucket: Bucket, name: string): View | undefined => {
     if (buckets.get(bucket.key) === bucket) buckets.delete(bucket.key);
     // Read before the bucket closes: the case's end is its last statement's.
-    const slowest = cuts?.slowest(bucket);
+    const times = cuts?.times(bucket);
     const view = engine.close(bucket);
     const settled = stopped.get(bucket.key);
     const journey = journeys.get(bucket.key);
@@ -284,7 +285,7 @@ function scoped(
     // has nothing to write when it entered nothing.
     if (view.rows.length === 0 && settled === undefined && journey === undefined && !spoke) return undefined;
     const settledOwner = settled === undefined ? name : caseOwner.settledCase(name, settled);
-    const timedOwner = slowest === undefined ? settledOwner : caseOwner.slowestCase(settledOwner, slowest);
+    const timedOwner = times === undefined ? settledOwner : caseOwner.timesCase(settledOwner, times);
     const owner = journey === undefined ? timedOwner : caseOwner.packJourney(timedOwner, journey);
     frames.push(journals.encodeLog(heard === undefined ? owner : caseOwner.packHeard(owner, heard), view));
     foldInto(union, view);
@@ -353,6 +354,9 @@ function scoped(
     if (attempts > 0) attempts -= 1;
   };
   const release = (bucket: Bucket): void => {
+    // The body's last line hears what it changed before the hooks change more,
+    // where it is the one case running: under continuations too.
+    if (current === bucket || (inFlight.size === 1 && inFlight.has(bucket))) tap?.settle();
     bucket.open = false;
     inFlight.delete(bucket);
     if (current === bucket) {

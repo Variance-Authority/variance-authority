@@ -1,22 +1,63 @@
-use std::io::Cursor;
+use std::collections::HashMap;
 use std::path::Path;
 
-use oxc_allocator::AllocatorPool;
+use super::{declined_for_size, open, read_all, read_git, still_too_large, too_large, Answer, Opened, Outcome, TreeObjects};
+use crate::git_store::{Objects, STORE_CROSSOVER};
+use crate::git_fixture::{git, repository, write};
 
-use super::{declined_for_size, open, read_blob, still_too_large, too_large, Opened, Outcome};
+/// `files`, committed, as `read_git` answers each out of the repository's
+/// store under `largest`, with whether its bytes were the blob the index names.
+fn wave(name: &str, files: &[(&str, &[u8])], largest: u32, edit: impl FnOnce(&Path)) -> HashMap<String, (Answer, bool)> {
+    let root = repository(name, files);
+    edit(&root);
+    let staged = git(&root, &["ls-files", "-s"]);
+    let ids: HashMap<&str, crate::git::Oid> = staged
+        .lines()
+        .filter_map(|line| {
+            let (meta, path) = line.split_once('\t')?;
+            Some((path, crate::git::parse_oid(meta.split(' ').nth(1)?.as_bytes())?))
+        })
+        .collect();
+    let paths: Vec<String> = files.iter().map(|(path, _)| (*path).to_owned()).collect();
+    let oids = paths.iter().map(|path| ids.get(path.as_str()).copied()).collect();
+    let objects = Objects::open(&root);
+    let (answers, named) = read_git(objects.as_ref(), root.to_string_lossy().into_owned(), paths.clone(), oids, Some(largest), Some(true), None, true);
+    std::fs::remove_dir_all(&root).unwrap();
+    paths.into_iter().zip(answers.into_iter().zip(named)).collect()
+}
+
+/// A parse as the disk read gives it, to compare a wave's answer against.
+fn on_disk(root: &Path, file: &str, largest: u32) -> String {
+    let read = read_all(root.to_string_lossy().into_owned(), vec![file.to_owned()], Some(largest), Some(true), None, true);
+    serde_json::to_string(&read[0].0).unwrap()
+}
 
 #[test]
-fn an_oversized_blob_is_declined_and_drained_without_losing_the_next_answer() {
-    let mut stream = Cursor::new(b"one blob 4\nxxxx\ntwo blob 19\nexport const y = 1\n\n");
-    let arenas = AllocatorPool::new(1);
+fn a_wave_reads_each_tracked_blob_out_of_the_store_and_declines_an_oversized_one_by_its_size() {
+    let answers = wave("acquire-wave", &[("large.ts", b"export const large = 'xxxxxxxxxxxxxxxx';\n"), ("next.ts", b"export const y = 1;\n")], 32, |_| {});
 
-    let ((oversized, _, outcome), _) = read_blob(Path::new("."), "large.ts", &[0; 20], &mut stream, 1, false, &arenas, true);
-    let ((_, _, next), named) = read_blob(Path::new("."), "next.ts", &[0; 20], &mut stream, 1024, false, &arenas, true);
-
-    assert_eq!(outcome, Outcome::Declined);
-    assert!(oversized.unknown.is_some());
-    assert_eq!(next, Outcome::Parsed);
+    let (large, named) = &answers["large.ts"];
+    assert_eq!(large.2, Outcome::Declined);
+    assert!(large.0.unknown.as_deref().is_some_and(|unknown| declined_for_size("large.ts", unknown)));
+    assert!(!named);
+    let (next, named) = &answers["next.ts"];
+    assert_eq!(next.2, Outcome::Parsed);
     assert!(named, "bytes out of Git's object store are the blob asked for");
+    assert!(answers.values().all(|(answer, _)| answer.2 != Outcome::Failed));
+}
+
+#[test]
+fn a_wave_in_a_repository_with_a_replace_ref_parses_the_bytes_on_disk_not_the_replacement() {
+    let mut disk = String::new();
+    let answers = wave("acquire-replace", &[("a.ts", b"export const a = 1;\n"), ("b.ts", b"export const b = 2;\n")], 1024, |root| {
+        let (a, b) = (git(root, &["rev-parse", "HEAD:a.ts"]), git(root, &["rev-parse", "HEAD:b.ts"]));
+        git(root, &["replace", &a, &b]);
+        disk = on_disk(root, "a.ts", 1024);
+    });
+
+    let (a, named) = &answers["a.ts"];
+    assert_eq!(serde_json::to_string(&a.0).unwrap(), disk, "a.ts declares `a`, as its checkout does");
+    assert!(named, "the disk's bytes hash to the id the index names");
 }
 
 #[test]
@@ -95,18 +136,12 @@ const POINTER: &str = "version https://git-lfs.github.com/spec/v1\noid sha256:4d
 
 #[test]
 fn a_blob_git_holds_as_an_lfs_pointer_is_read_from_the_checkout_that_smudged_it() {
-    let root = std::env::temp_dir().join(format!("sense-acquire-lfs-blob-{}", std::process::id()));
-    std::fs::create_dir_all(&root).unwrap();
-    std::fs::write(root.join("a.ts"), b"export const a = 1;\n").unwrap();
-    let mut stream = Cursor::new(format!("oid blob {}\n{POINTER}\n", POINTER.len()).into_bytes());
-    let arenas = AllocatorPool::new(1);
+    let answers = wave("acquire-lfs-blob", &[("a.ts", POINTER.as_bytes())], 1024, |root| write(root, "a.ts", b"export const a = 1;\n"));
 
-    let ((read, digest, outcome), named) = read_blob(&root, "a.ts", &[0; 20], &mut stream, 1024, true, &arenas, true);
-    std::fs::remove_dir_all(&root).unwrap();
+    let ((read, digest, outcome), named) = &answers["a.ts"];
     assert!(!named, "the bytes parsed are the checkout's, not the blob's");
-
-    assert_eq!(outcome, Outcome::Parsed);
-    assert_eq!(digest, crate::digest::of_string("export const a = 1;\n"), "the content is read, not the pointer");
+    assert_eq!(*outcome, Outcome::Parsed);
+    assert_eq!(*digest, crate::digest::of_string("export const a = 1;\n"), "the content is read, not the pointer");
     assert!(read.unknown.is_none());
 }
 
@@ -122,4 +157,21 @@ fn a_checkout_holding_an_lfs_pointer_fails_the_file_and_says_why() {
     let Opened::Settled(read, outcome) = opened else { panic!("a pointer is never parsed as source") };
     assert_eq!(outcome, Outcome::Failed, "a `git lfs pull` changes the bytes, not the object a decline is kept by");
     assert!(read.unknown.unwrap().starts_with("a.ts is a git-LFS pointer"));
+}
+
+#[test]
+fn a_tree_opens_the_store_once_its_scans_have_read_the_crossover_and_keeps_it() {
+    let root = repository("acquire-wave-store", &[("a.ts", b"export const a = 1;\n")]);
+    let store = TreeObjects::default();
+
+    let short = store.objects(&root, STORE_CROSSOVER - 1).is_some();
+    let reached = store.objects(&root, 1);
+    let after = store.objects(&root, 1);
+    let alone = TreeObjects::default().objects(&root, 10).is_some();
+    std::fs::remove_dir_all(&root).unwrap();
+
+    assert!(!short, "scans that have read fewer files than the crossover open no store");
+    let (reached, after) = (reached.expect("the read that reaches the crossover comes from the store"), after.unwrap());
+    assert!(std::sync::Arc::ptr_eq(&reached, &after), "every later read comes from the store already open");
+    assert!(!alone, "a tree whose scans read a few files reads them off the disk");
 }

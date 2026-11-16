@@ -12,10 +12,11 @@ use std::collections::HashSet;
 
 use napi_derive::napi;
 
+use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::help_usage::kind_of;
 use crate::orient_map_read::beside;
-use crate::package_graph::{fold, join_parses, Crossing};
+use crate::package_graph::{join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 
 /// One import that binds a local name to an export named otherwise.
@@ -49,12 +50,11 @@ pub(crate) fn aliases(root: &str, layers: &[Layer], local: &str) -> Vec<Alias> {
     let mut binding: HashSet<&str> = HashSet::new();
     for layer in layers {
         let (stored, parses) = (&layer.stored, &layer.parses);
-        let ids = stored.ids_of(local);
-        if ids.is_empty() { continue; }
+        let Some(id) = stored.id_of(local) else { continue };
         for row in 0..parses.key.len() {
             let renames = parses.requests.range(row).any(|request| {
                 parses.request_bindings.range(request).any(|at| {
-                    ids.contains(&parses.binding_local.at(at)) && !ids.contains(&parses.binding_imported.at(at))
+                    parses.binding_local.at(at) == id && parses.binding_imported.at(at) != id
                 })
             });
             if renames { binding.insert(stored.text(parses.key.at(row))); }

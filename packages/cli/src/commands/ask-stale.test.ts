@@ -10,9 +10,9 @@ import { askSource } from './ask.js';
 /**
  * `variance ask` about a name the published source index does not hold yet.
  * A generation is reused for an hour, and the dependency lexicon is built only
- * by `variance index`, so a function written after the last index was refused
- * as not found, and an installed package's export as *the dependency lexicon is
- * not published* — answers that read as real absences.
+ * by `variance index`. A name the index does not hold is answered from it, as
+ * not found, and the answer says the checkout was not compared with it:
+ * keeping the index fresh is `variance index`'s job, not a miss's.
  */
 
 const cwd = process.cwd();
@@ -66,29 +66,22 @@ function snapshotOf(out: string): string | undefined {
 }
 
 describe('variance ask about a name written after the source index', () => {
-  it('reads the checkout again before refusing `symbol` for a function written since `variance index`', async () => {
+  it.each(['symbol', 'uses'])('answers `%s` for a function written since `variance index` from the index, and says the checkout was not compared', async (question) => {
     const root = checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+    const published = snapshotOf((await run(['ask', 'symbol', '--name', 'taxOf'])).out);
     write(root, KEPT);
 
-    const { code, out, err } = await run(['ask', 'symbol', '--name', 'keptOf']);
-    expect(err).toBe('');
+    const { code, out } = await run(['ask', question, '--name', 'keptOf']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('packages/kit/src/kept.ts');
+    expect(out).toContain('`keptOf` is not');
+    expect(out).not.toContain('packages/kit/src/kept.ts');
+    expect(out).toMatch(/^Snapshot \d{4}-\d\d-\d\dT[\d:.]+Z, not compared with the checkout: run `variance index` if files changed since\.$/mu);
+    // Nothing was read again, so nothing was published: the generation is the one `variance index` made.
+    expect(snapshotOf(out)).toBe(published);
   });
 
-  it('reads the checkout again before refusing `uses` for a function written since `variance index`', async () => {
-    const root = checkout();
-    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    write(root, KEPT);
-
-    const { code, out, err } = await run(['ask', 'uses', '--name', 'keptOf']);
-    expect(err).not.toContain('keptOf` is not');
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('packages/kit/src/kept.ts');
-  });
-
-  it('builds the dependency lexicon rather than refusing `symbol` because it is not published', async () => {
+  it('leaves the dependency lexicon to `variance index`, and says an installed package was not checked', async () => {
     const root = checkout();
     write(root, {
       'package.json': JSON.stringify({ private: true, workspaces: ['packages/*', 'apps/*'], dependencies: { 'state-kit': '0.3.1' } }),
@@ -98,22 +91,8 @@ describe('variance ask about a name written after the source index', () => {
     const { code, out, err } = await run(['ask', 'symbol', '--name', 'makeStore']);
     expect(err).toBe('');
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('state-kit');
-  });
-
-  it('builds the dependency lexicon for a reading of named changed files too', async () => {
-    const root = checkout();
-    write(root, {
-      'package.json': JSON.stringify({ private: true, workspaces: ['packages/*', 'apps/*'], dependencies: { 'state-kit': '0.3.1' } }),
-      ...STATE_KIT,
-      ...KEPT,
-      'changed.txt': 'packages/kit/src/kept.ts\n',
-    });
-
-    const { code, out, err } = await run(['ask', 'symbol', '--name', 'makeStore', '--changed-file', join(root, 'changed.txt')]);
-    expect(err).toBe('');
-    expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('state-kit');
+    expect(out).toContain('Whether an installed dependency publishes it is not known: the dependency lexicon is not published');
+    expect(out).not.toContain('state-kit');
   });
 
   it('prints the true lines of a published name from a file `--changed-file` names', async () => {
@@ -280,19 +259,20 @@ describe('variance ask about a name whose file changed since the source index', 
     expect(snapshotOf(out)).not.toBe(snapshotOf(before.out));
   });
 
-  it('dates what a generation it could not save answers, and quotes no file written since it was read', async () => {
+  it('dates what a generation read again answers, and quotes a file written since it was read as it read it', async () => {
     const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
-    const unsaved = await readWorkspaceForAnswer(root, { index: join(root, 'package.json', 'index'), refreshAfterMs: 0 });
+    const read = await readWorkspaceForAnswer(root, { refreshAfterMs: 0 });
     write(root, { 'packages/kit/src/options.ts': `// one\n// two\n${OPTIONS}` });
 
-    const answer = await askSource({ question: 'symbol', name: 'Options', source: async () => ({ help: unsaved }) });
+    const answer = await askSource({ question: 'symbol', name: 'Options', source: async () => ({ help: read }) });
 
     expect(snapshotOf(answer)).toBeDefined();
-    expect(answer).toContain('packages/kit/src/options.ts:3 — ci');
+    expect(answer).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
+    expect(answer).not.toContain('// two');
   });
 
-  it('reads no text of a file the look found changed, though each recorded line still spells its name', async () => {
+  it('prints the text the index read of a file the look found changed, and none of what the file holds today', async () => {
     const root = checkout({ 'packages/kit/src/options.ts': OPTIONS, [HIDDEN]: HIDDEN_TEXT });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const held = await readWorkspaceForAnswer(root);
@@ -308,18 +288,18 @@ describe('variance ask about a name whose file changed since the source index', 
       });
 
     const members = await refused('Options');
-    expect(members).toContain('packages/kit/src/options.ts:3 — ci');
-    expect(members).toContain('packages/kit/src/options.ts:5 — step');
+    expect(members).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
+    expect(members).toContain('packages/kit/src/options.ts:5 — readonly step: string;');
     expect(members).not.toContain('is gone');
     expect(members).not.toContain('went elsewhere');
 
     const declared = await refused('hiddenOf');
-    expect(declared).toContain(`declared, not exported, at ${HIDDEN}:3`);
+    expect(declared).toContain(`declared, not exported, at ${HIDDEN}:3 by @acme/kit\nfunction hiddenOf(amount: number): number\nHalves it.\n`);
     expect(declared).not.toContain('went elsewhere');
     expect(declared).not.toContain('words of today');
   });
 
-  it('carries the caveat, with one reading and none of its text, for a file saved during the read the look asked for', async () => {
+  it('carries the caveat, with one reading and the text it read, for a file saved during the read the look asked for', async () => {
     const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const held = await readWorkspaceForAnswer(root);
@@ -340,7 +320,7 @@ describe('variance ask about a name whose file changed since the source index', 
     });
 
     expect(reads).toBe(1);
-    expect(answer).toContain('packages/kit/src/options.ts:4 — ci');
+    expect(answer).toContain('packages/kit/src/options.ts:4 — readonly ci: boolean;');
     expect(answer).not.toContain('is gone');
     expect(answer).toMatch(/^Snapshot \S+, not compared with the checkout \(a file it rests on changed while it was read\)/mu);
     expect(answer.match(/^Snapshot /gmu)).toHaveLength(1);
@@ -350,7 +330,7 @@ describe('variance ask about a name whose file changed since the source index', 
     expect(next.out).not.toContain('not compared');
   });
 
-  it('gives no opening of a file `search` found, once that file was written since the read and could not be read again', async () => {
+  it('gives the opening the index read of a file `search` found, once that file was written since the read and could not be read again', async () => {
     const opening = (words: string): string => `/**\n * Where painted ${words} dance.\n */\n\n/** One. */\nexport const pond = 1;\n`;
     const root = checkout({ 'packages/kit/src/frogs.ts': opening('frogs') });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
@@ -366,12 +346,12 @@ describe('variance ask about a name whose file changed since the source index', 
       },
     });
 
-    expect(answer).toContain('packages/kit/src/frogs.ts');
+    expect(answer).toContain('packages/kit/src/frogs.ts [file] — @acme/kit — Where painted frogs dance.');
     expect(answer).not.toContain('toads');
     expect(answer).toMatch(/^Snapshot \S+, not compared with the checkout \(it could not be read again: a manifest is half-written\)/mu);
   });
 
-  it('gives the members it recorded, and none of today\'s text at their old lines, when the checkout could not be read again', async () => {
+  it('gives the members it recorded with the text it read of them, and none of today\'s, when the checkout could not be read again', async () => {
     const root = checkout({ 'packages/kit/src/options.ts': OPTIONS });
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const held = await readWorkspaceForAnswer(root);
@@ -386,8 +366,8 @@ describe('variance ask about a name whose file changed since the source index', 
       },
     });
 
-    expect(answer).toContain('packages/kit/src/options.ts:3 — ci');
-    expect(answer).toContain('packages/kit/src/options.ts:5 — step');
+    expect(answer).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
+    expect(answer).toContain('packages/kit/src/options.ts:5 — readonly step: string;');
     expect(answer).not.toContain('— */');
     expect(answer).not.toContain('— export interface');
     expect(answer).toMatch(/not compared with the checkout \(it could not be read again: a manifest is half-written\)/u);
@@ -447,7 +427,7 @@ describe('variance ask about a name whose file changed since the source index', 
 
     const { code, out } = await run(['ask', 'symbol', '--name', 'Options', '--just-answer']);
     expect(code).toBe(EXIT_CLEAN);
-    expect(out).toContain('packages/kit/src/options.ts:3 — ci');
+    expect(out).toContain('packages/kit/src/options.ts:3 — readonly ci: boolean;');
     expect(out).not.toContain('is gone');
   });
 

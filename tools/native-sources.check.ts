@@ -1,37 +1,38 @@
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join, posix } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { selection } from '../vitest.config.mjs';
-import { NATIVE } from '../packages/sense/native/build-inputs.mjs';
+import { NATIVE, NATIVE_EXTRA_INPUTS } from '../packages/sense/native/build-inputs.mjs';
 import { ROOT } from './workspaces.js';
 
+const ADDON = 'packages/sense/src/addon.ts';
+
 /**
- * The crate the addon is built from is declared to the unit suite's recording.
- *
- * Nothing else would notice it going. A test reaches `packages/sense/native`
- * only through the `.node` Node loads with `dlopen`, so no journal ever names a
- * `.rs` file, and without the declaration a change confined to the crate
- * selects nothing under `yarn test:since` — which reads as "nothing reached the
- * change", the one answer that is never checked twice. Asked here of git
- * directly rather than of `nativeSources`, so the helper cannot agree with
- * itself.
+ * `addon.ts` declares the crate it loads (its docblock says why), held here to
+ * what git lists, so the directives cannot agree with themselves; a
+ * precondition would charge every test file instead.
  */
-describe('the native crate governs the unit suite', () => {
+describe('the native crate is declared by the module that loads it', () => {
   const tracked = execFileSync('git', ['ls-files', '-z', '--', NATIVE], { cwd: ROOT, encoding: 'utf8' })
     .split('\0')
     .filter((path) => path !== '');
-  const declared = new Set(selection.preconditions);
+  const unnamed = tracked.filter((path) => /(?:^|\/)(?:build\.m?[jr]s|Cargo\.lock|[^/]+\.toml)$/.test(path));
+  const declared = [...readFileSync(join(ROOT, ADDON), 'utf8').matchAll(/^\/\/\/ <depends path="([^"]+)" \/>$/gm)].map(
+    ([, path]) => posix.join(posix.dirname(ADDON), path!),
+  );
 
-  it('lists the manifest and the sources, so the sweep below has something to sweep', () => {
+  it('lists the manifest and the root module, so the sweep below has something to sweep', () => {
     expect(tracked).toContain(`${NATIVE}/Cargo.toml`);
-    expect(tracked).toContain(`${NATIVE}/Cargo.lock`);
-    expect(tracked.filter((path) => path.startsWith(`${NATIVE}/src/`) && path.endsWith('.rs')).length).toBeGreaterThan(0);
+    expect(tracked).toContain(`${NATIVE}/src/lib.rs`);
   });
 
-  it('declares the layout Rust compiles from outside the crate', () => {
-    expect(declared.has('packages/sense/record-layout.json')).toBe(true);
+  it('names the root module and every input no Rust line names', () => {
+    expect(declared.sort()).toEqual([`${NATIVE}/src/lib.rs`, ...unnamed, ...NATIVE_EXTRA_INPUTS].sort());
   });
 
-  it('declares every file git holds for the crate as a precondition', () => {
-    expect(tracked.filter((path) => !declared.has(path))).toEqual([]);
+  it('is not a precondition of the suite', () => {
+    const crate = (path: string) => path.startsWith(`${NATIVE}/`) || NATIVE_EXTRA_INPUTS.includes(path);
+    expect(selection.preconditions.filter(crate)).toEqual([]);
   });
 });

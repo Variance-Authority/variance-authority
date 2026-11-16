@@ -49,6 +49,7 @@ import {
 import type { ParsedCarry } from '../carry-args.js';
 import { moveBase } from './carry-handed.js';
 import { mergeHead } from './carry-merge.js';
+import { transformCached, type TransformAsked } from './carry-transform.js';
 import { movePushed, PUSHED } from './carry-pushed.js';
 import { DEFAULT_BASELINE_PATH, KEPT, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
@@ -222,6 +223,13 @@ export interface CarryInput {
   readonly suites?: readonly DeclaredSuite[];
   readonly run: HostRun;
   readonly mainlines: Mainlines;
+  /** Restore: the transform cache asked for, which nothing else carries. */
+  readonly transform?: TransformAsked;
+}
+
+/** Why an artifact has no key: only the host cache carries it, and this run is not on a host. */
+function offHost(artifact: string): string {
+  return `${artifact} is carried by the host cache, and this is not a host run, so it has no key here`;
 }
 
 /** What to carry, where it is, and under which keys. */
@@ -235,7 +243,7 @@ export function carryPlan(input: CarryInput): CarryPlan {
   const mainlines = 'names' in input.mainlines ? input.mainlines.names.filter((name) => name !== line) : [];
   const keyed = (artifact: string, paths: readonly string[], prefix: string, restoreFrom: string | undefined): void => {
     if (line === undefined || run.sha === undefined) {
-      notes.push(`${artifact} is carried by the host cache, and this is not a host run, so it has no key here`);
+      notes.push(offHost(artifact));
       return;
     }
     const at = `variance-${prefix}:${line}:`;
@@ -273,6 +281,15 @@ export function carryPlan(input: CarryInput): CarryPlan {
     if (direction === 'save') eyesNote(input.root, suite.name, notes);
     const prefix = `suite-${suite.name}-${basename(top)}`;
     keyed(artifact, [top, `!${top}/**/.run-*`, `!${top}/.work`], prefix, run.base);
+  }
+
+  if (direction === 'restore' && input.transform !== undefined && (input.suites ?? []).length > 0) {
+    if (line === undefined) notes.push(offHost("Jest's transform cache"));
+    else {
+      const transform = transformCached({ ...input.transform, root: input.root, suites: input.suites ?? [], line, mainlines });
+      cached.push(...transform.cached);
+      notes.push(...transform.notes);
+    }
   }
 
   const pushed = pushedOf(direction, input.root, run, input.suites ?? []);
@@ -453,6 +470,9 @@ export async function runCarry(
     ...(suites === undefined ? {} : { suites }),
     run: base === undefined ? host : { ...host, base },
     mainlines: await mainlinesOf(config, env),
+    ...(parsed.transform === undefined
+      ? {}
+      : { transform: { runner: parsed.transform, ...(parsed.shard === undefined ? {} : { shard: parsed.shard }), now: new Date() } }),
   });
   if (parsed.format === 'github') {
     streams.out(githubOutput(plan));

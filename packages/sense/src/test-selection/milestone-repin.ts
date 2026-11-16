@@ -234,7 +234,8 @@ export function repinnedCases(
     };
   });
   const fresh = encodeOwnedSetExecutionIndex({ tests: cases, modules: kept.map(({ module }) => module) }, kept.map(({ owner }) => owner), lines);
-  return layerCaseIndex(milestone, fresh, { ran: tests, finished: tests, present: () => true, ...(edit === undefined ? {} : { edit }) }).merged;
+  const files = [...tests];
+  return layerCaseIndex(milestone, fresh, { ran: files, finished: files, before: false }, edit).merged;
 }
 
 /**

@@ -5,6 +5,7 @@ import { cadence } from './cadence.js';
 import { instrument } from './index.js';
 import probeCuts from './probe-cuts.cjs';
 import probeLog from './probe-log.cjs';
+import probeSet from './probe-set.cjs';
 
 /** The tap as a seam loads it: built, because it `require`s the engine by the built name. */
 const storyTap = createRequire(import.meta.url)(
@@ -29,7 +30,7 @@ function linesOf(engine: ReturnType<typeof probeLog.createEngine>, bucket: Retur
 }
 
 /** An engine that keeps a test runner's cuts, as a test runner's collector builds it. */
-const cutting = (scoped = false) => probeLog.createEngine(scoped, probeCuts.createCuts());
+const cutting = (scoped = false) => probeLog.createEngine(scoped, probeSet.probeSet, probeCuts.createCuts());
 
 type Root = { r(id: string, count: number): { b: number }; g(entry: number): void; c(line: number): void };
 
@@ -126,7 +127,7 @@ describe('a cut test charges each region to the line that first reached it', () 
   });
 
   it('keeps no cuts in an engine built without a keeper, as a page builds it', () => {
-    const engine = probeLog.createEngine(false);
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
     const bucket = engine.open('case');
     engine.use(bucket);
     const root = engine.root as unknown as Root;

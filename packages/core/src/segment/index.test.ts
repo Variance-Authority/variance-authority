@@ -9,6 +9,7 @@ import {
   OtherSegmentVersion,
   rangeOf,
   sameLength,
+  SegmentCutShort,
   stringColumns,
   stringReader,
   validateOffsets,
@@ -25,6 +26,29 @@ describe('a segment', () => {
     const opened = openSegment(FORMAT, 1, bytes, 'test segment');
     expect([...opened.u8('flags')]).toEqual([0, 1, 1]);
     expect([...opened.u32('counts')]).toEqual([7, 0, 4_000_000_000]);
+  });
+
+  it('opened as a prefix, reads a leading column off the first bytes and names the length a later one needs', () => {
+    const bytes = encodeSegment(FORMAT, 1, {
+      'head': Uint32Array.of(7),
+      'body': new Uint8Array(64),
+    });
+    const needed = (input: Uint8Array): number | undefined => {
+      try {
+        openSegment(FORMAT, 1, input, 'test segment', { prefix: true }).u32('head');
+        return undefined;
+      } catch (error) {
+        return error instanceof SegmentCutShort ? error.needed : -1;
+      }
+    };
+    const header = needed(bytes.subarray(0, 4));
+    expect(header).toBeGreaterThan(4);
+    const head = needed(bytes.subarray(0, header));
+    expect(head).toBeLessThan(bytes.length);
+    const opened = openSegment(FORMAT, 1, bytes.subarray(0, head), 'test segment', { prefix: true });
+    expect([...opened.u32('head')]).toEqual([7]);
+    expect(() => opened.u8('body')).toThrow(SegmentCutShort);
+    expect(() => openSegment(FORMAT, 1, bytes.subarray(0, head), 'test segment')).toThrow(/not a variance-authority test segment/);
   });
 
   it('refuses a column read at the wrong width', () => {

@@ -47,12 +47,12 @@ The repository itself does not have to be built and no API site is required.
 Point it at any checkout with `--root`.
 
 Producing a generation scans the checkout; answering one does not. Ordinary
-commands reuse a generation for one hour before refreshing it, and a name a
-reused generation does not hold is looked for again in one made from the checkout
-now, so a function you just wrote is answered rather than reported missing. So
-is a `symbol` or `uses` whose files, the ones that declare the name, the entry
+commands reuse a generation for one hour before refreshing it. A name a reused
+generation does not hold is answered from it, and the answer says the checkout
+was not compared with it: a function written since is reported missing until
+`variance index` runs. A `symbol` or `uses` whose files, the ones that declare the name, the entry
 that publishes it and each row `uses` lists, or a server's `docs_search` whose
-printed files or the entry and barrels publishing them, changed after the generation, so a renamed export or a moved
+printed files or the entry and barrels publishing them, changed after the generation is asked again of one made now, so a renamed export or a moved
 declaration is not answered from its old lines.
 `--just-answer` uses the last published generation regardless of age, and every
 answer and refusal says when it was produced and that the checkout was not
@@ -180,7 +180,7 @@ and the rows on a page are reordered by that label.
 | `packages` / `docs_packages` | nothing | every import specifier the repository publishes, with how heavily used and how well documented each is, for each package that declares no entry, how many of its names and files other packages import by path, and for each package that declares one, how many imports reach past it; then the `entrypoint --package` questions for the most-imported specifier and the first row of each count |
 | `entrypoint` / `docs_entrypoint` | a package name, optionally a subpath | the names that one specifier opens, most-imported first. Asked by a package's name, also the imports that reach past its entry, or, for a package that declares no entry, the imports of its files by path, counted one row per file; asked by one of those files' specifiers, how many files import each name through it; for a package that opens only subpaths, the specifiers it opens in place of the names. Ends with the narrower questions: the first row's specifier, and `uses` on the name the most files take through it |
 | `symbol` / `docs_symbol` | a name | the import line, the place, the signature, the doc — or the README passage that names it — and who imports it, then the members of an interface, a type alias or a class, one line each; for a name a file exports and no entry publishes, the file, the line and how many imports reach that file, directly or through a file that passes it on, and the declaration an `export … from` passes on; the files that import it under another name with `as`. For a name an import binds with `as`, that import and the original it names, followed to its declaration and its members the same way |
-| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Then the lines of a TypeScript, JavaScript or Rust file that use a name it declares, by its scope rules. Then the files whose import the source index resolved to no file and could take the name, since a use there is not listed: the first three, and how many more, whatever `limit` says. For a name no file here declares that a file imports from a package outside the workspace or a runtime module, each source and the `discover --imports <source>#<name>` question that lists those files. Twelve rows of each list, unless `limit` says more |
+| `uses` / `docs_uses` | a name, optionally the file you are in | every place that imports it, stories and tests listed apart, nearest first: an import from another package by its published path, and every import the source index resolved to the file that declares it, or to a file that passes it on with `export … from`, within its own package as well, each marked `(as x)` where it knows the name as `x`. For a name a file exports and no entry publishes, the imports the source index resolved, and the declaration an `export … from` passes on. Then the lines of a TypeScript, JavaScript or Rust file that use a name it declares, by its scope rules. Twelve rows of each list, unless `limit` says more |
 | `search` / `docs_search` | a string, optionally a path to answer from | candidates, not every match: published names whose name or doc contains it, or whose name is written in its words, then the names exported without being published, matched by the same rule, then the names and files holding most of its words by stem, the rarer words counting for more, and the names only a looser reading finds |
 | `grep` / `docs_grep` | a pattern, and a path to answer from | the lines ripgrep matches in the files that path imports, or that import it, nearest first |
 | `discover` / `docs_discover` | two or more sets of files: what paths reach (`from`) or what reaches them (`to`, also `file#name` for what rests on one name, starting at its imports), who imports a `module#name`, who declares a name matching a pattern, a path pattern, each also as `except…` to take it out; optionally a `text` pattern | the files in every set, each read whole, nearest the paths first, with the line that put each file in each set, and for `to` one shortest chain of imports, each step that is not a plain import marked; `text` keeps the files with a line ripgrep matches. Over MCP, `declares`, and `imports` of anything but a name out of a repository file, are refused: the reading an MCP host serves holds no names |
@@ -488,14 +488,10 @@ for (const file of writePages('.', 'docs/api', {
 `readWorkspace` is the reading the answers are computed from, for a program that
 runs more than one of them or runs them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
-and who imports it. Nine options, all optional: `index`, the path of the source
+and who imports it. Seven options, all optional: `index`, the path of the source
 index the scan keeps its parses in, when you would rather it shared one you
 already have than kept its own under the checkout; `packs`, whether the scan
-reads file bytes from Git's object store, on unless you say otherwise; `save`,
-whether to publish what this reading learned for the next one, on unless you say
-otherwise; `saveIndex`, whether that publication also writes the scan's records
-back to the source index, on unless you say otherwise, and off for a caller that
-has just published that index itself; `changed`, the authoritative scan-root-relative file list an editor,
+reads file bytes from Git's object store, on unless you say otherwise; `changed`, the authoritative scan-root-relative file list an editor,
 watcher or orchestrator already has, which skips Git status discovery, and is not used when no generation is there to refresh; `taints`,
 addition-only Sense taints for declarative module loads the language's imports
 do not express; and `records`, a function handed the import
@@ -507,9 +503,10 @@ the function to call when that step ends, for a caller that shows a slow
 reading as it happens.
 A workspace whose `workspaces` list names members outside its own directory is
 read over its directory and each listed member, named from the top of the Git
-checkout, and keeps that scope's records in a second index next to `index`. That
-one is always saved, whatever `saveIndex` says, because no other caller
-publishes it.
+checkout, and keeps that scope's records in a second index next to `index`.
+Every reading saves the index it scanned and publishes from it, so a second
+reading starts where the first stopped; an index that cannot be saved is thrown
+as an `UnsavedRead`, and nothing is published.
 Taints change which files a path question reaches and never manufacture symbol
 bindings or usage counts. A subtractive taint is refused: a mock is relative to
 one file's run and cannot be flattened into a workspace-wide source tree.
@@ -518,7 +515,7 @@ one file's run and cannot be flattened into a workspace-wide source tree.
 import { readWorkspace } from '@variance-authority/help';
 import { search, searchIndexOf, searchNames, symbol } from '@variance-authority/help/tools';
 
-const workspace = await readWorkspace('.', { save: false });
+const workspace = await readWorkspace('.');
 
 console.log(search.run(workspace, { query: 'viewport' }));
 console.log(symbol.run(workspace, { name: 'Viewport' }));
@@ -534,14 +531,11 @@ did not resolve returns `refused` with no sections. `variance-authority-help
 search viewport --format json` and `variance ask search --format json` print
 it.
 
-`refreshWorkspace` takes a previous reading and refreshes its volatile half:
-symbol usage, exported names, unreadable files and the source graph all come
-from a new Sense scan. Signatures, comments and README mentions are retained
-until what they were cut from changes. A manifest change, an added or removed
-exported name, an `export … from` that changed, or a published declaration that
-moved or was rewritten rebuilds that retained documentation immediately, so a
-reading never gives a published name's old line or text. A row nothing publishes
-moves without a rebuild.
+`refreshWorkspace` takes a previous reading and reads the workspace again from
+its index: the scan updates the index with the files that changed, and the whole
+value — symbol usage, exported names, signatures, comments, README mentions,
+unreadable files and the source graph — is published from it again, so a
+reading never gives a published name's old line or text.
 
 `readWorkspaceForAnswer` reads the published generation while it is less than
 one hour old and refreshes it after that. `justAnswer` disables that expiry;
@@ -552,15 +546,18 @@ UTC production time attached to a recorded value.
 `serveWorkspace` starts the stdio server and returns a function that stops it.
 `input` and `output` are the two streams the protocol is spoken over and default
 to this process's own; override them when the host owns the transport. It uses
-the same one-hour policy and asks a refused call, or a `docs_symbol`,
-`docs_uses` or `docs_search` whose files changed, again of a generation made now, or serves only the recorded generation when `justAnswer` is true. A host
-of its own asks `caughtUp` whether a refusal is worth asking again, and is
-handed what to ask again and, when the checkout could not be compared, the line
-its refusal ends with; `refusalFooter` is that line with the reason a look gave
-for the refusal itself; `snapshotLine` dates an answer. `outlived` says whether
-the files a found answer names changed after its generation, which sends that
-answer to `caughtUp` too. A name nothing declares
-is thrown as a `FoundNothing`, so it is asked again like a refusal, but its
+the same one-hour policy, and on every call reads the published generation's
+head: one published since the generation it holds, by `variance index` or another
+reader, is read before the call is answered, with or without `justAnswer`.
+`readAgain` is that decision. It asks a `docs_symbol`, `docs_uses` or `docs_search`
+whose files changed again of a generation made now, or serves only the recorded generation when `justAnswer` is true. A refused call answers from the generation it was refused from. A host
+of its own asks `outlived` whether the files a found answer names changed after
+its generation, and `caughtUp` to ask that answer again of a generation made
+now; it is handed what it asked again and, when the checkout could not be
+compared, why. `madeBefore` says whether a refusal's generation predates the
+question, so that the checkout was not compared with it; `refusalFooter` is the
+line a refusal then ends with; `snapshotLine` dates an answer. A name nothing declares
+is thrown as a `FoundNothing`, a refusal whose
 message is the answer: what was read, and where else the name may be written.
 `foundNothingAnswer` is that answer, under the lines `foundNothingFooter`
 gives: `variance ask` and `variance-authority-help` print it on stdout and exit

@@ -113,13 +113,17 @@ which fails the script all the same. The model and effort stay as
 not happen, for a missing `codex`, an expired login, a spent quota or a second
 refusal, is named in the report as not made, never waited for.
 
-**What CI says the change does.** `check.yml` posts two comments: a coverage
-report, compared with the unit suite's base record when one was restored, and
-"What this change might do", which names the cases that stood on the changed
-lines. Read them as evidence about your change. A comment describing code you
-did not touch, a base older than your branch point, or tests you expected and it
-does not name, is a finding. Merge `origin/main` and let CI post again; if the comment is
-still wrong, it is a defect in the report, and it gets its own change.
+**What CI says the change does.** `check.yml` posts one comment, "Test
+evidence", from `variance review --coverage`. Each mark in it is acted on as
+[the review on the pull request](../../packages/cli/skills/variance-testing/SKILL.md#the-pull-requests-review-act-on-every-mark)
+says: 🔴 code the change wrote gets a test or is deleted, and is never set
+aside in the body, least of all because nothing reaches it. Its "What this
+change might do" section names the cases that stood on the changed lines: read
+them for behaviour the change moved and no test claims. A comment
+describing code you did not touch, a base older than your branch point, or
+tests you expected and it does not name, is a finding about the report. Merge
+`origin/main` and let CI post again; if the comment is still wrong, it is a
+defect in the report, and it gets its own change.
 
 ## 7. Correct
 

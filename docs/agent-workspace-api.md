@@ -54,8 +54,10 @@ symbol` just did.
 The source index at …/source-index.bin was folded into no code map, because the root's is the only named manifest. With files in hand, `files` reads the graph around them.
 ```
 
-A name the index does not hold is looked for again in the checkout as it is, so
-a function you just wrote is answered with no step from you. A name it does hold
+A name the index does not hold is answered from the index as it is: a function
+written since `variance index` ran is reported missing, and the answer's last
+line says the checkout was not compared with that index. Run `variance index`, or
+name the file with `--changed-file`, and ask again. A name the index does hold
 is answered from the index, which a question reuses for an hour, and read again
 when a file the answer rests on changed since. An edit anywhere else can leave
 that answer behind. Run `variance index` when the next answer has to match it:
@@ -323,8 +325,11 @@ The producer on Kibana peaks at 2,702 MiB of resident memory, against 2,402 MiB
 on seven Material UIs.
 
 A question without a path costs about 100 ms at 2,500 paths, at 41,000 and at
-288,000: it opens a search file the producer publishes beside the generation and
-decodes only the rows it prints, so nearly all of that 100 ms is Node starting.
+288,000: it opens the binary store the producer publishes beside the generation,
+whose search is read in place and whose value is decoded a field at a time, when
+a question first reads that field. A search that shows a published name decodes
+one field whole, the packages with every entry and its uses, to count who
+imports the names it shows. Nearly all of that 100 ms is Node starting.
 In the session that measured Kibana, `variance ask` with no question, which
 reads no index, takes 108 ms, so the search itself costs about 14 ms.
 
@@ -346,24 +351,29 @@ that neither read supplies — declarations and resolved relations — and keeps
 them for the next question.
 
 Ordinary source questions reuse a generation for one hour, then refresh it.
-Without `--just-answer`, a source question that a reused generation refuses is
-asked again, whichever command or server you ask through, except the command
-line's `search`: the name is looked for again in a generation made from the checkout as it is,
-and in what your installed packages export, with that list built first when it
-is missing or behind. A function you wrote a minute ago, or a package you just
-installed, is answered rather than reported missing, and that holds when you
-name changed files too.
+A name the generation does not hold is answered from that generation as it is,
+whichever command or server you ask through: the checkout is not read again. When
+the generation was made before the question, the answer's last line says the
+checkout was not compared with it. A function you wrote since, or a package you
+installed since, is reported missing until you run `variance index`, or name the
+file you changed with `--changed-file`. A server holding a generation reads the
+one `variance index` published on its next call, on the same connection, and with
+`--just-answer` too: each call reads the head of the published generation to see
+whether it is newer than the one held.
 
-A found `symbol` or `uses`, and a `docs_search` over either server, is read the
-same way when a file it rests on changed or went away after the generation: the
-rows `docs_search` prints with the entry and each barrel that publish them, and
+A found `symbol` or `uses`, a `grep`, and a `docs_search` over either server, is asked again
+of a generation made from the checkout as it is when a file it rests on changed or went away after the generation: the
+rows `docs_search` prints with the entry and each barrel that publish them, for
+`grep` every file of the area it searched, and
 for the other two the files that declare the name or pass it on and the entry
 that publishes it, with each row `uses` lists. So an export you renamed is not
 given under its old name, a name a barrel stopped passing on is not called
 published, a declaration you moved is given at the line it holds today, and a use
 is given at its line. An edit anywhere
 else waits for the hour: `uses` does not see an import you just added to a file
-it does not list. The look is a stat of each file.
+it does not list, and `grep` does not see a file that just began importing into
+its area, or one written under a folder it starts from. The look is a stat of
+each file.
 
 When the checkout cannot be read again, or the new read cannot be saved, or a
 file the answer rests on is saved during the read that answers it, the answer or
@@ -373,9 +383,7 @@ after the generation's read the answer gives what the generation recorded, a
 declaration and its members by name, and none of the file's text: its lines are
 no longer the ones that were read. A read that cannot be saved is dropped whole,
 because its names would meet the last read's lines. The next question reads
-again. When the list
-of installed exports cannot be built, the refusal says the installed packages
-were not compared, and why.
+again.
 
 Pass `--just-answer` when the caller owns freshness: no Git status, generation,
 or regeneration is performed, and every answer and refusal names the generation
@@ -401,7 +409,7 @@ nothing changed. This is producer input: it replaces Git's changed-file
 discovery and cannot be combined with `--just-answer`. Such a refresh reads the
 files you listed and no others, so the generation keeps the time of the read it
 refreshed: an answer given with the list gives a listed file's names at the lines
-the file holds now, with none of its text, and the next question without one that
+the file holds now, with their text as the refresh read it, and the next question without one that
 rests on that file reads the checkout. A
 file you left off is unchanged for that request, and that next question is where
 it is looked at. With no generation to refresh, the read is whole and the list
@@ -608,22 +616,11 @@ read the name, marked "passed on whole", and counted apart too. Neither is an
 import of the name, so neither makes a name look used, and a name with only
 these is unknown rather than unused: the catalogue says where it may be read.
 
-`docs_uses` answers who depends on a declaration of this workspace. For a name
-no file here declares that your code imports from a package outside the
-workspace or a runtime module, whether or not it is installed, such as
-`parseSync` from `oxc-parser`, it names each package or module the name is
-imported from and the next question to ask: `variance ask discover --imports
-oxc-parser#parseSync`, run in the checkout, lists every file that imports
-`parseSync` from `oxc-parser`, with the line of each import. The server holds
-no scan of the names your files import, so `docs_discover` refuses that
-question.
-
-An import whose specifier the source index resolved to no file, such as
-`./gone.js` after the file was moved, is not read, so a use behind it is not
-listed. When such an import could take the name, because it is relative or
-names the package that declares the name, the answer names each file that
-holds one, the first three and a count of the rest. Fix the specifier, or read
-those files for the name.
+`docs_uses` answers who depends on a declaration of this workspace, from the
+imports the source index resolved. An import it resolved to no file, such as
+`./gone.js` after the file was moved, points at nothing, so a use behind it is
+not listed; a name no file here declares, such as `parseSync` from
+`oxc-parser`, has no uses to list.
 
 Open those files yourself. The server names the place and the line; it does not
 serve the text, so what you read is the file as it is now.

@@ -18,7 +18,7 @@ use crate::emitted::{Emitted, Origin};
 
 type Resolver = ResolverGeneric<Emitted>;
 
-const MODULE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+pub(crate) const MODULE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 /// What a declaration file ends in, which is also where its stem ends:
 /// `context.d.ts` is `context`, as a request names it.
 const DECLARATION_SUFFIXES: [&str; 3] = [".d.ts", ".d.mts", ".d.cts"];
@@ -148,7 +148,7 @@ impl Resolvers {
         if let Some(found) = self.governed.read().ok().and_then(|held| held.get(path).cloned()) {
             return found;
         }
-        let resolver = match crate::conditions::custom_conditions(path) {
+        let resolver = match self.emitted.configs.custom_conditions(path) {
             Some(custom) if !custom.is_empty() => self.with_conditions(custom),
             _ => Arc::clone(&self.modules),
         };

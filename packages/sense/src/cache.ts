@@ -155,6 +155,8 @@ export interface MemberDeclaration {
   readonly on: string;
   /** The doc comment's span, inside its marks, when one is written above it. */
   readonly doc?: TextSpan;
+  /** The line it is declared on, as the read saw it, its line end dropped; absent when the reader kept none. */
+  readonly lineText?: string;
 }
 
 /** One line that uses a member through a value whose type the file writes. */
