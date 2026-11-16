@@ -87,13 +87,15 @@ nobody, so a test that mocks its pieces lists none.
 ## `grep --test`
 
 ripgrep over the files one recorded test entered, in place of a start point
-along the imports. Each matching line is listed under `Ran` when the innermost
-recorded region holding it was entered, or a line in no region of a file it
-entered, which ran as the module loaded. The rest are under `Not taken`, each
-with the outermost region holding it that the test did not enter: the branch or
-function where it went elsewhere. A file the test entered nothing of is not
-searched, nor a file no recording instruments, so a line missing from the answer
-may still have run there.
+along the imports. A matching line is charged to recorded regions as `covering
+--line` charges it, and listed under `Ran` when one of them was entered, or when
+none holds it, since it ran as the module loaded. The rest are under `Not
+taken`, each with the outermost region holding it that the test did not enter:
+the branch or function where it went elsewhere. A file edited since the
+recording is read through git's diff against the recorded commit, and a line
+written since is listed apart, since no test in the recording ran it. A file the
+test entered nothing of is not searched, nor a file no recording instruments, so
+a line missing from the answer may still have run there.
 
 ## `containment`
 
