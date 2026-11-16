@@ -323,6 +323,25 @@ describe('what a case says on the way', () => {
     expect(lines.map(([, , line, said]) => [line, said])).toEqual([[10, 0], [11, 1], [13, 2]]);
   });
 
+  it('says what a line that awaits changed once, counted since it opened', async () => {
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const { window } = new JSDOM('<main></main>');
+    const { document } = window;
+    listen(tap, { console: { ...console }, document, MutationObserver: window.MutationObserver });
+
+    tap.root.c(4);
+    document.body.append(document.createElement('dialog'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    document.body.append(document.createElement('p'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    tap.root.c(5);
+    tap.settle();
+
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['page +2 −0 nodes, 0 attributes, 0 text']);
+  });
+
   it('says what the last line changed when the case settles, and nothing its hooks or cleanup change', async () => {
     const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));

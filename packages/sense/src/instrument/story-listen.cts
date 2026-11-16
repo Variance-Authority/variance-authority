@@ -40,11 +40,12 @@ type Realm = {
 
 /**
  * Watch the realm's document, once, and have `tap` say what changed on it at
- * each test line, as `page +N −M nodes, A attributes, T text`: drained when
- * the line ends, so a change lands on the line that made it, and said by the
- * observer for what an `await` let through. What runs before a case's first
- * line and after its body, its hooks and their cleanup, is no line's: a hook's
- * line or the case's settling closes the watch until the next test line opens.
+ * each test line, as `page +N −M nodes, A attributes, T text`: counted while
+ * the line is open, what an `await` let through included, and said once when
+ * it ends, so a change lands on the line that made it. What runs before a
+ * case's first line and after its body, its hooks and their cleanup, is no
+ * line's: a hook's line or the case's settling closes the watch until the next
+ * test line opens.
  * The document is observed from the first test line on, so a page that opens
  * none, as a Playwright spec's, is never watched. A later call moves the watch
  * to the tap it is given.
@@ -57,35 +58,42 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
   if (document === undefined || typeof Watch !== 'function') return;
   // Where a document keeps the one watch a story put on it.
   const PAGE = Symbol.for('variance-authority.story.page-watch');
-  type Watching = { tap: Pick<Tap, 'note'>; observer: Observer; observing: boolean; quiet: boolean };
+  type Watching = {
+    tap: Pick<Tap, 'note'>;
+    observer: Observer;
+    observing: boolean;
+    quiet: boolean;
+    // What the open test line has changed so far: nodes added and removed, attributes, text.
+    counts: [number, number, number, number];
+  };
   const page = document as { [PAGE]?: Watching };
-  // One line for what changed: nodes added and removed, attributes, and text.
-  const say = (watching: Watching, changes: readonly Change[]): void => {
-    if (changes.length === 0 || watching.quiet) return;
-    let added = 0;
-    let removed = 0;
-    let attributes = 0;
-    let text = 0;
+  const count = (watching: Watching, changes: readonly Change[]): void => {
+    if (watching.quiet) return;
+    const counts = watching.counts;
     for (const change of changes) {
-      if (change.type === 'attributes') attributes += 1;
-      else if (change.type === 'characterData') text += 1;
+      if (change.type === 'attributes') counts[2] += 1;
+      else if (change.type === 'characterData') counts[3] += 1;
       else {
-        added += change.addedNodes.length;
-        removed += change.removedNodes.length;
+        counts[0] += change.addedNodes.length;
+        counts[1] += change.removedNodes.length;
       }
     }
-    watching.tap.note(`page +${added} −${removed} nodes, ${attributes} ${attributes === 1 ? 'attribute' : 'attributes'}, ${text} text`);
   };
   let watch = page[PAGE];
   if (watch === undefined) {
-    const made: Partial<Watching> & Pick<Watching, 'tap' | 'observing' | 'quiet'> = { tap, observing: false, quiet: true };
-    made.observer = new Watch((changes) => say(made as Watching, changes));
+    const made: Partial<Watching> & Omit<Watching, 'observer'> = { tap, observing: false, quiet: true, counts: [0, 0, 0, 0] };
+    made.observer = new Watch((changes) => count(made as Watching, changes));
     watch = made as Watching;
     Object.defineProperty(page, PAGE, { value: watch });
   } else watch.tap = tap;
   const held = watch;
   tap.drainWith((opens) => {
-    if (held.observing) say(held, held.observer.takeRecords());
+    if (held.observing) count(held, held.observer.takeRecords());
+    const [added, removed, attributes, text] = held.counts;
+    if (added + removed + attributes + text > 0) {
+      held.tap.note(`page +${added} −${removed} nodes, ${attributes} ${attributes === 1 ? 'attribute' : 'attributes'}, ${text} text`);
+    }
+    held.counts = [0, 0, 0, 0];
     held.quiet = !opens;
     // Observed from the first test line on: a page whose lines run elsewhere, as
     // a Playwright spec's do, opens none and is never watched.
