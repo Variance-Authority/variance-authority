@@ -39,19 +39,10 @@ type Realm = {
 };
 
 /**
- * Watch the realm's document, once, and have `tap` say what changed on it at
- * each test line, as `page +N −M nodes, A attributes, T text`: counted while
- * the line is open, what an `await` let through included, and said once when
- * it ends, so a change lands on the line that made it. What runs before a
- * case's first line and after its body, its hooks and their cleanup, is no
- * line's: a hook's line or the case's settling closes the watch until the next
- * test line opens.
- * The document is observed from the first test line on, so a page that opens
- * none, as a Playwright spec's, is never watched. A later call moves the watch
- * to the tap it is given.
- *
- * Self-contained: a page's tape puts its source on the page, as it does
- * `createTap`'s.
+ * Watch the realm's document, once, and have `tap` say what each test line
+ * changed on it when the line ends, as `page +N −M nodes, A attributes, T text`.
+ * A hook's line and a case's settling close the watch until a test line opens.
+ * Self-contained: a page's tape puts its source on the page.
  */
 function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
   const { document, MutationObserver: Watch } = global;
