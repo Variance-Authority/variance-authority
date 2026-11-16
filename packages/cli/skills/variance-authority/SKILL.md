@@ -218,7 +218,8 @@ it as left alone and says why. A change that reaches some of those files and
 not the others looks finished and leaves them disagreeing. A compiler catches
 an importer a changed signature breaks; a changed meaning compiles, so
 `covering --file <importer>` names the tests to run for each. `uses` reads
-imports, not re-exports or `require` calls. For those, and for a call the type
+imports, through re-exports, but not `require` calls, a namespace passed on
+whole, or a call through a qualified path. For those, and for a call the type
 checker has to infer, use the language's find-references on the declaration
 `uses` names.
 

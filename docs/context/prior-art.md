@@ -503,8 +503,8 @@ to its keyword, name and find-references calls; `uses` reads imports, not calls.
 not told when to call is the `@codemap` step again. So the skill states an order
 and a completion check, not only a list of commands. The order is to name the
 code before opening it. The check is that the importers `uses` lists for a
-changed name are in the diff or named as left alone. None of the five readings
-uses what ran, and partial completion is where the record adds most: a
+changed name are in the diff or named as left alone. None of the five failures
+is read from what ran, and partial completion is where the record adds most: a
 changed name's `uses` lists the importers, and `covering` names the tests that
 ran each one. Whether `ask` helps an agent is measured the way this post
 measured it, on large public repositories, never on this
