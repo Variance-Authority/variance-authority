@@ -20,6 +20,7 @@ import { atDistance, groupByDistance, isTestCoverageFile, type SuiteTimes, type 
 import { quoted } from '../direct-call.js';
 import { recordHeld } from './mainline-selected.js';
 import { many } from './prose-counts.js';
+import { overdueOf } from './select-leg.js';
 import { timesOf } from './select-budget.js';
 import type { SuiteReading, SuiteRequest } from './select-suite.js';
 import { selectionNotes, type TestSelection } from './select.js';
@@ -79,9 +80,7 @@ export function explainOf(
     : leg.from <= Number(block.range) && Number(block.range) <= leg.to);
   // A leg past 0 hops also runs the nearer tests the run landed at HEAD left unrun, as `inLeg` takes them.
   const unrun = new Set(selection.unrunAtHead ?? []);
-  const overdue = (from: number) => (from === 0 || selection.distances === undefined
-    ? []
-    : atDistance(selection.distances, 0, from - 1).filter((test) => unrun.has(test) && runs(test)));
+  const overdue = (from: number) => (selection.distances === undefined ? [] : overdueOf(selection.distances, from, unrun).filter(runs));
   const selected = [...new Set([...blocks.filter(asked).flatMap((block) => block.tests), ...overdue(leg?.from ?? 0)])];
   const of = selection.recorded === undefined ? '' : ` of ${selection.recorded.whole} recorded`;
   const fell = selection.fell === undefined ? '' : `\n${selection.because}.`;
