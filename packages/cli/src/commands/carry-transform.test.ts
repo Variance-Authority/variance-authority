@@ -50,7 +50,7 @@ afterAll(async () => {
 });
 
 const restore = (root: string, run: HostRun, extra: { shard?: { index: number; total: number }; now?: Date } = {}) =>
-  carryPlan({ direction: 'restore', root, suites: SUITES, run, mainlines: MAINLINES, now: NOW, ...extra });
+  carryPlan({ direction: 'restore', root, suites: SUITES, run, mainlines: MAINLINES, transform: { runner: 'jest', now: NOW, ...extra } });
 
 describe("Jest's transform cache", () => {
   it("is restored to the path Jest's own jest-config answers, keyed by suite, shard and week", () => {
@@ -108,8 +108,15 @@ describe("Jest's transform cache", () => {
     expect(carryText(plan)).toContain('this is not a host run');
   });
 
+  it('is carried only when a restore asks for it, so a project that runs no Jest reads no word of it', () => {
+    const plan = carryPlan({ direction: 'restore', root: bare, suites: SUITES, run: PULL, mainlines: MAINLINES });
+
+    expect(githubOutput(plan)).not.toContain('transform-');
+    expect(plan.notes).toEqual([]);
+  });
+
   it('is not saved by `carry save`, whose host step is the cache action restoring it', () => {
-    const plan = carryPlan({ direction: 'save', root: jest, suites: SUITES, run: PULL, mainlines: MAINLINES, now: NOW });
+    const plan = carryPlan({ direction: 'save', root: jest, suites: SUITES, run: PULL, mainlines: MAINLINES, transform: { runner: 'jest', now: NOW } });
 
     expect(plan.cached.some((cached) => cached.artifact.startsWith('transform-'))).toBe(false);
   });

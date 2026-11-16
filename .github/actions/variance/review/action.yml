@@ -143,17 +143,6 @@ runs:
         # shellcheck disable=SC2086
         $VARIANCE_COMMAND carry take --format github >> "$GITHUB_OUTPUT"
 
-    # `carry` prints a transform key where Jest's jest-config resolves. The
-    # cache action saves in its post step, after the tests, on a miss of the
-    # exact key, so a week's entry is written once.
-    - if: inputs.from == '' && inputs.test != '' && steps.carry.outputs[format('transform-{0}-key', inputs.suite)] != ''
-      name: restore Jest's transform cache
-      uses: actions/cache@v6
-      with:
-        path: ${{ steps.carry.outputs[format('transform-{0}-path', inputs.suite)] }}
-        key: ${{ steps.carry.outputs[format('transform-{0}-key', inputs.suite)] }}
-        restore-keys: ${{ steps.carry.outputs[format('transform-{0}-restore-keys', inputs.suite)] }}
-
     # The shell a `run:` step has. A red exit is held for the last step, so the
     # review and the saves still run on what the tests left.
     - id: test

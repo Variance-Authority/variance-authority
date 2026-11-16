@@ -103,11 +103,8 @@ jest` work the same. The action restores the suite's record from the runner
 cache, sets the mainline's record aside before the tests write over it, runs the
 command, reviews, and saves what the tests ran: on a push to a mainline the
 record every pull request compares with, and on a pull request what its next push
-reads. Where your project resolves Jest's `jest-config`, it also restores Jest's
-transform cache before the command and saves it after a green one, as
-[`jest-cache`](#restoring-jests-transform-cache-in-a-shard) does. A red test
-still reviews and saves the record, then fails the step with the test's exit
-code; the transform cache waits for a green run.
+reads. A red test still reviews and saves, then fails the step with the test's
+exit code.
 
 Without `test` the action reviews the record a step before it left, and the
 mainline record comes from `against`: the `against-<suite>` output of a `variance
@@ -342,11 +339,12 @@ shard the job runs, empty for a suite run in one job. The path is the
 the suite, the shard and the ISO week. A week's first green run of each shard
 saves, after the job's tests, and a failed job saves nothing; later runs restore
 it and transform only what changed since. A pull request whose mainline has
-saved no entry that week saves one of its own, which only its later runs read. No key reaches back to an earlier week, so a new week starts
-from an empty cache, and the cache never grows past what one week's shard
-wrote. A project where `jest-config` does not resolve restores nothing, and a
-config that sets its own `cacheDirectory` is not read: Jest writes there, and
-nothing is restored to it or saved from it.
+saved no entry that week saves one of its own, which only its later runs read.
+No key reaches back to an earlier week, so a new week starts from an empty
+cache, and the cache never grows past what one week's shard wrote. A project
+where `jest-config` does not resolve restores nothing, and a config that sets
+its own `cacheDirectory` is not read: Jest writes there, and nothing is restored
+to it or saved from it.
 
 ## Sweeping for flakes
 

@@ -119,9 +119,7 @@ describe('a recording', () => {
       expect(record.startsWith(`${layer}/`)).toBe(true);
       expect(recordedEyesAt(record)).toEqual(eyes);
       // A restore brings back what a mainline already gave the cache, and uploads nothing.
-      expect(carryPlan({ direction: 'restore', root, suites, run: PUSH, mainlines: MAIN }).notes).toEqual([
-        `no Jest's transform cache is carried: jest-config does not resolve from ${root}`,
-      ]);
+      expect(carryPlan({ direction: 'restore', root, suites, run: PUSH, mainlines: MAIN }).notes).toEqual([]);
     } finally {
       await rm(record);
     }

@@ -32,7 +32,7 @@ runs:
         SHARD: ${{ inputs.shard }}
       run: |
         # shellcheck disable=SC2086
-        $VARIANCE_COMMAND carry restore ${SHARD:+--shard "$SHARD"} --format github >> "$GITHUB_OUTPUT"
+        $VARIANCE_COMMAND carry restore --transform jest ${SHARD:+--shard "$SHARD"} --format github >> "$GITHUB_OUTPUT"
 
     # The cache action saves in its post step, after the job's tests, on a
     # miss of the exact key.

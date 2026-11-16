@@ -184,7 +184,7 @@ variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
-variance carry   restore [--shard <k>/<n>] | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
+variance carry   restore [--transform jest [--shard <k>/<n>]] | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
 variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-accept <text>] [--image-root <url>] [<report>...] | --marker | --cleared
 ```
 
@@ -3371,10 +3371,10 @@ accept wrote, so the workflow names no path and no key:
     config: variance.config.json
 ```
 
-On a restore, every declared suite whose project resolves Jest's
-`jest-config` also gets Jest's transform cache: `transform-<suite>-path` is
-Jest's default `cacheDirectory`, and the key holds the suite, the shard
-`--shard <k>/<n>` names, and the ISO week. A shard keeps its own entry, the
+`carry restore --transform jest` also restores Jest's transform cache for every
+declared suite, where the project resolves Jest's `jest-config`:
+`transform-<suite>-path` is Jest's default `cacheDirectory`, and the key holds
+the suite, the shard `--shard <k>/<n>` names, and the ISO week. A shard keeps its own entry, the
 cache action writes it once, on the week's first green run of that shard, and no
 restore key names an earlier week, so a new week starts from an empty cache.
 Each shard then transforms only the files that changed since that run.

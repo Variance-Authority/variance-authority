@@ -45,8 +45,8 @@ async function asked(shard: string): Promise<string> {
 
 describe("the step a shard job adds for Jest's transform cache", () => {
   it('asks carry for the shard it runs, and for no shard when the suite runs in one job', async () => {
-    expect(await asked('2/3')).toBe('carry restore --shard 2/3 --format github');
-    expect(await asked('')).toBe('carry restore --format github');
+    expect(await asked('2/3')).toBe('carry restore --transform jest --shard 2/3 --format github');
+    expect(await asked('')).toBe('carry restore --transform jest --format github');
   });
 
   it('restores with the action that saves after the tests, only where carry named a key', () => {

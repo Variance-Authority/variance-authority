@@ -25,7 +25,9 @@ export interface ParsedCarry {
   readonly onConflict?: 'stay' | 'fail';
   /** `merge`: the merge commit the job that decided the run made, which this one's must be. */
   readonly expect?: string;
-  /** `restore`: the shard this job runs, which keys Jest's transform cache apart from the other shards'. */
+  /** `restore`: the runner whose transform cache is restored with the record. */
+  readonly transform?: 'jest';
+  /** `restore`: the shard this job runs, which keys its transform cache apart from the other shards'. */
   readonly shard?: Shard;
   readonly format: 'text' | 'github';
 }
@@ -43,7 +45,8 @@ const MERGE_FLAGS = ['--head', '--on-conflict', '--expect'] as const;
  * record's commit, which a workflow output may leave empty, and is the one
  * direction that takes `--head`, `--on-conflict` and `--expect`; an empty one
  * of those is not given. `take --as-base` lays the push as a shard's read.
- * `restore --shard <k>/<n>` names the shard a transform cache is keyed by.
+ * `restore --transform jest` asks for Jest's transform cache, and `--shard
+ * <k>/<n>` names the shard it is keyed by.
  */
 export function parseCarryArgs(flags: Flags): ParsedCarry {
   const [direction, ...rest] = flags.positionals;
@@ -59,7 +62,16 @@ export function parseCarryArgs(flags: Flags): ParsedCarry {
   for (const flag of MERGE_FLAGS) {
     if (!merging && flags.present.has(flag)) throw new OperatorError(`\`${flag}\` belongs to \`carry merge\`, not \`carry ${typed}\``);
   }
-  if (typed !== 'restore' && flags.present.has('--shard')) throw new OperatorError(`\`--shard\` belongs to \`carry restore\`, not \`carry ${typed}\``);
+  for (const flag of ['--transform', '--shard']) {
+    if (typed !== 'restore' && flags.present.has(flag)) throw new OperatorError(`\`${flag}\` belongs to \`carry restore\`, not \`carry ${typed}\``);
+  }
+  const transform = flags.values.get('--transform');
+  if (transform !== undefined && transform !== 'jest') {
+    throw new OperatorError(`\`--transform ${transform}\`: only \`jest\` keeps a transform cache carry restores`);
+  }
+  if (transform === undefined && flags.present.has('--shard')) {
+    throw new OperatorError('`--shard` keys a transform cache, and no `--transform` is asked');
+  }
   const shardText = flags.values.get('--shard');
   const shard = shardText === undefined ? undefined : parseShard(shardText);
   if (typeof shard === 'string') throw new OperatorError(shard);
@@ -83,6 +95,7 @@ export function parseCarryArgs(flags: Flags): ParsedCarry {
     ...(first === undefined || merging ? {} : { dir: resolve(first) }),
     ...(merging ? mergeAsk(first ?? '', flags) : {}),
     ...(flags.present.has('--as-base') ? { asBase: true } : {}),
+    ...(transform === undefined ? {} : { transform }),
     ...(shard === undefined ? {} : { shard }),
     format,
   };

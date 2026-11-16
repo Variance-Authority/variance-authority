@@ -47,10 +47,9 @@ import {
   type DeclaredSuite,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
-import type { Shard } from '../shard-args.js';
 import { moveBase } from './carry-handed.js';
 import { mergeHead } from './carry-merge.js';
-import { transformCached } from './carry-transform.js';
+import { transformCached, type TransformAsked } from './carry-transform.js';
 import { movePushed, PUSHED } from './carry-pushed.js';
 import { DEFAULT_BASELINE_PATH, KEPT, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
@@ -224,10 +223,8 @@ export interface CarryInput {
   readonly suites?: readonly DeclaredSuite[];
   readonly run: HostRun;
   readonly mainlines: Mainlines;
-  /** Restore: the shard Jest's transform cache is keyed by. */
-  readonly shard?: Shard;
-  /** When the run is, for the week a transform cache is keyed by. */
-  readonly now?: Date;
+  /** Restore: the transform cache asked for, which nothing else carries. */
+  readonly transform?: TransformAsked;
 }
 
 /** What to carry, where it is, and under which keys. */
@@ -281,8 +278,8 @@ export function carryPlan(input: CarryInput): CarryPlan {
     keyed(artifact, [top, `!${top}/**/.run-*`, `!${top}/.work`], prefix, run.base);
   }
 
-  if (direction === 'restore') {
-    const transform = transformCached({ root: input.root, suites: input.suites ?? [], line, mainlines, shard: input.shard, now: input.now ?? new Date() });
+  if (direction === 'restore' && input.transform !== undefined) {
+    const transform = transformCached({ ...input.transform, root: input.root, suites: input.suites ?? [], line, mainlines });
     cached.push(...transform.cached);
     notes.push(...transform.notes);
   }
@@ -465,7 +462,9 @@ export async function runCarry(
     ...(suites === undefined ? {} : { suites }),
     run: base === undefined ? host : { ...host, base },
     mainlines: await mainlinesOf(config, env),
-    ...(parsed.shard === undefined ? {} : { shard: parsed.shard }),
+    ...(parsed.transform === undefined
+      ? {}
+      : { transform: { runner: parsed.transform, ...(parsed.shard === undefined ? {} : { shard: parsed.shard }), now: new Date() } }),
   });
   if (parsed.format === 'github') {
     streams.out(githubOutput(plan));

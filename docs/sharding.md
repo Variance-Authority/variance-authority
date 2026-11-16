@@ -403,8 +403,8 @@ the week's first green run of that shard:
 ```
 
 Each shard keeps its own cache, keyed by the ISO week, so a new week starts from
-an empty one. The path and the keys come from `variance carry restore --shard
-<k>/<n>`, as [what the next job reads](../packages/cli/README.md#what-the-next-job-reads)
+an empty one. The path and the keys come from `variance carry restore --transform
+jest --shard <k>/<n>`, as [what the next job reads](../packages/cli/README.md#what-the-next-job-reads)
 shows, for a workflow that writes its own cache step.
 
 ## When one shard still finishes last
