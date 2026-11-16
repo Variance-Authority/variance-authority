@@ -661,19 +661,20 @@ page +1 −0 nodes, 2 attributes, 0 text
 ```
 
 Nodes added and removed, attributes set, and text changed since the line
-before. A subtree added at once counts as one node, and `textContent` set on an
+opened. A subtree added at once counts as one node, and `textContent` set on an
 element replaces its nodes rather than changing text. A line that awaits says
 it again for what arrived while it waited. A line that changed nothing says
-nothing, so a `findBy` or `waitFor` on a line with no `page` note waited for
-nothing: what it looked for was already there, and a `getBy` finds it as well.
-What the hooks after the test change, such as a testing library's cleanup, is
-no line's and has no note.
+nothing, so a `findBy` or `waitFor` that passed on a line with no `page` note
+waited for nothing: what it looked for was already there, and a `getBy` finds it as well.
+What a hook the test file does not write changes after the test, such as a
+testing library's cleanup, is no line's and has no note; a hook written in the
+test file is a line of it, and says what it changed.
 
 The note counts; it does not show the markup, or say which component made the
 change. For the React commits behind it, use [Eyes](eyes.md), which writes each
 commit under its step with the components that rendered. A test run without a
-document has no `page` note, and neither, yet, does a test that runs in a
-browser page, such as Vitest's browser mode or a Playwright spec.
+document has no `page` note, and neither does a test that runs in a browser
+page, such as Vitest's browser mode or a Playwright spec.
 
 ## What a story does not show
 

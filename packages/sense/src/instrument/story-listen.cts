@@ -73,7 +73,7 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
   const page = document as { [PAGE]?: Watching };
   let watch = page[PAGE];
   if (watch === undefined) {
-    const made: Partial<Watching> & Pick<Watching, 'tap' | 'quiet'> = { tap, quiet: false };
+    const made: Partial<Watching> & Pick<Watching, 'tap' | 'quiet'> = { tap, quiet: true };
     const say = (changes: readonly Change[]): void => {
       if (changes.length > 0 && !made.quiet) made.tap.note(pageNote(changes));
     };
