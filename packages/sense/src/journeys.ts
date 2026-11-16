@@ -372,28 +372,21 @@ export function linesThen(root: string, commit: string, file: string, lines: rea
 }
 
 /**
- * The region of `module` that kept the test from `line`, or `undefined` when
- * the test ran it.
- *
- * The regions that decide are the innermost holding the line: those holding no
- * narrower region on it. Lines alone cannot nest two regions of one span, so a
- * function yields to a later row of its span, its body's one-line guard, and two
- * branches of one span are arms beside each other. A line ran when one of them was entered, and
- * when no region holds it, with the module. `covering --line` charges more
- * ({@link blocksChargedAt}): a line that opens a region is the enclosing
- * region's text too, which is the safe direction for choosing tests and the
- * wrong one here, since a one-line guard would read as ran because its
- * condition was. So the wider charge only says whether the rest of the line
- * ran (`partly`). The region named is the outermost holding the line that the
- * test did not enter: where it went elsewhere.
+ * The outermost region of `module` holding `line` that the test did not enter,
+ * or `undefined` when it ran the line: when an innermost region holding it was
+ * entered, or none holds it. `partly` says the rest of the line ran.
  */
 export function passedAt(module: NativeRanModule, line: number): { readonly region: NativeRanRegion; readonly partly: boolean } | undefined {
   const holding = module.regions.filter((region) => region.kind !== 'module' && region.source && region.line <= line && line <= region.end);
   const span = (region: NativeRanRegion): number => region.end - region.line;
+  // Lines cannot nest two regions of one span: a function holds a later row of
+  // its span, its one-line guard; two branches of one span are arms side by side.
   const holds = (outer: NativeRanRegion, row: number) => (inner: NativeRanRegion, at: number): boolean =>
     outer.line <= inner.line && inner.end <= outer.end && (span(inner) < span(outer) || (at > row && outer.kind === 'function'));
   const innermost = holding.filter((region, row) => !holding.some(holds(region, row)));
   if (innermost.length === 0 || innermost.some((region) => region.entered)) return undefined;
+  // `covering --line` charges a line that opens a region to the enclosing one
+  // too: safe for choosing tests, wrong here, so it only says the rest ran.
   const charged = blocksChargedAt(
     module.regions.map((region) => ({ region, kind: region.kind, startLine: region.line, endLine: region.end, source: region.source })),
     line,
