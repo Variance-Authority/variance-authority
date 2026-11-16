@@ -25,7 +25,6 @@ export interface NativeJourneysPrepared {
   readonly commit?: string | null;
 }
 
-/** The recording's commit as the caller read it, or why there is none. */
 /** Where lines of a file stood at a commit, or why git could not say. */
 export interface NativeLinesThen {
   readonly unplaced?: string | null;
@@ -34,6 +33,7 @@ export interface NativeLinesThen {
   readonly lines: readonly (number | null)[];
 }
 
+/** The recording's commit as the caller read it, or why there is none. */
 export interface NativeJourneysCommit {
   readonly commit?: string | null;
   /** Why the recording names no commit. */

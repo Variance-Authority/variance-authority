@@ -5,9 +5,9 @@
  * The recording owns which regions the test entered; ripgrep owns the text.
  * The files searched are the modules the test entered at least one region of,
  * so a file it only loaded, a file it never reached and a file no recording
- * instruments are not searched. Each line is classified by sense's `passedAt`,
- * which charges it to regions as `covering --line` does: ran, or not taken in
- * the outermost region holding it that the test did not enter.
+ * instruments are not searched. Each line is classified by sense's `passedAt`:
+ * ran when an innermost region holding it was entered, or not taken in the
+ * outermost region holding it that the test did not enter.
  *
  * The regions are spans of the commit the recording ran at. A file edited since
  * is read through git's diff against that commit, as `journeys` reads a line: a
@@ -27,8 +27,8 @@ interface Marked {
   readonly suite?: string;
   readonly ran: TestRan;
   readonly taken: readonly Hit[];
-  /** Each with the outermost region holding it that the test did not enter. */
-  readonly passed: readonly { readonly hit: Hit; readonly by: RanRegion }[];
+  /** Each with the outermost region holding it that the test did not enter, and whether the rest of its line ran. */
+  readonly passed: readonly { readonly hit: Hit; readonly by: RanRegion; readonly partly: boolean }[];
   /** Lines written since the recorded commit. */
   readonly written: readonly Hit[];
   /** A file read through its diff against the recorded commit, or that git could not diff. */
@@ -56,7 +56,7 @@ export function grepRan(root: string, query: string, file: string, name: string 
     const files = [...modules.keys()].sort(codeUnitOrder);
     const { hits, errors } = ripgrep(root, query, files);
     const taken: Hit[] = [];
-    const passed: { hit: Hit; by: RanRegion }[] = [];
+    const passed: { hit: Hit; by: RanRegion; partly: boolean }[] = [];
     const written: Hit[] = [];
     const notes: string[] = [];
     for (const file of files) {
@@ -70,9 +70,9 @@ export function grepRan(root: string, query: string, file: string, name: string 
       inFile.forEach((hit, at) => {
         const line = then === undefined || then.unplaced != null ? hit.line : then.lines[at];
         if (line == null) return void written.push(hit);
-        const by = passedAt(modules.get(file)!, line);
-        if (by === undefined) taken.push(hit);
-        else passed.push({ hit, by });
+        const kept = passedAt(modules.get(file)!, line);
+        if (kept === undefined) taken.push(hit);
+        else passed.push({ hit, by: kept.region, partly: kept.partly });
       });
     }
     return { ...(suite === undefined ? {} : { suite }), ran, taken, passed, written, notes, errors };
@@ -106,8 +106,8 @@ function formatSuite(query: string, { suite, ran, taken, passed, written, notes,
   }
   if (passed.length > 0 && left > 0) {
     lines.push('', 'Not taken:');
-    for (const { hit, by } of passed.slice(0, left)) {
-      lines.push(`${hit.file}:${hit.line}:${hit.text}`, `  in ${region(hit.file, by)}, which it did not enter`);
+    for (const { hit, by, partly } of passed.slice(0, left)) {
+      lines.push(`${hit.file}:${hit.line}:${hit.text}`, `  in ${region(hit.file, by)}, which it did not enter${partly ? '; the rest of the line ran' : ''}`);
     }
     left -= Math.min(left, passed.length);
   }

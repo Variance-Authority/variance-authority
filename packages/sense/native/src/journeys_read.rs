@@ -256,12 +256,20 @@ pub struct LinesThen {
     pub lines: Vec<Option<u32>>,
 }
 
+/// `file`'s `git diff -U0` against `commit`, empty when it has not changed; or
+/// why git could not say.
+fn diff_since(root: &str, commit: &str, file: &str) -> Result<String, String> {
+    let args = ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-textconv", commit, "--", file];
+    crate::git::git(root, &args, None)
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+        .ok_or_else(|| format!("git could not diff it against commit {}", crate::journeys_graph::short(commit)))
+}
+
 #[napi(catch_unwind)]
 pub fn lines_then(root: String, commit: String, file: String, lines: Vec<u32>) -> LinesThen {
-    let args = ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-textconv", &commit, "--", &file];
-    let Some(diff) = crate::git::git(&root, &args, None).map(|bytes| String::from_utf8_lossy(&bytes).into_owned()) else {
-        let unplaced = format!("git could not diff it against commit {}", crate::journeys_graph::short(&commit));
-        return LinesThen { unplaced: Some(unplaced), changed: false, lines: Vec::new() };
+    let diff = match diff_since(&root, &commit, &file) {
+        Ok(diff) => diff,
+        Err(unplaced) => return LinesThen { unplaced: Some(unplaced), changed: false, lines: Vec::new() },
     };
     let lines = lines.into_iter().map(|line| if diff.is_empty() { Some(line) } else { line_then(&diff, line) }).collect();
     LinesThen { unplaced: None, changed: !diff.is_empty(), lines }
@@ -312,14 +320,7 @@ fn answer(root: &str, meta: &Meta, prepared: &Prepared, ask: JourneysAsk) -> Jou
             unplaced = Some("the recording names no commit".to_owned());
             None
         }
-        (Some(_), Some(commit)) => {
-            let args = ["diff", "-U0", "--no-color", "--no-ext-diff", "--no-textconv", commit, "--", &ask.file];
-            let diff = crate::git::git(root, &args, None).map(|bytes| String::from_utf8_lossy(&bytes).into_owned());
-            if diff.is_none() {
-                unplaced = Some(format!("git could not diff it against commit {}", crate::journeys_graph::short(commit)));
-            }
-            diff
-        }
+        (Some(_), Some(commit)) => diff_since(root, commit, &ask.file).map_err(|why| unplaced = Some(why)).ok(),
     };
     let changed = diff.as_ref().map(|diff| !diff.is_empty());
     let (written_since, line) = match (ask.line, diff.as_deref().filter(|diff| !diff.is_empty())) {

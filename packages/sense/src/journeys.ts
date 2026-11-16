@@ -373,21 +373,35 @@ export function linesThen(root: string, commit: string, file: string, lines: rea
 
 /**
  * The region of `module` that kept the test from `line`, or `undefined` when
- * the test ran it. The line is charged to regions as `covering --line` charges
- * it ({@link blocksChargedAt}): it ran when one of them was entered, and when
- * none holds it, with the module. Otherwise the answer is the outermost region
- * holding the line that the test did not enter: where it went elsewhere.
+ * the test ran it.
+ *
+ * The regions that decide are the innermost holding the line: those holding no
+ * narrower region on it. Lines alone cannot nest two regions of one span, so a
+ * function yields to a later row of its span, its body's one-line guard, and two
+ * branches of one span are arms beside each other. A line ran when one of them was entered, and
+ * when no region holds it, with the module. `covering --line` charges more
+ * ({@link blocksChargedAt}): a line that opens a region is the enclosing
+ * region's text too, which is the safe direction for choosing tests and the
+ * wrong one here, since a one-line guard would read as ran because its
+ * condition was. So the wider charge only says whether the rest of the line
+ * ran (`partly`). The region named is the outermost holding the line that the
+ * test did not enter: where it went elsewhere.
  */
-export function passedAt(module: NativeRanModule, line: number): NativeRanRegion | undefined {
+export function passedAt(module: NativeRanModule, line: number): { readonly region: NativeRanRegion; readonly partly: boolean } | undefined {
+  const holding = module.regions.filter((region) => region.kind !== 'module' && region.source && region.line <= line && line <= region.end);
+  const span = (region: NativeRanRegion): number => region.end - region.line;
+  const holds = (outer: NativeRanRegion, row: number) => (inner: NativeRanRegion, at: number): boolean =>
+    outer.line <= inner.line && inner.end <= outer.end && (span(inner) < span(outer) || (at > row && outer.kind === 'function'));
+  const innermost = holding.filter((region, row) => !holding.some(holds(region, row)));
+  if (innermost.length === 0 || innermost.some((region) => region.entered)) return undefined;
   const charged = blocksChargedAt(
     module.regions.map((region) => ({ region, kind: region.kind, startLine: region.line, endLine: region.end, source: region.source })),
     line,
   );
-  if (charged.length === 0 || charged.some(({ region }) => region.entered)) return undefined;
-  const span = (region: NativeRanRegion): number => region.end - region.line;
-  return module.regions
-    .filter((region) => !region.entered && region.line <= line && line <= region.end)
-    .reduce<NativeRanRegion | undefined>((best, region) => (best === undefined || span(region) > span(best) ? region : best), undefined);
+  const region = holding
+    .filter((region) => !region.entered)
+    .reduce((best, region) => (span(region) > span(best) ? region : best));
+  return { region, partly: charged.some(({ region }) => region.entered) };
 }
 
 /**

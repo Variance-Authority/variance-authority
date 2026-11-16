@@ -71,19 +71,23 @@ describe('variance ask grep --test', () => {
     ]);
   });
 
-  it('marks a line ran where the branch it opens was entered and the one it closes was not', async () => {
+  it('marks a line by the branch it opens, and a one-line guard by the branch it holds', async () => {
     await recorded();
 
     const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/ship.test.ts']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out.split('\n').slice(0, 6)).toEqual([
+    expect(answered.out.split('\n').slice(0, 10)).toEqual([
       'test/ship.test.ts  ships entered 1 recorded file; files no recording instruments were not searched.',
       '',
-      '1 matching line in 1 file.',
+      '2 matching lines in 1 file.',
       '',
       'Ran:',
       "src/ship.ts:4:  } else { note('give up slow');",
+      '',
+      'Not taken:',
+      "src/ship.ts:9:export function check(bad: boolean): void { if (bad) { throw new Error('give up guard'); } }",
+      '  in branch src/ship.ts:9-9 of check, which it did not enter; the rest of the line ran',
     ]);
   });
 
@@ -146,7 +150,7 @@ describe('variance ask grep --test', () => {
  * enters `pay`'s second branch and `src/refund.ts`, which spells the query too,
  * on a line two arms share, and which the first test never entered; `ships`
  * enters the else-branch of `src/ship.ts`, which opens on the line the
- * then-branch closes.
+ * then-branch closes, and the one-line `check` but not the branch it holds.
  */
 async function recorded(): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-grep-ran-')));
@@ -170,7 +174,7 @@ async function recorded(): Promise<string> {
   writeFileSync(join(root, 'src/refund.ts'), "export const refund = (paid: boolean): string => (paid ? 'give up refund' : 'keep');\n");
   writeFileSync(
     join(root, 'src/ship.ts'),
-    ['export function ship(fast: boolean): void {', '  if (fast) {', '    go();', "  } else { note('give up slow');", '    wait();', '    wait();', '  }', '}', ''].join('\n'),
+    ['export function ship(fast: boolean): void {', '  if (fast) {', '    go();', "  } else { note('give up slow');", '    wait();', '    wait();', '  }', '}', "export function check(bad: boolean): void { if (bad) { throw new Error('give up guard'); } }", ''].join('\n'),
   );
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git('add', '.');
@@ -184,7 +188,11 @@ async function recorded(): Promise<string> {
   // Both arms of the ternary share line 1; `refunds` entered the first.
   const refund = [region('function', 'refund', 1, 1, [1]), region('branch', '', 1, 1, [1]), region('branch', '', 1, 1, [])];
   // `} else {` closes the then-branch and opens the else on line 4; `ships` entered only the else.
-  const ship = [region('function', 'ship', 1, 8, [2]), region('branch', '', 2, 4, []), region('branch', '', 4, 7, [2])];
+  // `check` is a one-line guard: `ships` entered the function and not its branch.
+  const ship = [
+    region('function', 'ship', 1, 8, [2]), region('branch', '', 2, 4, []), region('branch', '', 4, 7, [2]),
+    region('function', 'check', 9, 9, [2]), region('branch', '', 9, 9, []),
+  ];
   const covered = (file: string, blocks: readonly ReturnType<typeof region>[]) => ({
     file,
     sourceDigest: `digest:${file}`,
