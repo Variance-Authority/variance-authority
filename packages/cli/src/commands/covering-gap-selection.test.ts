@@ -204,10 +204,10 @@ describe('a file added after the commit its suite recorded at', () => {
 
     expect(gap).toMatchObject({
       known: 'the record predates the file; selection runs the whole suite for it',
-      run: { suite: 'unit', whole: 'the suite unit rests on src/extra.ts before any test imports it, and this diff moves it' },
+      run: { suite: 'unit', whole: 'the suite unit rests on src/extra.ts before any test imports it, through its `before` entry `src/setup.ts`, and this diff moves it' },
       cost: { files: 2, tests: 2 },
     });
-    expect(text).toContain('Run the whole suite with the runner of `unit`: the suite unit rests on src/extra.ts before any test imports it, and this diff moves it.');
+    expect(text).toContain('Run the whole suite with the runner of `unit`: the suite unit rests on src/extra.ts before any test imports it, through its `before` entry `src/setup.ts`, and this diff moves it.');
   });
 
   it('runs nothing for a file the suite ignores', async () => {
