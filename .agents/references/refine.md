@@ -7,8 +7,9 @@ is, whether it should be done at all, and what would make it done.
 
 **What problem we solve.** For a `feat`, `fix` or `perf`, one question, read
 five ways, before anything else here. Each word becomes something a reader
-can open, or is named as unknown with what building it will show. A word that
-opens against the problem stops it; one that cannot open yet does not.
+can open; **What** and **Solve**, which may only open once it is built, are
+otherwise named as unknown with what building it will show. A word that opens
+against the problem stops it; one that cannot open yet does not.
 
 - **What** becomes something that opens to show the problem: an ask quoted, a
   failing run or a reproduction in the Evidence, and the Impact it carries, or,
@@ -127,7 +128,8 @@ section to a heading:
 - **Evidence**: who has the problem, each item something a reader can open —
   the owner's ask quoted, an issue, a failing run, a measurement, a spec in
   `docs/specs/`. Where anything can, at least one item shows the problem outside
-  the code that causes it: an ask quoted, a failing run or a reproduction. A claim that
+  the code that causes it: an ask quoted, a failing run or a reproduction; one
+  missing is named in the verdict, not bounced. A claim that
   somebody hit it — misled, blocked, wasting a run — names the run or the
   transcript's path and line where they did, or is not made. A code line shows
   the mechanism, not the problem, and belongs in Root cause; an agent's report

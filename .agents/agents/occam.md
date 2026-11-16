@@ -31,7 +31,8 @@ gh issue view <n> --json body --jq .body | awk '/^```/ { fence = !fence; next } 
 A section of the brief in `.agents/references/refine.md` that is missing, out of
 order or has no text is not reviewed: your verdict is **incomplete**, naming the section, and
 you stop. A section that says what is unknown and what building will show is
-written, and so is a guess that says it is one; a placeholder is not. **Incomplete** rejects nothing:
+written, and so is a guess that says it is one; a section you find, as you
+read on, to hold only a placeholder is **incomplete** too. **Incomplete** rejects nothing:
 it says only that the case is not all here.
 
 Absence of evidence rejects nothing, as `.agents/references/refine.md` says:
@@ -149,7 +150,7 @@ Reasons you reject on, and you name the one you use:
   whether anybody asked.
 - **Nobody waits for it.** Something that opens shows that nothing is held back
   while it is not done, and what it costs buys nothing yet. Unlike **not now**,
-  nothing unproven stands in its way; unlike **too much for what it buys**, the
+  nothing unlanded stands in its way; unlike **too much for what it buys**, the
   size of the cost does not decide it.
 - **Not the task.** Diff mode only: the task sentence and the issue's Change do
   not name this part, and the body cannot show the task needs it.
