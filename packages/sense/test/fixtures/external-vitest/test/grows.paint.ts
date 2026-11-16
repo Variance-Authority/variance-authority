@@ -18,3 +18,8 @@ it('waits for a node', async () => {
   await new Promise((done) => setTimeout(done, 20));
   expect(document.querySelector('i')).toBeTruthy();
 });
+
+// Line 24, the case's last, adds a node: the case's end closes its count.
+it('ends on a change', () => {
+  document.body.append(document.createElement('hr'));
+});
