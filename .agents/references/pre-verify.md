@@ -106,7 +106,7 @@ Verification runs in waves, nearest and cheapest first, and each wave starts
 only when the one before it is green:
 
 ```bash
-yarn verify:near    # 1. lint, tsc --build, the selection within two imports
+yarn verify:near    # 1. lint, tsc --build, the selection within two imports, 60 s of it across the slices
 yarn verify:rules   # 2. yarn check, once near is green
 ```
 
@@ -119,8 +119,9 @@ The repository checks are minutes and cannot be selected, so they run once the
 change has stopped moving.
 
 **The far wave is CI's.** `yarn verify:far` is the rest of the selection — `0-2`
-and `3-` partition it, so together they run every selected file once, and a test
-file the recording never saw in both. An agent runs near and rules, then opens
+and `3-` partition it, so in CI together they run every selected file once, and
+a test file the recording never saw in both. Locally near runs 60 s of its leg,
+20 s for each of its three slices; CI runs the leg whole. An agent runs near and rules, then opens
 the pull request: a local far run costs many minutes and repeats what CI runs. A
 failure CI reports is reproduced per file, never by re-running the wave.
 

@@ -252,7 +252,7 @@ Verify in waves, nearest first. Each wave starts only when the one before it is
 green, and a red wave sends you back to the edit, then to wave 1:
 
 ```bash
-yarn verify:near    # 1. lint, types, tests within two imports — repeat freely
+yarn verify:near    # 1. lint, types, tests within two imports, 60 s across the slices — repeat freely
 yarn verify:rules   # 2. the repository checks, once near is green
 ```
 
