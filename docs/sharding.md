@@ -392,7 +392,7 @@ A CI runner starts with an empty disk, so each Jest shard transforms every file
 it loads again, on every run: on Jest's own suite, 43% of a shard's time.
 [`Variance-Authority/action/jest-cache`](https://github.com/Variance-Authority/action#restoring-jests-transform-cache-in-a-shard)
 restores Jest's transform cache before the shard's tests, and saves it after
-the week's first run of that shard:
+the week's first green run of that shard:
 
 ```yaml
 - uses: Variance-Authority/action/jest-cache@v1

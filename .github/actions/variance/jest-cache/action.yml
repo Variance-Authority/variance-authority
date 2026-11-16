@@ -1,7 +1,7 @@
 name: variance jest-cache
 description: >-
   Restores Jest's transform cache before a shard's tests, and saves it after
-  them on the week's first run of that shard. `variance carry` names the path,
+  them on the week's first green run of that shard. `variance carry` names the path,
   Jest's own default cache directory, and a key per suite, shard and ISO week,
   so a new week starts from an empty cache. Add it as the step before the
   tests; a project whose Jest does not resolve restores nothing.

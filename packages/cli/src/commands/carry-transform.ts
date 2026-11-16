@@ -60,8 +60,13 @@ function cacheDirectory(root: string): string | { readonly note: string } {
   } catch {
     return { note: `no Jest's transform cache is carried: jest-config does not resolve from ${root}` };
   }
-  // No import names the project's jest-config: it is the copy its Jest resolves.
-  const directory = (createRequire(config)(config) as { defaults?: { cacheDirectory?: unknown } }).defaults?.cacheDirectory;
+  let directory: unknown;
+  try {
+    // No import names the project's jest-config: it is the copy its Jest resolves.
+    directory = (createRequire(config)(config) as { defaults?: { cacheDirectory?: unknown } }).defaults?.cacheDirectory;
+  } catch (error) {
+    return { note: `no Jest's transform cache is carried: ${config} does not load (${error instanceof Error ? error.message : String(error)})` };
+  }
   if (typeof directory !== 'string' || directory === '') {
     return { note: `no Jest's transform cache is carried: ${config} names no defaults.cacheDirectory` };
   }

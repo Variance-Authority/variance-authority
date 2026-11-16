@@ -16,6 +16,7 @@ const NOW = new Date('2026-11-19T12:00:00Z');
 let jest: string;
 let bare: string;
 let unset: string;
+let broken: string;
 
 beforeAll(async () => {
   // A project whose root resolves `jest-config`, as one with Jest installed does.
@@ -33,12 +34,19 @@ beforeAll(async () => {
   await writeFile(join(unset, 'package.json'), '{"name":"project"}');
   await writeFile(join(unset, 'node_modules', 'jest-config', 'package.json'), '{"name":"jest-config","main":"index.js"}');
   await writeFile(join(unset, 'node_modules', 'jest-config', 'index.js'), 'exports.defaults = {};');
+  // A jest-config that throws as it loads, as a broken install does.
+  broken = await mkdtemp(join(tmpdir(), 'variance-carry-broken-'));
+  await mkdir(join(broken, 'node_modules', 'jest-config'), { recursive: true });
+  await writeFile(join(broken, 'package.json'), '{"name":"project"}');
+  await writeFile(join(broken, 'node_modules', 'jest-config', 'package.json'), '{"name":"jest-config","main":"index.js"}');
+  await writeFile(join(broken, 'node_modules', 'jest-config', 'index.js'), "throw new Error('half installed');");
 });
 
 afterAll(async () => {
   await rm(jest, { recursive: true, force: true });
   await rm(bare, { recursive: true, force: true });
   await rm(unset, { recursive: true, force: true });
+  await rm(broken, { recursive: true, force: true });
 });
 
 const restore = (root: string, run: HostRun, extra: { shard?: { index: number; total: number }; now?: Date } = {}) =>
@@ -83,6 +91,14 @@ describe("Jest's transform cache", () => {
 
     expect(githubOutput(plan)).not.toContain('transform-');
     expect(carryText(plan)).toContain('names no defaults.cacheDirectory');
+  });
+
+  it('still carries the record where jest-config throws as it loads, and says why', () => {
+    const plan = restore(broken, PUSH);
+
+    expect(plan.cached.some((cached) => cached.artifact === 'suite-unit')).toBe(true);
+    expect(githubOutput(plan)).not.toContain('transform-');
+    expect(carryText(plan)).toContain('does not load (half installed)');
   });
 
   it('prints no transform output off a host run, which has no line to key it by', () => {

@@ -3375,7 +3375,7 @@ On a restore, every declared suite whose project resolves Jest's
 `jest-config` also gets Jest's transform cache: `transform-<suite>-path` is
 Jest's default `cacheDirectory`, and the key holds the suite, the shard
 `--shard <k>/<n>` names, and the ISO week. A shard keeps its own entry, the
-cache action writes it once, on the week's first run of that shard, and no
+cache action writes it once, on the week's first green run of that shard, and no
 restore key names an earlier week, so a new week starts from an empty cache.
 Each shard then transforms only the files that changed since that run.
 [`Variance-Authority/action/jest-cache`](https://github.com/Variance-Authority/action#restoring-jests-transform-cache-in-a-shard)
