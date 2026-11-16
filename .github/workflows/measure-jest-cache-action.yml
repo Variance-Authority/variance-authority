@@ -1,0 +1,44 @@
+name: measure-jest-cache-action
+on:
+  push:
+    branches: [measure/jest-cache-action]
+permissions:
+  contents: read
+  actions: write
+jobs:
+  jest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          path: va
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      # Variance stays outside the workspace, so Jest's `packages` pattern sees only Jest's own.
+      - name: build variance outside the workspace
+        run: |
+          mv va /tmp/va && cd /tmp/va
+          corepack enable
+          yarn install --immutable > /tmp/va-install.log 2>&1 || { tail -30 /tmp/va-install.log; exit 1; }
+          yarn build > /tmp/va-build.log 2>&1 || { tail -30 /tmp/va-build.log; exit 1; }
+      - name: a public Jest suite transformed by babel-jest (jestjs/jest)
+        run: |
+          git clone -q --depth 1 https://github.com/jestjs/jest .
+          git log -1 --format='jest %H'
+          yarn install --immutable > /tmp/install.log 2>&1 || { tail -30 /tmp/install.log; exit 1; }
+          yarn build:js > /tmp/build.log 2>&1 || { tail -30 /tmp/build.log; exit 1; }
+          echo '{ "suites": { "unit": { "kind": "unit" } } }' > variance.config.json
+          mkdir -p .github/actions && cp -r /tmp/va/.github/actions/variance .github/actions/
+      - uses: ./.github/actions/variance/jest-cache
+        with:
+          suite: unit
+          shard: 1/3
+          command: node /tmp/va/packages/cli/dist/bin.js
+      - name: shard 1/3 with Jest's default cache directory
+        run: |
+          d=$(node -p "require('./packages/jest-config').defaults.cacheDirectory")
+          echo "cache before: $(find "$d" -type f 2>/dev/null | wc -l) files"
+          /usr/bin/time -f "shard 1/3: %e s real, %U s user" node packages/jest-cli/bin/jest.js --ci --silent packages --shard=1/3 2>&1 | grep -E "^(Tests:|Test Suites:|shard)" || true
+          echo "cache after: $(find "$d" -type f | wc -l) files, $(du -sm "$d" | cut -f1) MB"
