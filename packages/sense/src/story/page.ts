@@ -15,6 +15,7 @@
  * runner's to say, and a runner that drains between cases says it exactly.
  */
 
+import storyListen from '../instrument/story-listen.cjs';
 import storyTap from '../instrument/story-tap.cjs';
 import caseOwner from '../test-selection/case-owner.cjs';
 import format from './format.cjs';
@@ -31,15 +32,19 @@ export function storyPageSource(): string {
 const NOTE_LIMIT = ${storyTap.NOTE_LIMIT};
 const NOTE_LENGTH = ${storyTap.NOTE_LENGTH};
 const createTap = (${storyTap.createTap.toString()});
+const watchPage = (${storyListen.watchPage.toString()});
 const NOTE = Symbol.for('variance-authority.story.note');
 const realm = globalThis;
 if (realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] !== undefined) return;
 realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
   const tap = createTap(engine, ${storyTap.TAPE_LIMIT});
   tap.nameIn(realm);
-  // TODO: watch the page's document so its lines carry a \`page\` note (#1430)
+  watchPage(tap, realm);
   realm[NOTE] = (text) => tap.note(String(text));
+  // The runner takes a case's tape after its hooks and before the next case:
+  // settled first, so the last line hears what it changed.
   const take = () => {
+      tap.settle();
       const read = tap.read();
       const notes = read.notes.map(([at, , text]) => [at, text]);
       const lines = read.lines.map(([at, , line, said, hook]) => (hook === 1 ? [at, line, said, 1] : [at, line, said]));

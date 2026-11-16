@@ -349,6 +349,28 @@ describe('what a case says on the way', () => {
     expect(lines.map(([, , line, said]) => [line, said])).toEqual([[4, 0], [9, 1]]);
   });
 
+  // A page's runner settles no case before its hooks: it takes the tape after them.
+  it('says what the last line changed when a hook opens, and nothing the hook or what follows it change', async () => {
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const { window } = new JSDOM('<main></main>');
+    const { document } = window;
+    listen(tap, { console: { ...console }, document, MutationObserver: window.MutationObserver });
+
+    tap.root.c(4);
+    document.body.append(document.createElement('dialog'));
+    tap.root.c(6, undefined, true);
+    document.body.append(document.createElement('hr'));
+    await Promise.resolve();
+    document.body.replaceChildren();
+    tap.settle();
+
+    const { lines, notes } = tap.read();
+    expect(notes.map(([, , text]) => text)).toEqual(['page +1 −0 nodes, 0 attributes, 0 text']);
+    expect(lines.map(([, , line, said]) => [line, said])).toEqual([[4, 0], [6, 1]]);
+  });
+
   it('starts no page watch in a realm with no document', () => {
     const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));

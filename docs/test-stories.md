@@ -653,8 +653,9 @@ Take the `console.log` out before you change the code.
 
 ## What each line did to the page
 
-When the test runs in Node with a document, as under jsdom, each line of the
-test that changed the page says how much it changed:
+When the test has a document, as under jsdom or in the browser modes of Vitest
+and Rstest, each line of the test that changed the page says how much it
+changed:
 
 ```text
 page +1 −0 nodes, 2 attributes, 0 text
@@ -667,14 +668,17 @@ it again for what arrived while it waited. A line that changed nothing says
 nothing. A `findBy` or `waitFor` that passed on such a line waited on no
 change to the markup: what it looked for was there, unless it waited on a
 property the markup does not carry, such as an input's `value` set by a timer.
-Hooks are no test line: what they and a testing library's cleanup change, before
-the first line or after the last, has no note.
+Hooks are no test line: a hook's line, and the end of the test, close the
+watch until the next test line opens, so what hooks and a testing library's
+cleanup change has no note. In a browser page one still can: a cleanup imported
+from a package, in a test file that writes no hook of its own, runs before the
+test ends and lands its change on the test's last line.
 
 The note counts; it does not show the markup, or say which component made the
 change. For the React commits behind it, use [Eyes](eyes.md), which writes each
 commit under its step with the components that rendered. A test run without a
-document has no `page` note, and neither does a test that runs in a browser
-page, such as Vitest's browser mode or a Playwright spec.
+document has no `page` note, and neither does a Playwright spec: its lines run
+in Node, apart from the page.
 
 ## What a story does not show
 
