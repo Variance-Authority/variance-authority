@@ -379,11 +379,12 @@ export function linesThen(root: string, commit: string, file: string, lines: rea
 export function passedAt(module: NativeRanModule, line: number): { readonly region: NativeRanRegion; readonly partly: boolean } | undefined {
   const holding = module.regions.filter((region) => region.kind !== 'module' && region.source && region.line <= line && line <= region.end);
   const span = (region: NativeRanRegion): number => region.end - region.line;
-  // Lines cannot nest two regions of one span: a function holds a later row of
-  // its span, its one-line guard; two branches of one span are arms side by side.
-  const holds = (outer: NativeRanRegion, row: number) => (inner: NativeRanRegion, at: number): boolean =>
-    outer.line <= inner.line && inner.end <= outer.end && (span(inner) < span(outer) || (at > row && outer.kind === 'function'));
-  const innermost = holding.filter((region, row) => !holding.some(holds(region, row)));
+  // Lines cannot nest two regions of one span: a function holds a branch of its
+  // own on it, its one-line guard; two functions or two branches sit side by side.
+  const holds = (outer: NativeRanRegion) => (inner: NativeRanRegion): boolean =>
+    outer.line <= inner.line && inner.end <= outer.end &&
+    (span(inner) < span(outer) || (outer.kind === 'function' && inner.kind !== 'function' && inner.function === outer.function));
+  const innermost = holding.filter((region) => !holding.some(holds(region)));
   if (innermost.length === 0 || innermost.some((region) => region.entered)) return undefined;
   // `covering --line` charges a line that opens a region to the enclosing one
   // too: safe for choosing tests, wrong here, so it only says the rest ran.
