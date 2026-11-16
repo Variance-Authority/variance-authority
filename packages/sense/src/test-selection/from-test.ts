@@ -79,3 +79,29 @@ export function nodesOf(relations: Relations, knownAs: (file: string) => readonl
     return found;
   };
 }
+
+/**
+ * The modules a test enters: what its file imports directly, along edges into
+ * modules it ran, less those another of them uses too. A re-export publishes a
+ * module rather than using it, so a barrel beside its module leaves it an entry.
+ * No entry is guessed away: a fixture its subject does not import stays one
+ * beside it.
+ */
+export function entries(relations: Relations, start: readonly NodeId[], open: Uint8Array): readonly NodeId[] {
+  const { offset, target, kind } = relations.depends;
+  const ran = (from: NodeId, republished: boolean): NodeId[] => {
+    const found: NodeId[] = [];
+    for (let edge = offset[from]!; edge < offset[from + 1]!; edge += 1) {
+      if (!RUNTIME_KINDS[kind[edge]!] || open[target[edge]!] !== 1) continue;
+      if (republished || kind[edge] !== REEXPORTS) found.push(target[edge]!);
+    }
+    return found;
+  };
+  const direct = new Set(start.flatMap((id) => ran(id, true)));
+  for (const id of start) direct.delete(id);
+  const below = new Set<NodeId>();
+  for (const id of direct) for (const to of ran(id, false)) if (to !== id) below.add(to);
+  return [...direct].filter((id) => !below.has(id));
+}
+
+const REEXPORTS = EDGE_KINDS.indexOf('reexports');

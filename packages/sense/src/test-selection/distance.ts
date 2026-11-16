@@ -42,11 +42,11 @@
  * first, which is the right place for it and the wrong reason.
  */
 
-import { EDGE_KINDS, RUNTIME_EDGES, dependenciesOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, dependenciesOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
-import { RUNTIME_KINDS, nodesOf, ownName } from './from-test.js';
+import { entries, nodesOf, ownName } from './from-test.js';
 import { findTest } from './lookup.js';
 import { reachesThrough } from './reading.js';
 import type { ExecutionNarrowing, SelectionCause } from './narrowing.js';
@@ -388,32 +388,6 @@ function walk(
   }
   return { trail: named.reverse(), enters: [...enters].sort(codeUnitOrder) };
 }
-
-/**
- * The modules a test enters: what its file imports directly, along edges into
- * modules it ran, less those another of them uses too. A re-export publishes a
- * module rather than using it, so a barrel beside its module leaves it an entry.
- * No entry is guessed away: a fixture its subject does not import stays one
- * beside it.
- */
-function entries(relations: Relations, start: readonly NodeId[], open: Uint8Array): readonly NodeId[] {
-  const { offset, target, kind } = relations.depends;
-  const ran = (from: NodeId, republished: boolean): NodeId[] => {
-    const found: NodeId[] = [];
-    for (let edge = offset[from]!; edge < offset[from + 1]!; edge += 1) {
-      if (!RUNTIME_KINDS[kind[edge]!] || open[target[edge]!] !== 1) continue;
-      if (republished || kind[edge] !== REEXPORTS) found.push(target[edge]!);
-    }
-    return found;
-  };
-  const direct = new Set(start.flatMap((id) => ran(id, true)));
-  for (const id of start) direct.delete(id);
-  const below = new Set<NodeId>();
-  for (const id of direct) for (const to of ran(id, false)) if (to !== id) below.add(to);
-  return [...direct].filter((id) => !below.has(id));
-}
-
-const REEXPORTS = EDGE_KINDS.indexOf('reexports');
 
 /**
  * The walk from a test's file with everything the test did not enter removed
