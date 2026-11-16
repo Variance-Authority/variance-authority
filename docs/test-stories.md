@@ -651,6 +651,39 @@ a line every run on one side printed, and no run on the other, is listed with
 the step that printed it.
 Take the `console.log` out before you change the code.
 
+## What each line did to the page
+
+When the test has a document, as under jsdom, in the browser modes of Vitest
+and Rstest, or in the page a Playwright spec drives, each line of the test that
+changed the page says how much it changed:
+
+```text
+page +1 −0 nodes, 2 attributes, 0 text
+```
+
+Nodes added and removed, attributes set, and text nodes changed since the
+line opened, what arrived while it awaited included. A subtree added at once
+counts as one node, and `textContent` set on an element replaces its nodes
+rather than changing text. A line that changed nothing says nothing. A
+`findBy` or `waitFor` that passed on such a line waited on no change to the
+markup: what it looked for was there, unless it waited on a
+property the markup does not carry, such as an input's `value` set by a timer.
+Hooks are no test line: a hook's line, and the end of the test, close the
+watch until the next test line opens, so what hooks and a testing library's
+cleanup change has no note. In a browser page one still can: a cleanup imported
+from a package, in a test file that writes no hook of its own, runs before the
+test ends and lands its change on the test's last line. Under Playwright, a
+hook declared in a helper file closes the watch as the spec's own hooks do,
+but a fixture's code after `use` runs no statement, so what it changes lands on
+the test's last line unless one of the spec's `afterEach` hooks ran before it.
+A document a statement loads is counted from the statement after it. Changes
+inside a shadow root are not counted.
+
+The note counts; it does not show the markup, or say which component made the
+change. For the React commits behind it, use [Eyes](eyes.md), which writes each
+commit under its step with the components that rendered. A test run without a
+document has no `page` note.
+
 ## What a story does not show
 
 - **What an object holds, and values never handed to a function.** A ref says

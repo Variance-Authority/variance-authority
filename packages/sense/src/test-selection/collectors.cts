@@ -354,6 +354,9 @@ function scoped(
     if (attempts > 0) attempts -= 1;
   };
   const release = (bucket: Bucket): void => {
+    // The body's last line hears what it changed before the hooks change more,
+    // where it is the one case running: under continuations too.
+    if (current === bucket || (inFlight.size === 1 && inFlight.has(bucket))) tap?.settle();
     bucket.open = false;
     inFlight.delete(bucket);
     if (current === bucket) {

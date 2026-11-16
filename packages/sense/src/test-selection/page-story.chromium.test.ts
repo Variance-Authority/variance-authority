@@ -22,9 +22,9 @@ afterEach(async () => {
 // Each runner's browser mode, over the same file in its own fixture: Rstest
 // bundles, serves and runs it in Chromium; Vitest serves it through Vite.
 describe.each([
-  ['Rstest', 'external-rstest', 'test/delta.browser.ts', ['node_modules/@rstest/core/bin/rstest.js', 'run', '-c', 'rstest.browser.config.mjs']],
-  ['Vitest', 'external-vitest', 'test/delta.page.ts', ['node_modules/vitest/vitest.mjs', 'run', '--config', 'vitest.browser.config.ts']],
-] as const)('a file %s runs in a page, under `VARIANCE_AUTHORITY_STORY=1`', (_, name, spec, [bin, ...args]) => {
+  ['Rstest', 'external-rstest', 'test/delta.browser.ts', 'test/grows.browser.ts', ['node_modules/@rstest/core/bin/rstest.js', 'run', '-c', 'rstest.browser.config.mjs']],
+  ['Vitest', 'external-vitest', 'test/delta.page.ts', 'test/grows.page.ts', ['node_modules/vitest/vitest.mjs', 'run', '--config', 'vitest.browser.config.ts']],
+] as const)('a file %s runs in a page, under `VARIANCE_AUTHORITY_STORY=1`', (_, name, spec, grows, [bin, ...args]) => {
   const fixture = resolve(fixtures, name);
   const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
 
@@ -46,7 +46,12 @@ describe.each([
       .map((path) => resolve(directory, path));
     const decoded = await Promise.all(written.map(async (path) => ({ path, story: stories.decodeStory(await readFile(path)) })));
     const named = (name: string) => decoded.find(({ story }) => story.name === name);
-    expect(decoded.map(({ story }) => story.name).sort()).toEqual(['in a page > takes the alpha path', 'in a page > takes the gamma path']);
+    expect(decoded.map(({ story }) => story.name).sort()).toEqual([
+      'adds a node and reads it',
+      'in a page > takes the alpha path',
+      'in a page > takes the gamma path',
+      'waits for a node',
+    ]);
 
     const alpha = named('in a page > takes the alpha path')!;
     expect(alpha.story).toMatchObject({ file: resolve(fixture, spec), stopped: false });
@@ -70,5 +75,30 @@ describe.each([
     // Past the first `if` by its `else`, and into the second.
     expect(turn(named('in a page > takes the gamma path')!.path)?.arms.map(({ path }) => path))
       .toEqual(['if#0/else', 'if#0/after', 'if#1/then']);
+
+    // What each line did to the page: the line that added a node, or waited
+    // while a timer added one, and nothing for the line that read it, nor for
+    // the cleanup the file's hook, line 4, runs after each case. A line that
+    // ran no recorded code and said nothing gives way to the next, so the
+    // reading line is gone and the hook's is the case's last.
+    const page = (name: string) => {
+      const { story } = named(name)!;
+      expect(story.file).toBe(resolve(fixture, grows));
+      return story.lines.map(([, line, before], index) => [
+        line,
+        story.notes
+          .slice(before, story.lines[index + 1]?.[2] ?? story.notes.length)
+          .map(([, text]) => text)
+          .filter((text) => text.startsWith('page ')),
+      ]);
+    };
+    expect(page('adds a node and reads it')).toEqual([
+      [11, ['page +1 −0 nodes, 0 attributes, 0 text']],
+      [4, []],
+    ]);
+    expect(page('waits for a node')).toEqual([
+      [18, ['page +1 −0 nodes, 0 attributes, 0 text']],
+      [4, []],
+    ]);
   }, 120_000);
 });

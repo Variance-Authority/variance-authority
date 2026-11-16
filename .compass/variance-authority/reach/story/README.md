@@ -16,6 +16,7 @@ drawn at the finest level that fits a page and read a part at a time.
 
 In: every probe hit in one realm, in the order it happened, while a run asks for
 stories; which case was open at each hit, and which test line, a hook's marked;
+what each test line changed on the realm's document;
 from a page, each drain's tape, which the runner names with the case and the
 line it was drained under; and, to name what was visited, the region inventory
 the record beside it holds. Out: one **story** per case,

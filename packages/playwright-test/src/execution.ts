@@ -56,10 +56,11 @@ export interface ExecutionRecorder {
    * cases; without it the crossings join the file only. `line` is the test line
    * whose statement ran since the drain before: each region the case has not
    * reached under an earlier line is charged to it. A region drained before
-   * the first line, or under a `hook` line, is ambient. Resolves to how many
-   * documents the frame replaced whose journals the drain carried.
+   * the first line, or under a `hook` line, is ambient. `opens` says whether the
+   * statement next is a test line, whose page changes the story notes. Resolves
+   * to how many documents the frame replaced whose journals the drain carried.
    */
-  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number, hook?: boolean) => Promise<number>;
+  readonly note: (page: EvaluatingPage, owner: string, subject?: ObservedTest, line?: number, hook?: boolean, opens?: boolean) => Promise<number>;
   /**
    * The script that makes a page tape the case's story, where the run asked
    * for stories under `VARIANCE_AUTHORITY_STORY`: put on a context before its
@@ -217,8 +218,8 @@ export function createExecutionRecorder(
       const key = caseKey(owner, subject.id);
       tried.set(key, [...(tried.get(key) ?? []), attempt]);
     },
-    note: async (page, owner, subject, line, hook) => {
-      const journal = await quietly(page, () => drainExecution(page));
+    note: async (page, owner, subject, line, hook, opens) => {
+      const journal = await quietly(page, () => drainExecution(page, opens));
       if (journal === undefined) {
         if (subject !== undefined) unheard.add(caseKey(owner, subject.id));
         return 0;
