@@ -7,12 +7,13 @@ is, whether it should be done at all, and what would make it done.
 
 **What problem we solve.** For a `feat`, `fix` or `perf`, one question, read
 five ways, before anything else here. Each word becomes something a reader
-can open, and a problem where one of them cannot be named is not ours to chase,
-however well the rest reads.
+can open, or is named as unknown with what building it will show. A word that
+opens against the problem stops it; one that cannot open yet does not.
 
 - **What** becomes something that opens to show the problem: an ask quoted, a
-  failing run or a reproduction in the Evidence, and the Impact it carries. A
-  claim that somebody was hurt opens to where they were.
+  failing run or a reproduction in the Evidence, and the Impact it carries, or,
+  before it is built, what building it will show. A claim that somebody was hurt
+  opens to where they were.
 - **Which** becomes the particular way we pick. A problem comes in variants and
   each has several answers: the Change names the one it takes, why that one, and
   what already answers part of it, here or in a neighbour.
@@ -30,7 +31,8 @@ however well the rest reads.
 - **Solve** becomes a test: the Done when items, taken together, fail today
   where the Evidence saw the problem — an adopter's project, a CI run, a
   stranger's first command, not only this repository — and pass only once it is
-  gone. Each item checks one part; no item has to prove the whole. A Change that only eases the harm says why the rest is not worth
+  gone; where nothing can show it before it is built, they measure it once the
+  change runs. Each item checks one part; no item has to prove the whole. A Change that only eases the harm says why the rest is not worth
   solving.
 
 The pattern is Anton Korzunov's
@@ -124,8 +126,8 @@ section to a heading:
   something a reader can observe, never the mechanism that produces it.
 - **Evidence**: who has the problem, each item something a reader can open —
   the owner's ask quoted, an issue, a failing run, a measurement, a spec in
-  `docs/specs/`. At least one item shows the problem outside the code that
-  causes it: an ask quoted, a failing run or a reproduction. A claim that
+  `docs/specs/`. Where anything can, at least one item shows the problem outside
+  the code that causes it: an ask quoted, a failing run or a reproduction. A claim that
   somebody hit it — misled, blocked, wasting a run — names the run or the
   transcript's path and line where they did, or is not made. A code line shows
   the mechanism, not the problem, and belongs in Root cause; an agent's report
@@ -156,7 +158,8 @@ it is built, and merging is often the only way to learn whether an idea holds.
 An unknown is written as an unknown, with what building will show, and the
 review weighs the idea on what opens: a reason to reject is something a reader
 can open that argues against the change — it exists already, it was decided
-against, another owner holds it, a lower cause answers it. That nothing shows the
+against, another owner holds it, a lower cause answers it, it costs more than
+what opens of its gain. That nothing shows the
 need, the harm or the gain yet is named in the verdict and carried by the
 `confidence:` label, never a rejection.
 
@@ -184,8 +187,9 @@ of your reasons. It opens every piece of evidence, asks the whys itself before
 it reads yours, weighs the case for nothing against the change, checks the change
 against [`escapes`](escapes.md), and gives one verdict:
 
-- **incomplete** — a section is missing or empty. A section that says what is
-  unknown and what building will show is written. Nothing is decided: complete
+- **incomplete** — a section is missing, out of order or empty, or a Change
+  above the root does not say why. A section that says what is unknown and what
+  building will show is written; a placeholder is not. Nothing is decided: complete
   the brief and ask again. It is not a review.
 - **build** — put `idea: build` on the issue. Code may start. An edit to the
   issue's body after that needs the review again, and CI enforces it.
@@ -219,9 +223,8 @@ issue is a report, so neither is listed. Issues holding a brief come first, sinc
 they wait only for the review; the rest follow "What comes first", by score within
 each rank. An `incomplete` nothing has changed since goes last, because another
 review would say the same. A scheduled task on the owner's machine takes the top
-of that list: it writes the brief an issue lacks, and any section a brief is
-missing, with its unknowns named, rather than posting **incomplete**; runs the
-review, posts the verdict and follows it through. A `build` on an issue already
+of that list: it writes the brief an issue lacks, runs the review, posts the
+verdict and follows it through. A `build` on an issue already
 labelled takes the label off and puts it back, since CI reads when it went on.
 
 **The loop learns.** A change that passed this loop and was later shown not to

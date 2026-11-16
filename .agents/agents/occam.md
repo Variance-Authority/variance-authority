@@ -28,17 +28,17 @@ number. See first that the brief is all here, from its headings alone:
 gh issue view <n> --json body --jq .body | awk '/^```/ { fence = !fence; next } !fence && /^#+ / { print; next } NF { print "  text" }' | uniq
 ```
 
-A section of the brief in `.agents/references/refine.md` that is missing or has
-no text is not reviewed: your verdict is **incomplete**, naming the section, and
+A section of the brief in `.agents/references/refine.md` that is missing, out of
+order or has no text is not reviewed: your verdict is **incomplete**, naming the section, and
 you stop. A section that says what is unknown and what building will show is
-written, and so is a guess that says it is one. **Incomplete** rejects nothing:
+written, and so is a guess that says it is one; a placeholder is not. **Incomplete** rejects nothing:
 it says only that the case is not all here.
 
-Absence of evidence rejects nothing. Almost nothing can be measured before it is
-built, and merging is often how it is learned. Every reason below rejects on
-something a reader can open that argues against the change. What nothing shows
-yet — the need, the harm, the gain, a link of the chain — you name as unknown in
-your verdict, and it does not stand between the brief and **build**.
+Absence of evidence rejects nothing, as `.agents/references/refine.md` says:
+every reason below rejects on something a reader can open that argues against
+the change. What nothing shows yet — the need, the harm, the gain, a link of the
+chain — you name as unknown in your verdict, and it does not stand between the
+brief and **build**.
 
 The brief runs in a fixed order. What comes before the Root cause states the
 problem; the Root cause and what follows it are the author's case, so build yours
@@ -166,7 +166,8 @@ Reasons you reject on, and you name the one you use:
   something a reader can open. What stands at the root should be fixed or removed, which leaves this problem
   nothing to answer.
 - **Too much for what it buys.** The cost in step 2 is out of proportion to the
-  harm in step 1.
+  harm in step 1. An unknown harm is not a small one: it is weighed on what
+  opens, and when nothing opens either way this reason does not stand.
 - **Rejected before.** `docs/context/` already decided against it, and the
   body does not say what changed.
 - **Not now.** It stands on a change that has not landed. A premise nothing
