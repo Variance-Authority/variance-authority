@@ -84,7 +84,7 @@ describe('select --format explain', () => {
     const { out } = await selectOutput({ cwd: root, format: 'explain' });
 
     expect(out).toContain('a test file the record never saw, such as one the change adds, is in no skip list, and runs in every block');
-    expect(out).toContain('a block past 0 hops also runs any nearer test file the last run left unrun');
+    expect(out).not.toContain('also runs any nearer test file');
   });
 
   it('gives a selection with no measured hops the command that runs it whole, with no leg a journey would refuse', () => {
@@ -107,6 +107,22 @@ describe('select --format explain', () => {
     const out = explainOf(selection, new Set([IDLE, NEAR, SELF]), { recording: 'r', times: new Map(Object.entries(TIMES)) }, 'variance select');
 
     expect(out).toContain(`no measured distance: 1 test file, 3.0 s recorded — variance select --at-distance 2-\n  ${MID}, `);
+  });
+
+  it('lists and prices in a block past 0 hops the nearer test files the run landed at HEAD left unrun, which its command also runs', () => {
+    const selection = {
+      ground: 'read', skip: [IDLE], because: 'b', notes: [], at: 'a', unread: [], stale: [], recorded: { whole: 4, entered: 3 }, unrunAtHead: [SELF, IDLE],
+      distances: [{ test: SELF, bearing: 'direct', hops: 0 }, { test: NEAR, bearing: 'direct', hops: 1 }, { test: MID, bearing: 'direct', hops: 2 }],
+    } as const;
+
+    const out = explainOf(selection, new Set(WHOLE), { recording: 'r', times: new Map(Object.entries(TIMES)) }, 'variance select');
+
+    expect(out).toContain(`the change selects 3 of 4 recorded test files, 6.0 s recorded.\n`);
+    expect(out).toContain(`0 hops: 1 test file, 1.0 s recorded — variance select --at-distance 0\n  ${SELF}, 1.0 s: `);
+    expect(out).toContain(`1 hop: 2 test files, 3.0 s recorded — variance select --at-distance 1\n  ${NEAR}, 2.0 s: `);
+    expect(out).toContain(`\n  ${SELF}, 1.0 s: nearer, and the run that landed at HEAD left it unrun\n\n2 hops: 2 test files, 4.0 s recorded`);
+    expect(out).not.toContain(IDLE);
+    expect(out).not.toContain('also runs any nearer test file');
   });
 
   it('names on each test line the changed file and the trail `--format json` measured', async () => {

@@ -227,6 +227,8 @@ export interface TestSelection {
   readonly only?: readonly string[];
   /** How far the change travelled to each test it entered. Present when a leg cut a narrowed selection. */
   readonly distances?: readonly TestDistance[];
+  /** The test files the run landed at HEAD left unrun: a leg past 0 hops also runs the nearer of them. Present when a leg was cut beside such a run. */
+  readonly unrunAtHead?: readonly string[];
   /**
    * Under `--local`, the rung a widened reading fell to, the reason it widened,
    * the test files that rung left, which `skip` holds, and those it chose. Absent otherwise.

@@ -5,7 +5,8 @@
  *
  * One block per hop count the change travelled, nearest first, each with its
  * test files, their recorded seconds and the `--at-distance` command that runs
- * that block, beside any nearer test the last run left unrun. The hops are the
+ * that block, with any nearer test the last run left unrun, which that command
+ * also runs. The hops are the
  * leg's distances, cut by `atDistance` as a leg cuts them, and the seconds the
  * budget's (`select-budget.ts`): this reads both, and decides nothing.
  * A selection that ran the whole suite says why, and what the record times it
@@ -58,27 +59,34 @@ export function explainOf(selection: TestSelection, whole: ReadonlySet<string>, 
   const runs = (test: string) => !skip.has(test) && (selection.only === undefined || selection.only.includes(test));
   // What the leg asked leaves is laid out too, marked, so its cost and command show.
   const leaves = new Set(selection.left ?? []);
-  const blocks = blocksOf(selection, whole, recorded, (test) => runs(test) || leaves.has(test));
+  const lays = (test: string) => runs(test) || leaves.has(test);
+  const blocks = blocksOf(selection, whole, recorded, lays);
   const selected = blocks.flatMap((block) => block.tests).filter(runs);
   const of = selection.recorded === undefined ? '' : ` of ${selection.recorded.whole} recorded`;
   const fell = selection.fell === undefined ? '' : `\n${selection.because}.`;
   const head = `the change selects ${selected.length}${of} test file${selected.length === 1 ? '' : 's'}, ${priced(recorded, selected)}.${fell}`;
 
   const byTest = new Map((selection.distances ?? []).map((distance) => [distance.test, distance] as const));
+  const unrun = new Set(selection.unrunAtHead ?? []);
   const said = blocks.map((block) => {
     const runsIt = block.range === undefined ? command : `${command} --at-distance ${block.range}`;
     const why = (test: string) => (selection.fell === undefined ? pathOf(byTest.get(test)) : `the ${selection.fell.rung} rung \`--local\` fell to`);
     const lines = block.tests.map((test) => `  ${test}, ${priceOf(recorded, test)}: ${why(test)}`);
+    // The block's command is a leg, and a leg past 0 hops also runs the nearer
+    // tests the run landed at HEAD left unrun, as `inLeg` takes them.
+    const from = block.range === undefined ? 0 : Number.parseInt(block.range, 10);
+    const overdue = from === 0 || selection.distances === undefined
+      ? []
+      : atDistance(selection.distances, 0, from - 1).filter((test) => unrun.has(test) && lays(test));
+    const runsAll = [...block.tests, ...overdue];
+    const late = overdue.map((test) => `  ${test}, ${priceOf(recorded, test)}: nearer, and the run that landed at HEAD left it unrun`);
     const label = block.tests.every((test) => leaves.has(test)) ? `${block.label}, left by the leg asked` : block.label;
-    return [`${label}: ${many(block.tests.length, 'test file')}, ${priced(recorded, block.tests)} — ${runsIt}`, ...lines].join('\n');
+    return [`${label}: ${many(runsAll.length, 'test file')}, ${priced(recorded, runsAll)} — ${runsIt}`, ...lines, ...late].join('\n');
   });
   const unseen = blocks.length === 0
     ? []
     : ['a test file the record never saw, such as one the change adds, is in no skip list, and runs in every block\n'];
-  const overdue = blocks.some((block) => block.range !== undefined && !block.range.startsWith('0'))
-    ? ['a block past 0 hops also runs any nearer test file the last run left unrun\n']
-    : [];
-  return [`${head}\n`, ...said.map((block) => `${block}\n`), ...unseen, ...overdue, ...unread].join('\n');
+  return [`${head}\n`, ...said.map((block) => `${block}\n`), ...unseen, ...unread].join('\n');
 }
 
 /**

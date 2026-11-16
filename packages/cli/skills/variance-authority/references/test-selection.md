@@ -175,8 +175,9 @@ variance reach --since origin/main              # files a diff reaches over impo
   test no hop placed sits in the
   block whose leg runs it; with no hops measured, as under `--execution`, or
   under the rung `--local` fell to, the selection is one block and its command
-  carries no leg. A test file the record never saw runs in every block, and a
-  block past 0 hops also runs a nearer test the last run left unrun. A selection that runs the whole suite says why
+  carries no leg. A test file the record never saw runs in every block. A
+  block past 0 hops lists, and prices, the nearer tests the last run left
+  unrun, which its command also runs. A selection that runs the whole suite says why
   and what the record times the suite at; a changed file nothing reaches is
   named, with where to declare it: `/// <depends>` or `before`. It is no
   runner's input.

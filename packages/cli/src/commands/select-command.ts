@@ -339,11 +339,12 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   const manifests = [...installs.values()].flatMap((installed) => compared(installed)?.manifests ?? []);
   const unplaced = [...beyond.values()].flatMap((one) => one.unplaced);
   // A leg past 0 hops cut after a run landed at HEAD also runs the nearer tests
-  // that run left standing: `inLeg` says why.
+  // that run left standing: `inLeg` says why. Read for any leg, so `explain`'s
+  // open leg can price each block's command as that leg would run it.
   // FIXME: a run landed at HEAD stands in for the earlier leg's, so a commit
   // made between the legs leaves the far leg cut by hops alone, and the near
   // tests its wider reading finds run in neither leg.
-  const later = (request.atDistance?.from ?? 0) > 0 && stands.length > 0 && commit === (await headOf(here));
+  const later = request.atDistance !== undefined && stands.length > 0 && commit === (await headOf(here));
   const unrunAtHead = later ? stands.flatMap((stand) => stand.tests).sort() : [];
   const ground: SelectGround =
     narrowing === undefined

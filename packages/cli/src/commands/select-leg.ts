@@ -157,6 +157,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     left: outside,
     ...(only === undefined ? {} : { only }),
     distances: measured,
+    ...(unrun.size === 0 ? {} : { unrunAtHead: [...unrun] }),
     // `left` can hold an entered test the record never saw whole, so the two
     // counts are named apart rather than as a share of the whole.
     because:
