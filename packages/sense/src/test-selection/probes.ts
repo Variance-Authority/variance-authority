@@ -74,8 +74,12 @@ export interface ExecutionJournal {
 export interface ExecutionCollector {
   readonly version: 1;
   readonly instrumentation: string;
-  /** Everything entered since the previous drain. Empties the log. */
-  readonly drain: () => ExecutionJournal;
+  /**
+   * Everything entered since the previous drain. Empties the log. `opens`, from
+   * a runner whose test lines run outside the page, says whether the page's tape
+   * hears what the page changes next as a test line's.
+   */
+  readonly drain: (opens?: boolean) => ExecutionJournal;
   /** Forget everything entered so far without reporting it. */
   readonly reset: () => void;
   /**
@@ -409,7 +413,7 @@ if (globalThis.__VA__ === undefined) {
   // What the page's code reads goes out with what it entered, for the driver
   // to lay on the case it drained.
   const reader = ${pageReaderSource()};
-  const drain = () => {
+  const drain = (opens) => {
     // In the order the page first registered each module, drain after drain.
     const own = lists(engine.take(bucket), true);
     if (carries) engine.carry();
@@ -418,7 +422,7 @@ if (globalThis.__VA__ === undefined) {
     if (before !== undefined) drained.replaced = 1 + (before.replaced ?? 0);
     if (reader !== undefined || before?.read !== undefined) drained.read = [...(before?.read ?? []), ...(reader?.take() ?? [])];
     if (story !== undefined) {
-      drained.story = story.take();
+      drained.story = story.take(opens);
       if (before?.story !== undefined) drained.story.before = [before.story];
     }
     return drained;

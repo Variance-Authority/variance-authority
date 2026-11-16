@@ -86,8 +86,8 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
     }
     held.counts = [0, 0, 0, 0];
     held.quiet = !opens;
-    // Observed from the first test line on: a page whose lines run elsewhere, as
-    // a Playwright spec's do, opens none and is never watched.
+    // Observed from the first test line on, which a runner whose lines run
+    // outside the page opens at its drain: what came before is no line's.
     if (opens && !held.observing) {
       held.observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
       held.observing = true;

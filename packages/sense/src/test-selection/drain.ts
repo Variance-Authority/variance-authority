@@ -26,15 +26,16 @@ export interface EvaluatingPage {
  * later selection must never confuse.
  *
  * Draining claims the page: one that reports itself stops, as
- * {@link claimPageSource} has it stop before it starts.
+ * {@link claimPageSource} has it stop before it starts. `opens` is the
+ * collector's: whether what the page changes next is a test line's.
  */
-export async function drainExecution(page: EvaluatingPage): Promise<ExecutionJournal | undefined> {
-  return page.evaluate(([global, driven]: readonly [string, string]) => {
+export async function drainExecution(page: EvaluatingPage, opens?: boolean): Promise<ExecutionJournal | undefined> {
+  return page.evaluate(([global, driven, next]: readonly [string, string, boolean | undefined]) => {
     const held = globalThis as unknown as Record<string, ExecutionCollector | true | undefined>;
     held[driven] = true;
     const collector = held[global] as ExecutionCollector | undefined;
-    return collector === undefined ? undefined : collector.drain();
-  }, [EXECUTION_GLOBAL, DRIVEN_GLOBAL] as const);
+    return collector === undefined ? undefined : collector.drain(next);
+  }, [EXECUTION_GLOBAL, DRIVEN_GLOBAL, opens] as const);
 }
 
 /**

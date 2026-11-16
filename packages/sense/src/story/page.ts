@@ -39,12 +39,17 @@ if (realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] !== undefined) return;
 realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
   const tap = createTap(engine, ${storyTap.TAPE_LIMIT});
   tap.nameIn(realm);
-  watchPage(tap, realm);
+  // What has the page watch say a line's changes, kept so a runner whose test
+  // lines run outside the page can open and close them.
+  let turn = () => {};
+  watchPage({ note: (text) => tap.note(text), drainWith: (given) => { tap.drainWith(given); turn = given; } }, realm);
   realm[NOTE] = (text) => tap.note(String(text));
   // The runner takes a case's tape after its hooks and before the next case:
-  // settled first, so the last line hears what it changed.
-  const take = () => {
-      tap.settle();
+  // settled first, so the last line hears what it changed. A runner that drains
+  // before each statement says whether the next one is a test line.
+  const take = (opens) => {
+      if (opens === true) turn(true);
+      else tap.settle();
       const read = tap.read();
       const notes = read.notes.map(([at, , text]) => [at, text]);
       const lines = read.lines.map(([at, , line, said, hook]) => (hook === 1 ? [at, line, said, 1] : [at, line, said]));
