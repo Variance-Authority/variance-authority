@@ -37,6 +37,7 @@ if (realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] !== undefined) return;
 realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
   const tap = createTap(engine, ${storyTap.TAPE_LIMIT});
   tap.nameIn(realm);
+  // The page's document is not watched yet, so its lines carry no \`page\` note (#1430).
   realm[NOTE] = (text) => tap.note(String(text));
   const take = () => {
       const read = tap.read();

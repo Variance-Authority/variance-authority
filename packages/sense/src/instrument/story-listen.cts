@@ -62,27 +62,31 @@ function pageNote(changes: readonly Change[]): string {
  * Watch the realm's document, once, and have `tap` say what changed on it at
  * each test line: drained when the line ends, so a change lands on the line
  * that made it, and said by the observer for what an `await` let through.
+ * Once the case's body settles, what its hooks and the cases' cleanup change
+ * is no line's, and nothing is said until the next line opens.
  * A later call moves the watch to the tap it is given.
  */
 function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
   const { document, MutationObserver: Watch } = global;
   if (document === undefined || typeof Watch !== 'function') return;
-  const page = document as { [PAGE]?: { tap: Pick<Tap, 'note'>; observer: Observer } };
+  type Watching = { tap: Pick<Tap, 'note'>; observer: Observer; quiet: boolean };
+  const page = document as { [PAGE]?: Watching };
   let watch = page[PAGE];
   if (watch === undefined) {
-    const made: { tap: Pick<Tap, 'note'>; observer?: Observer } = { tap };
+    const made: Partial<Watching> & Pick<Watching, 'tap' | 'quiet'> = { tap, quiet: false };
     const say = (changes: readonly Change[]): void => {
-      if (changes.length > 0) made.tap.note(pageNote(changes));
+      if (changes.length > 0 && !made.quiet) made.tap.note(pageNote(changes));
     };
     made.observer = new Watch(say);
     made.observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
-    watch = made as { tap: Pick<Tap, 'note'>; observer: Observer };
+    watch = made as Watching;
     Object.defineProperty(page, PAGE, { value: watch });
   } else watch.tap = tap;
   const held = watch;
-  tap.drainWith(() => {
+  tap.drainWith((ending) => {
     const changes = held.observer.takeRecords();
-    if (changes.length > 0) held.tap.note(pageNote(changes));
+    if (changes.length > 0 && !held.quiet) held.tap.note(pageNote(changes));
+    held.quiet = ending === 'case';
   });
 }
 

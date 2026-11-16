@@ -128,11 +128,13 @@ interface Tap {
   /** Put `text` on the tape where the realm is now, in the case running now. */
   note(text: string): void;
   /**
-   * Have `drain` said before each test line opens and before the tape is read:
-   * what it notes then lands on the line that caused it. The last one given
-   * is the one called.
+   * Have `drain` said before each test line opens, with `'line'`, and when a
+   * case's body settles, with `'case'`: what it notes then lands on the line
+   * that caused it. The last one given is the one called.
    */
-  drainWith(drain: () => void): void;
+  drainWith(drain: (ending: 'line' | 'case') => void): void;
+  /** Say the running case's body has settled: its last line hears what it changed. */
+  settle(): void;
   /** Ask the namers in `scope`'s kind array, as it holds them then, what each object is. */
   nameIn(scope: object): void;
   /** Start the tape again, keeping what the realm registered and the refs it gave. */
@@ -205,7 +207,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
   // What has more to say about the line that is ending; see `drainWith`.
-  let drain: (() => void) | undefined;
+  let drain: ((ending: 'line' | 'case') => void) | undefined;
 
   // Made only when live: a page's tap is this function's source alone, without the module.
   const parts = live ? storyParts.createParts(engine, limit, { ids: rowIds, bases: rowBases }) : undefined;
@@ -386,7 +388,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     // A hook's cut says so, as the cut test file marks it.
     // FIXME: under `sequence.hooks: 'parallel'` hooks' lines interleave as they ran.
     c(line: number, _file?: string, hook?: boolean): void {
-      drain?.();
+      drain?.('line');
       inner.c(line);
       inner.s?.();
       const key = engine.current().key;
@@ -401,7 +403,6 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     root,
     engine,
     read() {
-      drain?.();
       return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
@@ -417,8 +418,11 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       spoken += 1;
       put(text);
     },
-    drainWith(given: () => void): void {
+    drainWith(given: (ending: 'line' | 'case') => void): void {
       drain = given;
+    },
+    settle(): void {
+      drain?.('case');
     },
     nameIn(scope: object): void {
       namers = scope as { [KIND]?: unknown };

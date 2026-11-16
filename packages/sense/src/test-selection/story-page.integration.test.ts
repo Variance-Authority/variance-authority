@@ -1,7 +1,8 @@
 /**
  * A story run under a document says, on each test line, what that line did to
- * the page: `test/grows.paint.ts` adds a button on line 9 and reads it on
- * line 10, which changes nothing.
+ * the page: `test/grows.paint.ts` adds a button on line 11 and reads it on
+ * line 12, which changes nothing, and a timer adds a node while line 18
+ * waits. The cleanup an imported module runs after each case is no line's.
  */
 
 import { execFile } from 'node:child_process';
@@ -22,7 +23,7 @@ afterAll(async () => {
   await Promise.all(temporary.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-it('notes the page change on the line that made it, and nothing on the line that read it', async () => {
+it('notes the page change on the line that made it or waited through it, and nothing on a line that read it or for the cleanup', async () => {
   const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-story-page-'));
   temporary.push(directory);
   await execute(
@@ -40,21 +41,32 @@ it('notes the page change on the line that made it, and nothing on the line that
     },
   );
   const paths = (await readdir(directory, { recursive: true })).filter((path) => path.endsWith('.story'));
-  expect(paths).toHaveLength(1);
-  const story = stories.decodeStory(await readFile(resolve(directory, paths[0]!)));
+  expect(paths).toHaveLength(2);
   // Each line owns the notes said from its own count up to the next line's;
   // only the page's are read here.
-  const said = story.lines.map(([, line, before], index) => [
-    line,
-    story.notes
-      .slice(before, story.lines[index + 1]?.[2] ?? story.notes.length)
-      .map(([, text]) => text)
-      .filter((text) => text.startsWith('page ')),
-  ]);
-  expect(said).toEqual([
-    [7, []],
-    [8, []],
-    [9, ['page +1 −0 nodes, 0 attributes, 0 text']],
-    [10, []],
+  const said = await Promise.all(
+    paths.map(async (path) => {
+      const story = stories.decodeStory(await readFile(resolve(directory, path)));
+      return story.lines.map(([, line, before], index) => [
+        line,
+        story.notes
+          .slice(before, story.lines[index + 1]?.[2] ?? story.notes.length)
+          .map(([, text]) => text)
+          .filter((text) => text.startsWith('page ')),
+      ]);
+    }),
+  );
+  expect(said.sort((one, other) => Number(one[0]![0]) - Number(other[0]![0]))).toEqual([
+    [
+      [9, []],
+      [10, []],
+      [11, ['page +1 −0 nodes, 0 attributes, 0 text']],
+      [12, []],
+    ],
+    [
+      [17, []],
+      [18, ['page +1 −0 nodes, 0 attributes, 0 text']],
+      [19, []],
+    ],
   ]);
 }, 60_000);

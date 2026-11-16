@@ -323,6 +323,28 @@ describe('what a case says on the way', () => {
     expect(lines.map(([, , line, said]) => [line, said])).toEqual([[10, 0], [11, 1], [13, 2]]);
   });
 
+  it('says what the last line changed when the case settles, and nothing its cleanup changes', async () => {
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const { window } = new JSDOM('<main></main>');
+    const { document } = window;
+    listen(tap, { console: { ...console }, document, MutationObserver: window.MutationObserver });
+
+    tap.root.c(4);
+    document.body.append(document.createElement('dialog'));
+    tap.settle();
+    document.body.replaceChildren();
+    await Promise.resolve();
+    tap.root.c(9);
+    document.body.append(document.createElement('p'));
+    tap.settle();
+
+    const { lines, notes } = tap.read();
+    expect(notes.map(([, , text]) => text)).toEqual(['page +1 −0 nodes, 0 attributes, 0 text', 'page +1 −0 nodes, 0 attributes, 0 text']);
+    expect(lines.map(([, , line, said]) => [line, said])).toEqual([[4, 0], [9, 1]]);
+  });
+
   it('starts no page watch in a realm with no document', () => {
     const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));

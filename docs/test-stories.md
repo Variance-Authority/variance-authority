@@ -653,23 +653,27 @@ Take the `console.log` out before you change the code.
 
 ## What each line did to the page
 
-When the test runs with a document, such as under jsdom or happy-dom, each line
-of the test that changed the page says how much it changed:
+When the test runs in Node with a document, as under jsdom, each line of the
+test that changed the page says how much it changed:
 
 ```text
 page +1 −0 nodes, 2 attributes, 0 text
 ```
 
 Nodes added and removed, attributes set, and text changed since the line
-before. A line that awaits says it again for what arrived while it waited. A
-line that changed nothing says nothing, so a `findBy` or `waitFor` on a line
-with no `page` note waited for nothing: what it looked for was already there,
-and a `getBy` finds it as well.
+before. A subtree added at once counts as one node, and `textContent` set on an
+element replaces its nodes rather than changing text. A line that awaits says
+it again for what arrived while it waited. A line that changed nothing says
+nothing, so a `findBy` or `waitFor` on a line with no `page` note waited for
+nothing: what it looked for was already there, and a `getBy` finds it as well.
+What the hooks after the test change, such as a testing library's cleanup, is
+no line's and has no note.
 
 The note counts; it does not show the markup, or say which component made the
 change. For the React commits behind it, use [Eyes](eyes.md), which writes each
 commit under its step with the components that rendered. A test run without a
-document has no `page` note.
+document has no `page` note, and neither, yet, does a test that runs in a
+browser page, such as Vitest's browser mode or a Playwright spec.
 
 ## What a story does not show
 
