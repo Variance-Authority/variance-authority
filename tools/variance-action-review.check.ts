@@ -191,6 +191,7 @@ describe('the review a project with only unit tests puts on the pull request', (
       "restore the suite's mainline record",
       "restore what the pull request's last push ran",
       "set the mainline's record aside",
+      "restore Jest's transform cache",
       'run the tests',
       'review the change',
       'count the regions run',
@@ -216,7 +217,7 @@ describe('the review a project with only unit tests puts on the pull request', (
     });
 
     it('runs nothing of the carry around the tests when no `test` is named, so the review reads the record as before', () => {
-      for (const name of order.slice(1, 5).concat(order.slice(12, 15), order.slice(17))) expect(stepNamed(name).if).toContain("inputs.test != ''");
+      for (const name of order.slice(1, 6).concat(order.slice(13, 16), order.slice(18))) expect(stepNamed(name).if).toContain("inputs.test != ''");
     });
 
     it('restores the record the carry names for the suite, and the last push only on a pull request, which alone has one', () => {
@@ -230,6 +231,18 @@ describe('the review a project with only unit tests puts on the pull request', (
       const pushed = stepNamed("restore what the pull request's last push ran");
       expect(pushed.uses).toBe('actions/cache/restore@v6');
       expect(pushed.if).toContain("steps.carry.outputs.pushed-key != ''");
+    });
+
+    it("restores Jest's transform cache the carry names for the suite, with the action that saves it after the tests", () => {
+      const transform = stepNamed("restore Jest's transform cache");
+      const TRANSFORM = "format('transform-{0}-{1}', inputs.suite";
+      expect(transform.uses).toBe('actions/cache@v6');
+      expect(transform.if).toContain(`steps.carry.outputs[${TRANSFORM.replace('{1}', 'key')})] != ''`);
+      expect(transform.with).toEqual({
+        path: `\${{ steps.carry.outputs[${TRANSFORM.replace('{1}', 'path')})] }}`,
+        key: `\${{ steps.carry.outputs[${TRANSFORM.replace('{1}', 'key')})] }}`,
+        'restore-keys': `\${{ steps.carry.outputs[${TRANSFORM.replace('{1}', 'restore-keys')})] }}`,
+      });
     });
 
     it('sets the mainline aside before the tests write over it, and refuses a `test` with no suite to carry', async () => {

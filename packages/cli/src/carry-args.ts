@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { type Flags } from './args.js';
 import { OperatorError } from './exit.js';
+import { parseShard, type Shard } from './shard-args.js';
 import type { CarryDirection, CarryHand, CarryMerge, CarryMove } from './commands/carry.js';
 
 export interface ParsedCarry {
@@ -24,6 +25,8 @@ export interface ParsedCarry {
   readonly onConflict?: 'stay' | 'fail';
   /** `merge`: the merge commit the job that decided the run made, which this one's must be. */
   readonly expect?: string;
+  /** `restore`: the shard this job runs, which keys Jest's transform cache apart from the other shards'. */
+  readonly shard?: Shard;
   readonly format: 'text' | 'github';
 }
 
@@ -40,6 +43,7 @@ const MERGE_FLAGS = ['--head', '--on-conflict', '--expect'] as const;
  * record's commit, which a workflow output may leave empty, and is the one
  * direction that takes `--head`, `--on-conflict` and `--expect`; an empty one
  * of those is not given. `take --as-base` lays the push as a shard's read.
+ * `restore --shard <k>/<n>` names the shard a transform cache is keyed by.
  */
 export function parseCarryArgs(flags: Flags): ParsedCarry {
   const [direction, ...rest] = flags.positionals;
@@ -55,6 +59,10 @@ export function parseCarryArgs(flags: Flags): ParsedCarry {
   for (const flag of MERGE_FLAGS) {
     if (!merging && flags.present.has(flag)) throw new OperatorError(`\`${flag}\` belongs to \`carry merge\`, not \`carry ${typed}\``);
   }
+  if (typed !== 'restore' && flags.present.has('--shard')) throw new OperatorError(`\`--shard\` belongs to \`carry restore\`, not \`carry ${typed}\``);
+  const shardText = flags.values.get('--shard');
+  const shard = shardText === undefined ? undefined : parseShard(shardText);
+  if (typeof shard === 'string') throw new OperatorError(shard);
   if (typed !== 'take' && flags.present.has('--as-base')) throw new OperatorError(`\`--as-base\` belongs to \`carry take\`, not \`carry ${typed}\``);
   const handing = typed === 'hand' || typed === 'receive';
   const named = merging || handing || typed === 'take' || typed === 'keep';
@@ -75,6 +83,7 @@ export function parseCarryArgs(flags: Flags): ParsedCarry {
     ...(first === undefined || merging ? {} : { dir: resolve(first) }),
     ...(merging ? mergeAsk(first ?? '', flags) : {}),
     ...(flags.present.has('--as-base') ? { asBase: true } : {}),
+    ...(shard === undefined ? {} : { shard }),
     format,
   };
 }

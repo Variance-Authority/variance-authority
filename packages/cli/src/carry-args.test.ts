@@ -24,6 +24,14 @@ describe('the arguments', () => {
     expect(() => parse('keep', 'here', '--as-base')).toThrow('`--as-base` belongs to `carry take`, not `carry keep`');
   });
 
+  it('read the shard a restore keys the transform cache by, and only for a restore', () => {
+    const parse = (...argv: string[]) => parseCarryArgs(readFlags(argv, 'carry', ['--config', '--format', '--shard']));
+
+    expect(parse('restore', '--shard', '2/3')).toEqual({ command: 'carry', direction: 'restore', shard: { index: 2, total: 3 }, format: 'text' });
+    expect(() => parse('restore', '--shard', '4/3')).toThrow('`--shard 4/3` names no shard');
+    expect(() => parse('save', '--shard', '1/3')).toThrow('`--shard` belongs to `carry restore`, not `carry save`');
+  });
+
   it('name the directory the host moves between a run\'s jobs', () => {
     const parse = (...argv: string[]) => parseCarryArgs(readFlags(argv, 'carry', ['--config', '--format']));
 

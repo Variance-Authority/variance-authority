@@ -119,7 +119,7 @@ describe('a recording', () => {
       expect(record.startsWith(`${layer}/`)).toBe(true);
       expect(recordedEyesAt(record)).toEqual(eyes);
       // A restore brings back what a mainline already gave the cache, and uploads nothing.
-      expect(carryPlan({ direction: 'restore', root, suites, run: PUSH, mainlines: MAIN }).notes).toEqual([]);
+      expect(carryPlan({ direction: 'restore', root, suites, run: PUSH, mainlines: MAIN }).notes.filter((note) => note.includes('Eyes'))).toEqual([]);
     } finally {
       await rm(record);
     }

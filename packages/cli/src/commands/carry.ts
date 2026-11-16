@@ -30,6 +30,8 @@
  * is selection's alone, and `carry take` sets the mainline's aside for review.
  * The mainlines are asked of `share` (ADR-0077's order), and when nothing
  * answers, nothing is saved and the output says which answers were missing.
+ * A restore also names Jest's transform cache, keyed by week rather than by
+ * commit (`carry-transform.ts`).
  */
 
 // compass: variance-authority.retention
@@ -47,8 +49,10 @@ import {
   type DeclaredSuite,
 } from '@variance-authority/sense/test-selection';
 import type { ParsedCarry } from '../carry-args.js';
+import type { Shard } from '../shard-args.js';
 import { moveBase } from './carry-handed.js';
 import { mergeHead } from './carry-merge.js';
+import { transformCached } from './carry-transform.js';
 import { movePushed, PUSHED } from './carry-pushed.js';
 import { DEFAULT_BASELINE_PATH, KEPT, parseBaselinePath } from '@variance-authority/store/durable';
 import type { Mainlines } from '../share-lines.js';
@@ -222,6 +226,10 @@ export interface CarryInput {
   readonly suites?: readonly DeclaredSuite[];
   readonly run: HostRun;
   readonly mainlines: Mainlines;
+  /** Restore: the shard Jest's transform cache is keyed by. */
+  readonly shard?: Shard;
+  /** When the run is, for the week a transform cache is keyed by. */
+  readonly now?: Date;
 }
 
 /** What to carry, where it is, and under which keys. */
@@ -273,6 +281,12 @@ export function carryPlan(input: CarryInput): CarryPlan {
     if (direction === 'save') eyesNote(input.root, suite.name, notes);
     const prefix = `suite-${suite.name}-${basename(top)}`;
     keyed(artifact, [top, `!${top}/**/.run-*`, `!${top}/.work`], prefix, run.base);
+  }
+
+  if (direction === 'restore') {
+    const transform = transformCached({ root: input.root, suites: input.suites ?? [], line, mainlines, shard: input.shard, now: input.now ?? new Date() });
+    cached.push(...transform.cached);
+    notes.push(...transform.notes);
   }
 
   const pushed = pushedOf(direction, input.root, run, input.suites ?? []);
@@ -453,6 +467,7 @@ export async function runCarry(
     ...(suites === undefined ? {} : { suites }),
     run: base === undefined ? host : { ...host, base },
     mainlines: await mainlinesOf(config, env),
+    ...(parsed.shard === undefined ? {} : { shard: parsed.shard }),
   });
   if (parsed.format === 'github') {
     streams.out(githubOutput(plan));

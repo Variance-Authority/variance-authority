@@ -103,8 +103,10 @@ jest` work the same. The action restores the suite's record from the runner
 cache, sets the mainline's record aside before the tests write over it, runs the
 command, reviews, and saves what the tests ran: on a push to a mainline the
 record every pull request compares with, and on a pull request what its next push
-reads. A red test still reviews and saves, then fails the step with the test's
-exit code.
+reads. Where your project resolves Jest's `jest-config`, it also restores Jest's
+transform cache before the command and saves it after, as
+[`jest-cache`](#restoring-jests-transform-cache-in-a-shard) does. A red test
+still reviews and saves, then fails the step with the test's exit code.
 
 Without `test` the action reviews the record a step before it left, and the
 mainline record comes from `against`: the `against-<suite>` output of a `variance
@@ -308,6 +310,41 @@ its own job. The merge job's install runs a pull request's own code with that
 
 How the suite is split is in
 [sharding](https://variance-authority.dev/docs/sharding#split-stories-and-routes-the-same-way).
+
+## Restoring Jest's transform cache in a shard
+
+A CI runner starts with an empty disk, so every Jest shard transforms every file
+it loads again. On Jest's own suite that was 43% of a shard's time.
+`Variance-Authority/action/jest-cache` restores the transform cache a run of the
+same shard saved earlier in the week, as the step before the tests:
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm ci
+      - uses: Variance-Authority/action/jest-cache@v1
+        with:
+          suite: unit
+          shard: ${{ matrix.shard }}/3
+      - run: npx jest --shard ${{ matrix.shard }}/3
+```
+
+`suite` is a suite the root `variance.config.json` declares, and `shard` is the
+shard the job runs, empty for a suite run in one job. The path is the
+`cacheDirectory` your Jest's `jest-config` gives by default, and the key holds
+the suite, the shard and the ISO week. A week's first run of each shard
+saves, after the job's tests; later runs restore it and transform only what
+changed since. No key reaches back to an earlier week, so a new week starts
+from an empty cache, and the cache never grows past what one week's shard
+wrote. A project where `jest-config` does not resolve restores nothing, and a
+config that sets its own `cacheDirectory` is not read: Jest writes there, and
+nothing is restored to it or saved from it.
 
 ## Sweeping for flakes
 
