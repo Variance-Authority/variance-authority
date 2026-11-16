@@ -26,6 +26,8 @@ import { listed, many } from './prose-counts.js';
 export interface Rests {
   /** The files the diff moved before reach, as they were named; empty when it moved none. */
   readonly rests: readonly string[];
+  /** The declared entries whose closure holds one of `rests`, in declared order; empty when it moved none. */
+  readonly entries: readonly string[];
   /** Said after the verdict whichever way it went. */
   readonly notes: readonly string[];
 }
@@ -50,6 +52,7 @@ export async function restsOf(
   if (entries.length === 0) {
     return {
       rests: [],
+      entries: [],
       notes: [
         `${whose} declares nothing before reach, so a change to its runner config or the setup it loads ` +
           'is read like any other file; name them in `before` in variance.config.json to run the whole suite when they change',
@@ -65,6 +68,8 @@ export async function restsOf(
   const missing = before.unread.filter((entry) => !existsSync(join(root, entry)));
   return {
     rests,
+    // Walked once per entry, and only when the diff moved something before reach.
+    entries: rests.length === 0 ? [] : entries.filter((entry) => restsUnder(relations, [entry], rests).length > 0),
     notes:
       missing.length === 0
         ? []
@@ -85,10 +90,14 @@ export function restsUnder(relations: Relations, entries: readonly string[], cha
   return entries.length === 0 ? [] : restsIn(beforeReach(relations, entries), changed);
 }
 
-/** The sentence a whole run gives for what it rests on. */
-export function restsSaid(suite: string | undefined, rests: readonly string[]): string {
+/** The sentence a whole run gives for what it rests on, and the declared `before` entries that hold it. */
+export function restsSaid(suite: string | undefined, rests: readonly string[], entries: readonly string[]): string {
   const whose = suite === undefined ? 'every suite here' : `the suite ${suite}`;
-  return `${whose} rests on ${listed(rests)} before any test imports ${rests.length === 1 ? 'it' : 'them'}, and this diff moves ${rests.length === 1 ? 'it' : 'them'}`;
+  const one = rests.length === 1;
+  const through = entries.length === 0
+    ? ''
+    : `, through ${suite === undefined ? 'the' : 'its'} \`before\` ${entries.length === 1 ? 'entry' : 'entries'} ${listed(entries.map((entry) => `\`${entry}\``))}`;
+  return `${whose} rests on ${listed(rests)} before any test imports ${one ? 'it' : 'them'}${through}, and this diff moves ${one ? 'it' : 'them'}`;
 }
 
 /** What a selection carries from {@link restsOf}: its notes, and the reason for a whole run when the diff moved what the suite rests on. */
@@ -115,7 +124,7 @@ export async function restingOf(
   const rest = await restsOf(root, suite, relations, ignored.size === 0 ? changed : changed.filter((file) => !ignored.has(file)));
   return {
     ...(rest.notes.length === 0 ? {} : { resting: rest.notes }),
-    ...(rest.rests.length === 0 ? {} : { whole: { says: restsSaid(suite, rest.rests), rests: rest.rests } }),
+    ...(rest.rests.length === 0 ? {} : { whole: { says: restsSaid(suite, rest.rests, rest.entries), rests: rest.rests } }),
   };
 }
 

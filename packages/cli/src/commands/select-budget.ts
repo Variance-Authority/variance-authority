@@ -165,8 +165,8 @@ export async function budgetedSuite(
   return withinBudget(selection, times, { seconds: budget, asked }, (file) => packageOf(top, file));
 }
 
-/** The record's times, or why there are none: a share that did not answer leaves the loop uncut rather than failed. */
-async function timesOf(request: SuiteRequest): Promise<SuiteTimes> {
+/** The record's times, or why there are none: a share that did not answer leaves the loop uncut, and `explain` unpriced, rather than failed. */
+export async function timesOf(request: SuiteRequest): Promise<SuiteTimes> {
   try {
     return await suiteTimes({ root: request.root, ...(request.suite === undefined ? {} : { suite: request.suite }), ...(request.beneath === true ? { beneath: true } : {}) });
   } catch (error) {

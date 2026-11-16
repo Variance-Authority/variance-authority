@@ -35,6 +35,11 @@ export function parseAtDistance(raw: string | undefined): { readonly from: numbe
   return range;
 }
 
+/** The nearer tests a leg from `from` hops also runs: those `unrun` holds, which the run landed at HEAD left standing. */
+export function overdueOf(measured: readonly TestDistance[], from: number, unrun: ReadonlySet<string>): readonly string[] {
+  return from === 0 ? [] : atDistance(measured, 0, from - 1).filter((test) => unrun.has(test));
+}
+
 /** The hops `--at-distance` asked for. An open end is `Number.MAX_SAFE_INTEGER`, as `distanceRange` reads it. */
 export interface Leg {
   readonly from: number;
@@ -134,9 +139,9 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
   const before = new Set(leg.from === 0 ? [] : atDistance(measured, 0, leg.from - 1));
   const unrun = new Set(leg.partition === true ? [] : (input.ground.unrunAtHead ?? []));
   const elsewhere = remaining(measured, leg.from, leg.to);
-  const overdue = elsewhere.filter((test) => before.has(test) && unrun.has(test));
-  const taking = new Set(overdue);
-  const cut = elsewhere.filter((test) => !taking.has(test));
+  const due = new Set(overdueOf(measured, leg.from, unrun));
+  const overdue = elsewhere.filter((test) => due.has(test));
+  const cut = elsewhere.filter((test) => !due.has(test));
   const leaving = new Set(cut);
   const placedHere = hopped.filter(({ test }) => !leaving.has(test)).length;
   const placedPartial = new Set(hopped.map(({ test }) => test));
@@ -157,6 +162,7 @@ export function inLeg(selection: TestSelection, input: SelectInput, leg: Leg | u
     left: outside,
     ...(only === undefined ? {} : { only }),
     distances: measured,
+    ...(unrun.size === 0 ? {} : { unrunAtHead: [...unrun] }),
     // `left` can hold an entered test the record never saw whole, so the two
     // counts are named apart rather than as a share of the whole.
     because:

@@ -65,6 +65,8 @@ export type SuiteTimes =
       readonly read?: string;
       /** Repository-relative test file to the milliseconds its runner reported; an untimed file is absent. */
       readonly times: ReadonlyMap<string, number>;
+      /** The test files the record holds that its runner timed nothing for; absent where the reader did not list them. */
+      readonly untimed?: readonly string[];
       /** The commit the record was taken at; absent when it has no position. */
       readonly commit?: string;
     }

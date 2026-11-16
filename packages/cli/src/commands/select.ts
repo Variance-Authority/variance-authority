@@ -229,12 +229,14 @@ export interface TestSelection {
   readonly only?: readonly string[];
   /** How far the change travelled to each test it entered. Present when a leg cut a narrowed selection. */
   readonly distances?: readonly TestDistance[];
+  /** The test files the run landed at HEAD left unrun: a leg past 0 hops also runs the nearer of them. Present when a leg was cut beside such a run. */
+  readonly unrunAtHead?: readonly string[];
   /**
    * Under `--local`, the rung a reading the record could not answer fell to
    * (the changed files' importers), the reason, the test files that rung
-   * left, which `skip` holds. Absent otherwise.
+   * left, which `skip` holds, and the test files it chose. Absent otherwise.
    */
-  readonly fell?: { readonly rung: 'importers'; readonly from: string; readonly left: readonly string[] };
+  readonly fell?: { readonly rung: 'importers'; readonly from: string; readonly left: readonly string[]; readonly selected: readonly string[] };
 }
 
 /**

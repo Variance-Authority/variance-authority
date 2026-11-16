@@ -174,8 +174,8 @@ function costs(view: TestCoverageView): (test: number) => number | undefined {
 }
 
 /**
- * Every test file the snapshot at `recording` holds a duration for, and the
- * commit it was taken at: what a sharded run places its files by. A file whose
+ * Every test file the snapshot at `recording` holds a duration for, those it
+ * holds none for, and the commit it was taken at: what a sharded run places its files by. A file whose
  * runner reported none is absent rather than zero, so the placement prices it
  * the way it prices a file the record never saw.
  *
@@ -189,11 +189,13 @@ export function recordedTimes(recording: string): SuiteTimes {
     const paths = view.testPath.all();
     const costOf = costs(view);
     const times = new Map<string, number>();
+    const untimed: string[] = [];
     paths.forEach((path, test) => {
       const duration = costOf(test);
-      if (duration !== undefined) times.set(view.string(path), duration);
+      if (duration === undefined) untimed.push(view.string(path));
+      else times.set(view.string(path), duration);
     });
-    return { times, ...(view.commit === undefined ? {} : { commit: view.commit }) };
+    return { times, untimed, ...(view.commit === undefined ? {} : { commit: view.commit }) };
   });
   // The record read, which a shard's record names (`record-base.ts`).
   return { recording, read: recordDigestAt(recording), ...placed };

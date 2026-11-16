@@ -35,6 +35,7 @@ describe('the times a sharded run places its files by', () => {
       commit: 'a'.repeat(40),
       read: `sha256:${createHash('sha256').update(readFileSync(testCoverageFile(root))).digest('hex')}`,
       times: new Map([['a.test.ts', 1200]]),
+      untimed: ['b.test.ts'],
     });
   });
 

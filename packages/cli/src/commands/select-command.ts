@@ -43,6 +43,7 @@ import { OperatorError } from '../exit.js';
 import { installDiffs, installDiffOfPatch, ranOn, withoutManifests, type InstallDiff } from './installed.js';
 import { beyondOf, compared, installReached, withWhole } from './select-beyond.js';
 import { budgetedSuite } from './select-budget.js';
+import { explainedOutput } from './select-explain.js';
 import { journeyAgainst, recordAgainst, recordPerStand } from './resources.js';
 import { commitPoint, diffPoint, diffSince, gitIn, topLevel } from './since.js';
 import { many } from './prose-counts.js';
@@ -74,7 +75,8 @@ export interface SelectRequest {
   readonly cwd: string;
   /** `--since <ref>`: where to measure from when the journal names no commit of its own. */
   readonly since?: string;
-  readonly format: SelectFormat;
+  /** `explain` reads the selection by hops for an agent, and is no runner's input (`select-explain.ts`). */
+  readonly format: SelectFormat | 'explain';
   readonly noGit?: boolean;
   /** `--execution <file>`: a journey file to read instead of the recorded journal. */
   readonly execution?: string;
@@ -107,6 +109,7 @@ export interface SelectOutput {
 /** Read the journal against what has changed, and say what may be skipped. */
 export async function selectOutput(request: SelectRequest): Promise<SelectOutput> {
   const { cwd, format, ...asked } = request;
+  if (format === 'explain') return await explainedOutput({ root: cwd, ...asked }, selectSuite);
   const { reading } = await selectSuite({ root: cwd, ...asked });
   return { out: formatSelection(reading, format, cwd), err: deprecated(format) + selectionNotes(reading) };
 }
@@ -337,12 +340,12 @@ async function untested(request: SuiteRequest): Promise<SuiteReading> {
   // answered by the comparisons above, which have already said what moved.
   const manifests = [...installs.values()].flatMap((installed) => compared(installed)?.manifests ?? []);
   const unplaced = [...beyond.values()].flatMap((one) => one.unplaced);
-  // A leg past 0 hops cut after a run landed at HEAD also runs the nearer tests
-  // that run left standing: `inLeg` says why.
+  // A leg past 0 hops also runs the nearer tests the run landed at HEAD left
+  // standing (`inLeg`); read for any leg, so `explain` can price them.
   // FIXME: a run landed at HEAD stands in for the earlier leg's, so a commit
   // made between the legs leaves the far leg cut by hops alone, and the near
   // tests its wider reading finds run in neither leg.
-  const later = (request.atDistance?.from ?? 0) > 0 && stands.length > 0 && commit === (await headOf(here));
+  const later = request.atDistance !== undefined && stands.length > 0 && commit === (await headOf(here));
   const unrunAtHead = later ? stands.flatMap((stand) => stand.tests).sort() : [];
   const ground: SelectGround =
     narrowing === undefined
