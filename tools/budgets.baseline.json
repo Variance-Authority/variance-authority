@@ -1446,9 +1446,6 @@
   "packages/help/src/tools/find.ts docblock": [
     12
   ],
-  "packages/help/src/tools/grep.ts overview": [
-    16
-  ],
   "packages/help/src/tools/intersection.ts overview": [
     17
   ],

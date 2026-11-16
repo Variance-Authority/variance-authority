@@ -74,6 +74,10 @@ describe('grep refuses without a closure', () => {
     expect(refusal).not.toThrow('not found');
   });
 
+  it('refuses a recorded test when no checkout is named to read it from', () => {
+    expect(() => ask({ query: 'needle', test: 'src/entry.test.ts' })).toThrow('named no checkout to read');
+  });
+
   it('refuses a path the tree does not hold', () => {
     expect(() => ask({ query: 'needle', from: 'src/nope.ts' })).toThrow('`src/nope.ts` is not found');
   });

@@ -35,6 +35,8 @@ pub(crate) struct Bit {
     pub name: u32,
     pub start: u32,
     pub end: u32,
+    /// Whether the region holds source text, not code the transform wrote.
+    pub source: bool,
     pub called: u32,
     /// The function the region is written in: itself for a function, absent
     /// for a module or a region no recorded function holds.
@@ -86,6 +88,7 @@ impl JourneyMasks {
                     name: region.name,
                     start: region.start,
                     end: region.end,
+                    source: region.source,
                     called: region.called,
                     function: None,
                 });
@@ -165,6 +168,12 @@ impl JourneyMasks {
                 bit.shape == Shape::Function && bit.start <= line && line <= bit.end
             })
             .min_by_key(|&at| (self.bits[at as usize].end - self.bits[at as usize].start, at)))
+    }
+
+    /// The rows of module `module`, `[from, to)`.
+    pub fn rows_of(&self, module: usize) -> std::ops::Range<u32> {
+        let (from, to) = self.rows[module];
+        from..to
     }
 
     /// Every recorded function of module `module`, in row order.

@@ -164,3 +164,36 @@ fn nine_tenths_inside_is_a_piece_and_eight_tenths_is_not() {
     let eight = compose(&mut masks, "w2.test.ts", None).unwrap();
     assert!(eight.pieces.is_empty() && eight.wholes.is_empty());
 }
+
+fn regions(answer: &TestRan) -> Vec<(&str, &str, u32, u32, bool)> {
+    answer
+        .modules
+        .iter()
+        .flat_map(|module| module.regions.iter().map(move |region| (module.file.as_str(), region.kind.as_str(), region.line, region.end, region.entered)))
+        .collect()
+}
+
+#[test]
+fn a_test_ran_marks_each_region_of_the_modules_it_entered() {
+    let mut masks = recorded();
+    let answer = ran(&mut masks, "t0.test.ts", None).unwrap();
+    assert!(answer.not_recorded.is_none());
+    assert_eq!((answer.test.as_ref().unwrap().case, answer.suite), (0, 8));
+    // `b.ts` and `c.ts` it never entered, so they are left out; `a`'s second branch it passed by.
+    assert_eq!(
+        regions(&answer),
+        vec![
+            ("src/a.ts", "function", 1, 10, true),
+            ("src/a.ts", "branch", 3, 4, true),
+            ("src/a.ts", "branch", 6, 7, false),
+            ("src/setup.ts", "function", 1, 4, true),
+        ]
+    );
+    assert_eq!(answer.modules[0].regions[2].function.as_deref(), Some("a"));
+}
+
+#[test]
+fn a_test_ran_refuses_a_test_the_recording_cannot_choose() {
+    let mut masks = recorded();
+    assert_eq!(ran(&mut masks, "absent.test.ts", None).unwrap().not_recorded.unwrap(), "The recording holds no test declared in absent.test.ts.");
+}

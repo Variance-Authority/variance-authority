@@ -1,30 +1,23 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, limitOf, notShown, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { testsRan } from '@variance-authority/sense';
 import { areaLine, areaOf, startPointNeeded } from './area.js';
+import { formatGrepRan, grepRan } from './grep-ran.js';
 import { ripgrep, type Hit } from './ripgrep.js';
 
 /**
- * `docs_grep` — ripgrep, over the files a start point reaches.
+ * `docs_grep` — ripgrep, over the files a start point reaches, or the files one
+ * recorded test entered (`grep-ran.ts`).
  *
- * Text is not ours to search. ripgrep owns it: the pattern language, the
- * encodings, the binary detection, through its crates in the native addon. What
- * ripgrep cannot know is which files are in reach of the one being edited, and
- * that is the fact `search --from` already resolves. So this hands the closure
- * to ripgrep as its file list and reports what it found, nearest first, and adds
- * nothing to the matching — a regex here means what it means to `rg`.
+ * Text is ripgrep's: its pattern language, encodings and binary detection,
+ * unchanged. What it cannot know is which files are in reach, and `search
+ * --from` already resolves that, so the closure is ripgrep's file list. The
+ * closure is the whole value, so a call without a start point is refused, and
+ * the root too: a top folder is the widest single path.
  *
- * ## A start point is required
- *
- * The closure is the whole value: nearest first needs a place to measure from.
- * So a call without one is refused with how to say one, the root is refused so
- * the caller names a place, and a top folder is the widest single path.
- *
- * ## Nearest first
- *
- * ripgrep answers in the order the files were given, which is not distance.
- * The lines are regrouped by import distance from the start point, then by path
- * in code-unit order and line, so the same question gives the same bytes, and
- * the file one import away is read before the one nine away.
+ * ripgrep answers in the order it was given files, which is not distance, so
+ * the lines are regrouped by import distance, then path in code-unit order and
+ * line: the same question gives the same bytes, nearest first.
  */
 
 /** Matching lines shown when `limit` is not said. */
@@ -43,7 +36,9 @@ export const grep: Tool<unknown> = {
     'matching lines nearest first. `from` searches the files that path imports, at any depth; ' +
     '`to` the files that import it. The pattern is ripgrep\'s, unchanged: a ' +
     'regular expression. A start point is required: name the file or ' +
-    'folder you are working in, or a top folder at the widest.',
+    'folder you are working in, or a top folder at the widest. Or name a recorded test with `test` ' +
+    '(and `name` for one of its tests) instead: the files searched are those the test entered, and ' +
+    'each line is marked ran, or not taken with the branch or function the test did not enter.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -53,6 +48,14 @@ export const grep: Tool<unknown> = {
       },
       from: START_POINT_SCHEMA.from,
       to: START_POINT_SCHEMA.to,
+      test: {
+        type: 'string',
+        description: 'A recorded test file, in place of `from` and `to`: search only the files its test entered.',
+      },
+      name: {
+        type: 'string',
+        description: 'With `test`, optional when the file declares one recorded test: the test\'s name, or a word of it.',
+      },
       limit: {
         type: 'integer',
         description: `Matching lines to show. ${SHOWN} when not said; the rest are counted.`,
@@ -67,6 +70,8 @@ export const grep: Tool<unknown> = {
   run: (_help, input, invocation) => {
     const spell = spellingOf(invocation);
     const limit = limitOf(input, SHOWN, spell);
+    const test = testOf(input, invocation);
+    if (test !== undefined) return formatGrepRan(test.query, grepRan(test.root, test.query, test.file, test.name), limit, spell);
     const { query, area, hits, errors, distanceOf } = grepped(input, invocation);
 
     const header = [areaLine(area)];
@@ -100,7 +105,17 @@ export const grep: Tool<unknown> = {
   },
 
   files: (_help, input, invocation): FileSet => {
-    const { hits, errors } = grepped(input, invocation);
+    const test = testOf(input, invocation);
+    const { hits, errors } =
+      test === undefined
+        ? grepped(input, invocation)
+        : grepRan(test.root, test.query, test.file, test.name).answered.reduce<{ hits: Hit[]; errors: string[] }>(
+            (all, marked) => ({
+              hits: [...all.hits, ...marked.taken, ...marked.passed.map(({ hit }) => hit), ...marked.written],
+              errors: [...all.errors, ...marked.errors],
+            }),
+            { hits: [], errors: [] },
+          );
     const files = new Map<string, number[]>();
     for (const hit of hits) {
       const lines = files.get(hit.file);
@@ -118,8 +133,28 @@ export const grep: Tool<unknown> = {
  * point names, is what a look at them cannot see.
  */
 export function grepPrinted(_help: unknown, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<unknown>): Iterable<string> {
+  const test = testOf(input, invocation);
+  if (test !== undefined) {
+    return testsRan(test.root, test.file, test.name).flatMap(({ ran }) => ran.modules.map((module) => module.file));
+  }
   const area = areaOf(startPointArg(input, 'from'), startPointArg(input, 'to'), invocation?.tree);
   return area.refused === undefined ? area.files : [];
+}
+
+/** The recorded test the call names in place of a start point, or `undefined` when it names none. */
+function testOf(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<unknown> | undefined) {
+  const file = typeof input['test'] === 'string' ? input['test'].trim() : '';
+  if (file === '') {
+    if (typeof input['name'] === 'string' && input['name'].trim() !== '') throw new Error('`--name` picks a test in the `--test` file, and no `--test` was given');
+    return undefined;
+  }
+  if (startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined) {
+    throw new Error('`grep` takes `--test` or a start point, not both: the files a test entered and the files a path reaches answer different questions');
+  }
+  const root = invocation?.root;
+  if (root === undefined) throw new Error('`grep --test` reads what a checkout published, and this host named no checkout to read');
+  const name = typeof input['name'] === 'string' && input['name'].trim() !== '' ? input['name'].trim() : undefined;
+  return { query: stringArg(input, 'query'), root, file, name };
 }
 
 /** The lines `query` matches in the area a start point reaches, nearest first, or the refusal. */

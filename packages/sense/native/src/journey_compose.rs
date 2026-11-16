@@ -185,6 +185,86 @@ pub(crate) fn compose(masks: &mut JourneyMasks, file: &str, name: Option<&str>) 
     })
 }
 
+/// One recorded region of a module the test entered.
+#[napi(object)]
+pub struct RanRegion {
+    pub kind: String,
+    pub line: u32,
+    pub end: u32,
+    /// Whether it holds source text, not code the transform wrote.
+    pub source: bool,
+    /// The name of the function it is written in, when one is recorded.
+    pub function: Option<String>,
+    /// Whether the test entered it.
+    pub entered: bool,
+}
+
+/// A module the test entered, with every region recorded in it.
+#[napi(object)]
+pub struct RanModule {
+    pub file: String,
+    /// In row order.
+    pub regions: Vec<RanRegion>,
+}
+
+#[napi(object)]
+pub struct TestRan {
+    /// Why the recording cannot answer; every other field is empty then.
+    pub not_recorded: Option<String>,
+    /// Cases in the recording.
+    pub suite: u32,
+    /// The test asked about; `blocks` is how many regions it entered.
+    pub test: Option<JourneyCase>,
+    /// The modules it entered at least one region of, in file order.
+    pub modules: Vec<RanModule>,
+}
+
+/// Which regions the test declared in `file` entered, and which it passed by,
+/// in every module it entered. `name` chooses as it does for `testComposition`.
+#[napi(catch_unwind)]
+pub fn test_ran(recording: String, file: String, name: Option<String>) -> TestRan {
+    JourneyMasks::open(&recording).and_then(|mut masks| ran(&mut masks, &file, name.as_deref())).unwrap_or_else(|error| TestRan {
+        not_recorded: Some(format!("the recording did not read ({error})")),
+        suite: 0,
+        test: None,
+        modules: Vec::new(),
+    })
+}
+
+pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> Result<TestRan, String> {
+    let asked = match chosen(masks, file, name)? {
+        Ok(case) => case,
+        Err(reason) => return Ok(TestRan { not_recorded: Some(reason), suite: 0, test: None, modules: Vec::new() }),
+    };
+    let suite = masks.journey.tests();
+    let mut only = vec![false; suite];
+    only[asked as usize] = true;
+    let entered: HashSet<u32> = masks.masks(&only)?.remove(&asked).unwrap_or_default().into_iter().collect();
+    let mut touched: Vec<u32> = entered.iter().map(|&bit| masks.bits[bit as usize].module).collect::<HashSet<_>>().into_iter().collect();
+    touched.sort_unstable();
+    let mut modules = Vec::with_capacity(touched.len());
+    for module in touched {
+        let mut regions = Vec::new();
+        for bit in masks.rows_of(module as usize) {
+            if masks.bits[bit as usize].shape == Shape::Module {
+                continue;
+            }
+            let held = block(masks, bit)?;
+            regions.push(RanRegion {
+                kind: held.kind,
+                line: held.line,
+                end: held.end,
+                source: masks.bits[bit as usize].source,
+                function: held.function,
+                entered: entered.contains(&bit),
+            });
+        }
+        modules.push(RanModule { file: masks.journey.module_file(module as usize)?.to_owned(), regions });
+    }
+    modules.sort_by(|a, b| order::code_unit(&a.file, &b.file));
+    Ok(TestRan { not_recorded: None, suite: suite as u32, test: Some(case_of(masks, asked, entered.len() as u32, None)?), modules })
+}
+
 /// The one case `file` and `name` choose, or why they choose none.
 fn chosen(masks: &JourneyMasks, file: &str, name: Option<&str>) -> Result<Result<u32, String>, String> {
     let mut declared: Vec<(u32, &str)> = Vec::new();
