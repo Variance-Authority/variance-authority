@@ -664,8 +664,9 @@ page +1 −0 nodes, 2 attributes, 0 text
 Nodes added and removed, attributes set, and text nodes changed since the
 line opened, what arrived while it awaited included. A subtree added at once
 counts as one node, and `textContent` set on an element replaces its nodes
-rather than changing text. A line that changed nothing says nothing. A `findBy` or `waitFor` that passed on such a line waited on no
-change to the markup: what it looked for was there, unless it waited on a
+rather than changing text. A line that changed nothing says nothing. A
+`findBy` or `waitFor` that passed on such a line waited on no change to the
+markup: what it looked for was there, unless it waited on a
 property the markup does not carry, such as an input's `value` set by a timer.
 Hooks are no test line: a hook's line, and the end of the test, close the
 watch until the next test line opens, so what hooks and a testing library's
