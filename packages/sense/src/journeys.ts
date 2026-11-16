@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './addon.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeRanModule, NativeRanRegion, NativeTestComposition, NativeTestRan } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeLinesThen, NativeRanModule, NativeRanRegion, NativeTestComposition, NativeTestRan } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
@@ -29,7 +29,7 @@ import { askCoverageFile } from './test-selection/coverage-file.js';
 import { defaultInclude, insideRoot } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
 
-function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition' | 'testRan'>(name: Name) {
+function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition' | 'testRan' | 'linesThen'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -340,6 +340,8 @@ export function testCompositions(root: string, file: string, name?: string): rea
 export interface SuiteTestRan {
   readonly suite?: string;
   readonly ran: NativeTestRan;
+  /** The commit the recording ran at, whose lines its regions are spans of, when it names one. */
+  readonly commit?: string;
 }
 
 /**
@@ -349,12 +351,24 @@ export interface SuiteTestRan {
  * {@link testCompositions}. A module the test entered nothing of is left out.
  */
 export function testsRan(root: string, file: string, name?: string): readonly SuiteTestRan[] {
-  return ofTest<NativeTestRan>(
+  return ofTest<Omit<SuiteTestRan, 'suite'>>(
     root,
     file,
-    (notRecorded) => ({ notRecorded, suite: 0, modules: [] }),
-    (recording, path) => entry('testRan')(recording, path, name ?? null),
-  ).map(({ answer, ...named }) => ({ ...named, ran: answer }));
+    (notRecorded) => ({ ran: { notRecorded, suite: 0, modules: [] } }),
+    (recording, path) => {
+      const { commit } = commitOf(recording);
+      return { ran: entry('testRan')(recording, path, name ?? null), ...(commit == null ? {} : { commit }) };
+    },
+  ).map(({ answer, ...named }) => ({ ...named, ...answer }));
+}
+
+/**
+ * Where each of `lines` of `file`, as the checkout under `root` has it, stood
+ * at `commit`: `null` for a line written since, which no recording made there
+ * can have run.
+ */
+export function linesThen(root: string, commit: string, file: string, lines: readonly number[]): NativeLinesThen {
+  return entry('linesThen')(root, commit, file, [...lines]);
 }
 
 /**

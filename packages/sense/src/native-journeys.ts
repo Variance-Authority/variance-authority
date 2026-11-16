@@ -26,6 +26,14 @@ export interface NativeJourneysPrepared {
 }
 
 /** The recording's commit as the caller read it, or why there is none. */
+/** Where lines of a file stood at a commit, or why git could not say. */
+export interface NativeLinesThen {
+  readonly unplaced?: string | null;
+  /** Whether the file differs from the commit at all. */
+  readonly changed: boolean;
+  readonly lines: readonly (number | null)[];
+}
+
 export interface NativeJourneysCommit {
   readonly commit?: string | null;
   /** Why the recording names no commit. */
@@ -421,4 +429,6 @@ export interface NativeJourneys {
   testComposition?(recording: string, file: string, name?: string | null): NativeTestComposition;
   /** Which regions the test declared in `file`, chosen by `name` among several, entered, in every module it entered. */
   testRan?(recording: string, file: string, name?: string | null): NativeTestRan;
+  /** Where each of `lines` of `file` stood at `commit`: `null` for a line written since. */
+  linesThen?(root: string, commit: string, file: string, lines: number[]): NativeLinesThen;
 }

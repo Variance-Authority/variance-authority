@@ -111,7 +111,7 @@ export const grep: Tool<unknown> = {
         ? grepped(input, invocation)
         : grepRan(test.root, test.query, test.file, test.name).answered.reduce<{ hits: Hit[]; errors: string[] }>(
             (all, marked) => ({
-              hits: [...all.hits, ...marked.taken, ...marked.passed.map(({ hit }) => hit)],
+              hits: [...all.hits, ...marked.taken, ...marked.passed.map(({ hit }) => hit), ...marked.written],
               errors: [...all.errors, ...marked.errors],
             }),
             { hits: [], errors: [] },

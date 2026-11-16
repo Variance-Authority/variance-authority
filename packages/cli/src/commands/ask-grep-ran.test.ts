@@ -87,6 +87,32 @@ describe('variance ask grep --test', () => {
     ]);
   });
 
+  it('reads a line of a file edited since the recording where it stood then', async () => {
+    const root = await recorded();
+    writeFileSync(join(root, 'src/order.ts'), `// give up: a note written since\n\n${readFileSync(join(root, 'src/order.ts'), 'utf8')}`);
+
+    const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/order.test.ts', '--name', 'pays']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n').slice(0, 15)).toEqual([
+      'test/order.test.ts  pays for an order entered 1 recorded file; files no recording instruments were not searched.',
+      '',
+      'src/order.ts changed since the recorded commit: each line is read where it stood then, and a region is named by its lines then.',
+      '',
+      '3 matching lines in 1 file.',
+      '',
+      'Ran:',
+      "src/order.ts:5:    log('give up later');",
+      '',
+      'Not taken:',
+      "src/order.ts:8:    throw new Error('give up now');",
+      '  in branch src/order.ts:5-7 of pay, which it did not enter',
+      '',
+      'Written since the recording, so no test has run it:',
+      'src/order.ts:1:// give up: a note written since',
+    ]);
+  });
+
   it('refuses a test the recording does not hold, with what it holds', async () => {
     await recorded();
 
@@ -122,7 +148,7 @@ describe('variance ask grep --test', () => {
  * enters the else-branch of `src/ship.ts`, which opens on the line the
  * then-branch closes.
  */
-async function recorded(): Promise<void> {
+async function recorded(): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-grep-ran-')));
   execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
   process.chdir(root);
@@ -146,6 +172,9 @@ async function recorded(): Promise<void> {
     join(root, 'src/ship.ts'),
     ['export function ship(fast: boolean): void {', '  if (fast) {', '    go();', "  } else { note('give up slow');", '    wait();', '    wait();', '  }', '}', ''].join('\n'),
   );
+  const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  git('add', '.');
+  git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'recorded');
   const at = testCoverageFile(root);
   const files = ['test/order.test.ts', 'test/refund.test.ts', 'test/ship.test.ts'];
   const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({
@@ -168,6 +197,7 @@ async function recorded(): Promise<void> {
   await writeTestCoverage(at, {
     version: 3,
     instrumentation: 'fixture-instrumentation',
+    commit: git('rev-parse', 'HEAD'),
     tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
     modules: [covered('src/order.ts', order), covered('src/refund.ts', refund), covered('src/ship.ts', ship)],
   });
@@ -183,4 +213,5 @@ async function recorded(): Promise<void> {
   }) }));
   const { sections } = landCases(at, {}, root, [{ path: shard, coverage: { tests: files.map((file) => ({ file, complete: true })) } }]);
   writeFileSync(at, withCaseSections(readFileSync(at), sections));
+  return root;
 }
