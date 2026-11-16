@@ -99,7 +99,7 @@ function blocksOf(
 ): readonly Block[] {
   const measured = selection.distances;
   if (measured === undefined || selection.fell !== undefined) {
-    const tests = [...new Set([...whole, ...recorded.keys(), ...(selection.incomplete ?? [])])].filter(lays).sort(codeUnitOrder);
+    const tests = [...new Set([...whole, ...recorded.keys(), ...(selection.incomplete ?? []), ...(selection.fell?.selected ?? [])])].filter(lays).sort(codeUnitOrder);
     return tests.length === 0 ? [] : [{ label: 'no measured distance', tests }];
   }
   const hops = groupByDistance(measured).flatMap((group) => (group.hops === undefined ? [] : [group.hops]));

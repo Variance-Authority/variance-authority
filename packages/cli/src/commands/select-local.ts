@@ -170,7 +170,7 @@ export function fellTo(selection: TestSelection, answer: LocalAnswer): TestSelec
   return {
     ...rest,
     skip: answer.left,
-    fell: { rung: answer.rung, from: widened!, left: answer.left },
+    fell: { rung: answer.rung, from: widened!, left: answer.left, selected: answer.selected },
     because: `${widened}, so \`--local\` selected the test files ${by}: ${answer.selected.length} of ${many(total, 'test file')}`,
     notes: [
       ...(answer.left.length === 0

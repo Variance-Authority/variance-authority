@@ -159,8 +159,20 @@ describe('select --format explain', () => {
     const plain = (await selectOutput({ cwd: root, format: 'plain', suite: 'unit', local: true })).out.split('\n').filter(Boolean);
 
     expect(out).toContain('the suite unit rests on test/setup.ts before any test imports it, through its `before` entry `test/setup.ts`, and this diff moves it, so `--local` selected the test files');
-    expect(out).toContain(`no measured distance: 4 test files, 10.0 s recorded — variance select --suite unit --local\n`);
+    expect(out).toContain(`no measured distance: 5 test files, 10.0 s recorded, 1 with no recorded time — variance select --suite unit --local\n`);
     for (const test of WHOLE.filter((file) => !plain.includes(file))) expect(out).toContain(`  ${test}, ${TIMES[test]! / 1000}.0 s: the package rung \`--local\` fell to\n`);
+  });
+
+  it('under `--local` with no record, lays out the test files the rung chose by the source index', () => {
+    const selection = {
+      ground: 'read', skip: [], because: 'w, so `--local` selected', notes: [], at: 'a', unread: [], stale: [],
+      fell: { rung: 'importers', from: 'w', left: [], selected: [NEAR] },
+    } as const;
+
+    const out = explainOf(selection, new Set(), { unread: 'no record' }, 'variance select --local');
+
+    expect(out).toContain('the change selects 1 test file, 0 ms recorded, 1 with no recorded time.');
+    expect(out).toContain(`no measured distance: 1 test file, 0 ms recorded, 1 with no recorded time — variance select --local\n  ${NEAR}, `);
   });
 
   it('is a format `select` takes', () => {
