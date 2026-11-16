@@ -127,6 +127,12 @@ interface Tap {
   read(): Tape;
   /** Put `text` on the tape where the realm is now, in the case running now. */
   note(text: string): void;
+  /**
+   * Have `drain` said before each test line opens and before the tape is read:
+   * what it notes then lands on the line that caused it. The last one given
+   * is the one called.
+   */
+  drainWith(drain: () => void): void;
   /** Ask the namers in `scope`'s kind array, as it holds them then, what each object is. */
   nameIn(scope: object): void;
   /** Start the tape again, keeping what the realm registered and the refs it gave. */
@@ -198,6 +204,8 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   const held = new Map<ModuleId, string>();
   // Whether the next write is the module's own probe, which follows `e`.
   let rooting = false;
+  // What has more to say about the line that is ending; see `drainWith`.
+  let drain: (() => void) | undefined;
 
   // Made only when live: a page's tap is this function's source alone, without the module.
   const parts = live ? storyParts.createParts(engine, limit, { ids: rowIds, bases: rowBases }) : undefined;
@@ -378,6 +386,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     // A hook's cut says so, as the cut test file marks it.
     // FIXME: under `sequence.hooks: 'parallel'` hooks' lines interleave as they ran.
     c(line: number, _file?: string, hook?: boolean): void {
+      drain?.();
       inner.c(line);
       inner.s?.();
       const key = engine.current().key;
@@ -392,6 +401,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     root,
     engine,
     read() {
+      drain?.();
       return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
     note(text: string): void {
@@ -406,6 +416,9 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       }
       spoken += 1;
       put(text);
+    },
+    drainWith(given: () => void): void {
+      drain = given;
     },
     nameIn(scope: object): void {
       namers = scope as { [KIND]?: unknown };

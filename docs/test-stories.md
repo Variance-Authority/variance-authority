@@ -651,6 +651,26 @@ a line every run on one side printed, and no run on the other, is listed with
 the step that printed it.
 Take the `console.log` out before you change the code.
 
+## What each line did to the page
+
+When the test runs with a document, such as under jsdom or happy-dom, each line
+of the test that changed the page says how much it changed:
+
+```text
+page +1 −0 nodes, 2 attributes, 0 text
+```
+
+Nodes added and removed, attributes set, and text changed since the line
+before. A line that awaits says it again for what arrived while it waited. A
+line that changed nothing says nothing, so a `findBy` or `waitFor` on a line
+with no `page` note waited for nothing: what it looked for was already there,
+and a `getBy` finds it as well.
+
+The note counts; it does not show the markup, or say which component made the
+change. For the React commits behind it, use [Eyes](eyes.md), which writes each
+commit under its step with the components that rendered. A test run without a
+document has no `page` note.
+
 ## What a story does not show
 
 - **What an object holds, and values never handed to a function.** A ref says

@@ -1,8 +1,8 @@
 // compass: variance-authority.reach.story
 /**
- * How notes reach a realm's story tap: what its frameworks announce and what
- * its console prints. See [`story-tap.cts`](story-tap.cts), whose
- * {@link Tap.note} each line becomes.
+ * How notes reach a realm's story tap: what its frameworks announce, what its
+ * console prints, and what each test line changed on its page. See
+ * [`story-tap.cts`](story-tap.cts), whose {@link Tap.note} each line becomes.
  */
 
 import util = require('node:util');
@@ -19,18 +19,86 @@ const PRINTS = ['log', 'info', 'warn', 'error', 'debug'] as const;
 
 type Channel = (text: string) => void;
 
+/** Where a document keeps the one watch a story put on it. */
+const PAGE = Symbol.for('variance-authority.story.page');
+
+/** The part of a DOM `MutationRecord` a page note counts. */
+interface Change {
+  readonly type: string;
+  readonly addedNodes: { readonly length: number };
+  readonly removedNodes: { readonly length: number };
+}
+
+interface Observer {
+  observe(target: object, options: object): void;
+  takeRecords(): Change[];
+}
+
+type Realm = {
+  [NOTE]?: Channel;
+  console?: Console;
+  document?: object;
+  MutationObserver?: new (seen: (changes: Change[]) => void) => Observer;
+};
+
+/** One line for what changed: nodes added and removed, attributes, and text. */
+function pageNote(changes: readonly Change[]): string {
+  let added = 0;
+  let removed = 0;
+  let attributes = 0;
+  let text = 0;
+  for (const change of changes) {
+    if (change.type === 'attributes') attributes += 1;
+    else if (change.type === 'characterData') text += 1;
+    else {
+      added += change.addedNodes.length;
+      removed += change.removedNodes.length;
+    }
+  }
+  return `page +${added} −${removed} nodes, ${attributes} ${attributes === 1 ? 'attribute' : 'attributes'}, ${text} text`;
+}
+
 /**
- * Have `scope`'s announcements, attention and console lines put on `tap`,
- * and its frameworks name the objects `tap` is handed.
+ * Watch the realm's document, once, and have `tap` say what changed on it at
+ * each test line: drained when the line ends, so a change lands on the line
+ * that made it, and said by the observer for what an `await` let through.
+ * A later call moves the watch to the tap it is given.
+ */
+function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
+  const { document, MutationObserver: Watch } = global;
+  if (document === undefined || typeof Watch !== 'function') return;
+  const page = document as { [PAGE]?: { tap: Pick<Tap, 'note'>; observer: Observer } };
+  let watch = page[PAGE];
+  if (watch === undefined) {
+    const made: { tap: Pick<Tap, 'note'>; observer?: Observer } = { tap };
+    const say = (changes: readonly Change[]): void => {
+      if (changes.length > 0) made.tap.note(pageNote(changes));
+    };
+    made.observer = new Watch(say);
+    made.observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+    watch = made as { tap: Pick<Tap, 'note'>; observer: Observer };
+    Object.defineProperty(page, PAGE, { value: watch });
+  } else watch.tap = tap;
+  const held = watch;
+  tap.drainWith(() => {
+    const changes = held.observer.takeRecords();
+    if (changes.length > 0) held.tap.note(pageNote(changes));
+  });
+}
+
+/**
+ * Have `scope`'s announcements, attention, console lines and page changes put
+ * on `tap`, and its frameworks name the objects `tap` is handed.
  *
  * The channel is replaced on every call, so a realm that makes a second
  * collector notes onto the tap it uses now. The console is wrapped once: the
  * wrapper looks the channel up when a line is printed, never when it is made.
  */
-function listen(tap: Pick<Tap, 'note' | 'nameIn'>, scope: object): void {
-  const global = scope as { [NOTE]?: Channel; console?: Console };
+function listen(tap: Pick<Tap, 'note' | 'nameIn' | 'drainWith'>, scope: object): void {
+  const global = scope as Realm;
   global[NOTE] = (text: string): void => tap.note(String(text));
   tap.nameIn(scope);
+  watchPage(tap, global);
   const printer = global.console as (Console & { [NOTE]?: true }) | undefined;
   if (printer === undefined || printer[NOTE] === true) return;
   Object.defineProperty(printer, NOTE, { value: true });
