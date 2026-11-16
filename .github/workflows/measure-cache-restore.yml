@@ -2,42 +2,33 @@ name: measure-cache-restore
 on:
   push:
     branches: [measure/cache-restore]
+permissions:
+  contents: read
 jobs:
-  measure:
+  jest:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
-      - name: make a cache shaped like Kibana's data suite (9,885 files, 86 MB)
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: a public Jest suite transformed by @swc/jest (Docusaurus)
         run: |
-          python3 - <<'PY'
-          import os, random, string
-          random.seed(1)
-          root = '/tmp/src/jest-transform-cache-abc'
-          words = [''.join(random.choices(string.ascii_letters, k=random.randint(3,12))) for _ in range(4000)]
-          for i in range(9885):
-              d = os.path.join(root, '%02x' % (i % 256))
-              os.makedirs(d, exist_ok=True)
-              size = 8700
-              body = []
-              n = 0
-              while n < size:
-                  w = random.choice(words); body.append(w); n += len(w) + 1
-              open(os.path.join(d, 'file%05d_%032x' % (i, random.getrandbits(128))), 'w').write(' '.join(body))
-          PY
-          du -sh /tmp/src; find /tmp/src -type f | wc -l
-          cd /tmp/src && tar -cf - . | zstd -3 -q -o /tmp/cache.tar.zst && ls -la /tmp/cache.tar.zst
-          sudo apt-get install -y -qq squashfs-tools > /dev/null && mksquashfs /tmp/src /tmp/cache.sqfs -comp zstd -quiet && ls -la /tmp/cache.sqfs
-          rm -rf /tmp/src
-      - name: time each restore
+          git clone -q --depth 1 https://github.com/facebook/docusaurus /tmp/d
+          cd /tmp/d && git log -1 --format='docusaurus %H' && corepack enable && yarn install --frozen-lockfile --silent > /tmp/install.log 2>&1 || tail -40 /tmp/install.log
+          nproc; grep -n -E "transform|swc" jest.config.* | head
+      - name: cold, warm, and restored shard 1/3
         run: |
-          nproc; df -h /tmp /dev/shm | tail -2
-          t() { sync; echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null; s=$(date +%s.%N); eval "$2"; e=$(date +%s.%N); echo "$1: $(echo "$e - $s" | bc) s"; }
-          for r in 1 2 3; do
-            rm -rf /tmp/d1 /dev/shm/d2 /tmp/d3 /tmp/d4; mkdir -p /tmp/d1 /dev/shm/d2 /tmp/d3 /tmp/d4
-            t "decompress to memory only" "zstd -dc /tmp/cache.tar.zst > /dev/null"
-            t "tar -x to disk" "zstd -dc /tmp/cache.tar.zst | tar -xf - -C /tmp/d1"
-            t "tar -x to /dev/shm (tmpfs)" "zstd -dc /tmp/cache.tar.zst | tar -xf - -C /dev/shm/d2"
-            t "unsquashfs, all cores" "sudo unsquashfs -q -f -d /tmp/d3 /tmp/cache.sqfs > /dev/null"
-            t "squashfs loop mount + overlay (no files written)" "sudo mkdir -p /mnt/l /mnt/u /mnt/w /mnt/m && sudo mount -o loop,ro /tmp/cache.sqfs /mnt/l && sudo mount -t overlay overlay -o lowerdir=/mnt/l,upperdir=/mnt/u,workdir=/mnt/w /mnt/m"
-            t "  first read of every file through it" "find /mnt/m -type f -print0 | xargs -0 cat > /dev/null"
-            sudo umount /mnt/m /mnt/l; sudo rm -rf /mnt/u /mnt/w
+          cd /tmp/d
+          drop() { sync; echo 3 | sudo tee /proc/sys/vm/drop_caches > /dev/null; }
+          j() { drop; /usr/bin/time -f "$1: %e s real, %U s user, %S s sys" npx jest --ci --silent --shard=1/3 --cacheDirectory /tmp/jc 2>&1 | grep -E "^(Tests:|Test Suites:|$1)"; }
+          for r in 1 2; do
+            rm -rf /tmp/jc
+            j "cold $r"
+            j "warm $r"
+            echo "cache: $(find /tmp/jc -type f | wc -l) files, $(du -sm /tmp/jc | cut -f1) MB"
+            tar -C /tmp/jc -cf - . | zstd -3 -q -o /tmp/jc.tar.zst -f; echo "pack: $(du -sm /tmp/jc.tar.zst | cut -f1) MB"
+            rm -rf /tmp/jc; mkdir /tmp/jc; drop
+            s=$(date +%s.%N); zstd -dc /tmp/jc.tar.zst | tar -xf - -C /tmp/jc; e=$(date +%s.%N); echo "restore $r: $(echo "$e - $s" | bc) s"
+            j "restored $r"
           done
