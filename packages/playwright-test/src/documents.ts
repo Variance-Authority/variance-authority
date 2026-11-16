@@ -164,6 +164,9 @@ interface Statement {
   readonly hook: boolean;
 }
 
+/** The statement after a drain that closes the page watch: one no test line is on. */
+const CLOSES: Statement = { line: 0, hook: true };
+
 /** A context this test adopted. */
 interface Adopted {
   readonly watch: Watch;
@@ -238,10 +241,13 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     const theirs = outer?.(line, file, hook);
     // Once a drain was late no statement records its line, so none waits on
     // the held drain again: the teardown drain reads what they reached.
-    if (file !== testInfo.file || late) return theirs;
+    if (late) return theirs;
+    // A hook or a helper declared in another file is no line of this spec's:
+    // what the line before it changed is said, and what it changes is not.
+    const ours = file === testInfo.file;
     const reached = last;
-    const next = { line, hook };
-    last = next;
+    const next = ours ? { line, hook } : CLOSES;
+    if (ours) last = next;
     draining = draining.then(async () => {
       open(reached);
       for (const context of await unsettled()) await drain(framesOf(context), reached, next);

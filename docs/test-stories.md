@@ -673,7 +673,11 @@ watch until the next test line opens, so what hooks and a testing library's
 cleanup change has no note. In a browser page one still can: a cleanup imported
 from a package, in a test file that writes no hook of its own, runs before the
 test ends and lands its change on the test's last line. Under Playwright, a
-document a statement loads is counted from the statement after it.
+hook declared in a helper file closes the watch as the spec's own hooks do,
+but a fixture's code after `use` runs no statement, so what it changes lands on
+the test's last line unless one of the spec's `afterEach` hooks ran before it.
+A document a statement loads is counted from the statement after it. Changes
+inside a shadow root are not counted.
 
 The note counts; it does not show the markup, or say which component made the
 change. For the React commits behind it, use [Eyes](eyes.md), which writes each

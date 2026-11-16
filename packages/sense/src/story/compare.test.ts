@@ -106,6 +106,16 @@ describe('two sides of a case', () => {
     expect(comparison.unsteady.said).toBe(3);
   });
 
+  it('are told apart by what a line did to the page, counts and all', () => {
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 4], [[1, 'page +2 −0 nodes, 1 attribute, 0 text']]), reading([1, 4], [[1, 'page +2 −0 nodes, 1 attribute, 0 text']])),
+      threw(reading([1, 4], [[1, 'page +1 −0 nodes, 0 attributes, 0 text']], true), reading([1, 4], [], true)),
+    ]);
+
+    expect(comparison.only.map((only) => [only.sides, only.said])).toEqual([[['passed'], ['page +2 −0 nodes, 1 attribute, 0 text']]]);
+    expect(comparison.unsteady.said).toBe(1);
+  });
+
   it('list the lines one side said every time in the order it said them, not by their text', () => {
     const lines: [number, string][] = [[1, 'console.log zeta'], [1, 'console.log beta'], [2, 'console.log alpha']];
     const comparison = compareLoaded(ROOT, [passed(reading([1, 4]), reading([1, 4])), threw(reading([1, 4], lines, true), reading([1, 4], lines, true))]);
