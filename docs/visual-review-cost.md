@@ -114,8 +114,8 @@ xychart-beta horizontal
   bar [201, 197, 6, 168, 149, 10]
 ```
 
-Recording cost those suites at most 13% of their run time, where V8 coverage on
-the same suites costs 27% to 29%. Over sixty real commits, 57% of Zod's test file
+Recording cost those suites at most 16% of their run time, where classic
+coverage on the same suites costs 34% to 36%. Over sixty real commits, 57% of Zod's test file
 runs and 93% of TanStack Query's were skipped. A unit
 test is the cheap case: a visual state costs a navigation and a paint, so each
 one skipped saves more, and your first run with `--since` counts its own skips.

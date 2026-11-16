@@ -10,15 +10,20 @@ watch.
 
 ## What you already believe this costs
 
-Recording costs less than coverage at every precision, and recording only the
-modules each test file loaded costs least:
+Inside your tests, recording costs nothing measurable at any precision; classic
+coverage does not:
 
-| added to the run | Zod | TanStack Query |
+| added to the time spent in tests | Zod | TanStack Query |
 |---|---|---|
-| `loads` — the modules each test file loaded | none measured | **+5%** |
-| `entries` — the functions each case entered | none measured | **+13%** |
-| `presence`, the default — the regions each case entered | none measured | **+13%** |
-| `--coverage`, V8 — the union | **+27%** | **+29%** |
+| `loads` — the modules each test file loaded | none measured | none measured |
+| `entries` — the functions each case entered | none measured | none measured |
+| `presence`, the default — the regions each case entered | none measured | none measured |
+| classic coverage, `--coverage` with V8 — the union | **+12%** | **+37%** |
+
+Around the tests, recording places its probes as Vite transforms each module and
+writes the record once the last test reports. On Zod neither shows. On
+TanStack Query they bring the whole run to 1.05× at `loads` and 1.16× at
+`presence`, against 1.34× under classic coverage.
 
 You have turned coverage on in CI, watched the suite get slower, and turned it
 off again. That reflex is right, and it is the first thing to settle rather
@@ -28,28 +33,29 @@ recording it is the reason the suite stops being run.
 The promise on the engine side is that coverage is free. V8 already keeps the
 counters, Node exposes them through the inspector, and nothing rewrites your
 code. The measured reality on two public suites, unmodified apart from the
-configuration: Zod's 5,656 tests go from 11.14 s to 14.09 s under
-`--coverage`, and TanStack Query's 4,523 from 14.09 s to 18.24 s. That is
-**+27% and +29%, on every run**, and what it buys is the union — a
+configuration: Zod's 5,656 tests go from 8.67 s to 11.78 s under classic
+coverage, and TanStack Query's 4,523 from 12.47 s to 16.72 s. That is
+**+36% and +34%, on every run**, and what it buys is the union — a
 percentage, and a file that cannot show which test covered anything in it.
 
-**Thirty percent is not one cost, because a percentage is not a unit.** On a
+**A third is not one cost, because a percentage is not a unit.** On a
 ten-second suite it is three seconds: it slows an agent loop slightly and
 nobody sensibly cares. On a suite of three minutes it is a whole minute
 back per run, and a minute is long enough to be worth spending somewhere
 that returns more than a percentage. On the suite that takes fifteen, you
-never see the 30% at all — sharding hides it, the wall clock stays roughly
-where it was, and the cost moves onto the bill instead. At that end coverage
-is not slower. It is **30% more money, every run, forever**, for a union.
+never see the third at all — sharding hides it, the wall clock stays roughly
+where it was, and the cost moves onto the bill instead. At that end classic
+coverage is not slower. It is **a third more money, every run, forever**, for
+a union.
 
 A probe fires only when its code runs, so what you pay tracks what your tests
 *ran*. The engine's counters are not fired but read, and the read hands back
 every script the worker had open, whether a test went near it or not.
 
-(Medians of five, warm-up discarded, both caches cleared before every run, on
-an Apple M4 Max, 64 GB, Node 26. Two plain arms in every round set the noise
-band: 0.9% apart on Zod, 1.8% on TanStack Query. The seconds are in [running
-less of the suite](selecting.md#what-recording-costs-while-the-suite-runs).)
+(Medians of five, each arm's caches warm, two warm-up rounds discarded, on an
+Apple M4 Max, 64 GB, Node 26. The plain suite's own time in tests moves 6% to
+8% from round to round. The seconds and the method are in [running less of the
+suite](selecting.md#what-recording-costs-while-the-suite-runs).)
 
 Per test, the gap stops being a percentage and becomes the reason this axis
 does not exist in your pipeline. Getting it out of the profiler means reading
@@ -73,12 +79,13 @@ answer something a job uploads without thinking about it.
 
 What it costs *you* is not what it cost us:
 
-- **Plan around the +13% a jsdom suite paid at the default precision, and
-  treat anything under that as luck.** How many regions a test crosses is a property of your code, not
-  of the recorder, and a suite that spends most of its time in one hot module pays differently from
-  one that spends it starting workers.
+- **Plan around the 1.16× a jsdom suite paid at the default precision, and
+  treat anything under that as luck.** How many modules your workers transform
+  and how many regions a test crosses are properties of your code, not of the
+  recorder, and a suite that spends most of its time in one hot module pays
+  differently from one that spends it starting workers.
 - **What those cycles buy is not a percentage.** It is the part worth putting
-  on the other side of the comparison. A run under `--coverage` ends with a
+  on the other side of the comparison. A run under classic coverage ends with a
   number. A run under the recorder ends with a dataset that records which tests
   have been through which lines, and that is the input to running fewer of
   them next time.
@@ -243,7 +250,8 @@ suite ran over, so the index's coordinates belong to the commit it was recorded
 at, and the `--since` reading measures from that commit for this reason. For the
 test files it names, `covering` prints whether they ran over your source file as
 it is now, and when that run landed. A test file that ran over another text is
-evidence about that text, not about yours. At +13% or less there is no budget
+evidence about that text, not about yours. At 1.16× or less, against 1.34× for
+classic coverage, there is no budget
 argument against recording on every run, which is the cadence this needs.
 
 **Fold shards, don't fold axes.** A suite split across machines ends with one
@@ -257,7 +265,7 @@ as your code is transformed, so what you pay tracks what your tests *ran*. The
 engine's own coverage is not fired but read, and the read hands back every
 script the worker had open — which is why reading native counters *per test*,
 the only way to get this axis out of the profiler, costs 2.1× to 2.7× on a
-jsdom suite and the probe costs 13% at most.
+jsdom suite and the probe costs nothing measurable inside the tests.
 
 **A region is a block, not a line.** What gets an id is a lexical block — a
 function, a branch arm, a loop body, a handler — and what identifies it is its

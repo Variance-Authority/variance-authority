@@ -12,7 +12,8 @@ because it shows which tests covered the *lines* you changed.
 >   selects **5,196 test file runs of 12,120, 57% fewer** than running
 >   everything. A package graph selects 8,047.
 > - One line in `locales/ru.ts` selects **8 runs, 1.5s instead of 8.2s**.
-> - No recording precision costs more than the run's own spread.
+> - No recording precision costs anything measurable; classic coverage takes
+>   **1.36×** the run.
 
 ## The whole suite, once
 
@@ -38,21 +39,22 @@ record stores the union rather than letting the second run overwrite the first.
 
 ## What the recording run cost
 
-| | median of five |
-|---|---|
-| the suite as it ships | 11.14 s |
-| the suite again, the noise band | 11.24 s — 0.9% apart |
-| recording, `loads` | 10.51 s — **0.94×** |
-| recording, `entries` | 11.18 s — **1.00×** |
-| recording, `presence` (the default) | 11.13 s — **1.00×** |
-| `vitest --coverage`, V8 provider | 14.09 s — **1.27×** |
+| median of five | time in tests | the whole run |
+|---|---|---|
+| the suite as it ships | 15.21 s | 8.67 s |
+| recording, `loads` | −4% | 0.95× |
+| recording, `entries` | −1% | 0.97× |
+| recording, `presence` (the default) | −1% | 0.99× |
+| classic coverage, `vitest --coverage` with V8 | **+12%** | **1.36×** |
 
-Same pass and fail counts in every row, Vite cache and record cache cleared
-before every run, every arm timed side by side in each round, so its seconds
-compare with each other and not with the wall clock above. `entries` and
-`presence` land inside the band the two plain runs set; `loads` runs faster than
-the plain suite, which a second measurement repeated at 3%, and is not counted
-as a saving. Zod runs in `node`, which is why the `--coverage` row is the
+At no precision does recording cost anything measurable, inside the tests or
+around them: the plain suite's own time in tests moves 6% from round to round,
+and a figure below it is noise, not a saving. Writing the record and the
+transform that places the probes do not show either. Same pass and fail counts
+in every row; every arm keeps its own caches warm, two warm-up rounds and then
+five measured with the order alternating, as the
+[method](selecting.md#what-recording-costs-while-the-suite-runs) lays out. Zod
+runs in `node`, which is why the classic coverage row is the
 interesting one: the engine's counters are read per worker and answer with every script the
 isolate has loaded, and a worker here holds 52. What it buys for that is one
 union per file — every region some test covered, with no record of which test —

@@ -3,7 +3,7 @@
 Coverage-based test selection runs, after a change, only the tests that
 executed the code you changed, according to a recording of an earlier run.
 [Variance Authority](README.md) records that relation on the suite you already
-run, for no more than 13% of its run time on two public suites, and parses each changed file as it was
+run, for nothing measurable inside its tests on two public suites, and parses each changed file as it was
 recorded and as your diff leaves it before it selects a test. On an unmodified
 Zod checkout, a one-line edit selects 6 test files, 8 runs in all, where
 rerunning every file that loads the changed module selects 197.
@@ -237,8 +237,8 @@ change is how it answers four questions.
 
 **What does the recording cost?** The coverage your runner already offers
 reads the engine's counters, and those counters cover every script the worker
-loaded, whether a test used it or not. On two public suites, `--coverage`
-adds 27% to 29% to every run and produces a union with no record of which test
+loaded, whether a test used it or not. On two public suites, classic coverage
+adds 34% to 36% to every run and produces a union with no record of which test
 covered what. Reading those counters once per test costs 2.1× to 2.7× on
 [a jsdom suite](selection-tanstack-query.md#what-the-recording-run-cost). At that cost the per-test relation is not
 recorded on every run, so it describes an older commit.
@@ -268,10 +268,11 @@ without telling you.
 
 **It records with a probe, not the profiler.** The recorder writes a counter at
 each region as your code is transformed, so the cost depends on what your tests
-ran. At the default precision, recording costs 1.00× the plain run on Zod and
-1.13× on TanStack Query, against 1.27× and 1.29× for `--coverage` on the same
-suites; recording only the modules each test file loaded costs 1.05× on
-TanStack Query. At that
+ran. Inside the tests that is nothing measurable at any precision, where
+classic coverage adds 12% on Zod and 37% on TanStack Query. The whole run at the
+default precision takes 0.99× the plain run on Zod and 1.16× on TanStack Query,
+against 1.36× and 1.34× for classic coverage; recording only the modules each
+test file loaded takes 1.05× on TanStack Query. At that
 cost you can record on every run, which keeps the record current.
 [Test-level coverage](test-level-coverage.md#what-you-already-believe-this-costs)
 has the measurements and how they were made.
@@ -475,7 +476,7 @@ unmodified fork with one commit of setup:
 | One-line edit, test files that load the changed module | 197 files | 149 files |
 | One-line edit, the record | 6 files in 8 runs, 1.5 s instead of 8.2 s | 9 files, 758 of 4,523 tests |
 | Test file runs skipped over sixty commits | 57% | 93% |
-| Recording cost, default precision | 1.00× | 1.13× |
+| Recording cost, default precision, against classic coverage | 0.99× against 1.36× | 1.16× against 1.34× |
 
 ```mermaid
 ---

@@ -516,11 +516,13 @@ export default withTestSelection(defineConfig({ test: {} }), { mode: 'loads' });
 | `mode` | What each module gets | The record holds | The finest step it answers | Added to TanStack Query's run |
 |---|---|---|---|---|
 | `loads` | one line after its text; nothing is parsed | the modules each test file loaded, and no cases | `file-use` | 5% |
-| `entries` | a probe at the module and at each function body | the functions each case entered | `function-use` | 13% |
-| `presence`, the default | a probe in every region: function body, branch arm, loop body, handler | the regions each case entered | `region-use` | 13% |
+| `entries` | a probe at the module and at each function body | the functions each case entered | `function-use` | 15% |
+| `presence`, the default | a probe in every region: function body, branch arm, loop body, handler | the regions each case entered | `region-use` | 16% |
 
-On Zod no mode costs more than the run's own spread. Both suites, the method
-and `--coverage` beside them are in
+Classic coverage adds 34% to the same run. Almost all of what a mode adds is
+transform and writing the record; inside the tests no mode costs anything
+measurable, on TanStack Query or Zod. Both suites, the method and classic
+coverage beside them are in
 [what recording costs](#what-recording-costs-while-the-suite-runs).
 
 Four more options decide what a case carries besides its regions, and where the
@@ -1010,30 +1012,48 @@ and it is in [addressing scale](scale.md).
 
 ## What recording costs while the suite runs
 
-Recording costs less than coverage at every precision. A probe fires only when
-its code runs, so what you pay tracks what your tests ran: `loads` places no
-probe at all and costs least, and `entries` and `presence` measure the same.
+Inside your tests, recording costs nothing you can measure, at any precision.
+Classic coverage — `--coverage` with the V8 provider — adds 37% to the same
+tests on TanStack Query and 12% on Zod. A probe fires only when its code runs,
+so what you pay tracks what your tests ran; the engine's counters are read, and
+a read answers with every script the worker holds.
 
-| | the suite | `loads`, `file-use` | `entries`, `function-use` | `presence`, `region-use` | `--coverage`, V8 |
+Time spent inside the tests, the sum of every test's own duration:
+
+| | the suite | `loads`, `file-use` | `entries`, `function-use` | `presence`, `region-use` | classic coverage |
 |---|---|---|---|---|---|
-| [Zod](selection-zod.md) — 398 runs, 5,656 tests | 11.14 s | 10.51 s — **0.94×** | 11.18 s — **1.00×** | 11.13 s — **1.00×** | 14.09 s — **1.27×** |
-| [TanStack Query](selection-tanstack-query.md) — 188 files, 4,523 tests | 14.09 s | 14.78 s — **1.05×** | 15.90 s — **1.13×** | 15.94 s — **1.13×** | 18.24 s — **1.29×** |
+| [Zod](selection-zod.md) — 398 runs, 5,656 tests | 15.21 s | −4% | −1% | −1% | **+12%** |
+| [TanStack Query](selection-tanstack-query.md) — 188 files, 4,523 tests | 28.15 s | −2% | +2% | +2% | **+37%** |
+
+The plain suite's own time in tests moves 6% to 8% from round to round, so
+every recording figure here is noise, and a negative one is not a saving.
+
+Two costs sit outside the tests, and they are reported apart because neither
+grows with what the tests do:
+
+- **Writing the record**, after the last test reports. On TanStack Query the run
+  exits 0.18 s later at `loads`, 0.44 s at `entries` and 0.55 s at `presence`.
+  On Zod nothing measurable.
+- **Transform**, where Vite parses each module and the recorder places its
+  probes, before a test runs. On TanStack Query it adds 3 s at `loads` and
+  12 s at `entries` and `presence`, summed over the workers that pay it in
+  parallel. On Zod nothing measurable.
+
+The whole run, transform included:
+
+| | the suite | `loads` | `entries` | `presence` | classic coverage |
+|---|---|---|---|---|---|
+| Zod | 8.67 s | 0.95× | 0.97× | 0.99× | **1.36×** |
+| TanStack Query | 12.47 s | 1.05× | 1.15× | 1.16× | **1.34×** |
 
 Both suites are public, run under Vitest, and are unmodified apart from the
 configuration that installs the recorder, with every other option at its
-default, `cadence` included. Every figure is the median of five runs of the whole
-suite, the first discarded as warm-up and the order of the arms rotated each
-round, with the Vite cache and the record cache cleared before every run so no
-run is paid for by the one before it. Pass and fail counts are identical across
-every column. An Apple M4 Max, 64 GB, Node 26.
-
-Each round also runs the suite plain a second time, and the two plain arms are
-the band the rest is read against: 0.9% apart on Zod and 1.8% on TanStack
-Query. On Zod `entries` and `presence` land inside that band, and `loads` runs
-faster than the plain suite, which a second measurement repeated at 3%; it is
-not counted as a saving. On TanStack Query, where jsdom loads far more code
-into every worker, each mode stands outside it, and `--coverage` still costs
-more than twice what the default `presence` does.
+default, `cadence` included. The recorder is the one built from `main` on 16
+November 2026. Every arm keeps its own Vite cache and record cache warm, as a
+suite runs the second time on your machine: two warm-up rounds, then five
+measured rounds with the order of the arms alternating, and every figure is
+the median of the five. Pass and fail counts are identical across every arm. An
+Apple M4 Max, 64 GB, Node 26.
 
 To check the figure on your own suite, time it five times with the plugin and
 five times with it off, and compare the medians — one configuration with the
