@@ -45,7 +45,9 @@ type Realm = {
  * observer for what an `await` let through. What runs before a case's first
  * line and after its body, its hooks and their cleanup, is no line's: a hook's
  * line or the case's settling closes the watch until the next test line opens.
- * A later call moves the watch to the tap it is given.
+ * The document is observed from the first test line on, so a page that opens
+ * none, as a Playwright spec's, is never watched. A later call moves the watch
+ * to the tap it is given.
  *
  * Self-contained: a page's tape puts its source on the page, as it does
  * `createTap`'s.
@@ -55,7 +57,7 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
   if (document === undefined || typeof Watch !== 'function') return;
   // Where a document keeps the one watch a story put on it.
   const PAGE = Symbol.for('variance-authority.story.page-watch');
-  type Watching = { tap: Pick<Tap, 'note'>; observer: Observer; quiet: boolean };
+  type Watching = { tap: Pick<Tap, 'note'>; observer: Observer; observing: boolean; quiet: boolean };
   const page = document as { [PAGE]?: Watching };
   // One line for what changed: nodes added and removed, attributes, and text.
   const say = (watching: Watching, changes: readonly Change[]): void => {
@@ -76,16 +78,21 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
   };
   let watch = page[PAGE];
   if (watch === undefined) {
-    const made: Partial<Watching> & Pick<Watching, 'tap' | 'quiet'> = { tap, quiet: true };
+    const made: Partial<Watching> & Pick<Watching, 'tap' | 'observing' | 'quiet'> = { tap, observing: false, quiet: true };
     made.observer = new Watch((changes) => say(made as Watching, changes));
-    made.observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
     watch = made as Watching;
     Object.defineProperty(page, PAGE, { value: watch });
   } else watch.tap = tap;
   const held = watch;
-  tap.drainWith((ending) => {
-    say(held, held.observer.takeRecords());
-    held.quiet = ending !== 'line';
+  tap.drainWith((opens) => {
+    if (held.observing) say(held, held.observer.takeRecords());
+    held.quiet = !opens;
+    // Observed from the first test line on: a page whose lines run elsewhere, as
+    // a Playwright spec's do, opens none and is never watched.
+    if (opens && !held.observing) {
+      held.observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+      held.observing = true;
+    }
   });
 }
 
