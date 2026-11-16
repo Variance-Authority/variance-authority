@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -100,6 +100,26 @@ describe('select --format explain', () => {
 
     expect(out).toContain('a test file the record never saw, such as one the change adds, is in no skip list, and runs in every block');
     expect(out).not.toContain('also runs any nearer test file');
+  });
+
+  it('says a test file the record never saw runs under the command, when no recorded test does', async () => {
+    const root = await changed({ 'test/fresh.test.ts': SELF_TEXT });
+
+    const { out } = await selectOutput({ cwd: root, format: 'explain' });
+
+    expect(out).toContain('the change selects 0 of 4 recorded test files');
+    expect(out).toContain('a test file the record never saw, such as one the change adds, is in no skip list, and runs under `variance select`');
+  });
+
+  it('lays a snapshot `--execution` names out by hop, priced by that snapshot', async () => {
+    const root = await changed();
+    const named = join(mkdtempSync(join(tmpdir(), 'va-select-explain-snapshot-')), 'coverage.va');
+    renameSync(testCoverageFile(root, {}), named);
+
+    const { out } = await selectOutput({ cwd: root, format: 'explain', execution: named });
+
+    expect(blocksOf(out).map(({ head, command }) => `${head} — ${command}`)).toEqual([0, 1, 2].map((hop) =>
+      `${hop} hop${hop === 1 ? '' : 's'}: 1 test file, ${hop + 1}.0 s recorded — variance select --execution ${named} --at-distance ${hop}`));
   });
 
   it('gives a selection with no measured hops the command that runs it whole, with no leg a journey would refuse', () => {

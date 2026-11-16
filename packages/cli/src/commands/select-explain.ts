@@ -15,8 +15,10 @@
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { durationText } from '@variance-authority/core/shard';
-import { atDistance, groupByDistance, type SuiteTimes, type TestDistance } from '@variance-authority/sense/test-selection';
+import { recordedTimes } from '@variance-authority/sense';
+import { atDistance, groupByDistance, isTestCoverageFile, type SuiteTimes, type TestDistance } from '@variance-authority/sense/test-selection';
 import { quoted } from '../direct-call.js';
+import { recordHeld } from './mainline-selected.js';
 import { many } from './prose-counts.js';
 import { timesOf } from './select-budget.js';
 import type { SuiteReading, SuiteRequest } from './select-suite.js';
@@ -32,10 +34,12 @@ export async function explainedOutput(
 ): Promise<{ readonly out: string; readonly err: string }> {
   // Every hop is selected, and reconciled as a leg's would be under `--ran-at`;
   // the leg asked is marked on the blocks. A journey file has no graph to
-  // measure hops on, and a leg beside it is refused.
-  const measured = request.execution === undefined ? { ...request, atDistance: OPEN } : request;
-  const { reading, whole } = await select(measured);
-  return { out: explainOf(reading, whole, await timesOf(request), commandOf(request), request.atDistance), err: selectionNotes(reading) };
+  // measure hops on, and a leg beside it is refused; a snapshot is the record.
+  const named = request.execution;
+  const snapshot = named !== undefined && (await recordHeld(named)) && isTestCoverageFile(named);
+  const { reading, whole } = await select(named === undefined || snapshot ? { ...request, atDistance: OPEN } : request);
+  const times = snapshot ? await recordedTimes(named) : await timesOf(request);
+  return { out: explainOf(reading, whole, times, commandOf(request), request.atDistance), err: selectionNotes(reading) };
 }
 
 /** The tests one command runs: one hop count's, or those no hop placed. */
@@ -94,9 +98,9 @@ export function explainOf(
     const label = asked(block) ? block.label : `${block.label}, left by the leg asked`;
     return [`${label}: ${many(runsAll.length, 'test file')}, ${priced(recorded, runsAll)} — ${runsIt}`, ...lines, ...lateLines].join('\n');
   });
-  const unseen = blocks.length === 0
-    ? []
-    : ['a test file the record never saw, such as one the change adds, is in no skip list, and runs in every block\n'];
+  // Under `only`, a test outside it does not run, seen or not.
+  const where = blocks.length > 0 ? 'in every block' : selection.only === undefined ? `under \`${command}\`` : undefined;
+  const unseen = where === undefined ? [] : [`a test file the record never saw, such as one the change adds, is in no skip list, and runs ${where}\n`];
   return [`${head}\n`, ...said.map((block) => `${block}\n`), ...unseen, ...unread].join('\n');
 }
 
