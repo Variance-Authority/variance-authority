@@ -122,6 +122,17 @@ describe('select --format explain', () => {
       `${hop} hop${hop === 1 ? '' : 's'}: 1 test file, ${hop + 1}.0 s recorded — variance select --execution ${named} --at-distance ${hop}`));
   });
 
+  it('prices the blocks by the record a caller already answered from, not the checkout record', async () => {
+    const root = await changed();
+    const record = join(mkdtempSync(join(tmpdir(), 'va-select-explain-record-')), 'coverage.va');
+    const held = snapshot(execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim());
+    await writeTestCoverage(record, { ...held, tests: held.tests.map((test) => ({ ...test, duration: (test.duration ?? 0) * 10 })) });
+
+    const { out } = await explainedOutput({ root, record }, selectSuite);
+
+    expect(out).toContain('0 hops: 1 test file, 10.0 s recorded');
+  });
+
   it('gives a selection with no measured hops the command that runs it whole, with no leg a journey would refuse', () => {
     const selection = {
       ground: 'read', skip: [IDLE], because: 'b', notes: [], at: 'a', unread: [], stale: [], recorded: { whole: 4, entered: 3 },

@@ -39,7 +39,9 @@ export async function explainedOutput(
   const named = request.execution;
   const snapshot = named !== undefined && (await recordHeld(named)) && isTestCoverageFile(named);
   const { reading, whole } = await select(named === undefined || snapshot ? { ...request, atDistance: OPEN } : request);
-  const times = snapshot ? await recordedTimes(named) : await timesOf(request);
+  // The record a caller already answered from prices the selection it made, as a named snapshot does.
+  const priced = request.record ?? (snapshot ? named : undefined);
+  const times = priced !== undefined ? await recordedTimes(priced) : await timesOf(request);
   return { out: explainOf(reading, whole, times, commandOf(request), request.atDistance), err: selectionNotes(reading) };
 }
 
