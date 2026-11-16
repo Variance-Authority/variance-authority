@@ -72,6 +72,20 @@ describe('distanceFromView', () => {
     expect(of(read({ relations }), 'test/report.test.tsx').enters).toBeUndefined();
   });
 
+  it('names a changed file a test imports beside a module that only republishes it', () => {
+    // The button test imports the face, which re-exports the base, and the base
+    // itself: a re-export publishes the base rather than using it.
+    const beside = relationsOfFiles(
+      layerRecords.map((record) =>
+        record.file === 'test/button.test.tsx'
+          ? { ...record, edges: [...record.edges, { to: 'src/button/abstract-button.tsx', kind: 'imports' as const }] }
+          : record,
+      ),
+    );
+
+    expect(of(read({ relations: beside }), 'test/button.test.tsx').enters).toEqual(['src/button/abstract-button.tsx']);
+  });
+
   it('names every changed file a test enters, though the walk measured from one it loads under another', () => {
     const beside = relationsOfFiles(
       layerRecords.map((record) =>

@@ -252,7 +252,8 @@ This repository's own agents run a narrower line after each edit, as
 `yarn test:loop`: their linter in front of it, and only the changed files' own
 tests, as many as 15 s of recorded test time holds. A test is a file's own when
 it sits in the file's package and enters it: it imports the file, and imports
-no other module that imports it directly. A test that imports `checkout.ts` and the
+no other module that imports it directly; a barrel that only re-exports it
+does not count. A test that imports `checkout.ts` and the
 `money.ts` formatter `checkout.ts` uses is `checkout.ts`'s own, and only an
 importer of `money.ts`. [What a selection
 costs](#what-a-selection-costs) gives the times of the line alone.
