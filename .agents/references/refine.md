@@ -132,20 +132,33 @@ section to a heading:
   of its own trouble is a claim, checked against its transcript before it is
   cited.
   "Users may want", "for completeness" and "it was easy" are not evidence.
-- **Root cause**: why the Perceived happens, and why that does, one link to a
-  line, down to the root. Each link is something a reader can open, as Evidence
-  is, or says it is a guess.
+  When nothing can show the problem before it is built, the section says so
+  and names what building it will show: that is an answer, not a placeholder.
+- **Root cause**: why the Perceived happens, and why that does, down to the
+  root. A link opens where it can — a line, a run — and otherwise says it is a
+  guess; a chain of guesses is a written section.
 - **Affected**: the commands, packages, runners and `.compass/` blocks the
   scenario crosses, and the one `.compass/` block whose responsibility owns the
   answer.
 - **Impact**: who is hurt, how often, what it costs them, and what happens if
-  this is never done, and why each RICE label holds.
+  this is never done, and why each RICE label holds. An estimate is an Impact;
+  the `confidence:` label carries how much of it is known.
 - **Change**: the smallest change that answers it at the root, in the project's
   concepts, and the way it picks among the answers, with why. A Change that
   acts above the root says why it stops there.
 - **Done when**: a checklist of tests or checks that, together, fail on today's
   code where the Evidence saw the problem and pass only once it is gone. Each
-  `Then` is one of them.
+  `Then` is one of them. Where the problem can only be measured once the change
+  runs, an item names that measurement, taken after the merge.
+
+**Absence of evidence rejects nothing.** Almost nothing can be measured before
+it is built, and merging is often the only way to learn whether an idea holds.
+An unknown is written as an unknown, with what building will show, and the
+review weighs the idea on what opens: a reason to reject is something a reader
+can open that argues against the change — it exists already, it was decided
+against, another owner holds it, a lower cause answers it. That nothing shows the
+need, the harm or the gain yet is named in the verdict and carried by the
+`confidence:` label, never a rejection.
 
 **The whys come before the Change.** A problem is often the output of something
 that should not stand, and a fix to it keeps that thing alive. Start at the
@@ -171,10 +184,9 @@ of your reasons. It opens every piece of evidence, asks the whys itself before
 it reads yours, weighs the case for nothing against the change, checks the change
 against [`escapes`](escapes.md), and gives one verdict:
 
-- **incomplete** — a section is missing, out of order or holds only a
-  placeholder, or a Change above the root does not say why. Nothing is decided:
-  complete the brief and ask again. It is not a review, and it does not count
-  toward the three below.
+- **incomplete** — a section is missing or empty. A section that says what is
+  unknown and what building will show is written. Nothing is decided: complete
+  the brief and ask again. It is not a review.
 - **build** — put `idea: build` on the issue. Code may start. An edit to the
   issue's body after that needs the review again, and CI enforces it.
 - **yes, but** — a part should not happen. Cut it from the issue. A cut taken
@@ -182,13 +194,13 @@ against [`escapes`](escapes.md), and gives one verdict:
   review is for. Answering the rejection with evidence instead, or changing
   the Change, is reviewed again.
 - **no, because** — close the issue as not planned, with the reason by its
-  name in the closing comment. Closed issues are where a declined idea is
-  found next time.
+  name and the evidence against the change in the closing comment. Closed
+  issues are where a declined idea is found next time.
 
-Three reviews that end without **build** close the issue. Nobody else is asked:
-the loop decides, and a tie goes to the smaller change. A closed issue is
-reopened when new evidence arrives, and the review starts over; the owner may
-reopen one at any time.
+Only **no, because** closes an issue, and only on evidence against the change;
+no count of reviews closes one. Nobody else is asked: the loop decides, and a tie
+goes to the smaller change. A closed issue is reopened when new evidence arrives,
+and the review starts over; the owner may reopen one at any time.
 
 **A verdict is a comment.** Whoever runs the review posts the verdict on the
 issue, with its reason, ending in `<!-- idea-verdict: <name> -->`, where the name
@@ -207,10 +219,10 @@ issue is a report, so neither is listed. Issues holding a brief come first, sinc
 they wait only for the review; the rest follow "What comes first", by score within
 each rank. An `incomplete` nothing has changed since goes last, because another
 review would say the same. A scheduled task on the owner's machine takes the top
-of that list: it writes the brief an issue lacks, runs the review, posts the
-verdict and follows it through. A `build` on an issue already labelled takes the
-label off and puts it back, since CI reads when it went on. For the three reviews
-above it counts the verdicts since the last reopen, leaving out `incomplete`.
+of that list: it writes the brief an issue lacks, and any section a brief is
+missing, with its unknowns named, rather than posting **incomplete**; runs the
+review, posts the verdict and follows it through. A `build` on an issue already
+labelled takes the label off and puts it back, since CI reads when it went on.
 
 **The loop learns.** A change that passed this loop and was later shown not to
 belong — closed unmerged, reverted, or rejected by any reviewer, a person or a

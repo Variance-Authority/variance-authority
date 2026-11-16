@@ -28,11 +28,17 @@ number. See first that the brief is all here, from its headings alone:
 gh issue view <n> --json body --jq .body | awk '/^```/ { fence = !fence; next } !fence && /^#+ / { print; next } NF { print "  text" }' | uniq
 ```
 
-A section of the brief in `.agents/references/refine.md` that is missing, out of
-order or has no text is not reviewed, and neither is one you find, as you read
-on, to hold only a placeholder: your verdict is **incomplete**, naming the
-section, and you stop. **Incomplete** rejects nothing: it says only that the case
-is not all here.
+A section of the brief in `.agents/references/refine.md` that is missing or has
+no text is not reviewed: your verdict is **incomplete**, naming the section, and
+you stop. A section that says what is unknown and what building will show is
+written, and so is a guess that says it is one. **Incomplete** rejects nothing:
+it says only that the case is not all here.
+
+Absence of evidence rejects nothing. Almost nothing can be measured before it is
+built, and merging is often how it is learned. Every reason below rejects on
+something a reader can open that argues against the change. What nothing shows
+yet — the need, the harm, the gain, a link of the chain — you name as unknown in
+your verdict, and it does not stand between the brief and **build**.
 
 The brief runs in a fixed order. What comes before the Root cause states the
 problem; the Root cause and what follows it are the author's case, so build yours
@@ -46,11 +52,11 @@ Open every item of Evidence — the quote, the issue, the run, the measurement �
 and every claim that somebody was hurt, wherever it sits: Perceived, Evidence or,
 once you print it, Impact. Evidence that does not open — other than the owner's
 words quoted from a session you cannot open, which are read as quoted — or does
-not say what the issue claims, is **nobody needs it**, and so is a harm claim
-with nothing to open, or one that only an agent's own report of its trouble
-carries. Code lines show
-the mechanism, not the problem: when nothing else shows it — a failing run, a
-reproduction, a measurement, an adopter's case — the problem is **nobody needs it**. An ask
+not say what the issue claims, is struck from the case and named in your
+verdict, and so is a harm claim with nothing to open, or one that only an
+agent's own report of its trouble carries; what it leaves is unknown, not
+disproved. Code lines show the mechanism, not the problem: when nothing else
+shows it, the problem is unknown until it is built. An ask
 is evidence of a need, weighed with the rest, never an order and never required:
 whether anybody asked is not a reason, either way. Do step 1 below from what you read, chain
 included. Only then print the rest, the labels last:
@@ -64,9 +70,9 @@ does not say what the brief claims, is a guess whether it says so or not: the
 chain stops there, and your verdict names it. A guess rejects nothing by itself,
 because a missing proof is not proof of another cause. Then read the Affected
 and the Impact and challenge them against your case: what the scenario crosses, who is
-hurt, how often, at what cost, and why each RICE label holds. An Impact the
-Evidence does not carry is **nobody needs it**; a label it does not carry is named
-in your verdict. Then read the Change. One that acts above the root and does not
+hurt, how often, at what cost, and why each RICE label holds. An Impact or a
+label the Evidence does not carry is named in your verdict as an estimate, and
+the `confidence:` label is where it shows. Then read the Change. One that acts above the root and does not
 say why is **incomplete**, as a missing section is. Ask each question in
 `.agents/references/escapes.md` of it, and weigh it as step 2 weighs a diff: what
 it would make `main` carry for ever. Where links a reader can open show a cause
@@ -77,7 +83,8 @@ settle it, neither wins, and the difference is named in your verdict.
 
 Last, ask the brief the five questions under "What problem we solve" in
 `.agents/references/refine.md`, each answered from what opens. **What** is
-**nobody needs it** when nothing opens to show the problem, as above. **Which** is **too much for
+**nobody needs it** only when something opens to show the problem is not there,
+as below; when nothing opens either way, it is unknown. **Which** is **too much for
 what it buys** when the Change picks one way and does not say why it beats what
 already answers part of it. **Problem** is **not the problem** when the issue
 holds more than one. **We** asks the chart first: which `.compass/` block's
@@ -136,14 +143,14 @@ next:
 
 Reasons you reject on, and you name the one you use:
 
-- **Nobody needs it.** Nothing that opens shows anybody hurt or held back by
-  its absence: no failing run, reproduction, measurement or adopter's case, and
-  no goal of the owner's it serves. That nobody asked for it is not this reason,
-  and an ask alone does not answer it.
-- **Nobody waits for it.** A need is shown, but nothing is held back while it
-  is not done — no adopter blocked, no change built on it — so what it costs
-  buys nothing yet. Unlike **not now**, nothing unproven stands in its way;
-  unlike **too much for what it buys**, the size of the cost does not decide it.
+- **Nobody needs it.** Something that opens shows the need is not there: the
+  Situation already gets the Expected, the run cited passes, the harm claimed
+  did not happen. That nothing shows the need yet is not this reason, nor is
+  whether anybody asked.
+- **Nobody waits for it.** Something that opens shows that nothing is held back
+  while it is not done, and what it costs buys nothing yet. Unlike **not now**,
+  nothing unproven stands in its way; unlike **too much for what it buys**, the
+  size of the cost does not decide it.
 - **Not the task.** Diff mode only: the task sentence and the issue's Change do
   not name this part, and the body cannot show the task needs it.
 - **It already exists.** A command, a capability or a page on `main` already
@@ -162,8 +169,8 @@ Reasons you reject on, and you name the one you use:
   harm in step 1.
 - **Rejected before.** `docs/context/` already decided against it, and the
   body does not say what changed.
-- **Not now.** It stands on something unproven: a premise nothing has
-  measured, or a change that has not landed.
+- **Not now.** It stands on a change that has not landed. A premise nothing
+  has measured is not this reason when building is how it gets measured.
 
 Report each rejection as: **no, because** or **yes, but**; the reason by its
 name above; the evidence for it — a path and line, a quote, a count from step
