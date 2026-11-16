@@ -18,10 +18,11 @@ import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './addon.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition, NativeTestRan } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeRanModule, NativeRanRegion, NativeTestComposition, NativeTestRan } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
+import { blocksChargedAt } from './test-selection/blocks-around.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
@@ -354,6 +355,25 @@ export function testsRan(root: string, file: string, name?: string): readonly Su
     (notRecorded) => ({ notRecorded, suite: 0, modules: [] }),
     (recording, path) => entry('testRan')(recording, path, name ?? null),
   ).map(({ answer, ...named }) => ({ ...named, ran: answer }));
+}
+
+/**
+ * The region of `module` that kept the test from `line`, or `undefined` when
+ * the test ran it. The line is charged to regions as `covering --line` charges
+ * it ({@link blocksChargedAt}): it ran when one of them was entered, and when
+ * none holds it, with the module. Otherwise the answer is the outermost region
+ * holding the line that the test did not enter: where it went elsewhere.
+ */
+export function passedAt(module: NativeRanModule, line: number): NativeRanRegion | undefined {
+  const charged = blocksChargedAt(
+    module.regions.map((region) => ({ region, kind: region.kind, startLine: region.line, endLine: region.end, source: region.source })),
+    line,
+  );
+  if (charged.length === 0 || charged.some(({ region }) => region.entered)) return undefined;
+  const span = (region: NativeRanRegion): number => region.end - region.line;
+  return module.regions
+    .filter((region) => !region.entered && region.line <= line && line <= region.end)
+    .reduce<NativeRanRegion | undefined>((best, region) => (best === undefined || span(region) > span(best) ? region : best), undefined);
 }
 
 /**

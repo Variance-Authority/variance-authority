@@ -353,6 +353,8 @@ export interface NativeRanRegion {
   readonly kind: string;
   readonly line: number;
   readonly end: number;
+  /** Whether it holds source text, not code the transform wrote. */
+  readonly source: boolean;
   /** The name of the function it is written in, when one is recorded. */
   readonly function?: string | null;
   /** Whether the test entered it. */

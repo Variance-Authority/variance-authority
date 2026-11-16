@@ -1,5 +1,6 @@
 import type { FileSet, Tool, ToolInvocation } from '@variance-authority/mcp/tools';
 import { START_POINT_SCHEMA, limitOf, notShown, spellingOf, startPointArg, stringArg } from '@variance-authority/mcp/tools';
+import { testsRan } from '@variance-authority/sense';
 import { areaLine, areaOf, startPointNeeded } from './area.js';
 import { formatGrepRan, grepRan } from './grep-ran.js';
 import { ripgrep, type Hit } from './ripgrep.js';
@@ -134,7 +135,7 @@ export const grep: Tool<unknown> = {
 export function grepPrinted(_help: unknown, input: Readonly<Record<string, unknown>>, invocation?: ToolInvocation<unknown>): Iterable<string> {
   const test = testOf(input, invocation);
   if (test !== undefined) {
-    return grepRan(test.root, test.query, test.file, test.name).answered.flatMap(({ ran }) => ran.modules.map((module) => module.file));
+    return testsRan(test.root, test.file, test.name).flatMap(({ ran }) => ran.modules.map((module) => module.file));
   }
   const area = areaOf(startPointArg(input, 'from'), startPointArg(input, 'to'), invocation?.tree);
   return area.refused === undefined ? area.files : [];
@@ -143,7 +144,10 @@ export function grepPrinted(_help: unknown, input: Readonly<Record<string, unkno
 /** The recorded test the call names in place of a start point, or `undefined` when it names none. */
 function testOf(input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<unknown> | undefined) {
   const file = typeof input['test'] === 'string' ? input['test'].trim() : '';
-  if (file === '') return undefined;
+  if (file === '') {
+    if (typeof input['name'] === 'string' && input['name'].trim() !== '') throw new Error('`--name` picks a test in the `--test` file, and no `--test` was given');
+    return undefined;
+  }
   if (startPointArg(input, 'from') !== undefined || startPointArg(input, 'to') !== undefined) {
     throw new Error('`grep` takes `--test` or a start point, not both: the files a test entered and the files a path reaches answer different questions');
   }

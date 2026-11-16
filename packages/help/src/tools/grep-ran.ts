@@ -5,17 +5,15 @@
  * The recording owns which regions the test entered; ripgrep owns the text.
  * The files searched are the modules the test entered at least one region of,
  * so a file it only loaded, a file it never reached and a file no recording
- * instruments are not searched. A line is ran when the innermost recorded region
- * holding it was entered, and a line in no recorded region of an entered file
- * ran with the module. Otherwise it is not taken, and the answer names the
- * outermost region holding it that the test did not enter: where the test went
- * elsewhere.
+ * instruments are not searched. Each line is classified by sense's `passedAt`,
+ * which charges it to regions as `covering --line` does: ran, or not taken in
+ * the outermost region holding it that the test did not enter.
  */
 
 // compass: variance-authority.report.agent-surface
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { testsRan, type RanModule, type RanRegion, type TestRan } from '@variance-authority/sense';
+import { passedAt, testsRan, type RanRegion, type TestRan } from '@variance-authority/sense';
 import { notShown, type Spelling } from '@variance-authority/mcp/tools';
 import { ripgrep, type Hit } from './ripgrep.js';
 
@@ -51,27 +49,13 @@ export function grepRan(root: string, query: string, file: string, name: string 
     const taken: Hit[] = [];
     const passed: { hit: Hit; by: RanRegion }[] = [];
     for (const hit of hits) {
-      const by = passedBy(modules.get(hit.file)!, hit.line);
+      const by = passedAt(modules.get(hit.file)!, hit.line);
       if (by === undefined) taken.push(hit);
       else passed.push({ hit, by });
     }
     return { ...(suite === undefined ? {} : { suite }), ran, taken, passed, errors };
   });
   return { answered, refused };
-}
-
-/**
- * The outermost region holding `line` the test did not enter, when no innermost
- * region holding it was entered. Regions are read by line, so the arms of
- * `a ? b : c` are all innermost on their line, and one entered arm ran it.
- */
-function passedBy(module: RanModule, line: number): RanRegion | undefined {
-  const holding = module.regions.filter((region) => region.line <= line && line <= region.end);
-  if (holding.length === 0) return undefined;
-  const span = (region: RanRegion): number => region.end - region.line;
-  const narrowest = Math.min(...holding.map(span));
-  if (holding.some((region) => span(region) === narrowest && region.entered)) return undefined;
-  return holding.filter((region) => !region.entered).reduce((best, region) => (span(region) > span(best) ? region : best));
 }
 
 /** The answer, ran lines first, then the lines in regions the test passed by. */

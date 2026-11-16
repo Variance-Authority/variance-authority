@@ -176,6 +176,7 @@ export {
   journeyMap,
   journeyMaps,
   journeysPath,
+  passedAt,
   pathsThrough,
   prepareJourneys,
   testCompositions,

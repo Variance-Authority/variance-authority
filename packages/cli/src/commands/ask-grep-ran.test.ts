@@ -71,6 +71,22 @@ describe('variance ask grep --test', () => {
     ]);
   });
 
+  it('marks a line ran where the branch it opens was entered and the one it closes was not', async () => {
+    await recorded();
+
+    const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/ship.test.ts']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n').slice(0, 6)).toEqual([
+      'test/ship.test.ts  ships entered 1 recorded file; files no recording instruments were not searched.',
+      '',
+      '1 matching line in 1 file.',
+      '',
+      'Ran:',
+      "src/ship.ts:4:  } else { note('give up slow');",
+    ]);
+  });
+
   it('refuses a test the recording does not hold, with what it holds', async () => {
     await recorded();
 
@@ -78,6 +94,15 @@ describe('variance ask grep --test', () => {
 
     expect(answered.code).toBe(EXIT_OPERATOR);
     expect(answered.err).toContain('No recorded test in test/order.test.ts has ships in its name. Its 1 recorded test:\n  pays for an order');
+  });
+
+  it('refuses a test name without the test file it is a name in', async () => {
+    await recorded();
+
+    const answered = await run(['ask', 'grep', '--query', 'give up', '--from', 'src/order.ts', '--name', 'pays']);
+
+    expect(answered.code).toBe(EXIT_OPERATOR);
+    expect(answered.err).toContain('`--name` picks a test in the `--test` file');
   });
 
   it('refuses a test beside a start point along the imports', async () => {
@@ -91,9 +116,11 @@ describe('variance ask grep --test', () => {
 });
 
 /**
- * Two tests. `pays for an order` enters `pay` and its first branch; `refunds`
+ * Three tests. `pays for an order` enters `pay` and its first branch; `refunds`
  * enters `pay`'s second branch and `src/refund.ts`, which spells the query too,
- * on a line two arms share, and which the first test never entered.
+ * on a line two arms share, and which the first test never entered; `ships`
+ * enters the else-branch of `src/ship.ts`, which opens on the line the
+ * then-branch closes.
  */
 async function recorded(): Promise<void> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-grep-ran-')));
@@ -115,14 +142,20 @@ async function recorded(): Promise<void> {
     ].join('\n'),
   );
   writeFileSync(join(root, 'src/refund.ts'), "export const refund = (paid: boolean): string => (paid ? 'give up refund' : 'keep');\n");
+  writeFileSync(
+    join(root, 'src/ship.ts'),
+    ['export function ship(fast: boolean): void {', '  if (fast) {', '    go();', "  } else { note('give up slow');", '    wait();', '    wait();', '  }', '}', ''].join('\n'),
+  );
   const at = testCoverageFile(root);
-  const files = ['test/order.test.ts', 'test/refund.test.ts'];
+  const files = ['test/order.test.ts', 'test/refund.test.ts', 'test/ship.test.ts'];
   const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({
     kind, name, path: 'entry', startLine, endLine, source: true, crossings: entered.map((test) => ({ test, distance: 0 })),
   });
   const order = [region('function', 'pay', 1, 8, [0, 1]), region('branch', '', 2, 4, [0]), region('branch', '', 5, 7, [1])];
   // Both arms of the ternary share line 1; `refunds` entered the first.
   const refund = [region('function', 'refund', 1, 1, [1]), region('branch', '', 1, 1, [1]), region('branch', '', 1, 1, [])];
+  // `} else {` closes the then-branch and opens the else on line 4; `ships` entered only the else.
+  const ship = [region('function', 'ship', 1, 8, [2]), region('branch', '', 2, 4, []), region('branch', '', 4, 7, [2])];
   const covered = (file: string, blocks: readonly ReturnType<typeof region>[]) => ({
     file,
     sourceDigest: `digest:${file}`,
@@ -136,16 +169,17 @@ async function recorded(): Promise<void> {
     version: 3,
     instrumentation: 'fixture-instrumentation',
     tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
-    modules: [covered('src/order.ts', order), covered('src/refund.ts', refund)],
+    modules: [covered('src/order.ts', order), covered('src/refund.ts', refund), covered('src/ship.ts', ship)],
   });
   const tests = [
     { id: 'o', file: files[0] ?? '', name: 'pays for an order' },
     { id: 'r', file: files[1] ?? '', name: 'refunds' },
+    { id: 's', file: files[2] ?? '', name: 'ships' },
   ];
   const shard = join(mkdtempSync(join(tmpdir(), 'va-grep-ran-shard-')), 'run.bin');
   writeFileSync(shard, withCaseSections(readFileSync(at), { index: encodeExecutionIndex({
     tests,
-    modules: [{ file: 'src/order.ts', blocks: order }, { file: 'src/refund.ts', blocks: refund }],
+    modules: [{ file: 'src/order.ts', blocks: order }, { file: 'src/refund.ts', blocks: refund }, { file: 'src/ship.ts', blocks: ship }],
   }) }));
   const { sections } = landCases(at, {}, root, [{ path: shard, coverage: { tests: files.map((file) => ({ file, complete: true })) } }]);
   writeFileSync(at, withCaseSections(readFileSync(at), sections));

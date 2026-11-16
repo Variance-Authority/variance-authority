@@ -191,6 +191,8 @@ pub struct RanRegion {
     pub kind: String,
     pub line: u32,
     pub end: u32,
+    /// Whether it holds source text, not code the transform wrote.
+    pub source: bool,
     /// The name of the function it is written in, when one is recorded.
     pub function: Option<String>,
     /// Whether the test entered it.
@@ -248,7 +250,14 @@ pub(crate) fn ran(masks: &mut JourneyMasks, file: &str, name: Option<&str>) -> R
                 continue;
             }
             let held = block(masks, bit)?;
-            regions.push(RanRegion { kind: held.kind, line: held.line, end: held.end, function: held.function, entered: entered.contains(&bit) });
+            regions.push(RanRegion {
+                kind: held.kind,
+                line: held.line,
+                end: held.end,
+                source: masks.bits[bit as usize].source,
+                function: held.function,
+                entered: entered.contains(&bit),
+            });
         }
         modules.push(RanModule { file: masks.journey.module_file(module as usize)?.to_owned(), regions });
     }
