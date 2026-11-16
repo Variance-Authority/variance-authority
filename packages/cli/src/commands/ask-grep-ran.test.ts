@@ -50,6 +50,27 @@ describe('variance ask grep --test', () => {
     ]);
   });
 
+  it('marks a line ran when one of the arms sharing it was entered', async () => {
+    await recorded();
+
+    const answered = await run(['ask', 'grep', '--query', 'give up', '--test', 'test/refund.test.ts', '--name', 'refunds']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n').slice(0, 11)).toEqual([
+      'test/refund.test.ts  refunds entered 2 recorded files; files no recording instruments were not searched.',
+      '',
+      '3 matching lines in 2 files.',
+      '',
+      'Ran:',
+      "src/order.ts:6:    throw new Error('give up now');",
+      "src/refund.ts:1:export const refund = (paid: boolean): string => (paid ? 'give up refund' : 'keep');",
+      '',
+      'Not taken:',
+      "src/order.ts:3:    log('give up later');",
+      '  in branch src/order.ts:2-4 of pay, which it did not enter',
+    ]);
+  });
+
   it('refuses a test the recording does not hold, with what it holds', async () => {
     await recorded();
 
@@ -71,8 +92,8 @@ describe('variance ask grep --test', () => {
 
 /**
  * Two tests. `pays for an order` enters `pay` and its first branch; `refunds`
- * enters `pay`'s second branch and `src/refund.ts`, which spells the query too
- * and which the first test never entered.
+ * enters `pay`'s second branch and `src/refund.ts`, which spells the query too,
+ * on a line two arms share, and which the first test never entered.
  */
 async function recorded(): Promise<void> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-grep-ran-')));
@@ -93,14 +114,15 @@ async function recorded(): Promise<void> {
       '',
     ].join('\n'),
   );
-  writeFileSync(join(root, 'src/refund.ts'), "export const refund = (): string => 'give up refund';\n");
+  writeFileSync(join(root, 'src/refund.ts'), "export const refund = (paid: boolean): string => (paid ? 'give up refund' : 'keep');\n");
   const at = testCoverageFile(root);
   const files = ['test/order.test.ts', 'test/refund.test.ts'];
   const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({
     kind, name, path: 'entry', startLine, endLine, source: true, crossings: entered.map((test) => ({ test, distance: 0 })),
   });
   const order = [region('function', 'pay', 1, 8, [0, 1]), region('branch', '', 2, 4, [0]), region('branch', '', 5, 7, [1])];
-  const refund = [region('function', 'refund', 1, 1, [1])];
+  // Both arms of the ternary share line 1; `refunds` entered the first.
+  const refund = [region('function', 'refund', 1, 1, [1]), region('branch', '', 1, 1, [1]), region('branch', '', 1, 1, [])];
   const covered = (file: string, blocks: readonly ReturnType<typeof region>[]) => ({
     file,
     sourceDigest: `digest:${file}`,

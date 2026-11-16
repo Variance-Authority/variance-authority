@@ -60,12 +60,17 @@ export function grepRan(root: string, query: string, file: string, name: string 
   return { answered, refused };
 }
 
-/** The outermost region holding `line` the test did not enter, when the innermost one holding it is such a region. */
+/**
+ * The outermost region holding `line` the test did not enter, when no innermost
+ * region holding it was entered. Regions are read by line, so the arms of
+ * `a ? b : c` are all innermost on their line, and one entered arm ran it.
+ */
 function passedBy(module: RanModule, line: number): RanRegion | undefined {
   const holding = module.regions.filter((region) => region.line <= line && line <= region.end);
+  if (holding.length === 0) return undefined;
   const span = (region: RanRegion): number => region.end - region.line;
-  const innermost = holding.reduce<RanRegion | undefined>((best, region) => (best === undefined || span(region) <= span(best) ? region : best), undefined);
-  if (innermost === undefined || innermost.entered) return undefined;
+  const narrowest = Math.min(...holding.map(span));
+  if (holding.some((region) => span(region) === narrowest && region.entered)) return undefined;
   return holding.filter((region) => !region.entered).reduce((best, region) => (span(region) > span(best) ? region : best));
 }
 
