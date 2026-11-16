@@ -30,10 +30,12 @@ export async function explainedOutput(
   request: SuiteRequest,
   select: (request: SuiteRequest) => Promise<SuiteReading>,
 ): Promise<{ readonly out: string; readonly err: string }> {
-  // A journey file has no graph to measure hops on, and a leg beside it is refused.
-  const measured = request.atDistance === undefined && request.execution === undefined ? { ...request, atDistance: OPEN } : request;
+  // Every hop is selected, and reconciled as a leg's would be under `--ran-at`;
+  // the leg asked is marked on the blocks. A journey file has no graph to
+  // measure hops on, and a leg beside it is refused.
+  const measured = request.execution === undefined ? { ...request, atDistance: OPEN } : request;
   const { reading, whole } = await select(measured);
-  return { out: explainOf(reading, whole, await timesOf(request), commandOf(request)), err: selectionNotes(reading) };
+  return { out: explainOf(reading, whole, await timesOf(request), commandOf(request), request.atDistance), err: selectionNotes(reading) };
 }
 
 /** The tests one command runs: one hop count's, or those no hop placed. */
@@ -44,8 +46,17 @@ interface Block {
   readonly tests: readonly string[];
 }
 
-/** The explanation of `selection` over the record's `whole`, priced by `times`; `command` runs it. */
-export function explainOf(selection: TestSelection, whole: ReadonlySet<string>, times: SuiteTimes, command: string): string {
+/**
+ * The explanation of `selection`, every hop's, over the record's `whole`,
+ * priced by `times`; `command` runs it, and the blocks outside `leg` are marked left.
+ */
+export function explainOf(
+  selection: TestSelection,
+  whole: ReadonlySet<string>,
+  times: SuiteTimes,
+  command: string,
+  leg?: { readonly from: number; readonly to: number },
+): string {
   const recorded = 'unread' in times ? new Map<string, number>() : times.times;
   const unread = unreadOf(selection);
   if (selection.widened !== undefined) {
@@ -57,31 +68,31 @@ export function explainOf(selection: TestSelection, whole: ReadonlySet<string>, 
 
   const skip = new Set(selection.skip);
   const runs = (test: string) => !skip.has(test) && (selection.only === undefined || selection.only.includes(test));
-  // What the leg asked leaves is laid out too, marked, so its cost and command show.
-  const leaves = new Set(selection.left ?? []);
-  const lays = (test: string) => runs(test) || leaves.has(test);
-  const blocks = blocksOf(selection, whole, recorded, lays);
-  const selected = blocks.flatMap((block) => block.tests).filter(runs);
+  const blocks = blocksOf(selection, whole, recorded, runs);
+  // The blocks the leg asked leaves are laid out too, marked, so their cost and command show.
+  const asked = (block: Block) => leg === undefined || block.range === undefined || (block.range.endsWith('-')
+    ? leg.to === Number.MAX_SAFE_INTEGER
+    : leg.from <= Number(block.range) && Number(block.range) <= leg.to);
+  // A leg past 0 hops also runs the nearer tests the run landed at HEAD left unrun, as `inLeg` takes them.
+  const unrun = new Set(selection.unrunAtHead ?? []);
+  const overdue = (from: number) => (from === 0 || selection.distances === undefined
+    ? []
+    : atDistance(selection.distances, 0, from - 1).filter((test) => unrun.has(test) && runs(test)));
+  const selected = [...new Set([...blocks.filter(asked).flatMap((block) => block.tests), ...overdue(leg?.from ?? 0)])];
   const of = selection.recorded === undefined ? '' : ` of ${selection.recorded.whole} recorded`;
   const fell = selection.fell === undefined ? '' : `\n${selection.because}.`;
   const head = `the change selects ${selected.length}${of} test file${selected.length === 1 ? '' : 's'}, ${priced(recorded, selected)}.${fell}`;
 
   const byTest = new Map((selection.distances ?? []).map((distance) => [distance.test, distance] as const));
-  const unrun = new Set(selection.unrunAtHead ?? []);
   const said = blocks.map((block) => {
     const runsIt = block.range === undefined ? command : `${command} --at-distance ${block.range}`;
     const why = (test: string) => (selection.fell === undefined ? pathOf(byTest.get(test)) : `the ${selection.fell.rung} rung \`--local\` fell to`);
     const lines = block.tests.map((test) => `  ${test}, ${priceOf(recorded, test)}: ${why(test)}`);
-    // The block's command is a leg, and a leg past 0 hops also runs the nearer
-    // tests the run landed at HEAD left unrun, as `inLeg` takes them.
-    const from = block.range === undefined ? 0 : Number.parseInt(block.range, 10);
-    const overdue = from === 0 || selection.distances === undefined
-      ? []
-      : atDistance(selection.distances, 0, from - 1).filter((test) => unrun.has(test) && lays(test));
-    const runsAll = [...block.tests, ...overdue];
-    const late = overdue.map((test) => `  ${test}, ${priceOf(recorded, test)}: nearer, and the run that landed at HEAD left it unrun`);
-    const label = block.tests.every((test) => leaves.has(test)) ? `${block.label}, left by the leg asked` : block.label;
-    return [`${label}: ${many(runsAll.length, 'test file')}, ${priced(recorded, runsAll)} — ${runsIt}`, ...lines, ...late].join('\n');
+    const late = overdue(block.range === undefined ? 0 : Number.parseInt(block.range, 10));
+    const runsAll = [...block.tests, ...late];
+    const lateLines = late.map((test) => `  ${test}, ${priceOf(recorded, test)}: nearer, and the run that landed at HEAD left it unrun`);
+    const label = asked(block) ? block.label : `${block.label}, left by the leg asked`;
+    return [`${label}: ${many(runsAll.length, 'test file')}, ${priced(recorded, runsAll)} — ${runsIt}`, ...lines, ...lateLines].join('\n');
   });
   const unseen = blocks.length === 0
     ? []
@@ -96,8 +107,7 @@ export function explainOf(selection: TestSelection, whole: ReadonlySet<string>, 
  * placed runs in the open leg alone, so its block starts past the furthest
  * hop. With no hops measured, or under the rung `--local` fell to, the
  * selection is one block of every recorded test it does not skip, run as it is.
- * `lays` says which tests a block holds: those the selection runs, and those
- * the leg asked left.
+ * `lays` says which tests a block holds: those the selection runs.
  */
 function blocksOf(
   selection: TestSelection,

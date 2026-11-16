@@ -7,9 +7,10 @@ import { digestString } from '@variance-authority/core/format';
 import { testCoverageFile, writeTestCoverage, type TestCoverage } from '@variance-authority/sense/test-selection';
 import { parseArgs } from '../parse.js';
 import { indexOutput } from './index-command.js';
-import { selectOutput } from './select-command.js';
-import { explainOf } from './select-explain.js';
+import { selectOutput, selectSuite } from './select-command.js';
+import { explainedOutput, explainOf } from './select-explain.js';
 import { parseAtDistance } from './select-leg.js';
+import type { SuiteRequest } from './select-suite.js';
 
 // A workstation's selection brings the index up to the checkout; CI's does not.
 vi.mock('ci-info', () => ({ isCI: false }));
@@ -56,6 +57,20 @@ describe('select --format explain', () => {
       const { skip } = JSON.parse((await selectOutput({ cwd: root, format: 'json', ...(atDistance === undefined ? {} : { atDistance }) })).out);
       expect(WHOLE.filter((test) => !skip.includes(test))).toEqual(block.tests);
     }
+  });
+
+  it('under a closed leg, lays out no left block a selection of every hop skips, as `--ran-at` skips a test one side of a merge reaches', async () => {
+    const root = await changed();
+    // The merge's reconciliation skips what the leg selects: MID, when a leg selects it.
+    const select = async (request: SuiteRequest) => {
+      const read = await selectSuite(request);
+      return { ...read, reading: { ...read.reading, skip: [...new Set([...read.reading.skip, MID])].sort() } };
+    };
+
+    const { out } = await explainedOutput({ root, atDistance: { from: 0, to: 1 } }, select);
+
+    expect(out).toContain('the change selects 2 of 4 recorded test files, 3.0 s recorded.');
+    expect(out).not.toContain(MID);
   });
 
   it('under a closed leg, lays out what the leg left as its own marked blocks, every block closed on a range that runs exactly it', async () => {
