@@ -488,14 +488,10 @@ for (const file of writePages('.', 'docs/api', {
 `readWorkspace` is the reading the answers are computed from, for a program that
 runs more than one of them or runs them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
-and who imports it. Nine options, all optional: `index`, the path of the source
+and who imports it. Seven options, all optional: `index`, the path of the source
 index the scan keeps its parses in, when you would rather it shared one you
 already have than kept its own under the checkout; `packs`, whether the scan
-reads file bytes from Git's object store, on unless you say otherwise; `save`,
-whether to publish what this reading learned for the next one, on unless you say
-otherwise; `saveIndex`, whether that publication also writes the scan's records
-back to the source index, on unless you say otherwise, and off for a caller that
-has just published that index itself; `changed`, the authoritative scan-root-relative file list an editor,
+reads file bytes from Git's object store, on unless you say otherwise; `changed`, the authoritative scan-root-relative file list an editor,
 watcher or orchestrator already has, which skips Git status discovery, and is not used when no generation is there to refresh; `taints`,
 addition-only Sense taints for declarative module loads the language's imports
 do not express; and `records`, a function handed the import
@@ -507,9 +503,10 @@ the function to call when that step ends, for a caller that shows a slow
 reading as it happens.
 A workspace whose `workspaces` list names members outside its own directory is
 read over its directory and each listed member, named from the top of the Git
-checkout, and keeps that scope's records in a second index next to `index`. That
-one is always saved, whatever `saveIndex` says, because no other caller
-publishes it.
+checkout, and keeps that scope's records in a second index next to `index`.
+Every reading saves the index it scanned and publishes from it, so a second
+reading starts where the first stopped; an index that cannot be saved is thrown
+as an `UnsavedRead`, and nothing is published.
 Taints change which files a path question reaches and never manufacture symbol
 bindings or usage counts. A subtractive taint is refused: a mock is relative to
 one file's run and cannot be flattened into a workspace-wide source tree.
@@ -518,7 +515,7 @@ one file's run and cannot be flattened into a workspace-wide source tree.
 import { readWorkspace } from '@variance-authority/help';
 import { search, searchIndexOf, searchNames, symbol } from '@variance-authority/help/tools';
 
-const workspace = await readWorkspace('.', { save: false });
+const workspace = await readWorkspace('.');
 
 console.log(search.run(workspace, { query: 'viewport' }));
 console.log(symbol.run(workspace, { name: 'Viewport' }));
@@ -534,14 +531,11 @@ did not resolve returns `refused` with no sections. `variance-authority-help
 search viewport --format json` and `variance ask search --format json` print
 it.
 
-`refreshWorkspace` takes a previous reading and refreshes its volatile half:
-symbol usage, exported names, unreadable files and the source graph all come
-from a new Sense scan. Signatures, comments and README mentions are retained
-until what they were cut from changes. A manifest change, an added or removed
-exported name, an `export … from` that changed, or a published declaration that
-moved or was rewritten rebuilds that retained documentation immediately, so a
-reading never gives a published name's old line or text. A row nothing publishes
-moves without a rebuild.
+`refreshWorkspace` takes a previous reading and reads the workspace again from
+its index: the scan updates the index with the files that changed, and the whole
+value — symbol usage, exported names, signatures, comments, README mentions,
+unreadable files and the source graph — is published from it again, so a
+reading never gives a published name's old line or text.
 
 `readWorkspaceForAnswer` reads the published generation while it is less than
 one hour old and refreshes it after that. `justAnswer` disables that expiry;

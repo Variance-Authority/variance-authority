@@ -7,6 +7,12 @@
 export interface TextSpan {
   readonly start: number;
   readonly end: number;
+  /**
+   * What it spans, as written: inside a doc's marks, and up to where a
+   * declaration's body opens, nothing trimmed. A half of a surrogate pair the
+   * span cuts reads as U+FFFD. Absent when the reader kept none.
+   */
+  readonly text?: string;
 }
 
 export type SourceSymbolKind =

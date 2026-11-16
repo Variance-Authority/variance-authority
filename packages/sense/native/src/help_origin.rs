@@ -21,15 +21,14 @@
 use napi_derive::napi;
 
 use crate::compact::Layer;
-use crate::help_declared::span;
 use crate::chain_lookup::record;
 use crate::package_graph::{join_parses, passed_on, Crossing};
 use crate::package_owners::NO_OWNER;
 use crate::resolve_export::{resolve_export, Bound, Exports, Modules, Passes, Reached};
 
 /// The declaration an export binds: the file that declares it, the name it
-/// has there, its line and kind, and the spans of its signature and doc
-/// comment in the file's UTF-16 offsets, when the parser kept them.
+/// has there, its line and kind, and its head and doc comment, as
+/// [`crate::text_cut`] cuts them, when the parser kept them.
 #[napi(object)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ExportedDeclaration {
@@ -38,10 +37,8 @@ pub struct ExportedDeclaration {
     pub line: u32,
     /// As the parser harvested it: `function`, `const`, …
     pub kind: String,
-    pub signature_start: Option<u32>,
-    pub signature_end: Option<u32>,
-    pub doc_start: Option<u32>,
-    pub doc_end: Option<u32>,
+    pub signature: Option<String>,
+    pub doc: Option<String>,
 }
 
 /// The declaration the export `name` of `file` binds: the file's own, under
@@ -56,6 +53,22 @@ pub(crate) fn declaration_exported(layers: &[Layer], file: &str, name: &str) -> 
     let index = Index { layers };
     let (file, _) = record(layers, file)?;
     resolve_export(&index, &file, name).declaration()
+}
+
+/// The text of the line an export of `file` is written on, `line`, as the
+/// read the index recorded saw it; `None` when the file's newest parse holds no
+/// export on that line, or kept no text of it.
+pub(crate) fn export_line(layers: &[Layer], file: &str, line: u32) -> Option<String> {
+    let (file, at) = record(layers, file)?;
+    let mut crossings = [Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }];
+    join_parses(layers, &mut crossings);
+    let (layer, row) = crossings[0].parse?;
+    let (stored, parses) = (&layers[layer].stored, &layers[layer].parses);
+    if parses.exports_present[row] != 1 {
+        return None;
+    }
+    let export = parses.exports.range(row).find(|&export| parses.export_line.at(export) == line)?;
+    stored.kept(parses.export_line_text.at(export)).map(str::to_owned)
 }
 
 /// Whether `file`'s bare `export * from` of `star` passes `name` on: the
@@ -110,19 +123,41 @@ impl<'l> Modules for Index<'l> {
     }
 }
 
-/// One file's newest record joined to its parse.
-struct Parsed<'a> {
+/// One file's newest record joined to its parse: the reading this walk and
+/// the published names (`help_names.rs`) both stand on.
+pub(crate) struct Parsed<'a> {
     layer: &'a Layer<'a>,
     row: usize,
     /// The file each request resolved to, in the parse's request order.
     resolved: Vec<Option<&'a str>>,
 }
 
+/// One export of a parse, as the scan's `Export` holds it, with the text the
+/// parse kept of the export's own head and doc.
+pub(crate) struct ExportRow<'a> {
+    pub exported: Option<&'a str>,
+    pub local: Option<&'a str>,
+    pub imported: Option<&'a str>,
+    pub from: Option<&'a str>,
+    pub line: u32,
+    pub signature: Option<&'a str>,
+    pub doc: Option<&'a str>,
+}
+
+/// One request of a parse: what it asks for, how, the file it resolved to,
+/// and each binding it writes as `(imported, local)`.
+pub(crate) struct RequestRow<'a> {
+    pub value: &'a str,
+    pub kind: &'a str,
+    pub target: Option<&'a str>,
+    pub bindings: Vec<(&'a str, &'a str)>,
+}
+
 impl<'a> Parsed<'a> {
     /// `None` when the file has no record or no parse, or when its record's
     /// targets do not line up with the parse's requests, which then answer
     /// none of them.
-    fn of(layers: &'a [Layer<'a>], file: &str) -> Option<Self> {
+    pub(crate) fn of(layers: &'a [Layer<'a>], file: &str) -> Option<Self> {
         let (file, at) = record(layers, file)?;
         let mut crossings = [Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }];
         join_parses(layers, &mut crossings);
@@ -144,7 +179,7 @@ impl<'a> Parsed<'a> {
     /// first.
     // FIXME: `export { Rate }` binds both `interface Rate` and `const Rate`,
     // and answers the first alone; spec 0104 answers each declaration apart.
-    fn declares(&self, name: &str, line: Option<u32>) -> Option<usize> {
+    pub(crate) fn declares(&self, name: &str, line: Option<u32>) -> Option<usize> {
         let (text, parses) = (&self.layer.stored, &self.layer.parses);
         let mut named = parses.symbols.range(self.row).filter(|&symbol| text.text(parses.symbol_name.at(symbol)) == name);
         let first = named.next()?;
@@ -152,20 +187,48 @@ impl<'a> Parsed<'a> {
     }
 
     /// The declaration `symbol` of `file`, as [`ExportedDeclaration`] holds it.
-    fn declaration(&self, file: &str, symbol: usize) -> ExportedDeclaration {
+    pub(crate) fn declaration(&self, file: &str, symbol: usize) -> ExportedDeclaration {
         let (text, parses) = (&self.layer.stored, &self.layer.parses);
-        let (signature_start, signature_end) = span(parses.symbol_signature[0], parses.symbol_signature[1], symbol);
-        let (doc_start, doc_end) = span(parses.symbol_doc[0], parses.symbol_doc[1], symbol);
         ExportedDeclaration {
             at: file.to_owned(),
             name: text.text(parses.symbol_name.at(symbol)).to_owned(),
             line: parses.symbol_line.at(symbol),
             kind: text.text(parses.symbol_kind.at(symbol)).to_owned(),
-            signature_start,
-            signature_end,
-            doc_start,
-            doc_end,
+            signature: parses.signature_of_symbol(text, symbol).and_then(crate::text_cut::head),
+            doc: parses.doc_of_symbol(text, symbol).and_then(crate::text_cut::doc),
         }
+    }
+
+    /// Every export of the file, in the order the parse wrote them; none when
+    /// its parse never recorded its export list.
+    pub(crate) fn exports(&self) -> impl Iterator<Item = ExportRow<'a>> + '_ {
+        let (text, parses) = (&self.layer.stored, &self.layer.parses);
+        let rows = if parses.exports_present[self.row] == 1 { parses.exports.range(self.row) } else { 0..0 };
+        rows.map(move |export| ExportRow {
+            exported: text.optional(parses.export_exported.at(export)),
+            local: text.optional(parses.export_local.at(export)),
+            imported: text.optional(parses.export_imported.at(export)),
+            from: text.optional(parses.export_from.at(export)),
+            line: parses.export_line.at(export),
+            signature: parses.signature_of_export(text, export),
+            doc: parses.doc_of_export(text, export),
+        })
+    }
+
+    /// Every request of the file, in the order the parse wrote them.
+    pub(crate) fn requests(&self) -> impl Iterator<Item = RequestRow<'a>> + '_ {
+        let (text, parses) = (&self.layer.stored, &self.layer.parses);
+        let first = parses.requests.at(self.row) as usize;
+        parses.requests.range(self.row).map(move |request| RequestRow {
+            value: text.text(parses.request_value.at(request)),
+            kind: text.text(parses.request_kind.at(request)),
+            target: self.resolved[request - first],
+            bindings: parses
+                .request_bindings
+                .range(request)
+                .map(|binding| (text.text(parses.binding_imported.at(binding)), text.text(parses.binding_local.at(binding))))
+                .collect(),
+        })
     }
 
     /// How the file's own export list binds `name`, as [`Bound`] says; `None`

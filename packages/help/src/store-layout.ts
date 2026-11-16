@@ -35,15 +35,16 @@ export interface StoreHead {
   readonly readStartedAt: string;
   /** The export list as a set, as `encodeHelpStore` states it. */
   readonly exportedDigest: string;
-  /** Every `export … from` as a set, as `forwardsDigest` states it; a value without it is read again. */
-  readonly forwardsDigest?: string;
   /** The index manifest the value was refreshed from; absent when it was read another way. */
   readonly indexDigest?: string;
   /** The package manifests the value was joined against, as `packagesDigest` states them. */
   readonly packagesDigest?: string;
 }
 
-/** The fields `head` holds, in its order. */
+/**
+ * The fields `head` holds, in its order. `forwardsDigest` is a slot no store
+ * writes any more, kept so a store of this version still opens.
+ */
 const HEAD_FIELDS = [
   'root', 'graphRoot', 'graphDigest', 'generatedAt', 'readStartedAt', 'exportedDigest', 'forwardsDigest', 'indexDigest', 'packagesDigest',
 ] as const;
@@ -63,14 +64,13 @@ function fieldsOf(segment: OpenSegment): HeadFields {
 }
 
 export function generationOf(fields: HeadFields): StoreHead | undefined {
-  const { root, graphRoot, graphDigest, generatedAt, readStartedAt, exportedDigest, forwardsDigest, indexDigest, packagesDigest } = fields;
+  const { root, graphRoot, graphDigest, generatedAt, readStartedAt, exportedDigest, indexDigest, packagesDigest } = fields;
   if (
     root === undefined || graphRoot === undefined || graphDigest === undefined
     || generatedAt === undefined || readStartedAt === undefined || exportedDigest === undefined
   ) return undefined;
   return {
     root, graphRoot, graphDigest, generatedAt, readStartedAt, exportedDigest,
-    ...(forwardsDigest === undefined ? {} : { forwardsDigest }),
     ...(indexDigest === undefined ? {} : { indexDigest }),
     ...(packagesDigest === undefined ? {} : { packagesDigest }),
   };

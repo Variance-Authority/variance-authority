@@ -43,8 +43,8 @@ the first argument is positional.
   row `uses` lists, or a server's `docs_search` whose printed files or the entry and barrels publishing them, changed
   after that generation is asked again of one made now, so it does not answer from old lines. One that could not be
   read again or saved, or whose file was saved during the read that answers it, says the checkout
-  was not compared, and why, gives a file written since by its recorded names and
-  none of its text. `--just-answer` uses the
+  was not compared, and why, and gives a file written since as the generation read it:
+  its names and the text of them it kept. `--just-answer` uses the
   last generation without inspecting the checkout and refuses when none exists;
   its answers and refusals say the checkout was not compared, and JSON carries
   `compared: false`. When no changed files are named, `search` reads a

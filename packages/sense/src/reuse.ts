@@ -55,7 +55,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { digestBytes } from './digest.js';
-import type { Digest } from '@variance-authority/core/format';
+import { digestString, type Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { NativeIndexGraph } from './native-index-graph.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
@@ -182,6 +182,17 @@ export async function shapeOf(input: {
 }): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases | undefined }> {
   const { config, aliases } = await configOf(input);
   return { shape: { config, directories: input.tree.directories() }, aliases };
+}
+
+/**
+ * The shape a scan of a directory git cannot list keeps its records under.
+ * Nothing names a file's bytes before it is read there, so no record is reused
+ * and the shape need only differ from every listed one: a scan git lists
+ * clears the records kept under it, as it would another configuration's.
+ */
+export async function unlistedShapeOf(input: { readonly root: string; readonly options?: ShapeOptions }): Promise<TreeShape> {
+  const { config } = await configOf({ ...input, tree: treeOf(new Map()) });
+  return { config: digestString(`not listed by git\n${config}`), directories: new Map() };
 }
 
 /**

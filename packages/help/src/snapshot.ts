@@ -1,10 +1,9 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, openSync, readSync, realpathSync } from 'node:fs';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import {
   decodeSourceTree,
-  encodeSourceTree,
   treeAtWorkspace,
   treeOf,
   type FileRecord,
@@ -12,14 +11,9 @@ import {
 } from '@variance-authority/mcp/tools';
 import { SegmentCutShort } from '@variance-authority/core/segment';
 import type { Help } from '@variance-authority/package/help';
-import {
-  encodeHelpStore,
-  readSourceRecords,
-  restampHelpStore,
-  sourceIndexPath,
-} from '@variance-authority/sense';
+import { readSourceRecords, restampHelpStore, sourceIndexPath } from '@variance-authority/sense';
 import { openHelpStore, openSearchIndex, type SearchIndex } from './search-index.js';
-import { encodeStore, storeOf } from './store-encode.js';
+import { encodeStore } from './store-encode.js';
 import { storeHeadOf, type StoreHead } from './store-layout.js';
 
 export interface SnapshotOptions {
@@ -82,7 +76,7 @@ export async function readWorkspaceSnapshot(
   }
   if (options.tree !== undefined) {
     const tree = await readFile(workspaceTreePath(index, held.graphDigest));
-    if (digest(tree) !== held.graphDigest) {
+    if (hexDigestOf(tree) !== held.graphDigest) {
       throw new Error(`the workspace source tree beside ${at} does not belong to that generation`);
     }
     options.tree(publishedTree(tree, held.graphRoot, held.root));
@@ -156,16 +150,6 @@ export async function readAgain(held: Help | undefined, root: string, options: {
   return published !== undefined && Date.parse(published) > Date.parse(at);
 }
 
-/** The digest of the value's export list: the one published in its head, or computed. */
-export function workspaceExportedDigest(help: Help): string {
-  return snapshots.get(help)?.exportedDigest ?? encodeStore(help).exported;
-}
-
-/** The digest of the value's `export … from` rows, absent when it was not kept beside it. */
-export function workspaceForwardsDigest(help: Help): string | undefined {
-  return snapshots.get(help)?.forwardsDigest;
-}
-
 /** The index manifest the value was refreshed from, absent when it was read another way. */
 export function workspaceIndexDigest(help: Help): string | undefined {
   return snapshots.get(help)?.indexDigest;
@@ -181,7 +165,7 @@ export async function workspaceTreeOpens(help: Help, index: string): Promise<boo
   if (held === undefined) return false;
   try {
     const tree = await readFile(workspaceTreePath(index, held.graphDigest));
-    if (digest(tree) !== held.graphDigest) return false;
+    if (hexDigestOf(tree) !== held.graphDigest) return false;
     decodeSourceTree(tree, held.graphRoot, held.root);
     return true;
   } catch {
@@ -201,7 +185,7 @@ export function workspacePackagesDigest(help: Help): string | undefined {
  */
 export async function indexManifestDigest(index: string): Promise<string | undefined> {
   const bytes = await readFile(index).catch(() => undefined);
-  return bytes === undefined ? undefined : digest(bytes);
+  return bytes === undefined ? undefined : hexDigestOf(bytes);
 }
 
 /**
@@ -230,45 +214,32 @@ export function publishedTree(graph: readonly FileRecord[] | Uint8Array, graphRo
   return graph instanceof Uint8Array ? decodeSourceTree(graph, graphRoot, root) : treeAtWorkspace(treeOf(graph, graphRoot), root);
 }
 
-/** Publish one complete answerable value without making publication its success. */
-export async function tryPublishWorkspaceSnapshot(
-  root: string,
-  graphRoot: string,
-  help: Help,
-  records: readonly FileRecord[] | Uint8Array,
-  readStartedAt: string,
-  forwards: string,
-  packages: string,
-  index?: string,
-): Promise<void> {
+/**
+ * The value the store `store` holds, published at `index` with the tree
+ * `tree` beside it under `graphDigest`: opened first, so it answers whether or
+ * not it could be written, then the tree, which a store on disk names, then the
+ * store. A tree of that digest and length already there is kept, since its
+ * name is its content.
+ */
+export async function publishStore(index: string, store: Uint8Array, tree: Uint8Array, graphDigest: string): Promise<Help> {
+  const opened = openHelpStore(store);
+  const { help, generation: held } = opened;
+  if (held !== undefined) {
+    snapshots.set(help, held);
+    generated.set(help, held.generatedAt);
+  }
+  stores.set(help, store);
+  searches.set(help, opened.search);
   try {
-    const own = index ?? sourceIndexPath(root);
-    const generatedAt = new Date().toISOString();
-    const tree = records instanceof Uint8Array ? records : encodeSourceTree(records);
-    const graphDigest = digest(tree);
-    const { bytes } = encodeHelpStore(storeOf(help), help.exported, {
-      root: realpathSync(root),
-      graphRoot: realpathSync(graphRoot),
-      graphDigest,
-      generatedAt,
-      readStartedAt,
-      forwardsDigest: forwards,
-      packagesDigest: packages,
-    });
-    // Before anything is written: a value that could not be saved was read all the
-    // same, and what it answers is dated, and its text gated, by these times.
-    const held = storeHeadOf(bytes);
-    if (held !== undefined) snapshots.set(help, held);
-    generated.set(help, generatedAt);
-    stores.set(help, bytes);
-    searches.set(help, openSearchIndex(bytes));
-    const at = workspaceSnapshotPath(own);
+    const at = workspaceSnapshotPath(index);
     await mkdir(dirname(at), { recursive: true });
-    await writeReplacing(workspaceTreePath(own, graphDigest), tree);
-    await writeReplacing(at, bytes);
+    const graph = workspaceTreePath(index, graphDigest);
+    if ((await stat(graph).catch(() => undefined))?.size !== tree.length) await writeReplacing(graph, tree);
+    await writeReplacing(at, store);
   } catch {
     // This value is complete. An unwritable cache costs reuse, not this answer.
   }
+  return help;
 }
 
 /**
@@ -289,15 +260,16 @@ async function writeReplacing(at: string, bytes: Uint8Array): Promise<void> {
   await rename(temporary, at);
 }
 
-/** Where the graph of one generation is written: this prefix, its digest, `.bin`. */
-export function workspaceTreePrefix(index: string): string {
-  return `${index}.help-tree.`;
-}
-
+/** Where the graph of one generation is written: beside `index`, under its digest. */
 function workspaceTreePath(index: string, graphDigest: string): string {
-  return `${workspaceTreePrefix(index)}${graphDigest}.bin`;
+  return `${index}.help-tree.${graphDigest}.bin`;
 }
 
-function digest(bytes: Uint8Array): string {
+/**
+ * The digest a generation names its tree and its index by: SHA-256 in hex, as
+ * the addon names a tree it draws, which no prefixed digest of
+ * `@variance-authority/core/format` spells.
+ */
+export function hexDigestOf(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
 }

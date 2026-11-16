@@ -1,9 +1,10 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import * as help from '@variance-authority/package/help';
+import * as sense from '@variance-authority/sense';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as read from './read.js';
@@ -13,12 +14,12 @@ import { publishWorkspaceFromIndex } from './refresh-native.js';
 /**
  * The questions `variance index` publishes, with the manifests read once.
  *
- * Publishing refreshes the value published last from the index, and reads the
- * workspace when it cannot: on the first run, or when the member list or the
- * exported names moved. Each half read every manifest for itself, twice over:
- * once for what each package publishes and once for where an import between
- * packages lands. On a product that lists two thousand members a read of them
- * is seconds.
+ * Publishing reads the value off the index `variance index` just saved, on
+ * the first run as on every other, and keeps the value published last when
+ * the index did not move. Each read once read every manifest for itself, twice
+ * over: once for what each package publishes and once for where an import
+ * between packages lands. On a product that lists two thousand members a read
+ * of them is seconds.
  */
 
 vi.mock('@variance-authority/package/help', async (original) => {
@@ -31,9 +32,9 @@ vi.mock('@variance-authority/package/help', async (original) => {
   };
 });
 
-vi.mock('./read.js', async (original) => {
-  const actual = await original<typeof import('./read.js')>();
-  return { ...actual, readWorkspaceOver: vi.fn(actual.readWorkspaceOver) };
+vi.mock('@variance-authority/sense', async (original) => {
+  const actual = await original<typeof import('@variance-authority/sense')>();
+  return { ...actual, scanRelations: vi.fn(actual.scanRelations) };
 });
 
 /** Every read of the manifests since `beforeEach`, by the function that made it. */
@@ -51,7 +52,7 @@ function forget(): void {
   vi.mocked(help.readImportTargets).mockClear();
   vi.mocked(help.readOfferings).mockClear();
   vi.mocked(help.readWorkspaceManifests).mockClear();
-  vi.mocked(read.readWorkspaceOver).mockClear();
+  vi.mocked(sense.scanRelations).mockClear();
 }
 
 /** When `variance index` began reading, which the publish that follows it cannot know for itself. */
@@ -96,18 +97,23 @@ function publishedReadStart(): unknown {
 }
 
 describe('publishing the questions from the index', () => {
-  it('reads the manifests once when nothing was published before', async () => {
+  it('publishes from the index without scanning the checkout when nothing was published before', async () => {
     const generation = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
     expect(generation).toEqual(expect.any(String));
     expect(await publishedGeneration(root, index)).toBe(generation);
     expect(manifestReads()).toEqual(ONCE);
-    expect(read.readWorkspaceOver).toHaveBeenCalledTimes(1);
+    expect(sense.scanRelations).not.toHaveBeenCalled();
   });
 
-  it('reads the manifests once when the refresh declines because the members moved', async () => {
+  it.each([
+    ['the members moved', () => write('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/a'] }))],
+    ['the exported names moved', () => write('packages/a/src/index.ts', 'export const see = 1;\nexport const more = 2;\n')],
+    ['a file nothing publishes moved', () => write('packages/b/src/index.ts', "import { see } from 'a';\nexport const b = see + 1;\n")],
+    ['nothing moved', () => undefined],
+  ])('reads the manifests once when it publishes after %s', async (_moved, edit) => {
     await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
-    write('package.json', JSON.stringify({ name: 'root', private: true, workspaces: ['packages/a'] }));
+    edit();
     await updateSourceIndex(root, { index });
     forget();
 
@@ -115,45 +121,50 @@ describe('publishing the questions from the index', () => {
 
     expect(await publishedGeneration(root, index)).toBe(generation);
     expect(manifestReads()).toEqual(ONCE);
-    expect(read.readWorkspaceOver).toHaveBeenCalledTimes(1);
+    expect(sense.scanRelations).not.toHaveBeenCalled();
   });
 
-  it('reads the manifests once when the refresh declines because the exported names moved', async () => {
-    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
-    write('packages/a/src/index.ts', 'export const see = 1;\nexport const more = 2;\n');
-    await updateSourceIndex(root, { index });
-    forget();
+  /** Every file beside the index, with its size and when it was last written. */
+  const written = (): readonly string[] => readdirSync(dirname(index))
+    .map((name) => { const at = statSync(join(dirname(index), name)); return `${name} ${at.size} ${at.mtimeMs}`; })
+    .toSorted(codeUnitOrder);
 
+  it('writes no file when the index did not move since the value was published', async () => {
     const generation = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    const before = written();
 
-    expect(await publishedGeneration(root, index)).toBe(generation);
-    expect(manifestReads()).toEqual(ONCE);
-    expect(read.readWorkspaceOver).toHaveBeenCalledTimes(1);
+    expect(await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN })).toBe(generation);
+    expect(written()).toEqual(before);
   });
 
-  it('reads the manifests once when the refresh applies', async () => {
-    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
-    // The first refresh stamps the value with the index it was refreshed from.
-    const refreshed = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
-    forget();
-
-    expect(await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN })).toBe(refreshed);
-    expect(manifestReads()).toEqual(ONCE);
-    expect(read.readWorkspaceOver).not.toHaveBeenCalled();
-  });
-
-  it('reads the manifests once when the refresh reads the files the index moved', async () => {
-    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
-    const first = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
-    write('packages/b/src/index.ts', "import { see } from 'a';\nexport const b = see + 1;\n");
+  it('names the openings the manifests could not read first, then the files the index could not, then why, each in path order', async () => {
+    write('packages/a/package.json', JSON.stringify({ name: 'a', exports: { '.': './src/index.ts', './stale': { types: './dist/stale.d.ts' } } }));
+    write('packages/a/tsconfig.json', JSON.stringify({ compilerOptions: { rootDir: './src', outDir: './dist' } }));
+    const unread = 'export const load = (at: string) => import(at);\n';
+    write('packages/b/src/late.ts', unread);
+    write('packages/a/src/late.ts', unread);
+    write('packages/b/src/early.ts', unread);
     await updateSourceIndex(root, { index });
-    forget();
 
-    const refreshed = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
-    expect(refreshed).not.toBe(first);
-    expect(manifestReads()).toEqual(ONCE);
-    expect(read.readWorkspaceOver).not.toHaveBeenCalled();
+    const { unreadable } = await readWorkspaceSnapshot(root, { index });
+    expect(unreadable[0]).toMatch(/^a \.\/stale — /);
+    const why = ' — an `import()` whose specifier is not a literal';
+    expect(unreadable.slice(1)).toEqual([
+      'packages/a/src/late.ts', 'packages/b/src/early.ts', 'packages/b/src/late.ts',
+      `packages/a/src/late.ts${why}`, `packages/b/src/early.ts${why}`, `packages/b/src/late.ts${why}`,
+    ]);
+  });
+
+  it('reads the workspace for a question with no parse handed to JavaScript', async () => {
+    await read.readWorkspace(root, { index });
+
+    expect(sense.scanRelations).toHaveBeenCalled();
+    for (const [options] of vi.mocked(sense.scanRelations).mock.calls) {
+      expect(options).not.toHaveProperty('parsed');
+      expect(options).not.toHaveProperty('indexed');
+    }
   });
 
   /** The entry `a` publishes as `name` in the value on disk. */
@@ -265,7 +276,9 @@ describe('publishing the questions from the index', () => {
 
     await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
-    expect(read.readWorkspaceOver).not.toHaveBeenCalled();
+    expect(await published('renamed')).toMatchObject({ at: 'packages/a/src/deep.ts', declared: 'deep' });
+    expect(await published('whole')).toMatchObject({ at: 'packages/a/src/deep.ts', declared: 'default' });
+    expect(await published('ns')).toMatchObject({ kind: 'namespace-object' });
   });
 
   it('refreshes from the index when the export that moved is one nothing publishes', async () => {
@@ -278,18 +291,16 @@ describe('publishing the questions from the index', () => {
 
     await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
-    expect(read.readWorkspaceOver).not.toHaveBeenCalled();
     expect((await readWorkspaceSnapshot(root, { index })).exported.find((row) => row.name === 'inner')?.line).toBe(2);
   });
 
-  it('publishes the time its caller began reading, when it reads the workspace itself', async () => {
+  it('publishes the time its caller began reading, when nothing was published before', async () => {
     await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
-    expect(read.readWorkspaceOver).toHaveBeenCalledTimes(1);
     expect(publishedReadStart()).toBe(BEGAN);
   });
 
-  it('publishes the time its caller began reading, when it refreshes from the index', async () => {
+  it('publishes the time its caller began reading, when it publishes over a value', async () => {
     await publishWorkspaceFromIndex(root, { index, readStartedAt: new Date().toISOString() });
     write('packages/b/src/index.ts', "import { see } from 'a';\nexport const b = see + 1;\n");
     await updateSourceIndex(root, { index });
@@ -297,7 +308,6 @@ describe('publishing the questions from the index', () => {
 
     await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
-    expect(read.readWorkspaceOver).not.toHaveBeenCalled();
     expect(publishedReadStart()).toBe(BEGAN);
   });
 

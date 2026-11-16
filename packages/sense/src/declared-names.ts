@@ -21,12 +21,10 @@ export interface DeclaredName {
   readonly line: number;
   /** `source`, `test` or `story`, as `kindOf` says of the file. */
   readonly fileKind: 'source' | 'test' | 'story';
-  /** The signature's span in the file's UTF-16 offsets, when the parser kept one. */
-  readonly signatureStart?: number | null;
-  readonly signatureEnd?: number | null;
-  /** The doc comment's span, inside its opening and closing marks, when one is written above. */
-  readonly docStart?: number | null;
-  readonly docEnd?: number | null;
+  /** The declaration's head, as the index cuts it, when the parser kept one. */
+  readonly signature?: string | null;
+  /** The doc comment written above it, as the index cuts it. */
+  readonly doc?: string | null;
   /** Who can name it, as the reader of its language recorded; absent when the reader cannot tell. */
   readonly reach?: SourceSymbolReach | null;
   /** Asked by `declaredDescribedOf`: the positions, ascending, of the asked stems its name or doc holds. */
@@ -50,9 +48,8 @@ export interface DescribedFile {
   readonly at: string;
   /** The package whose source it is; empty at the repository root. */
   readonly by: string;
-  /** The module doc's span, inside its marks, when the file opens with one. */
-  readonly docStart?: number | null;
-  readonly docEnd?: number | null;
+  /** The module doc, as the index cuts it, when the file opens with one. */
+  readonly doc?: string | null;
   /** The positions, ascending, of the asked stems its name or its module doc holds. */
   readonly held: readonly number[];
   /** The positions, ascending, of those its name holds. */

@@ -6,8 +6,8 @@ import { encodeExecutionIndex, testCoverageFile, writeTestCoverage } from '@vari
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publishing, UNCOMPARED } from './__fixtures__/published-then-written.js';
 import { caughtUp, foundNothingAnswer, foundNothingFooter, madeBefore, outlived, refusalFooter, snapshotLine } from './caught-up.js';
-import { readWorkspace, readWorkspaceForAnswer } from './read.js';
-import { readAgain, workspaceGeneration, workspaceReadStarted } from './snapshot.js';
+import { readWorkspace, readWorkspaceForAnswer, UnsavedRead } from './read.js';
+import { readAgain, workspaceGeneration } from './snapshot.js';
 import { serveWorkspace, type WorkspaceOptions } from './server.js';
 import { FoundNothing } from './tools/find.js';
 import { search } from './tools/search.js';
@@ -450,12 +450,10 @@ describe('the help server about a name written after the published generation', 
   });
 });
 
-describe('a generation that could not be saved', () => {
-  it('keeps its times, so what it answers is dated and its text gated', async () => {
+describe('a reading that could not be saved', () => {
+  it('publishes nothing, since the value is read from the index it saves', async () => {
     const root = await fixture.published();
-    const help = await readWorkspace(root, { index: join(root, 'package.json', 'index') });
-    expect(workspaceGeneration(help)).toBeDefined();
-    expect(workspaceReadStarted(help)).toBeDefined();
+    await expect(readWorkspace(root, { index: join(root, 'package.json', 'index') })).rejects.toBeInstanceOf(UnsavedRead);
   });
 });
 

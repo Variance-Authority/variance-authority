@@ -98,8 +98,8 @@ impl Reader<'_> {
                 if export.imported.as_deref() == Some("*") {
                     let name = Name { name: public.clone(), kind: "namespace".to_owned(),
                         at: relative(self.root, file), line: export.line,
-                        signature: crate::dependency_namespace::text(&utf16, export.signature),
-                        doc: crate::dependency_namespace::doc(&utf16, export.doc) };
+                        signature: crate::dependency_namespace::text(&utf16, export.signature.as_ref()),
+                        doc: crate::dependency_namespace::doc(&utf16, export.doc.as_ref()) };
                     names.entry((name.name.clone(), name.kind.clone())).or_insert(name);
                     continue;
                 }
@@ -116,7 +116,7 @@ impl Reader<'_> {
             let mut matched: Vec<_> = parsed.symbols.iter().filter(|symbol| symbol.name == local).collect();
             // A name is a spelling: a statement that declares what it exports
             // binds that declaration, and `export { Kind }` every one spelled so.
-            let written = |symbol: &&SourceSymbol| symbol.signature.zip(export.signature)
+            let written = |symbol: &&SourceSymbol| symbol.signature.as_ref().zip(export.signature.as_ref())
                 .is_some_and(|(own, statement)| statement.start <= own.start && own.end <= statement.end);
             if matched.iter().any(written) {
                 matched.retain(written);
@@ -125,8 +125,8 @@ impl Reader<'_> {
                 for symbol in matched {
                     let name = Name { name: public.clone(), kind: symbol.kind.to_owned(),
                         at: relative(self.root, file), line: symbol.line,
-                        signature: crate::dependency_namespace::text(&utf16, symbol.signature),
-                        doc: crate::dependency_namespace::doc(&utf16, symbol.doc.or(export.doc)) };
+                        signature: crate::dependency_namespace::text(&utf16, symbol.signature.as_ref()),
+                        doc: crate::dependency_namespace::doc(&utf16, symbol.doc.as_ref().or(export.doc.as_ref())) };
                     names.entry((name.name.clone(), name.kind.clone())).or_insert(name);
                 }
             } else if let Some((request, imported)) = imports.get(local) {
@@ -139,8 +139,8 @@ impl Reader<'_> {
             } else {
                 let name = Name { name: public.clone(), kind: "export".to_owned(),
                     at: relative(self.root, file), line: export.line,
-                    signature: crate::dependency_namespace::text(&utf16, export.signature),
-                    doc: crate::dependency_namespace::doc(&utf16, export.doc) };
+                    signature: crate::dependency_namespace::text(&utf16, export.signature.as_ref()),
+                    doc: crate::dependency_namespace::doc(&utf16, export.doc.as_ref()) };
                 names.entry((name.name.clone(), name.kind.clone())).or_insert(name);
             }
         }

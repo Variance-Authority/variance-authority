@@ -1,11 +1,12 @@
 import { rangeOf, sameLength, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
 import type { MemberDeclaration } from './cache.js';
-import { spanAt } from './source-index-harvest.js';
+import { spanAt, spanColumns } from './source-index-harvest.js';
 
 /**
  * The member-declaration columns of a source-index generation: per parse,
  * every member of an interface, a type literal or a class the file declares,
- * with its line, the container it is on and the doc written above it.
+ * with its line, the container it is on, the doc written above it, and the
+ * text of its line as the read saw it.
  *
  * One offset list, because the module reader records the list only when it is
  * not empty, so the empty range and the absent field are the same fact.
@@ -15,6 +16,7 @@ import { spanAt } from './source-index-harvest.js';
 export function openMemberDeclarations(
   opened: OpenSegment,
   text: (value: number) => string,
+  kept: (value: number) => string | undefined,
   parseCount: number,
 ): (row: number) => { readonly memberDeclarations?: readonly MemberDeclaration[] } {
   const reject = (): never => { throw opened.reject(); };
@@ -22,19 +24,21 @@ export function openMemberDeclarations(
   const name = opened.u32('member-declarations.name');
   const line = opened.u32('member-declarations.line');
   const on = opened.u32('member-declarations.on');
-  const docStart = opened.u32('member-declarations.doc-start');
-  const docEnd = opened.u32('member-declarations.doc-end');
+  const docs = spanColumns(opened, 'member-declarations.doc');
+  const lineText = opened.u32('member-declarations.line-text');
   validateOffsets(offsets, name.length, parseCount, reject);
-  sameLength(name.length, [line, on, docStart, docEnd], reject);
+  sameLength(name.length, [line, on, ...docs, lineText], reject);
 
   return (row) => {
     const memberDeclarations = rangeOf(offsets, row, reject).map((at): MemberDeclaration => {
-      const doc = spanAt(docStart, docEnd, at, reject);
+      const doc = spanAt(docs, at, kept, reject);
+      const written = kept(lineText[at]!);
       return {
         name: text(name[at]!),
         line: line[at]!,
         on: text(on[at]!),
         ...(doc === undefined ? {} : { doc }),
+        ...(written === undefined ? {} : { lineText: written }),
       };
     });
     return memberDeclarations.length === 0 ? {} : { memberDeclarations };

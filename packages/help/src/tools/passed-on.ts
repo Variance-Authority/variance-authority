@@ -12,8 +12,7 @@
 // compass: variance-authority.report.agent-surface
 
 import type { Help, Named } from '@variance-authority/package/help';
-import type { ExportedDeclaration } from '@variance-authority/sense';
-import { textAsRead } from './as-read.js';
+import { exportLine, type ExportedDeclaration } from '@variance-authority/sense';
 import { UNFOLLOWED, unfollowedEntry } from './by-path.js';
 import { boundOf, originKey, SLOT } from './declaration-key.js';
 import { textRows } from './declared.js';
@@ -37,8 +36,8 @@ export function passesOn(origin: ExportedDeclaration, named: string): string {
  * publishes: the name and its kind, where it is exported, and what the source
  * index says it is — its kind, signature and documentation, read off the
  * declaration the export binds, as `boundOf` reaches it. When that is in
- * another file, `It passes on …:` says which. The line itself, as the checkout
- * holds it, when the walk reaches no declaration; neither when no checkout is
+ * another file, `It passes on …:` says which. The line itself, as the index
+ * recorded it, when the walk reaches no declaration; neither when no checkout is
  * named. `declared` is where the declaration is, `held` when it passes none
  * on. A package whose entry leads to no source may publish it, and the first
  * row says that is not known.
@@ -47,7 +46,7 @@ export function exportedRows(help: Help, root: string | undefined, name: string,
   const bound = boundOf(root, held);
   const origin = elsewhere(bound, held);
   const declared: Named = origin === undefined ? held : { ...held, at: origin.at, name: origin.name, line: origin.line };
-  const text = root === undefined ? [] : bound === undefined ? lineOf(help, root, declared) : textRows(help, root, bound);
+  const text = root === undefined ? [] : bound === undefined ? lineOf(root, declared) : textRows(bound);
   const owner = help.packages.find((published) => published.name === held.by);
   const at = `at ${held.at}:${held.line} by ${held.by}${held.type ? ' (type only)' : ''}`;
   return {
@@ -64,11 +63,15 @@ export function exportedRows(help: Help, root: string | undefined, name: string,
 }
 
 /**
- * The line an export is written on, as the checkout holds it now; nothing when
- * the file is gone or was written since `help` was read, since the index read an
- * older text.
+ * The line an export is written on, as the index recorded it; nothing when the
+ * index kept no text of it, or cannot be read.
  */
-function lineOf(help: Help, root: string, held: Pick<Named, 'at' | 'line'>): readonly string[] {
-  const line = textAsRead(help, root, held.at)?.split(/\r?\n/)[held.line - 1]?.trim();
+function lineOf(root: string, held: Pick<Named, 'at' | 'line'>): readonly string[] {
+  let line: string | undefined;
+  try {
+    line = exportLine(root, held.at, held.line)?.trim();
+  } catch {
+    line = undefined;
+  }
   return line === undefined ? [] : [line];
 }

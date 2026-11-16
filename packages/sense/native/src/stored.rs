@@ -67,6 +67,8 @@ pub struct Stored<'a> {
     bytes: &'a [u8],
     sections: HashMap<String, (usize, usize, u8)>,
     strings: Vec<&'a str>,
+    /// The text heap, `texts.blob` and `texts.off`, when the segment has one.
+    texts: Option<(&'a str, U32s<'a>)>,
 }
 
 impl<'a> Stored<'a> {
@@ -114,7 +116,7 @@ impl<'a> Stored<'a> {
                 return Err(format!("section {} is named twice", section.name));
             }
         }
-        let mut stored = Stored { bytes, sections, strings: Vec::new() };
+        let mut stored = Stored { bytes, sections, strings: Vec::new(), texts: None };
         let blob = std::str::from_utf8(stored.u8s("strings.blob")?).map_err(|_| "a dictionary that is not UTF-8")?;
         let off = stored.u32s("strings.off")?;
         if off.len() == 0 || off.at(0) != 0 || off.at(off.len() - 1) as usize != blob.len() {
@@ -124,6 +126,14 @@ impl<'a> Stored<'a> {
             .map(|at| blob.get(off.at(at) as usize..off.at(at + 1) as usize))
             .collect::<Option<_>>()
             .ok_or("a dictionary entry that is not a string")?;
+        if let Some(blob) = stored.section("texts.blob", 1)? {
+            let blob = std::str::from_utf8(blob).map_err(|_| "a text heap that is not UTF-8")?;
+            let off = stored.u32s("texts.off")?;
+            if off.len() == 0 || off.at(0) != 0 || off.at(off.len() - 1) as usize != blob.len() {
+                return Err("a text heap whose offsets do not span it".to_owned());
+            }
+            stored.texts = Some((blob, off));
+        }
         Ok((stored, written))
     }
 
@@ -194,6 +204,20 @@ impl<'a> Stored<'a> {
 
     pub fn optional(&self, id: u32) -> Option<&'a str> {
         (id != NONE).then(|| self.text(id))
+    }
+
+    /// A text the heap keeps under `id`, absent for `NONE`. An id past the
+    /// heap, or offsets that cut a character, panic as [`Self::text`] does.
+    pub fn kept(&self, id: u32) -> Option<&'a str> {
+        if id == NONE {
+            return None;
+        }
+        let at = id as usize;
+        let text = self.texts.and_then(|(blob, off)| (at + 1 < off.len()).then(|| blob.get(off.at(at) as usize..off.at(at + 1) as usize)).flatten());
+        match text {
+            Some(text) => Some(text),
+            None => panic!("source index: text {id} is not one the heap holds"),
+        }
     }
 
     /// The id the dictionary holds `value` under. Every writer of the framing

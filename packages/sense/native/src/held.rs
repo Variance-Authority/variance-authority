@@ -12,7 +12,7 @@
 
 use serde::Deserialize;
 
-use crate::parse_columns::{ParseColumns, ParseRow, Span};
+use crate::parse_columns::{ParseColumns, ParseRow};
 use crate::segment::{Collected, Strings};
 
 #[derive(Debug, Deserialize)]
@@ -42,11 +42,14 @@ pub struct HeldRequest {
     republishes: bool,
 }
 
-/// `TextSpan` in `harvest.ts`; an end JavaScript did not write reads as absent.
-#[derive(Clone, Copy, Debug, Deserialize)]
+/// `TextSpan` in `harvest.ts`; an end JavaScript did not write reads as absent,
+/// and so does a text it did not keep.
+#[derive(Clone, Debug, Deserialize)]
 pub struct HeldSpan {
     start: Option<u32>,
     end: Option<u32>,
+    #[serde(default)]
+    text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -63,6 +66,8 @@ pub struct HeldExport {
     doc: Option<HeldSpan>,
     #[serde(default, rename = "roles", deserialize_with = "crate::declared_role::deserialize")]
     tags: u8,
+    #[serde(default, rename = "lineText")]
+    line_text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -118,6 +123,8 @@ pub struct HeldMemberDeclaration {
     on: String,
     #[serde(default)]
     doc: Option<HeldSpan>,
+    #[serde(default, rename = "lineText")]
+    line_text: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -180,10 +187,10 @@ pub struct HeldParse {
     doc: Option<HeldSpan>,
 }
 
-/// Both ends, each `NONE` where JavaScript's `optional` would write it.
-fn span(value: Option<HeldSpan>) -> Span {
+/// Both ends, each `NONE` where JavaScript's `optional` would write it, and the text.
+fn raw(value: &Option<HeldSpan>) -> Option<(u32, u32, Option<&str>)> {
     use crate::segment::NONE;
-    value.map(|span| (span.start.unwrap_or(NONE), span.end.unwrap_or(NONE)))
+    value.as_ref().map(|span| (span.start.unwrap_or(NONE), span.end.unwrap_or(NONE), span.text.as_deref()))
 }
 
 impl ParseRow for HeldParse {
@@ -234,6 +241,7 @@ impl ParseRow for HeldParse {
 
     fn write(&self, strings: &Strings, into: &mut ParseColumns) {
         let id = |value: &str| strings.id(value);
+        let span = raw;
         for request in &self.requests {
             into.request(
                 id(&request.value),
@@ -252,13 +260,14 @@ impl ParseRow for HeldParse {
                     .map(|value| strings.optional(value.as_deref())),
                 export.type_only,
                 export.line,
-                span(export.signature),
-                span(export.doc),
+                span(&export.signature),
+                span(&export.doc),
                 export.tags,
+                export.line_text.as_deref(),
             );
         }
         for symbol in &self.symbols {
-            into.symbol(id(&symbol.name), id(&symbol.kind), symbol.line, span(symbol.signature), span(symbol.doc), crate::harvest::reach_code(symbol.reach.as_deref()));
+            into.symbol(id(&symbol.name), id(&symbol.kind), symbol.line, span(&symbol.signature), span(&symbol.doc), crate::harvest::reach_code(symbol.reach.as_deref()));
         }
         for name in self.declares.iter().flatten() {
             into.declare(id(name));
@@ -268,7 +277,7 @@ impl ParseRow for HeldParse {
             into.member(member.request, id(&member.name), member.line, member.through_default);
         }
         for declared in &self.member_declarations {
-            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(declared.doc));
+            into.member_declaration(id(&declared.name), declared.line, id(&declared.on), span(&declared.doc), declared.line_text.as_deref());
         }
         for used in &self.member_uses {
             into.member_use(id(&used.name), used.line, id(&used.of), id(&used.how));
@@ -278,7 +287,7 @@ impl ParseRow for HeldParse {
         }
         for nested in &self.nested {
             let holder = strings.optional(nested.holder.as_deref());
-            into.nested(id(&nested.name), id(&nested.kind), nested.line, span(nested.signature), span(nested.doc), holder, nested.holder_line);
+            into.nested(id(&nested.name), id(&nested.kind), nested.line, span(&nested.signature), span(&nested.doc), holder, nested.holder_line);
         }
         for read in &self.binding_members {
             into.binding_member(read.request, id(&read.binding), read.within.iter().map(|name| id(name)), id(&read.name), read.line);
@@ -305,12 +314,19 @@ impl ParseRow for HeldParse {
         self.size
     }
 
-    fn doc(&self) -> Span {
-        span(self.doc)
+    fn doc(&self) -> Option<(u32, u32, Option<&str>)> {
+        raw(&self.doc)
     }
 
-    /// Unknown: JavaScript hands the parse over without its source, so no doc's words were cut (#1341).
-    fn words(&self, _item: crate::name_table::Item, _at: usize) -> Option<Option<&str>> {
-        None
+    /// Cut from the text JavaScript kept of each doc; unknown for a doc it spanned without one.
+    fn words(&self, item: crate::name_table::Item, at: usize) -> Option<Option<std::borrow::Cow<'_, str>>> {
+        use crate::name_table::Item;
+        let doc = match item {
+            Item::Module => self.doc.as_ref(),
+            Item::Symbol => self.symbols.get(at).and_then(|symbol| symbol.doc.as_ref()),
+            Item::Nested => self.nested.get(at).and_then(|nested| nested.doc.as_ref()),
+            Item::Member => self.member_declarations.get(at).and_then(|member| member.doc.as_ref()),
+        };
+        crate::parse_columns::words_at(doc.map(|doc| doc.text.as_deref()))
     }
 }
