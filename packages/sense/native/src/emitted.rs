@@ -40,14 +40,14 @@
 
 // compass: variance-authority.reach.source-scan
 
-use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, OnceLock};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use dashmap::DashMap;
-use oxc_resolver::{FileMetadata, FileSystem, FileSystemOs, ResolveError};
+use oxc_resolver::{FileMetadata, FileSystemOs};
 use rustc_hash::FxBuildHasher;
 use serde_json::Value;
 
@@ -117,60 +117,15 @@ pub enum Origin {
     Nowhere,
 }
 
-/// What git lists under the root the tree was read from: every file, which of
-/// them it vouches are regular files, and in every directory it descended, the
-/// names a declaration is read from — `package.json` and `tsconfig*.json`. A
-/// directory holding one git could not hash is not listed: git did not answer
-/// for it, and the disk does.
-#[derive(Default)]
-pub struct Listing {
-    files: Arc<HashMap<String, u32>>,
-    regular: Arc<Vec<bool>>,
-    directories: HashMap<PathBuf, Vec<OsString>>,
-}
-
-impl Listing {
-    pub fn of(files: Arc<HashMap<String, u32>>, regular: Arc<Vec<bool>>, unhashed: &[String]) -> Self {
-        let mut directories: HashMap<PathBuf, Vec<OsString>> = HashMap::new();
-        for path in files.keys() {
-            let (directory, name) = path.rsplit_once('/').unwrap_or(("", path));
-            let mut above = Some(directory);
-            while let Some(at) = above.filter(|at| !directories.contains_key(Path::new(at))) {
-                directories.insert(PathBuf::from(at), Vec::new());
-                above = (!at.is_empty()).then(|| at.rsplit_once('/').map_or("", |(parent, _)| parent));
-            }
-            if name == "package.json" || is_config(name.as_ref()) {
-                if let Some(names) = directories.get_mut(Path::new(directory)) {
-                    names.push(name.into());
-                }
-            }
-        }
-        for path in unhashed {
-            let (directory, name) = path.rsplit_once('/').unwrap_or(("", path));
-            if name == "package.json" || is_config(name.as_ref()) {
-                directories.remove(Path::new(directory));
-            }
-        }
-        Self { files, regular, directories }
-    }
-
-    /// Whether git vouches the path is a regular file. A symbolic link is a
-    /// blob as well, and may name a directory.
-    fn is_file(&self, path: &Path) -> bool {
-        let mut spelled = String::new();
-        for part in path.components() {
-            let Component::Normal(part) = part else { return false };
-            let Some(part) = part.to_str() else { return false };
-            if !spelled.is_empty() {
-                spelled.push('/');
-            }
-            spelled.push_str(part);
-        }
-        self.files
-            .get(&spelled)
-            .is_some_and(|&at| self.regular.get(at as usize).copied().unwrap_or(false))
-    }
-}
+#[path = "emitted_listing.rs"]
+mod listing;
+pub use listing::Listing;
+#[path = "emitted_content.rs"]
+mod content;
+pub(crate) use content::read as read_content;
+#[path = "emitted_spellings.rs"]
+mod spellings;
+pub(crate) use spellings::Spelling;
 
 type Memo<T> = Arc<DashMap<PathBuf, T, FxBuildHasher>>;
 
@@ -183,14 +138,57 @@ pub struct Emitted {
     listed: Option<(PathBuf, Arc<Listing>)>,
     /// The configs a layout or a condition set is read from, each read once.
     pub(crate) configs: Configs,
+    read_blobs: bool,
+    symbolic: Arc<OnceLock<Vec<(PathBuf, PathBuf)>>>,
+    metadata_counts: Option<Arc<[AtomicU64; 8]>>,
 }
 
 impl Emitted {
-    /// A file system that reads which configs a directory holds from git's
-    /// listing of `root`, and from the disk where git has none.
+    /// Resolve source membership from the complete active listing of `root`;
+    /// configuration, installed packages and uncertain paths keep their owners.
     pub fn listed(root: &Path, listing: Option<Arc<Listing>>) -> Self {
+        Self::listed_for(root, listing, true)
+    }
+
+    pub(crate) fn listed_for(root: &Path, listing: Option<Arc<Listing>>, read_blobs: bool) -> Self {
+        let configs = Configs::listed(read_blobs.then(|| listing.clone()).flatten());
         let listed = listing.and_then(|listing| Some((std::fs::canonicalize(root).ok()?, listing)));
-        Self { listed, ..Self::default() }
+        let metadata_counts = crate::timings::enabled().then(|| Arc::new(std::array::from_fn(|_| AtomicU64::new(0))));
+        Self { listed, configs, read_blobs, metadata_counts, ..Self::default() }
+    }
+
+    fn disk_metadata(&self, path: &Path, read: impl FnOnce(&Path) -> io::Result<FileMetadata>) -> io::Result<FileMetadata> {
+        let answer = self.listed.as_ref().and_then(|(root, listing)| Some(listing.metadata(path.strip_prefix(root).ok()?)))
+            .unwrap_or(Err(listing::Boundary::Outside));
+        if let Some(counts) = &self.metadata_counts {
+            let category = match &answer {
+                Ok(Ok(metadata)) if metadata.is_file() => 0,
+                Ok(Ok(_)) => 1,
+                Ok(Err(_)) => 2,
+                Err(listing::Boundary::Config | listing::Boundary::Transformed) => 3,
+                Err(listing::Boundary::Installed) => 4,
+                Err(listing::Boundary::Uncertain) => 5,
+                Err(listing::Boundary::Outside) => 6,
+                Err(listing::Boundary::Casing) => 7,
+            };
+            counts[category].fetch_add(1, Ordering::Relaxed);
+        }
+        answer.unwrap_or_else(|_| read(path))
+    }
+
+    /// The listing already proves exact regular paths and their real parents;
+    /// symbolic, changed, unlisted and differently cased paths remain the OS's.
+    pub(crate) fn disk_canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
+        if self.listed.as_ref().is_some_and(|(root, listing)| path.strip_prefix(root).is_ok_and(|rest| listing.positive(rest).is_some())) {
+            return Ok(path.components().collect());
+        }
+        FileSystemOs::canonicalize(path)
+    }
+
+    pub(crate) fn metadata_counts(&self) -> Option<String> {
+        let counts = self.metadata_counts.as_ref()?.each_ref().map(|count| count.load(Ordering::Relaxed));
+        Some(format!("listing metadata: files={}, directories={}, absent={}; OS metadata: configuration={}, installed={}, uncertain or symbolic={}, outside listing={}, possible case alias={}",
+            counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], counts[6], counts[7]))
     }
 
     pub fn origin(&self, path: &Path) -> Origin {
@@ -218,7 +216,7 @@ impl Emitted {
         let wrote = |mirror: &Mirror| emitted.is_some_and(|(_, declaration, _)| declaration || mirror.code);
         for mirror in &layout.sources {
             let counterpart = mirror.root.join(rest);
-            if FileSystemOs::metadata(&counterpart).is_ok_and(FileMetadata::is_dir) {
+            if self.disk_metadata(&counterpart, FileSystemOs::metadata).is_ok_and(FileMetadata::is_dir) {
                 return Origin::Directory;
             }
             let Some((stem, _, sources)) = emitted.filter(|_| wrote(mirror)) else {
@@ -227,7 +225,7 @@ impl Emitted {
             let found = sources
                 .iter()
                 .map(|extension| counterpart.with_file_name(format!("{stem}{extension}")))
-                .find(|source| FileSystemOs::metadata(source).is_ok_and(FileMetadata::is_file));
+                .find(|source| self.disk_metadata(source, FileSystemOs::metadata).is_ok_and(FileMetadata::is_file));
             if let Some(source) = found {
                 return Origin::Source(source);
             }
@@ -298,7 +296,7 @@ impl Emitted {
             real = real.parent().ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))?;
         }
         let rest = path.strip_prefix(real).map_err(|_| io::Error::from(io::ErrorKind::NotFound))?;
-        Ok(FileSystemOs::canonicalize(real)?.join(rest))
+        Ok(self.disk_canonicalize(real)?.join(rest))
     }
 }
 
@@ -307,8 +305,11 @@ fn layouts_of(configs: &Configs, directory: &Path, listed: Option<(&Path, &Listi
     if let Some((listing, rest)) = under {
         // Git keeps nothing beneath a symlink, so a directory it lists is its
         // own real path, and holds what git lists in it.
-        if let Some(names) = listing.directories.get(rest) {
+        if let Some(names) = listing.configs(rest) {
             return declare(configs, directory, directory, names);
+        }
+        if matches!(listing.metadata(rest), Ok(Err(_))) {
+            return Vec::new();
         }
     }
     if !directory.join("package.json").is_file() {
@@ -320,7 +321,7 @@ fn layouts_of(configs: &Configs, directory: &Path, listed: Option<(&Path, &Listi
     if published(&real) {
         return Vec::new();
     }
-    let listing = listed.and_then(|(root, listing)| listing.directories.get(real.strip_prefix(root).ok()?));
+    let listing = listed.and_then(|(root, listing)| listing.configs(real.strip_prefix(root).ok()?));
     if let Some(names) = listing {
         return declare(configs, directory, &real, names);
     }
@@ -408,55 +409,17 @@ fn not_found() -> io::Error {
     io::Error::from(io::ErrorKind::NotFound)
 }
 
-impl FileSystem for Emitted {
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
-        match self.origin(path) {
-            Origin::Disk => std::fs::read(path),
-            Origin::Source(source) => std::fs::read(source),
-            Origin::Directory | Origin::Nowhere => Err(not_found()),
-        }
-    }
-
-    fn read_to_string(&self, path: &Path) -> io::Result<String> {
-        FileSystemOs::validate_string(self.read(path)?)
-    }
-
-    fn metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        match self.origin(path) {
-            Origin::Disk => FileSystemOs::metadata(path),
-            Origin::Directory => Ok(FileMetadata::new(false, true, false)),
-            Origin::Source(_) => Ok(FileMetadata::new(true, false, false)),
-            Origin::Nowhere => Err(not_found()),
-        }
-    }
-
-    fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
-        match self.origin(path) {
-            Origin::Disk => FileSystemOs::symlink_metadata(path),
-            _ => self.metadata(path),
-        }
-    }
-
-    fn read_link(&self, path: &Path) -> Result<PathBuf, ResolveError> {
-        match self.origin(path) {
-            Origin::Disk => FileSystemOs::read_link(path),
-            _ => Err(io::Error::from(io::ErrorKind::InvalidInput).into()),
-        }
-    }
-
-    fn canonicalize(&self, path: &Path) -> io::Result<PathBuf> {
-        match self.origin(path) {
-            Origin::Disk => FileSystemOs::canonicalize(path),
-            Origin::Nowhere => Err(not_found()),
-            Origin::Directory | Origin::Source(_) => self.canonical(path),
-        }
-    }
-}
+#[path = "emitted_filesystem.rs"]
+mod filesystem;
 
 #[cfg(all(test, unix))]
 #[path = "emitted_tests.rs"]
 mod tests;
+
+#[cfg(all(test, unix))]
+#[path = "emitted_content_tests.rs"]
+mod content_tests;
+
+#[cfg(all(test, unix))]
+#[path = "emitted_path_tests.rs"]
+mod path_tests;

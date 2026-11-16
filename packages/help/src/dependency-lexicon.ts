@@ -1,12 +1,12 @@
 /** The Rust-published third-party lexicon, read by help questions. */
-import { dependencyStackNative, queryDependencyLexiconNative, refreshDependencyLexiconNative } from '@variance-authority/sense';
+import { dependencyStackNative, queryDependencyLexiconNative, refreshDependencyLexiconNative, type SourceUpdate } from '@variance-authority/sense';
 
 export interface DependencyReadme { readonly at: string; readonly lines?: number; readonly unreadable?: string }
 /** One agent skill a package ships: `skills/<directory>/SKILL.md`, named by its front matter or, failing that, its directory. */
 export interface DependencySkill { readonly name: string; readonly at: string; readonly description?: string; readonly unreadable?: string }
 
 /** Refresh all directly available third-party solutions in the checkout. */
-export function refreshDependencyLexicon(root: string) { return refreshDependencyLexiconNative(root); }
+export function refreshDependencyLexicon(root: string, scanned?: Pick<SourceUpdate, 'listing' | 'packs'>) { return refreshDependencyLexiconNative(root, scanned); }
 
 export interface ThirdPartyMatch {
   readonly source: 'third-party'; readonly name: string; readonly specifier: string;

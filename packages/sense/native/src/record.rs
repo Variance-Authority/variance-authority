@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::acquire::Outcome;
 use crate::order::code_unit;
-use crate::read::Read;
+use crate::source_read::SourceRead;
 use crate::specifier::{is_relative, kind_for, package_of, request_of};
 use crate::witness::{witnesses_of, AliasTable};
 
@@ -72,8 +72,8 @@ pub struct Settling<'a> {
 /// by — Git's object name when the tree holds the file, the read digest when it
 /// does not, empty when neither — and `targets` is one entry per request,
 /// empty where the request resolved to nothing.
-pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, targets: &[String], settling: &Settling) -> Indexed {
-    let unknown = read.unknown.as_deref().filter(|reason| !reason.is_empty());
+pub fn built(file: &str, identity: &str, read: &SourceRead, outcome: Outcome, targets: &[Vec<String>], settling: &Settling) -> Indexed {
+    let unknown = read.unknown().filter(|reason| !reason.is_empty());
     if !outcome.parsed() {
         // A file declined by its bytes — over the size the scan opens, or not
         // UTF-8 — names them, so the next update keeps the record rather than
@@ -95,22 +95,24 @@ pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, targets:
     let mut packages = Vec::new();
     let mut unresolved = Vec::new();
     let mut holes = Vec::new();
-    let mut held = Vec::with_capacity(read.requests.len());
-    for (request, target) in read.requests.iter().zip(targets.iter().map(String::as_str).chain(std::iter::repeat(""))) {
-        held.push((!target.is_empty()).then(|| target.to_owned()));
-        let Some(bare) = request_of(&request.value) else { continue };
-        let kind = request.kind.as_str();
-        if target.is_empty() {
-            unresolved.push(request.value.as_str());
+    let mut held = Vec::with_capacity(read.requests().len());
+    for (at, request) in read.requests().enumerate() {
+        let reached = targets.get(at).map(Vec::as_slice).unwrap_or_default();
+        held.push(reached.first().cloned());
+        let Some(bare) = request_of(request.value) else { continue };
+        let kind = request.kind;
+        if reached.is_empty() {
+            if request.guessed { continue }
+            unresolved.push(request.value);
             if let Some(named) = package_of(bare, settling.builtins) {
                 packages.push(Edge { to: named.to_owned(), kind: kind.to_owned() });
             }
-            if is_relative(bare) {
-                holes.push(request.value.as_str());
-            }
+            if relative(file, bare) { holes.push(request.value); }
             continue;
         }
-        edges.push(Edge { to: target.to_owned(), kind: kind_for(kind, target, settling.code).to_owned() });
+        for target in reached {
+            edges.push(Edge { to: target.to_owned(), kind: kind_for(kind, target, settling.code).to_owned() });
+        }
     }
 
     let mut reasons: Vec<String> = unknown.map(str::to_owned).into_iter().collect();
@@ -121,7 +123,7 @@ pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, targets:
     let witnesses = if settling.remembering {
         witnesses_of(
             file,
-            read.requests.iter().map(|request| request.value.as_str()),
+            read.requests().map(|request| request.value),
             settled.iter().map(|edge| edge.to.as_str()),
             settling.directories,
             settling.aliases,
@@ -140,12 +142,22 @@ pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, targets:
             digest: (!identity.is_empty()).then(|| identity.to_owned()),
             edges: (!settled.is_empty()).then_some(settled),
             packages: (!packages.is_empty()).then(|| dedupe(packages)),
-            declares: (!read.declares.is_empty()).then(|| read.declares.clone()),
+            declares: (!read.declares().is_empty()).then(|| read.declares().to_vec()),
             unresolved: (!unresolved.is_empty()).then_some(unresolved),
             unknown: (!reasons.is_empty()).then(|| format!("{file} — {}", reasons.join("; "))),
         },
         witnesses,
         targets: Some(held),
+    }
+}
+
+fn relative(file: &str, request: &str) -> bool {
+    match file.rsplit('.').next().unwrap_or("") {
+        "py" | "pyi" => request.starts_with('.'),
+        "java" | "kt" | "swift" => false,
+        #[cfg(feature = "grammars")]
+        "rs" => crate::rust_resolve::is_relative(request),
+        _ => is_relative(request),
     }
 }
 

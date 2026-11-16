@@ -56,7 +56,7 @@ pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
 /// underscored ones too: a leading underscore keeps a name out of
 /// `from x import *`, not out of the module. A definition's doc is its
 /// docstring, spanned inside the quotes.
-pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol> {
+pub fn declarations(tree: &tree_sitter::Tree, source: &str, offsets: &super::Offsets) -> Vec<SourceSymbol> {
     let mut found = Vec::new();
     let mut narrowed = false;
     for child in named_children(tree.root_node()) {
@@ -74,8 +74,8 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
                     name: text_of(name, source).to_string(),
                     kind,
                     line: line_of(node),
-                    signature: Some(head(node, source)),
-                    doc: docstring(node, source),
+                    signature: Some(head(node, source, offsets)),
+                    doc: docstring(node, offsets),
                     reach: None,
                 });
             }
@@ -94,7 +94,7 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
                         name: text_of(left, source).to_string(),
                         kind: "variable",
                         line: line_of(assignment),
-                        signature: Some(head(assignment, source)),
+                        signature: Some(head(assignment, source, offsets)),
                         doc: None,
                         reach: None,
                     });
@@ -112,14 +112,14 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
 }
 
 /// The string a definition's body opens with, inside its quotes.
-fn docstring(node: Node, source: &str) -> Option<TextSpan> {
+fn docstring(node: Node, offsets: &super::Offsets) -> Option<TextSpan> {
     let first = named_children(node.child_by_field_name("body")?).into_iter().next()?;
     if first.kind() != "expression_statement" {
         return None;
     }
     let string = named_children(first).into_iter().next().filter(|part| part.kind() == "string")?;
     let content = named_children(string).into_iter().find(|part| part.kind() == "string_content")?;
-    Some(span_of(source, content.start_byte(), content.end_byte()))
+    Some(span_of(offsets, content.start_byte(), content.end_byte()))
 }
 
 #[derive(Default)]

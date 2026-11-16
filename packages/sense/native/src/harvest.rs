@@ -17,7 +17,7 @@ pub struct TextSpan {
     pub start: u32,
     pub end: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub text: Option<String>,
+    pub text: Option<std::sync::Arc<str>>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -74,12 +74,12 @@ pub fn reach_of(code: u8) -> Option<&'static str> {
     code.checked_sub(1).and_then(|at| REACHES.get(at as usize)).copied()
 }
 
-struct Offsets {
+pub(crate) struct Offsets {
     utf16: Option<Vec<u32>>,
 }
 
 impl Offsets {
-    fn new(source: &str) -> Self {
+    pub(crate) fn new(source: &str) -> Self {
         if source.is_ascii() {
             return Self { utf16: None };
         }
@@ -102,7 +102,7 @@ impl Offsets {
             .unwrap_or(byte)
     }
 
-    fn span(&self, span: Span) -> TextSpan {
+    pub(crate) fn span(&self, span: Span) -> TextSpan {
         TextSpan {
             start: self.at(span.start),
             end: self.at(span.end),
@@ -113,8 +113,6 @@ impl Offsets {
 
 pub struct Harvest {
     pub symbols: Vec<SourceSymbol>,
-    /// Every function a function's body declares, in source order.
-    pub nested: Vec<NestedSymbol>,
     docs: HashMap<u32, TextSpan>,
     /// The role tags a doc declares, by where its subject starts; only docs that declare one.
     pub tagged: HashMap<u32, u8>,
@@ -176,7 +174,6 @@ impl Harvest {
 
         let mut harvest = Self {
             symbols: Vec::new(),
-            nested: Vec::new(),
             docs,
             tagged,
             module_doc,
@@ -191,20 +188,24 @@ impl Harvest {
                 let doc = harvest.doc(bound.statement.start);
                 harvest.push(bound.name.to_owned(), bound.kind, lines.at(bound.statement.start), doc, bound.signature);
             });
-            harvest.nested = crate::nested::nested(program)
-                .into_iter()
-                .map(|found| NestedSymbol {
-                    doc: harvest.doc(found.statement.start),
-                    signature: harvest.span(found.signature),
-                    line: lines.at(found.statement.start),
-                    holder_line: lines.at(found.holder_at),
-                    name: found.name,
-                    kind: found.kind,
-                    holder: found.holder,
-                })
-                .collect();
         }
         harvest
+    }
+
+    /// Every nested function, from the same tree and doc/span lookup as the top level.
+    pub(crate) fn nested(&self, program: &Program<'_>, lines: &Lines) -> Vec<NestedSymbol> {
+        crate::nested::nested(program)
+            .into_iter()
+            .map(|found| NestedSymbol {
+                doc: self.doc(found.statement.start),
+                signature: self.span(found.signature),
+                line: lines.at(found.statement.start),
+                holder_line: lines.at(found.holder_at),
+                name: found.name,
+                kind: found.kind,
+                holder: found.holder,
+            })
+            .collect()
     }
 
     pub fn span(&self, span: Span) -> TextSpan {

@@ -239,7 +239,7 @@ impl ParseRow for HeldParse {
         values.extend(self.unknown.as_deref());
     }
 
-    fn write(&self, strings: &Strings, into: &mut ParseColumns) {
+    fn write<'text>(&'text self, strings: &Strings, into: &mut ParseColumns<'text>) {
         let id = |value: &str| strings.id(value);
         let span = raw;
         for request in &self.requests {

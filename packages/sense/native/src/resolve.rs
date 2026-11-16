@@ -18,6 +18,9 @@ use crate::emitted::{Emitted, Origin};
 
 type Resolver = ResolverGeneric<Emitted>;
 
+#[path = "resolve_spellings.rs"]
+mod spellings;
+
 pub(crate) const MODULE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 /// What a declaration file ends in, which is also where its stem ends:
 /// `context.d.ts` is `context`, as a request names it.
@@ -50,6 +53,7 @@ impl Tsconfig {
 pub struct Resolvers {
     modules: Arc<Resolver>,
     exact: Resolver,
+    styles: Resolver,
     /// The options `modules` was built with, which a condition set is cloned from:
     /// `clone_with_options` replaces options rather than merging them.
     options: ResolveOptions,
@@ -119,11 +123,16 @@ impl Resolvers {
         // with the factory's current settings. The oracle supplies only an empty
         // extension alias, so the exact resolver intentionally has no tsconfig.
         let exact = modules.clone_with_options(ResolveOptions::default());
+        let styles = modules.clone_with_options(ResolveOptions {
+            extensions: STYLE_EXTENSIONS.iter().map(|extension| (*extension).to_owned()).collect(),
+            ..ResolveOptions::default()
+        });
         let modules = Arc::new(modules);
         let conditioned = HashMap::from([(options.condition_names.clone(), Arc::clone(&modules))]);
         Self {
             modules,
             exact,
+            styles,
             options,
             governs: condition_names.is_none() && tsconfig != Tsconfig::Off,
             governed: RwLock::new(HashMap::new()),
@@ -141,8 +150,9 @@ impl Resolvers {
         if !self.governs {
             return Arc::clone(&self.modules);
         }
-        let Ok(Some(tsconfig)) = self.modules.find_tsconfig(from) else {
-            return Arc::clone(&self.modules);
+        let tsconfig = match self.modules.find_tsconfig(from) {
+            Ok(Some(tsconfig)) => tsconfig,
+            Ok(None) | Err(_) => return Arc::clone(&self.modules),
         };
         let path = tsconfig.path();
         if let Some(found) = self.governed.read().ok().and_then(|held| held.get(path).cloned()) {
@@ -241,6 +251,20 @@ impl Resolvers {
         }
     }
 
+    /// Stylesheet extensions and Sass partials first, then the governing module resolver.
+    pub(crate) fn resolve_style(&self, root: &Path, from: &Path, written: &str, known: Option<&HashMap<String, u32>>) -> Option<String> {
+        let request = request_of(written)?;
+        let attempts = crate::source_style::requests(request);
+        let modules = self.modules_for(from);
+        for resolver in [&self.styles, modules.as_ref()] {
+            for request in &attempts {
+                let Ok(answer) = resolver.resolve_file(from, request) else { continue };
+                if let Landing::File(file) = self.land(root, request, answer.path(), known) { return Some(file) }
+            }
+        }
+        None
+    }
+
     /// Where a path a resolver found lands: a repository file, somewhere a scan
     /// records nothing, or a file that only matched because the disk ignores case.
     fn land(&self, root: &Path, request: &str, path: &Path, known: Option<&HashMap<String, u32>>) -> Landing {
@@ -310,7 +334,7 @@ impl Resolvers {
                 return known.clone();
             }
         }
-        let answer = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_owned());
+        let answer = self.emitted.disk_canonicalize(path).unwrap_or_else(|_| path.to_owned());
         if let Ok(mut held) = self.canonical.lock() {
             held.insert(path.to_owned(), answer.clone());
         }

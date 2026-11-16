@@ -431,9 +431,9 @@ answer it.
 ### Content digests
 
 Git can name tracked and unignored untracked contents without the scan opening
-every file. The committed tree supplies blob ids; working-tree status identifies
-paths that must be re-hashed from disk. A file edited back to its committed
-contents returns to the committed digest.
+every file. The Git index supplies tracked blob ids; working-tree status
+identifies paths that must be re-hashed from disk. A file edited back to its
+indexed contents returns to the indexed digest.
 
 Git object ids start with `git:` and scan-computed digests with `v1:`. They are
 different schemes and never compare as though they were interchangeable.
@@ -490,12 +490,13 @@ unresolved package request. Supply the relationship through supported
 configuration, a project-graph seed, or a taint rather than treating a quiet
 record as build equivalence.
 
-**A Git-ignored generated file can shadow resolution.** The scan learns the
-tree's layout from Git, and Git does not report ignored files. A generated file
-your `.gitignore` covers can appear or disappear without the scan
-noticing, even though it changes which path a request resolves to, and a reused
-record then names the wrong target. Track the file, or pass `digests: false`,
-which reads and hashes the checkout directly and turns record reuse off.
+**Git defines the source inventory.** The tracked and unignored untracked file
+listing decides whether ordinary source candidates exist. Where the listing
+cannot determine whether a path exists, such as beneath a symlink, the scan
+checks the filesystem. An ignored generated file found there can change
+resolution without invalidating a reused record. Track such a file, or pass
+`digests: false` to scan without Git ignore rules and disable record reuse.
+Normal [directory exclusions](#traversal-and-repository-boundaries) still apply.
 
 **Package edges are conditional.** Built output that the package's `tsconfig`
 maps to a source file, a `source` export condition, a `source` main field or a

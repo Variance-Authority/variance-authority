@@ -41,9 +41,14 @@ struct Config {
 pub struct Configs {
     /// One cell per file, so resolvers asking at once read it once.
     files: Arc<DashMap<PathBuf, Arc<OnceLock<Option<Arc<Config>>>>, FxBuildHasher>>,
+    listing: Option<Arc<crate::emitted::Listing>>,
 }
 
 impl Configs {
+    pub(crate) fn listed(listing: Option<Arc<crate::emitted::Listing>>) -> Self {
+        Self { listing, ..Self::default() }
+    }
+
     /// What a config chain says about `customConditions`: nothing, or a list,
     /// where a `null` in the chain is the empty list.
     pub fn custom_conditions(&self, tsconfig: &Path) -> Option<Vec<String>> {
@@ -76,12 +81,12 @@ impl Configs {
     fn config(&self, path: &Path) -> Option<Arc<Config>> {
         let known = self.files.get(path).map(|cell| Arc::clone(&cell));
         let cell = known.unwrap_or_else(|| Arc::clone(&self.files.entry(path.to_owned()).or_default()));
-        cell.get_or_init(|| read(path).map(Arc::new)).clone()
+        cell.get_or_init(|| read(path, self.listing.as_deref()).map(Arc::new)).clone()
     }
 }
 
-fn read(path: &Path) -> Option<Config> {
-    let mut bytes = std::fs::read(path).ok()?;
+fn read(path: &Path, listing: Option<&crate::emitted::Listing>) -> Option<Config> {
+    let mut bytes = crate::emitted::read_content(listing, path).ok()?;
     if bytes.starts_with(b"\xEF\xBB\xBF") {
         bytes.drain(..3);
     }
@@ -96,7 +101,7 @@ fn read(path: &Path) -> Option<Config> {
         Some(Value::Array(many)) => many.iter().filter_map(Value::as_str).collect(),
         _ => Vec::new(),
     };
-    let bases = bases.into_iter().rev().filter_map(|base| extended(&directory, base)).collect();
+    let bases = bases.into_iter().rev().filter_map(|base| extended(&directory, base, listing)).collect();
     let options = match config.get_mut("compilerOptions").map(Value::take) {
         Some(Value::Object(options)) => options,
         _ => Map::new(),
@@ -106,37 +111,46 @@ fn read(path: &Path) -> Option<Config> {
 
 /// The file an `extends` entry names: a path, or a package under a
 /// `node_modules` above the config. A `#` import is not followed.
-fn extended(directory: &Path, specifier: &str) -> Option<PathBuf> {
+fn extended(directory: &Path, specifier: &str, listing: Option<&crate::emitted::Listing>) -> Option<PathBuf> {
     // FIXME: a package `extends` is read as the path `node_modules/<specifier>`
     // and never through the package's `exports`, which `oxc_resolver` follows
     // for the alias table in `witness.ts`. A base published only behind
     // `exports` is missed here and found there, so the two tables can read one
     // `tsconfig` under different bases.
     if specifier.starts_with('/') || specifier.starts_with('.') {
-        return config_file(&normalize(&directory.join(specifier)));
+        return config_file(&normalize(&directory.join(specifier)), listing);
     }
     if specifier.starts_with('#') || specifier.is_empty() {
         return None;
     }
     directory
         .ancestors()
-        .find_map(|at| config_file(&at.join("node_modules").join(specifier)))
+        .find_map(|at| config_file(&at.join("node_modules").join(specifier), listing))
 }
 
 /// The order `oxc_resolver` loads an extended config in: the file, a
 /// directory's `tsconfig.json`, then the name with `.json` added.
-fn config_file(path: &Path) -> Option<PathBuf> {
-    if path.is_file() {
+fn config_file(path: &Path, listing: Option<&crate::emitted::Listing>) -> Option<PathBuf> {
+    if kind(path, listing).0 {
         return Some(path.to_owned());
     }
-    let chosen = if path.is_dir() {
+    let chosen = if kind(path, listing).1 {
         path.join("tsconfig.json")
     } else {
         let mut named = path.as_os_str().to_owned();
         named.push(".json");
         PathBuf::from(named)
     };
-    chosen.is_file().then_some(chosen)
+    kind(&chosen, listing).0.then_some(chosen)
+}
+
+fn kind(path: &Path, listing: Option<&crate::emitted::Listing>) -> (bool, bool) {
+    let known = listing.and_then(|listing| listing.relative(path).map(|relative| listing.metadata(relative)));
+    match known {
+        Some(Ok(Ok(metadata))) => (metadata.is_file(), metadata.is_dir()),
+        Some(Ok(Err(_))) => (false, false),
+        Some(Err(_)) | None => std::fs::metadata(path).map_or((false, false), |metadata| (metadata.is_file(), metadata.is_dir())),
+    }
 }
 
 pub(crate) fn normalize(path: &Path) -> PathBuf {

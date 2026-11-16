@@ -6,8 +6,8 @@ import { describe, expect, it } from 'vitest';
 /**
  * One answer to *which files does a scan open*, held in two languages.
  *
- * The reader tables in `language.ts`, `read.ts` and `style.ts` say which
- * extensions some reader claims; `EXTENSIONS` in `seed.rs` says which ones the
+ * The public reader tables and native reader dispatch say which extensions
+ * some reader claims; `EXTENSIONS` in `seed.rs` says which ones the
  * native seeder puts in front of them. Nothing compares the two at run time.
  *
  * So a language added to the reader tables and not to the Rust list is never
@@ -35,31 +35,48 @@ function listed(source: string, name: string): readonly string[] {
 
 const readable = new Set([
   ...listed(read('src/read.ts'), 'MODULE_EXTENSIONS'),
-  ...listed(read('src/style.ts'), 'STYLE_EXTENSIONS'),
-  ...['PYTHON_EXTENSIONS', 'RUST_EXTENSIONS', 'JAVA_EXTENSIONS', 'KOTLIN_EXTENSIONS', 'SWIFT_EXTENSIONS']
+  ...['STYLE_EXTENSIONS', 'PYTHON_EXTENSIONS', 'RUST_EXTENSIONS', 'JAVA_EXTENSIONS', 'KOTLIN_EXTENSIONS', 'SWIFT_EXTENSIONS']
     .flatMap((name) => listed(read('src/language.ts'), name)),
 ]);
 
-const rust = (() => {
-  const source = read('native/src/seed.rs');
-  const at = source.indexOf('const EXTENSIONS: &[&str] = &[');
-  if (at === -1) throw new Error('the native seeder does not declare EXTENSIONS where this check reads it');
-  const body = source.slice(at, source.indexOf('];', at));
-  // The Rust list spells a suffix without its dot, because that is what
-  // `Path::extension` answers with.
-  return new Set([...body.matchAll(/"([^"]+)"/g)].map((found) => `.${found[1]!}`));
+function rustListed(file: string, name: string): readonly string[] {
+  const source = read(file);
+  const at = source.indexOf(`const ${name}:`);
+  if (at === -1) throw new Error(`${file} does not declare ${name} where this check reads it`);
+  const start = source.indexOf('[', source.indexOf('=', at));
+  const body = source.slice(start, source.indexOf(']', start));
+  return [...body.matchAll(/"([^"]+)"/g)].map((found) => found[1]!);
+}
+
+const nativeReadable = (() => {
+  const source = read('native/src/source_read.rs');
+  const at = source.indexOf('pub(crate) fn language(file:');
+  if (at === -1) throw new Error('the native reader does not declare language where this check reads it');
+  const body = source.slice(at, source.indexOf('_ => None', at));
+  const languages = [...body.matchAll(/Some\(([^)]+)\) => Some\("[^"]+"\)/g)]
+    .flatMap((found) => [...found[1]!.matchAll(/"([^"]+)"/g)].map((literal) => `.${literal[1]!}`));
+  return new Set([
+    ...rustListed('native/src/resolve.rs', 'MODULE_EXTENSIONS'),
+    ...rustListed('native/src/source_style.rs', 'EXTENSIONS'),
+    ...languages,
+  ]);
 })();
 
-describe('the native seeder and the reader tables', () => {
-  for (const extension of readable) {
-    it(`seeds ${extension}, which a reader claims`, () => {
-      expect(rust.has(extension)).toBe(true);
-    });
-  }
+// `Path::extension` gives the native seeder a suffix without its dot.
+const seeded = new Set(rustListed('native/src/seed.rs', 'EXTENSIONS').map((extension) => `.${extension}`));
 
-  for (const extension of rust) {
-    it(`claims a reader for ${extension}, which it seeds`, () => {
-      expect(readable.has(extension)).toBe(true);
-    });
-  }
-});
+for (const [owner, claims] of [['public tables', readable], ['native readers', nativeReadable]] as const) {
+  describe(`the native seeder and ${owner}`, () => {
+    for (const extension of claims) {
+      it(`seeds ${extension}, which a reader claims`, () => {
+        expect(seeded.has(extension)).toBe(true);
+      });
+    }
+
+    for (const extension of seeded) {
+      it(`claims a reader for ${extension}, which it seeds`, () => {
+        expect(claims.has(extension)).toBe(true);
+      });
+    }
+  });
+}

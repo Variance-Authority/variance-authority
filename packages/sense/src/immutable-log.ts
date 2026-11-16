@@ -70,7 +70,7 @@ export interface ImmutableLog {
  * there, and `dropped` counts what it cost.
  */
 export async function openImmutableLog(path: string): Promise<ImmutableLog> {
-  named(path);
+  assertLogPath(path);
   for (let attempt = 1; ; attempt += 1) {
     let bytes: Buffer;
     try {
@@ -119,7 +119,7 @@ export async function openImmutableLog(path: string): Promise<ImmutableLog> {
 
 /** No chain at `path`: what a save writes over state that could not be opened. */
 export function emptyImmutableLog(path: string): ImmutableLog {
-  named(path);
+  assertLogPath(path);
   return logAt(path, [], [], false, false);
 }
 
@@ -202,7 +202,7 @@ export class BadLogPath extends TypeError {
  * says so here, where the name is still recognisable, rather than as bytes
  * under a name nobody meant.
  */
-function named(path: string): void {
+export function assertLogPath(path: string): void {
   if (typeof path !== 'string' || path === '') {
     throw new BadLogPath(
       `immutable log path must be a non-empty string, received ${typeof path}`,

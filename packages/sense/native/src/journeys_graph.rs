@@ -22,7 +22,7 @@ use crate::chain_lookup::{fold, At};
 use crate::commit_text::{absent, contents, Blob};
 use crate::compact::Layer;
 use crate::journeys_parse::{parse, Callee, Export, Parsed};
-use crate::package_graph::{join_parses, Crossing};
+use crate::package_graph::{join_all_parses, Crossing};
 use crate::resolve::{Resolvers, Tsconfig};
 use crate::resolve_export::{resolve_export, Bound, Exports, Modules, Passes};
 
@@ -224,7 +224,7 @@ impl Graph {
                     .filter(|(path, _)| code(path))
                     .map(|(file, at): (&str, At)| Crossing { file, owner: 0, others: Vec::new(), at, parse: None })
                     .collect();
-                join_parses(layers, &mut crossings);
+                join_all_parses(layers, &mut crossings);
                 crossings
             },
         );

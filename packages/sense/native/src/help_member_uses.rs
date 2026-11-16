@@ -10,8 +10,8 @@
 //! writes it; which declaration that name is, through its import, is the
 //! query's join (`help_members.rs`), the same one `uses` makes for an import.
 //!
-//! Bindings are scoped as oxc's walk enters and leaves scopes, so a parameter
-//! that shadows an annotated one, `(props) => props.size`, is no use. What a
+//! OXC's semantic bindings distinguish an annotated receiver from another
+//! binding of the same name, including a local declared after the use. What a
 //! checker infers — a value returned by a call, a generic, a mapped type, a
 //! value narrowed or aliased without an annotation — names no type here, and
 //! is no use of any declaration.
@@ -23,9 +23,9 @@ use std::collections::{HashMap, HashSet};
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
 use oxc_span::GetSpan;
-use oxc_syntax::scope::{ScopeFlags, ScopeId};
+use oxc_semantic::Scoping;
+use oxc_syntax::symbol::SymbolId;
 use serde::Serialize;
-use std::cell::Cell;
 
 use crate::read::Lines;
 
@@ -47,8 +47,8 @@ pub struct MemberUse {
 
 /// Every use `program` writes of a member through a value whose type it
 /// names, once per name, line, type and kind, in source order.
-pub(crate) fn member_uses_in(program: &Program<'_>, lines: &Lines) -> Vec<MemberUse> {
-    let mut walker = Walker { lines, scopes: vec![HashMap::new()], written: HashSet::new(), seen: HashSet::new(), found: Vec::new() };
+pub(crate) fn member_uses_in(program: &Program<'_>, scoping: &Scoping, lines: &Lines) -> Vec<MemberUse> {
+    let mut walker = Walker { lines, scoping, typed: HashMap::new(), written: HashSet::new(), seen: HashSet::new(), found: Vec::new() };
     walker.visit_program(program);
     walker.found
 }
@@ -80,9 +80,9 @@ fn annotated(annotation: Option<&TSTypeAnnotation>) -> Option<String> {
 
 struct Walker<'n> {
     lines: &'n Lines,
-    /// Each binding in scope and the type its annotation names, innermost last;
-    /// `None` for a binding written without one.
-    scopes: Vec<HashMap<String, Option<String>>>,
+    /// Binding identity is OXC's; only a binding with an explicit named type is held.
+    scoping: &'n Scoping,
+    typed: HashMap<SymbolId, String>,
     /// The member expressions an assignment or an update writes, by span.
     written: HashSet<(u32, u32)>,
     seen: HashSet<MemberUse>,
@@ -99,7 +99,9 @@ impl Walker<'_> {
     /// scope that binds it deciding, or a cast.
     fn typed(&self, expression: &Expression) -> Option<String> {
         match expression.without_parentheses() {
-            Expression::Identifier(it) => self.scopes.iter().rev().find_map(|scope| scope.get(it.name.as_str())).cloned().flatten(),
+            Expression::Identifier(it) => it.reference_id.get()
+                .and_then(|reference| self.scoping.get_reference(reference).symbol_id())
+                .and_then(|symbol| self.typed.get(&symbol)).cloned(),
             Expression::TSAsExpression(it) => named(&it.type_annotation),
             Expression::TSSatisfiesExpression(it) => named(&it.type_annotation),
             Expression::TSTypeAssertion(it) => named(&it.type_annotation),
@@ -113,7 +115,7 @@ impl Walker<'_> {
     fn bind(&mut self, pattern: &BindingPattern, of: &str) {
         match pattern {
             BindingPattern::BindingIdentifier(it) => {
-                if let Some(scope) = self.scopes.last_mut() { scope.insert(it.name.to_string(), Some(of.to_owned())); }
+                if let Some(symbol) = it.symbol_id.get() { self.typed.insert(symbol, of.to_owned()); }
             }
             BindingPattern::ObjectPattern(it) => {
                 for property in &it.properties {
@@ -147,20 +149,6 @@ impl Walker<'_> {
 }
 
 impl<'a> Visit<'a> for Walker<'_> {
-    fn enter_scope(&mut self, _flags: ScopeFlags, _scope_id: &Cell<Option<ScopeId>>) {
-        self.scopes.push(HashMap::new());
-    }
-
-    fn leave_scope(&mut self) {
-        self.scopes.pop();
-    }
-
-    // Every binding shadows the outer one of its name; one an annotation
-    // already typed in this scope keeps its type.
-    fn visit_binding_identifier(&mut self, it: &BindingIdentifier<'a>) {
-        if let Some(scope) = self.scopes.last_mut() { scope.entry(it.name.to_string()).or_insert(None); }
-    }
-
     fn visit_formal_parameter(&mut self, it: &FormalParameter<'a>) {
         if let Some(of) = annotated(it.type_annotation.as_deref()) { self.bind(&it.pattern, &of); }
         walk::walk_formal_parameter(self, it);

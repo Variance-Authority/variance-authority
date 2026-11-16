@@ -48,7 +48,7 @@ pub(crate) struct Meta {
     pub watch: Watch,
     /// The roots the seeds were taken from.
     pub dirs: Vec<String>,
-    /// Each file git reads to answer `ls-tree HEAD` and `status`, and how it looked.
+    /// Each file Git reads to answer index membership and status, and how it looked.
     pub inputs: Vec<(String, Option<Stamp>)>,
     /// Git's own directories: what moves in them is git's, and the inputs say whether it matters.
     pub git: Vec<String>,
@@ -69,6 +69,10 @@ pub(crate) enum Change {
 /// and what it points at, the index, the exclude and attribute files, and
 /// every configuration file git read.
 fn inputs(root: &str) -> Option<(Vec<String>, Vec<PathBuf>)> {
+    // These stamps cover the default index only; alternate indexes are listed afresh.
+    if std::env::var_os("GIT_INDEX_FILE").is_some() {
+        return None;
+    }
     // Three questions none of which waits on another: asked at once, they cost one spawn's time.
     // `--path` reads `core.excludesfile` and `core.attributesFile` as git expands them, `~/` included.
     let (dirs, config, named) = std::thread::scope(|scope| {
@@ -150,7 +154,7 @@ fn ignores_all(root: &str, paths: &[String]) -> bool {
 fn stands(meta: &Meta, paths: &[String], root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
     // An index shared across checkouts holds another's listing, watch and stamps: none of them speaks for this one.
     let made = meta.watch.relative.as_ref().map_or_else(|| PathBuf::from(&meta.watch.watched), |relative| Path::new(&meta.watch.watched).join(relative));
-    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && meta.watch.ignored.is_empty() && !hides(&meta.watch, paths) && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
+    std::env::var_os("GIT_INDEX_FILE").is_none() && made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && meta.watch.ignored.is_empty() && !hides(&meta.watch, paths) && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
 }
 
 /// Whether the watch's `ignore_vcs` directories, which Watchman never reports into,
@@ -224,3 +228,7 @@ pub(crate) fn carried(segment: &[u8], listing: Vec<Column>) -> Result<Vec<u8>, S
     columns.extend(listing);
     Ok(segment::encode(columns))
 }
+
+#[cfg(all(test, unix))]
+#[path = "git_trust_tests.rs"]
+mod trust_tests;

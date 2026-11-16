@@ -32,7 +32,7 @@ use crate::help_declared_candidates::{candidates, sure, Said};
 use crate::help_usage::kind_of;
 use crate::name_table::Item;
 use crate::orient_map_read::beside;
-use crate::package_graph::{join_parses, Crossing};
+use crate::package_graph::{join_all_parses, join_parses, Crossing};
 use crate::package_owners::{owners, NO_OWNER};
 use crate::text_cut;
 
@@ -180,7 +180,11 @@ fn crossings<'a>(layers: &[Layer], folded: &'a std::collections::HashMap<&'a str
         .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
         .collect();
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
-    join_parses(layers, &mut crossings);
+    if files.is_some() {
+        join_parses(layers, &mut crossings);
+    } else {
+        join_all_parses(layers, &mut crossings);
+    }
     crossings
 }
 

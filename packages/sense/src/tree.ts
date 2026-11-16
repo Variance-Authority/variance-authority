@@ -315,8 +315,9 @@ export async function changeTreeOf(root: string, index: string, dirs: readonly s
   return held === null ? undefined : nativeTree(held);
 }
 
-/** A tree over digests somebody else computed — a caller's own map, or the one `gitDigests` read. */
-export function treeOf(digests: ReadonlyMap<string, Digest>): Tree {
+/** A tree already listed, or one over a caller's digests or the map `gitDigests` read. */
+export function treeOf(digests: ReadonlyMap<string, Digest> | Tree): Tree {
+  if ('getAll' in digests) return digests;
   let sorted: readonly string[] | undefined;
   const paths = (): readonly string[] =>
     (sorted ??= [...digests.keys()].sort(codeUnitOrder));

@@ -1,46 +1,10 @@
 /**
- * A repository, walked once, as file records the graph can be built from.
+ * Source closures built and settled by the native graph owner.
  *
- * This is the half that needs a disk. [`files.ts`](./files.ts) says which paths
- * exist and what their names mean, [`read.ts`](./read.ts) turns a file's text
- * into specifiers and [`resolve.ts`](./resolve.ts) turns a specifier into a file;
- * this follows what those find, and decides how little of that work a second run
- * has to repeat.
- *
- * ## What it follows, and what it stops at
- *
- * The configured directories are the seed, not the boundary. A component under
- * `src/` imports `../design/button.css`, and that stylesheet imports
- * `../design/tokens.css`: both are pulled in even though neither is under a
- * configured root, because a change-management scan that only knows the files it
- * was pointed at cannot answer the one question it exists for.
- *
- * It stops at the repository edge. A specifier that resolves into `node_modules`
- * — or anywhere outside the root — is dropped: nothing in a diff of this
- * repository can be that file, so an edge to it can never carry a change.
- *
- * ## The package boundary
- *
- * In a workspace, `@scope/other` resolves through a symlink into that package's
- * **built output** unless it publishes a `source` condition, and built output is
- * not what anybody edits. The package's `tsconfig` says what it is: a target
- * under `outDir` is read as the file under `rootDir` it is emitted from, whether
- * or not the package was built (`native/src/emitted.rs`, ADR-0080). Built
- * output no `tsconfig` accounts for — a bundler with its own configuration — is
- * not what a diff changes either: under an excluded directory such as `dist/`
- * it is dropped rather than drawn, and anywhere else, such as `lib/`, the edge
- * lands on the built file. That is the gap `nx` and `turbo` already fill: both
- * compute project-level affectedness across it.
- * Their answer joins this one as additional seeds rather than replacing it.
- *
- * ## What a second run costs
- *
- * Three things arrive already known, and each one removes a layer of work. Git
- * names every file's content without opening it ([`tree.ts`](./tree.ts)); the
- * digest names what parsing that content produced ([`cache.ts`](./cache.ts)); and
- * the digest together with the shape of the tree names the file's whole record,
- * edges included ([`reuse.ts`](./reuse.ts)). With all three, an unchanged file
- * costs two map lookups, and a scan costs the diff rather than the repository.
+ * Directories seed the walk; readable imports outside them join the closure.
+ * Callers receive records in code-unit path order, and optional parse consumers
+ * receive the same content-keyed values their cache keeps. Whole-record reuse
+ * checks the file's identity and the resolution shape before the native work.
  */
 
 import { access } from 'node:fs/promises';
@@ -49,23 +13,18 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Digest } from '@variance-authority/core/format';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
-import { gitTreeOf, treeOf } from './tree.js';
+import { gitTreeOf, treeOf, type Tree } from './tree.js';
 import { shapeOf, unlistedShapeOf, type RecordCache } from './reuse.js';
-import { nativeFrontier, nativeGraph, type NativeBuilt, type NativeGitTree } from './native.js';
+import type { NativeGitTree } from './native.js';
 import { native, nativeRefusal } from './addon.js';
-import { adoptNativeParses } from './source-index.js';
-import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
-import type { IndexedRecord } from './source-index-format.js';
-import { handOverKept, type Unheld } from './parse-store.js';
-import { keyFor, languageFor, parseWay, seedPaths, type ParseWay } from './files.js';
+import { nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
+import { decodeSourceIndex, encodeSourceIndex, type IndexedRecord } from './source-index-format.js';
+import { keyFor, parseWay, seedPaths } from './files.js';
 import { READABLE } from './language.js';
-import { worldIn, worldOn } from './world.js';
-import { declinedForSize, parsedOnce, recordFor, stillTooLarge } from './record.js';
-import { onlyListed } from './repo-path.js';
+import { declinedForSize, stillTooLarge } from './record.js';
 import { withDeclaredTsconfig } from './typescript.js';
 import {
   realPath,
-  resolversFor,
   type ResolveOptions,
 } from './resolve.js';
 
@@ -101,7 +60,7 @@ export interface ScanOptions extends ResolveOptions {
    * can be looked up before the file is opened, so an unchanged file costs a map
    * lookup rather than a read and a parse.
    */
-  readonly digests?: ReadonlyMap<string, Digest> | false;
+  readonly digests?: ReadonlyMap<string, Digest> | Tree | false;
 
   /**
    * Whether a file's bytes are read out of Git's object store. On when absent.
@@ -124,7 +83,11 @@ export interface ScanOptions extends ResolveOptions {
    */
   readonly changed?: readonly string[];
 
-  /** Where parses are remembered between runs. In memory when absent. */
+  /**
+   * Content-keyed parses, in memory when absent. A known file digest lets the
+   * native graph reuse a held parse. Without one it parses the acquired bytes;
+   * callbacks still receive an existing cached value for their content key.
+   */
   readonly cache?: ParseCache;
 
   /**
@@ -217,7 +180,7 @@ export const LARGEST_FILE = 1024 * 1024;
 export async function scanRelations(options: ScanOptions): Promise<readonly FileRecord[]> {
   const { built, graph } = await scanning(options);
   if (graph !== undefined) {
-    for (const record of graphRecords(graph)) built.set(record.file, record);
+    for (const { record } of decodeSourceIndex(graph.encode([])).records.values()) built.set(record.file, record);
   }
   return [...built.values()].sort((a, b) => codeUnitOrder(a.file, b.file));
 }
@@ -251,7 +214,7 @@ export async function scanCount(options: ScanOptions): Promise<ScanCounted> {
 }
 
 interface Scanned {
-  /** Every record the scan built or reused in JavaScript. */
+  /** Records decoded for public consumers or supplied by the record cache. */
   readonly built: Map<string, FileRecord>;
   /** The cold closure the addon holds, whose records win where both name a file. */
   readonly graph?: NativeIndexGraph;
@@ -265,230 +228,135 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   if (asked.changed !== undefined && asked.digests !== undefined) {
     throw new Error('`changed` supplies Git identity and cannot be combined with `digests`');
   }
-  // The real path, because resolution returns one. On macOS a temporary
-  // directory is reached through `/var` and lives at `/private/var`, and a root
-  // on the wrong side of that link puts every resolved file *outside* the
-  // repository — an empty graph, no error, and a selector that narrows to
-  // nothing while reporting success.
   const root = realPath(resolve(asked.root));
   const options = withDeclaredTsconfig(root, asked);
-  const resolvers = resolversFor(options);
   const addon = native();
   if (addon === undefined) {
     throw new Error(`sense: scanning ${root} needs the native addon, which did not load: ${nativeRefusal()}`);
   }
-
-  const built = new Map<string, FileRecord>();
-  const cache = options.cache ?? memoryParseCache();
-  const tree =
-    options.digests === false
-      ? undefined
-      : options.digests === undefined
-        ? await gitTreeOf(root, options.dirs, options.changed)
-        : treeOf(options.digests);
-
-  // Every language but JavaScript resolves by asking about the tree rather
-  // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
-  // scan already holds the answer for every path it knows, and every parse.
-  const largestFile = options.largestFile ?? LARGEST_FILE;
-  let parsed = 0; // counted where JavaScript parses, whichever of a resolver and the scan asks first
-  const counted = (file: string, contents: string): void => { parsed += 1; tree?.native?.parsedFrom(file, contents); };
-  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, counted, digest: tree?.getAll([file])[0] });
-  const world = tree === undefined ? worldOn(root, parse) : worldIn(tree.paths(), root, parse);
-  resolvers.tree = world;
-
-  // No digests, no reuse: a record that names no bytes cannot be checked against the
-  // bytes on disk. A directory git cannot list still keeps what it read, under a shape
-  // no listed scan reuses, since the index is read for it; `digests: false` keeps none.
-  const reuse = tree === undefined && options.digests === false ? undefined : options.reuse;
+  const tree = options.digests === false ? undefined
+    : options.digests === undefined ? await gitTreeOf(root, options.dirs, options.changed)
+    : treeOf(options.digests);
   const shape = tree === undefined ? undefined : await shapeOf({ root, tree, options });
-  if (tree === undefined) reuse?.under(await unlistedShapeOf({ root, options }));
-  // FIXME: under a clean or smudge filter — LFS, `core.autocrlf`, `working-tree-encoding` —
-  // a blob and its checked-out file differ, both parse under the blob's digest, and an
-  // index keeps whichever it read first until the blob changes. A decline for size is
-  // checked against the file; one for bytes that are not UTF-8 is not.
-  const packed = options.packs === false ? undefined : tree?.native;
-  // A native batch over a tree the addon does not hold resolves without Git's
-  // listing, so it is handed the part the disk cannot vouch for: the files
-  // under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)). Asked for
-  // when a batch runs, which on a scan that reuses everything is never.
-  let listed: string[] | undefined;
-  const listedPaths = (): string[] => (listed ??= world.below('').filter(onlyListed));
+  const reuse = tree === undefined && options.digests === false ? undefined : options.reuse;
   if (shape !== undefined) reuse?.under(shape.shape);
+  else if (reuse !== undefined) reuse.under(await unlistedShapeOf({ root, options }));
 
-  // The queue is repository-relative throughout. An edge already carries the
-  // path this scan uses as a key, and the absolute form is wanted only where a
-  // file is opened — which on a run that reuses everything is nowhere.
-  const queue = tree?.seeds !== undefined
-    ? [...tree.seeds]
-    : tree !== undefined
-    ? [...seedPaths(root, options.dirs, tree.paths())]
-    : addon.seedFiles(root, [...options.dirs]);
-
-  // Appended rather than merged into the directory seeds: these are exact
-  // paths, not places to walk, and the tree holds every tracked file whatever
-  // directories it was asked to seed from — so a config above `src/` has a
-  // digest here even though no walk would have found it.
-  //
-  // A path that is not there is dropped here rather than recorded as a file
-  // whose edges could not be read. The second is what a *misspelled* entry
-  // would become: one typo in the configuration would name a file nobody wrote
-  // in every report on the scan, and read there as a scan that had failed.
+  const paths = tree?.native === undefined ? tree?.paths() : undefined;
+  const seeds = tree?.seeds ?? (paths === undefined ? undefined : seedPaths(root, options.dirs, paths));
+  const holder = tree?.native ?? (paths === undefined
+    ? addon.filesystemTree(root, [...options.dirs])
+    : addon.sourceTree(root, [...paths], [...seeds!]));
+  const queue = [...seeds ?? holder.seeds()];
   for (const entry of options.before ?? []) {
-    if (!READABLE.has(extname(entry))) continue;
-    if (await readable(join(root, entry))) queue.push(entry);
+    if (READABLE.has(extname(entry)) && await readable(join(root, entry))) queue.push(entry);
   }
-
-  let nativeGraphUsed = false;
-  let graph: NativeIndexGraph | undefined;
-  const unheld: Unheld[] = []; // kept by the scan, after the cache read the stores without it
+  const identities = paths === undefined ? undefined : Object.fromEntries(
+    paths.flatMap((file) => {
+      const digest = tree!.get(file);
+      return digest === undefined ? [] : [[file, digest]];
+    }),
+  );
+  const listing = tree?.native !== undefined && !tree.native.filesystem ? tree.native : undefined;
+  const cache = options.cache ?? memoryParseCache();
+  const rustPrior = new Map<string, Parsed>();
+  if (options.cache !== undefined && tree !== undefined) {
+    const rust = (paths ?? tree.paths()).filter((file) => extname(file) === '.rs');
+    const named = tree.getAll(rust);
+    for (const [at, file] of rust.entries()) {
+      const digest = named[at];
+      if (digest === undefined) continue;
+      const key = keyFor(digest, parseWay(file));
+      const read = cache.get(key);
+      if (read !== undefined) rustPrior.set(key, read);
+    }
+  }
+  const session = addon.newScanSession(rustPrior.size === 0 ? undefined
+    : encodeSourceIndex({ parses: rustPrior, directories: new Map(), records: new Map() }));
+  const built = new Map<string, FileRecord>();
+  const largestFile = options.largestFile ?? LARGEST_FILE;
+  let parsed = 0;
 
   const follow = (record: FileRecord): void => {
     for (const edge of record.edges ?? []) {
       if (!built.has(edge.to) && READABLE.has(extname(edge.to))) queue.push(edge.to);
     }
   };
-  // A parse the cache holds and the answer does not — a reused record's, or one
-  // a store kept — is read back only for a caller that asked to be handed it.
-  const handOver = (file: string, read: Parsed | undefined, key: string | undefined, targets?: readonly (string | undefined)[]): void => {
-    const asked = options.parsed !== undefined || options.indexed !== undefined;
-    const parse = read ?? (key !== undefined && asked ? cache.get(key) : undefined);
-    if (parse === undefined) return;
-    options.parsed?.(file, parse);
-    if (targets !== undefined) options.indexed?.(file, parse, targets);
+  const handOver = (file: string, read: Parsed | undefined, targets?: readonly (string | undefined)[]): void => {
+    if (read === undefined) return;
+    options.parsed?.(file, read);
+    if (targets !== undefined) options.indexed?.(file, read, targets);
   };
-
-  const accept = (file: string, way: ParseWay, fresh: NativeBuilt): void => {
-    built.set(file, fresh.record);
-    reuse?.set(fresh.record, fresh.witnesses, fresh.targets);
-    if (fresh.parsed === true) parsed += 1;
-    const key = fresh.record.digest === undefined ? undefined : keyFor(fresh.record.digest, way);
-    if (fresh.read !== undefined && key !== undefined) cache.set(key, fresh.read);
-    // A kept parse crossed as what its record needs; the whole one is the store's.
-    if (fresh.kept === true && key !== undefined) cache.keep?.(key);
-    if (fresh.kept === true && key !== undefined && cache.keep !== undefined && cache.get(key) === undefined) unheld.push({ file, key, fresh });
-    else handOver(file, fresh.read, fresh.kept === true ? key : undefined, fresh.targets);
-    follow(fresh.record);
-  };
-
-  const acceptRemembered = (file: string, digest: Digest, way: ParseWay, held: IndexedRecord): void => {
+  const acceptRemembered = (file: string, digest: Digest, held: IndexedRecord): void => {
     built.set(file, held.record);
-    cache.keep?.(keyFor(digest, way));
-    handOver(file, undefined, keyFor(digest, way), held.targets);
+    const key = keyFor(digest, parseWay(file));
+    cache.keep?.(key);
+    if (options.parsed !== undefined || options.indexed !== undefined) handOver(file, cache.get(key), held.targets);
     follow(held.record);
   };
 
-  // One frontier per call: every file currently known is parsed and resolved on
-  // the native side, then newly reached files form the next frontier. A hot
-  // record still costs only its two lookups and never enters the batch.
   for (let head = 0; head < queue.length;) {
-    const frontierStart = head;
     const end = queue.length;
-    const frontierDigests = tree?.getAll(queue.slice(head, end));
-    const pending: string[] = [];
-    const pendingDigests: (Digest | undefined)[] = [];
-    const pendingSet = new Set<string>();
+    const files: string[] = [];
+    const pending = new Set<string>();
+    const prior = new Map<string, Parsed>();
+    const digests = tree?.getAll(queue.slice(head, end));
+    const start = head;
     for (; head < end; head += 1) {
       const file = queue[head]!;
-      if (built.has(file) || graph?.has(file) || pendingSet.has(file)) continue;
-      const digest = frontierDigests?.[head - frontierStart];
-      const way = parseWay(file);
-      let remembered = digest === undefined ? undefined : reuse?.getIndexed(file, digest);
-      // A decline for size is decided on the checked-out bytes: `stillTooLarge`.
-      const fits = remembered && declinedForSize(remembered.record) && !(await stillTooLarge(join(root, file), largestFile));
-      if (fits) remembered = undefined;
-      if (remembered !== undefined && digest !== undefined) {
-        acceptRemembered(file, digest, way, remembered);
+      if (built.has(file) || pending.has(file)) continue;
+      const digest = digests?.[head - start];
+      let held = digest === undefined ? undefined : reuse?.getIndexed(file, digest);
+      if (held !== undefined && declinedForSize(held.record) && !(await stillTooLarge(join(root, file), largestFile))) held = undefined;
+      if (held !== undefined && digest !== undefined) {
+        acceptRemembered(file, digest, held);
         continue;
       }
-      // The native side reads modules and nothing else, so what it is handed is
-      // named positively rather than as everything that is not a stylesheet: a
-      // language it has never heard of must go to `recordFor`, not be passed to
-      // it because it failed to be CSS.
-      if (languageFor(way) === 'module') {
-        pending.push(file);
-        pendingDigests.push(digest);
-        pendingSet.add(file);
-        continue;
-      }
-      const fresh = await recordFor({
-        absolute: join(root, file),
-        file,
-        root,
-        resolvers,
-        cache,
-        aliases: shape?.aliases,
-        directories: shape?.shape.directories ?? new Map(),
-        largestFile,
-        remembering: reuse !== undefined,
-        counted,
-        ...(digest === undefined ? {} : { digest }),
-      });
-      accept(file, way, fresh);
-    }
-
-    if (pending.length > 0) {
-      const useGraph = !nativeGraphUsed && packed !== undefined && pending.length >= 10_000;
-      const nativeOptions = {
-        addon,
-        ...(packed === undefined ? {} : { tree: packed }),
-        ...(packed === undefined && tree !== undefined ? { listed: listedPaths() } : {}),
-        root,
-        files: pending,
-        largestFile,
-        digests: pendingDigests,
-        aliases: shape?.aliases,
-        directories: shape?.shape.directories ?? new Map(),
-        remembering: reuse !== undefined,
-        ...(options.stores === undefined ? {} : { stores: options.stores }),
-        ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
-        ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
-      };
-      // A closure nobody asked to see file by file is held where it was built:
-      // no callback wants its parses, and the record cache — when there is
-      // one — publishes it without asking for the records back.
-      const held = useGraph && packed !== undefined &&
-          options.parsed === undefined && options.indexed === undefined &&
-          (reuse === undefined || reuse.adopt !== undefined)
-        ? nativeIndexGraph(packed, { ...nativeOptions, seeds: pending })
-        : undefined;
-      let answers: readonly NativeBuilt[] = [];
-      let answeredFiles: readonly string[] = pending;
-      if (held !== undefined) {
-        graph = held;
-        nativeGraphUsed = true;
-        answeredFiles = [];
-        adoptNativeParses(cache, { get bytes() { return held.parseSegment(); }, keys: { has: (key) => held.hasParse(key) } });
-        reuse?.adopt?.(held);
-        for (const file of held.following()) {
-          if (!built.has(file) && READABLE.has(extname(file))) queue.push(file);
-        }
-      } else if (useGraph) {
-        const graph = nativeGraph(nativeOptions, options.parsed !== undefined || options.indexed !== undefined);
-        answers = graph.built;
-        if (graph.parseLayer !== undefined) adoptNativeParses(cache, graph.parseLayer);
-        nativeGraphUsed = true;
-        answeredFiles = answers.map((answer) => answer.record.file);
-      } else {
-        answers = nativeFrontier(nativeOptions);
-      }
-      const accepting = performance.now();
-      for (const [index, file] of answeredFiles.entries()) {
-        accept(file, parseWay(file), answers[index]!);
-      }
-      if (packed !== undefined) handOverKept(packed, options.stores, cache, unheld.splice(0), handOver);
-      if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
-        process.stderr.write(`sense accept native: ${(performance.now() - accepting).toFixed(1)} ms\n`);
+      files.push(file);
+      pending.add(file);
+      if (digest !== undefined && options.cache !== undefined) {
+        const key = keyFor(digest, parseWay(file));
+        const read = cache.get(key);
+        if (read !== undefined) prior.set(key, read);
       }
     }
-
-    // The JavaScript resolvers are clones sharing one cache. Native batches own
-    // their resolver cache and drop it at the call boundary.
-    resolvers.modules.clearCache();
+    if (files.length === 0) continue;
+    const graph = nativeIndexGraph(holder, {
+      session,
+      root, seeds: files, largestFile, remembering: reuse !== undefined,
+      aliases: shape?.aliases, directories: shape?.shape.directories ?? new Map(),
+      follow: reuse === undefined && options.cache === undefined,
+      ...(identities === undefined ? {} : { identities }),
+      ...(prior.size === 0 ? {} : { priorParses: encodeSourceIndex({ parses: prior, directories: new Map(), records: new Map() }) }),
+      ...(options.packs === undefined ? {} : { packs: options.packs }),
+      ...(options.stores === undefined ? {} : { stores: options.stores }),
+      ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
+      ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
+    });
+    if (reuse === undefined && options.cache === undefined && options.parsed === undefined && options.indexed === undefined) {
+      return { built, graph, parsed, ...(listing === undefined ? {} : { listing }) };
+    }
+    parsed += graph.parsed;
+    const rows = decodeSourceIndex(graph.encode([])).records;
+    const reads = decodeSourceIndex(graph.parseSegment()).parses;
+    const handed = new Set<string>();
+    for (const [file, held] of rows) {
+      built.set(file, held.record);
+      reuse?.set(held.record, held.witnesses, held.targets);
+      const key = held.record.digest === undefined ? undefined : keyFor(held.record.digest, parseWay(file));
+      const read = key === undefined || !reads.has(key) ? undefined : cache.get(key) ?? reads.get(key);
+      if (key !== undefined && read !== undefined) {
+        cache.set(key, read);
+        handed.add(key);
+      }
+      handOver(file, read, held.targets);
+      follow(held.record);
+    }
+    for (const [key, read] of reads) {
+      if (!handed.has(key)) cache.set(key, cache.get(key) ?? read);
+    }
   }
-
-  const listing = tree?.native;
-  return { built, parsed, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
+  return { built, parsed, ...(listing === undefined ? {} : { listing }) };
 }
 
 /** Whether a path is there to be opened, without opening it. */

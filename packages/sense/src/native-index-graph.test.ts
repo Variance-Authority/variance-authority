@@ -7,9 +7,9 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import type { Parsed } from './cache.js';
 import { keyFor, parseWay } from './files.js';
-import { nativeGraph, type NativeGitTree } from './native.js';
-import { native, nativeAvailable } from './addon.js';
-import { graphRecords, nativeIndexGraph } from './native-index-graph.js';
+import type { NativeGitTree } from './native.js';
+import { nativeAvailable } from './addon.js';
+import { nativeIndexGraph } from './native-index-graph.js';
 import { parseStorePath } from './parse-store.js';
 import { updateSourceIndex } from './published.js';
 import { MODULE_EXTENSIONS } from './read.js';
@@ -24,9 +24,8 @@ import { gitTreeOf } from './tree.js';
 /**
  * The closure the addon holds, against the one it hands over.
  *
- * The oracle is the path a caller that wants every record takes: `nativeGraph`
- * hands each one to JavaScript as an object, and a save writes them. Both are
- * run over this repository's own sources, with what JavaScript reads beside a
+ * The binary generation is decoded into the records a save accepts. Both save
+ * paths run over this repository's own sources, with an extra record beside a
  * closure — a stylesheet's record, a parse — added to each, and the index each
  * one publishes is compared file for file, byte for byte: onto an empty chain,
  * which the addon publishes itself, and onto a committed one, where the save
@@ -51,21 +50,9 @@ describe('a cold closure held by the addon', () => {
       directories: shape.directories,
     };
     const held = nativeIndexGraph(tree.native!, request)!;
-    const oracle = nativeGraph({
-      addon: native()!,
-      tree: tree.native!,
-      ...request,
-      files: seeds,
-      digests: seeds.map(() => undefined),
-    });
-
-    const oracleRecords = new Map<string, IndexedRecord>(oracle.built.map((built) => [built.record.file, {
-      record: built.record,
-      witnesses: built.witnesses,
-      ...(built.targets === undefined ? {} : { targets: built.targets }),
-    }]));
-    expect(graphRecords(held)).toEqual([...oracleRecords.values()].map((indexed) => indexed.record)
-      .sort((left, right) => left.file < right.file ? -1 : left.file > right.file ? 1 : 0));
+    const oracleRecords = decodeSourceIndex(held.encode([])).records;
+    const parseBytes = held.parseSegment();
+    const parseLayer = { bytes: parseBytes, keys: new Set(decodeSourceIndex(parseBytes).parses.keys()) };
 
     // What JavaScript adds beside a closure: a record the walk never reads, and
     // the parse behind it.
@@ -104,7 +91,7 @@ describe('a cold closure held by the addon', () => {
           config: shape.config,
           directories: shape.directories,
           records: new Map([...oracleRecords, [sheet.record.file, sheet]]),
-        }, oracle.parseLayer);
+        }, parseLayer);
         await (await openSourceIndexFile(actual)).save({
           parses: new Map([[parseKey, parse]]),
           config: shape.config,
@@ -141,7 +128,7 @@ describe('a cold closure held by the addon', () => {
       aliases,
       directories: shape.directories,
     })!;
-    const read = graphRecords(held).find((record) => record.file === seeds[0])!;
+    const read = decodeSourceIndex(held.encode([])).records.get(seeds[0]!)!.record;
     const { parses } = decodeSourceIndex(held.parseSegment());
     const parsed = parses.get(keyFor(read.digest!, parseWay(read.file)));
     expect(parsed?.harvested).toBe(true);

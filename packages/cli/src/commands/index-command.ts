@@ -159,7 +159,6 @@ export async function followUpsOutput(request: Omit<IndexRequest, 'detach'>): Pr
 /** `readied` is told once the index is folded, before the map, the journeys, the lexicon and the questions. */
 async function followUps(request: IndexRequest, update: SourceUpdate, alone: Alone, readied?: () => void): Promise<readonly string[]> {
   const { cwd, progress } = request;
-  const noGit = request.noGit === true;
   return turn(request, alone, async () => {
     // Readied first, so everything below reads the base the next update keeps and
     // the update itself never folds one while somebody waits on it.
@@ -170,8 +169,8 @@ async function followUps(request: IndexRequest, update: SourceUpdate, alone: Alo
     const [map, walks, names, questions] = await Promise.all([
       stepped(progress, 'writing the code map', () => codeMap(cwd, update)),
       stepped(progress, 'writing the journeys', () => journeys(cwd, update, request.failed)),
-      stepped(progress, 'writing the dependency lexicon', () => lexicon(cwd)),
-      stepped(progress, 'writing the questions', () => answerable(cwd, update, noGit, progress)),
+      stepped(progress, 'writing the dependency lexicon', () => lexicon(cwd, update)),
+      stepped(progress, 'writing the questions', () => answerable(cwd, update, progress)),
     ]);
     return [map, ...walks, names, questions];
   });
@@ -182,7 +181,7 @@ async function followUps(request: IndexRequest, update: SourceUpdate, alone: Alo
  * answered. The step that exists to publish reads the value back instead, so a
  * cache it could not write is a line in the log rather than a later refusal.
  */
-async function answerable(root: string, { path: index, readStartedAt }: SourceUpdate, noGit: boolean, progress: Progress | undefined): Promise<string> {
+async function answerable(root: string, { path: index, readStartedAt, listing, packs }: SourceUpdate, progress: Progress | undefined): Promise<string> {
   // Loaded here, by the follow-ups alone: the index a command waits on reads no help.
   const { publishedGeneration, publishWorkspaceFromIndex, workspaceSnapshotPath } = await import('@variance-authority/help');
   const at = workspaceSnapshotPath(index);
@@ -192,7 +191,8 @@ async function answerable(root: string, { path: index, readStartedAt }: SourceUp
     const generation = await publishWorkspaceFromIndex(root, {
       index,
       readStartedAt,
-      ...(noGit ? { packs: false } : {}),
+      ...(listing === undefined ? {} : { listing }),
+      ...(packs === undefined ? {} : { packs }),
       ...(progress === undefined ? {} : { progress }),
     });
     const published = await publishedGeneration(root, index);
@@ -205,10 +205,10 @@ async function answerable(root: string, { path: index, readStartedAt }: SourceUp
   }
 }
 
-async function lexicon(root: string): Promise<string> {
+async function lexicon(root: string, scanned: SourceUpdate): Promise<string> {
   const { refreshDependencyLexicon } = await import('@variance-authority/help');
   try {
-    const { path, packages, entrypoints, reused, unavailable, unchanged, appended, rebuilt } = await refreshDependencyLexicon(root);
+    const { path, packages, entrypoints, reused, unavailable, unchanged, appended, rebuilt } = await refreshDependencyLexicon(root, scanned);
     if (unchanged) return `dependency lexicon: unchanged, nothing read: ${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${unavailable} unavailable, at ${path}`;
     const read = !rebuilt && appended > 0 ? `${appended} changed source ${appended === 1 ? 'file' : 'files'} read: ` : '';
     return `dependency lexicon: ${read}${packages} workspace-dependency pairs, ${entrypoints} public entrypoints, ${reused} reused, ${unavailable} unavailable, at ${path}`;

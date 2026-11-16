@@ -69,7 +69,7 @@ import { aliasesIn, movedDirectories, type Aliases } from './witness.js';
  * size past which a file is declined. A declined record names the bytes it
  * declined, so a raised limit has to move the digest or it would keep them.
  */
-export type ShapeOptions = ResolveOptions & { readonly largestFile?: number };
+export type ShapeOptions = ResolveOptions & { readonly largestFile?: number; readonly packs?: boolean };
 
 /** The tree as reuse sees it: one digest for the configuration, one per directory. */
 export interface TreeShape {
@@ -223,7 +223,7 @@ export async function configOf(input: {
   const { root, tree, options } = input;
   // `aliasesIn` reads configuration files, so it wants the configuration files —
   // which is the same question the config digest asks, minus the manifests.
-  const aliases = await aliasesIn(root, tree.named(['jsconfig.json']));
+  const aliases = await aliasesIn(root, tree.named(['jsconfig.json']), options?.packs === false ? undefined : tree.native);
 
   // No `root`: a record names files relative to the checkout it was scanned
   // from and holds no absolute path, so a worktree adopts the primary

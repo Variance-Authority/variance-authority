@@ -77,7 +77,7 @@ describe('the checkouts a parse store answers', () => {
     expect(sourceIndexPath(join(second, 'packages/a')).startsWith(`${second}/`)).toBe(true);
   });
 
-  it("takes no parse of another checkout's bytes that a clean filter makes the same blob", async () => {
+  it.each([{}, { packs: false }])("reads the selected bytes across a clean filter with %o", async (options) => {
     // The filter cleans every `entry.ts` to one blob, so the two checkouts' blobs
     // are the same object while the files on disk import different modules.
     const filtered = async (root: string) => {
@@ -89,17 +89,17 @@ describe('the checkouts a parse store answers', () => {
     const right = await checkout('right', filtered);
 
     process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
-    await updateSourceIndex(right);
+    await updateSourceIndex(right, options);
     const alone = await records(right);
 
     process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
-    await updateSourceIndex(left);
-    await updateSourceIndex(right);
+    await updateSourceIndex(left, options);
+    const shared = await updateSourceIndex(right, options);
+    expect(shared.parsed).toBe('packs' in options ? 1 : 0);
     expect(await records(right)).toBe(alone);
   });
 
-  // A wave this small is read off the disk, and each file's bytes are told from its blob as they are read.
-  it('parses nothing again for a checkout of blobs another read off the disk', async () => {
+  it('parses nothing again for a checkout of blobs another read', async () => {
     process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
     await updateSourceIndex(await checkout('left'));
     const second = await updateSourceIndex(await checkout('left'));
@@ -107,7 +107,6 @@ describe('the checkouts a parse store answers', () => {
     expect(second.parsed).toBe(0);
   });
 
-  // `packs: false` is the update made in JavaScript, which fills the store from the index it wrote.
   it.each([{}, { packs: false }])('takes no parse another checkout made of bytes it edited after git named them, updating with %o', async (options) => {
     // `edited` holds bytes git still names by the committed blob. Git was told not to
     // look for the edit, as it has not looked for one made after it listed the tree.
@@ -137,6 +136,29 @@ describe('the checkouts a parse store answers', () => {
     const part = await updateSourceIndex(worktree, { index: `${sourceIndexPath(worktree)}.workspace.bin`, dirs: ['packages/a'] });
     expect(part.files).toBeGreaterThan(0);
     expect(part.parsed).toBe(0);
+  });
+
+  it('shares only matching smudged bytes when two checkouts hold the same LFS pointer', async () => {
+    const pointer = 'version https://git-lfs.github.com/spec/v1\noid sha256:' + '0'.repeat(64) + '\nsize 64\n';
+    const smudged = async (target: string) => {
+      const root = await checkout(target);
+      await write(root, 'packages/a/src/entry.ts', pointer);
+      git(root, 'add', '.');
+      git(root, 'commit', '--quiet', '-m', 'pointer');
+      git(root, 'update-index', '--assume-unchanged', 'packages/a/src/entry.ts');
+      await write(root, 'packages/a/src/entry.ts', `import { side } from './${target}.js';\nexport const entry = side;\n`);
+      return root;
+    };
+    const left = await smudged('left');
+    const right = await smudged('right');
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
+    await updateSourceIndex(right);
+    const alone = await records(right);
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    await updateSourceIndex(left);
+    expect(await updateSourceIndex(right)).toMatchObject({ parsed: 1 });
+    expect(await records(right)).toBe(alone);
+    expect(await updateSourceIndex(right)).toMatchObject({ parsed: 0 });
   });
 
   // A worktree's index is its own: no row of its primary checkout's arrives in it unread.
@@ -199,13 +221,17 @@ describe('the checkouts a parse store answers', () => {
     git(crlf, 'rm', '--quiet', '--cached', '-r', '.');
     git(crlf, 'reset', '--quiet', '--hard');
 
-    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
-    await updateSourceIndex(crlf);
-    const alone = await records(crlf);
+    for (const options of [{}, { packs: false }]) {
+      process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
+      await updateSourceIndex(crlf, options);
+      const alone = await records(crlf);
 
-    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
-    await updateSourceIndex(lf);
-    await updateSourceIndex(crlf);
-    expect(await records(crlf)).toBe(alone);
+      process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+      await updateSourceIndex(lf, options);
+      const shared = await updateSourceIndex(crlf, options);
+      if (!('packs' in options)) expect(shared.parsed).toBe(0);
+      expect(await records(crlf)).toBe(alone);
+      expect(await updateSourceIndex(crlf, options)).toMatchObject({ parsed: 0 });
+    }
   }
 });

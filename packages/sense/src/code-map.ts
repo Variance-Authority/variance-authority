@@ -44,7 +44,7 @@ export interface PreparedCodeMap {
 export async function prepareCodeMap(
   root: string,
   index: string = sourceIndexPath(root),
-  scanned?: Pick<SourceUpdate, 'listing'>,
+  scanned?: Pick<SourceUpdate, 'listing' | 'packs'>,
 ): Promise<PreparedCodeMap> {
   const carried = scanned?.listing?.prepareOrientMap?.bind(scanned.listing);
   // A manifest's entry lands where the scan that built the index put it.
@@ -53,7 +53,7 @@ export async function prepareCodeMap(
   const { declaresWorkspaces } = await import('@variance-authority/package');
   const workspaces = declaresWorkspaces(root);
   const prepared = await (carried !== undefined
-    ? carried(root, index, workspaces, tsconfig)
+    ? carried(root, index, workspaces, tsconfig, scanned?.packs)
     : entry('prepareOrientMap')(root, index, scanned !== undefined && scanned.listing === undefined ? true : null, workspaces, tsconfig));
   return prepared === null ? { index } : { index, prepared };
 }

@@ -109,3 +109,12 @@ fn a_key_of_an_object_with_unspelled_keys_is_a_use() {
     let found = uses("function a() {}\nexport = {\n  a,\n  ...rest,\n};\n", SourceType::ts());
     assert_eq!(found, vec![one("a", 3)]);
 }
+
+#[test]
+fn writes_are_uses_but_a_named_commonjs_export_passes_its_binding_on() {
+    let found = uses(
+        "let value = 0;\nvalue = 1;\nvalue++;\nfunction inner(value: number) { value++; }\nvalue += 2;\nconst module = { exports: {} };\nmodule.exports = { value, nested: () => value };\n",
+        SourceType::ts(),
+    );
+    assert_eq!(found, vec![one("value", 2), one("value", 3), one("value", 5), one("value", 7)]);
+}

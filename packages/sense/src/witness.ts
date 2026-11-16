@@ -55,6 +55,7 @@
 
 import { dirname, join, normalize } from 'node:path/posix';
 import { native, nativeRefusal } from './addon.js';
+import type { NativeGitTree } from './native.js';
 import { digestString } from './digest.js';
 import type { Digest } from '@variance-authority/core/format';
 import { isRelative, requestOf } from './specifier.js';
@@ -99,10 +100,11 @@ export interface Mapping {
 export async function aliasesIn(
   root: string,
   paths: Iterable<string>,
+  tree?: NativeGitTree,
 ): Promise<Aliases | undefined> {
   const read = native();
   if (read === undefined) throw new Error(`aliases are read by the native scanner, and ${nativeRefusal() ?? 'it did not load'}`);
-  const held = read.aliasesIn(root, [...paths]);
+  const held = tree === undefined ? read.aliasesIn(root, [...paths]) : tree.aliasesIn([...paths]);
   if (held === null) return undefined;
   const mappings: Mapping[] = held.mappings.map((mapping) =>
     mapping.suffix === undefined || mapping.suffix === null

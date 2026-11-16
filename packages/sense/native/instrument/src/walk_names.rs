@@ -13,8 +13,15 @@ use oxc_syntax::number::ToJsString;
 use super::{Scope, Walker};
 
 impl Walker {
+    pub(super) fn label(&self, text: std::fmt::Arguments) -> String {
+        if self.emit { text.to_string() } else { String::new() }
+    }
+
     /// `if#0`, `if#1`, `for#0` — numbered within the path that contains them.
     pub(super) fn step(&mut self, kind: &str) -> String {
+        if !self.emit {
+            return String::new();
+        }
         let key = format!("{} {kind}", self.path);
         let scope = self.scopes.last_mut().expect("the module scope is never popped");
         let counter = scope.counts.entry(key).or_insert(0);
@@ -29,6 +36,10 @@ impl Walker {
 
     /// Push the scope a declaration opens: its own name, or the next `anon#i`.
     pub(super) fn named(&mut self, own: Option<String>) {
+        if !self.emit {
+            self.scopes.push(Scope::new(String::new()));
+            return;
+        }
         let outer = self.scope();
         let own = own.unwrap_or_else(|| {
             let at = outer.anon;
@@ -41,6 +52,9 @@ impl Walker {
 
     /// Hand `name` to the child about to be visited, when that child can take one.
     pub(super) fn hint_for(&mut self, child: &Expression, name: impl FnOnce(&mut Self) -> Option<String>) {
+        if !self.emit {
+            return;
+        }
         if matches!(
             child,
             Expression::FunctionExpression(_) | Expression::ArrowFunctionExpression(_) | Expression::ClassExpression(_)
@@ -68,6 +82,9 @@ impl Walker {
     }
 
     pub(super) fn name_of_key(&mut self, key: &PropertyKey) -> Option<String> {
+        if !self.emit {
+            return None;
+        }
         match key {
             PropertyKey::StaticIdentifier(it) => Some(it.name.to_string()),
             PropertyKey::PrivateIdentifier(it) => Some(it.name.to_string()),

@@ -29,7 +29,7 @@ const SHARE: f64 = 0.10;
 /// writer moved meanwhile is left as that writer published it.
 #[napi(ts_return_type = "Promise<boolean>")]
 pub fn ready_source_index(index: String) -> AsyncTask<OffThread<bool>> {
-    off_thread(move || readied(&index).map_err(|error| napi::Error::from_reason(format!("the source index at {index} was not readied: {error}"))))
+    off_thread("ready index job", move || readied(&index).map_err(|error| napi::Error::from_reason(format!("the source index at {index} was not readied: {error}"))))
 }
 
 fn readied(index: &str) -> Result<bool, String> {
@@ -60,3 +60,7 @@ fn rows(layer: &Layer) -> usize {
     layer.records.file.len() + layer.parses.key.len()
         + layer.records.deleted.len() + layer.parses.deleted.len() + layer.directories.deleted.len()
 }
+
+#[cfg(all(test, unix, feature = "grammars"))]
+#[path = "source_segment_tests.rs"]
+mod tests;

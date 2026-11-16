@@ -15,17 +15,20 @@
 // compass: variance-authority.reach.source-index
 
 use std::borrow::Cow;
+use std::collections::{hash_map::Entry, HashMap};
+
+use rustc_hash::FxBuildHasher;
 
 use crate::name_table::{Item, NameColumn};
 use crate::segment::{u32s, u8s, Collected, Column, Strings, NONE};
 use crate::source_size::Size;
 
 /// One parse row, as the encoder asks for it.
-pub trait ParseRow {
+pub trait ParseRow: Sync {
     /// Every string the row's columns will name, the key's two parts excluded.
     fn strings<'s>(&'s self, into: &mut Collected<'s>);
     /// The row's columns. `row` has already been called for it.
-    fn write(&self, strings: &Strings, into: &mut ParseColumns);
+    fn write<'text>(&'text self, strings: &Strings, into: &mut ParseColumns<'text>);
     /// Whether the row wrote an export list — present, even when empty.
     fn exports_present(&self) -> bool;
     fn declares_present(&self) -> bool;
@@ -46,23 +49,30 @@ pub trait ParseRow {
 /// when there is no span.
 pub type Span<'t> = Option<(u32, u32, Option<&'t str>)>;
 
-/// The text heap: the signatures, docs and lines the parse cut, each where
-/// its row put it. Not the dictionary: these are long, mostly unique and
-/// never looked up by value, and sorting them into it was most of what they
-/// cost to write.
+/// The signatures, docs and lines the parse cut, interned in encounter order.
+/// A line can name many exports or members, so keeping each copy multiplies
+/// the source's bytes. Unlike the dictionary, long texts need no sorting.
 #[derive(Default)]
-struct Heap {
+struct Heap<'text> {
     blob: Vec<u8>,
     ends: Vec<u32>,
+    ids: HashMap<&'text str, u32, FxBuildHasher>,
 }
 
-impl Heap {
+impl<'text> Heap<'text> {
     /// The id of `text` once appended, or `NONE` when there is none.
-    fn push(&mut self, text: Option<&str>) -> u32 {
+    fn push(&mut self, text: Option<&'text str>) -> u32 {
         let Some(text) = text else { return NONE };
-        self.blob.extend_from_slice(text.as_bytes());
-        self.ends.push(self.blob.len() as u32);
-        self.ends.len() as u32 - 1
+        match self.ids.entry(text) {
+            Entry::Occupied(entry) => *entry.get(),
+            Entry::Vacant(entry) => {
+                let id = self.ends.len() as u32;
+                self.blob.extend_from_slice(text.as_bytes());
+                self.ends.push(self.blob.len() as u32);
+                entry.insert(id);
+                id
+            }
+        }
     }
 
     /// `texts.blob` and `texts.off`: the `id`-th text runs from offset `id`
@@ -86,7 +96,7 @@ pub fn words_at(doc: Option<Option<&str>>) -> Option<Option<Cow<'static, str>>> 
 }
 
 #[derive(Default)]
-pub struct ParseColumns {
+pub struct ParseColumns<'text> {
     digest: Vec<u32>,
     way: Vec<u32>,
     requests: Vec<u32>,
@@ -168,20 +178,21 @@ pub struct ParseColumns {
     declare_name: Vec<u32>,
     /// The name table, one column per [`Item`].
     names: [NameColumn; 4],
-    texts: Heap,
+    texts: Heap<'text>,
 }
 
-fn span(into: &mut [Vec<u32>; 3], texts: &mut Heap, value: Span) {
+fn span<'text>(into: &mut [Vec<u32>; 3], texts: &mut Heap<'text>, value: Span<'text>) {
     into[0].push(value.map_or(NONE, |(start, _, _)| start));
     into[1].push(value.map_or(NONE, |(_, end, _)| end));
     into[2].push(texts.push(value.and_then(|(_, _, text)| text)));
 }
 
-impl ParseColumns {
+impl<'text> ParseColumns<'text> {
     /// Every row, keyed and sorted by the caller, written in that order.
-    pub fn of<P: ParseRow>(rows: &[(&str, &P)], strings: &Strings) -> Self {
+    pub fn of<P: ParseRow>(rows: &[(&str, &'text P)], strings: &Strings) -> Self {
         let mut columns = Self { request_bindings: vec![0], binding_member_within: vec![0], ..Self::default() };
         for (key, row) in rows {
+            let row = *row;
             let (digest, way) = key.split_once('\0').unwrap_or((key, ""));
             columns.row(strings.id(digest), strings.id(way));
             columns.exports_present.push(u8::from(row.exports_present()));
@@ -196,7 +207,7 @@ impl ParseColumns {
             columns.names[Item::Module as usize].push("", row.doc().is_some(), row.words(Item::Module, 0).as_ref().map(|words| words.as_deref()));
             let before = [columns.symbol_name.len(), columns.nested_name.len(), columns.member_declaration_name.len()];
             row.write(strings, &mut columns);
-            columns.name(strings, *row, before);
+            columns.name(strings, row, before);
         }
         columns.close();
         columns
@@ -258,7 +269,7 @@ impl ParseColumns {
     /// One export; each name is an id or `NONE`.
     #[allow(clippy::too_many_arguments, reason = "one column each, in the encoder's order")]
     /// `line_text` is the text of the line it is written on, when the row kept it.
-    pub fn export(&mut self, names: [u32; 4], type_only: bool, line: u32, signature: Span, doc: Span, tags: u8, line_text: Option<&str>) {
+    pub fn export(&mut self, names: [u32; 4], type_only: bool, line: u32, signature: Span<'text>, doc: Span<'text>, tags: u8, line_text: Option<&'text str>) {
         let [exported, local, from, imported] = names;
         self.export_exported.push(exported);
         self.export_local.push(local);
@@ -273,7 +284,7 @@ impl ParseColumns {
     }
 
     /// `reach` as [`crate::harvest::reach_code`] stores it.
-    pub fn symbol(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span, reach: u8) {
+    pub fn symbol(&mut self, name: u32, kind: u32, line: u32, signature: Span<'text>, doc: Span<'text>, reach: u8) {
         self.symbol_name.push(name);
         self.symbol_kind.push(kind);
         self.symbol_line.push(line);
@@ -299,7 +310,7 @@ impl ParseColumns {
     }
 
     /// `line_text` is as [`Self::export`] takes it.
-    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32, doc: Span, line_text: Option<&str>) {
+    pub fn member_declaration(&mut self, name: u32, line: u32, on: u32, doc: Span<'text>, line_text: Option<&'text str>) {
         self.member_declaration_name.push(name);
         self.member_declaration_line.push(line);
         self.member_declaration_on.push(on);
@@ -322,7 +333,7 @@ impl ParseColumns {
     /// One function a function's body declares; `holder` is an id, or `NONE`
     /// when nothing names the function that holds it.
     #[allow(clippy::too_many_arguments, reason = "one column each, in the encoder's order")]
-    pub fn nested(&mut self, name: u32, kind: u32, line: u32, signature: Span, doc: Span, holder: u32, holder_line: u32) {
+    pub fn nested(&mut self, name: u32, kind: u32, line: u32, signature: Span<'text>, doc: Span<'text>, holder: u32, holder_line: u32) {
         self.nested_name.push(name);
         self.nested_kind.push(kind);
         self.nested_line.push(line);

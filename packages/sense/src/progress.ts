@@ -18,11 +18,13 @@ export type Progress = (step: string) => () => void;
 
 /** `work` as one step of `progress`, ended whether it returns or throws. */
 export async function stepped<T>(progress: Progress | undefined, step: string, work: () => Promise<T> | T): Promise<T> {
+  const started = process.env['VARIANCE_SENSE_TIMINGS'] === '1' ? performance.now() : undefined;
   const ended = progress?.(step);
   try {
     return await work();
   } finally {
     ended?.();
+    if (started !== undefined) console.error(`sense step ${step}: ${(performance.now() - started).toFixed(1)} ms`);
   }
 }
 

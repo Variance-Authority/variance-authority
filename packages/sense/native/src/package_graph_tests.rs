@@ -171,6 +171,27 @@ fn asking(name: &str, limits: Limits, files: &[&str]) -> super::Orientation {
 }
 
 #[test]
+fn whole_tree_and_sparse_joins_read_the_same_parse_rows() {
+    let root = fixture("parse-joins");
+    let index = root.0.join("source-index.bin").to_string_lossy().into_owned();
+    publish(&index);
+    let chain = read_chain(&index).unwrap().unwrap();
+    let layers: Vec<_> = chain.segments.iter().map(|bytes| crate::compact::Layer::open(bytes).unwrap()).collect();
+    let mut sparse: Vec<_> = crate::chain_lookup::fold(&layers).into_iter()
+        .map(|(file, at)| super::Crossing { file, at, owner: 0, others: Vec::new(), parse: None }).collect();
+    let mut whole: Vec<_> = sparse.iter()
+        .map(|crossing| super::Crossing { file: crossing.file, at: crossing.at, owner: 0, others: Vec::new(), parse: None }).collect();
+    super::join_parses(&layers, &mut sparse);
+    super::join_all_parses(&layers, &mut whole);
+    for (sparse, whole) in sparse.iter().zip(&whole) {
+        assert_eq!(whole.parse, sparse.parse, "{}", sparse.file);
+    }
+    assert!(whole.iter().any(|crossing| crossing.parse.is_none()));
+    assert!(whole.iter().any(|crossing| crossing.parse.is_some_and(|at| at.0 == 1)));
+    super::join_all_parses(&layers, &mut []);
+}
+
+#[test]
 fn a_published_chain_reads_back_as_shares_between_packages() {
     let answer = read("shares", Limits { rows: 5, names: 5 });
     let owners: Vec<Option<&str>> = answer.owners.iter().map(|owner| owner.package.as_deref()).collect();

@@ -15,6 +15,9 @@ use std::process::{Command, Stdio};
 /// this is the one copy a second language forces.
 const POINTER_PREFIX: &[u8] = b"version https://git-lfs.github.com/spec/";
 
+/// Git LFS pointers fit within 1 KiB, even when a source limit is smaller.
+pub(crate) const POINTER_LIMIT: u64 = 1024;
+
 /// Whether `bytes` are a git-LFS pointer rather than the file.
 pub(crate) fn pointer(bytes: &[u8]) -> bool {
     bytes.starts_with(POINTER_PREFIX)

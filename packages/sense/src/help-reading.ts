@@ -261,6 +261,11 @@ export interface NativeHelp {
   ripgrep?(root: string, pattern: string, files: string[]): Grepped;
 }
 
+/** The scan's namespace and configuration bytes, carried into question ownership. */
+export interface NativeHelpListing {
+  readHelp?(...args: [...Parameters<NonNullable<NativeHelp['readHelp']>>, packs?: boolean]): Promise<HelpReading | null>;
+}
+
 /** Every matching line, a column per field, and one complaint per file that could not be read. */
 export interface Grepped {
   /** The position in the asked list of each hit's file. */
@@ -341,6 +346,7 @@ export function onIndex<T>(index: string, read: (opened: OpenedIndex) => T): T {
  * `false`, for a caller that publishes a graph of its own, the reading draws
  * the graph too, carrying what each test loads for real beside its mocks,
  * resolved under the `tsconfig` the repository declares, as `mockTaint` joins them.
+ * A carried listing belongs to `root`; `packs: false` reads manifests from the working tree.
  */
 export function readHelp(
   root: string,
@@ -348,8 +354,11 @@ export function readHelp(
   targets: { readonly published: Iterable<string>; readonly unentered: Iterable<string>; readonly declared: Iterable<string> },
   index: string = sourceIndexPath(root),
   drawn = true,
+  scanned?: { readonly listing?: NativeHelpListing; readonly packs?: boolean },
 ): Promise<HelpReading | null> {
-  return entry('readHelp')(root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root));
+  const args: Parameters<NonNullable<NativeHelp['readHelp']>> = [root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root)];
+  const carried = scanned?.listing?.readHelp?.bind(scanned.listing);
+  return carried === undefined ? entry('readHelp')(...args) : carried(...args, scanned?.packs);
 }
 
 /** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */

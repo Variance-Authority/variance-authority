@@ -315,24 +315,26 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
             let mut outgoing = vec![0u32; focus.kids.len()];
             let mut landed: Vec<HashMap<usize, u32>> = vec![HashMap::new(); focus.kids.len()];
             let mut roads: Vec<HashMap<usize, u32>> = vec![HashMap::new(); focus.kids.len()];
-            for &(a, b, count) in &read.edges {
-                let (a, b) = (a as usize, b as usize);
-                if !inner.contains(&a) && !inner.contains(&b) {
-                    continue;
-                }
-                let (sa, sb) = (area_at(a), area_at(b));
-                if sa == sb {
-                    continue;
-                }
-                if let Some(&i) = sb.and_then(|x| kid.get(&x)) {
-                    incoming[i] += count;
-                    *landed[i].entry(b).or_default() += count;
-                }
-                if let (Some(&i), Some(sb)) = (sa.and_then(|x| kid.get(&x)), sb) {
-                    outgoing[i] += count;
-                    // The page's own area holds the row; it is not a road.
-                    if sb != here {
-                        *roads[i].entry(sb).or_default() += count;
+            if !focus.kids.is_empty() {
+                for &(a, b, count) in &read.edges {
+                    let (a, b) = (a as usize, b as usize);
+                    if !inner.contains(&a) && !inner.contains(&b) {
+                        continue;
+                    }
+                    let (sa, sb) = (area_at(a), area_at(b));
+                    if sa == sb {
+                        continue;
+                    }
+                    if let Some(&i) = sb.and_then(|x| kid.get(&x)) {
+                        incoming[i] += count;
+                        *landed[i].entry(b).or_default() += count;
+                    }
+                    if let (Some(&i), Some(sb)) = (sa.and_then(|x| kid.get(&x)), sb) {
+                        outgoing[i] += count;
+                        // The page's own area holds the row; it is not a road.
+                        if sb != here {
+                            *roads[i].entry(sb).or_default() += count;
+                        }
                     }
                 }
             }

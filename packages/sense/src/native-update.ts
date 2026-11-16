@@ -1,22 +1,11 @@
-/**
- * The warm update of the source index, asked of the addon before anything is
- * opened here.
- *
- * `updateSourceIndex` used to decode the whole chain into objects to learn
- * which records still stood. The addon answers that from the chain in place and
- * from the tree, opens only the files past them, and writes one delta
- * (`native/src/source_update.rs`). What stays this side's is the configuration
- * digest, which `reuse.ts` derives from the resolver options. The addon
- * declines with `null` — no chain, a legacy one, another configuration, a file
- * it does not read — and the caller runs the update it always had.
- */
+/** The native source-index lifecycle: configuration and progress cross this boundary; source bytes, records and publication stay in the addon. */
 
 // compass: variance-authority.reach.source-index
 
 import type { NativeGitTree } from './native.js';
+import type { SourceIndexState } from './source-index-file.js';
 import { CODE_EXTENSIONS } from './language.js';
 import { BUILTINS } from './native-index-graph.js';
-import { LARGEST_FILE } from './scan.js';
 import { READABLE } from './language.js';
 import { stepped, type Progress } from './progress.js';
 import type { ResolveOptions } from './resolve.js';
@@ -30,6 +19,7 @@ export interface NativeUpdateOptions {
   readonly index: string;
   readonly config: string;
   readonly largestFile?: number;
+  readonly packs?: boolean;
   readonly tsconfig?: string | false;
   readonly conditionNames?: string[];
   readonly aliases?: string;
@@ -41,6 +31,8 @@ export interface NativeUpdateOptions {
 }
 /** `Updated` in `native/src/source_update.rs`. */
 export interface NativeUpdated {
+  readonly was: SourceIndexState;
+  readonly written?: number;
   readonly files: number;
   readonly reread: number;
   readonly parsed: number;
@@ -49,15 +41,17 @@ export interface NativeUpdated {
 }
 /** What the addon did, and the listing it took. */
 export interface NativelyUpdated {
+  readonly was: SourceIndexState;
+  readonly written?: number;
   readonly files: number;
   readonly reread: number;
   readonly parsed: number;
   readonly refused?: string;
-  readonly listing: NativeGitTree;
+  readonly listing?: NativeGitTree;
 }
 
 /**
- * Update the index at `index` over `dirs` of the checkout at `root` in the addon, or `undefined` when the JavaScript update has to.
+ * Update the index at `index` over `dirs` in the addon; `undefined` means the native lifecycle could not run.
  * `reading` names the read as progress says it: an index started from the stores has no last index to read the changes since.
  */
 export async function updateNatively(
@@ -67,6 +61,7 @@ export async function updateNatively(
   dirs: readonly string[] = ['.'],
   stores?: readonly string[],
   reading = 'reading the files that changed since the last index',
+  packs?: boolean,
 ): Promise<NativelyUpdated | undefined> {
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
   const held = tree?.native;
@@ -74,13 +69,18 @@ export async function updateNatively(
   if (tree === undefined || held?.updateIndex === undefined) return undefined;
   // The scan this update stands in for reads the same setting, so the digest
   // it compares against the chain is the one that scan wrote.
-  const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
-  const { config, aliases } = await configOf({ root, tree, options: tsconfig === undefined ? {} : { tsconfig } });
+  const { tsconfig, config, aliases } = await stepped(undefined, 'source resolution configuration', async () => {
+    const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
+    return { tsconfig, ...await configOf({ root, tree, options: {
+      ...(tsconfig === undefined ? {} : { tsconfig }),
+      ...(packs === undefined ? {} : { packs }),
+    } }) };
+  });
   const done = await stepped(progress, reading, () => held.updateIndex!({
     root,
     index,
     config,
-    largestFile: LARGEST_FILE,
+    ...(packs === undefined ? {} : { packs }),
     ...(tsconfig === undefined ? {} : { tsconfig }),
     ...(aliases === undefined ? {} : { aliases: JSON.stringify(aliases.table) }),
     builtins: BUILTINS,
@@ -90,6 +90,8 @@ export async function updateNatively(
   }));
   if (done === null) return undefined;
   return {
+    was: done.was,
+    ...(done.written === undefined || done.written === null ? {} : { written: done.written }),
     files: done.files,
     reread: done.reread,
     parsed: done.parsed,

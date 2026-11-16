@@ -1004,11 +1004,10 @@ from another branch, or no cache at all costs a slower scan and does not produce
 a different graph for the tracked tree. Deleting them costs one cold scan and
 nothing else.
 
-There is one bounded exception to that invalidation rule. Git-ignored generated
-files are not in the digest map, so one can appear or disappear and shadow a
-resolution without changing the recorded directory membership. Track the file
-when it participates in source resolution, or set `digests: false` to disable
-record reuse for a scan that must observe that generated layout directly.
+Ignored generated files found through paths Git cannot classify remain a
+[source-scan reuse limit](source.md#limits). Track such files, or set
+`digests: false` to scan without Git ignore rules and disable record reuse;
+normal directory exclusions still apply.
 
 That is the scan, which reasons about the source. What the *record* costs is a
 separate arithmetic — how large the snapshot is at two hundred thousand modules,

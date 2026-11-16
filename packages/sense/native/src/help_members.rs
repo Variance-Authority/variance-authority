@@ -48,7 +48,7 @@ pub struct MemberDeclaration {
     pub(crate) doc: Option<TextSpan>,
     /// The line it is declared on, as [`crate::span_text`] keeps it.
     #[serde(rename = "lineText", skip_serializing_if = "Option::is_none")]
-    pub(crate) line_text: Option<String>,
+    pub(crate) line_text: Option<std::sync::Arc<str>>,
 }
 
 /// Every member `program` declares, in source order.

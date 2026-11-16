@@ -8,6 +8,7 @@ import {
   updateSourceIndex,
   type Progress,
   type PublishedName,
+  type SourceUpdate,
 } from '@variance-authority/sense';
 
 import {
@@ -44,6 +45,8 @@ export type FromIndexOptions = HelpOptions & {
   readonly index?: string;
   /** `false` reads the workspace's own index from the working tree, as `variance index --no-git` does. */
   readonly packs?: boolean;
+  /** The namespace for `root` and eligible configuration bytes the index update already read. */
+  readonly listing?: NonNullable<SourceUpdate['listing']>;
   readonly progress?: Progress;
   /** When the update of that index began reading the checkout: the read this publish rests on is the caller's. */
   readonly readStartedAt: string;
@@ -67,9 +70,10 @@ export async function publishWorkspaceFromIndex(root: string, options: FromIndex
   const scope = scanScope(where, offerings);
   const own = options.index ?? sourceIndexPath(where);
   const index = scopeSourceIndexPath(own, scope.dirs);
+  let scanned: Pick<FromIndexOptions, 'listing' | 'packs'> = options;
   // A member list reaching beside the root keeps its own index, which only the list can update.
   if (!coversWhole(scope.dirs)) {
-    await updateSourceIndex(scope.root, {
+    scanned = await updateSourceIndex(scope.root, {
       index,
       dirs: scope.dirs,
       ...(options.packs === undefined ? {} : { packs: options.packs }),
@@ -93,13 +97,15 @@ export async function publishWorkspaceFromIndex(root: string, options: FromIndex
     index,
     own,
     readStartedAt: options.readStartedAt,
+    ...(scanned.listing === undefined ? {} : { listing: scanned.listing }),
+    ...(scanned.packs === undefined ? {} : { packs: scanned.packs }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
   return help === undefined ? undefined : workspaceGeneration(help.help);
 }
 
 /** What {@link publishHelp} reads and writes. */
-export interface HelpPublication {
+export interface HelpPublication extends Pick<FromIndexOptions, 'listing' | 'packs'> {
   /** The workspace the value answers about. */
   readonly workspace: string;
   /** The repository root whose graph carries that workspace: what every recorded path is relative to. */
@@ -134,7 +140,7 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
   const sources = offerings.flatMap((offering) => offering.entrypoints.map((entry) => ({ offering, entry })));
   const entries = sources.map(({ offering, entry }) => ({ key: `${offering.name} ${entry.subpath}`, file: pathOf(root, entry.source) }));
   const reading = await stepped(progress, 'reading what each file imports and exports, from the index', () =>
-    readHelp(root, entries, targets, index, publication.tree === undefined));
+    readHelp(root, entries, targets, index, publication.tree === undefined, publication));
   if (reading === null) return undefined;
 
   const read = reading.usage();
@@ -155,21 +161,27 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
       namesBySource.get(source) ?? new Map()));
 
   return stepped(progress, 'publishing the questions', async () => {
-    const graphDigest = publication.tree === undefined ? undefined : hexDigestOf(publication.tree);
-    const encoded = await reading.encode({
-      root: realpathSync(workspace),
-      graphRoot: realpathSync(root),
-      generatedAt: new Date().toISOString(),
-      readStartedAt: publication.readStartedAt,
-      ...(indexDigest === undefined ? {} : { indexDigest }),
-      packagesDigest: packagesDigest(root, offerings),
-      packages: storeOf(help).packages,
-      unreadable: help.unreadable,
-      ...(graphDigest === undefined ? {} : { graphDigest }),
+    const timing = process.env.VARIANCE_SENSE_TIMINGS === '1' ? progress : undefined;
+    const input = await stepped(timing, 'preparing the questions for encoding', () => {
+      const graphDigest = publication.tree === undefined ? undefined : hexDigestOf(publication.tree);
+      return {
+        root: realpathSync(workspace),
+        graphRoot: realpathSync(root),
+        generatedAt: new Date().toISOString(),
+        readStartedAt: publication.readStartedAt,
+        ...(indexDigest === undefined ? {} : { indexDigest }),
+        packagesDigest: packagesDigest(root, offerings),
+        packages: storeOf(help).packages,
+        unreadable: help.unreadable,
+        ...(graphDigest === undefined ? {} : { graphDigest }),
+      };
     });
-    const tree = publication.tree ?? encoded.tree;
-    if (tree === undefined || tree === null) throw new Error('the reading drew no tree, and none was handed to it');
-    return { help: await publishStore(publication.own, encoded.store, tree, encoded.graphDigest), tree };
+    const encoded = await stepped(timing, 'encoding the questions', () => reading.encode(input));
+    return stepped(timing, 'validating and writing the questions', async () => {
+      const tree = publication.tree ?? encoded.tree;
+      if (tree === undefined || tree === null) throw new Error('the reading drew no tree, and none was handed to it');
+      return { help: await publishStore(publication.own, encoded.store, tree, encoded.graphDigest), tree };
+    });
   });
 }
 

@@ -7,19 +7,18 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
-import { memoryParseCache } from './cache.js';
-import { nativeFrontier, nativeGraph } from './native.js';
+import { nativeIndexGraph } from './native-index-graph.js';
 import { native, nativeAvailable } from './addon.js';
 import { MODULE_EXTENSIONS } from './read.js';
-import { recordFor } from './record.js';
 import { resolveTo, resolversFor } from './resolve.js';
 import { LARGEST_FILE } from './scan.js';
 import { openSourceIndexFile, readSourceIndex } from './source-index-file.js';
 import { requestOf } from './specifier.js';
+import { decodeSourceIndex } from './source-index-format.js';
 
 /**
- * The native scanner over this repository, against the resolver and record
- * builder that still run in JavaScript.
+ * Native resolution against the module resolver, and binary records against
+ * the requests and declarations the native reader returned.
  *
  * The corpus is this repository, which is the only corpus worth arguing with: a
  * fixture is a guess about what TypeScript looks like, and a few thousand real
@@ -45,7 +44,7 @@ describe('the native scanner over this repository', () => {
         const request = requestOf(value);
         const oracle = request === undefined
           ? ''
-          : resolveTo({ resolvers, root, from: join(root, file), request, style: false }) ?? '';
+          : resolveTo({ resolvers, root, from: join(root, file), request, style: false, language: 'module' }) ?? '';
         const answered = batch.targets[at] ?? '';
         if (answered !== oracle) disagreed.push({ file, value, oracle, answered });
         at += 1;
@@ -55,44 +54,32 @@ describe('the native scanner over this repository', () => {
     expect(disagreed).toEqual([]);
   }, 120_000);
 
-  it.runIf(available)('builds every repository record the way the oracle builds it', async () => {
-    // Two producers of one record shape. A field only one of them writes is a
-    // graph that depends on which machine scanned it: `packages` was that field,
-    // and a bumped dependency had no importer wherever the addon loaded.
+  it.runIf(available)('publishes every repository record with its resolved requests and declarations', async () => {
     const files = await modules();
-    const answered = nativeFrontier({
-      addon: native()!,
-      root,
-      files,
-      largestFile: LARGEST_FILE,
-      digests: files.map(() => undefined),
-      aliases: undefined,
-      directories: new Map(),
-      remembering: false,
+    const tree = native()!.gitTree(root)!;
+    const batch = tree.scanBatch(root, files, LARGEST_FILE);
+    const graph = nativeIndexGraph(tree, {
+      root, seeds: files, largestFile: LARGEST_FILE, aliases: undefined,
+      directories: new Map(), remembering: false, follow: false,
     });
-    const resolvers = resolversFor({});
-    const cache = memoryParseCache();
-    const disagreed: unknown[] = [];
-
+    const records = decodeSourceIndex(graph.encode([])).records;
+    expect(new Set(records.keys())).toEqual(new Set(files));
+    let requestAt = 0;
+    let declareAt = 0;
     for (const [index, file] of files.entries()) {
-      const { record: oracle } = await recordFor({
-        absolute: join(root, file),
-        file,
-        root,
-        resolvers,
-        cache,
-        aliases: undefined,
-        directories: new Map(),
-        largestFile: LARGEST_FILE,
-        remembering: false,
-      });
-      const { digest: _native, ...held } = answered[index]!.record;
-      const { digest: _oracle, ...expected } = oracle;
-      if (JSON.stringify(held) !== JSON.stringify(expected)) disagreed.push({ file, expected, held });
+      const indexed = records.get(file)!;
+      const count = batch.counts[index]!;
+      const declares = batch.declares.slice(declareAt, declareAt + batch.declareCounts[index]!);
+      expect(indexed.record.file).toBe(file);
+      expect(indexed.witnesses).toEqual([]);
+      if (batch.parsed[index] === 1) {
+        expect(indexed.targets).toEqual(batch.targets.slice(requestAt, requestAt + count).map((target) => target || undefined));
+        expect(indexed.record.declares ?? []).toEqual(declares);
+      }
+      requestAt += count;
+      declareAt += batch.declareCounts[index]!;
     }
-
-    expect(disagreed, JSON.stringify(disagreed.slice(0, 3), null, 2)).toHaveLength(0);
-    expect(answered.some(({ record }) => record.packages?.some(({ kind }) => kind === 'type'))).toBe(true);
+    expect([...records.values()].some(({ record }) => record.packages?.some(({ kind }) => kind === 'type'))).toBe(true);
   }, 120_000);
 
   it.runIf(available)('says why a file it declined is not an empty answer', () => {
@@ -110,7 +97,7 @@ describe('the native scanner over this repository', () => {
   });
 
   it.runIf(available)('names its kinds the way the oracle names them', () => {
-    expect(native()!.kinds()).toEqual(['imports', 'reexports', 'dynamic', 'type', 'depends']);
+    expect(native()!.kinds()).toEqual(['imports', 'reexports', 'dynamic', 'type', 'depends', 'asset']);
   });
 
   /**
@@ -130,30 +117,25 @@ describe('the native scanner over this repository', () => {
     };
 
     try {
-      const graph = nativeGraph({
-        addon: native()!,
-        tree: native()!.gitTree(root)!,
-        root,
-        files: [record.file],
-        largestFile: LARGEST_FILE,
-        digests: [undefined],
-        aliases: undefined,
-        directories: new Map(),
-        remembering: true,
+      const graph = nativeIndexGraph(native()!.gitTree(root)!, {
+        root, seeds: [record.file], largestFile: LARGEST_FILE,
+        aliases: undefined, directories: new Map(), remembering: true,
       });
-      expect(graph.parseLayer?.keys.size).toBeGreaterThan(0);
+      const bytes = graph.parseSegment();
+      const keys = new Set(decodeSourceIndex(bytes).parses.keys());
+      expect(keys.size).toBeGreaterThan(0);
 
       const index = await openSourceIndexFile(file);
       await index.save({
         parses: new Map(),
         directories: new Map(),
         records: new Map([[record.file, { record, witnesses: ['packages/sense/src'] }]]),
-      }, graph.parseLayer);
+      }, { bytes, keys });
 
       expect(await readdir(`${file}.segments`)).toHaveLength(2);
       const stored = await readSourceIndex(file);
       expect([...stored.records.keys()]).toEqual([record.file]);
-      expect([...graph.parseLayer!.keys].filter((key) => !stored.parses.has(key))).toEqual([]);
+      expect([...keys].filter((key) => !stored.parses.has(key))).toEqual([]);
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

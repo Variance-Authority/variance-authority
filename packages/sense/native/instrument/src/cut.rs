@@ -209,7 +209,17 @@ pub(crate) fn walk_firing<'a>(
     entries: bool,
     fires: Option<Vec<Vec<u32>>>,
 ) -> Walker {
-    let mut walker = Walker::new(entries, crate::crossing::crossing(program));
+    walk_mode(program, typescript, entries, fires, true)
+}
+
+/// The same region decisions, without names, captures or insertions.
+#[cfg_attr(not(feature = "addon"), allow(dead_code))]
+pub(crate) fn walk_counting<'a>(program: &'a Program<'a>, typescript: bool) -> Walker {
+    walk_mode(program, typescript, false, None, false)
+}
+
+fn walk_mode<'a>(program: &'a Program<'a>, typescript: bool, entries: bool, fires: Option<Vec<Vec<u32>>>, emit: bool) -> Walker {
+    let mut walker = Walker::new(entries, crate::crossing::crossing(program), emit);
     walker.fires = fires;
     let start = if typescript { typescript_start(program) } else { program.span.start };
     walker.open(Kind::Module, "module", start, program.span.end, None);
@@ -357,3 +367,7 @@ fn is_hoisted_call(expression: Option<&Expression>) -> bool {
     let Expression::Identifier(object) = object else { return false };
     RUNNERS.contains(&object.name.as_str()) && HOISTED.contains(&property)
 }
+
+#[cfg(test)]
+#[path = "cut_count_tests.rs"]
+mod count_tests;

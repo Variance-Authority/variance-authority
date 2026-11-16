@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { appendFile, cp, mkdtemp, mkdir, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
+import { appendFile, cp, mkdtemp, mkdir, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -8,7 +8,7 @@ import { openImmutableLog } from './immutable-log.js';
 import { fillParseStore, parseStorePath, pruneParseStore } from './parse-store.js';
 import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
-import { nativeGraph } from './native.js';
+import { nativeIndexGraph } from './native-index-graph.js';
 import { shapeOf } from './reuse.js';
 import { LARGEST_FILE, scanCount, scanRelations } from './scan.js';
 import { openSourceIndexFile } from './source-index-file.js';
@@ -330,7 +330,7 @@ describe('the parse store a cache keeps', () => {
   /** What a scan answers for `entry.css`, reading the cache's store or, with none, fresh. */
   async function entryRecord(
     root: string,
-    options: { readonly stored: boolean; readonly largestFile?: number },
+    options: { readonly stored: boolean; readonly largestFile?: number; readonly packs?: boolean },
     file = 'packages/a/src/entry.css',
   ): Promise<unknown> {
     const stores = options.stored ? [parseStorePath(cache)] : [];
@@ -340,6 +340,7 @@ describe('the parse store a cache keeps', () => {
       dirs: ['packages/a'],
       cache: source.cache,
       stores,
+      ...(options.packs === undefined ? {} : { packs: options.packs }),
       ...(options.largestFile === undefined ? {} : { largestFile: options.largestFile }),
     });
     const { digest: _digest, ...record } = found.find((record) => record.file === file) ?? { file: 'none' };
@@ -363,7 +364,7 @@ describe('the parse store a cache keeps', () => {
   it.each([
     ['a module over the size limit', 'packages/a/src/entry.ts', `export const entry = '${'x'.repeat(64)}';\n`, 16],
     ['a stylesheet, whose parse carries no size', 'packages/a/src/entry.css', 'a { color: red; }\n', undefined],
-  ])('reads again, as a fresh scan does, %s, when the store holds its parse and its file is not on disk', async (_, entry, text, largestFile) => {
+  ])('answers from the selected source, cached or fresh, %s absent from the worktree', async (_, entry, text, largestFile) => {
     const sparse = async () => {
       const root = await checkout();
       await write(root, entry, text);
@@ -377,15 +378,19 @@ describe('the parse store a cache keeps', () => {
     git(second, 'update-index', '--skip-worktree', entry);
     await rm(join(second, entry));
     const limit = largestFile === undefined ? {} : { largestFile };
-    const fresh = await entryRecord(second, { stored: false, ...limit }, entry);
-    expect(fresh).toMatchObject({ unknown: expect.any(String) });
-    expect(await entryRecord(second, { stored: true, ...limit }, entry)).toEqual(fresh);
+    for (const packs of [true, false]) {
+      const fresh = await entryRecord(second, { stored: false, packs, ...limit }, entry);
+      if (!packs) expect(fresh).toMatchObject({ unknown: expect.stringContaining('could not be read') });
+      else if (largestFile !== undefined) expect(fresh).toMatchObject({ unknown: expect.stringContaining('89 bytes, over the 16') });
+      else expect(fresh).not.toHaveProperty('unknown');
+      expect(await entryRecord(second, { stored: true, packs, ...limit }, entry)).toEqual(fresh);
+    }
   });
 
   it.each([
     ['a module over the default limit whose parse a larger one kept', 'big.ts', `export const big = '${'x'.repeat(LARGEST_FILE)}';\n`, true],
     ['a stylesheet absent from disk, whose parse carries no size', 'entry.css', 'a { color: red; }\n', false],
-  ])('declines, when a scan names no limit, %s', async (_, name, text, present) => {
+  ])('applies the default limit to Git bytes when the store holds %s', async (_, name, text, present) => {
     const file = `packages/a/src/${name}`;
     const committed = async () => {
       const root = await checkout();
@@ -406,7 +411,7 @@ describe('the parse store a cache keeps', () => {
     };
     expect(await scan(2 * LARGEST_FILE)).toBe(1);
     if (!present) await rm(join(second, file)).then(() => git(second, 'update-index', '--skip-worktree', file));
-    expect(await scan()).toBe(0);
+    expect(await scan()).toBe(present ? 0 : 1);
   });
 
   it('publishes the parse of every module a store answered, when another root appended it after the index was opened', async () => {
@@ -425,7 +430,7 @@ describe('the parse store a cache keeps', () => {
     expect(parses.size).toBeGreaterThan(0);
   });
 
-  it('names in the parse layer it hands over only the parses it made, not the ones a store kept', async () => {
+  it('copies every kept parse into the native graph while parsing only a newly added module', async () => {
     const root = await checkout();
     await updateSourceIndex(root);
     await write(root, 'packages/a/src/fresh.ts', 'export const fresh = 4;\n');
@@ -434,21 +439,19 @@ describe('the parse store a cache keeps', () => {
     const tree = (await gitTreeOf(root, ['packages/a']))!;
     const { shape, aliases } = await shapeOf({ root, tree });
     const files = ['packages/a/src/fresh.ts', 'packages/a/src/index.ts', 'packages/a/src/lens.ts'];
-    const { built, parseLayer } = nativeGraph({
-      addon: native()!,
-      tree: tree.native!,
+    const graph = nativeIndexGraph(tree.native!, {
       root,
-      files,
-      digests: files.map(() => undefined),
+      seeds: files,
       largestFile: LARGEST_FILE,
       remembering: true,
       aliases,
       directories: shape.directories,
       stores: [parseStorePath(cache)],
-    }, true);
-    expect(built.filter((answer) => answer.kept === true).map((answer) => answer.record.file)).toEqual(files.slice(1));
-    expect([...parseLayer!.keys]).toEqual([...decodeSourceIndex(parseLayer!.bytes).parses.keys()]);
-    expect(parseLayer!.keys.size).toBe(1);
+    });
+    const parses = decodeSourceIndex(graph.parseSegment()).parses;
+    expect(graph.parsed).toBe(1);
+    expect(parses.size).toBe(files.length);
+    expect([...parses.keys()].every((key) => graph.hasParse(key))).toBe(true);
   });
 
   it('counts a file a reader other than the module one parses cold, and not when the store answers it', async () => {
@@ -478,19 +481,22 @@ describe('the parse store a cache keeps', () => {
     const root = await checkout();
     await updateSourceIndex(join(root, 'packages/b'));
     await rm(dirname(sourceIndexPath(join(root, 'packages/b'))), { recursive: true, force: true });
-    // Enough roots, each adding a parse of its own, to bring the store past the segments it keeps apart.
-    for (let at = 0; at < 16; at += 1) {
+    const base = (await openImmutableLog(parseStorePath(cache))).digests.length;
+    // Each root appends its own parse over the immutable seed.
+    for (let at = 0; at < 17; at += 1) {
       await write(root, `packages/many${String(at)}/index.ts`, `export const many = ${String(at)};\n`);
     }
     git(root, 'add', '.');
     git(root, 'commit', '--quiet', '-m', 'many');
     const segments = `${parseStorePath(cache)}.segments`;
-    for (let at = 0; at < 15; at += 1) await updateSourceIndex(join(root, `packages/many${String(at)}`));
+    for (let at = 0; at < 16; at += 1) await updateSourceIndex(join(root, `packages/many${String(at)}`));
+    const appended = JSON.parse((await readFile(parseStorePath(cache))).subarray(12).toString()) as { segments: unknown[]; working: number };
+    expect({ segments: appended.segments.length, working: appended.working }).toEqual({ segments: base + 16, working: 16 });
     const old = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
     for (const name of await readdir(segments)) await utimes(join(segments, name), old, old);
     const before = await storedKeys();
     // This append compacts the store into one segment, which holds every parse the segments did.
-    await updateSourceIndex(join(root, 'packages/many15'));
+    await updateSourceIndex(join(root, 'packages/many16'));
     expect((await readdir(segments)).length).toBe(1);
     expect((await storedKeys()).length).toBe(before.length + 1);
 

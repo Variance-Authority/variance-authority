@@ -3,10 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { native } from './addon.js';
-import { pythonRootsOf, resolvePython } from './python.js';
 import type { Read } from './read.js';
 import { scanRelations } from './scan.js';
-import { worldIn } from './world.js';
 
 /**
  * What a Python import statement says, and what it only implies.
@@ -110,43 +108,37 @@ describe('what a Python file asks for', () => {
 });
 
 describe('where a Python specifier lands', () => {
-  const tree = [
-    'pyproject.toml',
-    'a/pyproject.toml',
-    'a/src/pkg/__init__.py',
-    'a/src/pkg/one.py',
-    'b/pyproject.toml',
-    'b/src/pkg/two.py',
-    'b/src/pkg/deep/three.py',
-  ];
-  const world = worldIn(tree);
+  let root: string;
+  let records: Awaited<ReturnType<typeof scanRelations>>;
 
-  it('takes a source root from every manifest, and from `src` under each', () => {
-    // Nineteen roots in a real monorepo; here, the two `src` directories a
-    // manifest sits above, plus the repository itself.
-    expect(pythonRootsOf(tree)).toEqual(['', 'a/src', 'a', 'b/src', 'b']);
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), 'variance-python-roots-'));
+    for (const [file, source] of Object.entries({
+      'pyproject.toml': '[project]\nname = "fixture"\n',
+      'a/pyproject.toml': '[project]\nname = "a"\n',
+      'a/src/pkg/__init__.py': '',
+      'a/src/pkg/one.py': 'import pkg.two\nimport pkg\n',
+      'b/pyproject.toml': '[project]\nname = "b"\n',
+      'b/src/pkg/two.py': 'import pkg.one\n',
+      'b/src/pkg/deep/three.py': 'from . import three\nfrom .. import two\n',
+    })) await write(root, file, source);
+    records = await scanRelations({ root, dirs: ['.'], digests: false });
   });
 
-  it('unions the source roots, because one package can be spread across them', () => {
-    // `pkg` has no single home: `pkg.one` is under `a/src` and `pkg.two` under
-    // `b/src`, and only their union resolves both. A walk up from the importing
-    // file finds one of the two.
-    expect(resolvePython({ from: 'a/src/pkg/one.py', request: 'pkg.two', world }))
-      .toEqual(['b/src/pkg/two.py']);
-    expect(resolvePython({ from: 'b/src/pkg/two.py', request: 'pkg.one', world }))
-      .toEqual(['a/src/pkg/one.py']);
+  afterAll(async () => { await rm(root, { recursive: true, force: true }); });
+  const targets = (file: string) => records.find((record) => record.file === file)?.edges?.map((edge) => edge.to) ?? [];
+
+  it('unions the source roots from every manifest and its src directory', () => {
+    expect(targets('a/src/pkg/one.py')).toContain('b/src/pkg/two.py');
+    expect(targets('b/src/pkg/two.py')).toContain('a/src/pkg/one.py');
   });
 
   it('counts the leading dots as the number of packages to climb', () => {
-    expect(resolvePython({ from: 'b/src/pkg/deep/three.py', request: '.three', world }))
-      .toEqual(['b/src/pkg/deep/three.py']);
-    expect(resolvePython({ from: 'b/src/pkg/deep/three.py', request: '..two', world }))
-      .toEqual(['b/src/pkg/two.py']);
+    expect(targets('b/src/pkg/deep/three.py')).toEqual(['b/src/pkg/deep/three.py', 'b/src/pkg/two.py']);
   });
 
-  it('prefers the module to the package of the same name', () => {
-    expect(resolvePython({ from: 'a/src/pkg/one.py', request: 'pkg', world }))
-      .toEqual(['a/src/pkg/__init__.py']);
+  it('lands the package name on its initializer', () => {
+    expect(targets('a/src/pkg/one.py')).toContain('a/src/pkg/__init__.py');
   });
 });
 

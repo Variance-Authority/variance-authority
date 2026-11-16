@@ -3,6 +3,7 @@
 
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use crate::compact::Layer;
 use crate::generation::Delta;
@@ -90,8 +91,16 @@ fn folded(name: &str) -> (Fixture, Read) {
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
     let mut paths: Vec<String> = FILES.iter().map(|(path, _, _)| (*path).to_owned()).collect();
     paths.sort_by(|a, b| crate::order::code_unit(a, b));
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
-    (Fixture(root), read)
+    let unlisted = read(&root.to_string_lossy(), &layers, Some(&paths), None, crate::resolve::Tsconfig::Auto, false, HashSet::new);
+    let files = Arc::new(paths.iter().cloned().zip(0..).collect());
+    let mut carried = None;
+    for regular in [false, true] {
+        let listing = crate::emitted::Listing::of(Arc::clone(&files), Arc::new(vec![regular; paths.len()]), &[]);
+        let listed = read(&root.to_string_lossy(), &layers, Some(&paths), Some(Arc::new(listing)), crate::resolve::Tsconfig::Auto, true, HashSet::new);
+        assert_eq!((&listed.shipped, &listed.catalogued, &listed.undeclared), (&unlisted.shipped, &unlisted.catalogued, &unlisted.undeclared));
+        carried = Some(listed);
+    }
+    (Fixture(root), carried.unwrap())
 }
 
 /// A package's closure lines and files, whether its manifest offered nothing,
@@ -144,4 +153,85 @@ fn a_subpath_pattern_offers_every_file_a_substitution_reaches() {
     // The closure starts at the one index and loads its helper; the file nothing loads is left out of it.
     assert_eq!(package(&read, "@t/patterned"), (2, 2, false, shipped.map(str::to_owned).to_vec()));
     assert_eq!(package(&read, "@t/emitted"), (1, 1, false, vec!["packages/emitted/src/a/b.ts".to_owned()]));
+}
+
+#[test]
+fn the_complete_listing_preserves_uncounted_winners_and_excludes_unlisted_sources() {
+    let root = std::env::temp_dir().join(format!("sense-entry-snapshot-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    let fixture = Fixture(root);
+    for (path, text) in [("package.json", "{}"), ("src/choice.ts", "export {};"), ("src/choice.tsx", "export {};")] {
+        std::fs::write(fixture.0.join(path), text).unwrap();
+    }
+    let package = crate::package_owners::Package {
+        directory: String::new(), name: "snapshot".to_owned(), depends: Vec::new(), develops: Vec::new(), offers: vec!["./src/choice.js".to_owned()],
+    };
+    let counted = std::collections::HashMap::from([("src/choice.tsx", 0)]);
+    let entries = |paths: &[&str]| {
+        let files = Arc::new(paths.iter().map(|path| (*path).to_owned()).zip(0..).collect());
+        let listing = crate::emitted::Listing::of(files, Arc::new(vec![true; paths.len()]), &[]);
+        super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], Some(Arc::new(listing)), crate::resolve::Tsconfig::Off, true)
+    };
+    assert_eq!(entries(&["package.json", "src/choice.ts", "src/choice.tsx"]), vec![Vec::<usize>::new()], "an uncounted higher-precedence target still wins");
+    assert_eq!(entries(&["package.json", "src/choice.tsx"]), vec![vec![0]], "an unlisted ordinary source does not shadow the snapshot");
+}
+
+#[test]
+fn source_snapshot_resolution_keeps_root_dirs_without_a_physical_output_directory() {
+    let root = std::env::temp_dir().join(format!("sense-entry-root-dirs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    let fixture = Fixture(root);
+    for (path, text) in [("package.json", "{}"), ("tsconfig.json", r#"{"compilerOptions":{"rootDirs":["./virtual","./src"]}}"#), ("src/a.ts", "export {};")] {
+        std::fs::write(fixture.0.join(path), text).unwrap();
+    }
+    let package = crate::package_owners::Package {
+        directory: String::new(), name: "virtual".to_owned(), depends: Vec::new(), develops: Vec::new(), offers: vec!["./virtual/a.ts".to_owned()],
+    };
+    let paths = ["package.json", "tsconfig.json", "src/a.ts"];
+    let files = Arc::new(paths.into_iter().map(str::to_owned).zip(0..).collect());
+    let listing = crate::emitted::Listing::of(files, Arc::new(vec![true; paths.len()]), &[]);
+    let counted = std::collections::HashMap::from([("src/a.ts", 0)]);
+    let tsconfig = crate::resolve::Tsconfig::Named(std::fs::canonicalize(fixture.0.join("tsconfig.json")).unwrap());
+    assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], None, tsconfig.clone(), false), vec![vec![0]], "the open resolver already supports this rootDirs mapping");
+    assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], Some(Arc::new(listing)), tsconfig, true), vec![vec![0]]);
+}
+
+#[test]
+fn a_symbolic_directory_export_reaches_its_listed_source() {
+    let root = std::env::temp_dir().join(format!("sense-entry-symbolic-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("src/foo")).unwrap();
+    std::fs::create_dir_all(root.join("routes")).unwrap();
+    let fixture = Fixture(root);
+    std::fs::write(fixture.0.join("package.json"), "{}").unwrap();
+    std::fs::write(fixture.0.join("src/foo/index.js"), "export {};").unwrap();
+    std::os::unix::fs::symlink("../src/foo", fixture.0.join("routes/foo")).unwrap();
+    let package = crate::package_owners::Package {
+        directory: String::new(), name: "symbolic".to_owned(), depends: Vec::new(), develops: Vec::new(), offers: vec!["./routes/*/index.js".to_owned()],
+    };
+    let paths = ["package.json", "src/foo/index.js", "routes/foo"];
+    let files = Arc::new(paths.into_iter().map(str::to_owned).zip(0..).collect());
+    let listing = crate::emitted::Listing::of(files, Arc::new(vec![true, true, false]), &[]);
+    let counted = std::collections::HashMap::from([("src/foo/index.js", 0)]);
+    assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], Some(Arc::new(listing)), crate::resolve::Tsconfig::Off, true), vec![vec![0]]);
+}
+
+#[test]
+fn wildcard_requests_capture_the_known_path_without_inventing_prefixes() {
+    let root = std::env::temp_dir().join(format!("sense-entry-requests-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("src/assets")).unwrap();
+    let fixture = Fixture(std::fs::canonicalize(root).unwrap());
+    std::fs::write(fixture.0.join("package.json"), "{}").unwrap();
+    let source = fixture.0.join("src/assets/background.ts");
+    std::fs::write(&source, "export {};").unwrap();
+    let resolvers = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Off, None);
+    let requests = resolvers.offered_requests(&fixture.0.join("package.json"), &[source], &["./src/assets/*".to_owned()]);
+    assert_eq!(requests, vec!["./src/assets/background.ts"], "the full literal prefix is matched before a wildcard is captured");
+    assert_eq!(resolvers.offered_requests(&fixture.0.join("package.json"), &[fixture.0.join("src/assets/background.ts")], &["./src/*/background".to_owned()]), vec!["./src/assets/background"]);
+    std::fs::write(fixture.0.join("tsconfig.json"), r#"{"compilerOptions":{"outDir":"./dist","rootDir":"./src"}}"#).unwrap();
+    let emitted = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Off, None);
+    assert_eq!(emitted.offered_requests(&fixture.0.join("package.json"), &[fixture.0.join("src/assets/background.ts")], &["./dist/*.js".to_owned()]), vec!["./dist/assets/background.js"]);
 }

@@ -1,40 +1,8 @@
-/**
- * Which language a file is read as, and what that choice governs.
- *
- * Every language answers the same two questions in its own syntax — *what does
- * this file ask for* and *what does it publish* — and a specifier is a string in
- * all of them. So a language is not a second `sense`: it is a reader that fills
- * [`Read`](./read.ts) and a resolution algorithm that turns the specifiers in it
- * into paths in this tree ([ADR-0066](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
- * Nothing above [`record.ts`](./record.ts) learns a new type, and the graph the
- * fold walks holds one kind of node whatever produced it.
- *
- * This module is the low half of that: the extension tables, and the name a file
- * is read under. The reader is chosen in [`record.ts`](./record.ts) and the
- * resolution algorithm in [`resolve.ts`](./resolve.ts), each beside the thing it
- * dispatches, because neither can be named here without this file importing the
- * whole package.
- *
- * ## The id is not the extension
- *
- * `.ts`, `.jsx` and `.cts` are one language; `.scss` and `.less` are another.
- * What the id names is the pair of algorithms, and files sharing a pair share an
- * id however differently they are written. It is also what a resolution answer
- * is keyed by, because the same specifier written in two languages is two
- * different questions: `./colors` from a stylesheet may find `_colors.scss` and
- * from a module must not.
- *
- * ## A language nothing can read
- *
- * `languageOf` returning nothing is the answer for a file this build has no
- * reader for, and it is not the same as a file with no edges. The distinction is
- * kept because the alternative is the failure this package exists to refuse: a
- * repository whose Python nobody read must not be indistinguishable from a
- * repository with no Python in it.
- */
+/** Source-language names, extension tables, and traversal capabilities. */
 
 import { MODULE_EXTENSIONS } from './read.js';
-import { STYLE_EXTENSIONS } from './style.js';
+/** Extensions the stylesheet reader claims. */
+export const STYLE_EXTENSIONS = ['.css', '.scss', '.sass', '.less'];
 
 /**
  * The languages this build can read.
@@ -133,7 +101,7 @@ export function readsMembers(id: LanguageId): boolean {
  * import names a module that is a file, a Rust `use` names a path through one,
  * a JVM import names a class that is one. Swift names a **module**, which is a
  * whole target, and nothing in the language goes below it
- * ([`swift.ts`](./swift.ts)). So a Swift file's edges reach every file in the
+ * (`native/src/source_languages.rs`). So a Swift file's edges reach every file in the
  * target rather than the one the symbol came from, and they over-reach by
  * design — the direction selection is allowed to be wrong in.
  *

@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::{hex, snapshot, snapshot_of};
+use super::{hex, snapshot};
 use crate::git_fixture;
 
 fn git(at: &Path, args: &[&str]) -> String {
@@ -70,27 +70,18 @@ fn an_edited_file_keeps_its_digest_beside_paths_that_are_not_files() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// Whether the working tree was compared in-process, rather than handed to `status`.
-fn compared(root: &Path) -> bool {
-    let head = crate::git_store::head(root).unwrap();
-    let config = crate::git::worktree_status::config_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));
-    crate::git::worktree_status::changes(&head, head.blobs.as_deref().unwrap(), &config).is_some()
-}
-
-/// The snapshot compared in-process is the one `status` answers, path for path.
-fn agrees(root: &Path) {
-    let root = root.to_str().unwrap();
-    let (known, printed) = (snapshot_of(root, true).unwrap(), snapshot_of(root, false).unwrap());
-    let digests = |tree: &super::Snapshot| -> Vec<(String, String, bool)> {
-        tree.paths.iter().zip(&tree.oids).zip(&tree.regular).map(|((path, oid), regular)| (path.clone(), hex(oid), *regular)).collect()
-    };
-    assert_eq!(digests(&known), digests(&printed));
-    let sorted = |tree: &super::Snapshot| {
-        let mut unhashed = tree.unhashed.clone();
-        unhashed.sort();
-        unhashed
-    };
-    assert_eq!(sorted(&known), sorted(&printed));
+/// Exact membership and byte identities, independent of the inventory implementation.
+fn lists(root: &Path, paths: &[&str], unhashed: &[&str]) {
+    let tree = snapshot(root.to_str().unwrap()).unwrap();
+    assert_eq!(tree.paths, paths);
+    let mut unknown = tree.unhashed;
+    unknown.sort();
+    assert_eq!(unknown, unhashed);
+    for (path, oid) in tree.paths.iter().zip(&tree.oids) {
+        let bytes = std::fs::read(root.join(path)).unwrap();
+        let expected = gix_object::compute_hash(gix_hash::Kind::Sha1, gix_object::Kind::Blob, &bytes).unwrap();
+        assert_eq!(hex(oid), expected.to_string(), "{path}");
+    }
 }
 
 fn executable(root: &Path, path: &str) {
@@ -99,7 +90,7 @@ fn executable(root: &Path, path: &str) {
 }
 
 #[test]
-fn every_kind_of_edit_is_compared_in_process_as_status_answers_it() {
+fn edited_renamed_and_untracked_files_keep_exact_membership_and_bytes() {
     let root = git_fixture::repository(
         "status-edits",
         &[
@@ -136,8 +127,7 @@ fn every_kind_of_edit_is_compared_in_process_as_status_answers_it() {
     git_fixture::write(&root, "build/out.ts", b"ignored\n");
     std::os::unix::fs::symlink("deep", root.join("untracked-link")).unwrap();
 
-    assert!(compared(&root));
-    agrees(&root);
+    lists(&root, &[".gitignore", "a.ts", "added.ts", "b.ts", "deep/kept.ts", "fresh/deeper/two.ts", "fresh/one.ts", "link", "new.ts", "renamed.ts", "run.sh", "same.ts", "staged.ts"], &["untracked-link"]);
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -151,13 +141,12 @@ fn a_root_below_the_top_compares_only_what_lies_under_it() {
     git_fixture::write(&root, "beside/new.ts", b"new\n");
     git_fixture::git(&root, &["mv", "beside/b.ts", "sub/b.ts"]);
 
-    assert!(compared(&root.join("sub")));
-    agrees(&root.join("sub"));
+    lists(&root.join("sub"), &["a.ts", "b.ts", "new/n.ts"], &[]);
     let _ = std::fs::remove_dir_all(&root);
 }
 
 #[test]
-fn a_conflict_a_nested_repository_and_global_excludes_are_compared_as_status_answers_them() {
+fn conflict_bytes_and_global_excludes_keep_nested_repositories_out() {
     let root = git_fixture::repository("status-conflict", &[("c.ts", b"base\n"), ("d.ts", b"d\n")]);
     git_fixture::git(&root, &["checkout", "--quiet", "-b", "side"]);
     git_fixture::write(&root, "c.ts", b"the side branch\n");
@@ -176,38 +165,33 @@ fn a_conflict_a_nested_repository_and_global_excludes_are_compared_as_status_ans
     git_fixture::write(&root, "scratch.tmp", b"excluded\n");
     git_fixture::write(&root, "kept.ts", b"kept\n");
 
-    assert!(compared(&root));
-    agrees(&root);
+    lists(&root, &["c.ts", "d.ts", "kept.ts"], &[]);
     let _ = std::fs::remove_dir_all(&root);
     let _ = std::fs::remove_file(&excludes);
 }
 
 #[test]
-fn a_gitlink_under_the_root_hands_the_comparison_to_status() {
+fn a_clean_gitlink_is_not_a_source_file() {
     let module = git_fixture::repository("status-module", &[("m.ts", b"m\n")]);
     let root = git_fixture::repository("status-gitlink", &[("a.ts", b"a\n")]);
     git_fixture::git(&root, &["-c", "protocol.file.allow=always", "submodule", "add", "--quiet", module.to_str().unwrap(), "vendor/module"]);
     git_fixture::commit(&root);
     git_fixture::write(&root, "a.ts", b"a, edited\n");
 
-    assert!(!compared(&root));
-    agrees(&root);
+    lists(&root, &[".gitmodules", "a.ts"], &[]);
     let _ = std::fs::remove_dir_all(&root);
     let _ = std::fs::remove_dir_all(&module);
 }
 
 
-/// A sparse checkout without a sparse index flags the paths outside its
-/// patterns skip-worktree, which gix-status passes over; one written back to
-/// disk is edited all the same, so `status` answers.
+/// A rewritten skip-worktree path still uses its current bytes.
 #[test]
-fn a_skip_worktree_entry_hands_the_comparison_to_status() {
+fn a_rewritten_skip_worktree_entry_uses_current_bytes() {
     let root = git_fixture::repository("status-sparse", &[("a/x.ts", b"a\n"), ("b/y.ts", b"b\n")]);
     git_fixture::git(&root, &["sparse-checkout", "set", "--no-cone", "a/"]);
     git_fixture::write(&root, "b/y.ts", b"b, edited\n");
 
-    assert!(!compared(&root));
-    agrees(&root);
+    lists(&root, &["a/x.ts", "b/y.ts"], &[]);
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -223,58 +207,30 @@ fn a_root_whose_path_holds_a_newline_never_keeps_a_committed_digest_for_an_edit(
 }
 
 #[test]
-fn an_excludes_file_under_the_git_prefix_hands_the_comparison_to_status() {
+fn an_excludes_file_under_the_git_prefix_keeps_git_membership() {
     let root = git_fixture::repository("status-excludes-prefix", &[("a.ts", b"a\n")]);
     git_fixture::git(&root, &["config", "core.excludesFile", "%(prefix)/.va-ignore"]);
     git_fixture::write(&root, "b.ts", b"b\n");
-    assert!(!compared(&root));
-    agrees(&root);
+    lists(&root, &["a.ts", "b.ts"], &[]);
     let _ = std::fs::remove_dir_all(&root);
 }
 
 #[test]
-fn an_empty_xdg_config_home_reads_the_excludes_under_home_as_git_does() {
-    let env = |empty: &'static str| move |name: &str| match name {
-        "XDG_CONFIG_HOME" => Some(std::ffi::OsString::from(empty)),
-        "HOME" => Some(std::ffi::OsString::from("/h")),
-        _ => None,
-    };
-    let read = |xdg| crate::git::worktree_status::user_excludes(&mut env(xdg));
-    assert_eq!(read(""), Some(std::path::PathBuf::from("/h/.config/git/ignore")));
-    assert_eq!(read("/x"), Some(std::path::PathBuf::from("/x/git/ignore")));
-}
-
-#[test]
-fn an_excludes_file_in_another_users_home_hands_the_comparison_to_status() {
+fn an_excludes_file_in_another_users_home_keeps_git_membership() {
     let root = git_fixture::repository("status-excludes-user", &[("a.ts", b"a\n")]);
     git_fixture::git(&root, &["config", "core.excludesFile", "~root/.va-ignore"]);
     git_fixture::write(&root, "b.ts", b"b\n");
-    assert!(!compared(&root));
-    agrees(&root);
+    lists(&root, &["a.ts", "b.ts"], &[]);
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// Every spelling git accepts for a boolean reads as git reads it, so the
-/// in-process comparison never runs under a setting it misread.
+/// Every accepted boolean spelling preserves the untracked-cache question.
 #[test]
 fn a_boolean_setting_reads_as_git_reads_it() {
     let root = checkout("booleans");
     git(&root, &["init", "-q"]);
     for spelling in ["true", "yes", "On", "1", "2", "-1", "1k", "0x10", "false", "NO", "off", "0", "00", "0x0", "-0X00k", ""] {
-        for key in ["core.ignorecase", "core.filemode", "core.symlinks", "core.trustctime", "core.precomposeunicode"] {
-            git(&root, &["config", key, spelling]);
-            let config = crate::git::worktree_status::config_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));
-            let read = match key {
-                "core.ignorecase" => config.ignore_case,
-                "core.filemode" => config.file_mode,
-                "core.symlinks" => config.symlinks,
-                "core.trustctime" => config.trust_ctime,
-                _ => config.precompose_unicode,
-            };
-            assert_eq!(read.to_string(), git(&root, &["config", "--type=bool", key]), "{key} = {spelling:?}");
-            git(&root, &["config", "--unset", key]);
-        }
-        // The untracked settings read the same listing, and by the same rule.
+        // Git owns boolean parsing; the untracked question follows its setting.
         for key in ["core.untrackedcache", "feature.manyfiles"] {
             git(&root, &["config", key, spelling]);
             let settings = crate::git::git_porcelain::settings_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));
@@ -293,21 +249,18 @@ fn a_path_unstaged_but_kept_on_disk_is_listed_with_its_bytes() {
     git_fixture::commit(&root);
     git_fixture::git(&root, &["rm", "--cached", "-q", "a.ts"]);
 
-    assert!(compared(&root));
-    agrees(&root);
+    lists(&root, &["a.ts", "b.ts"], &[]);
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// An index holding git's untracked cache is git's to answer: the cache lets
-/// `status` skip the walk this comparison makes.
+/// An untracked cache changes the Git question without dropping its answer.
 #[test]
-fn an_untracked_cache_hands_the_comparison_to_status() {
+fn an_untracked_cache_keeps_new_files_in_the_snapshot() {
     let root = git_fixture::repository("status-untracked-cache", &[("a.ts", b"a\n")]);
     git_fixture::commit(&root);
     git_fixture::git(&root, &["-c", "core.untrackedCache=true", "update-index", "--untracked-cache"]);
     git_fixture::write(&root, "new.ts", b"new\n");
 
-    assert!(!compared(&root));
-    agrees(&root);
+    lists(&root, &["a.ts", "new.ts"], &[]);
     let _ = std::fs::remove_dir_all(&root);
 }

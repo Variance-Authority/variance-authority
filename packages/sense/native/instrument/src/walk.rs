@@ -67,7 +67,6 @@
 //! comparison made here in bytes answers the same there.
 
 use std::collections::{HashMap, HashSet};
-use std::fmt::Write;
 
 use oxc_ast::ast::*;
 use oxc_ast_visit::{walk, Visit};
@@ -84,6 +83,8 @@ mod hoisted;
 mod names;
 #[path = "walk_params.rs"]
 mod params;
+#[path = "walk_output.rs"]
+mod output;
 
 /// What kind of region a block is, named for the construct that opens it.
 /// `kind_name` spells each as `BlockKind` in `spliced.ts` does.
@@ -146,6 +147,9 @@ impl Scope {
 
 pub struct Walker {
     entries: bool,
+    emit: bool,
+    opened: u32,
+    pub source_regions: u32,
     /// The functions whose text leaves this realm, by span: `crossing.rs`.
     crossing: HashSet<(u32, u32)>,
     pub blocks: Vec<Block>,
@@ -165,9 +169,12 @@ pub struct Walker {
 }
 
 impl Walker {
-    pub fn new(entries: bool, crossing: HashSet<(u32, u32)>) -> Self {
+    pub fn new(entries: bool, crossing: HashSet<(u32, u32)>, emit: bool) -> Self {
         Self {
             entries,
+            emit,
+            opened: 0,
+            source_regions: 0,
             crossing,
             blocks: Vec::new(),
             edits: Vec::new(),
@@ -182,26 +189,8 @@ impl Walker {
         }
     }
 
-    pub fn open(&mut self, kind: Kind, path: &str, start: u32, end: u32, owner: Option<u32>) -> u32 {
-        let ordinal = self.blocks.len() as u32;
-        let name = self.scope().name.clone();
-        self.blocks.push(Block { kind, owner, name, path: path.to_string(), start, end });
-        ordinal
-    }
-
     fn scope(&mut self) -> &mut Scope {
         self.scopes.last_mut().expect("the module scope is never popped")
-    }
-
-    fn push(&mut self, at: u32, text: std::fmt::Arguments) {
-        let from = self.texts.len() as u32;
-        let _ = self.texts.write_fmt(text);
-        self.edits.push(Edit { at, from, to: self.texts.len() as u32 });
-    }
-
-    fn hit(&mut self, at: u32, ordinal: u32) {
-        let probe = self.probe(ordinal);
-        self.push(at, format_args!("{probe};"));
     }
 
     /// Run `f` standing at `path` under `owner`, and put both back after.
@@ -233,7 +222,7 @@ impl Walker {
             let last = statements.last().expect("a next statement implies a last").span().end;
             let start = next.span().start;
             let ordinal = self.at(path, current, |w| {
-                w.open(Kind::Continuation, &format!("{label}/after"), start, last, Some(current))
+                w.open(Kind::Continuation, &w.label(format_args!("{label}/after")), start, last, Some(current))
             });
             self.hit(start, ordinal);
             current = ordinal;
@@ -260,25 +249,6 @@ impl Walker {
                 walk::walk_statement(self, statement);
                 None
             }
-        }
-    }
-
-    /// The region head: returns the ordinal and, for a bare statement, the closer's offset.
-    fn enter(&mut self, span: (u32, u32), block: bool, kind: Kind, path: &str) -> (u32, Option<u32>) {
-        let owner = self.owner;
-        let ordinal = self.open(kind, path, span.0, span.1, Some(owner));
-        if block {
-            self.hit(span.0 + 1, ordinal);
-            return (ordinal, None);
-        }
-        let probe = self.probe(ordinal);
-        self.push(span.0, format_args!("{{{probe};"));
-        (ordinal, Some(span.1))
-    }
-
-    fn close(&mut self, closer: Option<u32>) {
-        if let Some(at) = closer {
-            self.push(at, format_args!("}}"));
         }
     }
 
@@ -331,8 +301,8 @@ impl Walker {
         };
 
         let entry = self.at("", owner, |w| w.open(Kind::Function, "entry", params.span.start, end, Some(owner)));
-        let plan = params::plan(params, &self.probe(entry), arrow);
-        let handed = if generator { None } else { capture::call(entry, &capture::parameters(params)) };
+        let plan = self.emit.then(|| params::plan(params, &self.probe(entry), arrow)).flatten();
+        let handed = if !self.emit || generator { None } else { capture::call(entry, &capture::parameters(params)) };
         self.at("", entry, |w| {
             for (at, text) in plan.iter().flat_map(|plan| &plan.before) {
                 w.push(*at, format_args!("{text}"));
@@ -357,7 +327,7 @@ impl Walker {
                     }
                     w.list(&body.statements, "", entry);
                 }
-                Body::Expression(expression) if !body_probe && handed.is_none() => w.visit_expression(expression),
+                Body::Expression(expression) if !w.emit || !body_probe && handed.is_none() => w.visit_expression(expression),
                 Body::Expression(expression) => {
                     // `(n) => n * 2` becomes `(n) => (probe, handed, n * 2)`.
                     let span = expression.span();
@@ -397,6 +367,9 @@ impl<'a> Visit<'a> for Walker {
         let label = self.step("await");
         let owner = self.owner;
         let ordinal = self.open(Kind::Resume, &label, it.span.start, it.span.end, Some(owner));
+        if !self.emit {
+            return walk::walk_await_expression(self, it);
+        }
         let (open, close) = self.resume(ordinal);
         self.push(it.span.start, format_args!("{open}"));
         walk::walk_await_expression(self, it);
@@ -406,7 +379,7 @@ impl<'a> Visit<'a> for Walker {
     fn visit_function(&mut self, it: &Function<'a>, flags: ScopeFlags) {
         match it.r#type {
             FunctionType::FunctionDeclaration | FunctionType::FunctionExpression => {
-                let own = it.id.as_ref().map(|id| id.name.to_string());
+                let own = it.id.as_ref().filter(|_| self.emit).map(|id| id.name.to_string());
                 let body = it.body.as_deref().map_or(Body::None, Body::Block);
                 self.entered(it.span, own, &it.params, body, false, it.generator);
             }
@@ -428,7 +401,7 @@ impl<'a> Visit<'a> for Walker {
 
     fn visit_class(&mut self, it: &Class<'a>) {
         let hint = self.hint.take();
-        self.named(it.id.as_ref().map(|id| id.name.to_string()).or(hint));
+        self.named(it.id.as_ref().filter(|_| self.emit).map(|id| id.name.to_string()).or(hint));
         walk::walk_class(self, it);
         self.scopes.pop();
     }

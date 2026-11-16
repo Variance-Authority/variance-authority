@@ -329,7 +329,7 @@ export interface NativeOrientMapListing {
    * resolving under the `tsconfig` the scan did; `null` when there is no index.
    * `workspaces` is whether the root declares workspaces, which keeps it off the map.
    */
-  prepareOrientMap?(root: string, index: string, workspaces: boolean, tsconfig?: string | false): Promise<NativeOrientMapPrepared | null>;
+  prepareOrientMap?(root: string, index: string, workspaces: boolean, tsconfig?: string | false, packs?: boolean): Promise<NativeOrientMapPrepared | null>;
 }
 
 /** The addon's code-map calls, kept apart from the scanner's other calls. */
@@ -352,6 +352,10 @@ export interface NativeOrientMaps {
 }
 
 /** The addon's dependency-lexicon calls, kept apart from the scanner's other calls. */
+export interface NativeDependencyLexiconListing {
+  refreshDependencyLexicon?(root: string, index: string, path: string, sites: string, tsconfig?: string | false, packs?: boolean): ReturnType<NativeDependencyLexicon['refreshDependencyLexicon']>;
+}
+
 export interface NativeDependencyLexicon {
   /** Refresh all installed third-party public declarations on the Rust side, resolving under `tsconfig` as the scan did. */
   refreshDependencyLexicon(root: string, index: string, path: string, sites: string, tsconfig?: string | false): Promise<{

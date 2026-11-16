@@ -12,6 +12,15 @@
 // compass: variance-authority.reach.source-index
 
 use crate::harvest::TextSpan;
+use std::cell::RefCell;
+use std::sync::Arc;
+use rustc_hash::FxHashMap;
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum Cut {
+    Span(u32, u32),
+    Line(u32),
+}
 
 /// A source as the spans and lines of its read address it.
 pub(crate) struct Source<'a> {
@@ -20,24 +29,31 @@ pub(crate) struct Source<'a> {
     utf16: Option<Vec<u16>>,
     /// The byte each line starts at, the first line first.
     starts: &'a [usize],
+    /// Many exports or members can name one statement or line, including a
+    /// whole minified file. Their facts share that cut for the read's life.
+    texts: RefCell<FxHashMap<Cut, Arc<str>>>,
 }
 
 impl<'a> Source<'a> {
     /// `starts` are the bytes `source`'s lines start at, as [`crate::read::Lines`] holds them.
     pub(crate) fn new(source: &'a str, starts: &'a [usize]) -> Self {
         let utf16 = (!source.is_ascii()).then(|| source.encode_utf16().collect());
-        Source { source, utf16, starts }
+        Source { source, utf16, starts, texts: RefCell::new(FxHashMap::default()) }
     }
 
     /// What `start..end` spans, clamped as `String.prototype.slice` clamps it.
-    fn slice(&self, start: u32, end: u32) -> String {
+    fn slice(&self, start: u32, end: u32) -> Arc<str> {
         let length = self.utf16.as_ref().map_or(self.source.len(), Vec::len);
         let end = (end as usize).min(length);
         let start = (start as usize).min(end);
-        match &self.utf16 {
-            None => self.source[start..end].to_owned(),
-            Some(units) => String::from_utf16_lossy(&units[start..end]),
-        }
+        self.shared(Cut::Span(start as u32, end as u32), || match &self.utf16 {
+            None => Arc::from(&self.source[start..end]),
+            Some(units) => Arc::from(String::from_utf16_lossy(&units[start..end])),
+        })
+    }
+
+    fn shared(&self, cut: Cut, text: impl FnOnce() -> Arc<str>) -> Arc<str> {
+        Arc::clone(self.texts.borrow_mut().entry(cut).or_insert_with(text))
     }
 
     /// `span` with its slice; nothing when there is no span.
@@ -52,11 +68,37 @@ impl<'a> Source<'a> {
     }
 
     /// The text of the 1-based `line`; nothing for a line the source does not hold.
-    pub(crate) fn line(&self, line: u32) -> Option<String> {
+    pub(crate) fn line(&self, line: u32) -> Option<Arc<str>> {
         let start = *self.starts.get((line as usize).checked_sub(1)?)?;
         let rest = self.source.get(start..)?;
-        let line = rest.split_once('\n').map_or(rest, |(line, _)| line);
-        Some(line.strip_suffix('\r').unwrap_or(line).to_owned())
+        Some(self.shared(Cut::Line(line), || {
+            let line = rest.split_once('\n').map_or(rest, |(line, _)| line);
+            Arc::from(line.strip_suffix('\r').unwrap_or(line))
+        }))
+    }
+
+    /// Keep declaration text once for either module consumer.
+    pub(crate) fn symbols(&self, symbols: &mut [crate::harvest::SourceSymbol]) {
+        for symbol in symbols {
+            self.text(&mut symbol.signature);
+            self.text(&mut symbol.doc);
+        }
+    }
+
+    /// Keep export text, leaving a bound declaration's signature with its symbol.
+    pub(crate) fn exports(&self, exports: &mut [crate::read_rows::Export], symbols: &[crate::harvest::SourceSymbol]) {
+        // A statement that declares what it exports is its declaration's
+        // head, which the declaration keeps; written whole it would be every
+        // exported body. Only the one that declares nothing is kept: a
+        // reader prints it as the head of what it passes on.
+        let declared: std::collections::HashSet<&str> = symbols.iter().map(|symbol| symbol.name.as_str()).collect();
+        for export in exports {
+            let bound = export.local.as_deref().or(export.exported.as_deref());
+            if export.from.is_some() || !bound.is_some_and(|bound| declared.contains(bound)) {
+                self.text(&mut export.signature);
+            }
+            self.text(&mut export.doc);
+        }
     }
 }
 
@@ -64,25 +106,13 @@ impl crate::read::Read {
     /// The read with the text of every span and the line of every export and member declaration.
     pub(crate) fn texted(mut self, source: &Source) -> Self {
         source.text(&mut self.doc);
-        for symbol in &mut self.symbols {
-            source.text(&mut symbol.signature);
-            source.text(&mut symbol.doc);
-        }
+        source.symbols(&mut self.symbols);
         for nested in &mut self.nested {
             source.fill(&mut nested.signature);
             source.text(&mut nested.doc);
         }
-        // A statement that declares what it exports is its declaration's
-        // head, which the declaration keeps; written whole it would be every
-        // exported body. Only the one that declares nothing is kept: a
-        // reader prints it as the head of what it passes on.
-        let declared: std::collections::HashSet<&str> = self.symbols.iter().map(|symbol| symbol.name.as_str()).collect();
+        source.exports(&mut self.exports, &self.symbols);
         for export in &mut self.exports {
-            let bound = export.local.as_deref().or(export.exported.as_deref());
-            if export.from.is_some() || !bound.is_some_and(|bound| declared.contains(bound)) {
-                source.text(&mut export.signature);
-            }
-            source.text(&mut export.doc);
             export.line_text = source.line(export.line);
         }
         for member in &mut self.member_declarations {
@@ -96,10 +126,7 @@ impl crate::read::Read {
 impl crate::languages::shape::Read {
     /// [`crate::read::Read::texted`], for a read another grammar made.
     pub(crate) fn texted(mut self, source: &Source) -> Self {
-        for symbol in &mut self.symbols {
-            source.text(&mut symbol.signature);
-            source.text(&mut symbol.doc);
-        }
+        source.symbols(&mut self.symbols);
         for export in self.exports.iter_mut().flatten() {
             export.line_text = source.line(export.line);
         }
@@ -117,7 +144,7 @@ mod tests {
         Some(TextSpan { start, end, text: None })
     }
 
-    fn sliced(source: &str, start: u32, end: u32) -> Option<String> {
+    fn sliced(source: &str, start: u32, end: u32) -> Option<std::sync::Arc<str>> {
         let lines = Lines::new(source);
         let mut held = span(start, end);
         Source::new(source, lines.starts()).text(&mut held);
@@ -147,5 +174,20 @@ mod tests {
         let lines = Lines::new(source);
         let source = Source::new(source, lines.starts());
         assert_eq!([0, 1, 2, 3, 4].map(|line| source.line(line)), [None, Some("one".into()), Some("  two;".into()), Some("three".into()), None]);
+    }
+
+    #[test]
+    fn repeated_lines_and_spans_share_their_held_text() {
+        let text = "export { a, b };";
+        let lines = Lines::new(text);
+        let source = Source::new(text, lines.starts());
+        let first_line = source.line(1).unwrap();
+        let second_line = source.line(1).unwrap();
+        assert_eq!(first_line.as_ptr(), second_line.as_ptr(), "one source line is held once");
+        let (mut first, mut second) = (span(0, 6), span(0, 6));
+        source.text(&mut first);
+        source.text(&mut second);
+        let (first, second) = (first.unwrap().text.unwrap(), second.unwrap().text.unwrap());
+        assert_eq!(first.as_ptr(), second.as_ptr(), "one source span is held once");
     }
 }

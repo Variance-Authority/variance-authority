@@ -58,6 +58,9 @@ impl Walker {
     }
 
     fn reserve(&mut self, at: u32) -> usize {
+        if !self.emit {
+            return 0;
+        }
         let from = self.texts.len() as u32;
         self.edits.push(Edit { at, from, to: from });
         self.edits.len() - 1
@@ -84,6 +87,9 @@ impl Walker {
     /// Open a crossing declaration's region and add its probe to its block's slot.
     pub(super) fn hoisted(&mut self, slot: Slot, start: u32, end: u32) {
         let ordinal = self.open(Kind::Function, "entry", start, end, Some(slot.owner));
+        if !self.emit {
+            return;
+        }
         let edit = self.edits[slot.edit];
         let from = self.texts.len() as u32;
         self.texts.extend_from_within(edit.from as usize..edit.to as usize);

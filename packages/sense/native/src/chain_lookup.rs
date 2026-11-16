@@ -9,6 +9,8 @@
 
 use std::collections::HashMap;
 
+use rustc_hash::FxHashMap;
+
 use crate::compact::Layer;
 use crate::stored::partition;
 
@@ -29,6 +31,22 @@ pub(crate) fn fold<'a>(layers: &'a [Layer<'a>]) -> HashMap<&'a str, At> {
         }
     }
     folded
+}
+
+/// Every parse key to its newest layer and row, borrowing its digest and way.
+/// Deletes apply before puts within a layer, as they do for a point lookup.
+pub(crate) fn fold_parses<'c>(layers: &[Layer<'c>]) -> FxHashMap<(&'c str, &'c str), At> {
+    let mut keys = FxHashMap::default();
+    for (at, layer) in layers.iter().enumerate() {
+        let (stored, parses) = (&layer.stored, &layer.parses);
+        for row in 0..parses.deleted.len() {
+            keys.remove(&(stored.text(parses.deleted.at(row)), stored.text(parses.deleted_way.at(row))));
+        }
+        for row in 0..parses.key.len() {
+            keys.insert((stored.text(parses.key.at(row)), stored.text(parses.way.at(row))), (at, row));
+        }
+    }
+    keys
 }
 
 /// The file's newest record, and the file as the chain spells it.
@@ -91,4 +109,41 @@ pub(crate) fn parse(layers: &[Layer], digest: &str, way: &str) -> Option<At> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn segment(puts: &[&str], deletes: &[&str]) -> Vec<u8> {
+        let document = serde_json::json!({
+            "parses": puts.iter().map(|key| (*key, serde_json::json!({ "requests": [] }))).collect::<Vec<_>>(),
+            "deletedParses": deletes,
+        });
+        let delta = crate::generation::Delta::of(vec![document.to_string()]).unwrap();
+        crate::graph_index::merged(&[], &delta)
+    }
+
+    #[test]
+    fn parse_lookup_keeps_the_newest_key_and_its_way() {
+        let bytes = [
+            segment(&["deleted", "restored", "same\0.ts\0+", "same\0.tsx\0+", "within"], &[]),
+            segment(&["within"], &["deleted", "restored", "same\0.ts\0+", "within"]),
+            segment(&["restored"], &[]),
+        ];
+        let layers: Vec<Layer> = bytes.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
+        let folded = fold_parses(&layers);
+        for (digest, way, expected) in [
+            ("deleted", "", None),
+            ("restored", "", Some(2)),
+            ("same", ".ts\0+", None),
+            ("same", ".tsx\0+", Some(0)),
+            ("within", "", Some(1)),
+            ("absent", "", None),
+        ] {
+            let direct = parse(&layers, digest, way);
+            assert_eq!(direct.map(|at| at.0), expected, "{digest:?} {way:?}");
+            assert_eq!(folded.get(&(digest, way)).copied(), direct, "{digest:?} {way:?}");
+        }
+    }
 }

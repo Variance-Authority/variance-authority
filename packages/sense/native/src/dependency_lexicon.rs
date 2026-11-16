@@ -6,7 +6,7 @@
 //! to the log, and the catalogue is written again only when a manifest, an installed package, or a specifier no
 //! request asked for before moves it.
 use std::collections::{BTreeMap, BTreeSet, HashSet};
-use std::{fs, path::Path};
+use std::{fs, path::Path, sync::Arc};
 use napi_derive::napi;
 use serde::Serialize;
 #[path = "dependency_lexicon_boundary.rs"] mod boundary;
@@ -32,6 +32,7 @@ mod skilled;
 use skilled::Skill;
 use catalogue::Catalogue;
 use sites::State;
+use crate::GitTree;
 
 #[derive(Clone, PartialEq, Eq)]
 struct Identity { name: String, version: String, manifest: String }
@@ -101,7 +102,20 @@ pub fn refresh_dependency_lexicon(
     tsconfig: Option<napi::Either<String, bool>>,
 ) -> napi::bindgen_prelude::AsyncTask<crate::off_thread::OffThread<LexiconRefresh>> {
     let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
-    crate::off_thread::off_thread(move || refresh(root, index, path, sites, tsconfig))
+    crate::off_thread::off_thread("lexicon job", move || refresh(root, index, path, sites, tsconfig))
+}
+
+#[napi]
+impl GitTree {
+    /// Refresh with the scan's namespace and content policy, reusing its configuration bytes.
+    #[napi(ts_return_type = "Promise<LexiconRefresh>")]
+    pub fn refresh_dependency_lexicon(&self, root: String, index: String, path: String, sites: String,
+        tsconfig: Option<napi::Either<String, bool>>, packs: Option<bool>,
+    ) -> napi::bindgen_prelude::AsyncTask<crate::off_thread::OffThread<LexiconRefresh>> {
+        let listing = self.listing();
+        let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
+        crate::off_thread::off_thread("lexicon job", move || refresh_from(root, index, path, sites, tsconfig, Some(listing), packs != Some(false)))
+    }
 }
 
 /// What the requests file is to hold after a refresh: as it was, or the bytes to write past `end`, or whole. It is
@@ -110,6 +124,12 @@ pub fn refresh_dependency_lexicon(
 enum Wrote { Held, None, Appended(usize, sites::Writer), Rebuilt(Vec<u8>, sites::Writer) }
 
 fn refresh(root: String, index: String, path: String, sites_path: String, tsconfig: crate::resolve::Tsconfig) -> napi::Result<LexiconRefresh> {
+    refresh_from(root, index, path, sites_path, tsconfig, None, false)
+}
+
+fn refresh_from(root: String, index: String, path: String, sites_path: String, tsconfig: crate::resolve::Tsconfig,
+    listing: Option<Arc<crate::emitted::Listing>>, read_blobs: bool) -> napi::Result<LexiconRefresh> {
+    let mut phases = crate::timings::Phases::new("lexicon refresh", "input decode");
     let root_path = Path::new(&root);
     // Read before anything else, so a chain that moves during the refresh is never recorded as the one it read.
     let (chain, working) = crate::index_chain::manifest_references(&index).map_or((None, 0), |(chain, working)| (Some(chain), working));
@@ -124,7 +144,12 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
     let seen = |state: &State| chain.as_ref().is_some_and(|chain|
         state.seen.as_ref().is_some_and(|seen| seen.iter().copied().eq(chain[base..].iter().map(|reference| reference.digest.as_str()))));
     let held_stamps = catalogue.as_ref().map(Catalogue::stamps).unwrap_or_default();
+    phases.note(format_args!("catalogue bytes={}, requests bytes={}, chain segments={}, installed stamps={}",
+        held_catalogue.as_ref().map_or(0, Vec::len), held_sites.as_ref().map_or(0, Vec::len), chain.as_ref().map_or(0, Vec::len), held_stamps.len()));
+    phases.next("installed stamps");
     let moved = if catalogue.is_some() { stamps::moved(root_path, &held_stamps) } else { Vec::new() };
+    phases.note(format_args!("changed stamps={}", moved.len()));
+    phases.next("unchanged check");
     let refreshed = |summary: [u32; 4], unchanged: bool, appended: u32, rebuilt: bool, reused: u32, unresolved: Option<u32>| LexiconRefresh {
         path: path.clone(), sites: sites_path.clone(), packages: summary[0], entrypoints: summary[1], reused,
         unavailable: summary[3], unresolved, unchanged, appended, rebuilt,
@@ -132,20 +157,26 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
     if let (Some(catalogue), Some(state)) = (catalogue.as_ref(), state.as_ref()) {
         if based(state) && seen(state) && moved.is_empty() {
             let summary = catalogue.summary();
+            phases.note(format_args!("unchanged, packages={}, entrypoints={}", summary[0], summary[1]));
             return Ok(refreshed(summary, true, 0, false, summary[2], None));
         }
     }
 
+    phases.next("manifest listing");
     let listed = wanted::manifests(&root).ok_or_else(|| failed(format!("git could not list the checkout at {root}")))?;
+    phases.note(format_args!("manifests={}", listed.len()));
+    phases.next("manifest owners");
     let manifest_moved = moved.iter().any(|at| *at == "package.json" || listed.binary_search_by(|held| crate::order::code_unit(held, at)).is_ok());
     let kept = catalogue.as_ref().filter(|catalogue| !manifest_moved && catalogue.manifests().iter().copied().eq(listed.iter().map(String::as_str)));
     let (owners, internal): (Vec<Owner>, Vec<String>) = match kept {
         Some(catalogue) => (catalogue.owners(), catalogue.internal().into_iter().map(str::to_owned).collect()),
-        None => (wanted::owners(root_path, &listed),
-            crate::package_owners::owners(&root, &listed).packages.into_iter().map(|package| package.name).collect()),
+        None => (wanted::owners_from(root_path, &listed, read_blobs.then(|| listing.as_deref()).flatten()),
+            crate::package_owners::owners_from(&root, &listed, read_blobs.then(|| listing.as_deref()).flatten()).packages.into_iter().map(|package| package.name).collect()),
     };
     let internal_names: HashSet<&str> = internal.iter().map(String::as_str).collect();
     let digest = sites::internal_digest(&internal_names.iter().copied().collect::<Vec<_>>());
+    phases.note(format_args!("owners={}, internal packages={}, owners reused={}", owners.len(), internal.len(), kept.is_some()));
+    phases.next("request extraction");
 
     let sites_file = Path::new(&sites_path);
     let wrote = match chain.as_ref() {
@@ -167,6 +198,8 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
         Wrote::Rebuilt(_, writer) => (writer.appended, true),
         _ => (0, false),
     };
+    phases.note(format_args!("appended files={appended}, rebuilt={rebuilt_whole}"));
+    phases.next("request coverage");
     let names: HashSet<&str> = owners.iter().map(|owner| owner.name.as_str()).collect();
     let covered = match (&wrote, catalogue.as_ref()) {
         (_, None) => false,
@@ -177,20 +210,29 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
         (Wrote::Held | Wrote::None, Some(_)) => true,
     };
     if covered && kept.is_some() && moved.is_empty() {
+        phases.next("requests publication");
         written(&wrote, sites_file)?;
         let summary = catalogue.as_ref().map(Catalogue::summary).unwrap_or_default();
         return Ok(refreshed(summary, false, appended, rebuilt_whole, summary[2], None));
     }
 
     // The catalogue is made over the requests the file holds now.
+    phases.next("request state decode");
     let now = match &wrote {
         Wrote::None | Wrote::Held => None,
         Wrote::Appended(end, writer) => held_sites.as_ref().map(|held| { let mut bytes = held[..*end].to_vec(); bytes.extend_from_slice(writer.bytes()); bytes }),
         Wrote::Rebuilt(bytes, _) => Some(bytes.clone()),
     };
     let now_state = if matches!(wrote, Wrote::Held) { state } else { now.as_deref().and_then(State::read) };
-    let (made, reused, unresolved) = build::made(root_path, owners, listed, internal, now_state.as_ref(), catalogue.as_ref(), tsconfig);
-    sites::publish(Path::new(&path), &made.encode()).map_err(failed)?;
+    phases.next("catalogue build");
+    let (made, reused, unresolved) = build::made(root_path, owners, listed, internal, now_state.as_ref(), catalogue.as_ref(), tsconfig, listing, read_blobs);
+    phases.note(format_args!("packages={}, entrypoints={}, reused={reused}, unresolved={unresolved}", made.summary[0], made.summary[1]));
+    phases.next("catalogue encoding");
+    let encoded = made.encode();
+    phases.note(format_args!("catalogue bytes={}", encoded.len()));
+    phases.next("catalogue publication");
+    sites::publish(Path::new(&path), &encoded).map_err(failed)?;
+    phases.next("requests publication");
     written(&wrote, sites_file)?;
     Ok(refreshed(made.summary, false, appended, rebuilt_whole, reused, Some(unresolved)))
 }

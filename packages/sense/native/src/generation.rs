@@ -209,17 +209,33 @@ pub struct Deleted<'a> {
 
 /// The segment bytes, dictionary first: every string any part names, once.
 pub fn encode_generation<P: ParseRow>(generation: &Generation<P>) -> Vec<u8> {
-    let mut values = Collected::default();
+    let mut phases = crate::timings::Phases::new("encode", "collect strings");
+    phases.note(format_args!("{} parses, {} records, {} directories", generation.parses.len(), generation.records.len(), generation.directories.len()));
+    // Local sets keep the per-row probes off one repository-sized table; the
+    // existing dictionary sort still owns every id, whatever order they join.
+    let mut values = generation.parses
+        .par_chunks(16_384)
+        .map(|rows| {
+            let mut values = Collected::default();
+            for (key, row) in rows {
+                let (digest, way) = key_parts(key);
+                values.insert(digest);
+                values.insert(way);
+                row.strings(&mut values);
+            }
+            values
+        })
+        .reduce(Collected::default, |mut left, mut right| {
+            if left.len() < right.len() {
+                std::mem::swap(&mut left, &mut right);
+            }
+            left.extend(right);
+            left
+        });
     values.extend(generation.config);
     for (path, digest) in generation.directories {
         values.insert(path);
         values.insert(digest);
-    }
-    for (key, row) in generation.parses {
-        let (digest, way) = key_parts(key);
-        values.insert(digest);
-        values.insert(way);
-        row.strings(&mut values);
     }
     for (file, held) in generation.records {
         record_strings(file, held, &mut values);
@@ -232,17 +248,28 @@ pub fn encode_generation<P: ParseRow>(generation: &Generation<P>) -> Vec<u8> {
     }
     values.extend(deleted.records.iter().map(String::as_str));
     values.extend(deleted.directories.iter().map(String::as_str));
+    phases.next("build dictionary");
     let mut strings = Strings::of(values);
+    phases.next("write index columns");
     let mut columns = Vec::from(strings.columns());
     columns.push(u32s("index.config", vec![strings.optional(generation.config)]));
     columns.extend(directory_columns(generation.directories, deleted.directories, &strings));
-    columns.extend(ParseColumns::of(generation.parses, &strings).columns([
+    phases.next("build parse columns");
+    let parses = ParseColumns::of(generation.parses, &strings);
+    phases.next("serialize parse columns");
+    let parses = parses.columns([
         u32s("parses.deleted", deleted.parses.iter().map(|key| strings.id(key_parts(key).0)).collect()),
         u32s("parses.deleted-way", deleted.parses.iter().map(|key| strings.id(key_parts(key).1)).collect()),
-    ]));
+    ]);
+    columns.extend(parses);
+    phases.next("write record columns and reverse edges");
     let deleted_records = deleted.records.iter().map(|file| strings.id(file)).collect();
     columns.extend(RecordColumns::of(generation.records, &strings).columns(deleted_records));
-    encode(columns)
+    phases.next("frame segment");
+    let encoded = encode(columns);
+    phases.note(format_args!("{} encoded bytes", encoded.len()));
+    phases.next("release buffers");
+    encoded
 }
 
 /// A generation as JavaScript names it — `StoredSourceIndex` in

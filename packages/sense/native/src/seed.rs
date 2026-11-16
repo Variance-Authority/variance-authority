@@ -1,5 +1,6 @@
 //! Repository files under configured roots, selected from Git identity when available.
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
@@ -56,7 +57,7 @@ pub(crate) fn seeds_of(root: &str, dirs: &[String], snapshot: &crate::git::Snaps
     seeds
 }
 
-fn readable(path: &str) -> bool {
+pub(crate) fn readable(path: &str) -> bool {
     Path::new(path)
         .extension()
         .and_then(|part| part.to_str())
@@ -100,7 +101,18 @@ struct Found {
 /// describe, with independent directory reads fanned over the filesystem width.
 #[napi(catch_unwind)]
 pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
+    list_files(root, dirs, true)
+}
+
+/// Every non-generated file, including language manifests and resolver configuration.
+pub(crate) fn listed_files(root: String, dirs: &[String]) -> Vec<String> {
+    let roots = std::iter::once(".".to_owned()).chain(dirs.iter().cloned()).collect();
+    list_files(root, roots, false)
+}
+
+fn list_files(root: String, dirs: Vec<String>, readable_only: bool) -> Vec<String> {
     let root = PathBuf::from(root);
+    let mut seen = HashSet::new();
     let mut pending: Vec<Directory> = dirs
         .into_iter()
         .filter_map(|dir| {
@@ -110,6 +122,7 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
                 root.join(dir)
             };
             let prefix = repo_path(&root, &absolute)?;
+            if !seen.insert(prefix.clone()) { return None }
             Some(Directory {
                 absolute,
                 prefix,
@@ -121,14 +134,14 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
     let pool = ThreadPoolBuilder::new().num_threads(READERS).build();
 
     while !pending.is_empty() {
-        let work = || pending.par_iter().map(read).collect::<Vec<_>>();
+        let work = || pending.par_iter().map(|directory| read(directory, readable_only)).collect::<Vec<_>>();
         let found = match &pool {
             Ok(pool) => pool.install(work),
             Err(_) => work(),
         };
         pending = Vec::new();
         for mut batch in found.into_iter().flatten() {
-            pending.append(&mut batch.directories);
+            pending.extend(batch.directories.into_iter().filter(|directory| seen.insert(directory.prefix.clone())));
             files.append(&mut batch.files);
         }
     }
@@ -148,7 +161,7 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
 ///
 /// A configured directory that is not there contributes nothing; the caller is
 /// the one that can say whether an empty result is wrong.
-fn read(directory: &Directory) -> Option<Found> {
+fn read(directory: &Directory, readable_only: bool) -> Option<Found> {
     let entries: Vec<_> = fs::read_dir(&directory.absolute)
         .ok()?
         .filter_map(Result::ok)
@@ -177,7 +190,7 @@ fn read(directory: &Directory) -> Option<Found> {
                     seeded: false,
                 });
             }
-        } else if path
+        } else if !readable_only || path
             .extension()
             .and_then(|part| part.to_str())
             .is_some_and(|extension| EXTENSIONS.contains(&extension))

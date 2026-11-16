@@ -13,10 +13,11 @@ pub enum Kind {
     Dynamic,
     Type,
     Depends,
+    Asset,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 5] = [Kind::Imports, Kind::Reexports, Kind::Dynamic, Kind::Type, Kind::Depends];
+    pub const ALL: [Kind; 6] = [Kind::Imports, Kind::Reexports, Kind::Dynamic, Kind::Type, Kind::Depends, Kind::Asset];
     pub fn code(self) -> u8 {
         self as u8
     }
@@ -27,6 +28,7 @@ impl Kind {
             Self::Dynamic => "dynamic",
             Self::Type => "type",
             Self::Depends => "depends",
+            Self::Asset => "asset",
         }
     }
 }
@@ -80,7 +82,7 @@ pub struct Export {
     /// The line it is written on, up to its line break and less one `\r`
     /// before that, as a reader prints where a name is passed on.
     #[serde(rename = "lineText", skip_serializing_if = "Option::is_none")]
-    pub(crate) line_text: Option<String>,
+    pub(crate) line_text: Option<std::sync::Arc<str>>,
 }
 
 pub(crate) fn is_false(value: &bool) -> bool {

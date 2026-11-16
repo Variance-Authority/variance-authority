@@ -23,7 +23,7 @@ pub mod swift;
 use tree_sitter::Node;
 
 use crate::grammar::{self, Grammar};
-use crate::harvest::{SourceSymbol, TextSpan};
+use crate::harvest::{Offsets, SourceSymbol, TextSpan};
 use shape::Read;
 
 /// The 1-based line a node starts on.
@@ -39,14 +39,14 @@ pub fn text_of<'source>(node: Node, source: &'source str) -> &'source str {
 
 /// One top-level declaration, `children[at]`, as the TypeScript reader
 /// records one: its name and kind, its line, its head and the doc above it.
-pub fn declaration(children: &[Node], at: usize, name: String, kind: &'static str, source: &str, between: fn(Node) -> bool) -> SourceSymbol {
+pub fn declaration(children: &[Node], at: usize, name: String, kind: &'static str, source: &str, offsets: &Offsets, between: fn(Node) -> bool) -> SourceSymbol {
     let node = children[at];
     SourceSymbol {
         name,
         kind,
         line: line_of(node),
-        signature: Some(head(node, source)),
-        doc: doc_above(children, at, source, between),
+        signature: Some(head(node, source, offsets)),
+        doc: doc_above(children, at, source, offsets, between),
         reach: None,
     }
 }
@@ -81,7 +81,7 @@ pub fn kind_of(node: &str) -> Option<&'static str> {
 /// A declaration's head: from where it starts to where its body or its value
 /// does, less the `=`, `:` or `{` that opens them; the whole node when it has
 /// neither.
-pub fn head(node: Node, source: &str) -> TextSpan {
+pub fn head(node: Node, source: &str, offsets: &Offsets) -> TextSpan {
     let opens = node
         .child_by_field_name("body")
         .or_else(|| node.child_by_field_name("value"))
@@ -90,7 +90,7 @@ pub fn head(node: Node, source: &str) -> TextSpan {
     let end = opens.map_or(node.end_byte(), |body| body.start_byte());
     let text = source.get(node.start_byte()..end).unwrap_or("");
     let kept = text.trim_end().trim_end_matches(['=', ':', '{']).trim_end();
-    span_of(source, node.start_byte(), node.start_byte() + kept.len())
+    span_of(offsets, node.start_byte(), node.start_byte() + kept.len())
 }
 
 /// The doc comment written above `children[at]`, past the siblings the
@@ -99,7 +99,7 @@ pub fn head(node: Node, source: &str) -> TextSpan {
 /// written as, since each grammar names its comments differently. A block is spanned inside its `/*`
 /// and `*/`, as the TypeScript reader spans a JSDoc block; lines are spanned
 /// whole, from the first `///` to the end of the last.
-pub fn doc_above(children: &[Node], at: usize, source: &str, between: fn(Node) -> bool) -> Option<TextSpan> {
+pub fn doc_above(children: &[Node], at: usize, source: &str, offsets: &Offsets, between: fn(Node) -> bool) -> Option<TextSpan> {
     let mut lines: Option<(usize, usize)> = None;
     for sibling in children[..at].iter().rev() {
         let text = text_of(*sibling, source);
@@ -113,20 +113,16 @@ pub fn doc_above(children: &[Node], at: usize, source: &str, between: fn(Node) -
             continue;
         }
         if comment && lines.is_none() && text.starts_with("/**") && !text.starts_with("/***") && text.len() > 4 {
-            return Some(span_of(source, sibling.start_byte() + 2, sibling.end_byte() - 2));
+            return Some(span_of(offsets, sibling.start_byte() + 2, sibling.end_byte() - 2));
         }
         break;
     }
-    lines.map(|(start, end)| span_of(source, start, end))
+    lines.map(|(start, end)| span_of(offsets, start, end))
 }
 
 /// Byte offsets of `source` as the UTF-16 span every reader writes.
-pub fn span_of(source: &str, start: usize, end: usize) -> TextSpan {
-    let units = |byte: usize| source.get(..byte).map_or(0, |before| before.encode_utf16().count()) as u32;
-    if source.is_ascii() {
-        return TextSpan { start: start as u32, end: end as u32, text: None };
-    }
-    TextSpan { start: units(start), end: units(end), text: None }
+pub fn span_of(offsets: &Offsets, start: usize, end: usize) -> TextSpan {
+    offsets.span(oxc_span::Span::new(start as u32, end as u32))
 }
 
 /// A visibility modifier as written, with the whitespace taken out, so
@@ -174,12 +170,13 @@ pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
         }));
     };
 
+    let offsets = Offsets::new(source);
     let (read, symbols) = match grammar {
-        Grammar::Python => (python::read(file, source, &tree), python::declarations(&tree, source)),
-        Grammar::Rust => (rust::read(file, source, &tree), rust::declarations(&tree, source)),
-        Grammar::Swift => (swift::read(file, source, &tree), swift::declarations(&tree, source)),
-        Grammar::Java => (jvm::read(file, source, &tree, "java"), jvm::declarations(&tree, source)),
-        Grammar::Kotlin => (jvm::read(file, source, &tree, "kotlin"), jvm::declarations(&tree, source)),
+        Grammar::Python => (python::read(file, source, &tree), python::declarations(&tree, source, &offsets)),
+        Grammar::Rust => (rust::read(file, source, &tree), rust::declarations(&tree, source, &offsets)),
+        Grammar::Swift => (swift::read(file, source, &tree), swift::declarations(&tree, source, &offsets)),
+        Grammar::Java => (jvm::read(file, source, &tree, "java"), jvm::declarations(&tree, source, &offsets)),
+        Grammar::Kotlin => (jvm::read(file, source, &tree, "kotlin"), jvm::declarations(&tree, source, &offsets)),
     };
     // FIXME: only Rust reads its own uses; Python, Swift and the JVM languages
     // answer `ask uses` with what other files import alone.
@@ -199,8 +196,38 @@ pub fn swift_targets(source: &str) -> Option<Vec<swift::Target>> {
 }
 
 #[cfg(test)]
+#[path = "../rust_resolve_tests.rs"]
+mod resolve_tests;
+
+#[cfg(test)]
 mod tests {
     use super::kind_of;
+
+    #[test]
+    fn every_grammar_keeps_declaration_text_and_utf16_offsets_after_unicode() {
+        for (language, declaration, signature, doc) in [
+            ("rust", "/// 文😀\nfn named() {}", "fn named()", "/// 文😀"),
+            ("python", "def named():\n    \"\"\"文😀\"\"\"\n    pass", "def named()", "文😀"),
+            ("java", "/** 文😀 */\nclass Named {}", "class Named", "* 文😀 "),
+            ("kotlin", "/** 文😀 */\nclass Named {}", "class Named", "* 文😀 "),
+            ("swift", "/** 文😀 */\nclass Named {}", "class Named", "* 文😀 "),
+        ] {
+            for unicode in [false, true] {
+                let source = format!("{}\n{declaration}\n", if language == "python" { "# 😀 é" } else { "// 😀 é" });
+                let source = if unicode { source } else { source.replace(['文', '😀', 'é'], "x") };
+                let expected = |text: &str| if unicode { text.to_owned() } else { text.replace(['文', '😀', 'é'], "x") };
+                let read = super::read(language, "source", &source).expect("the grammar is linked");
+                let symbol = read.symbols.first().expect(language);
+                for (span, text) in [(&symbol.signature, expected(signature)), (&symbol.doc, expected(doc))] {
+                    let span = span.as_ref().expect(language);
+                    let byte = source.find(&text).expect("the text is written");
+                    assert_eq!(span.start, source[..byte].encode_utf16().count() as u32, "{language}");
+                    assert_eq!(span.end, span.start + text.encode_utf16().count() as u32, "{language}");
+                    assert_eq!(span.text.as_deref(), Some(text.as_str()), "{language}");
+                }
+            }
+        }
+    }
 
     /// A node a reader admits as a declaration and `kind_of` has no word for
     /// would be left out of the symbols without a sound.

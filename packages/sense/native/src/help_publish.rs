@@ -17,6 +17,7 @@ use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 
 use crate::compact::Layer;
+use crate::git_tree::GitTree;
 use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
@@ -27,6 +28,7 @@ use crate::help_origin::{declaration_exported, export_line, ExportedDeclaration}
 use crate::help_usage::{importers, usage, Asked, DeepRequest, Importers, IndexedUsage, NamedExport};
 use crate::index_chain::read_chain;
 use crate::source_tree::{tree, Mocking};
+use crate::timings::Phases;
 
 /// What the chain says for a Help value, held on this side, each part handed
 /// over once.
@@ -100,24 +102,62 @@ pub fn read_help(
     tsconfig: Option<napi::Either<String, bool>>,
     code: Vec<String>,
 ) -> AsyncTask<OffThread<Option<HelpReading>>> {
+    read_help_from(root, index, entries, published, unentered, declared, drawn, tsconfig, code, None)
+}
+
+#[napi]
+impl GitTree {
+    /// Read the questions with this scan's manifest namespace and content policy.
+    #[napi(ts_return_type = "Promise<HelpReading | null>")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn read_help(&self, root: String, index: String, entries: Vec<HelpEntry>, published: Vec<String>,
+        unentered: Vec<String>, declared: Vec<String>, drawn: bool, tsconfig: Option<napi::Either<String, bool>>,
+        code: Vec<String>, packs: Option<bool>,
+    ) -> AsyncTask<OffThread<Option<HelpReading>>> {
+        let manifests = self.paths.iter().filter(|path| path.rsplit('/').next() == Some("package.json")).cloned().collect();
+        let content = (packs != Some(false)).then(|| self.listing());
+        read_help_from(root, index, entries, published, unentered, declared, drawn, tsconfig, code, Some((manifests, content)))
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn read_help_from(root: String, index: String, entries: Vec<HelpEntry>, published: Vec<String>,
+    unentered: Vec<String>, declared: Vec<String>, drawn: bool, tsconfig: Option<napi::Either<String, bool>>,
+    code: Vec<String>, carried: Option<(Vec<String>, Option<std::sync::Arc<crate::emitted::Listing>>)>,
+) -> AsyncTask<OffThread<Option<HelpReading>>> {
     let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
-    off_thread(move || {
+    off_thread("question read job", move || {
+        let mut phases = Phases::new("question inputs", "mock resolver setup");
         let mocking = drawn.then(|| Mocking::at(&root, tsconfig, code));
+        phases.next("entry keys");
         let mut opened: Vec<String> = Vec::new();
         for entry in &entries {
             if !opened.contains(&entry.key) {
                 opened.push(entry.key.clone());
             }
         }
-        opened_chain(&open_index(index)?, |layers| {
+        phases.note(format_args!("{} entries, {} opened keys, {} published packages, tree requested={drawn}", entries.len(), opened.len(), published.len()));
+        phases.next("read and open chain");
+        let index = open_index(index)?;
+        phases.next("parallel usage, tree and names");
+        let answer = opened_chain(&index, |layers| {
+            let usage_job = Phases::new("question usage job", "rayon branch wait");
+            let tree_job = Phases::new("question tree job", "rayon branch wait");
+            let names_job = Phases::new("question names job", "rayon branch wait");
             let (mut read, (tree, names)) = rayon::join(
-                || usage(&root, layers, &opened, &published, &unentered, &declared),
-                || rayon::join(|| mocking.as_ref().map(|mocking| tree(layers, mocking)), || published_names(layers, &entries)),
+                || { let mut job = usage_job; job.next("execution"); usage(&root, layers, &opened, &published, &unentered, &declared, carried.as_ref().map(|(manifests, content)| (manifests.as_slice(), content.as_deref()))) },
+                || rayon::join(
+                    || { let mut job = tree_job; job.next("execution"); mocking.as_ref().map(|mocking| tree(layers, mocking)) },
+                    || { let mut job = names_job; job.next("execution"); published_names(layers, &entries) },
+                ),
             );
             let exported = std::mem::take(&mut read.exported);
             let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
             HelpReading { held: Some(Held { exported, deep, tree }), usage: Some(read), names: Some(names) }
-        })
+        });
+        phases.next("opened index cleanup");
+        drop(index);
+        answer
     })
 }
 
@@ -315,17 +355,20 @@ impl HelpReading {
     #[napi(ts_return_type = "Promise<HelpEncoded>")]
     pub fn encode(&mut self, o: HelpEncode) -> napi::Result<AsyncTask<OffThread<HelpEncoded>>> {
         let held = self.held.take().ok_or_else(|| napi::Error::from_reason("this reading was encoded already"))?;
-        Ok(off_thread(move || held.encode(o)))
+        Ok(off_thread("question encode job", move || held.encode(o)))
     }
 }
 
 impl Held {
     fn encode(self, o: HelpEncode) -> napi::Result<HelpEncoded> {
+        let mut phases = Phases::new("question publication", "tree hash");
+        phases.note(format_args!("{} packages, {} exports, {} imports by path", o.packages.len(), self.exported.len(), self.deep.iter().map(Vec::len).sum::<usize>()));
         let graph_digest = match (&self.tree, o.graph_digest) {
             (Some(tree), _) => Sha256::digest(tree).iter().map(|byte| format!("{byte:02x}")).collect(),
             (None, Some(digest)) => digest,
             (None, None) => return Err(napi::Error::from_reason("a reading that drew no tree is encoded under the digest of the caller's")),
         };
+        phases.next("store inputs");
         let meta = StoreMeta {
             root: o.root,
             graph_root: o.graph_root,
@@ -337,8 +380,17 @@ impl Held {
         };
         let deep = [&self.deep[0], &self.deep[1], &self.deep[2]].map(|held| held.iter().map(DeepRef::from).collect());
         let input = StoreRef { packages: &o.packages, deep, unreadable: &o.unreadable };
+        phases.next("store encoding");
         let (store, _) = encode(&input, &self.exported, Some(&meta), None);
-        Ok(HelpEncoded { store: store.into(), tree: self.tree.map(Buffer::from), graph_digest })
+        phases.next("reading cleanup");
+        let encoded = HelpEncoded { store: store.into(), tree: self.tree.map(Buffer::from), graph_digest };
+        drop(input);
+        drop(meta);
+        drop(o.packages);
+        drop(o.unreadable);
+        drop(self.deep);
+        drop(self.exported);
+        Ok(encoded)
     }
 }
 

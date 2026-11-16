@@ -9,6 +9,7 @@ use crate::generation::{encode_generation, Deleted, Generation};
 use crate::order;
 use crate::parse_columns::{ParseColumns, ParseRow};
 use crate::read::Read;
+use crate::source_read::SourceRead;
 use crate::segment::{Collected, Strings};
 
 /// A complete generation containing parses and empty values for every other
@@ -39,7 +40,7 @@ pub fn parse_segment(
         .collect();
     rows.sort_unstable_by(|left, right| order::code_unit(&left.0, &right.0));
     rows.dedup_by(|left, right| left.0 == right.0);
-    let rows: Vec<(&str, &Read)> = rows.iter().map(|(key, index)| (key.as_str(), &reads[*index].0)).collect();
+    let rows: Vec<(&str, &SourceRead)> = rows.iter().map(|(key, index)| (key.as_str(), &reads[*index].0)).collect();
     parses_only(&rows)
 }
 
@@ -97,7 +98,7 @@ impl ParseRow for Read {
         values.extend(self.unknown.as_deref());
     }
 
-    fn write(&self, strings: &Strings, into: &mut ParseColumns) {
+    fn write<'text>(&'text self, strings: &Strings, into: &mut ParseColumns<'text>) {
         let id = |value: &str| strings.id(value);
         for request in &self.requests {
             into.request(

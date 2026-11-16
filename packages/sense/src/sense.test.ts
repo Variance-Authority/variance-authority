@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { readModule } from './read.js';
-import { readStyle } from './style.js';
+import type { Parsed } from './cache.js';
 import { scanRelations } from './scan.js';
 
 /**
@@ -279,18 +279,20 @@ describe('reading a module', () => {
 });
 
 describe('reading a stylesheet', () => {
-  it('finds every shape a stylesheet names a file in', () => {
-    const read = readStyle(
-      'button.css',
-      [
+  it('finds every shape a stylesheet names a file in', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-style-'));
+    try {
+      await writeFile(join(root, 'button.css'), [
         "@import './tokens.css';",
         '@use "sass:math";',
         "@forward './mixins';",
         '.b { background: url(./texture.png); }',
         '.c { background: url("https://cdn.example/x.png"); }',
         ".d { composes: base from './base.module.css'; }",
-      ].join('\n'),
-    );
+      ].join('\n'));
+      const reads: Parsed[] = [];
+      await scanRelations({ root, dirs: ['.'], parsed: (_file, read) => { reads.push(read); } });
+      const read = reads[0]!;
 
     expect(read.requests.map((request) => request.value)).toEqual([
       './tokens.css',
@@ -303,6 +305,9 @@ describe('reading a stylesheet', () => {
     // A stylesheet request is a whole-file dependency. Nothing here binds a
     // name, and `composes` names a class rather than an exported binding.
     expect(read.requests.every((request) => request.bindings.length === 0)).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

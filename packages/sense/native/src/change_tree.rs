@@ -13,16 +13,18 @@ use crate::GitTree;
 pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<GitTree> {
     #[cfg(unix)]
     {
-        let (snapshot, change) = crate::held_listing::change_tree(&root, &index, &dirs)?;
+        let Some((snapshot, change)) = crate::held_listing::change_tree(&root, &index, &dirs) else {
+            return Some(crate::filesystem_tree::tree(root, &dirs));
+        };
         let seeds = crate::seed::seeds_of(&root, &dirs, &snapshot);
-        let mut tree = crate::git_tree::tree_from_snapshot(snapshot, seeds);
+        let mut tree = crate::git_tree::tree_from_snapshot(&root, snapshot, seeds);
         tree.change = change;
         Some(tree)
     }
     #[cfg(not(unix))]
     {
         let _ = index;
-        crate::git_tree_for(root, dirs)
+        crate::git_tree_for(root.clone(), dirs.clone()).or_else(|| Some(crate::filesystem_tree::tree(root, &dirs)))
     }
 }
 
@@ -48,7 +50,7 @@ pub(crate) fn carry(change: &Option<crate::held_listing::Change>, config: &str, 
     use crate::held_listing::Change;
     match change {
         Some(Change::Vouched(meta, manifest)) if meta.config.as_deref() == Some(config) && std::fs::read(index).is_ok_and(|now| now == *manifest) => {
-            Err(crate::source_update::Updated { files: meta.files, reread: 0, parsed: 0, published: false, refused: None })
+            Err(crate::source_update::Updated { was: "published".to_owned(), written: None, files: meta.files, reread: 0, parsed: 0, published: false, refused: None })
         }
         Some(Change::Vouched(meta, _) | Change::Listed(meta)) => Ok(Some(meta.clone())),
         None => Ok(None),
