@@ -224,6 +224,8 @@ describe('select --format explain', () => {
 
     expect(out).toContain('the change selects 1 test file, 0 ms recorded, 1 with no recorded time.');
     expect(out).toContain(`no measured distance: 1 test file, 0 ms recorded, 1 with no recorded time — variance select --local\n  ${NEAR}, `);
+    // `only` runs what the rung chose: a test file the record never saw runs only when the rung chose it.
+    expect(out).not.toContain('the record never saw');
   });
 
   it('is a format `select` takes', () => {

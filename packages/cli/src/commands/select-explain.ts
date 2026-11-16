@@ -99,7 +99,7 @@ export function explainOf(
     return [`${label}: ${many(runsAll.length, 'test file')}, ${priced(recorded, runsAll)} — ${runsIt}`, ...lines, ...lateLines].join('\n');
   });
   // Under `only`, a test outside it does not run, seen or not.
-  const where = blocks.length > 0 ? 'in every block' : selection.only === undefined ? `under \`${command}\`` : undefined;
+  const where = selection.only !== undefined ? undefined : blocks.length > 0 ? 'in every block' : `under \`${command}\``;
   const unseen = where === undefined ? [] : [`a test file the record never saw, such as one the change adds, is in no skip list, and runs ${where}\n`];
   return [`${head}\n`, ...said.map((block) => `${block}\n`), ...unseen, ...unread].join('\n');
 }
