@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './addon.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition, NativeTestRan } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
@@ -28,7 +28,7 @@ import { askCoverageFile } from './test-selection/coverage-file.js';
 import { defaultInclude, insideRoot } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
 
-function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition'>(name: Name) {
+function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition' | 'testRan'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -330,12 +330,48 @@ export interface SuiteTestComposition {
  * system's root.
  */
 export function testCompositions(root: string, file: string, name?: string): readonly SuiteTestComposition[] {
+  return ofTest<NativeTestComposition>(root, file, uncomposed, (recording, path) => entry('testComposition')(recording, path, name ?? null)).map(
+    ({ answer, ...named }) => ({ ...named, composition: answer }),
+  );
+}
+
+/** What one suite's recording says one test ran, or why the suite cannot say. */
+export interface SuiteTestRan {
+  readonly suite?: string;
+  readonly ran: NativeTestRan;
+}
+
+/**
+ * Which regions the test declared in `file` entered, and which it passed by,
+ * in every module it entered, asked of every declared suite that has a
+ * recording. `name` chooses among several tests of the file as it does for
+ * {@link testCompositions}. A module the test entered nothing of is left out.
+ */
+export function testsRan(root: string, file: string, name?: string): readonly SuiteTestRan[] {
+  return ofTest<NativeTestRan>(
+    root,
+    file,
+    (notRecorded) => ({ notRecorded, suite: 0, modules: [] }),
+    (recording, path) => entry('testRan')(recording, path, name ?? null),
+  ).map(({ answer, ...named }) => ({ ...named, ran: answer }));
+}
+
+/**
+ * One answer per declared suite that has a recording, about the test file
+ * `file`: read from the recording, or `refuse`d when `file` is outside the
+ * checkout and no recording can hold it.
+ */
+function ofTest<T>(
+  root: string,
+  file: string,
+  refuse: (notRecorded: string) => T,
+  read: (recording: string, path: string) => T,
+): readonly { readonly suite?: string; readonly answer: T }[] {
   const asked = checkoutPath(root, file);
   return recordings(root).flatMap(({ suite, recording }) => {
     if (recording === undefined) return [];
     const named = suite === undefined ? {} : { suite };
-    if ('outside' in asked) return [{ ...named, composition: uncomposed(asked.outside) }];
-    return [{ ...named, composition: entry('testComposition')(recording, asked.path, name ?? null) }];
+    return [{ ...named, answer: 'outside' in asked ? refuse(asked.outside) : read(recording, asked.path) }];
   });
 }
 

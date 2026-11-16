@@ -167,6 +167,12 @@ impl JourneyMasks {
             .min_by_key(|&at| (self.bits[at as usize].end - self.bits[at as usize].start, at)))
     }
 
+    /// The rows of module `module`, `[from, to)`.
+    pub fn rows_of(&self, module: usize) -> std::ops::Range<u32> {
+        let (from, to) = self.rows[module];
+        from..to
+    }
+
     /// Every recorded function of module `module`, in row order.
     pub fn functions_in(&self, module: usize) -> Vec<u32> {
         let (from, to) = self.rows[module];

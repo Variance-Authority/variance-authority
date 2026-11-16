@@ -12,6 +12,7 @@ the answer. Run them from the checkout you are asking about.
 | files from a stack trace, a ticket, your editor or a search | `orient --files <path>[:<line>][,...]` |
 | one file, and the words of a task | `journey-map --file <path> --query <words>` |
 | one test, and the question of what only it runs | `test-composition --file <test> --name <words>` |
+| one test, and a text it may have run, such as an error message | `grep --query <pattern> --test <file> --name <words>` |
 | a history, and the question of how far its commits reached | `containment`, with `--after <date>` for another window than the last two weeks |
 | a place, and the question of what it may import | `stack --from <path>` |
 | a suite that is slow, or cases near their limit | `slowest-tests`, scoped with `--from` or `--to`, `--over 3s` for cases that ran at least 3s |
@@ -82,6 +83,17 @@ inferred from what each test ran: a piece runs the same code, which does not
 establish that it checks the same thing, so a test with neither may still check
 something its pieces do not. It reads execution: a mocked module is entered by
 nobody, so a test that mocks its pieces lists none.
+
+## `grep --test`
+
+ripgrep over the files one recorded test entered, in place of a start point
+along the imports. Each matching line is listed under `Ran` when the innermost
+recorded region holding it was entered, or a line in no region of a file it
+entered, which ran as the module loaded. The rest are under `Not taken`, each
+with the outermost region holding it that the test did not enter: the branch or
+function where it went elsewhere. A file the test entered nothing of is not
+searched, nor a file no recording instruments, so a line missing from the answer
+may still have run there.
 
 ## `containment`
 

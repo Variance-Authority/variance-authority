@@ -348,6 +348,35 @@ export interface NativeTestComposition {
   readonly reached: readonly NativeJourneyBlock[];
 }
 
+/** One recorded region of a module a test entered. */
+export interface NativeRanRegion {
+  readonly kind: string;
+  readonly line: number;
+  readonly end: number;
+  /** The name of the function it is written in, when one is recorded. */
+  readonly function?: string | null;
+  /** Whether the test entered it. */
+  readonly entered: boolean;
+}
+
+/** A module a test entered, with every region recorded in it, in row order. */
+export interface NativeRanModule {
+  readonly file: string;
+  readonly regions: readonly NativeRanRegion[];
+}
+
+/** Which regions one test entered, and which it passed by, in every module it entered. */
+export interface NativeTestRan {
+  /** Why the recording cannot answer; every other field is empty then. */
+  readonly notRecorded?: string | null;
+  /** Cases in the recording. */
+  readonly suite: number;
+  /** The test asked about; `blocks` is how many regions it entered. */
+  readonly test?: NativeJourneyCase | null;
+  /** The modules it entered at least one region of, in file order. */
+  readonly modules: readonly NativeRanModule[];
+}
+
 /** The journey calls on a git listing the addon holds, carrying it rather than asking git again. */
 export interface NativeJourneysListing {
   /** Walk every case of the recording and keep the journeys at `out`; `null` when there is no source index. */
@@ -388,4 +417,6 @@ export interface NativeJourneys {
   journeyMap?(recording: string, file: string, terms?: string[] | null, known?: NativeJourneyMapFile | null): NativeJourneyMap;
   /** What the test declared in `file`, chosen by `name` among several, is made of. */
   testComposition?(recording: string, file: string, name?: string | null): NativeTestComposition;
+  /** Which regions the test declared in `file`, chosen by `name` among several, entered, in every module it entered. */
+  testRan?(recording: string, file: string, name?: string | null): NativeTestRan;
 }

@@ -179,10 +179,12 @@ export {
   pathsThrough,
   prepareJourneys,
   testCompositions,
+  testsRan,
   type SuiteJourneyMap,
   type JourneysAround,
   type PreparedJourneys,
   type SuiteTestComposition,
+  type SuiteTestRan,
 } from './journeys.js';
 export {
   type NativeForksBetween as ForksBetween,
@@ -211,7 +213,10 @@ export {
   type NativeJourneysPlaced as JourneysPlaced,
   type NativeJourneysPrepared as JourneysPrepared,
   type NativeJourneysRegion as JourneysRegion,
+  type NativeRanModule as RanModule,
+  type NativeRanRegion as RanRegion,
   type NativeTestComposition as TestComposition,
+  type NativeTestRan as TestRan,
 } from './native-journeys.js';
 
 export { gitDigests } from './tree.js';
