@@ -104,8 +104,8 @@ runs` and whether the change reached none of them or a leg or `--local` left the
 for a later run, or
 `declined:` and the reason the selection could not be read, in which case every
 file runs. `VARIANCE_AUTHORITY_LOCAL=1` is `variance select --local`: where the
-record cannot narrow, the files that import a changed file run, or a changed
-file's package, instead of every file; any value other than `1` or `0` fails
+record cannot narrow, only the files that import a changed file run, instead
+of every file; any value other than `1` or `0` fails
 the run. `VARIANCE_AUTHORITY_RAN_AT=<commit>` is `variance select --ran-at`:
 in a merge queue's group of one, it names the pull request's tested commit,
 and `VARIANCE_AUTHORITY_SINCE` the base the queue merged onto; beside an empty

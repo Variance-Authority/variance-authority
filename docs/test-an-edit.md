@@ -267,8 +267,8 @@ A new test file runs until a run records it, and every doubt about the record
 prints `declined:` and runs every file;
 [what a skipped test promises](selection-safety.md) lists each doubt, and the
 changed files that keep no test. On a laptop, `VARIANCE_AUTHORITY_LOCAL=1` runs
-the tests that import a changed file, or its package, in place of every file,
-and names the files it left; it is
+only the tests that import a changed file, in place of every file, and names the
+doubt and the files it left; it is
 [`--local`](selection-safety.md#ask-for-a-local-answer-with---local). If a test reads a fixture with `fs`, name it in
 the module that reads it, as `/// <depends path="…" />`, and a change to it runs
 the tests that load that module.

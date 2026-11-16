@@ -8,7 +8,7 @@ use napi::bindgen_prelude::{Buffer, Uint32Array};
 use napi::Either;
 use napi_derive::napi;
 
-use crate::acquire::{read_all, Answer, Outcome};
+use crate::acquire::{read_all, Answer, Outcome, TreeObjects};
 use crate::emitted::{Emitted, Listing};
 use crate::git::Oid;
 use crate::parse_origin::FromBlob;
@@ -136,6 +136,7 @@ pub fn scan_batch(
         None,
         &|_, _| None,
         &FromBlob::default(),
+        &TreeObjects::default(),
     )
 }
 
@@ -146,6 +147,7 @@ pub(crate) fn scan_batch_with_oids(
     listing: Option<Arc<Listing>>,
     kept: Kept,
     from_blob: &FromBlob,
+    store: &TreeObjects,
 ) -> ScanBatch {
     let ScanOptions {
         root,
@@ -159,7 +161,7 @@ pub(crate) fn scan_batch_with_oids(
     let root_path = Path::new(&root);
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, listing));
     let (read, answered) = match oids {
-        Some(oids) => read_kept(&root, &files, oids, largest_file, digests, readers, kept, from_blob),
+        Some(oids) => read_kept(&root, store, &files, oids, largest_file, digests, readers, kept, from_blob),
         None => (
             read_all(
                 root.clone(),
@@ -185,10 +187,11 @@ pub(crate) fn scan_graph_with_tree(
     listing: Arc<Listing>,
     kept: Kept,
     from_blob: &FromBlob,
+    store: &TreeObjects,
 ) -> ScanBatch {
     let include_parses = options.include_parses;
     let Walked { files, identities, read, targets, kept: answered } =
-        walk_beyond(options, at, tree_oids, listing, &|_| false, kept, from_blob);
+        walk_beyond(options, at, tree_oids, listing, &|_| false, kept, from_blob, store);
     // A kept row's parse is the store's, whole; the one the walk holds is only
     // what records need, so it is not published as a parse.
     let parse_segment = crate::index::parse_segment(&files, &identities, &read, &answered);

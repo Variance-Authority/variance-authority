@@ -21,7 +21,7 @@
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { SuiteSelection } from '@variance-authority/sense/test-selection';
+import { kept, type SuiteSelection } from '@variance-authority/sense/test-selection';
 import { fileOwner } from './test-coordinate.js';
 
 /** The `globalSetup` that reads the selection, by the path Playwright loads it from. */
@@ -68,7 +68,8 @@ export class SkippedFiles extends RegExp {
     // Before the global setup has read it — `--list` runs none — nothing is dropped.
     if (asked?.selection === undefined) return false;
     const name = fileOwner(asked.root, resolve(file));
-    if (!asked.selection.skip.has(name)) {
+    // `kept` decides, as it does for every other seam: a skipped file, or one outside `only`, is dropped.
+    if (kept(asked.selection, [name]).length === 1) {
       asked.passed.add(file);
       return false;
     }
