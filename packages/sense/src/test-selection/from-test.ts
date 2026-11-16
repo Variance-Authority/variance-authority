@@ -85,9 +85,15 @@ export function nodesOf(relations: Relations, knownAs: (file: string) => readonl
  * modules it ran, less those another of them uses too. A re-export publishes a
  * module rather than using it, so a barrel beside its module leaves it an entry.
  * No entry is guessed away: a fixture its subject does not import stays one
- * beside it.
+ * beside it. One file held under two names is one module, so `fileOf` compares
+ * them, never the nodes.
  */
-export function entries(relations: Relations, start: readonly NodeId[], open: Uint8Array): readonly NodeId[] {
+export function entries(
+  relations: Relations,
+  start: readonly NodeId[],
+  open: Uint8Array,
+  fileOf: (id: NodeId) => string,
+): readonly NodeId[] {
   const { offset, target, kind } = relations.depends;
   const ran = (from: NodeId, republished: boolean): NodeId[] => {
     const found: NodeId[] = [];
@@ -99,9 +105,11 @@ export function entries(relations: Relations, start: readonly NodeId[], open: Ui
   };
   const direct = new Set(start.flatMap((id) => ran(id, true)));
   for (const id of start) direct.delete(id);
-  const below = new Set<NodeId>();
-  for (const id of direct) for (const to of ran(id, false)) if (to !== id) below.add(to);
-  return [...direct].filter((id) => !below.has(id));
+  const below = new Set<string>();
+  for (const id of direct) {
+    for (const to of ran(id, false)) if (fileOf(to) !== fileOf(id)) below.add(fileOf(to));
+  }
+  return [...direct].filter((id) => !below.has(fileOf(id)));
 }
 
 const REEXPORTS = EDGE_KINDS.indexOf('reexports');

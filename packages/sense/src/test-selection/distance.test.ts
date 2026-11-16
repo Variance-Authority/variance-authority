@@ -121,6 +121,27 @@ describe('distanceFromView', () => {
     expect(placed(true).enters).toBeUndefined();
   });
 
+  it('names no changed file a module the test imports reaches under another of its names', () => {
+    const BASE = 'src/button/abstract-button.tsx';
+    const BUILT = 'dist/button/abstract-button.js';
+    const knownAs = (file: string): readonly string[] => (file === BASE || file === BUILT ? [BASE, BUILT] : [file]);
+    // The report imports the built button, the test the source one: one file, two names.
+    const aliased = relationsOfFiles([
+      ...layerRecords.map((record) =>
+        record.file === 'test/report.test.tsx'
+          ? { ...record, edges: [...record.edges, { to: BASE, kind: 'imports' as const }] }
+          : record.file === 'src/report/report.tsx'
+            ? { ...record, edges: [{ to: BUILT, kind: 'imports' as const }] }
+            : record,
+      ),
+      { file: BUILT, edges: [] },
+    ]);
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+
+    expect(of(distanceFromView(coverage, narrowing, { relations: aliased, knownAs }), 'test/report.test.tsx').enters).toBeUndefined();
+  });
+
   it('names every changed file a test enters, though the walk measured from one it loads under another', () => {
     const beside = relationsOfFiles(
       layerRecords.map((record) =>
