@@ -85,14 +85,14 @@ export function nodesOf(relations: Relations, knownAs: (file: string) => readonl
  * modules it ran, less those another of them uses too. A re-export publishes a
  * module rather than using it, so a barrel beside its module leaves it an entry.
  * No entry is guessed away: a fixture its subject does not import stays one
- * beside it. One file held under two names is one module, so `fileOf` compares
- * them, never the nodes.
+ * beside it. One file held under two names is one module: `alike` gives every
+ * node it is held under, and each of them is read and compared as that file.
  */
 export function entries(
   relations: Relations,
   start: readonly NodeId[],
   open: Uint8Array,
-  fileOf: (id: NodeId) => string,
+  alike: (id: NodeId) => readonly NodeId[],
 ): readonly NodeId[] {
   const { offset, target, kind } = relations.depends;
   const ran = (from: NodeId, republished: boolean): NodeId[] => {
@@ -105,9 +105,12 @@ export function entries(
   };
   const direct = new Set(start.flatMap((id) => ran(id, true)));
   for (const id of start) direct.delete(id);
-  const below = new Set<string>();
+  const fileOf = (id: NodeId): NodeId => Math.min(id, ...alike(id));
+  const below = new Set<NodeId>();
   for (const id of direct) {
-    for (const to of ran(id, false)) if (fileOf(to) !== fileOf(id)) below.add(fileOf(to));
+    for (const name of alike(id)) {
+      for (const to of ran(name, false)) if (fileOf(to) !== fileOf(id)) below.add(fileOf(to));
+    }
   }
   return [...direct].filter((id) => !below.has(fileOf(id)));
 }

@@ -397,12 +397,8 @@ function walk(
   const enterable = imported.size === 0 ? open : open.slice();
   for (const id of imported.keys()) enterable[id] = 1;
   const enters = new Set<string>();
-  const knownAs = options.knownAs ?? ownName;
-  const fileOf = (id: NodeId): string => {
-    const name = nodeAt(relations, id)?.name ?? '';
-    return [...knownAs(name)].sort(codeUnitOrder)[0] ?? name;
-  };
-  for (const id of entries(relations, start, enterable, fileOf)) {
+  const alike = (id: NodeId): readonly NodeId[] => nodes(nodeAt(relations, id)?.name ?? '');
+  for (const id of entries(relations, start, enterable, alike)) {
     const seed = wanted.get(id) ?? imported.get(id);
     if (seed !== undefined) enters.add(seed);
   }
