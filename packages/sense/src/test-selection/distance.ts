@@ -245,16 +245,24 @@ function place(
   }
 
   const chains = new Map<string, readonly string[]>();
+  // A chain the test answered for itself starts at a changed file the record
+  // holds no row for, so no run entered it, and the test may still import it.
+  const unrecorded: string[] = [];
   for (const reason of cause.via) {
     if (reason.kind === 'importer' && reason.trail.length > 0) {
       chains.set(reason.trail[reason.trail.length - 1]!, reason.trail);
+      if (reason.trail[reason.trail.length - 1] === cause.test) {
+        unrecorded.push(reason.trail[0]!);
+        changed.add(reason.trail[0]!);
+      }
     }
   }
 
   // A chain's far end answered for the change and did not change itself, so a
   // test entering it enters nothing changed.
   const enterable = (file: string): boolean => changed.has(file) || !chains.has(file);
-  return measure(cause.test, seeds, chains, entered.get(findTest(coverage, cause.test) ?? -1) ?? new Set(), options, enterable);
+  const ran = entered.get(findTest(coverage, cause.test) ?? -1) ?? new Set();
+  return measure(cause.test, seeds, chains, ran, options, enterable, unrecorded);
 }
 
 /** Walk from `test` through the modules it `ran` to the nearest seed, and splice that seed's chain back on. */
@@ -265,8 +273,9 @@ function measure(
   ran: ReadonlySet<string>,
   options: DistanceOptions,
   enterable: (file: string) => boolean = (): boolean => true,
+  unrecorded: readonly string[] = [],
 ): TestDistance {
-  const walked = walk(test, seeds, ran, options);
+  const walked = walk(test, seeds, ran, options, unrecorded);
   if ('because' in walked) {
     return walked.because === undefined
       ? { test, bearing: 'unexplained' }
@@ -321,6 +330,7 @@ function walk(
   seeds: readonly string[],
   entered: ReadonlySet<string>,
   options: DistanceOptions,
+  unrecorded: readonly string[],
 ): Walked {
   const { relations } = options;
   if (relations === undefined) return { because: 'no import graph was supplied' };
@@ -381,9 +391,14 @@ function walk(
 
   const named: string[] = [];
   for (const id of best) named.push(nodeAt(relations, id)?.name ?? '');
+  // A changed file no run could enter is entered by the test that imports it.
+  const imported = new Map<NodeId, string>();
+  for (const file of unrecorded) for (const id of nodes(file)) imported.set(id, file);
+  const enterable = imported.size === 0 ? open : open.slice();
+  for (const id of imported.keys()) enterable[id] = 1;
   const enters = new Set<string>();
-  for (const id of entries(relations, start, open)) {
-    const seed = wanted.get(id);
+  for (const id of entries(relations, start, enterable)) {
+    const seed = wanted.get(id) ?? imported.get(id);
     if (seed !== undefined) enters.add(seed);
   }
   return { trail: named.reverse(), enters: [...enters].sort(codeUnitOrder) };

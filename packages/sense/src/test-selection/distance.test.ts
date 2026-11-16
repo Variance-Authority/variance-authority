@@ -98,6 +98,29 @@ describe('distanceFromView', () => {
     expect(report.enters).toBeUndefined();
   });
 
+  it('names a changed file with no row that a test imports, unless a module it imports imports it too', () => {
+    const DATA = 'src/report/report-data.ts';
+    const graph = (reportReads: boolean) =>
+      relationsOfFiles([
+        ...layerRecords.map((record) =>
+          record.file === 'test/report.test.tsx' || (reportReads && record.file === 'src/report/report.tsx')
+            ? { ...record, edges: [...record.edges, { to: DATA, kind: 'imports' as const }] }
+            : record,
+        ),
+        { file: DATA, edges: [] },
+      ]);
+    const coverage = openTestCoverage(encodeTestCoverage(layerCoverage));
+    const narrowing = narrowByExecutionFromView(coverage, baseDiff);
+    // The data module is new since the recording, and the test, which imports it, answered for itself.
+    const chain = { kind: 'importer', trail: [DATA, 'test/report.test.tsx'] } as const;
+    const because = narrowing.because!.map((cause) => (cause.test === 'test/report.test.tsx' ? { ...cause, via: [chain] } : cause));
+    const placed = (reportReads: boolean) =>
+      of(distanceFromView(coverage, { ...narrowing, because }, { relations: graph(reportReads) }), 'test/report.test.tsx');
+
+    expect(placed(false)).toMatchObject({ hops: 1, from: DATA, enters: [DATA] });
+    expect(placed(true).enters).toBeUndefined();
+  });
+
   it('names every changed file a test enters, though the walk measured from one it loads under another', () => {
     const beside = relationsOfFiles(
       layerRecords.map((record) =>
