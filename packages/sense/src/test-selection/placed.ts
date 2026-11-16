@@ -247,6 +247,8 @@ function treeSpan(hunk: Hunk): { readonly start: number; readonly end: number } 
  * removal before new line `newStart + 1`.
  */
 export function placeThrough(hunks: readonly Hunk[], range: HeldLines): { readonly lines: HeldLines; readonly moved: boolean } | undefined {
+  // FIXME: `place_through` in `native/src/case_layer_landing.rs` is this step
+  // for the case index; selection should ask the addon for it too.
   let shift = 0;
   let moved = false;
   let start: number | undefined;

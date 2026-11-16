@@ -33,14 +33,16 @@ pub(crate) type Readings = std::collections::HashMap<String, String>;
 
 /// Whether the edit of `file` from text `from` to text `to` reached a region of
 /// `kind`: it did unless the layout's `spared` names the kind under the edit's
-/// reading, the rule the case index's carry (`reaches` in `edit-readings.ts`)
-/// reads too.
+/// reading.
 pub(crate) fn reaches(readings: &Readings, file: &str, from: &str, to: &str, kind: u8) -> bool {
-    let kind = &LAYOUT.coverage.block_kinds[usize::from(kind)];
-    !readings
-        .get(&format!("{file}\0{from}\0{to}"))
-        .and_then(|reading| LAYOUT.coverage.spared.get(reading))
-        .is_some_and(|kinds| kinds.contains(kind))
+    !spares(readings.get(&format!("{file}\0{from}\0{to}")).map(String::as_str), &LAYOUT.coverage.block_kinds[usize::from(kind)])
+}
+
+/// Whether an edit read as `reading` spares what runs in a region of `kind`:
+/// the layout's `spared` names the kind under that reading. The snapshot's
+/// recut and the case index's carry both read it.
+pub(crate) fn spares(reading: Option<&str>, kind: &str) -> bool {
+    reading.and_then(|read| LAYOUT.coverage.spared.get(read)).is_some_and(|kinds| kinds.iter().any(|each| each == kind))
 }
 
 /// What cutting one carried row again decides, in the previous record's regions.

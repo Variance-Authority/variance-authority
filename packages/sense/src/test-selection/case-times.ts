@@ -25,6 +25,17 @@ export interface CaseTime {
   readonly time: number;
 }
 
+/**
+ * A statement's whole percent of its case: its microseconds over the case's
+ * milliseconds, never above the whole — two clocks time them, and a case
+ * stopped beside others ends with its file. Absent where the runner reported
+ * no duration, or none to divide by.
+ */
+export function shareOf(time: number, duration: number | undefined): number | undefined {
+  if (duration === undefined || duration <= 0) return undefined;
+  return Math.min(100, Math.round(time / (duration * 1000) * 100));
+}
+
 /** The column of each case's bytes, absent where no case was timed. */
 export const TIMES_COLUMN = LAYOUT.cases.times;
 
@@ -71,31 +82,4 @@ export function timesFrom(table: RowsTable | undefined, test: number): Pick<Exec
   if (table === undefined) return {};
   const times = decodeCaseTimes(caseBytes(table, test));
   return times === undefined ? {} : { times };
-}
-
-/**
- * The times of one case across its frames: the frame that ran longer in all,
- * and of two that ran as long the lower, line by line, so no order of frames
- * changes it.
- */
-export function timesAcross(first: ExecutionTest['times'], second: ExecutionTest['times']): Pick<ExecutionTest, 'times'> {
-  if (first === undefined || second === undefined) {
-    const held = first ?? second;
-    return held === undefined ? {} : { times: held };
-  }
-  const order = total(second) - total(first) || lower(second, first);
-  return { times: order > 0 ? second : first };
-}
-
-function total(times: readonly CaseTime[]): number {
-  return times.reduce((sum, { time }) => sum + time, 0);
-}
-
-/** Positive where `left` comes first, statement by statement, line before time. */
-function lower(left: readonly CaseTime[], right: readonly CaseTime[]): number {
-  for (let at = 0; at < Math.min(left.length, right.length); at += 1) {
-    const order = right[at]!.line - left[at]!.line || right[at]!.time - left[at]!.time;
-    if (order !== 0) return order;
-  }
-  return right.length - left.length;
 }

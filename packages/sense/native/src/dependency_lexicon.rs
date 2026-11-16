@@ -112,7 +112,7 @@ enum Wrote { Held, None, Appended(usize, sites::Writer), Rebuilt(Vec<u8>, sites:
 fn refresh(root: String, index: String, path: String, sites_path: String, tsconfig: crate::resolve::Tsconfig) -> napi::Result<LexiconRefresh> {
     let root_path = Path::new(&root);
     // Read before anything else, so a chain that moves during the refresh is never recorded as the one it read.
-    let (chain, working) = crate::index_chain::manifest_digests(&index).map_or((None, 0), |(chain, working)| (Some(chain), working));
+    let (chain, working) = crate::index_chain::manifest_references(&index).map_or((None, 0), |(chain, working)| (Some(chain), working));
     let base = chain.as_ref().map_or(0, |chain| chain.len().saturating_sub(working));
     let held_catalogue = fs::read(&path).ok();
     let held_sites = fs::read(&sites_path).ok();
@@ -120,9 +120,9 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
         // An older catalogue answers questions, but nothing in it is reused: its owners or its stems were cut another way.
         .filter(|catalogue| catalogue.older().is_none());
     let state = held_sites.as_deref().and_then(State::read);
-    let based = |state: &State| chain.as_ref().is_some_and(|chain| state.base.iter().copied().eq(chain[..base].iter().map(String::as_str)));
+    let based = |state: &State| chain.as_ref().is_some_and(|chain| state.base.iter().copied().eq(chain[..base].iter().map(|reference| reference.digest.as_str())));
     let seen = |state: &State| chain.as_ref().is_some_and(|chain|
-        state.seen.as_ref().is_some_and(|seen| seen.iter().copied().eq(chain[base..].iter().map(String::as_str))));
+        state.seen.as_ref().is_some_and(|seen| seen.iter().copied().eq(chain[base..].iter().map(|reference| reference.digest.as_str()))));
     let held_stamps = catalogue.as_ref().map(Catalogue::stamps).unwrap_or_default();
     let moved = if catalogue.is_some() { stamps::moved(root_path, &held_stamps) } else { Vec::new() };
     let refreshed = |summary: [u32; 4], unchanged: bool, appended: u32, rebuilt: bool, reused: u32, unresolved: Option<u32>| LexiconRefresh {
@@ -196,7 +196,7 @@ fn refresh(root: String, index: String, path: String, sites_path: String, tsconf
 }
 
 /// The requests file made whole over the chain's base, not yet written.
-fn rebuilt(index: &str, chain: &[String], base: usize, internal: &HashSet<&str>, digest: &str) -> napi::Result<Wrote> {
+fn rebuilt(index: &str, chain: &[crate::index_chain::Reference], base: usize, internal: &HashSet<&str>, digest: &str) -> napi::Result<Wrote> {
     let (bytes, writer) = sites::rebuild(index, chain, base, internal, digest).ok_or_else(|| failed("the source index did not read"))?;
     Ok(Wrote::Rebuilt(bytes, writer))
 }

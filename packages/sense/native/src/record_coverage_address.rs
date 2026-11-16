@@ -12,7 +12,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Whether an address's number means one region in both cuts: each holds it as
 /// many times, and every counter it passes through handed out the same seats
-/// in each, so no edit renumbered it (`addressedAlike` in `region-landing.ts`).
+/// in each, so no edit renumbered it.
 /// A counter whose population changed renumbers what it counts and everything
 /// nested under it, and nothing else.
 pub(crate) fn addressed_alike(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> impl Fn(&str, &str) -> bool {
@@ -55,6 +55,14 @@ pub(crate) fn addressed(before: impl Iterator<Item = (String, String)>, after: i
             Standing::Disputed
         }
     }
+}
+
+/// Whether every counter both cuts hold handed out the same seats in each: no
+/// edit renumbered a region the two
+/// cuts share. A counter only one cut holds says nothing either way.
+pub(crate) fn same_numbering(before: impl Iterator<Item = (String, String)>, after: impl Iterator<Item = (String, String)>) -> bool {
+    let now = sites(after);
+    sites(before).iter().all(|(site, taken)| now.get(site).is_none_or(|holds| holds == taken))
 }
 
 /// The seats each site of a cut holds.

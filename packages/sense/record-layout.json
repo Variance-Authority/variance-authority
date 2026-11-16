@@ -128,6 +128,7 @@
   "cases": {
     "format": 3,
     "loadedSets": 2,
+    "readings": 16,
     "duration": "tests.duration",
     "limit": "tests.limit",
     "lines": "lines.blob",

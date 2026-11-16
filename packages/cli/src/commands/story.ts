@@ -5,7 +5,8 @@
  * through declarations, drawn at the finest level that fits and narrowed a part at a time,
  * by the reading `@variance-authority/sense/story` holds. `--compare` sets readings
  * against each other (`story-compare.ts`), or, with no story taped, the
- * record's (`story-outcomes.ts`). Which runner writes the story is not its
+ * record's (`story-outcomes.ts`); a case with no story taped is explained from
+ * the record (`story-explain.ts`). Which runner writes the story is not its
  * business: any runner with the seam installed does.
  */
 
@@ -38,6 +39,7 @@ import { OperatorError } from '../exit.js';
 import { packageName, packageOf } from '../package-home.js';
 import type { ParsedStory, StoryZoom } from '../story-args.js';
 import { compareCases, compareStory, formatComparison, labelled, listed, type ComparedCase } from './story-compare.js';
+import { explainedCase, formatExplained, type Explained } from './story-explain.js';
 import { formatOutcomes, recordedOutcomes, type RecordedOutcomes } from './story-outcomes.js';
 import { caseOf, storiesText } from './story-list.js';
 
@@ -59,16 +61,21 @@ export type StoryAnswer =
   }
   | { readonly comparison: Comparison; readonly cases?: readonly ComparedCase[] }
   | RecordedOutcomes
+  | { readonly explained: Explained }
   | { readonly stories: readonly StoryEntry[] };
 
 /** The story the flags name, read as a route; every candidate when they name several. */
-export function story(parsed: ParsedStory): StoryAnswer {
+export async function story(parsed: ParsedStory): Promise<StoryAnswer> {
   const file = parsed.file === undefined ? undefined : checkoutFile(parsed.root, parsed.file);
   const zoom = parsed.zoom !== undefined && 'in' in parsed.zoom ? { in: checkoutFile(parsed.root, parsed.zoom.in) } : parsed.zoom;
   const all = listStories(parsed.root);
   const { compare } = parsed;
   const recorded = compare === 'outcome' ? recordedOutcomes(parsed.root, all, parsed.name, file) : undefined;
   if (recorded !== undefined) return recorded;
+  // The record keeps one run of a case, under no project, so a project asked for is a story's to tell.
+  const plain = compare === undefined && parsed.zoom === undefined && parsed.label === undefined && parsed.project === undefined;
+  const explained = plain ? await explainedCase(parsed.root, all, parsed.name, file) : undefined;
+  if (explained !== undefined) return explained;
   if (all.length === 0) {
     throw new OperatorError(
       `no story in this checkout: run the test you are looking into with ${STORY_VARIABLE}=1, named by its file and the runner's own test-name filter, since every test the run runs writes one`,
@@ -150,6 +157,7 @@ const AROUND = 3;
 export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): string {
   if ('comparison' in answer) return formatComparison(answer.comparison, format, answer.cases);
   if ('outcomes' in answer) return formatOutcomes(answer.outcomes, format);
+  if ('explained' in answer) return formatExplained(answer.explained, format);
   if ('stories' in answer) return storiesText(answer.stories, format);
   const { route } = answer;
   const packages = answer.packages ?? {};

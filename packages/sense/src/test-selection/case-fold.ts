@@ -1,220 +1,100 @@
-import { readFile, readdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { FreshCases, LaidRun } from './case-landing.js';
 import type { ModuleId } from '../instrument/index.js';
-import { FoldLines, fileStarts, linedCases, writtenPlaces } from './case-fold-lines.js';
-import { collect, markRange, moduleOf } from './case-fold-bits.js';
-import { CrossingSets } from './crossing-sets.js';
-import { scanJournal, type JournalVisitor } from './crossing-fold.js';
-import { timesAcross } from './case-times.js';
-import { limitAcross } from './execution-set-columns.js';
-import { encodeSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
-import {
-  isMissing,
-  projectPath,
-  type CapturedModule,
-} from './instrumented-modules.js';
-import {
-  AMBIENT,
-  caseIds,
-  caseKey,
-  inCaseOrder,
-  indexCut,
-  settledAcross,
-  unpackCase,
-  unpackFrames,
-  type CaseCoordinate,
-} from './cases.js';
+import { native } from '../addon.js';
+import type { CapturedModule } from './instrumented-modules.js';
+import { caseKey, type CaseCoordinate } from './cases.js';
 import type { RecordedAttempt } from './attempts-record.js';
 import { triedAttempts, type CaseAttempts } from './case-attempts.js';
 import { UNLIMITED, UNTIMED, type CaseDurations, type CaseLimits } from './case-durations.js';
-import eyesFrames from './eyes-frame.cjs';
-import type { EyesSection, RecordedEyes } from './eyes-record.js';
-import { saidJoined, type Said } from './case-said.js';
-import caseOwner from './case-owner.cjs';
-import type { ExecutionTest } from './reverse.js';
-import { isWritten } from './written-lines.js';
+import type { EyesSection } from './eyes-record.js';
+import { nativeModule, whyAbsent } from './native-modules.js';
 import type { Reading } from './readings.js';
 
-/** What the first, allocation-free pass over a case-journal directory learned. */
-export interface CaseRun {
-  readonly root: string;
-  readonly paths: readonly string[];
-  readonly tests: readonly ExecutionTest[];
-  /** Test row for each non-ambient frame in stable replay order. */
-  readonly frameTests: Uint32Array;
-  /** The instrument records the fold must load before it can place ordinals. */
-  readonly moduleIds: readonly ModuleId[];
-  /** Half-open test-row range for each test file; test ordering makes it contiguous. */
-  readonly testsByFile: ReadonlyMap<string, readonly [number, number]>;
-  /** The cases that opened Eyes journals and what they handed over; absent when none did. */
-  readonly eyes?: EyesSection;
-  /** How each attempt of a retried case ended, none when none was; absent when the runner's report counted no attempts. */
-  readonly attempts?: readonly RecordedAttempt[];
-  /** 1 for each test with lines, by `linedCases`; absent when no frame was cut. */
-  readonly lined?: Uint8Array;
-}
-
+/** A run's case journals, folded into the case index's bytes. */
 export interface CaseFold {
   readonly bytes: Buffer;
   /** The number of times every journal was replayed: one per module slice. */
   readonly passes: number;
   /** Logical test-to-region pairs represented by the compact sets. */
   readonly crossings: number;
+  /** How many cases the index names. */
+  readonly cases: number;
+  /** The cases that opened Eyes journals and what they handed over; absent when none did. */
+  readonly eyes?: EyesSection;
+  /** How each attempt of a retried case ended; absent when the runner's report counted no attempts. */
+  readonly attempts?: readonly RecordedAttempt[];
 }
 
-interface Coordinate extends CaseCoordinate {
-  /** How the case settled across its frames, by `settledAcross`. */
-  stopped?: boolean;
-  /** The limit it ran under, by `limitAcross`. */
-  limit?: number;
-  /** Its statement times, by `timesAcross`. */
-  times?: ExecutionTest['times'];
-  /** What each of its frames said it arranged, as the realm wrote it; absent where a frame's writer never listened. */
-  readonly said: (Said | undefined)[];
-  /** Every frame written under this coordinate, in replay order. */
-  readonly frames: number[];
-  /** Whether a module row of the case's own frames was cut at its statements. */
-  cut?: boolean;
-  /** Whether one was not: a case a helper outside its file declared runs uncut. */
-  uncut?: boolean;
+/** What the runner reported beside the journals, and how much of the relation one slice holds. */
+export interface CaseFoldOptions {
+  /** Each case's duration as the runner reported it; absent, no case is timed. */
+  readonly durations?: CaseDurations | undefined;
+  /** Each case's limit, where the runner reports it only outside the case. */
+  readonly limits?: CaseLimits | undefined;
+  /** Each case's attempts as the runner reported them; absent, the run keeps none. */
+  readonly tried?: CaseAttempts | undefined;
+  /** Readings of files other than their own, joined into that file's record. */
+  readonly readings?: ReadonlyMap<ModuleId, Reading>;
+  /** Bytes of the test-by-region relation one module slice may hold. */
+  readonly budget?: number;
 }
 
 /**
- * Name every case and module id without decoding a module row into an object.
- *
- * Only coordinates survive this pass. Journal module rows are stepped over by
- * `scanJournal`; the fold replays them later in slices rather than retaining the
- * run's test-by-region product.
+ * Fold the case journals in `directory` over `modules` into the case index's
+ * bytes. The addon reads and replays the journals a module slice at a time
+ * (`native/src/case_run.rs`); what only the runner knows — durations, limits,
+ * attempts — is asked of the caller by each case it names.
  */
-export async function inspectCaseRun(
+export function foldCases(
   directory: string,
   root: string,
-  durations: CaseDurations = UNTIMED,
-  limits: CaseLimits = UNLIMITED,
-  tried?: CaseAttempts,
-): Promise<CaseRun> {
-  let names: readonly string[];
-  try {
-    names = await readdir(directory);
-  } catch (error) {
-    if (isMissing(error)) names = [];
-    else throw error;
-  }
-  const paths = [...names].sort(codeUnitOrder).map((name) => resolve(directory, name));
-  const coordinates = new Map<string, Coordinate>();
-  const moduleIds = new Set<ModuleId>();
-  // What Eyes handed each case, by coordinate key, in the order it arrived.
-  const looked = new Map<string, Omit<RecordedEyes, 'case'>[]>();
-  // The test files a frame was cut in, and the frame being scanned: a case, or a file's ambient frame.
-  const cutFiles = new Set<string>();
-  let scanning: Coordinate | string = '';
-  let frame = 0;
-  for (const path of paths) {
-    for (const bytes of unpackFrames(await readFile(path))) {
-      const eyes = eyesFrames.decodeEyesFrame(bytes);
-      if (eyes !== undefined) {
-        const coordinate = unpackCase(eyes.case);
-        const located = { ...coordinate, file: projectPath(root, coordinate.file) };
-        const key = caseKey(located);
-        // A case that watched is a case, whether or not it crossed anything.
-        if (!coordinates.has(key)) coordinates.set(key, { ...caseOf(located), said: [], frames: [] });
-        const rows = looked.get(key) ?? [];
-        if (eyes.journal !== undefined) rows.push({ attempt: eyes.attempt, journal: eyes.journal });
-        looked.set(key, rows);
-        continue;
-      }
-      scanJournal(bytes, {
-        test(packed) {
-          const coordinate = unpackCase(packed);
-          if (coordinate.name !== AMBIENT || coordinate.id !== AMBIENT) {
-            // A case is written when it settles, so work that outlived it
-            // arrives as a second frame under the same coordinate: one case.
-            const located = { ...coordinate, file: projectPath(root, coordinate.file) };
-            const key = caseKey(located);
-            const held = coordinates.get(key);
-            const said = caseOwner.heardField(packed);
-            if (held === undefined) {
-              scanning = {
-                ...caseOf(located),
-                ...settledAcross(coordinate.stopped, undefined),
-                ...limitAcross(coordinate.limit, undefined),
-                ...timesAcross(coordinate.times, undefined),
-                said: [said],
-                frames: [frame],
-              };
-              coordinates.set(key, scanning);
-            } else {
-              scanning = held;
-              held.frames.push(frame);
-              const settled = settledAcross(held.stopped, coordinate.stopped).stopped;
-              if (settled !== undefined) held.stopped = settled;
-              Object.assign(held, limitAcross(held.limit, coordinate.limit), timesAcross(held.times, coordinate.times));
-              held.said.push(said);
-            }
-            frame += 1;
-          } else {
-            scanning = projectPath(root, coordinate.file);
-          }
-        },
-        wants(id, cut) {
-          moduleIds.add(id);
-          const frameOf = scanning;
-          if (cut) cutFiles.add(typeof frameOf === 'string' ? frameOf : frameOf.file);
-          if (typeof frameOf !== 'string') frameOf[cut ? 'cut' : 'uncut'] = true;
-          return false;
-        },
-        module() { /* refused above */ },
-      });
-    }
-  }
-
-  const ordered = inCaseOrder(coordinates.values());
-  const ids = caseIds(ordered);
-  const frameTests = new Uint32Array(frame);
-  const tests = ordered.map((coordinate, at): ExecutionTest => {
-    for (const written of coordinate.frames) frameTests[written] = at;
-    const duration = durations(coordinate.file, coordinate.name, coordinate.id);
-    const said = coordinate.said.some((field) => field !== undefined) ? saidJoined(root, coordinate.said) : undefined;
-    return {
-      id: ids.get(caseKey(coordinate))!,
-      file: coordinate.file,
-      name: coordinate.name,
-      ...(coordinate.stopped === undefined ? {} : { stopped: coordinate.stopped }),
-      ...(duration === undefined ? {} : { duration }),
-      ...limitAcross(coordinate.limit, limits(coordinate.file, coordinate.name)),
-      ...timesAcross(coordinate.times, undefined),
-      ...(said === undefined ? {} : { said }),
-    };
-  });
-  const testsByFile = new Map<string, readonly [number, number]>();
-  for (let first = 0; first < tests.length;) {
-    let last = first + 1;
-    while (last < tests.length && tests[last]!.file === tests[first]!.file) last += 1;
-    testsByFile.set(tests[first]!.file, [first, last]);
-    first = last;
-  }
-  const lined = linedCases(ordered, cutFiles);
-  const attempts = triedAttempts(ordered, ids, tried, root);
-  const eyes = looked.size === 0 ? undefined : {
-    watched: [...looked.keys()].map((key) => ids.get(key)!),
-    journals: [...looked].flatMap(([key, rows]) => rows.map((row) => ({ case: ids.get(key)!, ...row }))),
+  modules: ReadonlyMap<ModuleId, CapturedModule>,
+  options: CaseFoldOptions = {},
+): CaseFold {
+  const open = native()?.openCaseJournals;
+  if (open === undefined) throw new Error(`the case fold requires the Sense native addon: ${whyAbsent('openCaseJournals')}`);
+  const journals = open(directory, root);
+  const cases = journals.cases();
+  const durations = options.durations ?? UNTIMED;
+  const limits = options.limits ?? UNLIMITED;
+  const shaped = [...modules].map(([id, module]) => ({ ...nativeModule(module), id }));
+  const readings = [...(options.readings ?? new Map<ModuleId, Reading>())].map(([id, reading]) => ({
+    id,
+    target: reading.id,
+    // `lands` is sparse, and `map` keeps a hole a hole: `Array.from` visits it.
+    lands: Array.from(reading.lands, (land) => land ?? 0xFFFF_FFFF),
+  }));
+  const folded = journals.fold(
+    shaped,
+    [...modules.values()].map((module) => module.blocks.map((block) => block.ordinal)),
+    readings,
+    cases.map((held) => durations(held.file, held.name, held.runner) ?? Number.NaN),
+    cases.map((held) => limits(held.file, held.name) ?? Number.NaN),
+    options.budget,
+  );
+  const coordinates = cases.map((held): CaseCoordinate => ({
+    file: held.file,
+    name: held.name,
+    id: held.runner,
+    ...(held.project == null ? {} : { project: held.project }),
+  }));
+  const ids = new Map(coordinates.map((coordinate, at) => [caseKey(coordinate), cases[at]!.id]));
+  const attempts = triedAttempts(coordinates, ids, options.tried, root);
+  const looked = journals.eyes();
+  const eyes: EyesSection | undefined = looked === null ? undefined : {
+    watched: looked.watched,
+    journals: looked.journals.map((row) => ({ case: row.case, attempt: row.attempt, journal: JSON.parse(row.journal) })),
   };
   return {
-    root, paths, tests, frameTests, moduleIds: [...moduleIds], testsByFile,
+    bytes: folded.bytes,
+    passes: folded.passes,
+    crossings: folded.crossings,
+    cases: cases.length,
     ...(eyes === undefined ? {} : { eyes }),
     ...(attempts === undefined ? {} : { attempts }),
-    ...(lined === undefined ? {} : { lined }),
   };
 }
 
-/** A frame's case coordinate, without how this frame settled. */
-function caseOf({ file, name, id, project }: CaseCoordinate): CaseCoordinate {
-  return { file, name, id, ...(project === undefined ? {} : { project }) };
-}
-
-const DEFAULT_BUDGET = 128 * 1_048_576;
 /**
  * A run's case journals as the case index a reporter lays into its record, or
  * `undefined` when the run has none to lay.
@@ -252,17 +132,16 @@ export async function freshCases(
   readings: ReadonlyMap<ModuleId, Reading> = new Map(),
 ): Promise<FreshCases | undefined> {
   const finished = run.tests.some((test) => test.complete);
-  const inspected = await inspectCaseRun(directory, root, run.durations, run.limits, run.tried);
-  if (inspected.tests.length === 0 && !finished) return undefined;
-  const fresh = (await foldCaseRun(inspected, modules, DEFAULT_BUDGET, readings)).bytes;
+  const folded = foldCases(directory, root, modules, { durations: run.durations, limits: run.limits, tried: run.tried, readings });
+  if (folded.cases === 0 && !finished) return undefined;
   return {
-    fresh,
+    fresh: folded.bytes,
     run: {
       tests: run.tests,
       ...(run.commit === undefined ? {} : { commit: run.commit }),
-      ...(inspected.attempts === undefined ? {} : { attempts: inspected.attempts }),
+      ...(folded.attempts === undefined ? {} : { attempts: folded.attempts }),
     },
-    ...(inspected.eyes === undefined ? {} : { eyes: inspected.eyes }),
+    ...(folded.eyes === undefined ? {} : { eyes: folded.eyes }),
   };
 }
 
@@ -274,186 +153,4 @@ export interface CaseRunTests extends LaidRun {
   readonly limits?: CaseLimits;
   /** Each case's attempts as the runner reported them; absent, the run keeps none. */
   readonly tried?: CaseAttempts | undefined;
-}
-
-/**
- * Fold case journals into compact binary bytes under a fixed relation budget.
- *
- * The inventory and final set pool are the output's own shape. The transient
- * test-by-region relation is limited to one module slice and journals remain on
- * disk, replayed once per slice.
- */
-export async function foldCaseRun(
-  run: CaseRun,
-  modules: ReadonlyMap<ModuleId, CapturedModule>,
-  budget = DEFAULT_BUDGET,
-  readings: ReadonlyMap<ModuleId, Reading> = new Map(),
-): Promise<CaseFold> {
-  const shaped = [...modules.entries()].sort(([leftId, left], [rightId, right]) =>
-    codeUnitOrder(left.file, right.file) || codeUnitOrder(leftId, rightId),
-  );
-  const rowOf = new Map<ModuleId, number>();
-  const moduleBlocks = new Uint32Array(shaped.length + 1);
-  const ordinalOffsets = new Uint32Array(shaped.length + 1);
-  for (const [row, [id, module]] of shaped.entries()) {
-    rowOf.set(id, row);
-    moduleBlocks[row + 1] = moduleBlocks[row]! + module.blocks.length;
-    let span = 0;
-    for (const block of module.blocks) if (block.ordinal + 1 > span) span = block.ordinal + 1;
-    ordinalOffsets[row + 1] = ordinalOffsets[row]! + span;
-  }
-  const ordinalBlocks = new Int32Array(ordinalOffsets.at(-1) ?? 0);
-  ordinalBlocks.fill(-1);
-  for (const [row, [, module]] of shaped.entries()) {
-    for (const [at, block] of module.blocks.entries()) {
-      ordinalBlocks[ordinalOffsets[row]! + block.ordinal] = moduleBlocks[row]! + at;
-    }
-  }
-
-  const blockCount = moduleBlocks.at(-1) ?? 0;
-  const calledSets = new Uint32Array(blockCount);
-  // One flag per region and no test: what ran while a module evaluated ran for
-  // whichever case imported it first, and the file graph names who loaded it.
-  const loaded = new Uint8Array(blockCount);
-  const moduleEntered = new Uint8Array(shaped.length);
-  const sets = new CrossingSets(run.tests.length);
-  const empty = sets.intern([]);
-  calledSets.fill(empty);
-  if (blockCount === 0 || run.tests.length === 0) {
-    return {
-      bytes: encodeSetExecutionIndex({ tests: run.tests, modules: [], sets: sets.pool() }),
-      passes: 0,
-      crossings: 0,
-    };
-  }
-
-  const words = (run.tests.length + 31) >>> 5;
-  const perBlock = words * 8;
-  const limit = Math.max(budget, perBlock);
-  const scratch = new Uint32Array(run.tests.length);
-  const lines = run.lined === undefined ? undefined : new FoldLines(run.lined, fileStarts(run.tests.length, run.testsByFile));
-  // Each region's place among its module's written regions, which the lines name it by.
-  const keptAt = lines === undefined ? undefined : writtenPlaces(shaped, blockCount);
-  // The module the collection has reached, and how many before it are written.
-  let encodedRow = 0;
-  let encodedAt = 0;
-  let crossings = 0;
-  let passes = 0;
-  let first = 0;
-  while (first < shaped.length) {
-    let last = first;
-    let held = 0;
-    while (last < shaped.length) {
-      const cost = (moduleBlocks[last + 1]! - moduleBlocks[last]!) * perBlock;
-      if (last > first && held + cost > limit) break;
-      held += cost;
-      last += 1;
-    }
-    const firstBlock = moduleBlocks[first]!;
-    const localBlocks = moduleBlocks[last]! - firstBlock;
-    const called = new Uint32Array(localBlocks * words);
-    let caseFrame = 0;
-    let testFirst = 0;
-    let testLast = 0;
-    let moduleRow = -1;
-    let ambient = false;
-    let cut = false;
-    lines?.slice(localBlocks);
-    // A joined reading's ordinals, read in its file's record: see `joinReadings`.
-    let lands: readonly (number | undefined)[] | undefined;
-
-    const visit: JournalVisitor = {
-      test(packed) {
-        const coordinate = unpackCase(packed);
-        if (coordinate.name === AMBIENT && coordinate.id === AMBIENT) {
-          const range = run.testsByFile.get(projectPath(run.root, coordinate.file));
-          testFirst = range?.[0] ?? 0;
-          testLast = range?.[1] ?? 0;
-          ambient = true;
-        } else {
-          const test = run.frameTests[caseFrame++];
-          if (test === undefined) throw new Error('case journal replay changed while it was being folded');
-          testFirst = test;
-          testLast = test + 1;
-          ambient = false;
-        }
-      },
-      wants(id, rowCut) {
-        cut = rowCut;
-        const reading = readings.get(id);
-        const row = rowOf.get(reading?.id ?? id);
-        if (row === undefined || row < first || row >= last || testFirst === testLast) return false;
-        moduleRow = row;
-        lands = reading?.lands;
-        return true;
-      },
-      module(_id, hits, shared, _loaded, reached) {
-        const ordinalBase = ordinalOffsets[moduleRow]!;
-        const span = ordinalOffsets[moduleRow + 1]! - ordinalBase;
-        let sharedAt = 0;
-        for (let at = 0; at < hits.length; at += 1) {
-          const hit = hits[at]!;
-          while (sharedAt < shared.length && shared[sharedAt]! < hit) sharedAt += 1;
-          const ordinal = lands === undefined ? hit : lands[hit] ?? span;
-          if (ordinal >= span) continue;
-          const block = ordinalBlocks[ordinalBase + ordinal]!;
-          if (block < 0) continue;
-          if (shared[sharedAt] === hit) {
-            loaded[block] = 1;
-            continue;
-          }
-          markRange(called, (block - firstBlock) * words, words, testFirst, testLast);
-          if (cut && reached !== undefined) lines?.reached(testFirst, block - firstBlock, reached[at]!, ambient);
-        }
-      },
-    };
-    for (const path of run.paths) {
-      for (const frame of unpackFrames(await readFile(path))) {
-        if (eyesFrames.decodeEyesFrame(frame) === undefined) scanJournal(frame, visit);
-      }
-    }
-    if (caseFrame !== run.frameTests.length) {
-      throw new Error('case journal replay changed while it was being folded');
-    }
-    passes += 1;
-
-    for (let local = 0; local < localBlocks; local += 1) {
-      const at = local * words;
-      const calledCount = collect(called, at, words, scratch);
-      const block = firstBlock + local;
-      calledSets[block] = sets.intern(scratch.subarray(0, calledCount));
-      crossings += calledCount;
-      if (calledCount > 0 || loaded[block] === 1) moduleEntered[moduleOf(moduleBlocks, first, last, block)] = 1;
-      if (lines === undefined || calledCount === 0 || keptAt![block]! < 0) continue;
-      for (; moduleBlocks[encodedRow + 1]! <= block; encodedRow += 1) encodedAt += moduleEntered[encodedRow]!;
-      lines.region(local, scratch.subarray(0, calledCount), encodedAt, keptAt![block]!);
-    }
-    first = last;
-  }
-
-  const encodedModules: SetExecutionModule[] = [];
-  for (const [row, [, module]] of shaped.entries()) {
-    if (moduleEntered[row] !== 1) continue;
-    const from = moduleBlocks[row]!;
-    // The regions with a place, as `executionIndexFrom` keeps them: the rest
-    // were written by the transform, and a journey has nowhere to name them.
-    const kept: number[] = [];
-    for (const [at, block] of module.blocks.entries()) if (isWritten(block)) kept.push(from + at);
-    encodedModules.push({
-      file: module.file,
-      ...indexCut(module.blocks),
-      called: Uint32Array.from(kept, (block) => calledSets[block]!),
-      loaded: Uint8Array.from(kept, (block) => loaded[block]!),
-    });
-  }
-  return {
-    bytes: encodeSetExecutionIndex({
-      tests: run.tests,
-      modules: encodedModules,
-      sets: sets.pool(),
-      ...(lines === undefined ? {} : { lines: lines.finish() }),
-    }),
-    passes,
-    crossings,
-  };
 }

@@ -1,8 +1,8 @@
 // The other half of what `lay-renumber.test.ts` holds: a module this run did
 // re-record, whose regions took different seats between the two recordings.
 //
-// The carry re-cuts a module nobody loaded and asks `sameNumbering` before it
-// places a crossing. The lay's re-recorded walk places the previous rows
+// The carry re-cuts a module nobody loaded and asks `same_numbering`
+// (`native/src/record_coverage_address.rs`) before it places a crossing. The lay's re-recorded walk places the previous rows
 // against the rows that came in, by the same addresses, and half of an address
 // is a seat — so the same slide is available there, and nothing in the carry's
 // answer reaches it.

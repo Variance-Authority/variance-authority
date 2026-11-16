@@ -59,17 +59,17 @@ impl<'a> Records<'a> {
             deleted: stored.maybe_u32s("records.deleted")?,
             digest: u32s("records.digest")?,
             edges: stored.offsets("records.edges", rows, edge_to.len())?,
-            edges_present: stored.u8s("records.edges-present")?,
+            edges_present: stored.codes("records.edges-present", 1)?,
             declares: stored.offsets("records.declares", rows, declare_name.len())?,
-            declares_present: stored.u8s("records.declares-present")?,
+            declares_present: stored.codes("records.declares-present", 1)?,
             packages: stored.offsets("records.packages", rows, package_to.len())?,
-            packages_present: stored.u8s("records.packages-present")?,
+            packages_present: stored.codes("records.packages-present", 1)?,
             unresolved: stored.offsets("records.unresolved", rows, unresolved_value.len())?,
-            unresolved_present: stored.u8s("records.unresolved-present")?,
+            unresolved_present: stored.codes("records.unresolved-present", 1)?,
             unknown: u32s("records.unknown")?,
             witnesses: stored.offsets("records.witnesses", rows, witness_directory.len())?,
             targets: stored.offsets("records.targets", rows, target_path.len())?,
-            targets_present: stored.u8s("records.targets-present")?,
+            targets_present: stored.codes("records.targets-present", 1)?,
             edge_kind: u32s("edges.kind")?,
             package_kind: u32s("packages.kind")?,
             witness_directory,
@@ -110,15 +110,6 @@ impl<'a> Records<'a> {
         let rows = stored.id_of(path).and_then(|id| self.reverse_to.search(id)).map_or(0..0, |at| self.reverse.range(at));
         let reverse_row = self.reverse_row;
         rows.map(move |at| reverse_row.at(at) as usize)
-    }
-
-    /// Every row whose record lists a specifier it resolved to no file, with
-    /// the dictionary ids of those specifiers: one id is one specifier.
-    pub fn with_unresolved(&self) -> impl Iterator<Item = (usize, impl Iterator<Item = u32> + use<'a>)> + use<'_, 'a> {
-        let (offsets, value) = (self.unresolved, self.unresolved_value);
-        (0..self.file.len())
-            .filter(move |&row| flag(self.unresolved_present, row) && !offsets.range(row).is_empty())
-            .map(move |row| (row, offsets.range(row).map(move |at| value.at(at))))
     }
 
     /// The directories the record at `row` was answered from.

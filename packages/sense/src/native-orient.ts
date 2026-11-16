@@ -415,12 +415,10 @@ export interface NativeNameUse {
   lines?: number[] | null;
 }
 
-/** Who imports one name out of a set of files, and which files pass it on with `export … from`. */
+/** Who imports each name asked out of the file asked with it, told apart by the group asked. */
 export interface NativeImporters {
-  /** Ordered by the importing file in code units, then by line. */
-  uses: NativeNameUse[];
-  /** Every file that passes the name on, in code-unit order; none of the files asked about. */
-  through: string[];
+  /** Each group asked, in the order asked, with what it would answer alone. */
+  groups: NativeGroup[];
   /** Every line of a file asked about that uses the name it declares, by file in code units, then by line. */
   inFile: NativeInFile[];
   /**
@@ -429,11 +427,20 @@ export interface NativeImporters {
    * `shout` and `members` `['greet']`, the last member the name itself.
    */
   namespaces: NativeNamespace[];
-  /**
-   * Every file, in code-unit order, with an import the index resolved to no
-   * file that could take the name: a use there is not listed.
-   */
-  unresolved: string[];
+}
+
+/** One file asked who imports a name out of it, and the name it exports it under. */
+export interface NativeAsked {
+  file: string;
+  name: string;
+}
+
+/** What one group asked answers alone. */
+export interface NativeGroup {
+  /** Ordered by the importing file in code units, then by line. */
+  uses: NativeNameUse[];
+  /** Every file that passes one of its names on, in code-unit order; none of the group's own files. */
+  through: string[];
 }
 
 /** A namespace one file passes a name on inside, under the name it exports it as. */

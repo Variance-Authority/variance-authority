@@ -1,21 +1,51 @@
 # Read what one test ran, in order
 
-A **test story** is the order one test ran its code in, written out as
-numbered steps: each function the test ran, the branch it took at each `if`,
-how many times each loop ran, the values each function was handed, and the
-lines the code printed. Every run already records which code each test ran. A
-story adds the order, the counts, the values and the printed lines, and you
-read it from top to bottom. When a test fails only on
-some runs, you [compare the stories](#why-does-this-test-fail-on-some-runs) of
-runs that passed with runs that failed.
-When one test passes and another fails, such as the same checkout with a
-feature flag off and on, you compare the stories of the two tests. Either way
-what each function was handed is compared with the rest, and any other value
-you suspect you print from the code under test, never from the test.
+A **test story** is the order one test ran its code in, as numbered steps:
+each function it ran, the branch taken at each `if`, how often each loop ran,
+the values each function was handed and the lines the code printed. Every
+ordinary run already records which line of the test first ran each piece of
+code and how long each line took, and `variance story --name`
+[explains a test from that](#explain-a-test-without-recording-a-story). Record
+a story when you need what happened next or how often it repeated, or to
+[compare runs](#why-does-this-test-fail-on-some-runs), or tests, that passed and failed.
 
-If you only need which line of the test first ran a piece of code, every
-ordinary run [already records that](test-level-coverage.md#which-test-statement-first-ran-a-region).
-Record a story when you need what happened next or how often it repeated.
+## Explain a test without recording a story
+
+Name a test no story was recorded for, and `variance story` explains it from
+the record every ordinary run keeps:
+
+```bash
+variance story --file src/cart.test.ts --name "cart > removes the last item"
+```
+
+```text
+explain  src/cart.test.ts > cart > removes the last item, from the record
+  each statement once, at the line that first reached it, with the regions it was the first to run;
+  for the order and the repeats, run the test with VARIANCE_AUTHORITY_STORY=1 and read its story
+  ran 4 ms
+
+  line 4    3.1 ms   78%  cart.removeItem('C3');
+    @shop/cart
+      Cart/removeItem  src/cart.ts:13-23, and 2 branches or loops in it
+      applyTier  src/price.ts:6-9, and 1 branch or loop in it
+      formatPrice  src/format.ts:14-18
+
+  line 5     40 µs    1%  expect(cart.lines).toEqual(['5.00', '2.70']);
+```
+
+Each line of the test's body is listed in the order the test first reached it,
+with its source as the checkout holds it now, how long it took in all, and its
+share of the test's time. Under it are the functions that line was the first to
+run, grouped by package. A function an earlier line already ran is listed
+under that line only, and nothing says what ran in what order or how many
+times: that is what a [story](#record-one) records. What a `beforeEach` or
+another hook ran is listed apart, and when the test file changed since the
+record was written, the answer says a line may have moved.
+
+The record keeps the newest run of each test. A test the record holds but whose
+lines were not timed is listed by line, and a test from a run recorded without
+statement lines lists only the functions it ran. When a story is recorded for
+the test, `variance story` prints the story instead.
 
 ## What you already know, and what you do not
 
@@ -595,7 +625,8 @@ neither is what a function returned.
 ## What the code prints
 
 For any other value — one inside an object, or one no function was handed —
-the lines the code prints are what give it, and three sources write them under
+the lines the code prints are what give it, printed from the code under test,
+never from the test, and three sources write them under
 their step:
 
 - **`console`.** Each line printed with `console.log`, `info`, `warn`, `error`

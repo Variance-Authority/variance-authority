@@ -84,8 +84,6 @@ export type Within =
     readonly through: readonly string[];
     readonly namespaces: readonly PassedInside[];
     readonly inFile: readonly Use[];
-    /** Every file with an import the index resolved to no file that could take the name. */
-    readonly unresolved: readonly string[];
   }
   | { readonly unread: string };
 
@@ -95,17 +93,45 @@ export type Within =
  * nothing: no checkout named, none published, or one that does not read.
  */
 export function importsOf(root: string | undefined, files: readonly string[], name: string): Within {
+  const read = importers(root, [files.map((file) => ({ file, name }))]);
+  if ('unread' in read) return read;
+  const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
+  const [asked] = read.groups;
+  if (asked === undefined) return { unread: 'the source index answered no group for the one asked' };
+  return { uses: asked.uses.map(indexedUse), through: asked.through, namespaces: read.namespaces, inFile };
+}
+
+/** The native answer to who imports each asked name out of its file, one question per group, or why the index says nothing. */
+function importers(root: string | undefined, asked: readonly (readonly Asked[])[]): NonNullable<ReturnType<typeof importersOf>> | { readonly unread: string } {
   if (root === undefined) return { unread: 'this host named no checkout to read the source index of' };
   let read: ReturnType<typeof importersOf>;
   try {
-    read = importersOf(root, files, name);
+    read = importersOf(root, asked);
   } catch (error) {
     return { unread: `${error instanceof Error ? error.message : String(error)}; run \`variance index\`` };
   }
-  if (read === undefined) return { unread: 'no source index is published; run `variance index`' };
-  const inFile = read.inFile.map((use): Use => ({ at: use.at, line: use.line, by: use.by, kind: use.kind, type: false }));
-  const uses = read.uses.map((use): IndexedUse => ({ name: use.name, specifier: use.key, ...useOf(use), ...(use.lines == null ? {} : { lines: use.lines }) }));
-  return { uses, through: read.through, namespaces: read.namespaces, inFile, unresolved: read.unresolved };
+  return read ?? { unread: 'no source index is published; run `variance index`' };
+}
+
+function indexedUse(use: NonNullable<ReturnType<typeof importersOf>>['groups'][number]['uses'][number]): IndexedUse {
+  return { name: use.name, specifier: use.key, ...useOf(use), ...(use.lines == null ? {} : { lines: use.lines }) };
+}
+
+/** One file asked who imports a name out of it, and the name it exports it under. */
+export type Asked = { readonly file: string; readonly name: string };
+
+/** What the source index says one file asked about answers alone: its uses and the files passing it on, or why it could not be read. */
+export type Apart = { readonly uses: readonly IndexedUse[]; readonly through: readonly string[] } | { readonly unread: string };
+
+/**
+ * `importsOf` for each asked file and name apart, in the order asked, read in
+ * one walk: the imports of the name out of that file, or a file passing it on
+ * from it, and the files passing it on, that file left out.
+ */
+export function importsApart(root: string | undefined, asked: readonly Asked[]): readonly Apart[] {
+  const read = importers(root, asked.map((one) => [one]));
+  if ('unread' in read) return asked.map(() => read);
+  return read.groups.map((one) => ({ uses: one.uses.map(indexedUse), through: one.through }));
 }
 
 /** The refusal when the imports cannot be read: the export is known, the index that holds its importers is not. */

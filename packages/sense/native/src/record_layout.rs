@@ -110,6 +110,10 @@ impl Sets {
 #[serde(rename_all = "camelCase")]
 pub struct Cases {
     pub format: u8,
+    /// The format an index holding each case's loaded sets is written in.
+    pub loaded_sets: u8,
+    /// Distinct readings kept per case, newest first.
+    pub readings: usize,
     /// Each case's duration, a word a case, `coverage.no_duration` where none was reported.
     pub duration: String,
     /// Each case's limit in milliseconds, a word a case, `coverage.no_duration` where none is named.

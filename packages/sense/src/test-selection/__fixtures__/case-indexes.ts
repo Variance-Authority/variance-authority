@@ -54,7 +54,10 @@ export function read(bytes: Uint8Array): { cases: string[]; regions: Record<stri
   };
 }
 
-/** The files a run ran, finished, and those the checkout no longer holds. */
-export function ran(files: readonly string[], finished: readonly string[] = files, absent: readonly string[] = []): CaseRunFiles {
-  return { ran: new Set(files), finished: new Set(finished), present: (file) => !absent.includes(file) };
+/**
+ * The files a run ran and finished, laid with a before layer; `present`, when
+ * given, names every test file the checkout holds, and otherwise it holds all.
+ */
+export function ran(files: readonly string[], finished: readonly string[] = files, present?: readonly string[]): CaseRunFiles {
+  return { ran: files, finished, ...(present === undefined ? {} : { presentAmong: present }), before: true };
 }

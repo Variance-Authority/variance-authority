@@ -13,7 +13,7 @@
 // compass: variance-authority.report.agent-surface
 
 import { native, nativeRefusal } from './addon.js';
-import type { NativeImporters, NativeIndexedUsage } from './native-orient.js';
+import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
 import type { DeclaredNames, NameTerms } from './declared-names.js';
 import { sourceIndexPath } from './source-index.js';
 import { CODE_EXTENSIONS } from './language.js';
@@ -218,8 +218,7 @@ export interface NativeHelp {
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   digestForwards?(forwards: string[]): string;
-  importersOf?(root: string, index: OpenedIndex, files: string[], name: string): NativeImporters | null;
-  outsideSourcesOf?(root: string, index: OpenedIndex, name: string): string[] | null;
+  importersOf?(root: string, index: OpenedIndex, asked: NativeAsked[][]): NativeImporters | null;
   memberDeclarationsOf?(root: string, index: OpenedIndex, name: string): MemberDeclarations | null;
   membersOnOf?(index: OpenedIndex, file: string, on: string): ContainerMember[] | null;
   declarationExportedOf?(index: OpenedIndex, file: string, name: string): { readonly declaration?: ExportedDeclaration | null } | null;
@@ -352,32 +351,17 @@ export function forwardsDigest(forwards: readonly string[]): string {
 }
 
 /**
- * Every import of `name` out of one of `files`, repo-relative, by any file the
- * index at `index` holds — an import within a package as well as one across
- * packages, which the Help value does not record — ordered by the importing
- * file in code units, then by line; `undefined` when no index was published.
- * A file that passes the name on with `export … from` is followed under the
- * name it exports and named in `through`, and is no use. Each use's `key` is
- * the specifier as the importing file wrote it, and its `name` the name it
- * takes, which such a file can rename. Throws when the index does not read.
+ * Every import, by any file the index at `index` holds, of each asked name out
+ * of the file asked with it, each group followed as one question and answered
+ * in `groups`: `importers_of` in `native/src/help_publish.rs` says how.
+ * `undefined` when no index was published; throws when it does not read.
  */
 export function importersOf(
   root: string,
-  files: readonly string[],
-  name: string,
+  asked: readonly (readonly NativeAsked[])[],
   index: string = sourceIndexPath(root),
 ): NativeImporters | undefined {
-  return onIndex(index, (opened) => entry('importersOf')(root, opened, [...files], name)) ?? undefined;
-}
-
-/**
- * Every specifier, as written and in code-unit order, that names a package or
- * a runtime module the index at `index` resolved to no file, and out of which
- * an import takes `name`; `undefined` when no index was published. Throws
- * when the index does not read.
- */
-export function outsideSourcesOf(root: string, name: string, index: string = sourceIndexPath(root)): readonly string[] | undefined {
-  return onIndex(index, (opened) => entry('outsideSourcesOf')(root, opened, name)) ?? undefined;
+  return onIndex(index, (opened) => entry('importersOf')(root, opened, asked.map((group) => [...group]))) ?? undefined;
 }
 
 /**

@@ -1,488 +1,80 @@
-import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { SetId } from './crossing-sets.js';
-import { openSetExecutionIndex, type OpenedSetExecutionIndex, type SetExecutionModule } from './execution-set-format.js';
-import { LaidLines } from './case-layer-lines.js';
-import { HeldIndex, writeLaid, type CarriedModule, type LaidModule, type LaidTest } from './held-case-index.js';
-import { landedThrough, NO_EDIT, type EditOf, type RegionPairing } from './region-edit.js';
-import { relined, strayed } from './region-landing.js';
-import type { ExecutionTest } from './reverse.js';
-import { EMPTY, Translation } from './set-translation.js';
+import { native } from '../addon.js';
+import type { NativeCaseEdit, NativeCaseRunFiles } from '../native-journey.js';
+import { openSetExecutionIndex, type OpenedSetExecutionIndex } from './execution-set-format.js';
+import { whyAbsent } from './native-modules.js';
+import type { Edit, EditOf } from './region-edit.js';
 
-/** What a run knows about the test files it was handed. */
-export interface CaseRunFiles {
-  /** Every test file the run announced, finished or not. */
-  readonly ran: ReadonlySet<string>;
-  /** The files that ran to the end: their cases replace every case the index held for them. */
-  readonly finished: ReadonlySet<string>;
-  /** Whether a test file the index holds is still in the checkout. */
-  readonly present: (file: string) => boolean;
-  /**
-   * The edit between the text the index's regions of `file` were cut from and
-   * the text the run recorded it from, as git's hunks between the two and the
-   * selector's reading of them. Held cases land on the regions it left alone,
-   * at the lines it places them; a region it touched keeps them where the
-   * reading spares its kind, and as overwritten elsewhere ({@link landedThrough}).
-   * Absent when `file`'s text on either side cannot be had: every held case of
-   * the module is then overwritten on every region. A caller that gives no
-   * `edit` knows no texts and reads the two cuts as one text.
-   */
-  readonly edit?: EditOf;
-  /**
-   * Whether the run recorded `file` from the text the index's regions of it
-   * are named at. Only the before layer asks: a module so recorded is cut at
-   * the lines the run recorded it at. Absent when nobody can say.
-   */
-  readonly sameText?: (file: string) => boolean;
-  /**
-   * The files the run recorded from the text the before layer's cut of them
-   * is named at. The names are the snapshot's, and the snapshot re-cuts a
-   * carried module to the text on disk while the index keeps the lines it was
-   * recorded at, so a module no run re-recorded since an edit above one of its
-   * regions stands at the old lines under the new name. Where the run recorded
-   * that text, the before layer is cut at the lines it recorded. With `base`,
-   * "the run" is this one or a shard of the landing laid before it, whose
-   * lines the index this run is laid over holds. Read only when `base` is
-   * given; without `base`, `sameText` answers it, and with `base` but without
-   * this, nothing is re-cut. A set rather than a question, so a landing reads
-   * the base's modules these name and no other.
-   */
-  readonly sameBeforeText?: ReadonlySet<string>;
-  /**
-   * The index the before layer is cut from, when it is not the one the run is
-   * laid over: the one a landing began with, which no shard it laid before
-   * this one has re-cut to the shards' text.
-   */
-  readonly base?: Uint8Array;
-}
+/**
+ * What a run knows about the test files it was handed.
+ *
+ * `sameText` names the modules the run recorded from the text the index's
+ * regions of them are named at; `sameBeforeText`, read only with `base`, the
+ * ones it recorded from the text the before layer's cut of them is named at.
+ * A module so named is cut, in the before layer, at the lines it was recorded at.
+ */
+export type CaseRunFiles = NativeCaseRunFiles;
 
 export interface CaseLayers {
   /** The whole suite: this run laid over what the index held. */
   readonly merged: Buffer;
-  /**
-   * The id of every case `merged` holds, in its order, read when asked: a
-   * carried case is not decoded for a landing that never asks.
-   */
-  readonly cases: () => readonly string[];
-  /** The cases this run recorded, by id: the run {@link CaseRunFiles} laid over the rest. */
+  /** The id of every case `merged` holds, in its order. */
+  readonly cases: readonly string[];
+  /** The cases this run recorded, by id. */
   readonly last: readonly string[];
-  /**
-   * The cases of `last` whose files the run announced. A shard's index also
-   * holds what its seed carried, which the shard did not run.
-   */
+  /** The cases of `last` whose files the run announced: a shard's index also holds what its seed carried. */
   readonly announced: readonly string[];
   /**
    * The cases this run replaced, for the files it announced, each as it stood
-   * before it: whether it stopped, and its duration. The base an edit to a test
-   * is compared against. Absent when there was no index to take them from.
+   * before it. Absent when there was no index to take them from.
    */
   readonly before?: Buffer;
-  /**
-   * The modules of `before` cut at another text than the one they are named
-   * at, whose lines nothing could carry onto it: a reader has no text to
-   * compare them from. Absent when every module was carried or already stood
-   * at its text.
-   */
+  /** The modules of `before` cut at another text than the one they are named at, whose lines nothing could carry onto it. */
   readonly unlined?: readonly string[];
 }
 
 /**
  * Lay one run's case index over the one it replaces, the way the snapshot lays
- * a run over its rows.
+ * a run over its rows: a file the run finished is replaced, a file the
+ * checkout no longer holds is retired, and every other case is carried. The
+ * addon lays it whole (`native/src/case_layer.rs`), so no row crosses into V8.
  *
- * A file the run finished is replaced, every case and every crossing of it. A
- * file it did not finish is laid over: its old cases stay, and the ones that
- * ran again say how they settled this time. A file the checkout no longer holds
- * is retired, because nothing can run it again to retire it. Every other case is
- * carried untouched, so a run of one file leaves the rest of the suite's answer
- * where it was.
- *
- * Nothing is decoded to a crossing. A region names a set, and a set is
- * translated to the new test numbering once however many regions share it, so
- * the work is regions plus distinct sets, which is what the index costs to
- * hold. Nor is a carried string decoded: a carried case or region is its ids,
- * copied as the bytes they name (see {@link HeldIndex}). What is decoded is
- * what the run touched, and each held test file once, to ask whether the
- * checkout still holds it.
- *
- * A module this run recorded is read at the regions it recorded now, and the
- * carried cases land on them through the edit between the text they were cut
- * at and the text the run recorded ({@link landedThrough}): a region the edit
- * left alone keeps its cases at the lines the edit places it, and a region it
- * touched or wrote keeps them only where the edit spared its kind, the rule the
- * snapshot's rows are landed by. A module this run did not record keeps the
- * regions it was recorded with, as it did before any partial run, and the
- * landing then lays it onto the cut its rows were landed at (`case-cuts.ts`).
- *
- * The before layer is cut at the lines of the text it is named at. A held
- * module the run recorded from that text is read at the recorded lines where
- * the index still stands at an older text's, and is named `unlined` where no
- * address could carry it there.
- *
- * An index this cannot open — a row spelling, or bytes it did not write — is no
- * index to lay over, and the run is written alone: what the fold wrote before
- * layering existed.
+ * `edit` answers, for a module the run recorded, the edit between the text the
+ * index's regions of it were cut from and the text the run recorded it from:
+ * held cases land on the regions it left alone, at the lines it places them,
+ * and a region it touched keeps them where the reading spares its kind. It is
+ * asked only of a module both indexes hold, so a text is read only where a
+ * held case lands through it. `undefined` is a text that could not be had:
+ * every held case of the module is overwritten on every region. Without `edit`
+ * the caller knows no texts and the two cuts read as one text.
  */
-export function layerCaseIndex(
-  previous: Uint8Array | undefined,
-  fresh: Uint8Array,
-  files: CaseRunFiles,
-): CaseLayers {
-  const run = openSetExecutionIndex(fresh);
-  if (run === undefined) throw new Error('a case fold wrote an index it cannot open');
-  const last = run.tests.map((test) => test.id);
-  const announced = run.tests.filter((test) => files.ran.has(test.file)).map((test) => test.id);
-  const held = HeldIndex.open(previous);
-  const cut = files.base === undefined ? held : HeldIndex.open(files.base);
-  // No index is read as no other cases, so the run's are written alone. A
-  // writer lays a run over none only once its runs finished every test file
-  // the snapshot beside it holds (`unansweredOver`): they answer for all of it.
-  if (held === undefined) return { merged: Buffer.from(fresh), cases: () => last, last, announced };
-
-  const { tests, fromHeld, fromRun, merged, heldAt, runAt } = layeredCases(held, run, files);
-  // Every case this run ran crossed the recorded text or was seen not to.
-  const ran = merged.of(runAt);
-  const runModules = new Map(run.modules.map((module) => [module.file, module]));
-  const runModuleAt = new Map(run.modules.map((module, at) => [module, at]));
-  const lines = LaidLines.open(held.columns.testLines, run.lines, heldAt, runAt, tests.length);
-  const modules: LaidModule[] = [];
-  for (const { row, recorded } of moduleUnion(held, runModules)) {
-    if (recorded === undefined) {
-      const kept = carriedRow(held, row!, fromHeld, false);
-      if (kept !== undefined) {
-        lines?.carried(modules.length, row!);
-        modules.push(kept);
-      }
-      continue;
-    }
-    const before = row === undefined ? undefined : held.module(row);
-    // The held cases land through the edit from the text they were cut at to
-    // the text this run recorded: the regions it left alone, where it places them.
-    const landing = before === undefined ? undefined : landedThrough(before, recorded, (files.edit ?? (() => NO_EDIT))(recorded.file));
-    modules.push(laidOn(
-      recorded,
-      fromRun,
-      before === undefined ? undefined : { row: row!, module: before, landing: landing! },
-      { fromHeld, merged, lines, at: modules.length, runModule: runModuleAt.get(recorded)!, ran },
-    ));
-  }
-
-  const unlined: string[] = [];
-  const recordedRows = cut === undefined ? undefined : recordedIn(cut, runModules);
-  const sameBefore = cut === undefined || files.base === undefined ? undefined : namedIn(cut, files.sameBeforeText ?? []);
-  const before = cut === undefined ? undefined : beforeRun(cut, new Set([...files.ran, ...run.tests.map((test) => test.file)]), (row) => {
-    const named = cut.columns.moduleFile[row]!;
-    let recorded: SetExecutionModule | undefined;
-    if (sameBefore === undefined) {
-      recorded = recordedRows!.get(named);
-      if (recorded === undefined || files.sameText?.(recorded.file) !== true) return undefined;
-    } else {
-      const file = sameBefore.get(named);
-      if (file === undefined) return undefined;
-      // A landing's earlier shard may have recorded what this one did not; the
-      // index it laid, the one this run is laid over, stands at those lines.
-      recorded = recordedRows!.get(named) ?? heldModule(held, file);
-      if (recorded === undefined) return undefined;
-    }
-    const module = cut.module(row);
-    const lined = relined(module, recorded);
-    if (lined === undefined || (lined === module && strayed(module, recorded))) unlined.push(recorded.file);
-    return lined ?? module;
-  });
+export function layerCaseIndex(previous: Uint8Array | undefined, fresh: Uint8Array, files: CaseRunFiles, edit?: EditOf): CaseLayers {
+  const layer = native()?.layerCaseIndex;
+  if (layer === undefined) throw new Error(`the case layering requires the Sense native addon: ${whyAbsent('layerCaseIndex')}`);
+  const { merged, cases, last, announced, before, unlined } = layer(previous, fresh, files, edit === undefined ? undefined : (file) => nativeEdit(edit(file)));
   return {
-    merged: writeLaid(held, tests.map((test) => test.laid), modules, merged.pool(), lines?.finish()),
-    cases: () => tests.map((test) => (typeof test.laid === 'number' ? held.string(held.columns.testId[test.laid]!) : test.laid.id)),
+    merged,
+    cases,
     last,
     announced,
-    ...(before === undefined ? {} : { before }),
+    ...(before == null ? {} : { before }),
     ...(unlined.length === 0 ? {} : { unlined }),
   };
 }
 
 /**
- * `recorded`'s regions, each with the cases its own sets name, translated by
- * `own`, and the held cases that land on it from `held`: the region
- * `held.landing.lands` names for it ({@link landedThrough}). Each region is
- * handed to `layer.lines` as a region of the `layer.at`-th module written.
- *
- * A held case the edit overwrote — a case of the region `held.landing.overwrote`
- * names, one the held index held as overwritten, or every held case of the
- * module where the edit is `unread` — ran a text this one does not hold, so where
- * it runs here is not known. It is written into the region's overwritten set
- * unless the region names it, or it is one of `layer.ran`: a case of the run,
- * measured at this text. The set is written only where some region holds one.
- */
-export function laidOn(
-  recorded: SetExecutionModule,
-  own: (set: SetId) => SetId,
-  held: { readonly row: number; readonly module: SetExecutionModule; readonly landing: RegionPairing } | undefined,
-  layer: {
-    readonly fromHeld: (set: SetId) => SetId;
-    readonly merged: Translation;
-    readonly lines: LaidLines | undefined;
-    readonly at: number;
-    readonly runModule: number;
-    readonly ran: SetId;
-  },
-): SetExecutionModule {
-  const { fromHeld, merged, lines } = layer;
-  const called = new Uint32Array(recorded.blocks.length);
-  const loaded = new Uint8Array(recorded.blocks.length);
-  const overwritten = new Uint32Array(recorded.blocks.length);
-  const heldOver = (from: number): SetId => (held!.module.overwritten === undefined ? EMPTY : fromHeld(held!.module.overwritten[from]!));
-  // An edit that could not be read places no held case: each ran another text at every region.
-  const unread = held?.landing.unread !== true ? EMPTY
-    : held.module.called.reduce((every, set, from) => merged.union(every, merged.union(fromHeld(set), heldOver(from))), EMPTY);
-  for (let block = 0; block < recorded.blocks.length; block += 1) {
-    const mine = own(recorded.called[block]!);
-    const from = held?.landing.lands[block] ?? -1;
-    const over = held?.landing.overwrote[block] ?? -1;
-    const carriedIn = from < 0 ? undefined : fromHeld(held!.module.called[from]!);
-    called[block] = carriedIn === undefined ? mine : merged.union(mine, carriedIn);
-    lines?.recorded(layer.at, block, layer.runModule, merged.members(mine),
-      carriedIn === undefined ? undefined : { row: held!.row, block: from, members: merged.members(carriedIn) });
-    loaded[block] = recorded.loaded[block]! | (from < 0 ? 0 : held!.module.loaded[from]!);
-    const unknown = merged.union(unread, merged.union(
-      from < 0 ? EMPTY : heldOver(from),
-      over < 0 ? EMPTY : merged.union(fromHeld(held!.module.called[over]!), heldOver(over)),
-    ));
-    const ownOver = recorded.overwritten === undefined ? EMPTY : own(recorded.overwritten[block]!);
-    overwritten[block] = merged.minus(merged.union(merged.minus(unknown, layer.ran), ownOver), called[block]!);
-  }
-  return {
-    file: recorded.file,
-    blocks: recorded.blocks,
-    called,
-    loaded,
-    ...(recorded.owner === undefined ? {} : { owner: recorded.owner }),
-    ...(overwritten.some((set) => set !== EMPTY) ? { overwritten } : {}),
-  };
-}
-
-/** A case of the output, with the keys it is ordered by: see {@link HeldIndex.key}. */
-interface KeyedCase {
-  readonly laid: LaidTest;
-  readonly file: number;
-  readonly name: number;
-  readonly id: number;
-}
-
-/**
- * The output's cases in their order, and the translation of both indexes'
- * sets onto them. A held case is read as its ids: only its file is decoded,
- * once a file, to ask whether the run retired it.
- */
-export function layeredCases(held: HeldIndex, run: OpenedSetExecutionIndex, files: CaseRunFiles): {
-  readonly tests: readonly KeyedCase[];
-  readonly merged: Translation;
-  readonly fromHeld: (set: SetId) => SetId;
-  readonly fromRun: (set: SetId) => SetId;
-  /** Each held row's output case, -1 for a dropped one, and each run case's. */
-  readonly heldAt: Int32Array;
-  readonly runAt: readonly number[];
-} {
-  const { testId, testFile, testName } = held.columns;
-  const goneFiles = new Map<number, boolean>();
-  const gone = (row: number): boolean => {
-    let found = goneFiles.get(testFile[row]!);
-    if (found === undefined) {
-      const file = held.string(testFile[row]!);
-      found = files.finished.has(file) || !files.present(file);
-      goneFiles.set(testFile[row]!, found);
-    }
-    return found;
-  };
-  const byId = new Map<number, number>();
-  for (let row = 0; row < testId.length; row += 1) if (!gone(row)) byId.set(testId[row]!, row);
-  // A case that ran again says how it settled this time.
-  const runById = new Map<string, KeyedCase>();
-  for (const test of run.tests) {
-    const id = held.key(test.id);
-    if (id % 2 === 1) byId.delete((id - 1) / 2);
-    runById.set(test.id, { laid: test, file: held.key(test.file), name: held.key(test.name), id });
-  }
-  const tests = [
-    ...Array.from(byId.values(), (row): KeyedCase =>
-      ({ laid: row, file: 2 * testFile[row]! + 1, name: 2 * testName[row]! + 1, id: 2 * testId[row]! + 1 })),
-    ...runById.values(),
-  ].sort(caseOrder);
-  const heldAt = new Map<number, number>();
-  const runAt = new Map<string, number>();
-  for (const [at, test] of tests.entries()) {
-    if (test.id % 2 === 1) heldAt.set((test.id - 1) / 2, at);
-    if (typeof test.laid !== 'number') runAt.set(test.laid.id, at);
-  }
-
-  const merged = new Translation(tests.length);
-  const heldPlaces = placed(testId, heldAt, gone);
-  const runPlaces = run.tests.map((test) => runAt.get(test.id)!);
-  const fromHeld = merged.from(held.columns.sets, heldPlaces);
-  const fromRun = merged.from(run.sets, runPlaces);
-  return { tests, merged, fromHeld, fromRun, heldAt: heldPlaces, runAt: runPlaces };
-}
-
-/**
- * The output's modules in code-unit order of path: each held row the run did
- * not record, and each module the run recorded with the held row of its path.
- */
-function moduleUnion(
-  held: HeldIndex,
-  runModules: ReadonlyMap<string, SetExecutionModule>,
-): { readonly row?: number; readonly recorded?: SetExecutionModule }[] {
-  const recorded = [...runModules.values()]
-    .map((module) => ({ module, key: held.key(module.file) }))
-    .sort((left, right) => left.key - right.key || codeUnitOrder(left.module.file, right.module.file));
-  const rows = held.moduleRows();
-  const union: { row?: number; recorded?: SetExecutionModule }[] = [];
-  let next = 0;
-  for (const row of rows) {
-    const key = 2 * held.columns.moduleFile[row]! + 1;
-    while (next < recorded.length && recorded[next]!.key < key) {
-      union.push({ recorded: recorded[next]!.module });
-      next += 1;
-    }
-    if (next < recorded.length && recorded[next]!.key === key) {
-      union.push({ row, recorded: recorded[next]!.module });
-      next += 1;
-      continue;
-    }
-    union.push({ row });
-  }
-  for (; next < recorded.length; next += 1) union.push({ recorded: recorded[next]!.module });
-  return union;
-}
-
-/** The held module named `file`, as an object, when the index holds one. */
-function heldModule(held: HeldIndex, file: string): SetExecutionModule | undefined {
-  const key = held.key(file);
-  const row = key % 2 === 1 ? held.moduleOf((key - 1) / 2) : undefined;
-  return row === undefined ? undefined : held.module(row);
-}
-
-/**
  * What the runs at one commit retired, as one before: `retired` laid over
- * `kept`, which the earlier runs at that commit left.
- *
- * A suite run in several invocations retires each invocation's files in turn.
- * Written alone, the second invocation's before would replace the first's, and
- * a review of a pull request would compare only the last invocation's files
- * with the base. A file this run ran again keeps what it retired this time,
- * which is the run before it, as a re-run in the edit loop wants.
+ * `kept`, which the earlier runs at that commit left. A file this run ran
+ * again keeps what it retired this time.
  */
-export function layerBefore(
-  kept: Uint8Array | undefined,
-  retired: Uint8Array | undefined,
-  ran: ReadonlySet<string>,
-): Buffer | undefined {
-  if (kept === undefined) return retired === undefined ? undefined : Buffer.from(retired);
-  if (retired === undefined) return Buffer.from(kept);
-  // A deleted test file stays: its cases are what the base had, and that is
-  // what a comparison with the base reports as gone.
-  return layerCaseIndex(kept, retired, { ran, finished: ran, present: () => true }).merged;
+export function layerBefore(kept: Uint8Array | undefined, retired: Uint8Array | undefined, ran: ReadonlySet<string>): Buffer | undefined {
+  const layer = native()?.layerCaseBefore;
+  if (layer === undefined) throw new Error(`the case layering requires the Sense native addon: ${whyAbsent('layerCaseBefore')}`);
+  return layer(kept, retired, [...ran]) ?? undefined;
 }
 
-/**
- * The held index cut to the cases of the files a run announced.
- *
- * Regions keep the shape they were recorded with, and no region says it ran
- * while its module loaded: that flag belongs to every file that imported the
- * module, not to these cases, and a comparison of what these cases entered must
- * not read it as theirs. `lines` gives a module read at other lines, or nothing
- * for one carried as it is stored.
- */
-function beforeRun(
-  held: HeldIndex,
-  ran: ReadonlySet<string>,
-  lines: (row: number) => SetExecutionModule | undefined,
-): Buffer {
-  const { testId, testFile, moduleFile } = held.columns;
-  const ranFiles = namedIn(held, ran);
-  const tests: number[] = [];
-  for (let row = 0; row < testId.length; row += 1) if (ranFiles.has(testFile[row]!)) tests.push(row);
-  const at = new Map(tests.map((row, index) => [testId[row]!, index]));
-  const cut = new Translation(tests.length);
-  const from = cut.from(held.columns.sets, placed(testId, at, (row) => !ranFiles.has(testFile[row]!)));
-  const modules: { readonly file: number; readonly module: LaidModule }[] = [];
-  for (let row = 0; row < moduleFile.length; row += 1) {
-    const lined = lines(row);
-    const kept = lined === undefined
-      ? carriedRow(held, row, from, true)
-      : carried({ ...lined, loaded: new Uint8Array(lined.blocks.length) }, from);
-    if (kept !== undefined) modules.push({ file: moduleFile[row]!, module: kept });
-  }
-  modules.sort((left, right) => left.file - right.file);
-  return writeLaid(held, tests, modules.map(({ module }) => module), cut.pool());
-}
-
-/** A held row read at the regions it was stored with, or nothing when no case is left in it; `unloaded` clears its load flags. */
-export function carriedRow(held: HeldIndex, row: number, from: (set: SetId) => SetId, unloaded: boolean): CarriedModule | undefined {
-  const { moduleBlocks, blockCalled, blockLoaded, blockOverwritten } = held.columns;
-  const [first, last] = [moduleBlocks[row]!, moduleBlocks[row + 1]!];
-  const called = new Uint32Array(last - first);
-  for (let block = first; block < last; block += 1) called[block - first] = from(blockCalled[block]!);
-  const loaded = unloaded ? new Uint8Array(last - first) : blockLoaded.subarray(first, last);
-  const overwritten = blockOverwritten === undefined ? undefined : Uint32Array.from(blockOverwritten.subarray(first, last), from);
-  const kept = overwritten?.some((set) => set !== EMPTY) === true ? { row, called, loaded, overwritten } : { row, called, loaded };
-  for (let block = 0; block < called.length; block += 1) {
-    if (called[block] !== EMPTY || loaded[block] === 1 || (kept.overwritten?.[block] ?? EMPTY) !== EMPTY) return kept;
-  }
-  return undefined;
-}
-
-/** A module object read at the regions it was recorded with, or nothing when no case is left in it. */
-function carried(module: SetExecutionModule, from: (set: SetId) => SetId): SetExecutionModule | undefined {
-  const { overwritten: was, ...rest } = module;
-  const called = module.called.map(from);
-  const overwritten = was?.map(from);
-  let entered = false;
-  for (let block = 0; block < called.length; block += 1) {
-    if (called[block] !== EMPTY || module.loaded[block] === 1 || (overwritten?.[block] ?? EMPTY) !== EMPTY) entered = true;
-  }
-  if (!entered) return undefined;
-  return overwritten?.some((set) => set !== EMPTY) === true ? { ...rest, called, overwritten } : { ...rest, called };
-}
-
-/**
- * Where each held case stands among `at`, by its id, and -1 where `dropped`.
- * A case `at` lacks is refused: an Int32Array would spell it as 0, which is
- * somebody's.
- */
-function placed(testId: Uint32Array, at: ReadonlyMap<number, number>, dropped: (row: number) => boolean): Int32Array {
-  return Int32Array.from(testId, (id, row) => {
-    if (dropped(row)) return -1;
-    const to = at.get(id);
-    if (to === undefined) throw new Error('a case index names a case it does not hold');
-    return to;
-  });
-}
-
-/** The files `held` holds among `files`, by the id of their path; one `held` lacks is none of its rows. */
-function namedIn(held: HeldIndex, files: Iterable<string>): ReadonlyMap<number, string> {
-  const found = new Map<number, string>();
-  for (const file of files) {
-    const key = held.key(file);
-    if (key % 2 === 1) found.set((key - 1) / 2, file);
-  }
-  return found;
-}
-
-/** The modules a run recorded, by the id of their path in `held`; one `held` lacks is none of its rows. */
-export function recordedIn(held: HeldIndex, runModules: ReadonlyMap<string, SetExecutionModule>): ReadonlyMap<number, SetExecutionModule> {
-  const found = new Map<number, SetExecutionModule>();
-  for (const module of runModules.values()) {
-    const key = held.key(module.file);
-    if (key % 2 === 1) found.set((key - 1) / 2, module);
-  }
-  return found;
-}
-
-function caseOrder(left: KeyedCase, right: KeyedCase): number {
-  for (const field of ['file', 'name', 'id'] as const) {
-    // Equal even keys are two strings the held index lacks, both of the run's cases.
-    const order = left[field] - right[field] ||
-      (left[field] % 2 === 0 ? codeUnitOrder((left.laid as ExecutionTest)[field], (right.laid as ExecutionTest)[field]) : 0);
-    if (order !== 0) return order;
-  }
-  return 0;
+/** `edit`'s answer, as the addon reads it. */
+export function nativeEdit(found: Edit | undefined): NativeCaseEdit | undefined {
+  return found === undefined ? undefined : found.reading === undefined ? { hunks: found.hunks } : { hunks: found.hunks, reading: found.reading };
 }
 
 /** The index `bytes` holds, opened at its sets; `undefined` when there is none, or none this build can lay over. */

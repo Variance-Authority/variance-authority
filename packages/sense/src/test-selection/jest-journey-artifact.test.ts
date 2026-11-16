@@ -11,7 +11,8 @@ import preconditions from './case-preconditions.cjs';
 import { rowOf } from './case-said.js';
 import { packCase, packFrames } from './cases.js';
 import { decodeExecutionIndex } from './execution-format.js';
-import { nativeModule, stitchJourneyArtifacts } from './jest-journey-artifact.js';
+import { stitchJourneyArtifacts } from './jest-journey-artifact.js';
+import { nativeModule } from './native-modules.js';
 import type { CapturedModule } from './instrumented-modules.js';
 import journalFormat from './journal-format.cjs';
 

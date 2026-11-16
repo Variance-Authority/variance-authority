@@ -12,8 +12,11 @@
 //! The order of the renames is the whole of the protocol: each segment lands
 //! under its digest before the manifest that names it, and the manifest lands
 //! last, so a reader never opens a manifest naming a segment that is not
-//! there. A compaction names none of the segments it replaced, and they are
-//! removed only after the manifest that stopped naming them is in place. A
+//! there. Each file is synced before its rename, and the segments' directory
+//! before the manifest's, so the order holds across a power loss as well as a
+//! killed process: a reader checks a segment's length, not its digest. A
+//! compaction names none of the segments it replaced, and they are removed
+//! only after the manifest that stopped naming them is in place. A
 //! cold build's two segments are made on this side, and publishing them from
 //! here means the bytes never become a JavaScript buffer at all.
 
@@ -143,15 +146,18 @@ pub(crate) fn written(path: &str, over: Over, kept: &[LogSegment], segments: &[&
     for (reference, bytes) in added.iter().zip(segments) {
         let name = file_name(&directory, &reference.digest);
         let temporary = scratch_files.name(&name);
-        fs::write(&temporary, bytes)?;
+        durable(&temporary, bytes)?;
         fs::rename(&temporary, &name)?;
+    }
+    if !added.is_empty() {
+        synced_directory(&directory)?;
     }
     let temporary = scratch_files.name(path);
     let mut out = Vec::with_capacity(MAGIC.len() + 4 + manifest.len());
     out.extend_from_slice(MAGIC);
     out.extend_from_slice(&(manifest.len() as u32).to_le_bytes());
     out.extend_from_slice(&manifest);
-    fs::write(&temporary, out)?;
+    durable(&temporary, &out)?;
     fs::rename(&temporary, path)?;
     let named: HashSet<&str> = next.iter().map(|reference| reference.digest.as_str()).collect();
     for reference in replaced.iter().filter(|reference| !named.contains(reference.digest.as_str())) {
@@ -159,6 +165,26 @@ pub(crate) fn written(path: &str, over: Over, kept: &[LogSegment], segments: &[&
         let _ = fs::remove_file(file_name(&directory, &reference.digest));
     }
     Ok(true)
+}
+
+/// `bytes` written to `path` and on the disk before it is renamed anywhere: a
+/// reader checks a segment's length and nothing more, so a crash must never
+/// leave a name pointing at bytes the disk did not keep.
+fn durable(path: &str, bytes: &[u8]) -> io::Result<()> {
+    let mut file = File::create(path)?;
+    io::Write::write_all(&mut file, bytes)?;
+    file.sync_all()
+}
+
+/// The renames into `directory` on the disk before the manifest that names
+/// them is. A directory is not a file that opens on Windows, whose renames
+/// need no such step.
+fn synced_directory(directory: &str) -> io::Result<()> {
+    #[cfg(unix)]
+    File::open(directory)?.sync_all()?;
+    #[cfg(not(unix))]
+    let _ = directory;
+    Ok(())
 }
 
 /// Every scratch name handed out, removed when the publish is over whichever

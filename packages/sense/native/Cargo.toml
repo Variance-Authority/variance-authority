@@ -53,6 +53,21 @@ gix-hash = { version = "=0.28.0", features = ["sha1"] }
 gix-index = { version = "=0.57.0", features = ["sha1"] }
 gix-object = "=0.66.0"
 gix-odb = { version = "=0.86.0", features = ["sha1"] }
+# `status` in-process (`worktree_status.rs`): the index against the worktree,
+# and the untracked files beside it, under the repository's ignore rules.
+bstr = { version = "1", default-features = false, features = ["std"] }
+gix-command = "=0.12.1"
+gix-dir = "=0.31.0"
+gix-error = "=0.5.2"
+gix-filter = { version = "=0.36.0", default-features = false }
+gix-fs = "=0.24.1"
+gix-ignore = "=0.24.1"
+gix-path = "=0.14.1"
+gix-parallel = { version = "=0.50.1", features = ["parallel"] }
+gix-pathspec = "=0.22.1"
+gix-status = { version = "=0.36.0", default-features = false, features = ["sha1"] }
+gix-utils = "=0.5.2"
+gix-worktree = { version = "=0.58.0", default-features = false }
 # ripgrep's searcher and its regex matcher: `ask grep` and `discover` search
 # text in-process, with ripgrep's pattern language, encodings and binary rules.
 grep-regex = "0.1"

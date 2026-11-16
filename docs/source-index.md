@@ -384,10 +384,11 @@ For reimplementers, and only of the version that wrote the file in front of you.
 
 `source-index.bin` is an atomic pointer: an eight-byte magic, a 32-bit
 little-endian length, and a UTF-8 JSON manifest naming the committed segments
-oldest to newest, each by content digest and byte length. Readers load every
-named segment and verify both, and reject the complete chain when any member is
-missing or fails. A missing, incompatible or rejected chain is an empty cache
-and causes a normal scan.
+oldest to newest, each by content digest and byte length. The digest names the
+segment's file and is computed once, by the writer. Readers load each named
+segment and check that it is there at its length, and keep the chain up to the
+first that is missing or of another length. A missing or incompatible chain is
+an empty cache and causes a normal scan.
 
 Each segment is a 32-bit little-endian header length, a padded UTF-8 JSON
 section table, and the sections themselves, each starting on an eight-byte

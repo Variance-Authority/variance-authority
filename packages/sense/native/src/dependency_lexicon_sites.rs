@@ -195,7 +195,7 @@ fn requests(layers: &[Layer], crossings: &mut [Crossing], internal: &HashSet<&st
 
 /// A sites file over the base of `chain`, its first `base` segments, written whole: the base's records, then the
 /// working layer's. `None` when the chain does not read.
-pub(super) fn rebuild(index: &str, chain: &[String], base: usize, internal: &HashSet<&str>, digest: &str) -> Option<(Vec<u8>, Writer)> {
+pub(super) fn rebuild(index: &str, chain: &[crate::index_chain::Reference], base: usize, internal: &HashSet<&str>, digest: &str) -> Option<(Vec<u8>, Writer)> {
     let segments = crate::index_chain::read_tail(index, chain, 0)?;
     let layers = open_layers(&segments)?;
     let base_layers = &layers[..base.min(layers.len())];
@@ -208,7 +208,7 @@ pub(super) fn rebuild(index: &str, chain: &[String], base: usize, internal: &Has
     writer.record(|out| {
         out.u8(HEADER);
         out.u32(VERSION);
-        out.list(&chain[..base], |out, digest| out.str(digest));
+        out.list(&chain[..base], |out, reference| out.str(&reference.digest));
         out.str(digest);
     });
     for ((file, (layer, row)), rows) in files.iter().zip(read) {
@@ -228,7 +228,7 @@ pub(super) fn rebuild(index: &str, chain: &[String], base: usize, internal: &Has
 
 /// The records that bring `state` to the working layer of `chain` past its first `base` segments, and the
 /// digests of that layer last. `None` when the chain does not read.
-pub(super) fn increment(index: &str, chain: &[String], base: usize, state: &State, internal: &HashSet<&str>) -> Option<Writer> {
+pub(super) fn increment(index: &str, chain: &[crate::index_chain::Reference], base: usize, state: &State, internal: &HashSet<&str>) -> Option<Writer> {
     let segments = crate::index_chain::read_tail(index, chain, base)?;
     let layers = open_layers(&segments)?;
     // What the working layer says of each file it names: written at a row, or deleted.
@@ -278,7 +278,7 @@ pub(super) fn increment(index: &str, chain: &[String], base: usize, state: &Stat
         writer.written.push(((*file).to_owned(), rows.iter().map(|(package, specifier, _)| (package.clone(), specifier.clone())).collect()));
         writer.rows(file, digest, &rows);
     }
-    writer.record(|out| { out.u8(SEEN); out.list(&chain[base..], |out, digest| out.str(digest)); });
+    writer.record(|out| { out.u8(SEEN); out.list(&chain[base..], |out, reference| out.str(&reference.digest)); });
     Some(writer)
 }
 

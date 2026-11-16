@@ -58,6 +58,38 @@ export interface NativeRecords {
     },
   ): Buffer | null;
   /**
+   * The case readings section once a run is laid over the record's, as `layReadings` documents it;
+   * `null` when nothing is left to write. `fresh` absent is no run; `same` the files the run recorded
+   * from the text the landed index holds, and `inputs` each test file's `[file, digest]`.
+   */
+  layReadings?(
+    kept: Buffer | undefined,
+    previous: Buffer | undefined,
+    landed: Buffer | undefined,
+    cases: string[],
+    fresh: Buffer | undefined,
+    announced: string[],
+    same: string[],
+    inputs: [string, string][] | undefined,
+  ): Buffer | null;
+  /**
+   * Every reading `section` keeps of case `id`, newest first, as `readingsOf` documents it; `null`
+   * when it keeps none of the case. A region's value is absent where the case's lines name none.
+   */
+  readingsOfCase?(
+    section: Buffer,
+    index: Buffer | undefined,
+    id: string,
+  ): { count: number; stopped?: boolean; regions: { module: string; name: string; path: string; start: number; end: number; value?: number }[] }[] | null;
+  /**
+   * The regions case `id` crossed as `index` holds its newest run, as `newestRegions` documents it;
+   * `null` when the index holds no such case.
+   */
+  newestRegionsOfCase?(
+    index: Buffer,
+    id: string,
+  ): { module: string; name: string; path: string; start: number; end: number; value?: number }[] | null;
+  /**
    * Where each region of `inventories` lands among `table`'s, one file's own cut, by position:
    * at the region of its shape, else at the innermost source region enclosing it; `null` where none does.
    */

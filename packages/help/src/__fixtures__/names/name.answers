@@ -20,8 +20,6 @@ Source, from other packages:
 packages/app/src/main.ts:1 — app
 
 A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
-
-1 file imports a specifier the index could not resolve to a file, and it could take `freeze`, so a use there is not listed: packages/app/src/main.ts.
 Snapshot <masked>
 
 ## symbol --name Clock
@@ -50,8 +48,6 @@ Source, from other packages:
 packages/app/src/main.ts:1 — app (type only)
 
 A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
-
-1 file imports a specifier the index could not resolve to a file, and it could take `Clock`, so a use there is not listed: packages/app/src/main.ts.
 Snapshot <masked>
 
 ## symbol --name count
@@ -76,8 +72,6 @@ Source, from other packages:
 packages/app/src/main.ts:1 — app
 
 A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
-
-1 file imports a specifier the index could not resolve to a file, and it could take `count`, so a use there is not listed: packages/app/src/main.ts.
 Snapshot <masked>
 
 ## symbol --name tally
@@ -102,8 +96,6 @@ Source, from other packages:
 packages/app/src/main.ts:1 — app
 
 A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
-
-1 file imports a specifier the index could not resolve to a file, and it could take `tally`, so a use there is not listed: packages/app/src/main.ts.
 Snapshot <masked>
 
 ## symbol --name Shape
@@ -128,8 +120,6 @@ Source, from other packages:
 packages/app/src/main.ts:1 — app
 
 A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
-
-1 file imports a specifier the index could not resolve to a file, and it could take `Shape`, so a use there is not listed: packages/app/src/main.ts.
 Snapshot <masked>
 
 ## symbol --name units
@@ -154,8 +144,6 @@ Source, from other packages:
 packages/app/src/main.ts:1 — app
 
 A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
-
-1 file imports a specifier the index could not resolve to a file, and it could take `units`, so a use there is not listed: packages/app/src/main.ts.
 Snapshot <masked>
 
 ## symbol --name Clock.now
@@ -234,8 +222,6 @@ Source, from other packages:
 packages/app/src/main.ts:1 — app
 
 A namespace imported by name that goes somewhere whole and, outside Rust, a call through a qualified path are not counted.
-
-1 file imports a specifier the index could not resolve to a file, and it could take `plain`, so a use there is not listed: packages/app/src/main.ts.
 Snapshot <masked>
 
 ## symbol --name nothing

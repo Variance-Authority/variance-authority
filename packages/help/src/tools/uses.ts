@@ -2,7 +2,7 @@ import type { FileSet, Spelling, Tool, ToolInvocation } from '@variance-authorit
 import { limitOf, notShown, spellingOf } from '@variance-authority/mcp/tools';
 import type { Help, Use } from '@variance-authority/package/help';
 import type { DeclaredName } from '@variance-authority/sense';
-import { unreadLine, unresolvedLine } from './declared.js';
+import { unreadLine } from './declared.js';
 import { FoundNothing } from './find.js';
 import { type Members, places, routes } from './members.js';
 import { passesOn } from './passed-on.js';
@@ -292,7 +292,6 @@ function answered(answer: Answer, input: Readonly<Record<string, unknown>>, show
   const imports = [
     // The others are named under the headline, so a reader who stops there knows its count is one declaration's.
     imported(answer, from, ownLines(answer.inFile, name, shown), answer.file === undefined ? othersLines(name, answer.namesakes, kept, ordered) : [], shown),
-    ...unresolvedLine(name, answer.unresolved).map((line) => `\n${line}`),
     ...namesakeLines(name, answer.namesakes, from, shown),
     ...(kept.length === 0 ? [] : ['', ...keeping]),
   ].join('\n');

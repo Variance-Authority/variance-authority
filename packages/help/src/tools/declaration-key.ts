@@ -207,7 +207,7 @@ function aliasedTo(help: Help, root: string | undefined, name: string): Readonly
 function anonymousName(help: Help, root: string | undefined, keys: Keys, at: string): string | undefined {
   if (root === undefined) return undefined;
   if (!keys.anonymous.has(at)) {
-    const read = whenRead(() => importersOf(root, [at], SLOT));
+    const read = whenRead(() => importersOf(root, [[{ file: at, name: SLOT }]]))?.groups[0];
     const local = (read?.uses ?? [])
       .flatMap((use) => (typeof use.local === 'string' && use.local !== '' ? [{ at: use.at, line: use.line, name: use.local }] : []))
       .sort(nearestTo(at))[0]?.name;
