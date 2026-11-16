@@ -30,8 +30,6 @@
  * is selection's alone, and `carry take` sets the mainline's aside for review.
  * The mainlines are asked of `share` (ADR-0077's order), and when nothing
  * answers, nothing is saved and the output says which answers were missing.
- * A restore also names Jest's transform cache, keyed by week rather than by
- * commit (`carry-transform.ts`).
  */
 
 // compass: variance-authority.retention

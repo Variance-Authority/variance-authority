@@ -3464,6 +3464,7 @@
         "innermostAt": "function",
         "isEncodedExecutionIndex": "function",
         "isTestCoverageFile": "function",
+        "jestDependency": "function",
         "journeyDivergences": "function",
         "journeyGaps": "function",
         "journeysApart": "function",
