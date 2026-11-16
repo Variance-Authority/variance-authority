@@ -151,15 +151,15 @@ section to a heading:
 - **Done when**: a checklist of tests or checks that, together, fail on today's
   code where the Evidence saw the problem and pass only once it is gone. Each
   `Then` is one of them. Where the problem can only be measured once the change
-  runs, an item names that measurement, taken after the merge.
+  runs, an item names that measurement, taken after the merge, and the pull
+request says `Part of #<n>`, so the issue stays open until it is taken.
 
 **Absence of evidence rejects nothing.** Almost nothing can be measured before
 it is built, and merging is often the only way to learn whether an idea holds.
 An unknown is written as an unknown, with what building will show, and the
-review weighs the idea on what opens: a reason to reject is something a reader
-can open that argues against the change — it exists already, it was decided
-against, another owner holds it, a lower cause answers it, it costs more than
-what opens of its gain. That nothing shows the
+review weighs the idea on what opens: each reason to reject, as the
+[`occam`](../agents/occam.md) reviewer names them, rests on something a reader
+can open that argues against the change. That nothing shows the
 need, the harm or the gain yet is named in the verdict and carried by the
 `confidence:` label, never a rejection.
 
