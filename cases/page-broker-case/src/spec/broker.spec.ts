@@ -52,7 +52,7 @@ test('going back fails while the cover stays open', async ({ page, app }) => {
   await page.goto('/checkout?user=guest&stuck', { waitUntil: 'commit' });
   const form = await app.enter(Billing);
   const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
-  await expect(signIn.cancel.to('billing')).rejects.toThrow('sign-in.cancel declares billing, and the page shows');
+  await expect(signIn.cancel.to('billing')).rejects.toThrow('sign-in.cancel went back to billing, and sign-in still shows');
   await expect(form.street('Rokin 2') as unknown as Promise<unknown>).rejects.toThrow('billing is covered by sign-in');
 });
 

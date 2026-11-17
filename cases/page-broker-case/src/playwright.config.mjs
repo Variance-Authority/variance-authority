@@ -7,7 +7,7 @@ export default defineConfig({
   outputDir: process.env.VA_RESULTS,
   workers: 4,
   fullyParallel: true,
-  reporter: 'list',
+  reporter: [['list'], ['./edges-reporter.ts']],
   use: { baseURL: `http://localhost:${port}`, browserName: 'chromium' },
   webServer: {
     command: 'node server.mjs',

@@ -210,6 +210,8 @@ export interface Step {
   readonly from: string;
   readonly action: string;
   readonly kind: 'stay' | 'lead' | 'raw';
+  /** The declared outcome the app took, on a lead. */
+  readonly outcome?: string;
   /** The outcome the test named; undefined when it went exploring. */
   readonly named?: string;
   readonly to: string;
@@ -266,10 +268,15 @@ export class App {
     return (await found.count()) > 0 && (await found.first().isVisible());
   }
 
-  private handle<F extends AnyFragment>(fragment: F, within: Page | Locator, shared?: State): Handle<F> {
+  private handle<F extends AnyFragment>(
+    fragment: F,
+    within: Page | Locator,
+    shared?: { state: State; owner: AnyFragment },
+  ): Handle<F> {
     const region = locate(within, fragment.spec.probe).first();
-    const state: State = shared ?? { status: 'live' };
-    const meta: Meta = { fragment, region, state };
+    const state: State = shared?.state ?? { status: 'live' };
+    const owner = shared?.owner ?? fragment;
+    const meta: Meta = { fragment, owner, region, state };
     const self: Record<string | symbol, unknown> = { [META]: meta };
     this.states.set(self, state);
 
@@ -291,7 +298,7 @@ export class App {
     for (const [name, child] of Object.entries((fragment.spec as Spec).uses ?? {})) {
       // A part lives and dies with the fragment that uses it. It is found on the
       // page, not inside the region: a header is beside a form, not in it.
-      self[name] = this.handle(child, this.page, state);
+      self[name] = this.handle(child, this.page, { state, owner });
     }
 
     const actions = Object.entries((fragment.spec as Spec).actions ?? {});
@@ -374,36 +381,50 @@ export class App {
     await declared.act(driver(region), ...rest);
     await settle(this.page, this.signals);
 
-    // Arrival: a declared destination that shows wins over staying, since the
-    // departed region may linger beneath a dialog or during an exit.
+    // Arrival is witnessed from both ends, by one outcome. The destination shows;
+    // what was left is gone, or still shows beneath a cover; and no second
+    // declared outcome shows beside it, so the order of `leads` decides nothing.
     const shown = await this.sense();
     const under = this.covered.get(self);
-    const entries = Object.entries(declared.outcomes).map(
-      ([key, to]) =>
-        [key, to === back ? under?.fragment : typeof to === 'object' && 'cover' in to ? to.cover : to] as const,
-    );
-    const covering = (key: string) => {
+    const { owner } = (self as any)[META] as Meta;
+    const target = (to: Outcomes[string]): AnyFragment | undefined =>
+      to === back ? under?.fragment : typeof to === 'object' && 'cover' in to ? to.cover : (to as AnyFragment);
+    const keys = Object.keys(declared.outcomes);
+    const reached = keys.filter((key) => {
       const to = declared.outcomes[key];
-      return typeof to === 'object' && 'cover' in to;
-    };
-    // Going back needs the cover gone, not only what it covers showing: that showed under it all along.
-    const moved = entries.find(
-      ([key, to]) =>
-        to !== stay &&
-        to !== undefined &&
-        shown.includes((to as AnyFragment).name) &&
-        !(declared.outcomes[key] === back && shown.includes(fragment.name)),
-    );
-    const stayed = entries.find(([, to]) => to === stay);
-    const arrived = moved ?? (stayed !== undefined && shown.includes(fragment.name) ? stayed : undefined);
-    if (arrived === undefined) {
-      throw new Error(
-        `${fragment.name}.${name} declares ${list(entries.map(([key]) => key))}, and the page shows ${list(shown)}`,
-      );
+      const where = to === stay ? undefined : target(to);
+      return where !== undefined && shown.includes(where.name);
+    });
+    if (reached.length > 1) {
+      throw new Error(`${fragment.name}.${name} reached ${reached.join(' and ')} at once; the page shows ${list(shown)}`);
     }
-    const [outcome, to] = arrived;
+    const staying = keys.find((key) => declared.outcomes[key] === stay);
+    const outcome = reached[0] ?? (staying !== undefined && shown.includes(fragment.name) ? staying : undefined);
+    if (outcome === undefined) {
+      throw new Error(`${fragment.name}.${name} declares ${list(keys)}, and the page shows ${list(shown)}`);
+    }
+    const declaredTo = declared.outcomes[outcome];
+    const to = declaredTo === stay ? stay : target(declaredTo)!;
+    const covering = (key: string) => {
+      const each = declared.outcomes[key];
+      return typeof each === 'object' && 'cover' in each;
+    };
+    if (to !== stay) {
+      const left = shown.includes(owner.name);
+      if (declaredTo === back && left) {
+        throw new Error(`${fragment.name}.${name} went back to ${to.name}, and ${owner.name} still shows`);
+      }
+      if (covering(outcome) && !left) {
+        throw new Error(`${fragment.name}.${name} reached ${to.name} over ${owner.name}, and ${owner.name} is gone`);
+      }
+      if (declaredTo !== back && !covering(outcome) && to !== owner && left) {
+        throw new Error(
+          `${fragment.name}.${name} reached ${to.name}, and ${owner.name} still shows; declare it over(${to.name})`,
+        );
+      }
+    }
     const toName = to === stay ? fragment.name : (to as AnyFragment).name;
-    this.journal.push({ from: fragment.name, action: name, kind: 'lead', named, to: toName });
+    this.journal.push({ from: fragment.name, action: name, kind: 'lead', outcome, named, to: toName });
 
     let handle: object;
     if (to === stay) {
@@ -448,6 +469,8 @@ const META = Symbol('meta');
 const NAMED = Symbol('named');
 interface Meta {
   readonly fragment: AnyFragment;
+  /** The fragment whose arrival made this handle: itself, or the one using it as a part. */
+  readonly owner: AnyFragment;
   readonly region: Locator;
   readonly state: State;
 }
@@ -467,4 +490,46 @@ export function fork(a: readonly Step[], b: readonly Step[]): string {
     `a: ${a.slice(at).map(line).join('  ·  ') || '(ended)'}`,
     `b: ${b.slice(at).map(line).join('  ·  ') || '(ended)'}`,
   ].join('\n');
+}
+
+// ── edges: the model as the app's test interface ──
+
+/** Every edge the model declares, from the fragments given to those their outcomes and parts reach. */
+export function edges(roots: readonly AnyFragment[]): string[] {
+  const seen = new Set<AnyFragment>();
+  const found: string[] = [];
+  const visit = (fragment: AnyFragment | undefined) => {
+    if (fragment === undefined || seen.has(fragment)) return;
+    seen.add(fragment);
+    const spec = fragment.spec as Spec;
+    for (const [name, declared] of Object.entries(spec.actions ?? {})) {
+      if (typeof declared === 'function' || declared.kind === 'stays') {
+        found.push(`${fragment.name}.${name}`);
+        continue;
+      }
+      for (const [outcome, to] of Object.entries(declared.outcomes)) {
+        found.push(`${fragment.name}.${name} → ${outcome}`);
+        if (to !== stay && to !== back) visit('cover' in to ? to.cover : to);
+      }
+    }
+    for (const part of Object.values(spec.uses ?? {})) visit(part);
+  };
+  for (const root of roots) visit(root);
+  return found.sort();
+}
+
+/** The edge one step walked, spelled as `edges` spells it; none for a raw step. */
+const edgeOf = (step: Step) =>
+  step.kind === 'raw' ? undefined : step.kind === 'stay' ? `${step.from}.${step.action}` : `${step.from}.${step.action} → ${step.outcome}`;
+
+/** How often the journals walked each declared edge, the edges none walked, and the steps taken around the broker. */
+export function walked(declared: readonly string[], journals: readonly (readonly Step[])[]) {
+  const counts: Record<string, number> = {};
+  let raw = 0;
+  for (const step of journals.flat()) {
+    const edge = edgeOf(step);
+    if (edge === undefined) raw += 1;
+    else counts[edge] = (counts[edge] ?? 0) + 1;
+  }
+  return { walked: counts, unwalked: declared.filter((edge) => counts[edge] === undefined), raw };
 }

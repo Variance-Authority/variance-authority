@@ -651,6 +651,11 @@
   },
   {
     "idiom": "fresh-page",
+    "at": "cases/page-broker-case/src/spec/arrival.spec.ts",
+    "count": 2
+  },
+  {
+    "idiom": "fresh-page",
     "at": "cases/page-broker-case/src/spec/broker.spec.ts",
     "count": 11
   },
