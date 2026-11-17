@@ -5,24 +5,9 @@
  * A session is a flow somebody drove by hand or by script — a page under
  * Playwright, a Node process — and exported as V8 wrote it. It is evidence, not
  * a case: nothing here writes a record, and `select` reads none of it.
- *
- * V8 counts ranges of the text it ran, which after a build is the bundle, not
- * the source. The source is placed through the bundle's map, walked forward:
- * every segment is a generated offset, which takes the count of the innermost
- * V8 range around it, and an original offset, which falls in the innermost
- * function region the record's own cut gives the source. No range is mapped
- * backwards and no line is guessed at: a function ran when any segment of its
- * own code ran, was loaded but not run when every segment of its own code read
- * zero, and is unknown when no segment landed in it — a function a bundler
- * shook out, or one the map gives no position. A script with no map is its own
- * source, as Node's stripped TypeScript is.
- *
- * Regions are cut by {@link sourceCut} under the record's walk, so a function
- * here carries the name, path, lines and digest `covering` reads for it. A
- * source a map names by a URL no file on this machine answers is listed as
- * unplaced and read no further: a path is the file.
  */
 
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { digestString } from '../digest.js';
 import type { WalkMode } from '../instrument/spliced.js';
 import { sourceCut } from './coverage-rows.js';
@@ -113,6 +98,7 @@ export interface SessionsFunction {
   readonly testFiles?: readonly string[];
 }
 
+/** One file any session loaded, with every function the checkout's text cuts it into. */
 export interface SessionsFile {
   readonly file: string;
   readonly functions: readonly SessionsFunction[];
@@ -153,7 +139,7 @@ export function sessionsAgainst(
   for (const module of suites.flat()) recorded.set(module.file, [...(recorded.get(module.file) ?? []), module]);
 
   const files: SessionsFile[] = [];
-  for (const [file, perSession] of [...loaded].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
+  for (const [file, perSession] of [...loaded].sort(([a], [b]) => codeUnitOrder(a, b))) {
     const text = readFile(file) ?? perSession.flat()[0]!.text;
     const cut = sourceCut(text, file, mode);
     if (cut === undefined) continue;
@@ -202,8 +188,12 @@ interface Observed {
 }
 
 /**
- * Every source the scripts map to, cut under `mode`, with each function's
- * state. `readSource` gives a source's text when its map carries none.
+ * Every source the scripts map to, cut under `mode` as the record is, with each
+ * function's state; `readSource` gives a text the map lacks. The map is walked
+ * forward: a segment takes the count of the innermost V8 range around its
+ * generated offset and lands in the innermost function around its original one.
+ * A function ran when any of its segments ran, is unrun when all read zero, and
+ * is unknown when none landed in it. A script with no map is its own source.
  */
 export function sessionSources(
   scripts: readonly SessionScript[],

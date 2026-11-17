@@ -291,6 +291,7 @@ interface CoverageRegion {
   readonly loadedBy?: readonly string[];
 }
 
+/** One module of a suite's record: its text's digest and the blocks it was cut into, each with the test files that entered it. */
 export interface CoverageModule {
   readonly file: string;
   /**
