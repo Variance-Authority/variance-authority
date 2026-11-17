@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { selectingPlugin, selectionPlugins } from './rstest-selection.js';
+import { rootSelection, selectingPlugin, selectionPlugins } from './rstest-selection.js';
 
 const handed = { selection: async () => ({ skip: new Set<string>() }) } as never;
 
@@ -31,6 +31,10 @@ describe('the Rstest selection', () => {
   it('refuses `VARIANCE_AUTHORITY_GRAIN=case` when the configuration loads, not when Rstest plans', () => {
     expect(() => plugins(['run'], { VARIANCE_AUTHORITY_GRAIN: 'case' })).toThrow(/GRAIN=case is not kept under Rstest/);
   });
+
+  it('adds nothing to a `projects` root under watch mode, and says nothing there', () => {
+    expect(rootSelection(handed, '/checkout/coverage.bin', '/checkout', '/checkout', { argv: ['node', 'rstest', 'watch'], env: {} })).toEqual({});
+  });
 });
 
 describe('the configuration a selection hands Rstest', () => {
@@ -38,17 +42,20 @@ describe('the configuration a selection hands Rstest', () => {
   afterAll(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(join(root, 'test'));
   for (const file of ['alpha', 'beta']) writeFileSync(join(root, 'test', `${file}.test.ts`), '');
+  mkdirSync(join(root, 'src'));
+  writeFileSync(join(root, 'src', 'inline.ts'), 'if (import.meta.rstest) {}');
+  writeFileSync(join(root, 'src', 'plain.ts'), '');
 
   /** The configuration Rstest plans with once the plugin has run on `include` under `at`, skipping `skip`, under `argv`. */
-  async function planned(include: string[], skip: string[], argv: string[] = [], at = root) {
-    const config = { root: at, include, exclude: { patterns: [] as string[] } } as {
+  async function planned(include: string[], skip: string[], argv: string[] = [], at = root, more: { includeSource?: string[]; cases?: Set<string> } = {}) {
+    const config = { root: at, include, includeSource: more.includeSource, exclude: { patterns: [] as string[] } } as {
       root: string;
       include: string[];
       exclude: { patterns: string[] };
       passWithNoTests?: boolean;
     };
     let modify: ((config: never) => Promise<void>) | undefined;
-    const selection = async () => ({ whole: new Set(['test/alpha.test.ts', 'test/beta.test.ts']), skip: new Set(skip), notes: [] });
+    const selection = async () => ({ whole: new Set(['test/alpha.test.ts', 'test/beta.test.ts']), skip: new Set(skip), notes: [], ...(more.cases === undefined ? {} : { cases: more.cases }) });
     selectingPlugin(selection, at, ['node', 'rstest', 'run', ...argv]).setup({
       useExposed: () => ({ modifyRstestConfig: (callback) => void (modify = callback as never) }),
     });
@@ -81,5 +88,16 @@ describe('the configuration a selection hands Rstest', () => {
     const config = await planned(['C:/checkout/virtual/v.test.ts'], ['virtual/v.test.ts'], [], 'C:/checkout');
 
     expect(config).toMatchObject({ include: [], passWithNoTests: true });
+  });
+
+  it('counts a source file holding in-source tests as Rstest plans it, and leaves out the one holding none', async () => {
+    const config = await planned(['test/*.test.ts'], ['src/inline.ts'], [], root, { includeSource: ['src/*.ts'] });
+
+    expect(config.exclude.patterns).toHaveLength(1);
+    expect(config.exclude.patterns[0]).toContain('inline.ts');
+  });
+
+  it('refuses a selection that names cases when Rstest plans, since a kept file runs whole', async () => {
+    await expect(planned(['test/*.test.ts'], [], [], root, { cases: new Set(['test/alpha.test.ts > one']) })).rejects.toThrow(/GRAIN=case is not kept under Rstest/);
   });
 });
