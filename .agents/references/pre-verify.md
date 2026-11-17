@@ -71,8 +71,8 @@ The loop is
 VARIANCE_AUTHORITY_BUDGET=${VARIANCE_AUTHORITY_BUDGET:-15} vitest run "$@" &&
 node tools/needs.mjs`. That is the lint `verify:near` starts with, the
 compiler, then the changed files' own tests — a test whose own file, setup or
-configuration changed, or one that imports a changed file of its own package
-directly — measured from the text each test last ran over, and cut to 15 s of
+configuration changed, or one in the changed file's package that enters it, by
+importing it with no other module it imports doing so too — measured from the text each test last ran over, and cut to 15 s of
 recorded test time. Containment orders the cut: a change to a file is checked
 first by its own tests, shortest first, and the first file that
 would pass the ceiling ends the run. A file the record holds no time for counts

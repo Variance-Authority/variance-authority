@@ -283,6 +283,10 @@ The comparison can also answer in three other ways:
   group does from what that one run happened to do, and it prints that under its
   first line. Record the test again. The runs you made earlier still count.
 
+What the browser said of its frames, the [paint, layout and long-frame
+notes](#what-the-browser-painted-held-and-moved), is left out of every
+comparison: its timings and its place change from run to run of the same code.
+
 ### Compare the runs the record kept
 
 You do not have to record a story to start. The coverage record keeps up to 16
@@ -719,6 +723,45 @@ The note counts; it does not show the markup, or say which component made the
 change. For the React commits behind it, use [Eyes](eyes.md), which writes each
 commit under its step with the components that rendered. A test run without a
 document has no `page` note.
+
+## What the browser painted, held and moved
+
+In a page Chromium runs, under Playwright, Storybook or the browser modes of
+Vitest and Rstest, the story also says what the browser reported of its
+frames, after the step it followed:
+
+```text
+test line opens
+  first paint
+  largest paint: h1.title
+test line holds
+  handed item='cake'
+  console.log chose cake
+  held a frame (121 ms)
+test line pushes
+  page +1 −0 nodes, 0 attributes, 0 text
+  layout moved 0.25
+```
+
+- **`first paint`** is when the browser first drew the page.
+- **`largest paint: <element>`** is each time a larger element finished
+  drawing, named by its tag and its id or first class. It says `largest paint`
+  alone when the element is gone.
+- **`held a frame (N ms)`** is a frame that took more than 50 ms, placed after
+  the script that held it longest: a handler that blocked the page.
+- **`layout moved <score>`** is a move of content already on the page, scored
+  as the browser scores layout shift. A move right after a click or a key is
+  told too.
+
+The browser reports each of these after the frame ends, so each is placed by
+the time the browser gives, after the step that was running then. Only a
+report the browser delivers after that line's story was already read, at the
+next statement, is told on the next line instead.
+A browser that reports none of these types tells none of them, and one that
+reports some names the rest once, as `unseen here: long-animation-frame`.
+
+These notes are for reading. Their durations, scores and the line they land on
+change between runs of the same code, so `--compare` leaves them out.
 
 ## What a story does not show
 

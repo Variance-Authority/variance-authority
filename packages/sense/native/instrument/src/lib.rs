@@ -141,6 +141,10 @@ pub mod native {
 }
 
 #[cfg(test)]
+#[path = "corpus_tests.rs"]
+mod corpus;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

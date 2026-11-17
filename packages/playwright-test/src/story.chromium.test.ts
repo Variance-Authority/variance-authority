@@ -1,71 +1,25 @@
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-import { promisify } from 'node:util';
-import { chromium } from '@playwright/test';
+import { readdir, readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { moduleId } from '@variance-authority/sense/journal';
-import { caseIndexOf, decodeExecutionIndex, openSetColumns, recordedAttemptsAt } from '@variance-authority/sense/test-selection';
+import { caseIndexOf, decodeExecutionIndex, openSetColumns } from '@variance-authority/sense/test-selection';
 import { afterAll, describe, expect, it } from 'vitest';
 // A case's lines are read by sense's selection, which publishes no reader of
 // them, so this reads them the way it does.
 import { lineAt, linesOf } from '../../sense/src/test-selection/case-lines.js';
+import storyFrames from '../../sense/src/instrument/story-frames.cjs';
+import { BROWSER_AVAILABLE, removeRuns } from './runs.fixture.js';
+import { at, fixture, runWith, stories, type Story } from './story.fixture.js';
 
 // A real Playwright run over a page an instrumented build serves, recorded
-// through `withTestSelection` with `VARIANCE_AUTHORITY_STORY=1`.
-const here = dirname(fileURLToPath(import.meta.url));
-const repository = resolve(here, '../../..');
-const fixture = resolve(here, '../test/fixtures/story');
-const at = (path: string) => `packages/playwright-test/test/fixtures/story/${path}`;
-const directories: string[] = [];
-// A reading is read back by `variance story`, which reads it with sense's
-// decoder; sense publishes none, so this requires the one it builds.
-const stories = createRequire(import.meta.url)(resolve(repository, 'packages/sense/dist/story/format.cjs')) as {
-  decodeStory(bytes: Uint8Array): {
-    file: string; name: string; stopped?: boolean; rows: [string, number][]; visits: Int32Array; notes: [number, string][]; lines: [number, number, number, 1?][];
-  };
-};
-
-const BROWSER_AVAILABLE = ((): boolean => {
-  try {
-    return existsSync(chromium.executablePath());
-  } catch {
-    return false;
-  }
-})();
+// through `withTestSelection` with `VARIANCE_AUTHORITY_STORY=1`. What a retried
+// case leaves of each attempt is `story-attempts.chromium.test.ts`.
 
 if (!BROWSER_AVAILABLE) {
   console.warn('\npackages/playwright-test story: skipped.\n  no browser — npx playwright install chromium\n');
 }
 
-afterAll(async () => {
-  await Promise.all(directories.map((directory) => rm(directory, { recursive: true, force: true })));
-});
-
-/** One run of the fixture with `env`; the directory its record went to. */
-async function runWith(env: Readonly<Record<string, string>>): Promise<string> {
-  const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-playwright-story-'));
-  directories.push(directory);
-  await promisify(execFile)(
-    process.execPath,
-    [resolve(repository, 'node_modules/@playwright/test/cli.js'), 'test', '--config', resolve(fixture, 'playwright.config.mjs')],
-    {
-      cwd: fixture,
-      env: {
-        ...process.env,
-        ...env,
-        VARIANCE_AUTHORITY_COVERAGE: resolve(directory, 'coverage.bin'),
-        VARIANCE_AUTHORITY_CACHE: resolve(directory, 'cache'),
-      },
-    },
-  );
-  return directory;
-}
-
-type Story = ReturnType<typeof stories.decodeStory>;
+afterAll(removeRuns);
 
 /** The stories one run with stories on wrote, by case name; one run serves every case below. */
 let written: Promise<{ readonly directory: string; readonly byName: ReadonlyMap<string, Story> }> | undefined;
@@ -98,9 +52,10 @@ async function routeOf(directory: string, story: Story): Promise<string[]> {
  * What `story` told, in order: each statement's line where it began, by the
  * name the spec's comment gives it, and what the page printed and its regions were
  * handed, where it happened. A line counts the notes said before it, as a
- * route reads it.
+ * route reads it. What the browser reported of its frames is left out unless
+ * `frames` asks for it: when a paint is reported is the browser's to say.
  */
-async function toldIn(spec: string, story: Story): Promise<string[]> {
+async function toldIn(spec: string, story: Story, frames = false): Promise<string[]> {
   const text = (await readFile(resolve(fixture, 'tests', spec), 'utf8')).split('\n');
   // A statement is a line of code that ends in a comment, not a comment line.
   const named = new Map(
@@ -113,6 +68,7 @@ async function toldIn(spec: string, story: Story): Promise<string[]> {
     ...story.lines.map(([, number, said]) => [said, 0, `test line ${named.get(number) ?? number}`] as const),
     ...story.notes.map(([, note], index) => [index, 1, note] as const),
   ]
+    .filter(([, kind, told]) => kind === 0 || frames || !storyFrames.fromFrames(told))
     .sort((a, b) => a[0] - b[0] || a[1] - b[1])
     .map(([, , told]) => told);
 }
@@ -213,6 +169,34 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     ]);
   }, 120_000);
 
+  it('notes what the browser painted, held and moved after the step it followed', async () => {
+    const { byName } = await storiesWritten();
+    const story = byName.get('paints, holds a frame and moves its layout')!;
+
+    expect(story.stopped).toBe(false);
+    // Each line runs two statements, an act and a wait for the browser's report
+    // of it, so it is cut twice; which cut a report lands after is the
+    // browser's to say. A duration and a score are too: read as their shape.
+    const lines = (told: string[]) => told.filter((note) => note.startsWith('test line '));
+    const told = (await toldIn('frames.spec.ts', story, true))
+      // A line's second cut is not told again.
+      .filter((note, index, all) => !note.startsWith('test line ') || lines(all.slice(0, index)).at(-1) !== note)
+      .map((note) => note.replace(/^held a frame \(\d+ ms\)$/, 'held a frame (N ms)').replace(/^layout moved 0\.\d\d$/, 'layout moved 0.NN'));
+    expect(told).toEqual([
+      'test line opens',
+      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'first paint',
+      'largest paint: h1.title',
+      'test line holds',
+      "handed item='cake'",
+      'console.log chose cake',
+      'held a frame (N ms)',
+      'test line pushes',
+      'page +1 −0 nodes, 0 attributes, 0 text',
+      'layout moved 0.NN',
+    ]);
+  }, 120_000);
+
   it('records what a replaced document entered at the statement that replaced it', async () => {
     const { directory } = await storiesWritten();
     const cases = (await caseIndexOf(resolve(directory, 'coverage.bin')))!;
@@ -232,35 +216,6 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     };
 
     expect({ choose: reached('choose'), pay: reached('pay') }).toEqual({ choose: { line: named('leaves'), ambient: false }, pay: { line: named('pays'), ambient: false } });
-  }, 120_000);
-
-  it('writes a reading for each attempt of a retried case, and the failed one stops short of paying', async () => {
-    const directory = await runWith({ VARIANCE_AUTHORITY_STORY: '1', FIXTURE_RETRIED: '1' });
-    const files = await readdir(resolve(directory, 'coverage.stories'));
-    const readings = await Promise.all(files.map(async (name) => stories.decodeStory(await readFile(resolve(directory, 'coverage.stories', name)))));
-    expect(readings.map(({ name, stopped }) => [name, stopped]).sort()).toEqual([
-      ['pays on its second attempt', false],
-      ['pays on its second attempt', true],
-    ]);
-    const [failed, passed] = [readings.find(({ stopped }) => stopped)!, readings.find(({ stopped }) => !stopped)!];
-    expect(failed.visits.length).toBeLessThan(passed.visits.length);
-  }, 120_000);
-
-  it('keeps how each attempt of that case ended, as Playwright said it, beside the one outcome it reported', async () => {
-    const coverageFile = resolve(await runWith({ FIXTURE_RETRIED: '1' }), 'coverage.bin');
-    const [retried] = decodeExecutionIndex((await caseIndexOf(coverageFile))!).tests;
-    const attempts = recordedAttemptsAt(coverageFile);
-    const source = (await readFile(resolve(fixture, 'tests/retried.spec.ts'), 'utf8')).split('\n');
-    expect(attempts?.map(({ duration: _duration, message: _message, ...rest }) => rest)).toEqual([
-      { case: retried!.id, attempt: 1, ended: 'failed', frame: `${at('tests/retried.spec.ts')}:${source.findIndex((text) => text.includes('toBe(1)')) + 1}` },
-      { case: retried!.id, attempt: 2, ended: 'passed' },
-    ]);
-    expect(attempts![0]!.message).toContain('toBe');
-    for (const attempt of attempts!) expect(Number.isInteger(attempt.duration) && attempt.duration! >= 0).toBe(true);
-    // What Playwright said of the case is what it was: it finished, in a time, under the runner's limit.
-    expect(retried).toMatchObject({ name: 'pays on its second attempt', stopped: false });
-    expect(retried!.duration).toBeGreaterThanOrEqual(0);
-    expect(retried!.limit).toBeGreaterThan(0);
   }, 120_000);
 
   it('writes none when the run did not ask', async () => {

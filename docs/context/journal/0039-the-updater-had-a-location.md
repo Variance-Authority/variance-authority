@@ -8,7 +8,8 @@ source files executed, while the commit tap could say that `DrawingPanel`,
 the commit. `PerformedWork` was the wrong evidence for that question: collateral
 rendering is work, not an update origin.
 
-Chippy supplied the useful precedent. Its React probe reads the renderer root's
+[Chippy](https://github.com/atlassian-labs/chippy) supplied the useful
+precedent. Its React probe reads the renderer root's
 `memoizedUpdaters`, and its inspection tools treat Fiber traversal as a reusable
 diagnostic capability. The mechanism transferred; its topology did not. Variance
 Authority already had a pre-navigation Eyes agent, authored AAA chronology, an

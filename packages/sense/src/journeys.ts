@@ -18,17 +18,18 @@ import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './addon.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeTestComposition } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeLinesThen, NativeRanModule, NativeRanRegion, NativeTestComposition, NativeTestRan } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
+import { blocksChargedAt } from './test-selection/blocks-around.js';
 import { nearestTestCoverage } from './test-selection/record-location.js';
 import { keepsCases } from './test-selection/case-record.js';
 import { askCoverageFile } from './test-selection/coverage-file.js';
 import { defaultInclude, insideRoot } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
 
-function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition'>(name: Name) {
+function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition' | 'testRan' | 'linesThen'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -330,12 +331,89 @@ export interface SuiteTestComposition {
  * system's root.
  */
 export function testCompositions(root: string, file: string, name?: string): readonly SuiteTestComposition[] {
+  return ofTest<NativeTestComposition>(root, file, uncomposed, (recording, path) => entry('testComposition')(recording, path, name ?? null)).map(
+    ({ answer, ...named }) => ({ ...named, composition: answer }),
+  );
+}
+
+/** What one suite's recording says one test ran, or why the suite cannot say. */
+export interface SuiteTestRan {
+  readonly suite?: string;
+  readonly ran: NativeTestRan;
+  /** The commit the recording ran at, whose lines its regions are spans of, when it names one. */
+  readonly commit?: string;
+}
+
+/**
+ * Which regions the test declared in `file` entered, and which it passed by,
+ * in every module it entered, asked of every declared suite that has a
+ * recording. `name` chooses among several tests of the file as it does for
+ * {@link testCompositions}. A module the test entered nothing of is left out.
+ */
+export function testsRan(root: string, file: string, name?: string): readonly SuiteTestRan[] {
+  return ofTest<Omit<SuiteTestRan, 'suite'>>(
+    root,
+    file,
+    (notRecorded) => ({ ran: { notRecorded, suite: 0, modules: [] } }),
+    (recording, path) => {
+      const { commit } = commitOf(recording);
+      return { ran: entry('testRan')(recording, path, name ?? null), ...(commit == null ? {} : { commit }) };
+    },
+  ).map(({ answer, ...named }) => ({ ...named, ...answer }));
+}
+
+/**
+ * Where each of `lines` of `file`, as the checkout under `root` has it, stood
+ * at `commit`: `null` for a line written since, which no recording made there
+ * can have run.
+ */
+export function linesThen(root: string, commit: string, file: string, lines: readonly number[]): NativeLinesThen {
+  return entry('linesThen')(root, commit, file, [...lines]);
+}
+
+/**
+ * The outermost region of `module` holding `line` that the test did not enter,
+ * or `undefined` when it ran the line: when an innermost region holding it was
+ * entered, or none holds it. `partly` says the rest of the line ran.
+ */
+export function passedAt(module: NativeRanModule, line: number): { readonly region: NativeRanRegion; readonly partly: boolean } | undefined {
+  const holding = module.regions.filter((region) => region.kind !== 'module' && region.source && region.line <= line && line <= region.end);
+  const span = (region: NativeRanRegion): number => region.end - region.line;
+  // Lines cannot nest two regions of one span: a function holds a branch of its
+  // own on it, its one-line guard; two functions or two branches sit side by side.
+  const holds = (outer: NativeRanRegion) => (inner: NativeRanRegion): boolean =>
+    outer.line <= inner.line && inner.end <= outer.end &&
+    (span(inner) < span(outer) || (outer.kind === 'function' && inner.kind !== 'function' && inner.function === outer.function));
+  const innermost = holding.filter((region) => !holding.some(holds(region)));
+  if (innermost.length === 0 || innermost.some((region) => region.entered)) return undefined;
+  // `covering --line` charges a line that opens a region to the enclosing one
+  // too: safe for choosing tests, wrong here, so it only says the rest ran.
+  const charged = blocksChargedAt(
+    module.regions.map((region) => ({ region, kind: region.kind, startLine: region.line, endLine: region.end, source: region.source })),
+    line,
+  );
+  const region = holding
+    .filter((region) => !region.entered)
+    .reduce((best, region) => (span(region) > span(best) ? region : best));
+  return { region, partly: charged.some(({ region }) => region.entered) };
+}
+
+/**
+ * One answer per declared suite that has a recording, about the test file
+ * `file`: read from the recording, or `refuse`d when `file` is outside the
+ * checkout and no recording can hold it.
+ */
+function ofTest<T>(
+  root: string,
+  file: string,
+  refuse: (notRecorded: string) => T,
+  read: (recording: string, path: string) => T,
+): readonly { readonly suite?: string; readonly answer: T }[] {
   const asked = checkoutPath(root, file);
   return recordings(root).flatMap(({ suite, recording }) => {
     if (recording === undefined) return [];
     const named = suite === undefined ? {} : { suite };
-    if ('outside' in asked) return [{ ...named, composition: uncomposed(asked.outside) }];
-    return [{ ...named, composition: entry('testComposition')(recording, asked.path, name ?? null) }];
+    return [{ ...named, answer: 'outside' in asked ? refuse(asked.outside) : read(recording, asked.path) }];
   });
 }
 

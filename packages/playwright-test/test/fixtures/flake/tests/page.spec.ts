@@ -41,7 +41,7 @@ test('clicks', async ({ page: tab }) => {
   await tab.setContent(page(60_000)); // opens
   if (process.env['CLICK_FIRST'] !== '1') await tab.locator('#go[data-ready]').waitFor(); // waits
   await tab.click('#go'); // clicks
-  await expect(tab.locator('#done')).toHaveText('done', { timeout: 2_500 }); // checks
+  await expect(tab.locator('#done')).toHaveText('done', { timeout: 1_500 }); // checks
 });
 
 // Throws as `THROW` says, and a timer lands under whichever statement is running.

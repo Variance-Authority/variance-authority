@@ -35,6 +35,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import storyFrames from '../instrument/story-frames.cjs';
 import { inCheckout, placesOf, regionsOfStory, type Place, type Region, type StoryEntry } from './read.js';
 import stories from './format.cjs';
 import { steady } from './steady.js';
@@ -252,6 +253,13 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
     clock += 1;
   };
   const hear = (said: string): void => {
+    // What the browser reports of its frames is placed and spelled by its
+    // timing, so it is not compared; it keeps its tick, which the lines and
+    // parts cut after it count.
+    if (storyFrames.fromFrames(said)) {
+      clock += 1;
+      return;
+    }
     const text = acrossRuns(said);
     times.set(text, (times.get(text) ?? 0) + 1);
     if (!read.first.has(`s${text}`)) read.first.set(`s${text}`, clock);

@@ -75,6 +75,8 @@ by guess.
   moved since `fiber.alternate`, a mount, or a Suspense boundary's retry
 - `packages/sense/src/instrument/story-listen.cts` — what a realm announces and
   prints, put on its tap as notes
+- `packages/sense/src/instrument/story-frames.cts` — what a browser reports of
+  its frames, placed on the tap by the time it gives
 - `packages/sense/src/test-selection/journey-story.ts` — a live head's tap,
   which tells each journey's story once and lets it go
 - `packages/sense/src/test-selection/collectors.cts` — where a realm installs

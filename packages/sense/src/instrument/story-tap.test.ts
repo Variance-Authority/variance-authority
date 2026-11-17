@@ -259,6 +259,75 @@ describe('what a case says on the way', () => {
     expect(tap.read().lines).toEqual([[0, 'case', 8, 0, 1]]);
   });
 
+  it('places what is reported late after the last turn that began before it happened', async () => {
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const { run } = load(tap.root);
+    let now = 0;
+    tap.stampWith(() => now);
+    tap.reset();
+
+    now = 10;
+    tap.root.c(3);
+    now = 20;
+    run(0);
+    await Promise.resolve();
+    now = 40;
+    tap.root.c(4);
+    now = 50;
+    run(1);
+    await Promise.resolve();
+    tap.noteAt(30, 'painted between the lines');
+    tap.noteAt(60, 'painted after all of it');
+
+    // Each line where it falls among the notes, as a story reads them.
+    const { lines, notes } = tap.read();
+    const told = [
+      ...lines.map(([, , line, said]) => [said, 0, `line ${line}`] as const),
+      ...notes.map(([, , text], index) => [index, 1, text] as const),
+    ].sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, , text]) => text);
+    expect(told).toEqual(['line 3', 'handed n=0', 'handed n=0', 'painted between the lines', 'line 4', 'handed n=1', 'handed n=1', 'painted after all of it']);
+  });
+
+  it('places what is reported late under the line it happened in, when no visit came between two lines', () => {
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    let now = 0;
+    tap.stampWith(() => now);
+    tap.reset();
+
+    now = 10;
+    tap.root.c(3);
+    tap.note('said under line 3');
+    now = 40;
+    tap.root.c(4);
+    tap.note('said under line 4');
+    tap.noteAt(30, 'painted between the lines');
+
+    const { lines, notes } = tap.read();
+    const told = [
+      ...lines.map(([, , line, said]) => [said, 0, `line ${line}`] as const),
+      ...notes.map(([, , text], index) => [index, 1, text] as const),
+    ].sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, , text]) => text);
+    expect(told).toEqual(['line 3', 'said under line 3', 'painted between the lines', 'line 4', 'said under line 4']);
+    expect(notes.map(([at]) => at)).toEqual([0, 0, 0]);
+  });
+
+  it('never crowds out what the code said, however often the browser reports a frame', () => {
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    tap.stampWith(() => 0);
+    tap.reset();
+    for (let report = 0; report < storyTap.NOTE_LIMIT + 2; report += 1) tap.noteAt(0, 'layout moved 0.10');
+    tap.note('console.error it broke');
+
+    expect(tap.read().notes.at(-1)?.[2]).toBe('console.error it broke');
+    expect(tap.read()).toMatchObject({ unnoted: 2 });
+  });
+
   it('is counted, not kept, past the limit, and starts again with the tape', () => {
     const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));

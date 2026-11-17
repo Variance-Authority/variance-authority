@@ -26,10 +26,10 @@ const IDLE = 'packages/b/src/idle.test.ts';
 const WHOLE = [EDITED, FAR, GHOST, IDLE, OTHER, OWN, UNTIMED, USES];
 const DISTANCES: readonly TestDistance[] = [
   { test: EDITED, bearing: 'precondition', hops: 0, from: EDITED },
-  { test: OWN, bearing: 'direct', hops: 1, from: CHANGED },
-  { test: OTHER, bearing: 'direct', hops: 1, from: CHANGED },
-  { test: UNTIMED, bearing: 'direct', hops: 1, from: CHANGED },
-  { test: USES, bearing: 'direct', hops: 1, from: CHANGED },
+  { test: OWN, bearing: 'direct', hops: 1, from: CHANGED, enters: [CHANGED] },
+  { test: OTHER, bearing: 'direct', hops: 1, from: CHANGED, enters: [CHANGED] },
+  { test: UNTIMED, bearing: 'direct', hops: 1, from: CHANGED, enters: [CHANGED] },
+  { test: USES, bearing: 'direct', hops: 1, from: CHANGED, enters: [CHANGED] },
   { test: FAR, bearing: 'transitive', hops: 2, from: CHANGED },
   { test: GHOST, bearing: 'unexplained' },
 ];

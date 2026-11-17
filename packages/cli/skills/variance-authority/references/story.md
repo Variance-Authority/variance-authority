@@ -191,6 +191,10 @@ The answer prints a key for its marks. What the key leaves out:
   header for every test that goes through it when it loaded with the file. One ref is one object everywhere in
   the run: the same ref at two steps is the same value handed on. Lines
   emitted before the first step are in the header.
+- In a Chromium page, `» first paint`, `» largest paint: h1.title`, `» held a
+  frame (121 ms)` and `» layout moved 0.25` are what the browser reported of
+  its frames, after the step running when it happened; one delivered after
+  that line was read lands on the next line. `--compare` leaves them out.
 - `loaded N files` is modules loaded one inside another. `… steps 1-2 left out`
   is what this part leaves out; ask `--around` a step at its edge to read
   further.

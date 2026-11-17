@@ -128,6 +128,32 @@ describe('a leg read from a real record and a real graph', () => {
     expect([...asked.skip].sort()).toEqual([FAR, GHOST, IDLE]);
   });
 
+  // `BOTH` imports the widget, and imports the caller that imports it too: it
+  // is written for the caller, and loads the widget beside it.
+  it('runs a test that imports the changed file beside a module of its own that imports it as an importer, not as the file\'s own test', async () => {
+    const BOTH = 'test/both.test.ts';
+    const { root, head } = checkout({ [BOTH]: "import { caller } from '../src/caller';\nimport { widget } from '../src/widget';\ncaller();\nwidget();\n" });
+    const recorded = snapshot(head);
+    await writeTestCoverage(testCoverageFile(root), {
+      ...recorded,
+      tests: [...recorded.tests, { file: BOTH, complete: true, preconditions: [] }].map((test) => ({ ...test, duration: 1_000 })),
+      modules: [
+        moduleOf('src/widget.ts', WIDGET, 3, [BOTH, FAR, GHOST, MID, NEAR], 'widget'),
+        moduleOf('src/caller.ts', CALLER, 2, [BOTH, FAR, MID]),
+        moduleOf('src/outer.ts', OUTER, 2, [FAR]),
+      ],
+    });
+    writeFileSync(join(root, 'src/widget.ts'), WIDGET.replace("return 'a';", "return 'z';"));
+    process.chdir(root);
+    await indexOutput({ cwd: root });
+
+    const own = await selectSuite({ root, budget: 15 });
+    const asked = await selectSuite({ root, budget: 15, atDistance: { from: 0, to: 2, by: 'environment' } });
+
+    expect([...own.skip].sort()).toEqual([BOTH, FAR, GHOST, IDLE, MID]);
+    expect([...asked.skip].sort()).toEqual([FAR, GHOST, IDLE]);
+  });
+
   it('carries `--at-distance` from the command line to the count', () => {
     expect(parseArgs(['shards', '--setup', '1', '--since', 'main', '--collected', 'files.txt', '--at-distance', '0-2']))
       .toMatchObject({ atDistance: '0-2' });

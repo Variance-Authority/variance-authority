@@ -15,6 +15,7 @@
  * runner's to say, and a runner that drains between cases says it exactly.
  */
 
+import storyFrames from '../instrument/story-frames.cjs';
 import storyListen from '../instrument/story-listen.cjs';
 import storyTap from '../instrument/story-tap.cjs';
 import caseOwner from '../test-selection/case-owner.cjs';
@@ -33,6 +34,7 @@ const NOTE_LIMIT = ${storyTap.NOTE_LIMIT};
 const NOTE_LENGTH = ${storyTap.NOTE_LENGTH};
 const createTap = (${storyTap.createTap.toString()});
 const watchPage = (${storyListen.watchPage.toString()});
+const watchFrames = (${storyFrames.watchFrames.toString()});
 const NOTE = Symbol.for('variance-authority.story.note');
 const realm = globalThis;
 if (realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] !== undefined) return;
@@ -44,12 +46,14 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
   let turn = () => {};
   watchPage({ note: (text) => tap.note(text), drainWith: (given) => { tap.drainWith(given); turn = given; } }, realm);
   realm[NOTE] = (text) => tap.note(String(text));
+  const frames = watchFrames(tap, realm);
   // The runner takes a case's tape after its hooks and before the next case:
   // settled first, so the last line hears what it changed. A runner that drains
   // before each statement says whether the next one is a test line.
   const take = (opens) => {
       if (opens === true) turn(true);
       else tap.settle();
+      frames();
       const read = tap.read();
       const notes = read.notes.map(([at, , text]) => [at, text]);
       const lines = read.lines.map(([at, , line, said, hook]) => (hook === 1 ? [at, line, said, 1] : [at, line, said]));
