@@ -1,6 +1,7 @@
 /**
  * The segments of a source map's `mappings`, decoded into the fields a line
- * lookup needs. `sourceLines` in `source-lines.ts` is the only reader; the
+ * lookup needs. `sourceLines` in `source-lines.ts` reads them by line, and
+ * `session.ts` by offset, which is what the original column is kept for; the
  * digits are `cut-map.ts`'s as well, and {@link shifted} moves a map past text
  * inserted on one of its lines.
  */
@@ -9,6 +10,8 @@ export interface Segment {
   readonly column: number;
   readonly source: number;
   readonly line: number;
+  /** The original column, zero-based, in UTF-16 code units as the format counts them. */
+  readonly original: number;
   /**
    * Opens its generated line with the origin the segment before it ended on:
    * the statement above continuing, not something written here.
@@ -56,8 +59,8 @@ export function decode(mappings: string): readonly (readonly Segment[])[] {
     source += second.value;
     const third = vlq(mappings, second.next);
     line += third.value;
-    // The original column. A diff's unit is the line, so it only tells a
-    // carried origin from a new one on the same line.
+    // The original column. A diff's unit is the line, so a line lookup reads
+    // it only to tell a carried origin from a new one on the same line.
     const fourth = vlq(mappings, third.next);
     original += fourth.value;
     index = fourth.next;
@@ -70,7 +73,7 @@ export function decode(mappings: string): readonly (readonly Segment[])[] {
       previous.line === line &&
       previous.original === original;
     previous = { source, line, original };
-    segments.push({ column, source, line, carried });
+    segments.push({ column, source, line, original, carried });
   }
 
   lines.push(segments);
