@@ -219,7 +219,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   let cutAt: number[] = [];
   let turning = false;
 
-  // Made only when live: a page's tap is this function's source alone, without the module.
+  // Made only when live; a page sent this function's source is sent `storyParts` beside it.
   const parts = live ? storyParts.createParts(engine, limit, { ids: rowIds, bases: rowBases }) : undefined;
 
   // Every object a region handed over, by identity, for as long as the realm

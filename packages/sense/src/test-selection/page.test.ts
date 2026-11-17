@@ -222,20 +222,20 @@ describe('a page built to tell its story', () => {
   const STORY = { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, held: [], rows: { ids: [RAN.id], counts: [2], bases: [0] } };
   const QUIET = { ...STORY, tape: [], taped: 0, visits: 0 };
 
-  /** A teller that tells what it was given since it last told, as `told <execution>`. */
+  /** A teller that tells what a drain ran since it last told, as `told <execution>`; `drain` hands it each drain's story. */
   function teller() {
     let pending = 0;
-    const told: string[] = [];
     vi.stubGlobal(TELLER_GLOBAL, {
-      add: (story: typeof STORY) => void (pending += story.visits),
       tell: (journey: string) => {
         if (pending === 0) return undefined;
         pending = 0;
-        told.push(journey);
         return `told ${journey}`;
       },
     });
-    return told;
+    return (story: typeof STORY) => {
+      pending += story.visits;
+      return { instrumentation: 'regions', modules: story.visits === 0 ? [] : [RAN], story };
+    };
   }
 
   /** Each account sent with a story, as `[execution, scope, story, modules]`. */
@@ -247,8 +247,8 @@ describe('a page built to tell its story', () => {
 
   it('tells an execution its story on its account when a click ends it, and the last one as the page leaves', () => {
     const page = standIn({ beacon: () => false });
-    teller();
-    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [RAN], story: STORY }) });
+    const ran = teller();
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ran(STORY) });
     reportPage(WATCHER);
     const loaded = page.jar.get(JOURNEY_COOKIE);
     page.on.get('click')!();
@@ -263,14 +263,9 @@ describe('a page built to tell its story', () => {
 
   it('tells an execution once it goes quiet, and what it ran after that as another telling', () => {
     const page = standIn({ beacon: () => false });
-    teller();
+    const ran = teller();
     const drains = [STORY, QUIET, STORY, QUIET];
-    vi.stubGlobal(EXECUTION_GLOBAL, {
-      drain: () => {
-        const story = drains.shift() ?? QUIET;
-        return { instrumentation: 'regions', modules: story.visits === 0 ? [] : [RAN], story };
-      },
-    });
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ran(drains.shift() ?? QUIET) });
     reportPage(WATCHER);
     const loaded = page.jar.get(JOURNEY_COOKIE);
     vi.advanceTimersByTime(500);

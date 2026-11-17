@@ -115,7 +115,7 @@ describe('the collector a build asked for stories serves', async () => {
     vi.stubEnv('VARIANCE_AUTHORITY_STORY', '1');
     const served = page(await built.testSelectionProbes().load(COLLECTOR) as string);
     expect(served.story).toMatchObject({ visits: 0, notes: [] });
-    expect(served.teller).toMatchObject({ add: expect.any(Function), tell: expect.any(Function) });
+    expect(served.teller).toMatchObject({ tell: expect.any(Function) });
   });
 
   it('serves the collector alone without it', () => {

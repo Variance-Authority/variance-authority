@@ -242,6 +242,6 @@ describe('the collector the probes loader serves a build asked for stories', asy
     const realm: Record<string, unknown> = { document: {}, console: { log: () => {} }, TextEncoder, btoa };
     runInNewContext(code!, realm);
     expect((realm[EXECUTION_GLOBAL] as ExecutionCollector).drain().story).toMatchObject({ visits: 0, notes: [] });
-    expect(realm[TELLER_GLOBAL]).toMatchObject({ add: expect.any(Function), tell: expect.any(Function) });
+    expect(realm[TELLER_GLOBAL]).toMatchObject({ tell: expect.any(Function) });
   });
 });

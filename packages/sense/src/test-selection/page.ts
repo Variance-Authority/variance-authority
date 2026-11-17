@@ -13,15 +13,13 @@
  */
 import { JOURNEY_COOKIE, RETURN_COOKIE, channelFrom, channelTo } from '@variance-authority/wire';
 import { DRIVEN_GLOBAL, EXECUTION_GLOBAL, TELLER_GLOBAL } from './execution-global.js';
-import type { PageStory } from '../story/page-story.js';
 import type { ExecutedModule, ExecutionCollector } from './probes.js';
 import type { JourneyAccount } from './stitch.js';
 
 // compass: variance-authority.reach.journey
 
-/** What a build asked for stories leaves beside the collector: it is handed every drain, and tells an execution's story since it last told. */
+/** What a build asked for stories leaves beside the collector: it tells an execution's story since it last told. */
 interface Teller {
-  add(story: PageStory): void;
   tell(journey: string): string | undefined;
 }
 
@@ -104,9 +102,7 @@ export function reportPage(watcher: string | undefined): void {
     const journal = (browser[EXECUTION_GLOBAL] as ExecutionCollector | undefined)?.drain();
     if (journal === undefined) return;
     const teller = browser[TELLER_GLOBAL] as Teller | undefined;
-    if (journal.story !== undefined) teller?.add(journal.story);
-    const quiet = journal.modules.length === 0 && (journal.story === undefined || (journal.story.visits === 0 && journal.story.notes.length === 0));
-    const story = ended || quiet ? teller?.tell(journey) : undefined;
+    const story = ended || journal.modules.length === 0 ? teller?.tell(journey) : undefined;
     if (journal.modules.length === 0 && story === undefined) return;
     // A beacon and not the wire's `report`: a JSON `fetch` to another origin is
     // preflighted, which the watcher does not answer, and it dies with the page.

@@ -203,5 +203,5 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
   };
 }
 
-// The constants and helpers `createParts` closes over, for a page that is sent its source: see `story/page-told.ts`.
+// The constants and helpers `createParts` closes over, for a page that is sent its source: see `story/page.ts`.
 export = { createParts, PART_LIMIT, PART_NOTES, PART_TEXT_BYTES, utf8Length, encodedLength };

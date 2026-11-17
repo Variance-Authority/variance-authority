@@ -22,6 +22,6 @@ export const DRIVEN_GLOBAL = '__variance_authority_driven__';
 /**
  * Where a page built with `VARIANCE_AUTHORITY_STORY=1` keeps what tells each
  * execution's story: the build installs it beside the collector, and
- * `reportPage` hands it every drain and asks it for the story it sends.
+ * `reportPage` asks it for the story it sends when an execution ends.
  */
 export const TELLER_GLOBAL = '__variance_authority_teller__';

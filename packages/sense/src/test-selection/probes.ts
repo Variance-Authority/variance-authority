@@ -408,8 +408,8 @@ const carries = ${JSON.stringify(!probesRegions(mode))};
 // bucket nothing writes to, so a second bundle on one page offering its own
 // would have the page report that it ran nothing.
 if (globalThis.__VA__ === undefined) {
-  // A runner that asked for stories left a maker on the page before it
-  // loaded: the tape goes in front of the root, and every drain carries it.
+  // A runner, or a build, that asked for stories left a maker on the page
+  // before it loaded: the tape goes in front of the root.
   const maker = globalThis[Symbol.for(${JSON.stringify(PAGE_STORY)})];
   const story = typeof maker === 'function' ? maker(engine) : undefined;
   globalThis.__VA__ = story === undefined ? engine.root : story.root;

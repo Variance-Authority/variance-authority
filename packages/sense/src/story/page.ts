@@ -17,9 +17,11 @@
 
 import storyFrames from '../instrument/story-frames.cjs';
 import storyListen from '../instrument/story-listen.cjs';
+import storyParts from '../instrument/story-parts.cjs';
 import storyTap from '../instrument/story-tap.cjs';
 import caseOwner from '../test-selection/case-owner.cjs';
 import format from './format.cjs';
+import storyBytes from './story-bytes.cjs';
 import type { ModuleId } from '../instrument/index.js';
 import { PAGE_STORY, type PageStory } from './page-story.js';
 
@@ -27,19 +29,23 @@ import { PAGE_STORY, type PageStory } from './page-story.js';
  * The script that makes a page tape: installed before any document loads, so
  * the collector a bundle evaluates finds the maker and every console line a
  * case prints is a note. `limit` bounds what the page keeps between two drains.
+ *
+ * Given `part`, the page tapes as a live head does, everything it runs into
+ * that one part, bounded per execution: a page that tells its own executions
+ * takes the part from the tap when one ends, as `page-told.ts` does.
  */
-export function storyPageSource(limit = storyTap.TAPE_LIMIT): string {
+export function storyPageSource(limit = storyTap.TAPE_LIMIT, part?: string): string {
   return `(() => {
 const NOTE_LIMIT = ${storyTap.NOTE_LIMIT};
 const NOTE_LENGTH = ${storyTap.NOTE_LENGTH};
-const createTap = (${storyTap.createTap.toString()});
+${part === undefined ? '' : LIVE}const createTap = (${storyTap.createTap.toString()});
 const watchPage = (${storyListen.watchPage.toString()});
 const watchFrames = (${storyFrames.watchFrames.toString()});
 const NOTE = Symbol.for('variance-authority.story.note');
 const realm = globalThis;
 if (realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] !== undefined) return;
 realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
-  const tap = createTap(engine, ${limit});
+  const tap = ${part === undefined ? `createTap(engine, ${limit})` : `createTap({ ...engine, current: () => (${JSON.stringify({ key: part })}) }, ${limit}, true)`};
   tap.nameIn(realm);
   // What has the page watch say a line's changes, kept so a runner whose test
   // lines run outside the page can open and close them.
@@ -76,6 +82,16 @@ ${PRINTING}
 })();
 `;
 }
+
+// What a live tap's parts close over: \`story-parts.cts\` and the one function of \`story-bytes.cts\` it reads.
+const LIVE = `const PART_LIMIT = ${storyParts.PART_LIMIT};
+const PART_NOTES = ${storyParts.PART_NOTES};
+const PART_TEXT_BYTES = ${storyParts.PART_TEXT_BYTES};
+const utf8Length = (${storyParts.utf8Length.toString()});
+const encodedLength = (${storyParts.encodedLength.toString()});
+const storyBytes = { rowAt: (${storyBytes.rowAt.toString()}) };
+const storyParts = { createParts: (${storyParts.createParts.toString()}) };
+`;
 
 // What a case prints is a note, as \`listen\` makes it in Node, and still
 // printed. A page has no \`util.format\`: each value is joined as \`String\`
