@@ -30,7 +30,7 @@ addEventListener('DOMContentLoaded', () => {
     entered.add(1);
     go.onclick = () => { entered.add(2); document.getElementById('done').textContent = 'done'; };
     go.dataset.ready = '1';
-  }, 500);
+  }, 1_000);
   setTimeout(() => { entered.add(3); document.getElementById('tick').textContent = 'tick'; }, ${tickAfter});
 });
 </script>
@@ -41,12 +41,12 @@ test('clicks', async ({ page: tab }) => {
   await tab.setContent(page(60_000)); // opens
   if (process.env['CLICK_FIRST'] !== '1') await tab.locator('#go[data-ready]').waitFor(); // waits
   await tab.click('#go'); // clicks
-  await expect(tab.locator('#done')).toHaveText('done', { timeout: 1_000 }); // checks
+  await expect(tab.locator('#done')).toHaveText('done', { timeout: 1_500 }); // checks
 });
 
 // Throws as `THROW` says, and a timer lands under whichever statement is running.
 test('ticks', async ({ page: tab }) => {
-  await tab.setContent(page(process.env['TICK_EARLY'] === '1' ? 0 : 700)); // opens
+  await tab.setContent(page(process.env['TICK_EARLY'] === '1' ? 0 : 1_200)); // opens
   if (process.env['TICK_EARLY'] === '1') await tab.locator('#tick:has-text("tick")').waitFor(); // waits
   await tab.locator('#go[data-ready]').waitFor(); // readies
   await expect(tab.locator('#tick')).toHaveText('tick'); // looks

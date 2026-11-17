@@ -338,7 +338,8 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
 
       await expect(renderer.render(broken)).rejects.toThrow('https://unserved.example/missing.png');
 
-      const raster = await renderer.render(documentOf('fixture:after', '#abcdef'));
+      // Closed as well, so it asks the pool for the page the failed render gave back.
+      const raster = await renderer.render({ ...documentOf('fixture:after', '#abcdef'), resources: {}, assets: {} });
       expect(raster.width).toBeGreaterThan(0);
     } finally {
       await renderer.close();
