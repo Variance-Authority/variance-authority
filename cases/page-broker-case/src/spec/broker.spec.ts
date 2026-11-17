@@ -4,7 +4,7 @@
 // page loads, so a page switched in place would not exercise it.
 import { fork } from '../broker/journal.js';
 import { expect, test } from '../fixture.js';
-import { Billing, Product } from '../shop.js';
+import { Billing, Header, Product } from '../shop.js';
 
 test('a member pays', async ({ page, app }) => {
   await page.goto('/checkout?user=member', { waitUntil: 'commit' });
@@ -65,6 +65,15 @@ test('entering a covered fragment again hands back its one handle, still covered
   const again = await app.enter(Billing);
   expect(again).toBe(form);
   await expect(again.street('Rokin 2') as unknown as Promise<unknown>).rejects.toThrow('billing is covered by sign-in');
+});
+
+test('entering a part returns the part its owner holds, and a cover covers both', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const header = await app.enter(Header);
+  expect(header).toBe(form.header);
+  await form.country('NL').street('Damrak 1').submit.to('signIn');
+  await expect(header.search.to('results', 'socks')).rejects.toThrow('header is covered by sign-in');
 });
 
 test('a navigation the broker did not take revokes every handle', async ({ page, app }) => {

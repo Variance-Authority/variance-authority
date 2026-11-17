@@ -288,7 +288,8 @@ export class App {
     const meta: Meta = { fragment, owner, region, state };
     const self: Record<string | symbol, unknown> = { [META]: meta };
     this.states.set(self, state);
-    if (shared === undefined) this.roots.set(fragment, self);
+    // The latest handle is the one alive: any earlier one for this fragment departed or is covered with its owner.
+    this.roots.set(fragment, self);
 
     const guard = (action: string, acting: boolean) => {
       if (!this.alive(state)) {
@@ -417,16 +418,15 @@ export class App {
       throw new Error(`${fragment.name}.${name} reached ${reached.join(' and ')} at once; the page shows ${list(shown)}`);
     }
     const staying = keys.find((key) => declared.outcomes[key] === stay);
-    const outcome = reached[0] ?? (staying !== undefined && shown.includes(fragment.name) ? staying : undefined);
+    // A part stays only with its owner, as on a plain stay.
+    const outcome = reached[0] ?? (staying !== undefined && shown.includes(fragment.name) && shown.includes(owner.name) ? staying : undefined);
     if (outcome === undefined) {
+      if (!shown.includes(owner.name)) this.depart(name, fragment.name);
       throw new Error(`${fragment.name}.${name} declares ${list(keys)}, and the page shows ${list(shown)}`);
     }
     const declaredTo = declared.outcomes[outcome];
     const to = declaredTo === stay ? stay : target(declaredTo)!;
-    const covering = (key: string) => {
-      const each = declared.outcomes[key];
-      return typeof each === 'object' && 'cover' in each;
-    };
+    const covering = (key: string) => typeof declared.outcomes[key] === 'object' && 'cover' in declared.outcomes[key];
     if (to !== stay) {
       const left = shown.includes(owner.name);
       if (declaredTo === back && left) {

@@ -26,7 +26,8 @@ Four rules keep the model honest, each pinned in `src/spec/`:
 2. **An arrival is unambiguous.** Two declared outcomes showing at once fail;
    the order of the declaration never decides.
 3. **A fragment has one lifecycle, however it is reached.** Entering it again
-   returns its one handle, covered or live; a part that stays still needs its
+   returns its one handle, covered or live, and entering a part returns the
+   one its owner holds; a part that stays, plainly or by a lead, needs its
    owner showing; and a navigation the broker did not take departs every
    handle on the old document.
 4. **The declared edges are the app's test interface.** `edges(roots)` lists

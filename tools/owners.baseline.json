@@ -652,12 +652,12 @@
   {
     "idiom": "fresh-page",
     "at": "cases/page-broker-case/src/spec/arrival.spec.ts",
-    "count": 3
+    "count": 4
   },
   {
     "idiom": "fresh-page",
     "at": "cases/page-broker-case/src/spec/broker.spec.ts",
-    "count": 15
+    "count": 16
   },
   {
     "idiom": "fresh-page",
