@@ -68,3 +68,21 @@ test('a history push while another document is loading keeps every handle', asyn
   await finished;
   expect(await billing.errors()).toEqual([]);
 });
+
+test('a document the broker cannot read counts as new', async () => {
+  const { Documents } = await import('../broker/documents.js');
+  const listeners: ((frame: unknown) => void)[] = [];
+  const main = {};
+  const page = {
+    evaluate: () => Promise.reject(new Error('Execution context was destroyed')),
+    on: (_event: string, listener: (frame: unknown) => void) => void listeners.push(listener),
+    mainFrame: () => main,
+  };
+  const documents = new Documents(page as never);
+  await documents.counted;
+  for (const listener of listeners) listener(main);
+  await documents.counted;
+  for (const listener of listeners) listener(main);
+  await documents.counted;
+  expect(documents.count).toBe(2);
+});

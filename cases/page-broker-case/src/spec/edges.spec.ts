@@ -30,3 +30,21 @@ test('the journals mark each edge with how often it was walked', () => {
     raw: 1,
   });
 });
+
+test('the reporter prints every declared edge, unwalked ones at zero', async () => {
+  const { default: EdgesReporter } = await import('../edges-reporter.js');
+  const reporter = new EdgesReporter();
+  const journal = [{ from: 'billing', action: 'country', kind: 'stay', to: 'billing' }];
+  reporter.onTestEnd({} as never, { attachments: [{ name: 'journal', body: Buffer.from(JSON.stringify(journal)) }] } as never);
+  const printed: string[] = [];
+  const log = console.log;
+  console.log = (line: string) => void printed.push(line);
+  try {
+    reporter.onEnd();
+  } finally {
+    console.log = log;
+  }
+  expect(printed.join('\n')).toContain('edges walked: 1 of ');
+  expect(printed.join('\n')).toMatch(/^ {5}1 {2}billing\.country$/m);
+  expect(printed.join('\n')).toMatch(/^ {5}0 {2}billing\.street$/m);
+});
