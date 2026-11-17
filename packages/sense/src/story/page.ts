@@ -32,7 +32,8 @@ import { PAGE_STORY, type PageStory } from './page-story.js';
  *
  * Given `part`, the page tapes as a live head does, everything it runs into
  * that one part, bounded per execution: a page that tells its own executions
- * takes the part from the tap when one ends, as `page-told.ts` does.
+ * takes the part from the tap when one ends, as `page-told.ts` does, and a
+ * runner that drains such a page takes it in its stead.
  */
 export function storyPageSource(limit = storyTap.TAPE_LIMIT, part?: string): string {
   return `(() => {
@@ -60,7 +61,8 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
       if (opens === true) turn(true);
       else tap.settle();
       frames();
-      const read = tap.read();
+      // A live tap keeps what ran in its part, which a driver that claims the page takes.
+      const read = ${part === undefined ? 'tap.read()' : `tap.take(${JSON.stringify(part)})`};
       const notes = read.notes.map(([at, , text]) => [at, text]);
       const lines = read.lines.map(([at, , line, said, hook]) => (hook === 1 ? [at, line, said, 1] : [at, line, said]));
       const story = {

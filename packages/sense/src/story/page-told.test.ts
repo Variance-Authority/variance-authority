@@ -29,8 +29,12 @@ function page() {
   const engine = probeLog.createEngine(false, probeSet.probeSet);
   engine.use(engine.open(''));
   // A symbol a realm's script keys its global by is read in the realm: a context does not mirror it.
-  const make = runInContext(`globalThis[Symbol.for(${JSON.stringify(PAGE_STORY)})]`, realm) as (given: typeof engine) => { root: object };
-  realm.__VA__ = make(engine).root;
+  const make = runInContext(`globalThis[Symbol.for(${JSON.stringify(PAGE_STORY)})]`, realm) as (given: typeof engine) => {
+    root: object;
+    take(): { visits: number; notes: [number, string][] };
+  };
+  const made = make(engine);
+  realm.__VA__ = made.root;
   runInContext(instrument(CART, 'cart.js')!.code, realm, { filename: 'cart.js' });
   const teller = realm[TELLER_GLOBAL] as { tell(journey: string, ended: boolean, room?: number): string | undefined };
   return {
@@ -41,6 +45,7 @@ function page() {
       return told === undefined ? undefined : decodeStory(Buffer.from(told, 'base64'));
     },
     told: (journey: string, room: number) => teller.tell(journey, true, room)!,
+    drain: () => made.take(),
   };
 }
 
@@ -111,6 +116,18 @@ describe('a page that tells what an execution ran', () => {
     expect(story.visits).toEqual(all.visits.slice(0, story.visits.length));
     expect(story.visits.length + story.untaped).toBe(all.visits.length + all.untaped);
     expect(story.notes.length + story.unnoted).toBe(all.notes.length + all.unnoted);
+  });
+
+  it('hands a driver that claims the page what it ran since it was last told, and keeps none of it to tell', () => {
+    const cart = page();
+    cart.tell('7f3a');
+    cart.run("add('socks')");
+
+    const drained = cart.drain();
+
+    expect(drained.visits).toBeGreaterThan(0);
+    expect(drained.notes.map(([, text]) => text)).toEqual(["handed item='socks'", 'console.log adding socks']);
+    expect(cart.tell('7f3a')).toBeUndefined();
   });
 
   it('keeps what a live head keeps of one execution, and counts the rest', () => {
