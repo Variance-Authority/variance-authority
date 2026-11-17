@@ -47,6 +47,19 @@ describe('an Rstest run handed a selection', () => {
     expect(stderr).toContain('variance-authority: selected 1 of 2');
   });
 
+  it.each([['<rootDir>/test/*.case.ts'], ['./test/*.case.ts'], ['**/test/*.case.ts']])(
+    'counts the files Rstest finds by an `include` of %s',
+    async (include) => {
+      const { stderr, ran } = await run(`include-${include.replace(/\W/g, '')}`, {
+        FIXTURE_INCLUDE: include,
+        FIXTURE_SKIP: JSON.stringify([at('test/beta.case.ts')]),
+      });
+
+      expect(ran).toEqual([at('test/alpha.case.ts')]);
+      expect(stderr).toContain('variance-authority: selected 1 of 2');
+    },
+  );
+
   it('runs nothing and passes when the selection skips every file', async () => {
     const { stderr, ran } = await run('none', {
       FIXTURE_SKIP: JSON.stringify([at('test/alpha.case.ts'), at('test/beta.case.ts')]),

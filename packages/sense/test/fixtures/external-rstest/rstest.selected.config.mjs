@@ -3,6 +3,7 @@
  *
  * `FIXTURE_SKIP` names the files to skip, as JSON; absent, the selection is the
  * one the environment asks for, as a project's own run reads it.
+ * `FIXTURE_INCLUDE` replaces the project's `include` glob.
  */
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +21,7 @@ export default withTestSelection(
   {
     root,
     globals: true,
-    include: ['test/*.case.ts'],
+    include: [process.env['FIXTURE_INCLUDE'] ?? 'test/*.case.ts'],
     setupFiles: ['./test/setup.mjs'],
   },
   {

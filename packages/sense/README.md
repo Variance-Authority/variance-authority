@@ -1020,7 +1020,9 @@ coverage: wrap it to have its tests recorded.
 the selection skips to the project's `exclude` before Rstest plans its entries,
 and stderr shows the same `selected` line first. A selection that keeps no file
 runs none and passes. Under `projects`, each wrapped project selects from its
-own files and prints its own line. A kept file runs whole, so
+own files and prints its own line. The variables read there read the same way;
+`--shard` divides the kept files as Rstest divides any, not by recorded time,
+and watch mode does not select. A kept file runs whole, so
 `VARIANCE_AUTHORITY_GRAIN=case` fails the run rather than run more than it
 asked for.
 
