@@ -42,6 +42,14 @@ describe('a session read into the record\'s regions', () => {
     expect(read.unplaced).toEqual(['webpack://app/src/math.ts']);
     expect(read.sources.map((each) => each.file)).toEqual(['/repo/src/main.ts']);
   });
+
+  it('names a source the map holds no text of when nothing reads it from disk', () => {
+    const { sourcesContent: _, ...bare } = BUNDLE_MAP;
+    const read = sessionSources([{ file: '/repo/dist/main.js', text: BUNDLE, map: bare, functions: BUNDLE_FUNCTIONS }], 'presence');
+
+    expect(read.unplaced).toEqual(['../src/main.ts', '../src/math.ts']);
+    expect(read.sources).toEqual([]);
+  });
 });
 
 describe('sessions set beside the record', () => {
@@ -77,6 +85,18 @@ describe('sessions set beside the record', () => {
     const main = answer.files.find((file) => file.file === 'src/main.ts')!;
     expect(main.functions.map(({ name, sessions, testFiles }) => ({ name, sessions, testFiles }))).toEqual([
       { name: 'unused', sessions: ['unrun', 'unrun'], testFiles: [] },
+    ]);
+  });
+
+  it('says a session that loaded none of a file did not load it, beside one that did', () => {
+    const one = named('checkout', sessionSources([bundle], 'presence'));
+    const answer = sessionsAgainst([one, { name: 'idle', sources: [] }], [[recorded(MATH)]], (file) => disk.get(file), 'presence');
+
+    const math = answer.files.find((file) => file.file === 'src/math.ts')!;
+    expect(math.functions.map(({ name, sessions }) => ({ name, sessions }))).toEqual([
+      { name: 'add', sessions: ['ran', 'not loaded'] },
+      { name: 'never', sessions: ['unknown', 'not loaded'] },
+      { name: 'twice', sessions: ['ran', 'not loaded'] },
     ]);
   });
 

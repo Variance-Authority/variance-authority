@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sessionSources, type SessionScript } from '@variance-authority/sense/test-selection';
 import { BUNDLE, BUNDLE_FUNCTIONS, BUNDLE_MAP, MAIN, MATH } from './session-input.fixture.js';
+import { OperatorError } from '../exit.js';
 import { readSession } from './session-input.js';
 
 let root: string;
@@ -109,6 +110,13 @@ describe('a session read from what V8 wrote', () => {
     expect(math((await readSession(at, undefined)).scripts)).toEqual(EXPECTED);
   });
 
+  it('reads a script CDP names by its bare path, as the inspector names a CommonJS module', async () => {
+    const at = join(root, 'bare-path.json');
+    await writeFile(at, JSON.stringify({ result: [{ url: join(root, 'dist/main.js'), scriptId: '1', source: BUNDLE, functions }] }));
+
+    expect(math((await readSession(at, undefined)).scripts)).toEqual(EXPECTED);
+  });
+
   it('resolves a map\'s sources against the map\'s own directory, not the script\'s', async () => {
     await mkdir(join(root, 'dist/maps'), { recursive: true });
     await writeFile(join(root, 'dist/maps/main.js.map'), JSON.stringify({ ...BUNDLE_MAP, sources: ['../../src/math.ts', '../../src/main.ts'] }));
@@ -126,5 +134,35 @@ describe('a session read from what V8 wrote', () => {
 
     expect(session.scripts).toEqual([]);
     expect(session.skipped).toEqual(['http://localhost:5173/main.js']);
+  });
+
+  it('refuses a path that holds no V8 coverage export, naming the path', async () => {
+    await writeFile(join(root, 'torn.json'), '[{');
+    await writeFile(join(root, 'other.json'), JSON.stringify({ tests: [] }));
+
+    await expect(readSession(join(root, 'absent.json'), undefined)).rejects.toThrow(new OperatorError(`no session at ${join(root, 'absent.json')}`));
+    await expect(readSession(join(root, 'torn.json'), undefined)).rejects.toThrow(`${join(root, 'torn.json')} is not a V8 coverage export:`);
+    await expect(readSession(join(root, 'other.json'), undefined)).rejects.toThrow(`${join(root, 'other.json')} is not a V8 coverage export: neither Playwright's array nor CDP's or Node's { result }`);
+  });
+
+  it('names each script whose URL or map cannot be read, and reads none of it', async () => {
+    await writeFile(join(root, 'dist/torn.js.map'), '{');
+    await writeFile(join(root, 'dist/index.js.map'), JSON.stringify({ version: 3, sections: [] }));
+    const naming = (url: string) => BUNDLE.replace('sourceMappingURL=main.js.map', `sourceMappingURL=${url}`);
+    const script = (url: string, source: string) => ({ url, scriptId: url, source, functions });
+    const scripts = [
+      script('http://[bad/main.js', BUNDLE),
+      script('http://localhost:5173/main.js?absent', naming('absent.js.map')),
+      script('http://localhost:5173/main.js?torn', naming('torn.js.map')),
+      script('http://localhost:5173/main.js?index', naming('index.js.map')),
+      script('http://localhost:5173/main.js?plain', naming('data:text/plain,x')),
+      script('http://localhost:5173/main.js?remote', naming('file://remote/main.js.map')),
+    ];
+    const at = join(root, 'unread.json');
+    await writeFile(at, JSON.stringify(scripts));
+    const session = await readSession(at, join(root, 'dist'));
+
+    expect(session.scripts).toEqual([]);
+    expect(session.skipped).toEqual(scripts.map((each) => each.url));
   });
 });

@@ -31,27 +31,8 @@ beforeAll(async () => {
   await writeFile(join(root, 'dist/main.js'), BUNDLE);
   await writeFile(join(root, 'dist/main.js.map'), JSON.stringify(BUNDLE_MAP));
 
-  const cut = sourceCut(MATH, 'src/math.ts', 'presence')!;
-  const test = { id: 'u', file: 'src/math.test.ts', name: 'adds', stopped: false };
-  const index = {
-    tests: [test],
-    modules: [{
-      file: 'src/math.ts',
-      blocks: cut.rows.map((row) => ({ ...row, source: true, crossings: row.name === 'add' ? [{ test: 0, distance: 1 }] : [] })),
-    }],
-  };
   record = testCoverageFile(root, { suite: 'unit' });
-  await writeTestCoverage(record, {
-    version: 3,
-    instrumentation: instrumentationId('presence'),
-    tests: [{ file: test.file, complete: true, preconditions: [{ name: test.file, digest: 'source:test' }] }],
-    modules: [{
-      file: 'src/math.ts',
-      sourceDigest: cut.sourceDigest,
-      instrumented: true,
-      blocks: cut.rows.map((row) => ({ ...row, testFiles: row.name === 'add' ? [test.file] : [] })),
-    }],
-  }, { index: encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]) });
+  await writeRecord(record, 'presence');
 
   await writeFile(join(root, 'checkout.json'), JSON.stringify([
     { url: 'http://localhost:5173/main.js', scriptId: '1', source: BUNDLE, functions: BUNDLE_FUNCTIONS },
@@ -72,6 +53,31 @@ afterAll(async () => {
   await rm(cache, { recursive: true, force: true });
   await rm(root, { recursive: true, force: true });
 });
+
+/**
+ * A record in which the unit suite ran `add` from `src/math.test.ts` and nothing
+ * else, cut under `mode`; `digestOf` gives a row another text than the checkout's.
+ */
+async function writeRecord(at: string, mode: 'presence' | 'loads' | string, digestOf: (name: string, digest: string) => string = (_, digest) => digest): Promise<void> {
+  const cut = sourceCut(MATH, 'src/math.ts', 'presence')!;
+  const rows = cut.rows.map((row) => ({ ...row, digest: digestOf(row.name, row.digest) }));
+  const test = { id: 'u', file: 'src/math.test.ts', name: 'adds', stopped: false };
+  const index = {
+    tests: [test],
+    modules: [{ file: 'src/math.ts', blocks: rows.map((row) => ({ ...row, source: true, crossings: row.name === 'add' ? [{ test: 0, distance: 1 }] : [] })) }],
+  };
+  await writeTestCoverage(at, {
+    version: 3,
+    instrumentation: mode === 'presence' || mode === 'loads' ? instrumentationId(mode) : mode,
+    tests: [{ file: test.file, complete: true, preconditions: [{ name: test.file, digest: 'source:test' }] }],
+    modules: [{
+      file: 'src/math.ts',
+      sourceDigest: cut.sourceDigest,
+      instrumented: true,
+      blocks: rows.map((row) => ({ ...row, testFiles: row.name === 'add' ? [test.file] : [] })),
+    }],
+  }, { index: encodeExecutionIndex(index as Parameters<typeof encodeExecutionIndex>[0]) });
+}
 
 async function ask(argv: readonly string[]) {
   let out = '';
@@ -132,7 +138,10 @@ describe('`coverage --session`', () => {
       source,
       functions: [{ functionName: '', ranges: [{ startOffset: 0, endOffset: source.length, count: 1 }] }],
     });
+    const away = await mkdtemp(join(tmpdir(), 'variance-away-'));
+    await writeFile(join(away, 'away.js'), plain);
     await writeFile(join(root, 'plain.json'), JSON.stringify([
+      { ...script('..gen/plain.js', plain), url: `file://${join(away, 'away.js')}` },
       script('..gen/plain.js', plain),
       script('..gen/bad.js', 'function ('),
       script('..gen/broken.js', 'export function broken() {}\n'),
@@ -149,19 +158,20 @@ describe('`coverage --session`', () => {
       skipped: [],
       unplaced: [],
       uncut: [join(root, '..gen/bad.js')],
-      outside: [join(root, 'node_modules/dep/index.js')],
+      outside: [join(away, 'away.js'), join(root, 'node_modules/dep/index.js')].sort(),
       stale: [],
     }]);
     expect(sessions.uncut).toEqual(['..gen/broken.js']);
 
     const text = await ask(['coverage', '--root', root, '--session', `plain=${join(root, 'plain.json')}`, '--served', root]);
     expect(text.out).toContain(`plain could not cut 1 source: ${join(root, '..gen/bad.js')}`);
-    expect(text.out).toContain(`plain ran 1 source outside the checkout or in a dependency: ${join(root, 'node_modules/dep/index.js')}`);
+    expect(text.out).toContain(`plain ran 2 sources outside the checkout or in a dependency: ${[join(away, 'away.js'), join(root, 'node_modules/dep/index.js')].sort().join(', ')}`);
     expect(text.out).toContain('1 file a session ran could not be cut in the checkout\'s text: ..gen/broken.js');
 
     const markdown = await ask(['coverage', '--root', root, '--session', `plain=${join(root, 'plain.json')}`, '--served', root, '--format', 'markdown']);
     expect(markdown.out).toContain(`plain could not cut 1 source: ${join(root, '..gen/bad.js')}`);
-    expect(markdown.out).toContain(`plain ran 1 source outside the checkout or in a dependency: ${join(root, 'node_modules/dep/index.js')}`);
+    expect(markdown.out).toContain(`- plain ran 2 sources outside the checkout or in a dependency: ${[join(away, 'away.js'), join(root, 'node_modules/dep/index.js')].sort().join(', ')}`);
+    await rm(away, { recursive: true, force: true });
     expect(markdown.out).toContain('1 file a session ran could not be cut in the checkout\'s text: ..gen/broken.js');
   });
 
@@ -169,9 +179,10 @@ describe('`coverage --session`', () => {
     // The map names its sources and keeps none of their text, as `tsc` writes it.
     const { sourcesContent: _, ...bare } = BUNDLE_MAP;
     await writeFile(join(root, 'dist/bare.js'), BUNDLE.replace('sourceMappingURL=main.js.map', 'sourceMappingURL=bare.js.map'));
-    await writeFile(join(root, 'dist/bare.js.map'), JSON.stringify(bare));
+    await writeFile(join(root, 'dist/bare.js.map'), JSON.stringify({ ...bare, sources: [...bare.sources, '../src/gone.ts'] }));
     const url = `file://${join(root, 'dist/bare.js')}`;
-    await writeFile(join(root, 'bare.json'), JSON.stringify({ result: [{ url, scriptId: '1', functions: BUNDLE_FUNCTIONS }] }));
+    const extension = 'chrome-extension://abc/inject.js';
+    await writeFile(join(root, 'bare.json'), JSON.stringify({ result: [{ url, scriptId: '1', functions: BUNDLE_FUNCTIONS }, { url: extension, scriptId: '2', functions: [] }] }));
     const session = ['coverage', '--root', root, '--session', `bare=${join(root, 'bare.json')}`, '--format', 'json'];
 
     // Built before its sources were last written: they may hold other text than ran.
@@ -179,11 +190,54 @@ describe('`coverage --session`', () => {
     const stale = JSON.parse((await ask(session)).out).sessions;
     expect(stale.files).toEqual([]);
     expect(stale.each[0].stale).toEqual([join(root, 'src/main.ts'), join(root, 'src/math.ts')]);
+    const text = (await ask(session.slice(0, -2))).out;
+    expect(text).toContain(`bare ran 2 sources edited since its build, whose text its map does not hold: ${join(root, 'src/main.ts')}, ${join(root, 'src/math.ts')}`);
+    expect(text).toContain('bare mapped to 1 source not on this machine: ../src/gone.ts');
+    expect(text).toContain(`bare skipped 1 script it could not place: ${extension}`);
 
     await utimes(join(root, 'dist/bare.js'), new Date(), new Date());
     const fresh = JSON.parse((await ask(session)).out).sessions;
     expect(fresh.each[0].stale).toEqual([]);
+    expect(fresh.each[0].unplaced).toEqual(['../src/gone.ts']);
+    expect(fresh.each[0].skipped).toEqual([extension]);
     expect(fresh.files.map((file: { file: string }) => file.file)).toEqual(['src/main.ts', 'src/math.ts']);
+  });
+
+  it('says how many functions a session ran that the record holds in another text', async () => {
+    await writeRecord(record, 'presence', (name, digest) => name === 'twice' ? 'another' : digest);
+    try {
+      const answer = await ask(['coverage', '--root', root, ...SESSIONS()]);
+
+      expect(answer.out).toContain('1 function ran in a text the record holds otherwise: no case can be counted for them');
+      expect(answer.out).not.toMatch(/\btwice\s+9/);
+    } finally {
+      await writeRecord(record, 'presence');
+    }
+  });
+
+  it('refuses records it cannot name functions in, or that were cut in more than one mode', async () => {
+    const other = await mkdtemp(join(tmpdir(), 'variance-session-modes-'));
+    execFileSync('git', ['init', '--quiet', other]);
+    await writeFile(join(other, 'variance.config.json'), JSON.stringify({ suites: { cut: { kind: 'unit' }, loads: { kind: 'unit' }, odd: { kind: 'unit' } } }));
+    await writeRecord(testCoverageFile(other, { suite: 'cut' }), 'presence');
+    await writeRecord(testCoverageFile(other, { suite: 'loads' }), 'loads');
+    await writeRecord(testCoverageFile(other, { suite: 'odd' }), 'made-elsewhere');
+    const run = (suite: readonly string[]) => ask(['coverage', '--root', other, ...suite, '--session', `checkout=${join(root, 'checkout.json')}`, '--served', join(root, 'dist')]);
+    try {
+      expect((await run([])).err).toContain('`--session` needs records cut in one instrumentation mode, and these were cut in several; count one `--suite` at a time.');
+      expect((await run(['--suite', 'loads'])).err).toContain('`--session` names functions, and this record was cut by module loads alone; record with presence or entries instrumentation first.');
+      expect((await run(['--suite', 'odd'])).err).toContain('`--session` names functions, and this record was made by `made-elsewhere`; record with presence or entries instrumentation first.');
+    } finally {
+      await rm(other, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a session it cannot name, or `--served` with no session', async () => {
+    for (const value of ['checkout', '=at.json', 'checkout=']) {
+      expect((await ask(['coverage', '--root', root, '--session', value])).err).toContain(`\`--session\` takes <name>=<path>, not \`${value}\``);
+    }
+    expect((await ask(['coverage', '--root', root, '--session', 'a=x.json', '--session', 'a=y.json'])).err).toContain('two sessions are named `a`; give each its own name.');
+    expect((await ask(['coverage', '--root', root, '--served', 'dist'])).err).toContain('`--served` places a session\'s scripts; pass `--session <name>=<path>` with it.');
   });
 
   it('leaves the record as it was: a session is never a case', async () => {
