@@ -26,9 +26,17 @@ test('a click before hydration submits nothing the app hears', async ({ page }) 
   page.on('request', (request) => {
     if (request.url().endsWith('/api/billing')) posted = true;
   });
+  // Hydration waits on the page's one module import, held here until the click is made.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/event.js', async (route) => {
+    await held;
+    await route.continue().catch(() => undefined);
+  });
   await page.goto('/checkout?user=member', { waitUntil: 'commit' });
   await page.getByLabel('Street').fill('Damrak 1');
   await page.getByRole('button', { name: 'Continue' }).click();
+  release();
   await page.waitForLoadState('load');
   expect(posted).toBe(false);
 });
