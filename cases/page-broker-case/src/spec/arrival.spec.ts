@@ -174,3 +174,14 @@ test('a part an owner uses twice is one handle', async ({ page, app }) => {
   expect(billing.again).toBe(billing.top);
   expect(await app.enter(Header)).toBe(billing.top);
 });
+
+// Ambiguity a declaration already holds is refused where it is written, before any walk.
+test('two outcomes that arrive at the same place cannot be declared', () => {
+  const act = async () => {};
+  expect(() => leads({ saved: stay, invalid: stay }, act)).toThrow('saved and invalid both arrive at stay; nothing on the page tells them apart');
+  expect(() => leads({ paid: Payment, again: over(Payment) }, act)).toThrow('paid and again both arrive at payment');
+});
+
+test('two fragments cannot share a name', () => {
+  expect(() => fragment('payment', { probe: byRole('form', 'Other') })).toThrow('a fragment named payment is already declared');
+});

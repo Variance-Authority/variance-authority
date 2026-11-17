@@ -56,11 +56,19 @@ export const stays = <A extends Act>(act: A, options: { until?: Until } = {}): S
   act,
   until: options.until,
 });
-export const leads = <O extends Outcomes, A extends Act>(outcomes: O, act: A): Leads<O, A> => ({
-  kind: 'leads',
-  outcomes,
-  act,
-});
+export const leads = <O extends Outcomes, A extends Act>(outcomes: O, act: A): Leads<O, A> => {
+  // Arrival is sensed by where it lands, so two outcomes landing alike would leave the order to decide.
+  const keys = Object.keys(outcomes);
+  const at = keys.map((key) => {
+    const to = outcomes[key];
+    return to === stay ? 'stay' : to === back ? 'back' : 'cover' in to ? to.cover.name : (to as AnyFragment).name;
+  });
+  const twice = keys.findIndex((_, index) => at.indexOf(at[index]) !== index);
+  if (twice !== -1) {
+    throw new Error(`${keys[at.indexOf(at[twice])]} and ${keys[twice]} both arrive at ${at[twice]}; nothing on the page tells them apart`);
+  }
+  return { kind: 'leads', outcomes, act };
+};
 
 export interface Spec {
   readonly probe: Where;
@@ -83,6 +91,8 @@ export function fragment<const S extends Spec>(name: string, spec: S): Fragment<
   const names = [spec.actions, spec.reads, spec.uses].flatMap((part) => Object.keys(part ?? {}));
   const twice = names.filter((each, at) => names.indexOf(each) !== at);
   if (twice.length > 0) throw new Error(`${name} declares ${twice.join(', ')} twice`);
+  // The page is sensed by name: a second fragment under one would arrive wherever the first shows.
+  if (registry.some((each) => each.name === name)) throw new Error(`a fragment named ${name} is already declared`);
   const made = { name, spec };
   registry.push(made);
   return made;

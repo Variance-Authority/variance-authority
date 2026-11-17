@@ -26,7 +26,9 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    cover gone. An outcome that shows beside its owner without `over` is an
    error that names the fix.
 2. **An arrival is unambiguous.** Two declared outcomes showing at once fail;
-   the order of the declaration never decides.
+   the order of the declaration never decides. Ambiguity a declaration holds
+   already is refused where it is written: two outcomes of one action that
+   land alike, or two fragments under one name.
 3. **A fragment has one lifecycle, however it is reached.** Entering it again
    returns its one handle, covered or live, and a part is one handle however
    many owners use it, answering to all of them whichever came first; a part
