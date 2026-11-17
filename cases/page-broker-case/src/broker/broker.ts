@@ -421,7 +421,8 @@ export class App {
     const beneath = covering(outcome) ? [...new Set(this.states.values())].filter((each) => this.alive(each) && each.status === 'live') : [];
     if (covering(outcome)) await this.intact(beneath, name, fragment.name, `${fragment.name}.${name} opened ${(to as AnyFragment).name}`);
     const toName = to === stay ? fragment.name : (to as AnyFragment).name;
-    this.journal.push({ from: fragment.name, action: name, kind: 'lead', outcome, named, to: toName });
+    const wrong = named !== undefined && outcome !== named ? `${fragment.name}.${name} was expected to reach ${named}, and reached ${outcome} (${list(shown)})` : undefined;
+    this.journal.push({ from: fragment.name, action: name, kind: 'lead', outcome, named, to: toName, failed: wrong });
 
     let handle: object;
     if (to === stay) {
@@ -453,9 +454,7 @@ export class App {
       }
     }
     // A wrong branch is still the branch taken: the handles and the journal say so before the test fails.
-    if (named !== undefined && outcome !== named) {
-      throw new Error(`${fragment.name}.${name} was expected to reach ${named}, and reached ${outcome} (${list(shown)})`);
-    }
+    if (wrong !== undefined) throw new Error(wrong);
     return named === undefined ? { outcome, handle } : handle;
   }
 

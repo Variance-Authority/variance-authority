@@ -3,7 +3,7 @@
 // Each case navigates on purpose: the broker senses where a walk arrives across
 // page loads, so a page switched in place would not exercise it.
 import { byRole, fragment, stays } from '../broker/broker.js';
-import { fork } from '../broker/journal.js';
+import { fork, walked } from '../broker/journal.js';
 import { expect, test } from '../fixture.js';
 import { Billing, Header, Product } from '../shop.js';
 
@@ -46,7 +46,10 @@ test('naming the wrong branch fails with the branch that was taken', async ({ pa
   );
   // The branch taken still happened: the form departed, and the journal says where it went.
   await expect(form.errors()).rejects.toThrow('billing departed at billing.submit');
-  expect(app.journal.at(-1)).toMatchObject({ action: 'submit', named: 'signIn', to: 'payment' });
+  expect(app.journal.at(-1)).toMatchObject({ action: 'submit', named: 'signIn', outcome: 'payment', to: 'payment', failed: expect.stringContaining('expected to reach signIn') });
+  // A failed test walked no edge for the coverage count, though the fork still says where it went.
+  expect(walked(['billing.submit → payment'], [app.journal]).unwalked).toEqual(['billing.submit → payment']);
+  expect(fork(app.journal, [])).toContain('billing.submit → payment (failed)');
 });
 
 test('a guest who signs in pays, and the form under the cover departs with it', async ({ page, app }) => {

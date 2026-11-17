@@ -12,7 +12,7 @@ export interface Step {
   /** The outcome the test named; undefined when it went exploring. */
   readonly named?: string;
   readonly to: string;
-  /** Why the step failed; a failed step walked no edge. */
+  /** Why the step failed; a failed step walked no edge, though a wrong branch still names the outcome it reached. */
   readonly failed?: string;
 }
 
@@ -42,7 +42,9 @@ export function edges(roots: readonly AnyFragment[]): string[] {
 
 /** The edge one step walked, spelled as `edges` spells it; none for a raw step. */
 const edgeOf = (step: Step) =>
-  step.kind === 'raw' ? undefined : step.failed !== undefined ? `${step.from}.${step.action} (failed)` : step.kind === 'stay' ? `${step.from}.${step.action}` : `${step.from}.${step.action} → ${step.outcome}`;
+  step.kind === 'raw'
+    ? undefined
+    : `${step.from}.${step.action}${step.outcome === undefined ? '' : ` → ${step.outcome}`}${step.failed === undefined ? '' : ' (failed)'}`;
 
 /** How often the journals walked each declared edge, the edges none walked, and the steps taken around the broker. */
 export function walked(declared: readonly string[], journals: readonly (readonly Step[])[]) {
