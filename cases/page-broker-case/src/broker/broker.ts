@@ -4,7 +4,8 @@
 //
 // A prototype. It runs on Playwright only; the driver and read driver are the
 // seam another runner would fill.
-import type { Locator, Page, Request } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
+import { Documents } from './documents.js';
 import { settle, type Signals } from './settle.js';
 import type { Step } from './journal.js';
 import { driver, locate, readDriver } from './driver.js';
@@ -85,46 +86,29 @@ export class App {
   private readonly covered = new Map<State, { by: string; fragment: AnyFragment; handle: object; states: State[] }>();
   /** The one handle each fragment has: a fragment on the page has one lifecycle, however it is reached. */
   private readonly roots = new Map<AnyFragment, object>();
-  /** Documents the main frame has loaded so far. */
-  private doc = 0;
-  /** The main frame's document request in flight: only a navigation that made one replaces the document. */
-  private loading: Request | undefined;
-  /** The main frame's origin: a document that changes it replaced the one before, with or without a request. */
-  private origin: string | undefined;
+  private readonly documents: Documents;
 
   constructor(
     readonly page: Page,
     private readonly signals: Signals = {},
   ) {
-    // A history push or a hash change navigates the frame and keeps its document, and every handle on it.
-    page.on('request', (request) => {
-      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) this.loading = request;
-    });
-    const ended = (request: Request) => {
-      if (request === this.loading) this.loading = undefined;
-    };
-    page.on('requestfinished', ended);
-    page.on('requestfailed', ended);
-    page.on('framenavigated', (frame) => {
-      if (frame !== page.mainFrame()) return;
-      const origin = new URL(frame.url()).origin;
-      const moved = origin !== this.origin;
-      this.origin = origin;
-      if (this.loading === undefined && !moved) return;
-      this.doc += 1;
-      this.loading = undefined;
-    });
+    this.documents = new Documents(page);
+  }
+
+  private async settled(): Promise<void> {
+    await settle(this.page, this.signals);
+    await this.documents.counted;
   }
 
   /** Whether a state outlived every navigation since the broker last saw it; one that did not departs. */
   private alive(state: State): boolean {
-    if (state.status !== 'departed' && state.doc !== this.doc) Object.assign(state, { status: 'departed', why: 'a navigation the broker did not take' });
+    if (state.status !== 'departed' && state.doc !== this.documents.count) Object.assign(state, { status: 'departed', why: 'a navigation the broker did not take' });
     return state.status !== 'departed';
   }
 
   /** Settles, then requires the fragment to be what the page shows. */
   async enter<F extends AnyFragment>(fragment: F): Promise<Handle<F>> {
-    await settle(this.page, this.signals);
+    await this.settled();
     const found = await this.sense();
     if (!found.includes(fragment.name)) {
       throw new Error(`entered expecting ${fragment.name}, the page shows ${list(found)}`);
@@ -227,7 +211,7 @@ export class App {
       return prior as Handle<F>;
     }
     const region = locate(within, fragment.spec.probe).first();
-    const state: State = shared?.state ?? { status: 'live', doc: this.doc };
+    const state: State = shared?.state ?? { status: 'live', doc: this.documents.count };
     const meta: Meta = { fragment, owners: [...(shared?.owners ?? [fragment])], region, state };
     const self: Record<string | symbol, unknown> = { [META]: meta };
     this.states.set(self, state);
@@ -246,6 +230,7 @@ export class App {
 
     for (const [name, read] of Object.entries((fragment.spec as Spec).reads ?? {})) {
       self[name] = async (...args: unknown[]) => {
+        await this.documents.counted;
         guard(name, false);
         return (read as Read)(readDriver(region), ...args);
       };
@@ -259,6 +244,7 @@ export class App {
 
     const actions = Object.entries((fragment.spec as Spec).actions ?? {});
     const run = async (name: string, args: unknown[]): Promise<unknown> => {
+      await this.documents.counted;
       guard(name, true);
       const declared = actions.find(([key]) => key === name)![1];
       if (typeof declared === 'function' || declared.kind === 'stays') {
@@ -341,12 +327,12 @@ export class App {
     const until = typeof declared === 'function' ? undefined : declared.until;
     const before = until === undefined ? undefined : await until.read(readDriver(region));
     await act(driver(region), ...args);
-    await settle(this.page, this.signals);
+    await this.settled();
     if (until !== undefined) {
       const deadline = Date.now() + 10_000;
       while (!until.done(before, await until.read(readDriver(region)))) {
         if (Date.now() > deadline) throw new Error(`${fragment.name}.${name} never landed`);
-        await settle(this.page, this.signals);
+        await this.settled();
       }
     }
     // A part stays only if what owns it does: a header still showing says nothing of the form beside it.
@@ -358,7 +344,7 @@ export class App {
       }
     }
     await this.whole(fragment, owners, name, 'is declared to stay');
-    state.doc = this.doc;
+    state.doc = this.documents.count;
     this.journal.push({ from: fragment.name, action: name, kind: 'stay', to: fragment.name });
   }
 
@@ -382,7 +368,7 @@ export class App {
       if (typeof to === 'object' && 'cover' in to && (await this.shows(to.cover))) showed.add(to.cover.name);
     }
     await declared.act(driver(region), ...rest);
-    await settle(this.page, this.signals);
+    await this.settled();
 
     // Arrival is witnessed from both ends, by one outcome. The destination shows;
     // what was left is gone, or still shows beneath a cover; and no second
@@ -422,7 +408,10 @@ export class App {
     const covering = (key: string) => typeof declared.outcomes[key] === 'object' && 'cover' in declared.outcomes[key];
     if (to !== stay) {
       const missing = await this.missing(to as AnyFragment);
-      if (missing !== undefined) throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name}, and its part ${missing} is missing`);
+      if (missing !== undefined) {
+        this.depart(name, fragment.name);
+        throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name}, and its part ${missing} is missing`);
+      }
       const held = this.roots.get(to as AnyFragment);
       if (covering(outcome) && held !== undefined && this.alive(this.states.get(held)!)) {
         throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name} over ${by}, and ${(to as AnyFragment).name} was entered before it opened`);
@@ -435,13 +424,14 @@ export class App {
         throw new Error(`${fragment.name}.${name} reached ${to.name}, and ${by} still shows; declare it over(${to.name})`);
       }
     }
-    if (to === stay) await this.whole(fragment, owners, name, 'stayed');
+    // What an arrival keeps, it keeps whole: a stay keeps the fragment, and a cover keeps what it opened over.
+    if (to === stay || covering(outcome)) await this.whole(fragment, owners, name, to === stay ? 'stayed' : `opened ${(to as AnyFragment).name}`);
     const toName = to === stay ? fragment.name : (to as AnyFragment).name;
     this.journal.push({ from: fragment.name, action: name, kind: 'lead', outcome, named, to: toName });
 
     let handle: object;
     if (to === stay) {
-      state.doc = this.doc;
+      state.doc = this.documents.count;
       handle = self;
     } else if (under !== undefined && under.fragment === to) {
       // Leaving a cover for what it covered returns the covered handle, live again. What left with the
@@ -452,13 +442,13 @@ export class App {
         meta.owners = meta.owners.filter((one) => !gone.has(one));
       }
       Object.assign(state, { status: 'departed', why: `${fragment.name}.${name}` });
-      for (const each of under.states) Object.assign(each, { status: 'live', why: undefined, doc: this.doc });
+      for (const each of under.states) Object.assign(each, { status: 'live', why: undefined, doc: this.documents.count });
       handle = under.handle;
     } else {
       const next = to as AnyFragment;
       // A modal covers the whole page, not the fragment that opened it: every live handle waits beneath.
       const beneath = covering(outcome) ? [...new Set(this.states.values())].filter((each) => this.alive(each) && each.status === 'live') : [];
-      for (const each of beneath) Object.assign(each, { status: 'covered', why: next.name, doc: this.doc });
+      for (const each of beneath) Object.assign(each, { status: 'covered', why: next.name, doc: this.documents.count });
       if (!covering(outcome)) this.depart(name, fragment.name);
       handle = this.handle(next, this.page);
       // What waits beneath is the part's one root owner, not the part that opened the cover; with several, the part itself.

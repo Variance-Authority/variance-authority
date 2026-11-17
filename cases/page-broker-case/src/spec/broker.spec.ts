@@ -218,3 +218,12 @@ test('a navigation without a request revokes every handle too', async ({ page, a
   await page.goto('about:blank');
   await expect(form.address()).rejects.toThrow('billing departed at a navigation the broker did not take');
 });
+
+test('a blank document replaced by another blank one revokes every handle', async ({ page, app }) => {
+  await page.goto('about:blank');
+  await page.setContent('<header>shop</header><form aria-label="Billing details"><label>Street <input></label></form>');
+  const form = await app.enter(Billing);
+  // The navigation has happened once the frame says so; the broker answers from then on.
+  await Promise.all([page.waitForEvent('framenavigated'), page.evaluate(() => (location.href = 'about:blank'))]);
+  await expect(form.address()).rejects.toThrow('billing departed at a navigation the broker did not take');
+});

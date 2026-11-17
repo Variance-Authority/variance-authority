@@ -427,3 +427,28 @@ for (const how of ['drop', 'dropTo'] as const) {
     await expect(pair.remover.drop() as unknown as Promise<unknown>).rejects.toThrow('departed');
   });
 }
+
+// Every arrival that keeps a fragment keeps it whole, going back and opening a cover alike.
+test('going back to a fragment whose part left with the cover departs the page, the cover included', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  await page.evaluate(() => {
+    const cancel = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Cancel')!;
+    cancel.addEventListener('click', () => document.querySelector('header')!.remove());
+  });
+  await expect(signIn.cancel.to('billing')).rejects.toThrow('sign-in.cancel reached billing, and its part header is missing');
+  await expect(signIn.email('a@b.c') as unknown as Promise<unknown>).rejects.toThrow('departed');
+  await expect(form.address()).rejects.toThrow('departed');
+});
+
+test('opening a cover over a fragment whose part left departs the page', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  await page.evaluate(() => {
+    const go = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Continue')!;
+    go.addEventListener('click', () => document.querySelector('header')!.remove());
+  });
+  await expect(form.country('NL').street('Damrak 1').submit.to('signIn')).rejects.toThrow('billing.submit opened sign-in, and its part header is missing');
+  await expect(form.address()).rejects.toThrow('departed');
+});
