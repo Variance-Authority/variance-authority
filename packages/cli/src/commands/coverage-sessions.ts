@@ -1,0 +1,111 @@
+// compass: variance-authority.reach.crossings
+/**
+ * `coverage --session`: runs a person made on their own machine, set beside
+ * the record function by function.
+ *
+ * A session is V8 coverage somebody exported — Playwright's, CDP's or a
+ * `NODE_V8_COVERAGE` directory — and is read as evidence beside the record,
+ * never into it: no session becomes a case, so selection and shards answer as
+ * they did. The record decides the cut: each session is walked under the mode
+ * the records were cut in, and a function is named in the checkout's text. The
+ * answer's point is the list of functions some session ran and no recorded case
+ * entered, by file and with the sessions that ran each.
+ */
+
+import { readFileSync, realpathSync } from 'node:fs';
+import { isAbsolute, join, relative, sep } from 'node:path';
+import { instrumentModeOf, type WalkMode } from '@variance-authority/sense/instrument';
+import { readTestCoverage, sessionsAgainst, sessionSources, type CoverageModule, type NamedSession, type SessionsFile } from '@variance-authority/sense/test-selection';
+import { OperatorError } from '../exit.js';
+import { readSession } from './session-input.js';
+
+/** A function some session ran that no recorded case entered. */
+export interface UntestedFunction {
+  readonly name: string;
+  readonly startLine?: number;
+  readonly endLine?: number;
+  /** The sessions that ran it, by name. */
+  readonly sessions: readonly string[];
+}
+
+export interface CoverageSessions {
+  /** The sessions, in the order given. */
+  readonly names: readonly string[];
+  /** Per session, in order: the scripts it could not place or read, and the sources its maps placed nowhere on this machine. */
+  readonly each: readonly { readonly name: string; readonly skipped: readonly string[]; readonly unplaced: readonly string[] }[];
+  /** Per file, the functions some session ran and no recorded case entered. */
+  readonly untested: readonly { readonly file: string; readonly functions: readonly UntestedFunction[] }[];
+  /** Functions some session ran whose record holds them in another text: no case can be counted for them. */
+  readonly uncounted: number;
+  /** Every function of every file a session loaded, with each session's verdict and the test files that entered it. */
+  readonly files: readonly SessionsFile[];
+  /** Files a record holds that no session loaded. */
+  readonly notLoaded: readonly string[];
+}
+
+/** `sessions`, set beside the records at `records`, with every file read from `root`. */
+export async function coverageSessions(
+  root: string,
+  sessions: readonly { readonly name: string; readonly path: string }[],
+  served: string | undefined,
+  records: readonly string[],
+): Promise<CoverageSessions> {
+  const suites = await Promise.all(records.map(readTestCoverage));
+  const mode = walkModeOf(suites.map((suite) => suite.instrumentation));
+  const read = (file: string): string | undefined => {
+    try {
+      return readFileSync(isAbsolute(file) ? file : join(root, file), 'utf8');
+    } catch {
+      return undefined;
+    }
+  };
+  // Node names a script by its real path, which on macOS sits under `/private`.
+  const roots = [...new Set([root, realpathSync(root)])];
+  const named: NamedSession[] = [];
+  const each: CoverageSessions['each'][number][] = [];
+  for (const session of sessions) {
+    const input = await readSession(session.path, served);
+    const sources = sessionSources(input.scripts, mode, read);
+    named.push({
+      name: session.name,
+      sources: sources.sources.flatMap((source) => {
+        const file = ownFile(roots, source.file);
+        return file === undefined ? [] : [{ ...source, file }];
+      }),
+    });
+    each.push({ name: session.name, skipped: input.skipped, unplaced: sources.unplaced });
+  }
+  const answer = sessionsAgainst(named, suites.map((suite): readonly CoverageModule[] => suite.modules), read, mode);
+  const names = sessions.map((session) => session.name);
+  const untested = answer.files.flatMap(({ file, functions }) => {
+    const ran = functions.filter((each) => each.testFiles?.length === 0 && each.sessions.includes('ran')).map((each): UntestedFunction => ({
+      name: each.name,
+      ...(each.row.startLine === undefined ? {} : { startLine: each.row.startLine, endLine: each.row.endLine }),
+      sessions: names.filter((_, at) => each.sessions[at] === 'ran'),
+    }));
+    return ran.length === 0 ? [] : [{ file, functions: ran }];
+  });
+  const uncounted = answer.files.flatMap((file) => file.functions).filter((each) => each.testFiles === undefined && each.sessions.includes('ran')).length;
+  return { names, each, untested, uncounted, files: answer.files, notLoaded: answer.notLoaded };
+}
+
+/** The one mode every record was cut in: a session is walked as the records were, or the two would name different regions. */
+function walkModeOf(instrumentations: readonly string[]): WalkMode {
+  const modes = new Set(instrumentations.map((each) => instrumentModeOf(each)));
+  if (modes.size !== 1) throw new OperatorError('`--session` needs records cut in one instrumentation mode, and these were cut in several; count one `--suite` at a time.');
+  const [mode] = modes;
+  if (mode === undefined || mode === 'loads') {
+    throw new OperatorError(`\`--session\` names functions, and this record was ${mode === 'loads' ? 'cut by module loads alone' : `made by \`${instrumentations[0]}\``}; record with presence or entries instrumentation first.`);
+  }
+  return mode;
+}
+
+/** `file` spelled from the root, as a record spells it; `undefined` for a file outside the root or a dependency's. */
+function ownFile(roots: readonly string[], file: string): string | undefined {
+  for (const root of roots) {
+    const spelled = relative(root, file);
+    if (spelled.startsWith('..') || isAbsolute(spelled)) continue;
+    return spelled.split(sep).includes('node_modules') ? undefined : spelled.split(sep).join('/');
+  }
+  return undefined;
+}
