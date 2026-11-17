@@ -291,3 +291,18 @@ test('a part another owner holds stays when a dialog adopts and closes over its 
   await signIn.cancel.to('billing');
   expect(await held.leaf.query()).toBe('');
 });
+
+// Sharing a dialog's part is not using the dialog: the page fragment stays on the page, and so does the part.
+const LeafOver = fragment('sign-in-leafy', { probe: dialog, uses: { leaf: Leaf }, actions: { cancel: leads({ billing: back }, cancel as never) } });
+const UnderLeafy = submitting('billing-leafy', LeafOver);
+
+test('a page fragment entered after a dialog that shares its part is not bound to the dialog', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const billing = await app.enter(UnderLeafy);
+  const leafy = await billing.submit.to('signIn');
+  const held = await app.enter(FormWithLeaf);
+  expect(held.leaf).toBe(leafy.leaf);
+  await leafy.cancel.to('billing');
+  await held.leaf.type('socks');
+  expect(await held.leaf.query()).toBe('socks');
+});

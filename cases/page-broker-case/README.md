@@ -15,6 +15,7 @@ instead of on selectors and waits.
   exactly what that cover covered and hands the owner's handle back. What is
   entered using an open cover lives and leaves with it, with every part only
   it holds; a part another owner holds stays, and answers to that owner alone.
+  Sharing a part with an open cover is not using the cover.
 - Every step lands in a per-test **journal**; `fork(a, b)` prints where two
   walks part, edge by edge, outcome included.
 - Between steps the broker **settles** on `aria-busy`, requests in flight and

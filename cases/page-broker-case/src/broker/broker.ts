@@ -129,7 +129,12 @@ export class App {
     const state = (fresh as any)[META].state as State;
     // What uses an open cover lives and leaves with it, and so does every part only it holds.
     const tree = [fresh, ...this.within(fresh)];
-    const cover = tree.map((each) => (each as any)[META].state as State).find((each) => this.covered.has(each) && this.alive(each));
+    // Using the cover is holding a handle on it that answers to this tree alone; sharing one of its parts is not.
+    const mine = new Set(tree.map((each) => ((each as any)[META] as Meta).fragment));
+    const cover = tree
+      .filter((each) => ((each as any)[META] as Meta).owners.every((one) => mine.has(one)))
+      .map((each) => (each as any)[META].state as State)
+      .find((each) => this.covered.has(each) && this.alive(each));
     if (cover !== undefined) {
       for (const each of tree.filter((one) => (one as any)[META].state === state)) {
         (each as any)[META].state = cover;
@@ -387,10 +392,18 @@ export class App {
     } else if (under !== undefined && under.fragment === to) {
       // Leaving a cover for what it covered returns the covered handle, live again. What left with the
       // cover owns nothing that stays: a part the page also holds answers to the page alone.
-      const gone = new Set([...this.states].filter(([, each]) => each === state).map(([each]) => ((each as any)[META] as Meta).fragment));
-      for (const each of this.states.keys()) {
+      const rootState = (one: AnyFragment) => ((this.roots.get(one) as any)?.[META] as Meta | undefined)?.state;
+      const leaving = [...this.states].filter(([, each]) => each === state).map(([each]) => (each as any)[META] as Meta);
+      const gone = new Set<AnyFragment>();
+      for (const meta of leaving) {
+        const stays = meta.owners.find((one) => rootState(one) !== undefined && rootState(one) !== state);
+        if (stays === undefined) gone.add(meta.fragment);
+        else meta.state = rootState(stays)!;
+      }
+      for (const [each] of this.states) {
         const meta = (each as any)[META] as Meta;
         meta.owners = meta.owners.filter((one) => !gone.has(one));
+        this.states.set(each, meta.state);
       }
       Object.assign(state, { status: 'departed', why: `${fragment.name}.${name}` });
       for (const each of under.states) Object.assign(each, { status: 'live', why: undefined, doc: this.doc });
