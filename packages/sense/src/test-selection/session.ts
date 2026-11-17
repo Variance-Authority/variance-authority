@@ -131,7 +131,8 @@ export interface SessionsAgainst {
  * function is named in; a file the checkout lacks is named in the text the
  * first session that loaded it ran. A function is the same function in a
  * session or a record when its kind, name, path and digest agree; a function whose
- * digest differs reads as another text, never as ran or unrun. `suites` are
+ * digest no region of its kind, name and path shares reads as another text,
+ * never as ran or unrun. `suites` are
  * the records' modules, one list per suite, cut under `mode`.
  */
 export function sessionsAgainst(
@@ -170,8 +171,10 @@ export function sessionsAgainst(
         if (perSession[index]!.length === 0) return 'not loaded';
         return states.get(keyOf(row)) ?? 'other text';
       });
+      // Siblings may share a kind, name and path, and their own text tells them apart.
       const held = records.filter((block) => sameRegion(block, row));
-      const testFiles = held.length === 0 ? [] : held.some((block) => block.digest !== row.digest) ? undefined : [...new Set(held.flatMap((block) => block.testFiles))].sort();
+      const same = held.filter((block) => block.digest === row.digest);
+      const testFiles = held.length === 0 ? [] : same.length === 0 ? undefined : [...new Set(same.flatMap((block) => block.testFiles))].sort();
       return { row, name: row.name, sessions: sessionsSay, ...(testFiles === undefined ? {} : { testFiles }) };
     });
     files.push({ file, functions });

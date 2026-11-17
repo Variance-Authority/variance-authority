@@ -95,6 +95,29 @@ describe('sessions set beside the record', () => {
     expect(answer.notLoaded).toEqual(['src/other.ts']);
   });
 
+  it('tells apart two functions that share a name, each by its own text', () => {
+    const text = 'export function split(xs: number[]) {\n  const a = xs.filter((x) => x > 0);\n  const b = xs.filter((x) => x < 0 && x !== -1);\n  return [a, b];\n}\n';
+    const cut = sourceCut(text, 'src/split.ts', 'presence')!;
+    const first = cut.rows.find((row) => row.name === 'split/filter.arg0')!;
+    const session = {
+      name: 'checkout',
+      sources: [{ file: 'src/split.ts', text, sourceDigest: cut.sourceDigest, functions: cut.rows.filter((row) => row.kind === 'function').map((row) => ({ row, state: 'ran' as const })) }],
+    };
+    const record = {
+      file: 'src/split.ts',
+      sourceDigest: cut.sourceDigest,
+      instrumented: true,
+      blocks: cut.rows.map((row) => ({ ...row, testFiles: row === first ? ['src/split.test.ts'] : [] })),
+    };
+    const answer = sessionsAgainst([session], [[record]], () => text, 'presence');
+
+    expect(answer.files[0]!.functions.map(({ name, row, testFiles }) => ({ name, line: row.startLine, testFiles }))).toEqual([
+      { name: 'split', line: 1, testFiles: [] },
+      { name: 'split/filter.arg0', line: 2, testFiles: ['src/split.test.ts'] },
+      { name: 'split/filter.arg0', line: 3, testFiles: [] },
+    ]);
+  });
+
   it('says no case can be counted for a function a record holds in another text', () => {
     const session = named('checkout', sessionSources([bundle], 'presence'));
     const answer = sessionsAgainst([session], [[recorded(MATH.replace('a + b', 'a - b'))]], (file) => disk.get(file), 'presence');
