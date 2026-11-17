@@ -11,7 +11,7 @@ record, and where each capability is turned on.
 |---|---|---|---|---|---|---|
 | Vitest 4.1+ | each case; each file in browser mode | itself | yes | yes | yes | [jsdom](start-unit.md) or [browser mode](start-vitest-browser.md) |
 | Jest 30 | each case | itself | yes | yes | yes | [jsdom](start-unit.md) |
-| Rstest | each case; each file in browser mode | `variance select` prints them | no | no | yes | [jsdom or `@rstest/playwright`](start-rstest.md) |
+| Rstest | each case; each file in browser mode | itself | no | no | yes | [jsdom or `@rstest/playwright`](start-rstest.md) |
 | Playwright | each test | itself | no | yes | yes | [the spec](start-playwright.md) |
 | Storybook | each story | `variance run --since` skips them | n/a: a story is a case | `variance run --shard` | yes | [the story](start-storybook.md) |
 | [A JVM on the JUnit Platform](jvm.md) | each test class | `variance select` prints them | no | no | no | no |
@@ -42,10 +42,10 @@ the record holds under each of them.
 
 ## Leave out the tests a change did not reach
 
-Under Vitest, Jest and Playwright, `VARIANCE_AUTHORITY_SINCE` on the run you
-already call leaves out the test files the record proves a change did not reach.
-`variance run --since` leaves out the stories a change did not reach. Under
-Rstest, a JVM and any other runner, `variance select` prints the same list for
+Under Vitest, Jest, Rstest and Playwright, `VARIANCE_AUTHORITY_SINCE` on the run
+you already call leaves out the test files the record proves a change did not
+reach. `variance run --since` leaves out the stories a change did not reach.
+Under a JVM and any other runner, `variance select` prints the same list for
 the run to skip. The runner says what it kept before it starts:
 
 ```text

@@ -984,7 +984,7 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `include`,
-`unprobed`, `preconditions`, `mode`, `placement`, `continuations`, and `cadence`, with the meanings above. Rstest
+`unprobed`, `preconditions`, `mode`, `placement`, `continuations`, `cadence`, and `selection`, with the meanings above. Rstest
 does not report which config file it loaded, so name it in `preconditions`. The
 regions are cut from the text you wrote, so the lines a record carries are the
 ones you edited, and a second loader at `enforce: 'post'` writes the probes into
@@ -1014,6 +1014,15 @@ from, so its tests run and the run fails when they end, and `rstest merge-report
 fails the same way, for an entry a merged test rests on. Neither writes a record
 without that entry. A project named by a path and not wrapped itself records no
 coverage: wrap it to have its tests recorded.
+
+`VARIANCE_AUTHORITY_SINCE` and `VARIANCE_AUTHORITY_AT_DISTANCE` read as in
+[Let the runner skip them](#let-the-runner-skip-them): the wrap adds the files
+the selection skips to the project's `exclude` before Rstest plans its entries,
+and stderr shows the same `selected` line first. A selection that keeps no file
+runs none and passes. Under `projects`, each wrapped project selects from its
+own files and prints its own line. A kept file runs whole, so
+`VARIANCE_AUTHORITY_GRAIN=case` fails the run rather than run more than it
+asked for.
 
 A `--reporter` on the command line replaces the seam's reporter, which is the
 one that refuses and records. Such a run, and such a `rstest merge-reports`,
