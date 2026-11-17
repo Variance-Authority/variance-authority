@@ -125,11 +125,7 @@ interface Tap {
    * `taped` is a tape that stopped, never one that was empty.
    */
   read(): Tape;
-  /**
-   * Put `text` on the tape where the realm is now, in the case running now. A
-   * template's strings take `values` between them, each shown as a region shows
-   * what it was handed: a primitive as it is, an object as its ref and kind.
-   */
+  /** Put `text` on the tape where the realm is now, in the case running now; a template's `values` go between its strings, each shown as a region shows it. */
   note(text: string | readonly string[], values?: readonly unknown[]): void;
   /** Have the tape keep when each turn of the realm began, read off `clock`. */
   stampWith(clock: () => number): void;
