@@ -25,7 +25,7 @@ let stop: () => void;
 
 beforeEach(() => {
   said = [];
-  stop = watchSuspense(document, (text) => said.push(text));
+  stop = watchSuspense((text) => said.push(text));
   container = document.body.appendChild(document.createElement('div'));
   root = createRoot(container);
 });
@@ -170,6 +170,20 @@ describe('what the Suspense boundaries on the page did, as they did it', () => {
       expect(said).toEqual(['suspense Cart › Suspense shows its fallback', 'suspense Cart › Suspense unlocks']);
     } finally {
       await act(async () => whole.unmount());
+    }
+  });
+
+  it('reads a root mounted in a shadow root', async () => {
+    const cart = deferred();
+    const host = document.body.appendChild(document.createElement('div'));
+    const shadowed = createRoot(host.attachShadow({ mode: 'open' }));
+    try {
+      await act(async () => shadowed.render(h(Cart, { promise: cart.promise })));
+      await cart.settle();
+      expect(said).toEqual(['suspense Cart › Suspense shows its fallback', 'suspense Cart › Suspense unlocks']);
+    } finally {
+      await act(async () => shadowed.unmount());
+      host.remove();
     }
   });
 

@@ -439,7 +439,7 @@ flags set when a retention limit cut a list short.
 `TapOptions` is `{ scope?, nameLimit?, updaterLimit?, keep?, onCommit?,
 refuseIfLoaded?, createHook? }`. `keep` bounds retained commits (default 512);
 `updaterLimit` bounds initiators per commit (default 64); `onCommit` observes
-each retained commit synchronously; `refuseIfLoaded` (default true) decides
+each retained commit synchronously, with the `FiberRoot` that committed it; `refuseIfLoaded` (default true) decides
 whether an already-mounted page is a refusal; `createHook` (default true) decides
 whether a missing hook may be installed, and a caller that cannot promise it ran
 first passes `false` and reads `no-hook`; `scope` substitutes the global the hook

@@ -32,7 +32,7 @@ if (!namers.includes(reactKind)) namers.push(reactKind);
 // TODO: (#1448) a Playwright spec's page and a Storybook story's page import no setup file, so no watch is put there.
 if (realm[SUSPENSE] === undefined && realm.document !== undefined) {
   // The story's channel is looked up at each note, for a realm's collector replaces it.
-  realm[SUSPENSE] = watchSuspense(realm.document, (text) => {
+  realm[SUSPENSE] = watchSuspense((text) => {
     const channel = realm[NOTE];
     if (typeof channel === 'function') channel(text);
   });

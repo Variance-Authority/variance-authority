@@ -198,6 +198,14 @@ export function boundariesUnder(node: Node): readonly SuspenseBoundary[] | null 
   return found;
 }
 
+/** Every Suspense boundary a `FiberRoot` holds, wherever its container sits. Internal to the package. */
+export function boundariesOfRoot(root: object): readonly SuspenseBoundary[] {
+  const current = (root as { readonly current?: Fiber | null }).current;
+  const found: SuspenseBoundary[] = [];
+  if (current) collectFrom(current, found);
+  return found;
+}
+
 /**
  * Every Suspense boundary under every React root in `scope`.
  *

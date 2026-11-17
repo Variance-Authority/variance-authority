@@ -1,32 +1,34 @@
 import { tapCommits } from './commits.js';
-import { boundariesUnder, boundaryId, type SuspenseBoundary } from './suspense.js';
+import { boundariesOfRoot, boundaryId, type SuspenseBoundary } from './suspense.js';
 
 /**
- * Tell `note` each time a Suspense boundary on `page` shows its fallback and
+ * Tell `note` each time a Suspense boundary React commits shows its fallback and
  * each time it unlocks, as it happens, naming it by the component that wrote it
  * or, in a production build, the one it sits inside. A boundary taken off the
  * page is told nothing more. Returns what stops the watch.
  */
-export function watchSuspense(page: Node, note: (text: string) => void): () => void {
-  // The boundaries showing their fallback at the last commit, by identity.
-  let falling = new Set<number>();
-  const read = (): void => {
+export function watchSuspense(note: (text: string) => void): () => void {
+  // The boundaries each root showed falling back at its last commit, by identity.
+  const falling = new WeakMap<object, Set<number>>();
+  const read = (root: object): void => {
+    const was = falling.get(root) ?? new Set<number>();
     const now = new Set<number>();
-    for (const boundary of boundariesUnder(page) ?? []) {
+    for (const boundary of boundariesOfRoot(root)) {
       const id = boundaryId(boundary);
       if (boundary.state === 'pending') {
         now.add(id);
-        if (!falling.has(id)) note(`suspense ${named(boundary)} shows its fallback`);
-      } else if (boundary.state === 'resolved' && falling.has(id)) {
+        if (!was.has(id)) note(`suspense ${named(boundary)} shows its fallback`);
+      } else if (boundary.state === 'resolved' && was.has(id)) {
         note(`suspense ${named(boundary)} unlocks`);
       }
     }
-    falling = now;
+    falling.set(root, now);
   };
-  // Read inside each commit, so a note precedes what is told after it and an empty fallback still counts; a boundary
-  // that falls back and unlocks within one commit is not seen. React tells only a hook there before it loaded.
+  // The committing root is read inside its commit, so a note precedes what is told after it, an empty fallback still
+  // counts and a root in a shadow root is read; a boundary that falls back and unlocks within one commit is not seen.
+  // React tells only a hook there before it loaded.
   // Only the moment of each commit is wanted, so the tap keeps none of them.
-  const tap = tapCommits({ keep: 0, onCommit: read });
+  const tap = tapCommits({ keep: 0, onCommit: (_, root) => root !== undefined && read(root) });
   return () => tap.stop();
 }
 
