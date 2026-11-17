@@ -1,71 +1,23 @@
-import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
-import { promisify } from 'node:util';
-import { chromium } from '@playwright/test';
+import { readdir, readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { moduleId } from '@variance-authority/sense/journal';
-import { caseIndexOf, decodeExecutionIndex, openSetColumns, recordedAttemptsAt } from '@variance-authority/sense/test-selection';
+import { caseIndexOf, decodeExecutionIndex, openSetColumns } from '@variance-authority/sense/test-selection';
 import { afterAll, describe, expect, it } from 'vitest';
 // A case's lines are read by sense's selection, which publishes no reader of
 // them, so this reads them the way it does.
 import { lineAt, linesOf } from '../../sense/src/test-selection/case-lines.js';
+import { at, BROWSER_AVAILABLE, fixture, removeRuns, runWith, stories, type Story } from './story.fixture.js';
 
 // A real Playwright run over a page an instrumented build serves, recorded
-// through `withTestSelection` with `VARIANCE_AUTHORITY_STORY=1`.
-const here = dirname(fileURLToPath(import.meta.url));
-const repository = resolve(here, '../../..');
-const fixture = resolve(here, '../test/fixtures/story');
-const at = (path: string) => `packages/playwright-test/test/fixtures/story/${path}`;
-const directories: string[] = [];
-// A reading is read back by `variance story`, which reads it with sense's
-// decoder; sense publishes none, so this requires the one it builds.
-const stories = createRequire(import.meta.url)(resolve(repository, 'packages/sense/dist/story/format.cjs')) as {
-  decodeStory(bytes: Uint8Array): {
-    file: string; name: string; stopped?: boolean; rows: [string, number][]; visits: Int32Array; notes: [number, string][]; lines: [number, number, number, 1?][];
-  };
-};
-
-const BROWSER_AVAILABLE = ((): boolean => {
-  try {
-    return existsSync(chromium.executablePath());
-  } catch {
-    return false;
-  }
-})();
+// through `withTestSelection` with `VARIANCE_AUTHORITY_STORY=1`. What a retried
+// case leaves of each attempt is `story-attempts.chromium.test.ts`.
 
 if (!BROWSER_AVAILABLE) {
   console.warn('\npackages/playwright-test story: skipped.\n  no browser — npx playwright install chromium\n');
 }
 
-afterAll(async () => {
-  await Promise.all(directories.map((directory) => rm(directory, { recursive: true, force: true })));
-});
-
-/** One run of the fixture with `env`; the directory its record went to. */
-async function runWith(env: Readonly<Record<string, string>>): Promise<string> {
-  const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-playwright-story-'));
-  directories.push(directory);
-  await promisify(execFile)(
-    process.execPath,
-    [resolve(repository, 'node_modules/@playwright/test/cli.js'), 'test', '--config', resolve(fixture, 'playwright.config.mjs')],
-    {
-      cwd: fixture,
-      env: {
-        ...process.env,
-        ...env,
-        VARIANCE_AUTHORITY_COVERAGE: resolve(directory, 'coverage.bin'),
-        VARIANCE_AUTHORITY_CACHE: resolve(directory, 'cache'),
-      },
-    },
-  );
-  return directory;
-}
-
-type Story = ReturnType<typeof stories.decodeStory>;
+afterAll(removeRuns);
 
 /** The stories one run with stories on wrote, by case name; one run serves every case below. */
 let written: Promise<{ readonly directory: string; readonly byName: ReadonlyMap<string, Story> }> | undefined;
@@ -232,35 +184,6 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     };
 
     expect({ choose: reached('choose'), pay: reached('pay') }).toEqual({ choose: { line: named('leaves'), ambient: false }, pay: { line: named('pays'), ambient: false } });
-  }, 120_000);
-
-  it('writes a reading for each attempt of a retried case, and the failed one stops short of paying', async () => {
-    const directory = await runWith({ VARIANCE_AUTHORITY_STORY: '1', FIXTURE_RETRIED: '1' });
-    const files = await readdir(resolve(directory, 'coverage.stories'));
-    const readings = await Promise.all(files.map(async (name) => stories.decodeStory(await readFile(resolve(directory, 'coverage.stories', name)))));
-    expect(readings.map(({ name, stopped }) => [name, stopped]).sort()).toEqual([
-      ['pays on its second attempt', false],
-      ['pays on its second attempt', true],
-    ]);
-    const [failed, passed] = [readings.find(({ stopped }) => stopped)!, readings.find(({ stopped }) => !stopped)!];
-    expect(failed.visits.length).toBeLessThan(passed.visits.length);
-  }, 120_000);
-
-  it('keeps how each attempt of that case ended, as Playwright said it, beside the one outcome it reported', async () => {
-    const coverageFile = resolve(await runWith({ FIXTURE_RETRIED: '1' }), 'coverage.bin');
-    const [retried] = decodeExecutionIndex((await caseIndexOf(coverageFile))!).tests;
-    const attempts = recordedAttemptsAt(coverageFile);
-    const source = (await readFile(resolve(fixture, 'tests/retried.spec.ts'), 'utf8')).split('\n');
-    expect(attempts?.map(({ duration: _duration, message: _message, ...rest }) => rest)).toEqual([
-      { case: retried!.id, attempt: 1, ended: 'failed', frame: `${at('tests/retried.spec.ts')}:${source.findIndex((text) => text.includes('toBe(1)')) + 1}` },
-      { case: retried!.id, attempt: 2, ended: 'passed' },
-    ]);
-    expect(attempts![0]!.message).toContain('toBe');
-    for (const attempt of attempts!) expect(Number.isInteger(attempt.duration) && attempt.duration! >= 0).toBe(true);
-    // What Playwright said of the case is what it was: it finished, in a time, under the runner's limit.
-    expect(retried).toMatchObject({ name: 'pays on its second attempt', stopped: false });
-    expect(retried!.duration).toBeGreaterThanOrEqual(0);
-    expect(retried!.limit).toBeGreaterThan(0);
   }, 120_000);
 
   it('writes none when the run did not ask', async () => {
