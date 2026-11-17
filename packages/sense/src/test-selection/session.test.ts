@@ -33,6 +33,28 @@ describe('a session read into the record\'s regions', () => {
     expect(states(read.sources, '/repo/src/main.ts')).toEqual({ unused: 'unrun' });
   });
 
+  it('reads each function of a script with no map by the innermost range around its start', () => {
+    const functions = [
+      { functionName: '', ranges: [{ startOffset: 0, endOffset: MATH.length, count: 1 }], isBlockCoverage: true },
+      { functionName: 'twice', ranges: [{ startOffset: MATH.indexOf('(x: number) =>'), endOffset: MATH.length - 1, count: 0 }], isBlockCoverage: false },
+      { functionName: 'add', ranges: [{ startOffset: MATH.indexOf('function add'), endOffset: MATH.indexOf('\n\nexport function never'), count: 2 }], isBlockCoverage: false },
+      { functionName: 'never', ranges: [{ startOffset: MATH.indexOf('function never'), endOffset: MATH.indexOf('\n\nexport const'), count: 0 }], isBlockCoverage: false },
+    ];
+    const read = sessionSources([{ file: '/repo/src/math.ts', text: MATH, functions }], 'presence');
+
+    expect(states(read.sources, '/repo/src/math.ts')).toEqual({ add: 'ran', never: 'unrun', twice: 'unrun' });
+  });
+
+  it('reads nothing of a source the map leaves unnamed, and places the rest', () => {
+    const read = sessionSources(
+      [{ file: '/repo/dist/main.js', text: BUNDLE, map: { ...BUNDLE_MAP, sources: [null, '../src/main.ts'] }, functions: BUNDLE_FUNCTIONS }],
+      'presence',
+    );
+
+    expect(read.unplaced).toEqual([]);
+    expect(read.sources.map((each) => each.file)).toEqual(['/repo/src/main.ts']);
+  });
+
   it('names a source the map places nowhere on this machine, and reads nothing of it', () => {
     const read = sessionSources(
       [{ file: '/repo/dist/main.js', text: BUNDLE, map: { ...BUNDLE_MAP, sources: ['webpack://app/src/math.ts', '../src/main.ts'] }, functions: BUNDLE_FUNCTIONS }],

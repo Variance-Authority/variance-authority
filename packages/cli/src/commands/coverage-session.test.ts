@@ -7,6 +7,7 @@ import { instrumentationId } from '@variance-authority/sense/instrument';
 import { encodeExecutionIndex, sourceCut, testCoverageFile, writeTestCoverage } from '@variance-authority/sense/test-selection';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
+import { sessionsMarkdown } from './coverage-sessions-text.js';
 import { BUNDLE, BUNDLE_FUNCTIONS, BUNDLE_MAP, MAIN, MATH } from './session-input.fixture.js';
 
 let cache: string;
@@ -121,6 +122,20 @@ describe('`coverage --session`', () => {
     expect(answer.out).toContain('<summary>🧭 Ran by a session, by no recorded case: 1 function</summary>');
     expect(answer.out).toContain('| checkout | 2 | 1 | 0 |\n| node | 1 | 2 | 0 |');
     expect(answer.out).toContain('| `src/math.ts` | `twice` | 9 | checkout |');
+  });
+
+  it('leaves the lines empty for a function written on none', () => {
+    const lines = sessionsMarkdown({
+      names: ['checkout'],
+      each: [],
+      untested: [{ file: 'src/gen.ts', functions: [{ name: 'made', sessions: ['checkout'] }] }],
+      uncounted: 0,
+      files: [],
+      notLoaded: [],
+      uncut: [],
+    });
+
+    expect(lines).toContain('| `src/gen.ts` | `made` |  | checkout |');
   });
 
   it('names every source a session ran that it sets beside no case, and why', async () => {
