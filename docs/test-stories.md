@@ -704,7 +704,8 @@ them](#compare-readings-of-one-test) lists that order.
 
 A request is its method and path, never its query or its body: those carry the
 application's data, often a token, and the story is a file anyone who reads the
-run can open. Fonts, images, media and open channels such as a WebSocket are
+run can open. The path is written as it is, so a token carried in a path is
+written too. Fonts, images, media and open channels such as a WebSocket are
 left out, since every page has them and no line waits on them. A request is told
 on the line during which the runner heard it, which is the line that sent it or
 a later one, never an earlier one. A redirect is two requests, the first
