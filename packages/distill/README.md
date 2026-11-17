@@ -53,9 +53,8 @@ readings of each case.
 
 **The case index** — which files and which functions inside them each test
 covered, meaning ran code in rather than merely imported. Wrap the
-configuration of the runner you already use once, with the seam
-[one table](https://variance-authority.dev/docs/own-fewer-tests#ask-which-tests-cover-a-line)
-names for Vitest, Jest, Rstest, Playwright and Storybook.
+configuration of the runner you already use once, with the seam [supported
+frameworks](https://variance-authority.dev/docs/supported-frameworks#record-which-tests-ran-each-line) names for it.
 
 Every wrapped run writes the per-case recording into its record,
 `coverage.bin`, and `distill` reads that record as it is. A test file that runs in a page is

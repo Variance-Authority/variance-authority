@@ -1,7 +1,6 @@
 # Split a test suite across CI jobs
 
-Shard a Vitest, Jest or Playwright suite with `--shard k/n`, and each shard
-takes whole test files by how long they took on the last recorded run, not by
+Shard a [supported](supported-frameworks.md#split-a-run-across-ci-jobs) suite with `--shard k/n`, and each shard takes whole test files by how long they took on the last recorded run, not by
 how many there are. Each file goes in turn, longest first, to the shard with
 the least time so far, so the shards finish close together. Each shard
 computes the split from the record the run handed it and the files it collects,

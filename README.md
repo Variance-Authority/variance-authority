@@ -228,8 +228,8 @@ only on identities their producers emitted.
 
 ## Where it fits
 
-The [adoption gates](docs/gates.md) state where the tool fits Playwright,
-Storybook, Jest, Vitest and Rstest — under jsdom and in browser mode. The
+The [adoption gates](docs/gates.md) state where the tool fits each of the
+[supported frameworks](docs/supported-frameworks.md). The
 [product comparison](docs/compare-visual-review.md) states what Percy, Chromatic, Argos,
 and Applitools provide that this project does not.
 

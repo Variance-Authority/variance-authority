@@ -21,8 +21,8 @@ npx playwright install chromium
 
 [Your first run](start.md) has the config and the collector that command reads.
 
-That command covers the subjects the CLI renders. For an existing Vitest, Jest
-or Playwright suite, [its runner's seam](own-fewer-tests.md#ask-which-tests-cover-a-line)
+That command covers the subjects the CLI renders. For an existing suite under one of the
+[supported frameworks](supported-frameworks.md#record-which-tests-ran-each-line), its runner's seam
 wraps the configuration you already have: the run records itself, and
 with `VARIANCE_AUTHORITY_SINCE` set the runner leaves out the test files your
 edit did not reach. [Run the tests an edit needs](test-an-edit.md) is that
@@ -92,7 +92,7 @@ For rendered subjects, use [test selection](selecting.md) when the outcome is a
 smaller run. It owns `--since`, the conservative rules that widen the set, and
 the report of what was excluded.
 
-For your own Vitest, Jest or Playwright suite, record one run with the
+For your own suite, record one run with the
 integration installed, then set the variable on the next one:
 
 ```bash

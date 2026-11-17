@@ -6,8 +6,8 @@ records **which parts each test actually covered**. It selects the tests that
 reached those lines and shows when no test did —
 [what a record shows that no graph can](#what-a-record-shows-that-no-graph-can).
 
-For a Vitest, Jest or Playwright suite, [run the tests an edit needs](test-an-edit.md)
-puts that selection inside the runner you already call; `variance select` prints it for any other.
+[Run the tests an edit needs](test-an-edit.md) puts that selection inside each of the
+[supported frameworks](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach), or prints it with `variance select`.
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Every

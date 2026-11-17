@@ -24,16 +24,9 @@ Record case identities once, under the runner you already use. Its recorder
 wraps the configuration that runner reads and keeps the plugins, setup files and
 reporters in it; every run writes an [execution index](execution-record.md)
 naming which individual case covered each region, beside the file-level
-snapshot the same run already writes.
-
-| Your tests run under | Install | Wrap |
-|---|---|---|
-| Vitest | `@variance-authority/sense` | [`withTestSelection`](../packages/sense/README.md#cut-a-vitest-run-down-to-a-diff) from `@variance-authority/sense/vitest`, around `defineConfig` |
-| Jest | `@variance-authority/sense` | [`withTestSelection`](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) from `@variance-authority/sense/jest`, around the configuration you export |
-| Rstest | `@variance-authority/sense` | [`withTestSelection`](../packages/sense/README.md#cut-an-rstest-run-down-to-a-diff) from `@variance-authority/sense/rstest`, inside `defineConfig` |
-| Playwright | `@variance-authority/playwright-test` | [`withTestSelection`](../packages/playwright-test/README.md#record-what-each-spec-executed) from `@variance-authority/playwright-test`, inside `defineConfig` |
-| Storybook | `@variance-authority/storybook-collector` | [`tests: true`](../packages/storybook-collector/README.md#skipping-stories-nothing-touched) in `storybookCollector` |
-| Any other runner | `@variance-authority/sense` | [`observer.case`](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) around the body of each case |
+snapshot the same run already writes. [Supported
+frameworks](supported-frameworks.md#record-which-tests-ran-each-line) gives each
+runner's package and wrap.
 
 The questions below are asked with the `variance` command, from
 `@variance-authority/cli`:

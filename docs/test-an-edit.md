@@ -1,15 +1,14 @@
 # Run the tests an edit needs
 
-Set `VARIANCE_AUTHORITY_SINCE` and the Vitest, Jest or Playwright run you already call
-leaves out every test file a recorded run shows never executed the code you
-changed. Under Rstest or any other runner, `variance select` prints the same
-files for your script to leave out. The edit-and-test loop you or your coding
-agent already runs stays the same loop, only shorter.
+Set `VARIANCE_AUTHORITY_SINCE` and the test run you already call leaves out
+every test file a recorded run shows never executed the code you changed, or
+`variance select` prints them, per [supported frameworks](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach).
+The edit-and-test loop you or your coding agent runs stays, only shorter.
 
 A runner's changed-files mode runs every test that imports a file you changed.
 Edit one function in a module half the suite imports, and half the suite runs.
 A recorded run knows which of those tests executed that function, and only
-those run, and under Jest and Vitest only the cases that did. Each run updates
+those run, and [where the runner can](supported-frameworks.md#skip-the-cases-a-change-did-not-reach) only the cases that did. Each run updates
 the record, so your next edit is measured from what ran last.
 
 Wrap the runner configuration once and run the suite once. That run writes the

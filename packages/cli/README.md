@@ -2272,8 +2272,8 @@ No `variance.config.json` is read.
 `variance run --since` narrows the subjects this tool renders. `variance select`
 answers the same journal for a suite this tool does not run, under any runner
 that recorded it or that a shell script hands paths to, by naming the test files
-that diff cannot reach. A Vitest, Jest or Playwright config wrapped by
-`withTestSelection` reads the same answer when you set
+that diff cannot reach. A runner config wrapped by `withTestSelection`, where [the runner
+reads it](https://variance-authority.dev/docs/supported-frameworks#leave-out-the-tests-a-change-did-not-reach), reads the same answer when you set
 `VARIANCE_AUTHORITY_SINCE`, and the runner drops those files itself, with no
 path on its command line:
 
@@ -2601,8 +2601,8 @@ running, or the workflow that starts it.
 
 ### `shards`: how many CI jobs a suite is worth
 
-A Vitest, Jest or Playwright config wrapped by `withTestSelection` places the
-files of `--shard k/n` by the time each took on the last recorded run, so the
+A runner config wrapped by `withTestSelection`, under [the runners that
+shard](https://variance-authority.dev/docs/supported-frameworks#split-a-run-across-ci-jobs), places the files of `--shard k/n` by the time each took on the last recorded run, so the
 shards finish close together; [sharding](https://variance-authority.dev/docs/sharding) shows a build that
 does it. `variance shards` says what `n` to start, from the same record and
 what one shard spends before its first test:

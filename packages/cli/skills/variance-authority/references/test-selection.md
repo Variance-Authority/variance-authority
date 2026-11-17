@@ -1,6 +1,6 @@
 # Which tests an edit needs, and which first
 
-When a repository has wrapped its Vitest, Jest, Rstest or Playwright runner, a suite run records
+When a repository has wrapped its test runner ([supported frameworks](https://variance-authority.dev/docs/supported-frameworks)), a suite run records
 which test file ran which region of which module. Test selection reads that
 recording back and answers two questions about an edit: **which recorded tests
 it reached**, and **how many imports lie between the edit and each one**. Both

@@ -1,6 +1,7 @@
 # Review coverage on every pull request
 
-A library on GitHub, tested under Vitest, Jest, Rstest or Playwright, can get
+A library on GitHub, tested under any of the [supported
+frameworks](supported-frameworks.md), can get
 one comment on each pull request that names the changed functions no test ran
 and what the change stopped running that its main branch ran. The comparison with the main branch is kept between
 runs in the GitHub Actions cache, and a badge on the README is one more line.

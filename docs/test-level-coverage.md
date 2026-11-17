@@ -221,11 +221,10 @@ test](distill.md).
 
 ## The process
 
-**Record it once.** The recorder for your runner — Vitest, Jest, Rstest,
-Playwright, Storybook or any other — wraps the configuration you already have
-and keeps its plugins, setup files and reporters. [Which tests cover a
-line](own-fewer-tests.md#ask-which-tests-cover-a-line) gives each runner's
-package and wrap.
+**Record it once.** The recorder for your runner wraps the configuration you
+already have and keeps its plugins, setup files and reporters. [Supported
+frameworks](supported-frameworks.md#record-which-tests-ran-each-line) gives each
+runner's package and wrap.
 
 **Run the suite the way you run it.** No separate coverage pass, no second
 command, and the file-level snapshot the same run writes does not depend on the

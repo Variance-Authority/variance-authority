@@ -128,10 +128,10 @@ An import graph tells you which tests might depend on a changed module. A
 recorded run also tells you which tests executed the changed code.
 `withTestSelection` wraps the runner configuration once, installing the reporter
 it needs along the way. Every run then records which source code each test file
-executed. Set `VARIANCE_AUTHORITY_SINCE` on the next Vitest, Jest or Playwright
-run and the runner reads that record itself, leaving out the test files your
-diff did not reach; [run the tests an edit needs](test-an-edit.md) is that loop.
-Rstest and any other runner get the same skip list from `variance select`.
+executed. Set `VARIANCE_AUTHORITY_SINCE` on the next run and the runner leaves out the
+test files your diff did not reach, or `variance select` prints them, as
+[supported frameworks](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach)
+lists; [run the tests an edit needs](test-an-edit.md) is that loop.
 
 The record also explains exclusions. A selection reports which tests have a
 complete recording and executed none of the changed code. Missing or incomplete
