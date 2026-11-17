@@ -100,7 +100,7 @@ distillation through execution evidence. It receives no invented Fiber count or
 percentage. A complete empty Eyes journal is a measured empty surface; no Eyes
 journal is an unavailable surface.
 
-## What Eyes refuses to conclude
+## What Eyes refuses to conclude, and where it stops
 
 - It does not infer AAA phases from testing-library calls.
 - It does not call every rendered component relevant to the assertion.
@@ -112,8 +112,8 @@ journal is an unavailable surface.
 Eyes reads a test run, not the product your users run. To find out why a
 component rendered, what a commit held, or which renders made an interaction
 slow in a running app, production builds included, use
-[Chippy](https://github.com/atlassian-labs/chippy): a React developer tool that
-shows a coding agent the live component tree, its source and its renders.
+[Chippy](https://github.com/atlassian-labs/chippy), a React developer tool for
+coding agents.
 
 ## Put it beside the test surface you already own
 

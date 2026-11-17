@@ -275,7 +275,8 @@ to the minimal hunk responsible. It belongs to the *attribute* rung of
 
 **Chippy** ([atlassian-labs/chippy](https://github.com/atlassian-labs/chippy))
 localizes in the running React app rather than in a test run, production builds
-included: it maps a live element to its component and source line, finds where
+included: it maps a live element to its component and, outside a minified
+production build, its source line; it finds where
 a render cascade started, records what each commit held, and separates the
 trigger of a slow interaction from the renders that came with it. Its React
 probe reads the renderer root's `memoizedUpdaters`, and that read is the
