@@ -14,14 +14,18 @@ import { covering } from './covering.js';
 import { formatCovering } from './covering-text.js';
 
 // One test file run by two Vitest projects, `plain` and `compiled`, recorded
-// through the real seam into a cache of its own for each run.
+// through the real seam into a cache of its own for each run, under a suite the
+// share does not carry: in an empty cache a shared suite's read fetches the
+// mainline's record, which costs seconds and holds nothing of the fixture.
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/twin-projects-vitest');
 const source = 'packages/sense/test/fixtures/twin-projects-vitest/src/greet.ts';
 const test = 'packages/sense/test/fixtures/twin-projects-vitest/test/greet.case.ts';
-const suite = declaredSuites(repository)?.[0]?.name;
-const named = suite === undefined ? [] : ['--suite', suite];
+// Today that suite is `site`; with none left, the file fails rather than turn slow.
+const suite = declaredSuites(repository)?.find((one) => one.carry !== 'share')?.name;
+if (suite === undefined) throw new Error('variance.config.json declares no suite the share does not carry');
+const named = ['--suite', suite];
 const caches: string[] = [];
 const previous = process.env['VARIANCE_AUTHORITY_CACHE'];
 
