@@ -251,6 +251,11 @@ export default defineConfig({
 In Jest the same entry goes in `setupFiles`. It reads the mark as a property
 and runs none of React's code.
 
+The same entry has each test line that opened or resolved a `Suspense`
+boundary say so — `suspense 1 opened, 1 still open: CheckoutPage › Suspense` —
+naming every boundary still showing its fallback by the components that wrote
+it, so a test that timed out waiting on data names the boundary it waited on.
+
 ## Where the source location comes from
 
 Nothing here reads layout, `getComputedStyle`, or any Chromium-only API, so the

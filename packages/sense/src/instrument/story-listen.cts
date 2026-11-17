@@ -42,11 +42,36 @@ type Realm = {
  * Watch the realm's document, once, and have `tap` say what each test line
  * changed on it when the line ends, as `page +N −M nodes, A attributes, T text`.
  * A hook's line and a case's settling close the watch until a test line opens.
+ * Then each reader in the realm's `Symbol.for('variance-authority.story.line')`
+ * array is asked, at every drain, what the line that ended did by its measure,
+ * and a word it answers for a test line is that line's note.
  * Self-contained: a page's tape puts its source on the page.
  */
 function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
+  const LINE = Symbol.for('variance-authority.story.line');
+  // Asked even when nothing is noted, so a reader's line starts where the last one ended.
+  const ask = (noting: boolean): void => {
+    const readers = (global as { [LINE]?: unknown })[LINE];
+    if (!Array.isArray(readers)) return;
+    for (const reader of readers) {
+      if (typeof reader !== 'function') continue;
+      try {
+        const said: unknown = reader();
+        if (noting && typeof said === 'string' && said !== '') tap.note(said);
+      } catch {
+        // A reader that cannot tell is not the story's failure.
+      }
+    }
+  };
   const { document, MutationObserver: Watch } = global;
-  if (document === undefined || typeof Watch !== 'function') return;
+  if (document === undefined || typeof Watch !== 'function') {
+    let quiet = true;
+    tap.drainWith((opens) => {
+      ask(!quiet);
+      quiet = !opens;
+    });
+    return;
+  }
   // Where a document keeps the one watch a story put on it.
   const PAGE = Symbol.for('variance-authority.story.page-watch');
   type Watching = {
@@ -85,6 +110,7 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
       held.tap.note(`page +${added} −${removed} nodes, ${attributes} ${attributes === 1 ? 'attribute' : 'attributes'}, ${text} text`);
     }
     held.counts = [0, 0, 0, 0];
+    ask(!held.quiet);
     held.quiet = !opens;
     // Observed from the first test line on, which a runner whose lines run
     // outside the page opens at its drain: what came before is no line's.

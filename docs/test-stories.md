@@ -684,6 +684,31 @@ change. For the React commits behind it, use [Eyes](eyes.md), which writes each
 commit under its step with the components that rendered. A test run without a
 document has no `page` note.
 
+## Which Suspense boundary a line left open
+
+With `@variance-authority/react/story` from [React](../packages/react) in the
+suite's setup files, each test line that opened or resolved a React `Suspense`
+boundary says so, beside its `page` note:
+
+```text
+suspense 1 opened, 1 still open: CheckoutPage › Suspense
+suspense 1 resolved
+```
+
+A boundary is open while it shows its fallback. It has no name of its own, so
+it is named by the components that wrote it, outermost first, and every
+boundary still open when the line ended is listed, in tree order. The line
+whose promise settled says `resolved`. A line that changed no boundary says
+nothing, and so does one whose boundary opened and resolved before it ended:
+the boundaries are read as each test line ends, as the `page` note is.
+
+A test that times out waiting on data usually ends with a boundary open. When
+you [compare its readings](#compare-readings-of-one-test) with `--compare
+outcome`, the note is listed under `only when it threw`, with the boundary it
+names. The note reads a document the setup file loaded into, as under jsdom
+and the browser modes of Vitest and Rstest: the page a Playwright spec or a
+Storybook story drives has none.
+
 ## What a story does not show
 
 - **What an object holds, and values never handed to a function.** A ref says

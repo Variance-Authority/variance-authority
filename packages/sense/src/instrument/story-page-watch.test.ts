@@ -105,6 +105,36 @@ describe('what a test line did to the page', () => {
     expect(lines.map(([, , line, said]) => [line, said])).toEqual([[4, 0], [6, 1]]);
   });
 
+  it("says what a realm's line readers answer when a test line ends, and nothing they answer for a hook's", () => {
+    const tap = openTap();
+    const { window } = new JSDOM('<main></main>');
+    let asked = 0;
+    const answers = ['before', 'third', '', 'fifth', 'hooked', 'eighth'];
+    const realm = { console: { ...console }, document: window.document, MutationObserver: window.MutationObserver, [Symbol.for('variance-authority.story.line')]: [() => answers[asked++], 'not a reader', () => { throw new Error('cannot tell'); }] };
+    listen(tap, realm);
+
+    tap.root.c(3);
+    tap.root.c(4);
+    tap.root.c(5);
+    tap.root.c(6, undefined, true);
+    tap.root.c(8);
+    tap.settle();
+
+    // Each reader is asked at every drain, before each line and when the case
+    // settles; what it answers for a test line is that line's note, an empty
+    // answer says nothing, and what it answers for a hook or before the first line is dropped.
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['third', 'fifth', 'eighth']);
+    expect(asked).toBe(6);
+  });
+
+  it('asks the line readers in a realm with no document too', () => {
+    const tap = openTap();
+    listen(tap, { console: { ...console }, [Symbol.for('variance-authority.story.line')]: [() => 'sent 1'] });
+    tap.root.c(1);
+    tap.settle();
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['sent 1']);
+  });
+
   it('starts no page watch in a realm with no document', () => {
     const tap = openTap();
     listen(tap, { console: { ...console } });

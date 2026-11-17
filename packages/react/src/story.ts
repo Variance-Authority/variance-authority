@@ -6,10 +6,14 @@
  * element are each `Object`. React marks each with a `$$typeof` symbol, and its
  * description is the kind — `react.context`, `react.memo`. Imported as a setup
  * file, this module puts {@link reactKind} in the realm's kind array, which a
- * story's tap asks before it names an object itself.
+ * story's tap asks before it names an object itself, and a reader of Suspense
+ * boundaries in its line array, which the tap asks as each line ends.
  */
 
+import { suspenseLine } from './story-suspense.js';
+
 const KIND = Symbol.for('variance-authority.story.kind');
+const LINE = Symbol.for('variance-authority.story.line');
 
 /** The kind React marked `value` with, read without running any of its code. */
 export function reactKind(value: object): string | undefined {
@@ -19,6 +23,8 @@ export function reactKind(value: object): string | undefined {
   return kind?.startsWith('react.') ? kind : undefined;
 }
 
-const realm = globalThis as { [KIND]?: unknown[] };
+const realm = globalThis as { [KIND]?: unknown[]; [LINE]?: unknown[] };
 const namers = (realm[KIND] ??= []);
 if (!namers.includes(reactKind)) namers.push(reactKind);
+const readers = (realm[LINE] ??= []);
+if (!readers.includes(suspenseLine)) readers.push(suspenseLine);
