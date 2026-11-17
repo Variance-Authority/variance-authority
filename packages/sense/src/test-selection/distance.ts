@@ -42,10 +42,11 @@
  * first, which is the right place for it and the wrong reason.
  */
 
-import { EDGE_KINDS, RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, dependenciesOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
+import { entries, nodesOf, ownName } from './from-test.js';
 import { findTest } from './lookup.js';
 import { reachesThrough } from './reading.js';
 import type { ExecutionNarrowing, SelectionCause } from './narrowing.js';
@@ -108,6 +109,13 @@ export interface TestDistance {
   readonly trail?: readonly string[];
   /** Every hop on `trail` that landed inside a unit. Absent when none did. */
   readonly through?: readonly ReachThrough[];
+  /**
+   * The changed files this test enters: it imports each one directly, and no
+   * other module it imports directly, along edges the test ran, imports it too;
+   * a barrel that only re-exports it does not count. `checkout.test.ts` imports `checkout.ts` and the `money.ts` it uses, and
+   * enters `checkout.ts` alone. Absent when it enters none of them.
+   */
+  readonly enters?: readonly string[];
   /**
    * Why nothing could be measured, in the words of the walk that gave up.
    *
@@ -194,9 +202,6 @@ export function distanceFromView(
   return placed.sort(nearestFirst);
 }
 
-/** A file held under its own path alone, when no `knownAs` names more. */
-const ownName = (file: string): readonly string[] => [file];
-
 /** The one comparison every consumer of this reading sorts by. */
 export function nearestFirst(left: TestDistance, right: TestDistance): number {
   if (left.hops !== right.hops) {
@@ -222,13 +227,17 @@ function place(
   options: DistanceOptions,
 ): TestDistance {
   const seeds: string[] = [];
+  const changed = new Set<string>();
   for (const reason of cause.via) {
     if (reason.kind === 'precondition') {
       return { test: cause.test, bearing: 'precondition', hops: 0, from: reason.name, trail: [reason.name] };
     }
     // A reader is measured from the file that declares the value it reads:
     // that is the file the change is in.
-    if (reason.kind === 'region' || reason.kind === 'reader') seeds.push(reason.file);
+    if (reason.kind === 'region' || reason.kind === 'reader') {
+      seeds.push(reason.file);
+      changed.add(reason.file);
+    }
     // An importer chain is already a measured path from the changed file to the
     // module whose row answered. Its far end is where the walk below picks up,
     // and the chain is spliced back on once there is something to splice it to.
@@ -236,13 +245,24 @@ function place(
   }
 
   const chains = new Map<string, readonly string[]>();
+  // A chain the test answered for itself starts at a changed file the record
+  // holds no row for, so no run entered it, and the test may still import it.
+  const unrecorded: string[] = [];
   for (const reason of cause.via) {
     if (reason.kind === 'importer' && reason.trail.length > 0) {
       chains.set(reason.trail[reason.trail.length - 1]!, reason.trail);
+      if (reason.trail[reason.trail.length - 1] === cause.test) {
+        unrecorded.push(reason.trail[0]!);
+        changed.add(reason.trail[0]!);
+      }
     }
   }
 
-  return measure(cause.test, seeds, chains, entered.get(findTest(coverage, cause.test) ?? -1) ?? new Set(), options);
+  // A chain's far end answered for the change and did not change itself, so a
+  // test entering it enters nothing changed.
+  const enterable = (file: string): boolean => changed.has(file) || !chains.has(file);
+  const ran = entered.get(findTest(coverage, cause.test) ?? -1) ?? new Set();
+  return measure(cause.test, seeds, chains, ran, options, enterable, unrecorded);
 }
 
 /** Walk from `test` through the modules it `ran` to the nearest seed, and splice that seed's chain back on. */
@@ -252,8 +272,10 @@ function measure(
   chains: ReadonlyMap<string, readonly string[]>,
   ran: ReadonlySet<string>,
   options: DistanceOptions,
+  enterable: (file: string) => boolean = (): boolean => true,
+  unrecorded: readonly string[] = [],
 ): TestDistance {
-  const walked = walk(test, seeds, ran, options);
+  const walked = walk(test, seeds, ran, options, unrecorded);
   if ('because' in walked) {
     return walked.because === undefined
       ? { test, bearing: 'unexplained' }
@@ -267,6 +289,7 @@ function measure(
   const trail = [...prefix, ...walked.trail];
   const through = reachThroughs(trail, options.faces);
   const hops = trail.length - 1;
+  const enters = walked.enters.filter(enterable);
   return {
     test,
     bearing: through.length > 0 ? 'reach-through' : hops <= 1 ? 'direct' : 'transitive',
@@ -274,6 +297,7 @@ function measure(
     from: trail[0]!,
     trail,
     ...(through.length === 0 ? {} : { through }),
+    ...(enters.length === 0 ? {} : { enters }),
   };
 }
 
@@ -284,7 +308,7 @@ function measure(
  * that adding a reason somewhere is a compile error rather than a silent
  * reclassification of somebody's unscanned directory as effect at a distance.
  */
-type Walked = { readonly trail: readonly string[] } | { readonly because: string | undefined };
+type Walked = { readonly trail: readonly string[]; readonly enters: readonly string[] } | { readonly because: string | undefined };
 
 /**
  * The shortest executed path from this test's file to any of the seeds.
@@ -306,6 +330,7 @@ function walk(
   seeds: readonly string[],
   entered: ReadonlySet<string>,
   options: DistanceOptions,
+  unrecorded: readonly string[],
 ): Walked {
   const { relations } = options;
   if (relations === undefined) return { because: 'no import graph was supplied' };
@@ -329,7 +354,7 @@ function walk(
     };
   }
 
-  const { traversal, blind } = executed(relations, start, entered, [...wanted.keys()], nodes);
+  const { traversal, blind, open } = executed(relations, start, entered, [...wanted.keys()], nodes);
   let best: readonly NodeId[] | undefined;
   for (const id of wanted.keys()) {
     if (traversal.mask[id] !== 1) continue;
@@ -366,75 +391,18 @@ function walk(
 
   const named: string[] = [];
   for (const id of best) named.push(nodeAt(relations, id)?.name ?? '');
-  return { trail: named.reverse() };
-}
-
-/**
- * Import hops from a test's file to every module it entered, walked over the
- * modules it entered alone — the walk {@link distanceFromView} measures a
- * change by, read for every module at once. A module the walk could not reach
- * from the test's file is absent, never far: the graph has no executed path to
- * it, which says nothing of how far it is. The test's own file is 0.
- *
- * Breadth-first over the entered nodes only, so a test costs the imports of
- * what it entered and never the size of the graph: `coverage --at-distance`
- * walks once per test file.
- */
-export function hopsFromTest(
-  test: string,
-  entered: ReadonlySet<string>,
-  options: DistanceOptions,
-): ReadonlyMap<string, number> | { readonly because: string } {
-  const { relations } = options;
-  if (relations === undefined) return { because: 'no import graph was supplied' };
-  const nodes = nodesOf(relations, options.knownAs ?? ownName);
-  const start = nodes(test);
-  if (start.length === 0) return { because: `the graph does not hold ${test}` };
-  const open = new Set<NodeId>(start);
-  for (const file of entered) for (const id of nodes(file)) open.add(id);
-  const depth = new Map<NodeId, number>(start.map((id) => [id, 0]));
-  const { offset, target, kind } = relations.depends;
-  for (let queue = [...start], next: NodeId[] = [], hop = 1; queue.length > 0; queue = next, next = [], hop += 1) {
-    for (const from of queue) {
-      for (let edge = offset[from]!; edge < offset[from + 1]!; edge += 1) {
-        const to = target[edge]!;
-        if (!RUNTIME_KINDS[kind[edge]!] || !open.has(to) || depth.has(to)) continue;
-        depth.set(to, hop);
-        next.push(to);
-      }
-    }
+  // A changed file no run could enter is entered by the test that imports it.
+  const imported = new Map<NodeId, string>();
+  for (const file of unrecorded) for (const id of nodes(file)) imported.set(id, file);
+  const enterable = imported.size === 0 ? open : open.slice();
+  for (const id of imported.keys()) enterable[id] = 1;
+  const enters = new Set<string>();
+  const alike = (id: NodeId): readonly NodeId[] => nodes(nodeAt(relations, id)?.name ?? '');
+  for (const id of entries(relations, start, enterable, alike)) {
+    const seed = wanted.get(id) ?? imported.get(id);
+    if (seed !== undefined) enters.add(seed);
   }
-  const hops = new Map<string, number>();
-  for (const file of entered) {
-    for (const id of nodes(file)) {
-      const length = depth.get(id);
-      if (length !== undefined && length < (hops.get(file) ?? Infinity)) hops.set(file, length);
-    }
-  }
-  return hops;
-}
-
-/** Whether each edge kind, by its index, is one a run loads through. */
-const RUNTIME_KINDS = EDGE_KINDS.map((one) => RUNTIME_EDGES.includes(one));
-
-/**
- * Every node one file is held under. Every name, not the first one that
- * resolves: one module can be two nodes — a workspace package is imported
- * through its manifest, so an importer's edge lands on `dist` while the
- * snapshot recorded `src`, and picking either one leaves the other cut out of
- * the graph at exactly the hop that mattered. `knownAs` is documented as every
- * name a file is held under; honouring one of them would make that sentence
- * false.
- */
-function nodesOf(relations: Relations, knownAs: (file: string) => readonly string[]): (file: string) => readonly NodeId[] {
-  return (file) => {
-    const found: NodeId[] = [];
-    for (const name of knownAs(file)) {
-      const id = idOf(relations, 'file', name);
-      if (id !== undefined) found.push(id);
-    }
-    return found;
-  };
+  return { trail: named.reverse(), enters: [...enters].sort(codeUnitOrder) };
 }
 
 /**
@@ -451,7 +419,7 @@ function executed(
   entered: ReadonlySet<string>,
   admitted: readonly NodeId[],
   nodes: (file: string) => readonly NodeId[],
-): { readonly traversal: Traversal; readonly blind: number } {
+): { readonly traversal: Traversal; readonly blind: number; readonly open: Uint8Array } {
   const open = new Uint8Array(relations.names.length);
   for (const id of start) open[id] = 1;
   for (const id of admitted) open[id] = 1;
@@ -463,7 +431,7 @@ function executed(
   }
   const avoid: NodeId[] = [];
   for (let id = 0; id < open.length; id += 1) if (open[id] !== 1) avoid.push(id);
-  return { traversal: dependenciesOf(relations, start, { through: RUNTIME_EDGES, avoid }), blind };
+  return { traversal: dependenciesOf(relations, start, { through: RUNTIME_EDGES, avoid }), blind, open };
 }
 
 /**

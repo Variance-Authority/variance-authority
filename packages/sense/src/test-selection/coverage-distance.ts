@@ -22,7 +22,8 @@
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { joinedRegions } from './coverage-count.js';
-import { hopsFromTest, type DistanceOptions } from './distance.js';
+import type { DistanceOptions } from './distance.js';
+import { hopsFromTest } from './from-test.js';
 import type { ExecutionBlock, ExecutionIndex } from './reverse.js';
 
 /** Each index with only the crossings of its regions' nearest tests within the band, and what no walk measured. */
