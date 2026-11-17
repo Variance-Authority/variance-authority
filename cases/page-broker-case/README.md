@@ -14,8 +14,8 @@ instead of on selectors and waits.
   insists on one and fails with the branch actually taken.
 - A **handle** is linear: departing revokes it, a cover (`over`) leaves every
   handle on the page readable but refuses their actions, those entered beneath
-  it after it opened included, and `back` uncovers
-  exactly what that cover covered, every fragment of it whole and showing or
+  it after it opened included, and `back`, and no plain lead to the same
+  fragment, uncovers exactly what that cover covered, every fragment of it whole and showing or
   the page departs, and hands the owner's handle back. What is
   entered using an open cover lives and leaves with it, with every part only
   it holds; a part another owner holds stays, and answers to that owner alone.

@@ -486,3 +486,31 @@ test('going back while another restored fragment left departs the page', async (
   await expect(signIn.cancel.to('billing')).rejects.toThrow('sign-in.cancel went back to billing, and watcher is gone');
   await expect(watcher.text()).rejects.toThrow('departed');
 });
+
+// Only `back` uncovers: a plain lead to what a cover covers is a new arrival, and every handle beneath departs.
+const homeward: Record<string, ReturnType<typeof fragment>> = {};
+const Exit = fragment('exit-cover', { probe: byTestId('exit'), actions: { leave: leads(homeward, (d) => d.click(byRole('button', 'Leave'))) } });
+const Door = fragment('billing-door', { probe: form, actions: { open: leads({ exit: over(Exit) }, (d) => d.click(byRole('button', 'Open exit'))) } });
+homeward.door = Door;
+
+test('a plain lead to what a cover covers revokes the handles beneath, and hands a fresh one', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const door = await app.enter(Door);
+  await page.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', '<div data-testid="watcher"><ul><li>here</li></ul></div>');
+    const form = document.querySelector('form[aria-label="Billing details"]')!;
+    form.insertAdjacentHTML('beforeend', '<button type="button" data-open-exit>Open exit</button>');
+    form.querySelector('[data-open-exit]')!.addEventListener('click', () => {
+      document.body.insertAdjacentHTML('beforeend', '<div data-testid="exit"><button type="button">Leave</button></div>');
+      document.querySelector('[data-testid="exit"] button')!.addEventListener('click', () => {
+        document.querySelector('[data-testid="exit"]')!.remove();
+        document.querySelector('[data-testid="watcher"]')!.remove();
+      });
+    });
+  });
+  const watcher = await app.enter(Watcher);
+  const exit = await door.open.to('exit');
+  const again = await exit.leave.to('door');
+  expect(again).not.toBe(door);
+  await expect(watcher.text()).rejects.toThrow('departed at exit-cover.leave');
+});

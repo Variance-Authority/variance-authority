@@ -442,8 +442,8 @@ export class App {
     if (to === stay) {
       state.doc = this.documents.count;
       handle = self;
-    } else if (under !== undefined && under.fragment === to) {
-      // Leaving a cover for what it covered returns the covered handle, live again. What left with the
+    } else if (under !== undefined && declaredTo === back) {
+      // Going back, and only going back, returns the covered handle, live again. What left with the
       // cover owns nothing that stays: a part the page also holds answers to the page alone.
       const gone = new Set([...this.states].filter(([, each]) => each === state).map(([each]) => ((each as any)[META] as Meta).fragment));
       for (const each of this.states.keys()) {
