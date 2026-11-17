@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -150,6 +150,7 @@ describe('`coverage --session`', () => {
       unplaced: [],
       uncut: [join(root, '..gen/bad.js')],
       outside: [join(root, 'node_modules/dep/index.js')],
+      stale: [],
     }]);
     expect(sessions.uncut).toEqual(['..gen/broken.js']);
 
@@ -157,6 +158,32 @@ describe('`coverage --session`', () => {
     expect(text.out).toContain(`plain could not cut 1 source: ${join(root, '..gen/bad.js')}`);
     expect(text.out).toContain(`plain ran 1 source outside the checkout or in a dependency: ${join(root, 'node_modules/dep/index.js')}`);
     expect(text.out).toContain('1 file a session ran could not be cut in the checkout\'s text: ..gen/broken.js');
+
+    const markdown = await ask(['coverage', '--root', root, '--session', `plain=${join(root, 'plain.json')}`, '--served', root, '--format', 'markdown']);
+    expect(markdown.out).toContain(`plain could not cut 1 source: ${join(root, '..gen/bad.js')}`);
+    expect(markdown.out).toContain(`plain ran 1 source outside the checkout or in a dependency: ${join(root, 'node_modules/dep/index.js')}`);
+    expect(markdown.out).toContain('1 file a session ran could not be cut in the checkout\'s text: ..gen/broken.js');
+  });
+
+  it('reads a source the map holds no text of only when it is no newer than the script built from it', async () => {
+    // The map names its sources and keeps none of their text, as `tsc` writes it.
+    const { sourcesContent: _, ...bare } = BUNDLE_MAP;
+    await writeFile(join(root, 'dist/bare.js'), BUNDLE.replace('sourceMappingURL=main.js.map', 'sourceMappingURL=bare.js.map'));
+    await writeFile(join(root, 'dist/bare.js.map'), JSON.stringify(bare));
+    const url = `file://${join(root, 'dist/bare.js')}`;
+    await writeFile(join(root, 'bare.json'), JSON.stringify({ result: [{ url, scriptId: '1', functions: BUNDLE_FUNCTIONS }] }));
+    const session = ['coverage', '--root', root, '--session', `bare=${join(root, 'bare.json')}`, '--format', 'json'];
+
+    // Built before its sources were last written: they may hold other text than ran.
+    await utimes(join(root, 'dist/bare.js'), new Date('2000-01-01'), new Date('2000-01-01'));
+    const stale = JSON.parse((await ask(session)).out).sessions;
+    expect(stale.files).toEqual([]);
+    expect(stale.each[0].stale).toEqual([join(root, 'src/main.ts'), join(root, 'src/math.ts')]);
+
+    await utimes(join(root, 'dist/bare.js'), new Date(), new Date());
+    const fresh = JSON.parse((await ask(session)).out).sessions;
+    expect(fresh.each[0].stale).toEqual([]);
+    expect(fresh.files.map((file: { file: string }) => file.file)).toEqual(['src/main.ts', 'src/math.ts']);
   });
 
   it('leaves the record as it was: a session is never a case', async () => {

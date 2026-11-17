@@ -3360,6 +3360,7 @@
         "SourceAudience": "interface",
         "SourceAudienceTest": "interface",
         "SourcePoint": "interface",
+        "SourceRead": "interface",
         "SourceRegion": "interface",
         "SourceTestRange": "interface",
         "SourceTestTarget": "type",

@@ -29,6 +29,8 @@ interface Reported {
 interface Cached {
   readonly data?: unknown;
   readonly lineLengths?: readonly number[];
+  /** Where Node read the map: a URL, or a path relative to the script; `null` for a map inline in it. */
+  readonly url?: string | null;
 }
 
 /** One file of an export: its scripts, and what Node cached by script URL. */
@@ -95,7 +97,9 @@ function exportOf(file: string, json: unknown): Exported {
  * placed. Node keeps no script text, so the file is read only when its lines are
  * as long as the ones Node counted: a loader's transform, or a rebuild since,
  * leaves other text there, and V8's offsets would land in other functions. The
- * map is the one Node cached, else the one `sourceMappingURL` names.
+ * map is the one Node cached, else the one `sourceMappingURL` names, and its
+ * sources resolve against the file it was read from. The file's last write
+ * stands for when it was built.
  */
 async function scriptOf(reported: Reported, cached: ReadonlyMap<string, Cached>, served: string | undefined): Promise<SessionScript | 'nobody' | undefined> {
   if (reported.url === '' || reported.url.startsWith('node:')) return 'nobody';
@@ -103,13 +107,16 @@ async function scriptOf(reported: Reported, cached: ReadonlyMap<string, Cached>,
   if (file === undefined) return undefined;
   const disk = await readFile(file, 'utf8').catch(() => undefined);
   if (disk === undefined) return undefined;
+  const builtAt = (await stat(file)).mtimeMs;
   const entry = cached.get(reported.url);
   if (reported.source === undefined && entry?.lineLengths !== undefined && !isDeepStrictEqual(lineLengths(disk), entry.lineLengths)) return undefined;
   const text = reported.source ?? disk;
-  const map = entry?.data ?? (await mapOf(text, file));
-  if (map === null) return undefined;
-  if (map !== undefined && !isMap(map)) return undefined;
-  return { file, text, functions: reported.functions, ...(map === undefined ? {} : { map }) };
+  const found = entry?.data === undefined ? await mapOf(text, file) : { map: entry.data, file: mapFileOf(entry.url, file) };
+  if (found === null) return undefined;
+  const script = { file, text, functions: reported.functions, builtAt };
+  if (found === undefined) return script;
+  if (!isMap(found.map)) return undefined;
+  return { ...script, map: found.map, ...(found.file === undefined ? {} : { mapFile: found.file }) };
 }
 
 /** Each line's length in UTF-16 code units, split where Node's source-map cache splits: at `\n`, U+2028 and U+2029. */
@@ -132,18 +139,39 @@ function fileOf(url: string, served: string | undefined): string | undefined {
   return undefined;
 }
 
+/** A map, and the file it was read from when it is not inline in its script. */
+interface Found {
+  readonly map: unknown;
+  readonly file?: string;
+}
+
 /** The map `text` names: `undefined` when it names none, `null` when it names one that cannot be read. */
-async function mapOf(text: string, file: string): Promise<unknown> {
+async function mapOf(text: string, file: string): Promise<Found | null | undefined> {
   const url = sourceMappingUrlOf(text);
   if (url === null) return undefined;
   const inline = inlineSourceMapOf(url);
-  const json = inline ?? (url.startsWith('data:') ? null : await readFile(resolve(dirname(file), decodeURIComponent(url)), 'utf8').catch(() => null));
+  if (inline === null && url.startsWith('data:')) return null;
+  const at = inline === null ? mapFileOf(url, file) : undefined;
+  const json = inline ?? (at === undefined ? null : await readFile(at, 'utf8').catch(() => null));
   if (json === null) return null;
   try {
-    return JSON.parse(json);
+    return { map: JSON.parse(json), ...(at === undefined ? {} : { file: at }) };
   } catch {
     return null;
   }
+}
+
+/** The file a map URL names beside `script`: a `file:` URL is that file, a path is relative to the script, and a `data:` URL is no file. */
+function mapFileOf(url: string | null | undefined, script: string): string | undefined {
+  if (typeof url !== 'string' || url.startsWith('data:')) return undefined;
+  if (url.startsWith('file:')) {
+    try {
+      return fileURLToPath(url);
+    } catch {
+      return undefined;
+    }
+  }
+  return resolve(dirname(script), decodeURIComponent(url));
 }
 
 /** A map the walk reads: one with sources and mappings. An index map, made of sections, is not one. */

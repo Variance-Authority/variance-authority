@@ -36,11 +36,21 @@ export interface SessionMap extends TransformSourceMap {
 
 /** One script a session ran: the text V8 counted, its functions, and its map when it has one. */
 export interface SessionScript {
-  /** The script as a file on this machine: its map's sources resolve against its directory, and with no map it is the source. */
+  /** The script as a file on this machine; with no map it is the source. */
   readonly file: string;
   readonly text: string;
   readonly functions: readonly V8Function[];
   readonly map?: SessionMap;
+  /** The file the map was read from, which its sources resolve against; the script's own file when absent, as for a map inline in it. */
+  readonly mapFile?: string;
+  /** When the script was built, in milliseconds since the epoch: a source the map holds no text of and that was written since is not read. */
+  readonly builtAt?: number;
+}
+
+/** A source's text as read from this machine, and when it was last written. */
+export interface SourceRead {
+  readonly text: string;
+  readonly modifiedAt?: number;
 }
 
 /** `ran` when any of a function's own code ran, `unrun` when all of it read zero, `unknown` when none of it was observed. */
@@ -68,6 +78,8 @@ export interface SessionRead {
   readonly unplaced: readonly string[];
   /** Sources placed and read whose text the walk could not cut. */
   readonly uncut: readonly string[];
+  /** Sources the map holds no text of, written since the script was built: the text that ran is gone, and none of it is read. */
+  readonly stale: readonly string[];
 }
 
 /** One session, named, with its sources' files spelled as the record spells them: relative to the checkout. */
@@ -195,7 +207,8 @@ interface Observed {
 
 /**
  * Every source the scripts map to, cut under `mode` as the record is, with each
- * function's state; `readSource` gives a text the map lacks. The map is walked
+ * function's state; `readSource` gives a text the map lacks, read only when it
+ * was written no later than the script was built. The map is walked
  * forward: a segment takes the count of the innermost V8 range around its
  * generated offset and lands in the innermost function around its original one.
  * A function ran when any of its segments ran, is unrun when all read zero, and
@@ -204,10 +217,11 @@ interface Observed {
 export function sessionSources(
   scripts: readonly SessionScript[],
   mode: WalkMode,
-  readSource: (file: string) => string | undefined = () => undefined,
+  readSource: (file: string) => SourceRead | undefined = () => undefined,
 ): SessionRead {
   const observed = new Map<string, { readonly file: string; readonly text: string; readonly at: Observed[] }>();
   const unplaced = new Set<string>();
+  const stale = new Set<string>();
 
   for (const script of scripts) {
     const ranges = sortedRanges(script.functions);
@@ -222,8 +236,14 @@ export function sessionSources(
     const map = script.map;
     const files = map.sources.map((source, index) => {
       if (source === null) return undefined;
-      const file = sourcePath(map, script.file, source);
-      const text = file === undefined ? undefined : map.sourcesContent?.[index] ?? readSource(file);
+      const file = sourcePath(map, script.mapFile ?? script.file, source);
+      const kept = map.sourcesContent?.[index];
+      const read = file === undefined || (kept !== undefined && kept !== null) ? undefined : readSource(file);
+      if (file !== undefined && read?.modifiedAt !== undefined && script.builtAt !== undefined && read.modifiedAt > script.builtAt) {
+        stale.add(file);
+        return undefined;
+      }
+      const text = kept ?? read?.text;
       if (file === undefined || text === undefined || text === null) {
         unplaced.add(source);
         return undefined;
@@ -255,7 +275,7 @@ export function sessionSources(
     sources.push({ file, text, sourceDigest: cut.sourceDigest, functions });
   }
   sources.sort((a, b) => codeUnitOrder(a.file, b.file) || codeUnitOrder(a.sourceDigest, b.sourceDigest));
-  return { sources, unplaced: [...unplaced].sort(), uncut: uncut.sort() };
+  return { sources, unplaced: [...unplaced].sort(), uncut: uncut.sort(), stale: [...stale].sort() };
 }
 
 function hasCount(observed: { readonly count: number | undefined }): observed is Observed {

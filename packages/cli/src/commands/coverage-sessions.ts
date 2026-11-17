@@ -12,12 +12,12 @@
  * entered, by file and with the sessions that ran each.
  */
 
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { checkoutPath } from '@variance-authority/sense/checkout-path';
 import { instrumentModeOf, type WalkMode } from '@variance-authority/sense/instrument';
-import { readTestCoverage, sessionsAgainst, sessionSources, type CoverageModule, type NamedSession, type SessionsFile, type SessionSource } from '@variance-authority/sense/test-selection';
+import { readTestCoverage, sessionsAgainst, sessionSources, type CoverageModule, type NamedSession, type SessionsFile, type SessionSource, type SourceRead } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { readSession } from './session-input.js';
 
@@ -58,6 +58,8 @@ export interface SessionDropped {
   readonly uncut: readonly string[];
   /** Sources outside the checkout, or in a dependency under `node_modules`: no record holds them. */
   readonly outside: readonly string[];
+  /** Sources its maps hold no text of, written since the script that ran them was built. */
+  readonly stale: readonly string[];
 }
 
 /** `sessions`, set beside the records at `records`, with every file read from `root`. */
@@ -69,20 +71,22 @@ export async function coverageSessions(
 ): Promise<CoverageSessions> {
   const suites = await Promise.all(records.map(readTestCoverage));
   const mode = walkModeOf(suites.map((suite) => suite.instrumentation));
-  const read = (file: string): string | undefined => {
+  const readSource = (file: string): SourceRead | undefined => {
+    const at = isAbsolute(file) ? file : join(root, file);
     try {
-      return readFileSync(isAbsolute(file) ? file : join(root, file), 'utf8');
+      return { text: readFileSync(at, 'utf8'), modifiedAt: statSync(at).mtimeMs };
     } catch {
       return undefined;
     }
   };
+  const read = (file: string): string | undefined => readSource(file)?.text;
   // Node names a script by its real path, which on macOS sits under `/private`.
   const roots = [...new Set([root, realpathSync(root)])];
   const named: NamedSession[] = [];
   const each: SessionDropped[] = [];
   for (const session of sessions) {
     const input = await readSession(session.path, served);
-    const walked = sessionSources(input.scripts, mode, read);
+    const walked = sessionSources(input.scripts, mode, readSource);
     const own: SessionSource[] = [];
     const outside = new Set<string>();
     for (const source of walked.sources) {
@@ -91,7 +95,7 @@ export async function coverageSessions(
       else own.push({ ...source, file });
     }
     named.push({ name: session.name, sources: own });
-    each.push({ name: session.name, skipped: input.skipped, unplaced: walked.unplaced, uncut: walked.uncut, outside: [...outside].sort(codeUnitOrder) });
+    each.push({ name: session.name, skipped: input.skipped, unplaced: walked.unplaced, uncut: walked.uncut, outside: [...outside].sort(codeUnitOrder), stale: walked.stale });
   }
   const answer = sessionsAgainst(named, suites.map((suite): readonly CoverageModule[] => suite.modules), read, mode);
   const names = sessions.map((session) => session.name);

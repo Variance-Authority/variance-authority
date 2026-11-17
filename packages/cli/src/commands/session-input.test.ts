@@ -109,6 +109,16 @@ describe('a session read from what V8 wrote', () => {
     expect(math((await readSession(at, undefined)).scripts)).toEqual(EXPECTED);
   });
 
+  it('resolves a map\'s sources against the map\'s own directory, not the script\'s', async () => {
+    await mkdir(join(root, 'dist/maps'), { recursive: true });
+    await writeFile(join(root, 'dist/maps/main.js.map'), JSON.stringify({ ...BUNDLE_MAP, sources: ['../../src/math.ts', '../../src/main.ts'] }));
+    const at = join(root, 'apart.json');
+    const source = BUNDLE.replace('sourceMappingURL=main.js.map', 'sourceMappingURL=maps/main.js.map');
+    await writeFile(at, JSON.stringify({ result: [{ url: `file://${join(root, 'dist/main.js')}`, scriptId: '1', source, functions }] }));
+
+    expect(math((await readSession(at, undefined)).scripts)).toEqual(EXPECTED);
+  });
+
   it('names a served script it cannot place without a served directory, and reads none of it', async () => {
     const at = join(root, 'unserved.json');
     await writeFile(at, JSON.stringify([{ url: 'http://localhost:5173/main.js', scriptId: '1', source: BUNDLE, functions }]));
