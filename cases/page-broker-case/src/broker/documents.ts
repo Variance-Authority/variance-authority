@@ -13,6 +13,10 @@ export class Documents {
   private mark: unknown;
 
   constructor(page: Page) {
+    // An unreadable document is a new one: keeping a stale handle is the worse mistake.
+    const read = () => page.evaluate(() => ((globalThis as any).__brokerDocument ??= Math.random())).catch(() => NaN);
+    // The document already loaded is the first one: a broker started on it keeps it through a history push.
+    this.counted = read().then((mark) => void (this.mark = mark));
     page.on('request', (request) => {
       if (request.isNavigationRequest() && request.frame() === page.mainFrame()) this.loading = request;
     });
@@ -27,8 +31,7 @@ export class Documents {
       this.loading = undefined;
       if (requested) this.count += 1;
       this.counted = this.counted.then(async () => {
-        // An unreadable document is a new one: keeping a stale handle is the worse mistake.
-        const mark = await page.evaluate(() => ((globalThis as any).__brokerDocument ??= Math.random())).catch(() => NaN);
+        const mark = await read();
         if (!requested && mark !== this.mark) this.count += 1;
         this.mark = mark;
       });

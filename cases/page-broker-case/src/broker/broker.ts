@@ -412,6 +412,15 @@ export class App {
         this.depart(name, fragment.name);
         throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name}, and its part ${missing} is missing`);
       }
+      // Going back restores the whole page beneath the cover, and all of it comes back whole or none of it does.
+      const restored = new Set([...this.states].filter(([, each]) => under?.states.includes(each) && declaredTo === back).map(([each]) => ((each as any)[META] as Meta).fragment));
+      for (const look of [async (each: AnyFragment) => ((part) => part && `${each.name}'s part ${part} is missing`)(await this.missing(each)), async (each: AnyFragment) => ((await this.shows(each)) ? undefined : `${each.name} is gone`)]) {
+        for (const each of restored) {
+          const why = await look(each);
+          if (why !== undefined) this.depart(name, fragment.name);
+          if (why !== undefined) throw new Error(`${fragment.name}.${name} went back to ${(to as AnyFragment).name}, and ${why}`);
+        }
+      }
       const held = this.roots.get(to as AnyFragment);
       if (covering(outcome) && held !== undefined && this.alive(this.states.get(held)!)) {
         throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name} over ${by}, and ${(to as AnyFragment).name} was entered before it opened`);

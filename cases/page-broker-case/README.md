@@ -15,7 +15,8 @@ instead of on selectors and waits.
 - A **handle** is linear: departing revokes it, a cover (`over`) leaves every
   handle on the page readable but refuses their actions, those entered beneath
   it after it opened included, and `back` uncovers
-  exactly what that cover covered and hands the owner's handle back. What is
+  exactly what that cover covered, every fragment of it whole and showing or
+  the page departs, and hands the owner's handle back. What is
   entered using an open cover lives and leaves with it, with every part only
   it holds; a part another owner holds stays, and answers to that owner alone.
   Sharing a part with an open cover is not using the cover: the part waits
@@ -45,7 +46,8 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    is the page left; and a navigation the broker did not take departs every
    handle on the old document, with a request or without one, as to
    `about:blank`, where a history push or a hash change keeps
-   the document and its handles.
+   the document and its handles, a broker started on a page already loaded
+   included.
 4. **The declared edges are the app's test interface.** `edges(roots)` lists
    them, `walked(edges, journals)` counts which the tests took, and the
    `edges-reporter` prints both after a run, unwalked edges at zero.

@@ -227,3 +227,13 @@ test('a blank document replaced by another blank one revokes every handle', asyn
   await Promise.all([page.waitForEvent('framenavigated'), page.evaluate(() => (location.href = 'about:blank'))]);
   await expect(form.address()).rejects.toThrow('billing departed at a navigation the broker did not take');
 });
+
+test('a broker started on a loaded page keeps its handles through a history push', async ({ page }) => {
+  const { App } = await import('../broker/broker.js');
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const late = new App(page);
+  const form = await late.enter(Billing);
+  await page.evaluate(() => history.pushState({}, '', '/checkout?user=member&step=2'));
+  await form.street('Rokin 2');
+  expect(await form.address()).toBe('Rokin 2');
+});

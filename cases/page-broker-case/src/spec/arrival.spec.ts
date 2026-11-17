@@ -452,3 +452,37 @@ test('opening a cover over a fragment whose part left departs the page', async (
   await expect(form.country('NL').street('Damrak 1').submit.to('signIn')).rejects.toThrow('billing.submit opened sign-in, and its part header is missing');
   await expect(form.address()).rejects.toThrow('departed');
 });
+
+// Going back restores the whole page beneath the cover, every fragment entered there, not only the one it covered.
+const Watched = fragment('banner-watched', { probe: byRole('banner'), uses: { ghost: Ghost } });
+
+test('going back while another restored fragment lost its part departs the page', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<div data-testid="ghost"><ul><li>boo</li></ul></div>'));
+  const watched = await app.enter(Watched);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  await page.evaluate(() => {
+    const cancel = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Cancel')!;
+    cancel.addEventListener('click', () => document.querySelector('[data-testid="ghost"]')!.remove());
+  });
+  await expect(signIn.cancel.to('billing')).rejects.toThrow("sign-in.cancel went back to billing, and banner-watched's part ghost is missing");
+  await expect(watched.ghost.lines()).rejects.toThrow('departed');
+  await expect(form.address()).rejects.toThrow('departed');
+});
+
+const Watcher = fragment('watcher', { probe: byTestId('watcher'), reads: { text: (r) => r.texts(byRole('listitem')) } });
+
+test('going back while another restored fragment left departs the page', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<div data-testid="watcher"><ul><li>here</li></ul></div>'));
+  const watcher = await app.enter(Watcher);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  await page.evaluate(() => {
+    const cancel = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Cancel')!;
+    cancel.addEventListener('click', () => document.querySelector('[data-testid="watcher"]')!.remove());
+  });
+  await expect(signIn.cancel.to('billing')).rejects.toThrow('sign-in.cancel went back to billing, and watcher is gone');
+  await expect(watcher.text()).rejects.toThrow('departed');
+});
