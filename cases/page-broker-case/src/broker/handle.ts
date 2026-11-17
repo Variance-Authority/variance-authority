@@ -52,4 +52,4 @@ export type Handle<F> = Actions<F> & {
   ) => Promise<Awaited<ReturnType<NonNullable<SpecOf<F>['reads']>[K]>>>;
 } & {
   readonly [K in keyof NonNullable<SpecOf<F>['uses']>]: Handle<NonNullable<SpecOf<F>['uses']>[K]>;
-} & { readonly [Symbol.asyncDispose]: () => Promise<void> };
+};

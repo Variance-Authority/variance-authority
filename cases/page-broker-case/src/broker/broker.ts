@@ -251,7 +251,6 @@ export class App {
     };
     const start = chain(Promise.resolve());
     for (const [name] of actions) self[name] = start[name];
-    self[Symbol.asyncDispose] = () => settle(this.page, this.signals);
     return self as Handle<F>;
   }
 

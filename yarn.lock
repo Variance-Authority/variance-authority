@@ -5111,6 +5111,7 @@ __metadata:
     "@playwright/test": "npm:^1.64.1"
     "@variance-authority/event": "workspace:^"
     "@variance-authority/playwright-test": "workspace:^"
+    vitest: "npm:^5.1.0"
   languageName: unknown
   linkType: soft
 

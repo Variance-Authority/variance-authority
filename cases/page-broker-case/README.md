@@ -50,7 +50,7 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    the order of the declaration never decides. Ambiguity a declaration holds
    already is refused where it is written: two outcomes of one action that
    land alike — one fragment, plainly or `over`, under two keys — or two
-   fragments under one name, across the whole suite. Two fragments that only
+   fragments under one name among those a worker loads. Two fragments that only
    share a probe are told apart at run time, where both arriving fails.
 3. **A fragment has one lifecycle, however it is reached.** Entering it again
    returns its one handle, covered or live, as does a lead to it while it is
@@ -77,7 +77,7 @@ for the wrong reason.
 
 ## Run it
 
-From the repository root, after `yarn install && yarn build`:
+CI runs the suite once, from `src/workflow.chromium.test.js` in the chromium slice. By hand, from the repository root, after `yarn install && yarn build`:
 
 ```bash
 cd cases/page-broker-case && node ../../node_modules/@playwright/test/cli.js test --config=src/playwright.config.mjs
