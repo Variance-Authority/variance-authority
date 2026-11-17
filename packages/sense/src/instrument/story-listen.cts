@@ -104,10 +104,10 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
  * collector notes onto the tap it uses now. The console is wrapped once: the
  * wrapper looks the channel up when a line is printed, never when it is made.
  */
-function listen(tap: Pick<Tap, 'note' | 'say' | 'nameIn' | 'drainWith'>, scope: object): void {
+function listen(tap: Pick<Tap, 'note' | 'nameIn' | 'drainWith'>, scope: object): void {
   const global = scope as Realm;
   global[NOTE] = (text: string | readonly string[], ...values: unknown[]): void =>
-    Array.isArray(text) ? tap.say(text, values) : tap.note(String(text));
+    tap.note(Array.isArray(text) ? text : String(text), values);
   tap.nameIn(scope);
   watchPage(tap, global);
   const printer = global.console as (Console & { [NOTE]?: true }) | undefined;

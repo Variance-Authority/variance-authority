@@ -125,20 +125,16 @@ interface Tap {
    * `taped` is a tape that stopped, never one that was empty.
    */
   read(): Tape;
-  /** Put `text` on the tape where the realm is now, in the case running now. */
-  note(text: string): void;
+  /**
+   * Put `text` on the tape where the realm is now, in the case running now. A
+   * template's strings take `values` between them, each shown as a region shows
+   * what it was handed: a primitive as it is, an object as its ref and kind.
+   */
+  note(text: string | readonly string[], values?: readonly unknown[]): void;
   /** Have the tape keep when each turn of the realm began, read off `clock`. */
   stampWith(clock: () => number): void;
   /** Put `text` after every turn begun and line cut by `time` on that clock; without one, as {@link Tap.note}. */
   noteAt(time: number, text: string): void;
-  /**
-   * {@link note} a template's text with each value between its strings shown
-   * as a region shows what it was handed: a primitive as it is, an object as
-   * its ref and kind, the same ref on every line. The channel `story-listen.cts`
-   * installs takes a tagged template's arguments for it. Past
-   * {@link NOTE_LIMIT} nothing is shown, only counted.
-   */
-  say(strings: readonly string[], values: readonly unknown[]): void;
   /**
    * Have `drain` said before each line opens, `opens` true where it is a test
    * line and false where it is a hook's, and false when a case's body settles:
@@ -429,10 +425,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
     read() {
       return { tape, taped, visits, at, keys, notes, lines, unnoted, held, rows: { ids: rowIds, counts: rowCounts, bases: rowBases } };
     },
-    note(text: string): void {
-      api.say([text], []);
-    },
-    say(strings: readonly string[], values: readonly unknown[]): void {
+    note(strings: string | readonly string[], values: readonly unknown[] = []): void {
       if (parts !== undefined) {
         const into = parts.here();
         if (into === undefined || !parts.room(into, 'spoken')) return;
@@ -440,8 +433,8 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
         unnoted += 1;
         return;
       } else spoken += 1;
-      let text = String(strings[0] ?? '');
-      for (let index = 1; index < strings.length; index += 1) text += shown(values[index - 1]) + String(strings[index]);
+      let text = typeof strings === 'string' ? strings : String(strings[0] ?? '');
+      for (let index = 1; typeof strings !== 'string' && index < strings.length; index += 1) text += shown(values[index - 1]) + String(strings[index]);
       put(text);
     },
     stampWith(given: () => number): void {
