@@ -374,3 +374,33 @@ test('a cover already entered does not arrive again', async ({ page, app }) => {
   await opener.open.to('bar').catch(() => {});
   expect(await app.enter(Banner)).toBe(banner);
 });
+
+// A stay keeps the whole only with its parts: a part gone is the page changed, and the stay is refused.
+const Keeper = fragment('form-keeper', {
+  probe: form,
+  uses: { vanisher: Vanisher },
+  actions: { drop: leads({ here: stay }, (d) => d.click(byRole('button', 'Drop'))), quietly: (d) => d.click(byRole('button', 'Drop')) },
+});
+
+test('an outcome that stays while a part leaves is refused, and the page departs', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  await app.enter(Billing);
+  await page.evaluate(() => {
+    const part = Object.assign(document.createElement('div'), { textContent: 'v' });
+    part.dataset.testid = 'vanisher';
+    const drop = Object.assign(document.createElement('button'), { textContent: 'Drop', type: 'button' });
+    drop.onclick = () => part.remove();
+    document.querySelector('form[aria-label="Billing details"]')!.append(part, drop);
+  });
+  const keeper = await app.enter(Keeper);
+  await expect(keeper.drop.to('here')).rejects.toThrow('form-keeper.drop stayed, and its part vanisher is missing');
+  await expect(keeper.quietly() as unknown as Promise<unknown>).rejects.toThrow('departed');
+});
+
+// A cover is witnessed opening: one that showed before the action did not arrive by it.
+test('a cover that showed before the action does not arrive by it', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const opener = await app.enter(Opener);
+  await expect(opener.open.to('bar')).rejects.toThrow('billing-opener.open reached banner-cover over billing-opener, and banner-cover showed before it');
+  await opener.open.to('bar').catch(() => {});
+});

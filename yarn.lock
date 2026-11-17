@@ -5104,6 +5104,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@variance-authority/case-page-broker@workspace:cases/page-broker-case":
+  version: 0.0.0-use.local
+  resolution: "@variance-authority/case-page-broker@workspace:cases/page-broker-case"
+  dependencies:
+    "@playwright/test": "npm:^1.64.1"
+    "@variance-authority/event": "workspace:^"
+    "@variance-authority/playwright-test": "workspace:^"
+  languageName: unknown
+  linkType: soft
+
 "@variance-authority/case-playwright-additive@workspace:cases/playwright-additive-case":
   version: 0.0.0-use.local
   resolution: "@variance-authority/case-playwright-additive@workspace:cases/playwright-additive-case"

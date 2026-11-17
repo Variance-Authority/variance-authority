@@ -197,6 +197,14 @@ export class App {
     return undefined;
   }
 
+  /** A fragment that stays keeps every part: one gone is the page changed, and every handle on it departs. */
+  private async whole(fragment: AnyFragment, action: string, how: string): Promise<void> {
+    const missing = await this.missing(fragment);
+    if (missing === undefined) return;
+    this.depart(action, fragment.name);
+    throw new Error(`${fragment.name}.${action} ${how}, and its part ${missing} is missing`);
+  }
+
   private async shows(fragment: AnyFragment): Promise<boolean> {
     const found = locate(this.page, fragment.spec.probe);
     return (await found.count()) > 0 && (await found.first().isVisible());
@@ -347,6 +355,7 @@ export class App {
         throw new Error(`${fragment.name}.${name} is declared to stay, and${who} left: the page shows ${list(await this.sense())}`);
       }
     }
+    await this.whole(fragment, name, 'is declared to stay');
     state.doc = this.doc;
     this.journal.push({ from: fragment.name, action: name, kind: 'stay', to: fragment.name });
   }
@@ -365,6 +374,11 @@ export class App {
       throw new Error(`${fragment.name}.${name} declares no outcome "${named}"; it declares ${list(Object.keys(declared.outcomes))}`);
     }
     const region = (self as any)[META].region as Locator;
+    // A cover is witnessed opening: one that already shows cannot arrive by this action.
+    const showed = new Set<string>();
+    for (const to of Object.values(declared.outcomes)) {
+      if (typeof to === 'object' && 'cover' in to && (await this.shows(to.cover))) showed.add(to.cover.name);
+    }
     await declared.act(driver(region), ...rest);
     await settle(this.page, this.signals);
 
@@ -406,13 +420,12 @@ export class App {
     const covering = (key: string) => typeof declared.outcomes[key] === 'object' && 'cover' in declared.outcomes[key];
     if (to !== stay) {
       const missing = await this.missing(to as AnyFragment);
-      if (missing !== undefined) {
-        throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name}, and its part ${missing} is missing`);
-      }
+      if (missing !== undefined) throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name}, and its part ${missing} is missing`);
       const held = this.roots.get(to as AnyFragment);
       if (covering(outcome) && held !== undefined && this.alive(this.states.get(held)!)) {
         throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name} over ${by}, and ${(to as AnyFragment).name} was entered before it opened`);
       }
+      if (covering(outcome) && showed.has((to as AnyFragment).name)) throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name} over ${by}, and ${(to as AnyFragment).name} showed before it`);
       if (covering(outcome) && !kept) {
         throw new Error(`${fragment.name}.${name} reached ${to.name} over ${by}, and ${by} is gone`);
       }
@@ -420,6 +433,7 @@ export class App {
         throw new Error(`${fragment.name}.${name} reached ${to.name}, and ${by} still shows; declare it over(${to.name})`);
       }
     }
+    if (to === stay) await this.whole(fragment, name, 'stayed');
     const toName = to === stay ? fragment.name : (to as AnyFragment).name;
     this.journal.push({ from: fragment.name, action: name, kind: 'lead', outcome, named, to: toName });
 
