@@ -326,22 +326,20 @@ describe.skipIf(!BROWSER_AVAILABLE)('createPlaywrightRenderer — concurrency', 
     const renderer = await createPlaywrightRenderer({ concurrency: 1, waitForFonts: false });
 
     try {
+      // Closed, and asking for bytes it does not carry: the refusal is thrown
+      // while the lease is held, at once, where a document with no subject at
+      // all spent Playwright's 30 s actionability timeout to throw the same way.
       const broken: RenderDocument = {
         ...documentOf('fixture:broken', '#000'),
-        // No subject element at all, so the box read waits out Playwright's 30s
-        // actionability timeout and throws. A zero-sized subject is no longer a
-        // failure — it is a raster with no image — so the deadlock this test
-        // exists for needs a document that genuinely cannot be captured. That
-        // half minute is the price of the assertion and it is worth paying:
-        // without a release on the failure path a pool of one deadlocks, and a
-        // CI job that hangs with no error is a worse outcome than any test
-        // being slow.
-        html: '<div></div>',
+        resources: {},
+        assets: {},
+        html: '<div data-va-path="0"><img src="https://unserved.example/missing.png"></div>',
       };
 
-      await expect(renderer.render(broken)).rejects.toThrow();
+      await expect(renderer.render(broken)).rejects.toThrow('https://unserved.example/missing.png');
 
-      const raster = await renderer.render(documentOf('fixture:after', '#abcdef'));
+      // Closed as well, so it asks the pool for the page the failed render gave back.
+      const raster = await renderer.render({ ...documentOf('fixture:after', '#abcdef'), resources: {}, assets: {} });
       expect(raster.width).toBeGreaterThan(0);
     } finally {
       await renderer.close();
