@@ -97,7 +97,32 @@ test('a navigation the broker did not take revokes every handle', async ({ page,
 });
 
 // A second owner of the header on the same page: the search form inside it.
-const SearchBox = fragment('search-box', { probe: byRole('search'), uses: { header: Header } });
+const SearchBox = fragment('search-box', {
+  probe: byRole('search'),
+  uses: { header: Header },
+  actions: { type: (d, q: string) => d.fill(byRole('searchbox', 'Search'), q) },
+  reads: { query: (r) => r.value(byRole('searchbox', 'Search')) },
+});
+
+test('a fragment first entered under a cover is covered by it, and uncovered with the rest', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  const box = await app.enter(SearchBox);
+  await expect(box.type('socks') as unknown as Promise<unknown>).rejects.toThrow('search-box is covered by sign-in');
+  await signIn.cancel.to('billing');
+  await box.type('socks');
+  expect(await box.query()).toBe('socks');
+});
+
+test('a part two owners share leaves the same way whichever owner was entered first', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  await app.enter(SearchBox);
+  const form = await app.enter(Billing);
+  const results = await form.header.search.to('results', 'socks');
+  expect(await results.items()).toEqual(['socks — wool', 'socks — cotton']);
+  await expect(form.address()).rejects.toThrow('departed at header.search');
+});
 
 test('a modal covers the whole page: a part two owners share is one handle, covered and uncovered once', async ({ page, app }) => {
   await page.goto('/checkout?user=guest', { waitUntil: 'commit' });

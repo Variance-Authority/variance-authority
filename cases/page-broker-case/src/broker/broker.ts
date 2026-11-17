@@ -157,7 +157,7 @@ export class App {
   readonly journal: Step[] = [];
   private readonly states = new Map<object, State>();
   /** What a cover covers: the whole page beneath it, so going back uncovers exactly that. */
-  private readonly covered = new Map<State, { fragment: AnyFragment; handle: object; states: State[] }>();
+  private readonly covered = new Map<State, { by: string; fragment: AnyFragment; handle: object; states: State[] }>();
   /** The one handle each fragment has: a fragment on the page has one lifecycle, however it is reached. */
   private readonly roots = new Map<AnyFragment, object>();
   /** Documents the main frame has loaded so far. */
@@ -200,7 +200,15 @@ export class App {
     }
     const existing = this.roots.get(fragment);
     if (existing !== undefined && this.alive(this.states.get(existing)!)) return existing as Handle<F>;
-    return this.handle(fragment, this.page.locator(':root'));
+    const fresh = this.handle(fragment, this.page.locator(':root'));
+    // A modal covers the whole page, what was entered beneath it after it opened included.
+    const top = [...this.covered].find(([cover]) => this.alive(cover) && cover.status === 'live')?.[1];
+    if (top !== undefined) {
+      const state = (fresh as any)[META].state as State;
+      Object.assign(state, { status: 'covered', why: top.by });
+      top.states.push(state);
+    }
+    return fresh;
   }
 
   /** Every registered fragment the page shows now, a dialog before what it covers. */
@@ -227,19 +235,20 @@ export class App {
   private handle<F extends AnyFragment>(
     fragment: F,
     within: Page | Locator,
-    shared?: { state: State; owner: AnyFragment },
+    shared?: { state: State; owners: AnyFragment[] },
   ): Handle<F> {
     // A part already on the page is that part, whoever reached it first: one handle, one lifecycle.
-    // Entered alone, it takes its owner's lifecycle; held by another owner, it keeps that one.
+    // Entered alone, it takes its owner's lifecycle; held by another owner, it answers to both.
     const prior = this.roots.get(fragment);
     const was = (prior as any)?.[META] as Meta | undefined;
     if (shared && prior !== undefined && was !== undefined && this.alive(was.state)) {
-      if (was.owner === fragment) this.rebind(prior, shared);
+      if (was.owners.length === 1 && was.owners[0] === fragment) this.rebind(prior, shared);
+      else this.own(prior, shared.owners);
       return prior as Handle<F>;
     }
     const region = locate(within, fragment.spec.probe).first();
     const state: State = shared?.state ?? { status: 'live', doc: this.doc };
-    const meta: Meta = { fragment, owner: shared?.owner ?? fragment, region, state };
+    const meta: Meta = { fragment, owners: [...(shared?.owners ?? [fragment])], region, state };
     const self: Record<string | symbol, unknown> = { [META]: meta };
     this.states.set(self, state);
     // The latest handle is the one alive: any earlier one for this fragment departed or is covered with its owner.
@@ -264,7 +273,7 @@ export class App {
     for (const [name, child] of Object.entries((fragment.spec as Spec).uses ?? {})) {
       // A part lives and dies with the fragment that uses it. It is found on the
       // page, not inside the region: a header is beside a form, not in it.
-      self[name] = this.handle(child, this.page, { state, owner: meta.owner });
+      self[name] = this.handle(child, this.page, { state, owners: meta.owners });
     }
 
     const actions = Object.entries((fragment.spec as Spec).actions ?? {});
@@ -272,7 +281,7 @@ export class App {
       guard(name, true);
       const declared = actions.find(([key]) => key === name)![1];
       if (typeof declared === 'function' || declared.kind === 'stays') {
-        await this.stayed(fragment, meta.owner, meta.state, region, name, declared, args);
+        await this.stayed(fragment, meta.owners, meta.state, region, name, declared, args);
         return self;
       }
       return this.lead(fragment, self, meta.state, name, declared, args);
@@ -305,16 +314,23 @@ export class App {
     return self as Handle<F>;
   }
 
-  private rebind(handle: object, shared: { state: State; owner: AnyFragment }): void {
+  private rebind(handle: object, shared: { state: State; owners: AnyFragment[] }): void {
     const meta = (handle as any)[META] as Meta;
-    Object.assign(meta, shared);
+    Object.assign(meta, { state: shared.state, owners: [...shared.owners] });
     this.states.set(handle, shared.state);
     for (const name of Object.keys((meta.fragment.spec as Spec).uses ?? {})) this.rebind((handle as any)[name], shared);
   }
 
+  /** A part reached by a second owner answers to both: which arrived first decides nothing. */
+  private own(handle: object, owners: readonly AnyFragment[]): void {
+    const meta = (handle as any)[META] as Meta;
+    meta.owners = [...new Set([...meta.owners, ...owners])];
+    for (const name of Object.keys((meta.fragment.spec as Spec).uses ?? {})) this.own((handle as any)[name], owners);
+  }
+
   private async stayed(
     fragment: AnyFragment,
-    owner: AnyFragment,
+    owners: readonly AnyFragment[],
     state: State,
     region: Locator,
     name: string,
@@ -334,7 +350,7 @@ export class App {
       }
     }
     // A part stays only if what owns it does: a header still showing says nothing of the form beside it.
-    for (const each of new Set([fragment, owner])) {
+    for (const each of new Set([fragment, ...owners])) {
       if (!(await this.shows(each))) {
         this.depart(name, fragment.name);
         const who = each === fragment ? '' : ` ${each.name}`;
@@ -367,7 +383,10 @@ export class App {
     // declared outcome shows beside it, so the order of `leads` decides nothing.
     const shown = await this.sense();
     const under = this.covered.get(state);
-    const { owner } = (self as any)[META] as Meta;
+    // A part answers to every owner using it: all of them showing is the page staying, any gone is it left.
+    const { owners } = (self as any)[META] as Meta;
+    const kept = owners.every((each) => shown.includes(each.name));
+    const by = owners.map((each) => each.name).join(' and ');
     const target = (to: Outcomes[string]): AnyFragment | undefined =>
       to === back ? under?.fragment : typeof to === 'object' && 'cover' in to ? to.cover : (to as AnyFragment);
     const keys = Object.keys(declared.outcomes);
@@ -375,19 +394,19 @@ export class App {
       const to = declared.outcomes[key];
       const where = to === stay ? undefined : target(to);
       // What a cover covers shows beneath it all along: going back is witnessed by the cover gone.
-      return where !== undefined && shown.includes(where.name) && !(to === back && shown.includes(owner.name));
+      return where !== undefined && shown.includes(where.name) && !(to === back && kept);
     });
     // An owner seen gone is gone before any check below refuses the arrival; going back retires the cover alone.
-    if (!shown.includes(owner.name) && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name);
+    if (!kept && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name);
     if (reached.length > 1) {
       throw new Error(`${fragment.name}.${name} reached ${reached.join(' and ')} at once; the page shows ${list(shown)}`);
     }
     const staying = keys.find((key) => declared.outcomes[key] === stay);
-    // A part stays only with its owner, as on a plain stay.
-    const outcome = reached[0] ?? (staying !== undefined && shown.includes(fragment.name) && shown.includes(owner.name) ? staying : undefined);
+    // A part stays only with its owners, as on a plain stay.
+    const outcome = reached[0] ?? (staying !== undefined && shown.includes(fragment.name) && kept ? staying : undefined);
     if (outcome === undefined) {
       if (under !== undefined && keys.some((key) => declared.outcomes[key] === back)) {
-        throw new Error(`${fragment.name}.${name} went back to ${under.fragment.name}, and ${owner.name} still shows`);
+        throw new Error(`${fragment.name}.${name} went back to ${under.fragment.name}, and ${by} still shows`);
       }
       throw new Error(`${fragment.name}.${name} declares ${list(keys)}, and the page shows ${list(shown)}`);
     }
@@ -395,12 +414,11 @@ export class App {
     const to = declaredTo === stay ? stay : target(declaredTo)!;
     const covering = (key: string) => typeof declared.outcomes[key] === 'object' && 'cover' in declared.outcomes[key];
     if (to !== stay) {
-      const left = shown.includes(owner.name);
-      if (covering(outcome) && !left) {
-        throw new Error(`${fragment.name}.${name} reached ${to.name} over ${owner.name}, and ${owner.name} is gone`);
+      if (covering(outcome) && !kept) {
+        throw new Error(`${fragment.name}.${name} reached ${to.name} over ${by}, and ${by} is gone`);
       }
-      if (declaredTo !== back && !covering(outcome) && to !== owner && left) {
-        throw new Error(`${fragment.name}.${name} reached ${to.name}, and ${owner.name} still shows; declare it over(${to.name})`);
+      if (declaredTo !== back && !covering(outcome) && !owners.includes(to) && kept) {
+        throw new Error(`${fragment.name}.${name} reached ${to.name}, and ${by} still shows; declare it over(${to.name})`);
       }
     }
     const toName = to === stay ? fragment.name : (to as AnyFragment).name;
@@ -422,8 +440,11 @@ export class App {
       for (const each of beneath) Object.assign(each, { status: 'covered', why: next.name, doc: this.doc });
       if (!covering(outcome)) this.depart(name, fragment.name);
       handle = this.handle(next, this.page);
-      // What waits beneath is the owner, not the part that opened the cover.
-      if (covering(outcome)) this.covered.set((handle as any)[META].state, { fragment: owner, handle: this.roots.get(owner) ?? self, states: beneath });
+      // What waits beneath is the part's one owner, not the part that opened the cover; with several, the part itself.
+      const waiting = owners.length === 1 ? owners[0] : fragment;
+      if (covering(outcome)) {
+        this.covered.set((handle as any)[META].state, { by: next.name, fragment: waiting, handle: this.roots.get(waiting) ?? self, states: beneath });
+      }
     }
     // A wrong branch is still the branch taken: the handles and the journal say so before the test fails.
     if (named !== undefined && outcome !== named) {
@@ -447,8 +468,8 @@ const META = Symbol('meta');
 const NAMED = Symbol('named');
 interface Meta {
   readonly fragment: AnyFragment;
-  /** The fragment whose arrival made this handle: itself, or the one using it as a part. */
-  owner: AnyFragment;
+  /** The fragments whose arrival made this handle: itself, or every one using it as a part. */
+  owners: AnyFragment[];
   readonly region: Locator;
   state: State;
 }

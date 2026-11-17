@@ -10,7 +10,8 @@ instead of on selectors and waits.
   outcomes; the broker senses which one the app reached. `.to('payment')`
   insists on one and fails with the branch actually taken.
 - A **handle** is linear: departing revokes it, a cover (`over`) leaves every
-  handle on the page readable but refuses their actions, and `back` uncovers
+  handle on the page readable but refuses their actions, those entered beneath
+  it after it opened included, and `back` uncovers
   exactly what that cover covered and hands the owner's handle back.
 - Every step lands in a per-test **journal**; `fork(a, b)` prints where two
   walks part, edge by edge, outcome included.
@@ -28,8 +29,9 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    the order of the declaration never decides.
 3. **A fragment has one lifecycle, however it is reached.** Entering it again
    returns its one handle, covered or live, and a part is one handle however
-   many owners use it; a part that stays, plainly or by a lead, needs its
-   owner showing; and a navigation the broker did not take departs every
+   many owners use it, answering to all of them whichever came first; a part
+   that stays, plainly or by a lead, needs every owner showing, and one gone
+   is the page left; and a navigation the broker did not take departs every
    handle on the old document, where a history push or a hash change keeps
    the document and its handles.
 4. **The declared edges are the app's test interface.** `edges(roots)` lists
