@@ -18,7 +18,7 @@ import RootLayout from "./layout";
  * and not a second reading of which attributes hold ids.
  *
  * The pages are split between test files by route, so that no one file renders
- * them all; each file renders each of its pages once and asks both questions.
+ * them all; each page's case renders it once and asks both questions of it.
  */
 
 export interface PageModule {
@@ -68,8 +68,9 @@ async function rendered(file: string, params: Record<string, string>, module: Pa
 
 /**
  * Registers both questions for the pages `modules` holds, and the sections of
- * the search corpus whose path `ours` accepts. `floor` stops a glob that
- * matched nothing from passing every page.
+ * the search corpus whose path `ours` accepts. One case per page renders it
+ * and asks both, so neither question reads a render its case did not make.
+ * `floor` stops a glob that matched nothing from passing every page.
  */
 export async function describeIdReferences(
   modules: Record<string, PageModule>,
@@ -85,39 +86,29 @@ export async function describeIdReferences(
       ),
     )
   ).flat();
-  const documents = new Map<string, Promise<Document>>();
-  const documentOf = (route: string, file: string, params: Record<string, string>, module: PageModule) => {
-    let document = documents.get(route);
-    if (!document) documents.set(route, (document = rendered(file, params, module)));
-    return document;
-  };
+  /**
+   * A search result links to a section from another page, so the page it names
+   * is the one that has to carry the id.
+   */
+  const sections = Map.groupBy(
+    searchCorpus().filter(({ hash, path }) => hash && ours(path)),
+    ({ path }) => path,
+  );
 
   it("renders every page the site routes", () => {
     expect(pages.length).toBeGreaterThan(floor);
   });
 
-  describe("every id a page refers to is on the page", () => {
-    it.each(pages)("%s", async (route, file, params, module) => {
-      const document = await documentOf(route, file, params, module);
-      expect(buildAliasMap(rawOf(document.body)).dangling).toEqual([]);
-    });
+  it("routes every page a search result links to", () => {
+    const routed = new Set(pages.map(([route]) => route));
+    expect([...sections.keys()].filter((path) => !routed.has(path))).toEqual([]);
   });
 
-  /**
-   * A search result links to a section from another page, so the page it names
-   * is the one that has to carry the id.
-   */
-  describe("every section a search result links to is on its page", () => {
-    const byRoute = new Map(pages.map(([route, file, params, module]) => [route, { file, params, module }]));
-    const sections = Map.groupBy(
-      searchCorpus().filter(({ hash, path }) => hash && ours(path)),
-      ({ path }) => path,
-    );
-
-    it.each([...sections])("%s", async (path, entries) => {
-      const page = byRoute.get(path)!;
-      const document = await documentOf(path, page.file, page.params, page.module);
-      const missing = entries
+  describe("every id a page refers to, and every section a search result links to, is on the page", () => {
+    it.each(pages)("%s", async (route, file, params, module) => {
+      const document = await rendered(file, params, module);
+      expect(buildAliasMap(rawOf(document.body)).dangling).toEqual([]);
+      const missing = (sections.get(route) ?? [])
         .map(({ hash }) => hash)
         .filter((hash) => !document.getElementById(hash));
       expect(missing).toEqual([]);
