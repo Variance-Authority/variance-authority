@@ -81,8 +81,10 @@ describe('the names the published source index gives some files', () => {
     } finally {
       git('checkout', '--', 'lib/unit.ts');
     }
-    const [, later] = (await openImmutableLog(at)).digests;
-    await writeFile(join(`${at}.segments`, `${later!.replace(':', '-')}.bin`), 'corrupt');
+    const { digests } = await openImmutableLog(at);
+    expect(digests.length).toBeGreaterThan(2);
+    const later = digests.at(-1)!;
+    await writeFile(join(`${at}.segments`, `${later.replace(':', '-')}.bin`), 'corrupt');
 
     const read = await readPublishedNames(at, ['lib/unit.ts']);
     expect(read.state).toBe('damaged');
