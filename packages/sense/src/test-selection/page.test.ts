@@ -219,73 +219,66 @@ describe('a page that cannot be reported from', () => {
 });
 
 describe('a page built to tell its story', () => {
-  const STORY = { tape: [0], taped: 1, visits: 1, notes: [], lines: [], unnoted: 0, held: [], rows: { ids: [RAN.id], counts: [2], bases: [0] } };
-  const QUIET = { ...STORY, tape: [], taped: 0, visits: 0 };
-
-  /** A teller that tells what a drain ran since it last told, as `told <execution>`; `drain` hands it each drain's story. */
+  /** A teller that tells each time it is asked, as `told <execution>` or `ended <execution>`, and records what it was asked. */
   function teller() {
-    let pending = 0;
+    const asked: [string, boolean][] = [];
     vi.stubGlobal(TELLER_GLOBAL, {
-      tell: (journey: string) => {
-        if (pending === 0) return undefined;
-        pending = 0;
-        return `told ${journey}`;
+      tell: (journey: string, ended: boolean) => {
+        asked.push([journey, ended]);
+        return `${ended ? 'ended' : 'told'} ${journey}`;
       },
     });
-    return (story: typeof STORY) => {
-      pending += story.visits;
-      return { instrumentation: 'regions', modules: story.visits === 0 ? [] : [RAN], story };
-    };
+    return asked;
   }
 
-  /** Each account sent with a story, as `[execution, scope, story, modules]`. */
-  const tellings = (page: ReturnType<typeof standIn>) =>
+  /** Each account sent, as `[execution, scope, modules, story]`. */
+  const accounts = (page: ReturnType<typeof standIn>) =>
     page.sent.mock.calls
       .map(([url, init]) => [url.split('/')[3], JSON.parse(init.body) as { scope: string; story?: string; modules: unknown[] }] as const)
-      .filter(([, account]) => account.story !== undefined)
-      .map(([journey, account]) => [journey, account.scope, account.story, account.modules.length]);
+      .map(([journey, account]) => [journey, account.scope, account.modules.length, account.story]);
 
-  it('tells an execution its story on its account when a click ends it, and the last one as the page leaves', () => {
+  it('sends what an execution ran, then its story on an account of its own, when a click ends it and as the page leaves', () => {
     const page = standIn({ beacon: () => false });
-    const ran = teller();
-    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ran(STORY) });
+    teller();
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [RAN] }) });
     reportPage(WATCHER);
     const loaded = page.jar.get(JOURNEY_COOKIE);
     page.on.get('click')!();
     const clicked = page.jar.get(JOURNEY_COOKIE);
     page.on.get('pagehide')!();
 
-    expect(tellings(page)).toEqual([
-      [loaded, 'journey', `told ${loaded}`, 1],
-      [clicked, 'journey', `told ${clicked}`, 1],
+    expect(accounts(page)).toEqual([
+      [loaded, 'journey', 1, undefined],
+      [loaded, 'journey', 0, `ended ${loaded}`],
+      [clicked, 'journey', 1, undefined],
+      [clicked, 'journey', 0, `ended ${clicked}`],
     ]);
   });
 
-  it('tells an execution once it goes quiet, and what it ran after that as another telling', () => {
+  it('asks the teller at each beat whether the execution has gone quiet, and sends a story even where nothing more ran', () => {
     const page = standIn({ beacon: () => false });
-    const ran = teller();
-    const drains = [STORY, QUIET, STORY, QUIET];
-    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ran(drains.shift() ?? QUIET) });
+    const asked = teller();
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [] }) });
     reportPage(WATCHER);
     const loaded = page.jar.get(JOURNEY_COOKIE);
     vi.advanceTimersByTime(500);
-    expect(tellings(page)).toEqual([]);
-    vi.advanceTimersByTime(1500);
 
-    expect(tellings(page)).toEqual([
-      [loaded, 'journey', `told ${loaded}`, 0],
-      [loaded, 'journey', `told ${loaded}`, 0],
-    ]);
+    expect(asked).toEqual([[loaded, false]]);
+    expect(accounts(page)).toEqual([[loaded, 'journey', 0, `told ${loaded}`]]);
   });
 
   it('tells nothing where no teller was built in, and sends what it ran as before', () => {
     const page = standIn({ beacon: () => false });
-    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [RAN], story: STORY }) });
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [RAN] }) });
     reportPage(WATCHER);
+    const loaded = page.jar.get(JOURNEY_COOKIE);
     page.on.get('click')!();
+    const clicked = page.jar.get(JOURNEY_COOKIE);
     page.on.get('pagehide')!();
 
-    expect(tellings(page)).toEqual([]);
-    expect(page.sent).toHaveBeenCalledTimes(2);
+    expect(accounts(page)).toEqual([
+      [loaded, 'journey', 1, undefined],
+      [clicked, 'journey', 1, undefined],
+    ]);
   });
 });

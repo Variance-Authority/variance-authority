@@ -18,9 +18,12 @@ import type { JourneyAccount } from './stitch.js';
 
 // compass: variance-authority.reach.journey
 
-/** What a build asked for stories leaves beside the collector: it tells an execution's story since it last told. */
+/**
+ * What a build asked for stories leaves beside the collector: an execution's
+ * story since it last told, when `ended`, or once it has gone quiet.
+ */
 interface Teller {
-  tell(journey: string): string | undefined;
+  tell(journey: string, ended: boolean): string | undefined;
 }
 
 /** A target of events, as far as this listens. */
@@ -95,15 +98,13 @@ export function reportPage(watcher: string | undefined): void {
     return false;
   };
 
-  // An execution's story is told when it ends — at the next click, or as the page leaves — and when a
-  // flush finds it has gone quiet, since nothing else says a click has finished running.
+  // An execution's story is told when it ends — at the next click, or as the page leaves — and when the
+  // teller finds it has gone quiet, since nothing else says a click has finished running.
   const flush = (ended = false): void => {
     if (!mine()) return;
     const journal = (browser[EXECUTION_GLOBAL] as ExecutionCollector | undefined)?.drain();
     if (journal === undefined) return;
-    const teller = browser[TELLER_GLOBAL] as Teller | undefined;
-    const story = ended || journal.modules.length === 0 ? teller?.tell(journey) : undefined;
-    if (journal.modules.length === 0 && story === undefined) return;
+    const story = (browser[TELLER_GLOBAL] as Teller | undefined)?.tell(journey, ended);
     // A beacon and not the wire's `report`: a JSON `fetch` to another origin is
     // preflighted, which the watcher does not answer, and it dies with the page.
     // A browser refuses a beacon once about 64 KiB of them are on their way, which
@@ -115,7 +116,9 @@ export function reportPage(watcher: string | undefined): void {
       if (browser.navigator.sendBeacon?.(to, body) === true) return;
       void fetch(to, { method: 'POST', body, mode: 'no-cors' }).catch(() => {});
     };
-    send('journey', journal.modules, story);
+    if (journal.modules.length > 0) send('journey', journal.modules);
+    // On an account of its own, so a story too large for a beacon as the page leaves takes no regions with it.
+    if (story !== undefined) send('journey', [], story);
     // What ran while a module evaluated is no one execution's; a watcher leaves it out of this one, so it is said apart, as a server head says it.
     const loading = journal.modules.filter((module) => module.shared.length > 0);
     if (loading.length > 0) send('process', loading.map((module) => ({ id: module.id, hits: module.shared, shared: [] })));

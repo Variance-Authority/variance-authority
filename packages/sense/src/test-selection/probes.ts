@@ -230,6 +230,8 @@ export function testSelectionProbes(
   const root = repositoryRoot(options.root ?? process.cwd());
   const include = options.include ?? defaultInclude;
   const before = options.placement === 'before-transforms';
+  // Read as the plugin is made, as the rule reads it: what the collector is served never changes under one build.
+  const stories = storiesAsked();
   // Imports evaluate first, so a head owns `__VA__` before the collector's
   // page engine looks, and the page engine defers to it.
   const served = (collector: string): string => options.journeys !== true
@@ -281,7 +283,7 @@ export function testSelectionProbes(
     load: (id) => {
       if (id !== RESOLVED_COLLECTOR) return serving && !before ? probedFirst(id) : null;
       const collector = executionCollectorSource(options.mode);
-      if (storiesAsked()) return import('../story/page-told.js').then(({ toldCollectorSource }) => served(toldCollectorSource(collector)));
+      if (stories) return toldCollector(collector).then(served);
       return served(collector);
     },
 
@@ -376,6 +378,14 @@ function pageReaderSource(): string {
     },
   };
 })()`;
+}
+
+/**
+ * The collector a build asked for stories serves: `collector` behind the page's
+ * tape and teller. What makes them loads only here, as the build asks for it.
+ */
+export function toldCollector(collector: string): Promise<string> {
+  return import('../story/page-told.js').then(({ toldCollectorSource }) => toldCollectorSource(collector));
 }
 
 /**

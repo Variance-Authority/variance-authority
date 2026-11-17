@@ -118,8 +118,9 @@ describe('the collector a build asked for stories serves', async () => {
     expect(served.teller).toMatchObject({ tell: expect.any(Function) });
   });
 
-  it('serves the collector alone without it', () => {
-    const served = page(built.testSelectionProbes().load(COLLECTOR) as string);
-    expect(served).toEqual({ story: undefined, teller: undefined });
+  it('serves the collector alone without it, as it was served before', () => {
+    const source = built.testSelectionProbes().load(COLLECTOR) as string;
+    expect(source).toBe(built.executionCollectorSource());
+    expect(page(source)).toEqual({ story: undefined, teller: undefined });
   });
 });

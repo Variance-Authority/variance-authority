@@ -27,7 +27,11 @@ const PART = 'page';
 
 /**
  * The script that installs the teller on the realm it runs in. It takes the
- * page's part from the tap and writes it as a live head writes one.
+ * page's part from the tap and writes it as a live head writes one. Nothing
+ * says when a click has finished running, so an execution not ended is told
+ * once a flush finds its part grew no more since the one before: what it
+ * runs after that is told again. A part holding notes alone waits for the
+ * end, so a page that only paints spends none of the watcher's tellings.
  */
 export function pageTellerSource(): string {
   return `(() => {
@@ -37,10 +41,18 @@ const EVALUATING = ${storyBytes.EVALUATING};
 const rowAt = (${storyBytes.rowAt.toString()});
 const storyBytes = (${storyBytes.storyBytes.toString()});
 const encoder = new TextEncoder();
+let before = -1;
 globalThis[${JSON.stringify(TELLER_GLOBAL)}] = {
-  tell(key) {
+  tell(key, ended) {
     const tap = globalThis.__VA__?.[Symbol.for('variance-authority.story.tap')];
     if (tap === undefined) return undefined;
+    if (!ended) {
+      const { visits } = tap.holding();
+      const grew = visits !== before;
+      before = visits;
+      if (visits === 0 || grew) return undefined;
+    }
+    before = -1;
     // An execution that ran nothing since it was last told tells nothing.
     const taken = tap.take(${JSON.stringify(PART)});
     if (taken.visits === 0 && taken.notes.length === 0 && taken.unnoted === 0) return undefined;
@@ -63,7 +75,8 @@ globalThis[${JSON.stringify(TELLER_GLOBAL)}] = {
  * Only a page installs them; a realm whose seam already records, or one with
  * no document, evaluates the collector alone. A runner that tapes the page for
  * its own cases put its maker there before any document loaded, and the first
- * maker stays: a server head tapes only for a watcher, and so does a page.
+ * maker stays. Unlike a server head, which tapes only while a watcher listens,
+ * a page tapes from its first module, before `reportPage` can say whether one does.
  */
 export function toldCollectorSource(collector: string): string {
   return `if (globalThis.__VA__ === undefined && typeof document === 'object') {

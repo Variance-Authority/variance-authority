@@ -95,6 +95,14 @@ describe('the probes loader', () => {
     expect(columns).toEqual([0]);
   });
 
+  it('asks for the collector with stories where its rule asked for them, so a cache keyed by the request keeps the two apart', async () => {
+    const root = await checkout();
+    await writeFile(resolve(root, 'client.js'), SOURCE, 'utf8');
+    const { code } = load(resolve(root, 'client.js'), SOURCE, { ...IDENTITY, mappings: 'AAAA;AACA;AACA' }, { root, stories: true });
+
+    expect(code).toMatch(/probes-loader\.js\?collector=presence&stories=1!.*probes-collector\.js/);
+  });
+
   it('ends an `.mjs` file with an import of the collector even where its text reads as a script, since it has no `require`', async () => {
     const root = await checkout();
     const script = 'function total(items) {\n  return items.length > 0 ? items.length : 0;\n}\nglobalThis.total = total;\n';
@@ -228,12 +236,19 @@ describe('the collector the probes loader serves a build asked for stories', asy
     vi.unstubAllEnvs();
   });
 
-  it('tapes a page and tells its executions under `VARIANCE_AUTHORITY_STORY=1`, answering once it has loaded what tells them', async () => {
+  it('is asked for it by a rule made under `VARIANCE_AUTHORITY_STORY=1`, in the query that names the collector', () => {
     vi.stubEnv('VARIANCE_AUTHORITY_STORY', '1');
+    const options = testSelectionRule().use[0].options;
+    expect(options.stories).toBe(true);
+    vi.unstubAllEnvs();
+    expect(testSelectionRule().use[0].options.stories).toBeUndefined();
+  });
+
+  it('tapes a page and tells its executions when the query asks for stories, answering once it has loaded what tells them', async () => {
     const code = await new Promise<string | undefined>((answer, refuse) => {
       const context: ProbesLoaderContext = {
         resourcePath: '/anywhere/probes-collector.js',
-        getOptions: () => ({ collector: 'presence' }),
+        getOptions: () => ({ collector: 'presence', stories: '1' }),
         callback: () => refuse(new Error('answered before it loaded what tells the stories')),
         async: () => (error, text) => (error === null ? answer(text) : refuse(error)),
       };

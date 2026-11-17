@@ -32,12 +32,12 @@ function page() {
   const make = runInContext(`globalThis[Symbol.for(${JSON.stringify(PAGE_STORY)})]`, realm) as (given: typeof engine) => { root: object };
   realm.__VA__ = make(engine).root;
   runInContext(instrument(CART, 'cart.js')!.code, realm, { filename: 'cart.js' });
-  const teller = realm[TELLER_GLOBAL] as { tell(journey: string): string | undefined };
+  const teller = realm[TELLER_GLOBAL] as { tell(journey: string, ended: boolean): string | undefined };
   return {
     run: (code: string): unknown => runInContext(code, realm),
     say: (text: string): void => (runInContext("globalThis[Symbol.for('variance-authority.story.note')]", realm) as (said: string) => void)(text),
-    tell: (journey: string) => {
-      const told = teller.tell(journey);
+    tell: (journey: string, ended = true) => {
+      const told = teller.tell(journey, ended);
       return told === undefined ? undefined : decodeStory(Buffer.from(told, 'base64'));
     },
   };
@@ -71,6 +71,28 @@ describe('a page that tells what an execution ran', () => {
     expect(texts(story)).not.toContain('console.log adding shoes');
     expect(texts(story)).toHaveLength(storyTap.PART_NOTES + 2);
     expect(story.unnoted).toBe(1);
+  });
+
+  it('tells an execution not ended once its part has stopped growing, and what ran after that apart', () => {
+    const cart = page();
+    cart.run("add('socks')");
+    expect(cart.tell('7f3a', false)).toBeUndefined();
+
+    expect(texts(cart.tell('7f3a', false)!)).toEqual(["handed item='socks'", 'console.log adding socks']);
+    cart.run("add('shoes')");
+    expect(cart.tell('7f3a', false)).toBeUndefined();
+    expect(texts(cart.tell('7f3a', false)!)).toEqual(["handed item='shoes'", 'console.log adding shoes']);
+  });
+
+  it('keeps notes alone for the end of an execution', () => {
+    const cart = page();
+    // What evaluating `cart.js` ran, told first.
+    cart.tell('7f3a');
+    cart.say('paint first contentful');
+    expect(cart.tell('7f3a', false)).toBeUndefined();
+    expect(cart.tell('7f3a', false)).toBeUndefined();
+
+    expect(texts(cart.tell('7f3a')!)).toEqual(['paint first contentful']);
   });
 
   it('keeps what a live head keeps of one execution, and counts the rest', () => {
