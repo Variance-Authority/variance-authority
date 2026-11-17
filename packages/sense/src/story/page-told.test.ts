@@ -71,4 +71,23 @@ describe('a page that tells what an execution ran', () => {
     expect(story.notes).toHaveLength(storyTap.PART_NOTES);
     expect(story.unnoted).toBe(3);
   });
+
+  it('bounds a telling as a live head bounds a part: what a function was handed never crowds out what the code said, nor the notes the bytes', () => {
+    const page = teller();
+    const handed = Array.from({ length: storyTap.PART_NOTES + 1 }, (_, at): [number, string] => [1, `handed id=${at}`]);
+    const said = Array.from({ length: 3 }, (_, at): [number, string] => [1, `console.log ${at}`]);
+    // Each long enough that the bytes a part keeps for text run out before its count of notes does.
+    const long = Array.from({ length: 400 }, (_, at): [number, string] => [1, `console.warn ${String(at).padEnd(1200, 'x')}`]);
+    page.add(drained({ tape: [0], notes: [...handed, ...said, ...long] }));
+
+    const story = decodeStory(Buffer.from(page.tell('7f3a')!, 'base64'));
+    const texts = story.notes.map(([, text]) => text);
+
+    expect(texts.filter((text) => text.startsWith('handed '))).toHaveLength(storyTap.PART_NOTES);
+    expect(texts).toEqual(expect.arrayContaining(['console.log 0', 'console.log 1', 'console.log 2']));
+    const kept = texts.filter((text) => text.startsWith('console.warn ')).length;
+    expect(kept).toBeGreaterThan(0);
+    expect(kept).toBeLessThan(long.length);
+    expect(story.unnoted).toBe(1 + long.length - kept);
+  });
 });

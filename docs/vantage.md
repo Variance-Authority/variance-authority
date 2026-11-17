@@ -419,7 +419,8 @@ A page that calls `reportPage` tells its story when its build ran with
 `VARIANCE_AUTHORITY_STORY=1 npx vite`: the build plugin reads the variable,
 since a page has no environment of its own. A load or a click is told once
 the page has run nothing more for it, at the next click, or as the page
-leaves, and its story carries what the page saw as well: each `console` line,
+leaves; one that runs again after that, as a response arrives, is told again
+with what it ran since. Its story carries what the page saw as well: each `console` line,
 a Suspense fallback and the content that replaced it, paint, long frames and
 layout shifts. The requests the page sent are not in it.
 

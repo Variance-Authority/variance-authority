@@ -9,9 +9,13 @@
  * uptime. A part holds one execution, is let go of once told, and is bounded
  * on its own: one chatty execution, or the process's own work, never silences
  * another.
+ *
+ * A page that tells its own executions keeps each one in a part too, and is
+ * sent {@link createParts} as source: it closes over nothing but the constants
+ * and helpers beside it and `story-bytes.cts`' `rowAt`.
  */
 
-import type storyFormat = require('../story/format.cjs');
+import storyBytes = require('../story/story-bytes.cjs');
 
 /** What a part reads of the engine: the activation, the async scope, and the bucket now. */
 interface Engine {
@@ -105,8 +109,6 @@ interface Rows {
  * would.
  */
 function createParts(engine: Engine, limit: number, rows: Rows): Parts {
-  // The format places a visit in its module's row; loaded here, as only a live tap makes parts.
-  const { rowAt } = require('../story/format.cjs') as typeof storyFormat;
   const inner = engine.root;
   const parts = new Map<string, Part>();
   // The part the realm writes to now, and the last one it wrote to that was not idle.
@@ -144,7 +146,7 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
       part.visits += 1;
       part.dropped = true;
       if (part.tape.length >= limit) return;
-      const row = rowAt(rows.bases, entry & 0x7fffffff);
+      const row = storyBytes.rowAt(rows.bases, entry & 0x7fffffff);
       if (!part.modules.has(row)) {
         // A row is its id, a count of at most ten digits, two brackets and two commas.
         const bytes = encodedLength(rows.ids[row]!) + 2;
@@ -201,4 +203,5 @@ function createParts(engine: Engine, limit: number, rows: Rows): Parts {
   };
 }
 
-export = { createParts, PART_LIMIT, PART_NOTES };
+// The constants and helpers `createParts` closes over, for a page that is sent its source: see `story/page-told.ts`.
+export = { createParts, PART_LIMIT, PART_NOTES, PART_TEXT_BYTES, utf8Length, encodedLength };
