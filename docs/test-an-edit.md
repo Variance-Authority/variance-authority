@@ -9,9 +9,8 @@ agent already runs stays the same loop, only shorter.
 A runner's changed-files mode runs every test that imports a file you changed.
 Edit one function in a module half the suite imports, and half the suite runs.
 A recorded run knows which of those tests executed that function, and only
-those run. Under Jest and Vitest it can also skip the cases inside a
-file that did not execute it. Each run then updates the record, so your next
-edit is measured from what ran last rather than from your branch point.
+those run, and under Jest and Vitest only the cases that did. Each run updates
+the record, so your next edit is measured from what ran last.
 
 Wrap the runner configuration once and run the suite once. That run writes the
 [record](execution-record.md): which test file executed which lines of which
@@ -23,6 +22,7 @@ run:
 VARIANCE_AUTHORITY_SINCE= npx vitest run
 VARIANCE_AUTHORITY_SINCE= npx jest
 VARIANCE_AUTHORITY_SINCE= npx playwright test
+npx rstest run $(npx variance select --format plain | sed 's/^/--exclude=/')
 ```
 
 Before the first test file starts, the run says how many it kept, for example:
@@ -53,12 +53,13 @@ seam says which parts of that configuration it reads and which you spell out:
 | Rstest | `@variance-authority/sense/rstest` | [Cut an Rstest run down to a diff](../packages/sense/README.md#cut-an-rstest-run-down-to-a-diff) |
 
 Under Playwright, a spec file the selection keeps runs whole. Under Rstest the
-wrap records the run, and the variable does not reach the runner:
-`variance select --format plain` prints the files to leave out, one per line.
+wrap records the run, and the variable does not reach the runner: run it from
+the repository root as the last line of the block above shows, which hands
+each path `variance select` prints to `--exclude`.
 
-Every wrapped run records, whether the variable is set or not. With it set, the
-runner drops the files the record proves your edit did not reach before it
-starts any of them, and prints one line to stderr first:
+Every wrapped run records, whether the variable is set or not. With it set,
+Vitest, Jest and Playwright drop the files the record proves your edit did not reach before it
+starts any of them, and print one line to stderr first:
 
 - `selected 12 of 340` — twelve test files run.
 - `selected none of 340, so none of them runs: the change reached none of
@@ -103,6 +104,7 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 ```
 
 The same two variables go in front of `npx jest` and `npx playwright test`.
+Under Rstest, `variance select --at-distance 0-2` prints that leg's skip list.
 
 `0-2` runs the tests within two imports of the edit, including a test whose own
 source you changed, which is zero. `3-` runs the rest. Every selected file runs
