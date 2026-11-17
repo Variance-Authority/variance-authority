@@ -13,14 +13,14 @@
  * a run whose named files the selection all skipped passes, as under Jest.
  */
 
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { posix } from "node:path";
-import { glob, isDynamicPattern } from "tinyglobby";
-import { kept, selectedLines, type SuiteSelection } from "./suite-selection.js";
-import { askedSelection } from "./selection-environment.js";
-import { projectPath } from "./instrumented-modules.js";
-import { excluded } from "./rstest-exclude.js";
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { posix, win32 } from 'node:path';
+import { glob, isDynamicPattern } from 'tinyglobby';
+import { kept, selectedLines, type SuiteSelection } from './suite-selection.js';
+import { askedSelection } from './selection-environment.js';
+import { projectPath } from './instrumented-modules.js';
+import { excluded } from './rstest-exclude.js';
 
 /** Where the plugins read the command line and the environment, and say why they do not select. */
 interface SelectingContext {
@@ -39,77 +39,46 @@ const reads = new Map<string, Promise<SuiteSelection>>();
  * plans would stay out for the session, whatever a later edit reaches.
  */
 export function selectionPlugins(
-  options: {
-    readonly selection?: () => Promise<SuiteSelection>;
-    readonly suite?: string;
-  },
+  options: { readonly selection?: () => Promise<SuiteSelection>; readonly suite?: string },
   coverageFile: string,
   root: string,
   configRoot: string,
   context: SelectingContext = {},
 ) {
-  const {
-    argv = process.argv,
-    env = process.env,
-    say = (line: string) => process.stderr.write(`${line}\n`),
-  } = context;
-  const request = {
-    root,
-    from: configRoot,
-    ...(options.suite === undefined ? {} : { suite: options.suite }),
-  };
-  const asked = askedSelection(
-    options.selection,
-    () => coverageFile,
-    request,
-    env,
-  );
+  const { argv = process.argv, env = process.env, say = (line: string) => process.stderr.write(`${line}\n`) } = context;
+  const request = { root, from: configRoot, ...(options.suite === undefined ? {} : { suite: options.suite }) };
+  const asked = askedSelection(options.selection, () => coverageFile, request, env);
   if (asked === undefined) return [];
   if (watching(argv)) {
-    say("variance-authority: watch mode does not select");
+    say('variance-authority: watch mode does not select');
     return [];
   }
-  if (env["VARIANCE_AUTHORITY_GRAIN"] === "case") throw caseGrain();
-  const key =
-    options.selection === undefined
-      ? `${coverageFile}\0${root}\0${options.suite ?? ""}`
-      : undefined;
-  const selection =
-    key === undefined
-      ? asked
-      : () => {
-          let read = reads.get(key);
-          if (read === undefined) reads.set(key, (read = asked()));
-          return read;
-        };
+  if (env['VARIANCE_AUTHORITY_GRAIN'] === 'case') throw caseGrain();
+  const key = options.selection === undefined ? `${coverageFile}\0${root}\0${options.suite ?? ''}` : undefined;
+  const selection = key === undefined ? asked : () => {
+    let read = reads.get(key);
+    if (read === undefined) reads.set(key, read = asked());
+    return read;
+  };
   return [selectingPlugin(selection, root, argv)];
 }
 
 /** Whether Rstest was started to watch: its `watch` command, or `-w` on its default one. */
 function watching(argv: readonly string[]): boolean {
   const args = argv.slice(2);
-  return (
-    args[0] === "watch" ||
-    args.some(
-      (arg) =>
-        arg === "-w" ||
-        arg === "--watch" ||
-        (arg.startsWith("--watch=") && arg !== "--watch=false"),
-    )
-  );
+  return args[0] === 'watch' || args.some((arg) => arg === '-w' || arg === '--watch' || (arg.startsWith('--watch=') && arg !== '--watch=false'));
 }
 
 /**
- * Whether the command line names files to run. Rstest does not export which of
- * its options take a value, so an option's value given apart, as in `-c
- * rstest.config.mjs`, reads as a name: the error lets a run pass, never fails one.
+ * Whether the command line narrows the run past the plugin: files it names, or
+ * a shard. Rstest does not export which of its options take a value, so an
+ * option's value given apart, as in `-c rstest.config.mjs`, reads as a name:
+ * the error lets a run pass, never fails one.
  */
-function named(argv: readonly string[]): boolean {
+function narrowed(argv: readonly string[]): boolean {
   const args = argv.slice(2);
-  const filters = ["run", "watch", "list"].includes(args[0] ?? "")
-    ? args.slice(1)
-    : args;
-  return filters.some((arg) => !arg.startsWith("-"));
+  const rest = ['run', 'watch', 'list'].includes(args[0] ?? '') ? args.slice(1) : args;
+  return rest.some((arg) => !arg.startsWith('-') || arg === '--shard' || arg.startsWith('--shard='));
 }
 
 /**
@@ -118,19 +87,13 @@ function named(argv: readonly string[]): boolean {
  * project's selection emptied runs nothing and passes, as Jest's wrap does.
  */
 export function rootSelection(
-  options: {
-    readonly selection?: () => Promise<SuiteSelection>;
-    readonly suite?: string;
-  },
+  options: { readonly selection?: () => Promise<SuiteSelection>; readonly suite?: string },
   coverageFile: string,
   root: string,
   configRoot: string,
   context: SelectingContext = {},
 ): { passWithNoTests?: true } {
-  return selectionPlugins(options, coverageFile, root, configRoot, {
-    ...context,
-    say: () => {},
-  }).length === 0
+  return selectionPlugins(options, coverageFile, root, configRoot, { ...context, say: () => {} }).length === 0
     ? {}
     : { passWithNoTests: true };
 }
@@ -146,58 +109,40 @@ interface PlannedConfig {
 
 /** The part of Rsbuild's plugin API this plugin reads. */
 interface SelectingApi {
-  readonly useExposed: (id: string) =>
-    | {
-        readonly modifyRstestConfig?: (
-          callback: (config: PlannedConfig) => Promise<void>,
-        ) => void;
-      }
-    | undefined;
+  readonly useExposed: (id: string) => {
+    readonly modifyRstestConfig?: (callback: (config: PlannedConfig) => Promise<void>) => void;
+  } | undefined;
 }
 
 /**
  * The plugin that leaves out of a project the files `selection` skips, and
  * says what it kept. A project it keeps no file of runs nothing and passes, and
- * so does one whose files named on `argv` it may all have skipped; one that has
- * no file to keep fails, as Rstest fails it, and so does a kept file that holds
- * no test.
+ * so does one whose files `argv` narrows to it may all have skipped; one that
+ * has no file to keep fails, as Rstest fails it, and so does a kept file that
+ * holds no test.
  *
  * `root` is the checkout the selection names files against. A selection that
  * names cases is refused: a kept file runs whole here, and a run that asked
  * for less would read as having had it.
  */
-export function selectingPlugin(
-  selection: () => Promise<SuiteSelection>,
-  root: string,
-  argv: readonly string[],
-) {
+export function selectingPlugin(selection: () => Promise<SuiteSelection>, root: string, argv: readonly string[]) {
   return {
-    name: "variance-authority:selection",
+    name: 'variance-authority:selection',
     setup(api: SelectingApi): void {
-      api.useExposed("rstest")?.modifyRstestConfig?.(async (config) => {
+      api.useExposed('rstest')?.modifyRstestConfig?.(async (config) => {
         const asked = await selection();
-        if (asked.cases !== undefined && asked.cases.size > 0)
-          throw caseGrain();
+        if (asked.cases !== undefined && asked.cases.size > 0) throw caseGrain();
         const found = await projectFiles(config);
         const name = (file: string): string => projectPath(root, file);
         const runs = new Set(kept(asked, found, name));
-        for (const line of selectedLines(asked, found.map(name)))
-          console.error(line);
+        for (const line of selectedLines(asked, found.map(name))) console.error(line);
         const skipped = found.filter((file) => !runs.has(file));
         config.exclude.patterns.push(...excluded(config.root, skipped));
         // Rstest plans a literal `include` that names no file on disk whatever `exclude` says.
         const gone = new Set(skipped);
-        const at = config.root.replaceAll("\\", "/");
-        config.include = config.include.filter(
-          (pattern) =>
-            isDynamicPattern(pattern) || !gone.has(posix.resolve(at, pattern)),
-        );
+        config.include = config.include.filter((pattern) => isDynamicPattern(pattern) || !gone.has(literal(config.root, pattern)));
         // Rstest reads the flag for a file with no test too, so it is set only where the selection may leave nothing to run.
-        if (
-          found.length > 0 &&
-          (runs.size === 0 || (skipped.length > 0 && named(argv)))
-        )
-          config.passWithNoTests = true;
+        if (found.length > 0 && (runs.size === 0 || (skipped.length > 0 && narrowed(argv)))) config.passWithNoTests = true;
       });
     },
   };
@@ -205,8 +150,8 @@ export function selectingPlugin(
 
 function caseGrain(): Error {
   return new Error(
-    "variance-authority: VARIANCE_AUTHORITY_GRAIN=case is not kept under Rstest, which runs every kept file whole; " +
-      "unset it to leave out whole files.",
+    'variance-authority: VARIANCE_AUTHORITY_GRAIN=case is not kept under Rstest, which runs every kept file whole; ' +
+      'unset it to leave out whole files.',
   );
 }
 
@@ -218,37 +163,26 @@ function caseGrain(): Error {
  * `<rootDir>` in them by the time the callback runs.
  */
 async function projectFiles(config: PlannedConfig): Promise<string[]> {
-  const root = config.root.replaceAll("\\", "/");
   const { include, includeSource = [] } = config;
-  const options = {
-    cwd: config.root,
-    absolute: true,
-    ignore: config.exclude.patterns,
-    dot: true,
-    expandDirectories: false,
-  };
+  const options = { cwd: config.root, absolute: true, ignore: config.exclude.patterns, dot: true, expandDirectories: false };
   const [globbed, sources] = await Promise.all([
     glob(include, options),
     includeSource.length === 0 ? [] : glob(includeSource, options),
   ]);
-  const literal = include
-    .filter((pattern) => !isDynamicPattern(pattern))
-    .map((pattern) => posix.resolve(root, pattern));
+  const literals = include.filter((pattern) => !isDynamicPattern(pattern)).map((pattern) => literal(config.root, pattern));
   const inSource = await Promise.all(
-    sources.map(async (file) =>
-      (await readFile(file, "utf8").catch(() => "")).includes(
-        "import.meta.rstest",
-      )
-        ? [file]
-        : [],
-    ),
+    sources.map(async (file) => ((await readFile(file, 'utf8').catch(() => '')).includes('import.meta.rstest') ? [file] : [])),
   );
   // Rstest's planning names files with forward slashes on every platform, as the glob does.
-  return [
-    ...new Set([
-      ...globbed,
-      ...literal.filter((file) => !existsSync(file)),
-      ...inSource.flat(),
-    ]),
-  ].sort();
+  return [...new Set([...globbed, ...literals.filter((file) => !existsSync(file)), ...inSource.flat()])].sort();
+}
+
+/**
+ * The file a literal `include` names, with forward slashes, as Rstest resolves
+ * it: a root with a drive letter resolves as Windows does, whatever platform
+ * reads it.
+ */
+function literal(root: string, pattern: string): string {
+  const at = root.replaceAll('\\', '/');
+  return (/^[A-Za-z]:\//.test(at) ? win32 : posix).resolve(at, pattern).replaceAll('\\', '/');
 }
