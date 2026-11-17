@@ -120,7 +120,7 @@ export function selectingPlugin(selection: () => Promise<SuiteSelection>, root: 
         const runs = new Set(kept(asked, found, name));
         for (const line of selectedLines(asked, found.map(name))) console.error(line);
         const skipped = found.filter((file) => !runs.has(file));
-        config.exclude.patterns.push(...excluded(skipped));
+        config.exclude.patterns.push(...excluded(config.root, skipped));
         if (runs.size === 0) config.passWithNoTests = true;
       });
     },
@@ -138,16 +138,13 @@ function caseGrain(): Error {
  * The test files Rstest plans for a project, found as its own planning finds
  * them: its `include` globbed under its root with its `exclude` ignored, a
  * literal `include` that names no file on disk kept as given, and the files its
- * `includeSource` finds that hold `import.meta.rstest`. `<rootDir>` is read as
- * Rstest reads it once the callbacks have run.
+ * `includeSource` finds that hold `import.meta.rstest`. Rstest has replaced
+ * `<rootDir>` in them by the time the callback runs.
  */
 async function projectFiles(config: PlannedConfig): Promise<string[]> {
   const root = config.root.replaceAll('\\', '/');
-  const rooted = (patterns: readonly string[] = []): string[] =>
-    patterns.map((pattern) => (pattern.includes('<rootDir>') ? posix.normalize(pattern.replace('<rootDir>', root)) : pattern));
-  const include = rooted(config.include);
-  const includeSource = rooted(config.includeSource);
-  const options = { cwd: config.root, absolute: true, ignore: rooted(config.exclude.patterns), dot: true, expandDirectories: false };
+  const { include, includeSource = [] } = config;
+  const options = { cwd: config.root, absolute: true, ignore: config.exclude.patterns, dot: true, expandDirectories: false };
   const [globbed, sources] = await Promise.all([
     glob(include, options),
     includeSource.length === 0 ? [] : glob(includeSource, options),
@@ -164,13 +161,24 @@ async function projectFiles(config: PlannedConfig): Promise<string[]> {
 const PATTERN_LIMIT = 60_000;
 
 /**
- * Absolute paths as `exclude` patterns that match them alone: their common
- * directory, then the rest of each in brace alternations, so thousands of
- * skipped files compile to a handful of patterns rather than one per file,
- * which a matcher would test every path against in turn. The directory stays
- * outside the braces, where the glob reads the pattern as absolute.
+ * Absolute paths as `exclude` patterns that match them alone, relative to the
+ * project's `root`, as the glob reads an ignore pattern: an absolute one is
+ * made relative to a root it escapes differently, and stops matching under a
+ * root whose name holds `@`, `+` or `,`. The files under the root share their
+ * common directory and the rest of each sits in brace alternations, so
+ * thousands of skipped files compile to a handful of patterns rather than one
+ * per file, which a matcher would test every path against in turn. A file
+ * above the root, which an `include` may reach, is a pattern of its own.
  */
-export function excluded(paths: readonly string[]): string[] {
+export function excluded(root: string, paths: readonly string[]): string[] {
+  const from = root.replaceAll('\\', '/');
+  const relatives = paths.map((path) => posix.relative(from, path.replaceAll('\\', '/')));
+  const above = relatives.filter((path) => path.startsWith('../'));
+  const under = relatives.filter((path) => !path.startsWith('../'));
+  return [...grouped(under), ...above.map(escaped)];
+}
+
+function grouped(paths: readonly string[]): string[] {
   if (paths.length < 2) return paths.map(escaped);
   const common = paths.reduce((prefix, path) => {
     while (!path.startsWith(prefix)) prefix = prefix.slice(0, prefix.lastIndexOf('/', prefix.length - 2) + 1);

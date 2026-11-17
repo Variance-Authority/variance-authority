@@ -1,5 +1,8 @@
-import picomatch from 'picomatch';
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { glob } from 'tinyglobby';
+import { afterAll, describe, expect, it } from 'vitest';
 import { excluded, selectionPlugins } from './rstest-selection.js';
 
 const handed = { selection: async () => ({ skip: new Set<string>() }) } as never;
@@ -32,18 +35,31 @@ describe('the Rstest selection', () => {
 });
 
 describe('the files a selection skips, as `exclude` patterns', () => {
-  const skipped = ['/checkout/app/[id]/page.test.ts', '/checkout/app/a,b.test.ts', '/checkout/lib/{x}.test.ts', '/checkout/lib/(y)!.test.ts'];
-  const others = ['/checkout/app/i/page.test.ts', '/checkout/app/a.test.ts', '/checkout/lib/x.test.ts', '/checkout/lib/y.test.ts'];
+  const base = mkdtempSync(join(tmpdir(), 'variance-authority-rstest-exclude-'));
+  afterAll(() => rmSync(base, { recursive: true, force: true }));
+  const skipped = ['test/[id]/page.test.ts', 'test/a,b.test.ts', 'test/{x}.test.ts', 'test/(y)!.test.ts', '../shared/s.test.ts'];
+  const others = ['test/i/page.test.ts', 'test/a.test.ts', 'test/x.test.ts', 'test/y.test.ts', '../shared/t.test.ts'];
 
-  it('match each skipped file, however its name reads as a glob, and no other', () => {
-    const matches = picomatch(excluded(skipped), { dot: true });
+  it.each([['plain'], ['@scope/name'], ['a+b,c']])(
+    'leave out each skipped file under a root named %s, however its name reads as a glob, and no other',
+    async (name) => {
+      const root = join(base, name, 'project');
+      for (const file of [...skipped, ...others]) {
+        mkdirSync(dirname(join(root, file)), { recursive: true });
+        writeFileSync(join(root, file), '');
+      }
+      const options = { cwd: root, dot: true, expandDirectories: false };
+      const include = ['test/**/*.test.ts', '../shared/*.test.ts'];
 
-    expect([...skipped, ...others].filter((path) => matches(path))).toEqual(skipped);
-  });
+      const left = await glob(include, { ...options, ignore: excluded(root, skipped.map((file) => join(root, file))) });
+
+      expect(left.sort()).toEqual([...others].sort());
+    },
+  );
 
   it('stay a handful of patterns for thousands of files', () => {
     const many = Array.from({ length: 25_000 }, (_, index) => `/checkout/packages/p${index % 50}/test/case-${index}.test.ts`);
 
-    expect(excluded(many).length).toBeLessThan(25);
+    expect(excluded('/checkout', many).length).toBeLessThan(25);
   });
 });
