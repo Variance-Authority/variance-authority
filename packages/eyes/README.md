@@ -105,12 +105,27 @@ afterEach(() => {
 });
 ```
 
-Run both files in the jsdom environment, the hook first:
+```ts
+// vitest.config.ts — Rstest's rstest.config.ts takes the same two keys, with
+// testEnvironment in place of environment
+import { defineConfig } from 'vitest/config';
 
-- Vitest: `environment: 'jsdom'`, and both in `setupFiles`.
-- Rstest: `testEnvironment: 'jsdom'`, and both in `setupFiles`.
-- Jest: `testEnvironment: 'jsdom'`, the hook in `setupFiles` and the watch in
-  `setupFilesAfterEnv`, where `beforeEach` exists.
+export default defineConfig({
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./eyes-hook.setup.ts', './eyes.setup.ts'],
+  },
+});
+```
+
+```js
+// jest.config.js — the watch needs beforeEach, which setupFilesAfterEnv has
+module.exports = {
+  testEnvironment: 'jsdom',
+  setupFiles: ['./eyes-hook.setup.ts'],
+  setupFilesAfterEnv: ['./eyes.setup.ts'],
+};
+```
 
 Under Vitest, Jest and Rstest, the recording seam holds each attempt's case
 from before its first `beforeEach` until its last `afterEach`, so a journal

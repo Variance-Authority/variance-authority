@@ -74,6 +74,20 @@ import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
 configureResetHandler(beforeEach, afterEach);
 ```
 
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: { setupFiles: ['./reset.setup.ts'] },
+});
+```
+
+```js
+// jest.config.js
+module.exports = { setupFilesAfterEnv: ['./reset.setup.ts'] };
+```
+
 Hand it the runner's own per-test hooks. `configureResetHandler` types both
 arguments as the shape Vitest, Jest, Mocha and Playwright hooks share and
 imports none of them. Name the file where the runner loads setup that can

@@ -9,11 +9,8 @@ Your workflow names your test command and one action.
 ## Record your tests
 
 The comment reads which functions each test ran, which your tests record when
-their configuration is wrapped. [Ask which tests cover a
-line](own-fewer-tests.md#ask-which-tests-cover-a-line) names, for each runner,
-the package to install and the call that wraps its configuration. Install that
-package beside the command line that reads what it records — under Vitest, Jest
-or Rstest, with your package manager:
+their configuration is wrapped. Install the recorder and the command line that
+reads what it records, with your package manager:
 
 ```bash
 npm install --save-dev @variance-authority/sense @variance-authority/cli
@@ -21,12 +18,43 @@ pnpm add --save-dev @variance-authority/sense @variance-authority/cli
 yarn add --dev @variance-authority/sense @variance-authority/cli
 ```
 
+Keep the configuration you have and wrap what it exports; do not add a second
+file beside it, which Jest refuses. A `jest.config.js` in CommonJS:
+
+```js
+// jest.config.js
+const { withTestSelection } = require('@variance-authority/sense/jest');
+
+module.exports = withTestSelection({
+  preset: 'ts-jest',
+  testEnvironment: 'node',
+});
+```
+
+A `preset` and a `transform` with its own options stay as they are: the wrap
+keeps each transformer, on the same pattern with the same options, and wraps
+it. In a `jest.config.mjs` or `jest.config.ts`, import `withTestSelection` and
+wrap the default export the same way. Vitest and Rstest wrap theirs:
+
+```ts
+// vitest.config.ts
+import { defineConfig } from 'vitest/config';
+import { withTestSelection } from '@variance-authority/sense/vitest';
+
+export default withTestSelection(defineConfig({ test: {} }));
+```
+
+```ts
+// rstest.config.ts
+import { defineConfig } from '@rstest/core';
+import { withTestSelection } from '@variance-authority/sense/rstest';
+
+export default defineConfig(withTestSelection({}));
+```
+
 Under Playwright the package is `@variance-authority/playwright-test` in place of
-`@variance-authority/sense`. Keep the configuration file you have and wrap what
-it exports, rather than adding a second one beside it: Jest refuses two. Under
-Jest, a `preset` and a `transform` with its own options stay as they are: the
-wrap keeps each transformer, on the same pattern with the same options, and
-wraps it, so copy nothing from a preset into your file.
+`@variance-authority/sense`, and its README shows [the wrap and the
+fixture](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach).
 
 Then name the tests in `variance.config.json` at the repository root. `unit` is
 the name the workflow uses for them, and `"carry": "actions-cache"` keeps what

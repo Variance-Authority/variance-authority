@@ -22,7 +22,7 @@ run:
 VARIANCE_AUTHORITY_SINCE= npx vitest run
 VARIANCE_AUTHORITY_SINCE= npx jest
 VARIANCE_AUTHORITY_SINCE= npx playwright test
-npx rstest run $(npx variance select --format plain | sed 's/^/--exclude=/')
+npx rstest run $(npx variance select --format plain | sed "s|^|--exclude=$PWD/|")
 ```
 
 Before the first test file starts, the run says how many it kept, for example:
@@ -55,7 +55,8 @@ seam says which parts of that configuration it reads and which you spell out:
 Under Playwright, a spec file the selection keeps runs whole. Under Rstest the
 wrap records the run, and the variable does not reach the runner: run it from
 the repository root as the last line of the block above shows, which hands
-each path `variance select` prints to `--exclude`.
+each path `variance select` prints to `--exclude` as an absolute path: a
+relative one matches nothing in a workspace's projects.
 
 Every wrapped run records, whether the variable is set or not. With it set,
 Vitest, Jest and Playwright drop the files the record proves your edit did not reach before it
