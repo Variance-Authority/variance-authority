@@ -52,23 +52,10 @@ from `distill`, and it does not come from `variance run`. The record holds two
 readings of each case.
 
 **The case index** — which files and which functions inside them each test
-covered, meaning ran code in rather than merely imported. Install
-[`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-and wrap your Vitest config:
-
-```bash
-npm install --save-dev @variance-authority/sense
-```
-
-```ts
-// vitest.config.ts
-import { defineConfig } from 'vitest/config';
-import { withTestSelection } from '@variance-authority/sense/vitest';
-
-export default withTestSelection(
-  defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-);
-```
+covered, meaning ran code in rather than merely imported. Wrap the
+configuration of the runner you already use once, with the seam
+[one table](https://variance-authority.dev/docs/own-fewer-tests#ask-which-tests-cover-a-line)
+names for Vitest, Jest, Rstest, Playwright and Storybook.
 
 Every wrapped run writes the per-case recording into its record,
 `coverage.bin`, and `distill` reads that record as it is. A test file that runs in a page is
@@ -237,8 +224,8 @@ Reading it:
 - **`Runtime phase attribution: unavailable`** is not a failure. The execution
   index records what each test covered across the whole test, not per phase, so
   covered files are never split across Arrange, Act and Assert.
-- **`depth`** is a call depth from the test. Every entry the Vitest recorder
-  writes sets it to `0`; the field exists for a recorder that measures one.
+- **`depth`** is a call depth from the test. Every recorder this project
+  ships writes it as `0`; the field exists for a recorder that measures one.
 - **`substitution to try`** names the module, not a call. Write it the way the
   test file's runner mocks a module.
 - **The two finding lines** are the two classes of answer, below.

@@ -69,7 +69,7 @@ and bound whatever hook it found. Creating one then would attach to an object
 React never calls. So call `tapCommits()` yourself, in a setup file that runs before anything imports `react-dom`:
 
 ```ts
-// vitest.setup.eyes-hook.ts
+// eyes-hook.setup.ts
 import { tapCommits } from '@variance-authority/eyes';
 
 tapCommits();
@@ -89,10 +89,10 @@ the journal, by the id and the attempt the record joins on, so there is no id
 for you to build:
 
 ```ts
-// vitest.setup.eyes.ts
+// eyes.setup.ts
 import { screen } from '@testing-library/react';
 import { watchTest } from '@variance-authority/eyes/rtl';
-import { afterEach, beforeEach } from 'vitest';
+import { afterEach, beforeEach } from 'vitest'; // or '@jest/globals', '@rstest/core'
 
 let attention: ReturnType<typeof watchTest>;
 
@@ -105,17 +105,12 @@ afterEach(() => {
 });
 ```
 
-```ts
-// vitest.config.ts
-import { defineConfig } from 'vitest/config';
+Run both files in the jsdom environment, the hook first:
 
-export default defineConfig({
-  test: {
-    environment: 'jsdom',
-    setupFiles: ['./vitest.setup.eyes-hook.ts', './vitest.setup.eyes.ts'],
-  },
-});
-```
+- Vitest: `environment: 'jsdom'`, and both in `setupFiles`.
+- Rstest: `testEnvironment: 'jsdom'`, and both in `setupFiles`.
+- Jest: `testEnvironment: 'jsdom'`, the hook in `setupFiles` and the watch in
+  `setupFilesAfterEnv`, where `beforeEach` exists.
 
 Under Vitest, Jest and Rstest, the recording seam holds each attempt's case
 from before its first `beforeEach` until its last `afterEach`, so a journal

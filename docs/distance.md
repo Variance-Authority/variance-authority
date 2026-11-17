@@ -12,14 +12,17 @@ short path through a module the test never loaded. Distance walks only the
 modules that test covered or loaded in a recorded run, so the count it gives you
 describes execution rather than possibility.
 
-A wrapped Vitest or Jest run takes one range of distances at a time when you
-set `VARIANCE_AUTHORITY_AT_DISTANCE` beside `VARIANCE_AUTHORITY_SINCE`, and
-`variance select --at-distance` prints the same leg's skip list:
+A wrapped Vitest, Jest or Playwright run takes one range of distances at a
+time when you set `VARIANCE_AUTHORITY_AT_DISTANCE` beside
+`VARIANCE_AUTHORITY_SINCE`, and `variance select --at-distance` prints the same
+leg's skip list for Rstest or any other runner:
 
 ```bash
 VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
 VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 ```
+
+The same two variables go in front of `npx jest` and `npx playwright test`.
 
 The runner's own inventory is the other half of that join, so every selected
 file runs in one of the two legs. A test new since the recording runs in both,

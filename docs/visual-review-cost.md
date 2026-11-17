@@ -217,8 +217,9 @@ them by component across runs. Nothing is ignored automatically at any count.
 
 ### The harness you have stays
 
-Your Playwright specs, Storybook, served routes, jsdom unit tests and Vitest
-browser mode already put the app into the states you care about. Variance
+Your Playwright specs, Storybook, served routes, jsdom unit tests under Vitest,
+Jest or Rstest, Vitest browser mode and Rstest's Playwright fixture already put
+the app into the states you care about. Variance
 Authority takes the state from whichever of them set it up, and your
 `toHaveScreenshot` assertions can keep running while you try it. There is no
 second suite to keep in step with the first. [Add it to what you already

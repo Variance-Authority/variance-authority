@@ -2,9 +2,11 @@
 
 Three readings describe a rendered interface without comparing it to anything:
 the measured relationships of the layout, the elements your test actually
-addressed, and the React component that owns each of them. All three read one
-live page inside a Playwright or Vitest run you already have, and none of them
-needs a previous image, an approved baseline, or a stored comparison.
+addressed, and the React component that owns each of them. Each reads one live
+page inside a test run you already have: the layout reading inside Playwright,
+the other two inside Playwright or a React Testing Library suite under Vitest,
+Jest or Rstest. None of them needs a previous image, an approved baseline, or a
+stored comparison.
 
 A **subject** is one named UI state you asked for and can ask for again,
 identified by a stable id you choose such as `story:checkout--empty`. Each

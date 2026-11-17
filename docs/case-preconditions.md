@@ -93,6 +93,10 @@ export function pricesReturn(table: keyof typeof TABLES): void {
 }
 ```
 
+The examples use Vitest's `vi`. Under Jest the same helper calls `jest.mocked`
+and `jest.mock`, and under Rstest `rs.mocked` and `rs.mock`;
+`variancePrecondition` is the same call under every runner.
+
 Setup can now carry the defaults, and a nested `describe` or a test body
 refines them:
 

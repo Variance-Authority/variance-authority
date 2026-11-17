@@ -32,8 +32,12 @@ npm install --save-dev @variance-authority/core @variance-authority/react \
   @variance-authority/unit-test jsdom
 ```
 
+The example is written for Vitest. It runs the same under Jest or Rstest in a
+jsdom environment, with `expect` and `test` taken from Jest's globals or
+`@rstest/core` instead of `vitest`.
+
 ```tsx
-// parting.test.tsx — Vitest, jsdom environment
+// parting.test.tsx — jsdom environment
 import { explainParting, partingOf } from '@variance-authority/core/compare';
 import { holdingOf, provenanceOf, wiringOf } from '@variance-authority/react';
 import { capture } from '@variance-authority/unit-test';

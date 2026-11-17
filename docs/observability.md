@@ -67,11 +67,11 @@ npm install --save-dev @variance-authority/eyes
 
 `watch(screen: object, log?: EyesLog): RtlWatch` instruments one React Testing
 Library `screen` object in place, so every later import of that same object is
-observed. Call it once, from Jest `setupFilesAfterEnv`, Vitest `setupFiles`, or
-a test file:
+observed. Call it once, from Vitest or Rstest `setupFiles`, Jest
+`setupFilesAfterEnv`, or a test file. The module is the same under each:
 
 ```ts
-// vitest.setup.ts
+// eyes.setup.ts
 import { screen } from '@testing-library/react';
 import { watch } from '@variance-authority/eyes/rtl';
 
@@ -416,7 +416,9 @@ ways to give the next job something to read:
   other half of the cache, including the endianness limit on moving either file
   between machines.
 - **Name the path yourself and upload it.** Pass `coverageFile` to the Vitest,
-  Jest or Playwright integration to put the snapshot at a path you choose,
+  Jest, Rstest or Playwright integration, or to the Storybook collector's
+  [`tests` option](../packages/storybook-collector/README.md#skipping-stories-nothing-touched),
+  to put the snapshot at a path you choose,
   typically inside the repository so CI can upload it as an artifact, and ignore
   that path in git. The record carries the run's cases too, so there is no
   second file to upload.

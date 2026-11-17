@@ -20,8 +20,8 @@ coverage does not:
 | `presence`, the default — the regions each case entered | none measured | none measured |
 | classic coverage, `--coverage` with V8 — the union | **+12%** | **+37%** |
 
-Around the tests, recording places its probes as Vite transforms each module and
-writes the record once the last test reports. On Zod neither shows. On
+Around the tests, recording places its probes as the runner transforms each
+module and writes the record once the last test reports. On Zod neither shows. On
 TanStack Query they bring the whole run to 1.05× at `loads` and 1.16× at
 `presence`, against 1.34× under classic coverage.
 
@@ -221,17 +221,11 @@ test](distill.md).
 
 ## The process
 
-**Record it once.** The recorder wraps the configuration you already have and
-keeps its plugins, setup files and reporters:
-
-```ts
-import { defineConfig } from 'vitest/config';
-import { withTestSelection } from '@variance-authority/sense/vitest';
-
-export default withTestSelection(
-  defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-);
-```
+**Record it once.** The recorder for your runner — Vitest, Jest, Rstest,
+Playwright, Storybook or any other — wraps the configuration you already have
+and keeps its plugins, setup files and reporters. [Which tests cover a
+line](own-fewer-tests.md#ask-which-tests-cover-a-line) gives each runner's
+package and wrap.
 
 **Run the suite the way you run it.** No separate coverage pass, no second
 command, and the file-level snapshot the same run writes does not depend on the

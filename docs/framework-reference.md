@@ -195,7 +195,8 @@ component in a production build leave this field the same way.
 
 Pass a mounted DOM node and read the fields you are asserting on. The call is
 synchronous, and unlike the commit tap below it does not have to be loaded ahead
-of `react-dom`.
+of `react-dom`. The example imports from `vitest`; under Jest or Rstest it is the
+same with `expect` and `test` from Jest's globals or `@rstest/core`.
 
 ```ts
 import { expect, test } from 'vitest';

@@ -16,20 +16,13 @@ edit is measured from what ran last rather than from your branch point.
 Wrap the runner configuration once and run the suite once. That run writes the
 [record](execution-record.md): which test file executed which lines of which
 module, at which commit, kept in [your cache](cache.md) outside the checkout.
-From then on, each edit costs one variable:
-
-```ts
-// vitest.config.ts
-import { defineConfig } from 'vitest/config';
-import { withTestSelection } from '@variance-authority/sense/vitest';
-
-export default withTestSelection(defineConfig({ test: { include: ['src/**/*.test.ts'] } }));
-```
+From then on, each edit costs one variable in front of the command you already
+run:
 
 ```bash
-npx vitest run                            # records which test ran which code
-# ...edit one function body...
 VARIANCE_AUTHORITY_SINCE= npx vitest run
+VARIANCE_AUTHORITY_SINCE= npx jest
+VARIANCE_AUTHORITY_SINCE= npx playwright test
 ```
 
 Before the first test file starts, the run says how many it kept, for example:
@@ -48,16 +41,16 @@ reads the selection the wrapped configuration asks for.
 npm install --save-dev @variance-authority/sense @variance-authority/cli
 ```
 
-For Jest 30, wrap the configuration with `withTestSelection` from
-`@variance-authority/sense/jest` and run `VARIANCE_AUTHORITY_SINCE= npx jest`.
-[The Jest seam](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) says
-which parts of a Jest configuration it reads and which you spell out.
+Then wrap the configuration your runner reads with `withTestSelection`. Each
+seam says which parts of that configuration it reads and which you spell out:
 
-For Playwright, wrap the configuration with `withTestSelection` from
-`@variance-authority/playwright-test` and run `VARIANCE_AUTHORITY_SINCE= npx
-playwright test`. A spec file the selection keeps runs whole.
-[The Playwright seam](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach)
-says where the files are dropped.
+| Runner | `withTestSelection` from | Seam |
+|---|---|---|
+| Vitest | `@variance-authority/sense/vitest` | [Cut a Vitest run down to a diff](../packages/sense/README.md#cut-a-vitest-run-down-to-a-diff) |
+| Jest 30 | `@variance-authority/sense/jest` | [Cut a Jest run down to a diff](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) |
+| Playwright | `@variance-authority/playwright-test`, installed beside the two above | [Leave out the specs a change did not reach](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach) |
+
+Under Playwright, a spec file the selection keeps runs whole.
 
 Every wrapped run records, whether the variable is set or not. With it set, the
 runner drops the files the record proves your edit did not reach before it
@@ -84,9 +77,11 @@ select, and neither does Playwright's `--list`. Under Jest,
 `--filter` and `--skipFilter` replace the filter the selection runs in, so
 either one turns the selection off, and stderr says so.
 
-[The runner seam](../packages/sense/README.md#let-the-runner-skip-them) gives
-the details: where the files are dropped, and why `--shard` sees the same list
-in every shard. For Rstest or any other runner,
+Each seam gives the details — where the files are dropped, and why `--shard`
+sees the same list in every shard:
+[Vitest](../packages/sense/README.md#let-the-runner-skip-them),
+[Jest](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) and
+[Playwright](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach). For Rstest or any other runner,
 [`variance select`](../packages/cli/README.md#select-what-your-own-runner-may-skip)
 prints the same skip list, one path per line, for your script to subtract.
 
@@ -102,6 +97,8 @@ modules that test executed:
 VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
 VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 ```
+
+The same two variables go in front of `npx jest` and `npx playwright test`.
 
 `0-2` runs the tests within two imports of the edit, including a test whose own
 source you changed, which is zero. `3-` runs the rest. Every selected file runs
@@ -125,6 +122,7 @@ them entered the code you changed. Under Jest and Vitest,
 
 ```bash
 VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_GRAIN=case npx vitest run
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_GRAIN=case npx jest
 ```
 
 The skipped cases show as skipped, as `it.skip` would show them, and the stderr
@@ -203,17 +201,19 @@ in it is a script of ours:
 tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1 npx vitest run
 ```
 
-Under Jest 30 the same two variables go in front of `npx jest`; under Rstest,
-`variance select` with the same range prints the files your script leaves out. Give your agent that line as the command it runs after each edit, and tell it
-to read the verdict before it makes the next one. Each edit ends one of four
+Under Jest 30 and Playwright the same two variables go in front of `npx jest`
+or `npx playwright test`; under Rstest, `variance select` with the same range
+prints the files your script leaves out. Give your agent that line as the
+command it runs after each edit, and tell it to read the verdict before it
+makes the next one. Each edit ends one of four
 ways:
 
 - **A type error.** The compiler prints it and exits non-zero before any test
   starts.
 - **No test runs.** The run prints `selected none of 340, so none of them
   runs`: no recorded test ran the code you changed, the tests that did already
-  ran the text you have now, or they sit further than one import away. Vitest
-  and Jest then exit 0.
+  ran the text you have now, or they sit further than one import away. The run
+  then exits 0.
   The lines under it say which: a file left for a later leg is counted with the
   setting that runs it, `VARIANCE_AUTHORITY_AT_DISTANCE=2-`.
   Exit 0 here says nothing near the edit failed, not that the change is done.

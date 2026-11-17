@@ -101,7 +101,7 @@ export function setDiscountFlag(enabled: boolean): void {
 
 // test/prices.ts
 import { variancePrecondition } from '@variance-authority/sense/precondition';
-import { vi } from 'vitest';
+import { vi } from 'vitest'; // or the mock API of the runner you use
 import { fetchPrices } from '../src/checkout/prices.js';
 
 const TABLES = {

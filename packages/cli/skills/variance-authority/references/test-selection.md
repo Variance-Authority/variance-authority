@@ -1,6 +1,6 @@
 # Which tests an edit needs, and which first
 
-When a repository has wrapped its Vitest, Jest, rstest or Playwright runner, a suite run records
+When a repository has wrapped its Vitest, Jest, Rstest or Playwright runner, a suite run records
 which test file ran which region of which module. Test selection reads that
 recording back and answers two questions about an edit: **which recorded tests
 it reached**, and **how many imports lie between the edit and each one**. Both
@@ -115,7 +115,7 @@ other two read, so a pipeline pays for it once.
 
 ```bash
 variance index                                  # write the file graph the others read
-VARIANCE_AUTHORITY_SINCE= vitest run           # skip what the change cannot reach
+VARIANCE_AUTHORITY_SINCE= vitest run           # or jest, playwright test: skip what the change cannot reach
 variance reach --since origin/main              # files a diff reaches over imports alone
 ```
 
@@ -204,7 +204,7 @@ With the runner wrapped and recorded, rerun it after each edit with the
 variable set, nearest tests first:
 
 ```bash
-VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run   # or jest, playwright test
 VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 ```
 
@@ -214,7 +214,7 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
   the change reached none of them` means the edit reached no recorded test: a
   type or comment edit, or a file no test ran. Ending `N test files are left for
   a later run` instead, a leg or `VARIANCE_AUTHORITY_LOCAL=1` left them, and
-  the lines below name the run that takes them. That run passes under Vitest and Jest, with nothing run. A run that
+  the lines below name the run that takes them. That run passes under Vitest, Jest and Playwright, with nothing run. A run that
   found no test file at all has nothing to select from and fails: check
   `testMatch` and the working directory.
 - **Each run lands.** The next edit is measured from what each test last ran,

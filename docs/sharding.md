@@ -32,6 +32,8 @@ Run the shards as you do now:
 
 ```bash
 npx vitest run --shard 3/4
+npx jest --shard 3/4
+npx playwright test --shard 3/4
 ```
 
 Before the first file starts, the shard prints what it was given and which
@@ -157,6 +159,9 @@ jobs:
       - run: npx --no-install variance carry receive "$RUNNER_TEMP/base"
       - run: npx vitest run --shard ${{ matrix.shard }}
 ```
+
+The last step is your runner's own shard command: `npx jest --shard` and
+`npx playwright test --shard` take the same `${{ matrix.shard }}`.
 
 A shard run again now selects what it selected the first time. Selection takes
 the commit, the shard's number and the record, and none of them changes on a
@@ -340,6 +345,10 @@ jobs:
           npx vitest run --shard ${{ matrix.shard }}
 ```
 
+`npx vitest list --filesOnly` writes one test file per line, which is what
+`--collected` reads; under Jest, `npx jest --listTests` writes the same list.
+The shard step takes your runner's command, as in
+[a shard run again](#run-a-failed-shard-again).
 `VARIANCE_AUTHORITY_SINCE` is set only on a pull request, since setting it at
 all selects. The record comes from the share, so the suite needs
 `"carry": "share"`: with no record to read, every test file runs. `plan` hands every

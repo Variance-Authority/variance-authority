@@ -104,8 +104,9 @@ trusting the script, check that it writes the rows
 
 ## The record
 
-A Vitest, Jest, rstest or Playwright run wrapped in `withTestSelection` writes
-the case index `covering` reads into its record. A Playwright run whose `test`
+A Vitest, Jest, Rstest or Playwright run wrapped in `withTestSelection`, and a
+Storybook run with the collector's `tests` on, writes the case index `covering`
+reads into its record. A Playwright run whose `test`
 also composes `eyesFixtures` writes each attempt's Eyes journal into the same
 record, keyed by the case and its attempt, numbered from 1. See
 [producers](producers.md).

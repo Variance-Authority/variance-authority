@@ -20,22 +20,26 @@ which tests remain owned.
 
 ## Ask which tests cover a line
 
-Record case identities once. `withTestSelection` wraps a Vitest configuration
-and keeps its plugins, setup files and reporters; every run writes an
-[execution index](execution-record.md) naming which individual case covered each
-region, beside the file-level snapshot the same run already writes.
+Record case identities once, under the runner you already use. Its recorder
+wraps the configuration that runner reads and keeps the plugins, setup files and
+reporters in it; every run writes an [execution index](execution-record.md)
+naming which individual case covered each region, beside the file-level
+snapshot the same run already writes.
+
+| Your tests run under | Install | Wrap |
+|---|---|---|
+| Vitest | `@variance-authority/sense` | [`withTestSelection`](../packages/sense/README.md#cut-a-vitest-run-down-to-a-diff) from `@variance-authority/sense/vitest`, around `defineConfig` |
+| Jest | `@variance-authority/sense` | [`withTestSelection`](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) from `@variance-authority/sense/jest`, around the configuration you export |
+| Rstest | `@variance-authority/sense` | [`withTestSelection`](../packages/sense/README.md#cut-an-rstest-run-down-to-a-diff) from `@variance-authority/sense/rstest`, inside `defineConfig` |
+| Playwright | `@variance-authority/playwright-test` | [`withTestSelection`](../packages/playwright-test/README.md#record-what-each-spec-executed) from `@variance-authority/playwright-test`, inside `defineConfig` |
+| Storybook | `@variance-authority/storybook-collector` | [`tests: true`](../packages/storybook-collector/README.md#skipping-stories-nothing-touched) in `storybookCollector` |
+| Any other runner | `@variance-authority/sense` | [`observer.case`](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) around the body of each case |
+
+The questions below are asked with the `variance` command, from
+`@variance-authority/cli`:
 
 ```bash
-npm install --save-dev @variance-authority/sense
-```
-
-```ts
-import { defineConfig } from 'vitest/config';
-import { withTestSelection } from '@variance-authority/sense/vitest';
-
-export default withTestSelection(
-  defineConfig({ test: { include: ['src/**/*.test.ts'] } }),
-);
+npm install --save-dev @variance-authority/cli
 ```
 
 Run the suite the way you already run it, then ask about the line you are
@@ -121,11 +125,11 @@ measure from one origin, so neither composes with `--since`.
 
 One limit shapes how you read the list either way: anything a file covered
 before its first case — imports, `beforeAll`, top-level evaluation — is
-credited to every case in that file. A Jest, Rstest, Playwright or Storybook
-suite wraps its own configuration the same way and records the same regions;
-each writes the case axis against the unit it schedules, and
-[what each host records](execution-record.md#what-each-host-records) is that
-one table.
+credited to every case in that file. Each runner writes the case axis against
+the unit it schedules — a test, a spec, a story —
+[one table](execution-record.md#what-each-host-records) lists them, and a test
+file that runs in a page under Vitest or Rstest browser mode is recorded per
+file only.
 
 The list starts the conversation. It does not finish it, and the rest of this
 page is about what finishes it. For one candidate test rather than a set of
@@ -144,7 +148,7 @@ renders the summary, and each of those has a narrower test of its own. **Coverag
 composition** shows what is left when you take its narrower tests away. That
 subtraction only works region by region. Two coverage totals subtract to a
 number, and a number cannot name the code only the flow test runs. The
-command reads the same per-case index `withTestSelection` writes, from
+command reads the same per-case index your runner's recorder writes, from
 [the section above](#ask-which-tests-cover-a-line):
 
 ```bash

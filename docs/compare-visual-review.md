@@ -70,9 +70,9 @@ returns the individual tests that executed it, nearest call stack first.
 its own editor tooling; here the index decides which subjects a run skips.
 
 Variance Authority works beside an existing Playwright Test suite, a built or
-served Storybook, served routes or a static directory, Jest or Vitest under
-jsdom, and Vitest browser mode; any other host composes the observation library
-directly. [§6](#6-start-beside-the-tool-you-have) names the package for each, and
+served Storybook, served routes or a static directory, Vitest, Jest or Rstest
+under jsdom, Vitest browser mode, and Rstest with `@rstest/playwright`; any
+other host composes the observation library directly. [§6](#6-start-beside-the-tool-you-have) names the package for each, and
 [how a suite connects](surface.md) covers the material and placement each one
 produces.
 
@@ -278,8 +278,8 @@ The resulting adopter surfaces are compositions rather than separate products:
 - Storybook and routes: browser acquisition → environment-dependent document →
   local render or a hosted renderer with equivalent resource access → shared
   observation.
-- Jest or Vitest jsdom: browserless acquisition → portable archive → later CLI
-  process → local or hosted render → shared observation.
+- Vitest, Jest or Rstest jsdom: browserless acquisition → portable archive →
+  later CLI process → local or hosted render → shared observation.
 - Playwright Test deferred: caller locator → environment-dependent document →
   renderer with equivalent resource access → shared observation.
 - Playwright Test in place: caller locator → repeated agreeing screenshots →
@@ -474,9 +474,10 @@ npx playwright install chromium
 ```
 
 Swap the collector for `@variance-authority/route-collector` for served routes or
-a static directory, `@variance-authority/unit-test` for Jest or Vitest under
-jsdom, `@variance-authority/vitest-browser` for Vitest browser mode, or
-`@variance-authority/observe` to compose your own. Playwright's browser binaries
+a static directory, `@variance-authority/unit-test` for Vitest, Jest or Rstest
+under jsdom, `@variance-authority/vitest-browser` for Vitest browser mode,
+`@variance-authority/playwright-test` for Playwright Test or Rstest with
+`@rstest/playwright`, or `@variance-authority/observe` to compose your own. Playwright's browser binaries
 do not arrive with an `npm install`, which is what the second line is for.
 
 [Take one subject through the loop](start.md) runs the first cycle end to end:

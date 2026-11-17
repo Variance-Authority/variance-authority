@@ -540,8 +540,10 @@ says when that happens and when it does not.
 - [Run the tests an edit needs](test-an-edit.md) for the loop: wrap the
   runner once, then set one variable on each run.
 - [Record your Vitest, Jest or Rstest suite](../packages/sense/README.md) with
-  `@variance-authority/sense`, or [any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) with
-  `@variance-authority/sense/runner`. Under Vitest or Jest 30, set
+  `@variance-authority/sense`, a Playwright suite with
+  [`@variance-authority/playwright-test`](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach),
+  or [any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) with
+  `@variance-authority/sense/runner`. Under Vitest, Jest 30 or Playwright, set
   `VARIANCE_AUTHORITY_SINCE` when you run it, and the runner
   [drops what the change cannot reach](../packages/sense/README.md#let-the-runner-skip-them).
   Rstest and a runner recorded through `/runner` have no such seam: read the

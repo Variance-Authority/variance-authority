@@ -63,30 +63,23 @@ the package honour a second setup instead of guessing that it is a duplicate.
 ## Install the driver in the test setup
 
 ```bash
-npm install --save-dev @variance-authority/ioc vitest
+npm install --save-dev @variance-authority/ioc
 ```
 
 ```ts
-// vitest.setup.reset.ts
-import { afterEach, beforeEach } from 'vitest';
+// reset.setup.ts
+import { afterEach, beforeEach } from 'vitest'; // or '@jest/globals'; Mocha's are globals
 import { configureResetHandler } from '@variance-authority/ioc/reset/setup';
 
 configureResetHandler(beforeEach, afterEach);
 ```
 
-```ts
-// vitest.config.ts
-import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
-  test: { setupFiles: ['./vitest.setup.reset.ts'] },
-});
-```
-
 Hand it the runner's own per-test hooks. `configureResetHandler` types both
-arguments as the shape Vitest, Jest, Mocha and Playwright hooks share and imports
-none of them, so Jest and Mocha take the same call from their own setup file.
-Playwright is the one that needs a different shape around it, below.
+arguments as the shape Vitest, Jest, Mocha and Playwright hooks share and
+imports none of them. Name the file where the runner loads setup that can
+register hooks: Vitest's `setupFiles`, Jest's `setupFilesAfterEnv`, Mocha's
+`--file`. Playwright has no such file, and needs a different shape around the
+call, below.
 
 The `afterEach` serves a party that keeps state per test rather than resetting
 it, as [the isolator](https://variance-authority.dev/reference/packages/isolator)
@@ -100,8 +93,8 @@ and the report — and it does not depend on the previous test having finished, 
 a worker that died on an unhandled rejection cannot leave the next file dirty.
 
 The setup file has to run before any application module, because a handler
-registers when its module is imported. Make it the first entry in `setupFiles`,
-or the first import of a Playwright fixture. Get it wrong and you are told:
+registers when its module is imported. Make it the first setup file the runner
+loads, or the first import of a Playwright fixture. Get it wrong and you are told:
 
 ```
 @variance-authority/ioc/reset: 1 handler(s) registered before this setup ran,

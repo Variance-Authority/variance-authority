@@ -21,10 +21,12 @@ npx playwright install chromium
 
 [Your first run](start.md) has the config and the collector that command reads.
 
-That command covers the subjects the CLI renders. For an existing Vitest or
-Jest suite,
+That command covers the subjects the CLI renders. For an existing Vitest, Jest
+or Playwright suite, a seam wraps the runner configuration you already have —
 [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-wraps the runner configuration you already have: the run records itself, and
+for Vitest and Jest,
+[`@variance-authority/playwright-test`](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach)
+for Playwright. The run records itself, and
 with `VARIANCE_AUTHORITY_SINCE` set the runner leaves out the test files your
 edit did not reach. [Run the tests an edit needs](test-an-edit.md) is that
 loop.
@@ -93,18 +95,20 @@ For rendered subjects, use [test selection](selecting.md) when the outcome is a
 smaller run. It owns `--since`, the conservative rules that widen the set, and
 the report of what was excluded.
 
-For your own Vitest or Jest suite, record one run with the integration
-installed, then set the variable on the next one:
+For your own Vitest, Jest or Playwright suite, record one run with the
+integration installed, then set the variable on the next one:
 
 ```bash
-npx vitest run
 VARIANCE_AUTHORITY_SINCE= npx vitest run
+VARIANCE_AUTHORITY_SINCE= npx jest
+VARIANCE_AUTHORITY_SINCE= npx playwright test
 ```
 
 [Run the tests an edit needs](test-an-edit.md) owns that loop.
 `variance select --format json` prints the same reading for a runner the
-integration does not wrap, or a program that decides for itself. `select` prints a **skip** list, never a run list: stdout is paths and
-nothing else, and an empty answer runs your whole suite rather than none of it.
+integration does not wrap, for Rstest, which records but does not read the
+selection itself, or for a program that decides for itself. `select` prints a
+**skip** list, never a run list: stdout is paths and nothing else, and an empty answer runs your whole suite rather than none of it.
 It needs no `variance.config.json`, so a repository that uses Variance Authority
 for nothing else can still ask; with one, it reads the declared suites and what
 each rests on [before reach](changes-before-and-beyond.md#how-a-change-before-reach-is-declared). The

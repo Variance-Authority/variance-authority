@@ -63,7 +63,10 @@ This complete Vitest example contains the defect deliberately: `InlineCounter`
 is declared inside `Screen`, so each render creates a new component type. The
 test reports both the rebuilt component and the consequence to the user. Save it
 as a `.ts` test file; besides `@variance-authority/react` it needs `vitest`,
-`jsdom`, and the `react` and `react-dom` your application already has.
+`jsdom`, and the `react` and `react-dom` your application already has. It runs
+the same under Jest or Rstest in a jsdom environment: take `expect` and `test`
+from Jest's globals or `@rstest/core` instead of `vitest`, and drop the
+`@vitest-environment` comment for your runner's `testEnvironment`.
 
 ```ts
 // @vitest-environment jsdom
