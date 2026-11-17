@@ -290,6 +290,9 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     if (entry.settled) return;
     entry.settled = true;
     entry.watch.stop();
+    // The last line's requests, taken before the context stops being heard
+    // forgets what it still had out.
+    const heard = requests?.told() ?? [];
     entry.unhear();
     // A page that held the statements' drain holds this one too, and the test's
     // timeout is all that would end it: the case is not believed whole instead.
@@ -298,7 +301,7 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     if (inTime) {
       open(last);
       if (!(await drain(framesOf(context), last))) lost = true;
-      tell(last, requests?.told() ?? []);
+      tell(last, heard);
     }
     if (entry.watch.lost() || !inTime) lost = true;
   };

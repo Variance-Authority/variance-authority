@@ -14,3 +14,11 @@ test('saves an order while its price is still out', async ({ page }) => {
   await api.fail('/api/stock'); // loses the stock
   await api.answer('/api/price', 200); // answers the price
 });
+
+test('ends while its order is still out', async ({ page }) => {
+  const api = await holdApi(page); // holds
+  await page.setContent(SAVING); // opens
+  await Promise.all([page.click('#save'), api.sent('/api/order'), api.sent('/api/price'), api.sent('/api/stock')]); // saves
+  await api.answer('/api/price', 200); // answers the price
+  await api.answer('/api/stock', 200); // answers the stock
+});

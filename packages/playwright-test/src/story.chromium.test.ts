@@ -197,6 +197,13 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     expect(told.filter((note) => note.includes('token'))).toEqual([]);
   }, 120_000);
 
+  it('names on the last line what was still out when the test ended', async () => {
+    const { byName } = await storiesWritten();
+    const story = byName.get('ends while its order is still out')!;
+
+    expect((await toldIn('requests.spec.ts', story)).slice(-3)).toEqual(['test line answers the stock', 'GET /api/stock 200', 'still out POST /api/order']);
+  }, 120_000);
+
   it('records what a replaced document entered at the statement that replaced it', async () => {
     const { directory } = await storiesWritten();
     const cases = (await caseIndexOf(resolve(directory, 'coverage.bin')))!;
