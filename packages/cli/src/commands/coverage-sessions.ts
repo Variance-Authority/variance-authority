@@ -13,9 +13,11 @@
  */
 
 import { readFileSync, realpathSync } from 'node:fs';
-import { isAbsolute, join, relative, sep } from 'node:path';
+import { isAbsolute, join } from 'node:path';
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import { checkoutPath } from '@variance-authority/sense/checkout-path';
 import { instrumentModeOf, type WalkMode } from '@variance-authority/sense/instrument';
-import { readTestCoverage, sessionsAgainst, sessionSources, type CoverageModule, type NamedSession, type SessionsFile } from '@variance-authority/sense/test-selection';
+import { readTestCoverage, sessionsAgainst, sessionSources, type CoverageModule, type NamedSession, type SessionsFile, type SessionSource } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { readSession } from './session-input.js';
 
@@ -31,8 +33,8 @@ export interface UntestedFunction {
 export interface CoverageSessions {
   /** The sessions, in the order given. */
   readonly names: readonly string[];
-  /** Per session, in order: the scripts it could not place or read, and the sources its maps placed nowhere on this machine. */
-  readonly each: readonly { readonly name: string; readonly skipped: readonly string[]; readonly unplaced: readonly string[] }[];
+  /** Per session, in order, what it ran that no function is named from. */
+  readonly each: readonly SessionDropped[];
   /** Per file, the functions some session ran and no recorded case entered. */
   readonly untested: readonly { readonly file: string; readonly functions: readonly UntestedFunction[] }[];
   /** Functions some session ran whose record holds them in another text: no case can be counted for them. */
@@ -41,6 +43,21 @@ export interface CoverageSessions {
   readonly files: readonly SessionsFile[];
   /** Files a record holds that no session loaded. */
   readonly notLoaded: readonly string[];
+  /** Files some session loaded whose text in the checkout could not be cut. */
+  readonly uncut: readonly string[];
+}
+
+/** One session's sources that no function is named from, each list by why. */
+export interface SessionDropped {
+  readonly name: string;
+  /** Scripts it could not place as a file on this machine, or whose text or map could not be read. */
+  readonly skipped: readonly string[];
+  /** Sources its maps name that no file on this machine answers. */
+  readonly unplaced: readonly string[];
+  /** Sources placed and read whose text, as the session ran it, could not be cut. */
+  readonly uncut: readonly string[];
+  /** Sources outside the checkout, or in a dependency under `node_modules`: no record holds them. */
+  readonly outside: readonly string[];
 }
 
 /** `sessions`, set beside the records at `records`, with every file read from `root`. */
@@ -62,18 +79,19 @@ export async function coverageSessions(
   // Node names a script by its real path, which on macOS sits under `/private`.
   const roots = [...new Set([root, realpathSync(root)])];
   const named: NamedSession[] = [];
-  const each: CoverageSessions['each'][number][] = [];
+  const each: SessionDropped[] = [];
   for (const session of sessions) {
     const input = await readSession(session.path, served);
-    const sources = sessionSources(input.scripts, mode, read);
-    named.push({
-      name: session.name,
-      sources: sources.sources.flatMap((source) => {
-        const file = ownFile(roots, source.file);
-        return file === undefined ? [] : [{ ...source, file }];
-      }),
-    });
-    each.push({ name: session.name, skipped: input.skipped, unplaced: sources.unplaced });
+    const walked = sessionSources(input.scripts, mode, read);
+    const own: SessionSource[] = [];
+    const outside = new Set<string>();
+    for (const source of walked.sources) {
+      const file = ownFile(roots, source.file);
+      if (file === undefined) outside.add(source.file);
+      else own.push({ ...source, file });
+    }
+    named.push({ name: session.name, sources: own });
+    each.push({ name: session.name, skipped: input.skipped, unplaced: walked.unplaced, uncut: walked.uncut, outside: [...outside].sort(codeUnitOrder) });
   }
   const answer = sessionsAgainst(named, suites.map((suite): readonly CoverageModule[] => suite.modules), read, mode);
   const names = sessions.map((session) => session.name);
@@ -86,7 +104,7 @@ export async function coverageSessions(
     return ran.length === 0 ? [] : [{ file, functions: ran }];
   });
   const uncounted = answer.files.flatMap((file) => file.functions).filter((each) => each.testFiles === undefined && each.sessions.includes('ran')).length;
-  return { names, each, untested, uncounted, files: answer.files, notLoaded: answer.notLoaded };
+  return { names, each, untested, uncounted, files: answer.files, notLoaded: answer.notLoaded, uncut: answer.uncut };
 }
 
 /** The one mode every record was cut in: a session is walked as the records were, or the two would name different regions. */
@@ -103,9 +121,9 @@ function walkModeOf(instrumentations: readonly string[]): WalkMode {
 /** `file` spelled from the root, as a record spells it; `undefined` for a file outside the root or a dependency's. */
 function ownFile(roots: readonly string[], file: string): string | undefined {
   for (const root of roots) {
-    const spelled = relative(root, file);
-    if (spelled.startsWith('..') || isAbsolute(spelled)) continue;
-    return spelled.split(sep).includes('node_modules') ? undefined : spelled.split(sep).join('/');
+    const spelled = checkoutPath(root, file);
+    if (!('path' in spelled)) continue;
+    return spelled.path.split('/').includes('node_modules') ? undefined : spelled.path;
   }
   return undefined;
 }

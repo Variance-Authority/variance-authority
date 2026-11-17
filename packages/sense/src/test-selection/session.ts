@@ -109,6 +109,8 @@ export interface SessionsAgainst {
   readonly files: readonly SessionsFile[];
   /** Files a record holds that no session loaded: not loaded, never unrun. */
   readonly notLoaded: readonly string[];
+  /** Files a session loaded whose text the walk could not cut: no function of them can be named. */
+  readonly uncut: readonly string[];
 }
 
 /**
@@ -139,10 +141,14 @@ export function sessionsAgainst(
   for (const module of suites.flat()) recorded.set(module.file, [...(recorded.get(module.file) ?? []), module]);
 
   const files: SessionsFile[] = [];
+  const uncut: string[] = [];
   for (const [file, perSession] of [...loaded].sort(([a], [b]) => codeUnitOrder(a, b))) {
     const text = readFile(file) ?? perSession.flat()[0]!.text;
     const cut = sourceCut(text, file, mode);
-    if (cut === undefined) continue;
+    if (cut === undefined) {
+      uncut.push(file);
+      continue;
+    }
     const verdicts = perSession.map((ran) => {
       const states = new Map<string, SessionState>();
       for (const { row, state } of ran.flatMap((source) => source.functions)) {
@@ -166,7 +172,7 @@ export function sessionsAgainst(
     files.push({ file, functions });
   }
   const notLoaded = [...recorded.keys()].filter((file) => !loaded.has(file)).sort();
-  return { files, notLoaded };
+  return { files, notLoaded, uncut };
 }
 
 /** Two texts of one file ran in one session: what either saw of a function stands, and a run over all. */
@@ -248,7 +254,7 @@ export function sessionSources(
       block.kind === 'function' ? [{ row: cut.rows[index]!, state: states.get(block.ordinal) ?? 'unknown' }] : []);
     sources.push({ file, text, sourceDigest: cut.sourceDigest, functions });
   }
-  sources.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.sourceDigest < b.sourceDigest ? -1 : 1));
+  sources.sort((a, b) => codeUnitOrder(a.file, b.file) || codeUnitOrder(a.sourceDigest, b.sourceDigest));
   return { sources, unplaced: [...unplaced].sort(), uncut: uncut.sort() };
 }
 

@@ -178,8 +178,7 @@ into it). Under `--at-distance` the counts read only the band. `--format json` l
 record: V8 coverage a person exported from Playwright, CDP or
 `NODE_V8_COVERAGE`, read through its source maps into the record's functions;
 `--served <dir>` places a page's scripts. It lists the functions some session
-ran that no recorded case entered, the place to plan a test or question dead
-code. A session is evidence beside the record, never a case in it, so selection
+ran that no recorded case entered, the place to plan a test. A session is evidence beside the record, never a case in it, so selection
 does not change.
 
 `variance coverage --format badge` prints the share `any suite` leads with as

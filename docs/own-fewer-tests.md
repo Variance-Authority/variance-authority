@@ -464,9 +464,7 @@ variance coverage --session manual=manual.json --served dist
 ```
 
 That list is where a missing test is most likely to matter, since somebody
-used the code and nothing checks it. The reverse question, code no run and no
-test reaches, is a candidate for deletion, and the JSON holds every function
-with each session's verdict to ask it. A session never becomes a case, so
+used the code and nothing checks it. A session never becomes a case, so
 selection is unchanged; the [CLI reference](../packages/cli/README.md) has the
 formats and the output.
 

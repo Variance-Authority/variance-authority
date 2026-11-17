@@ -1686,9 +1686,9 @@ variance coverage --suite e2e --session flow=flow.json --session manual=manual.j
 
 ```text
 sessions
-          functions ran  loaded, not run
-  flow    29             6
-  manual  26             9
+          functions ran  loaded, not run  ran in another text
+  flow    29             6                0
+  manual  26             9                0
 ran by a session, by no recorded case — 5 functions
 src/main.tsx
   reduce/filter.arg0    20     manual
@@ -1701,8 +1701,11 @@ src/main.tsx
 A session is read function by function, in the regions the record cut, and is
 never written into the record: no session becomes a case, so `select` and
 `shards` answer as they did. A function whose text in the session differs from
-the checkout's is counted apart, since no case can be counted for it, and a
-script the command could not place or map is named. `--format json` lists every
+the checkout's is counted apart, since no case can be counted for it. Every
+script or source a session ran that no function is named from is named with its
+reason: a script no file on this machine answers, one whose file no longer
+holds the text Node ran, a map it could not read, a source outside the checkout
+or in `node_modules`, and a text that could not be parsed. `--format json` lists every
 function of every file a session loaded under `sessions`, with each session's
 verdict and the test files that entered it.
 

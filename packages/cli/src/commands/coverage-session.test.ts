@@ -62,7 +62,7 @@ beforeAll(async () => {
   const unrun = BUNDLE_FUNCTIONS.map((each) => each.functionName === 'twice' ? { ...each, ranges: [{ ...each.ranges[0]!, count: 0 }] } : each);
   await writeFile(join(node, 'coverage-1-1-0.json'), JSON.stringify({
     result: [{ url, scriptId: '1', functions: unrun }],
-    'source-map-cache': { [url]: { lineLengths: [], data: BUNDLE_MAP, url: 'main.js.map' } },
+    'source-map-cache': { [url]: { lineLengths: BUNDLE.split('\n').map((line) => line.length), data: BUNDLE_MAP, url: 'main.js.map' } },
   }));
 });
 
@@ -113,8 +113,50 @@ describe('`coverage --session`', () => {
 
     expect(answer.code).toBe(0);
     expect(answer.out).toContain('<summary>🧭 Ran by a session, by no recorded case: 1 function</summary>');
-    expect(answer.out).toContain('| checkout | 2 | 1 |\n| node | 1 | 2 |');
+    expect(answer.out).toContain('| checkout | 2 | 1 | 0 |\n| node | 1 | 2 | 0 |');
     expect(answer.out).toContain('| `src/math.ts` | `twice` | 9 | checkout |');
+  });
+
+  it('names every source a session ran that it sets beside no case, and why', async () => {
+    // A directory whose name starts with `..` is still the checkout's.
+    await mkdir(join(root, '..gen'));
+    await mkdir(join(root, 'node_modules/dep'), { recursive: true });
+    const plain = 'export function plain() {\n  return 1;\n}\nplain();\n';
+    await writeFile(join(root, '..gen/plain.js'), plain);
+    await writeFile(join(root, '..gen/bad.js'), 'function (');
+    await writeFile(join(root, '..gen/broken.js'), 'function (');
+    await writeFile(join(root, 'node_modules/dep/index.js'), 'export function dep() {}\n');
+    const script = (path: string, source: string) => ({
+      url: `http://localhost:5173/${path}`,
+      scriptId: path,
+      source,
+      functions: [{ functionName: '', ranges: [{ startOffset: 0, endOffset: source.length, count: 1 }] }],
+    });
+    await writeFile(join(root, 'plain.json'), JSON.stringify([
+      script('..gen/plain.js', plain),
+      script('..gen/bad.js', 'function ('),
+      script('..gen/broken.js', 'export function broken() {}\n'),
+      script('node_modules/dep/index.js', 'export function dep() {}\n'),
+    ]));
+
+    const answer = await ask(['coverage', '--root', root, '--session', `plain=${join(root, 'plain.json')}`, '--served', root, '--format', 'json']);
+
+    expect(answer.err).toBe('');
+    const sessions = JSON.parse(answer.out).sessions;
+    expect(sessions.files.map((file: { file: string }) => file.file)).toEqual(['..gen/plain.js']);
+    expect(sessions.each).toEqual([{
+      name: 'plain',
+      skipped: [],
+      unplaced: [],
+      uncut: [join(root, '..gen/bad.js')],
+      outside: [join(root, 'node_modules/dep/index.js')],
+    }]);
+    expect(sessions.uncut).toEqual(['..gen/broken.js']);
+
+    const text = await ask(['coverage', '--root', root, '--session', `plain=${join(root, 'plain.json')}`, '--served', root]);
+    expect(text.out).toContain(`plain could not cut 1 source: ${join(root, '..gen/bad.js')}`);
+    expect(text.out).toContain(`plain ran 1 source outside the checkout or in a dependency: ${join(root, 'node_modules/dep/index.js')}`);
+    expect(text.out).toContain('1 file a session ran could not be cut in the checkout\'s text: ..gen/broken.js');
   });
 
   it('leaves the record as it was: a session is never a case', async () => {

@@ -10,17 +10,23 @@
  * process, the maps Node read beside its scripts. A script is placed as a file
  * on this machine by its URL: a `file:` URL is that file, and an `http(s):` one
  * is the file at its path under the directory the page was served from, which
- * only the person who ran it can name. Its map is the one Node cached, else the
- * one its `sourceMappingURL` names, inline or beside it. A script that cannot be
- * placed, or whose map cannot be read, is named as skipped rather than read as a
- * source of its own: a bundle read as its own source would land nowhere the
- * record cuts. Node's own modules and scripts with no URL are nobody's source,
- * and are passed over without a word.
+ * only the person who ran it can name. A script is placed only where a file on
+ * this machine answers it: a URL from another origin joined under that
+ * directory names no file. Node keeps no script text, so its script is the file
+ * on disk, read only when its lines are as long as the ones Node counted: a
+ * loader that transformed it, or a rebuild since, leaves other text there, and
+ * V8's offsets would land in the wrong functions. Its map is the one Node
+ * cached, else the one its `sourceMappingURL` names, inline or beside it. A
+ * script that cannot be placed, or whose map cannot be read, is named as skipped
+ * rather than read as a source of its own: a bundle read as its own source
+ * would land nowhere the record cuts. Node's own modules and scripts with no
+ * URL are nobody's source, and are passed over without a word.
  */
 
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
 import { inlineSourceMapOf, sourceMappingUrlOf } from '@variance-authority/core/attribute';
 import type { SessionMap, SessionScript, V8Function } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
@@ -32,10 +38,16 @@ interface Reported {
   readonly functions: readonly V8Function[];
 }
 
-/** One file of an export: its scripts, and the maps Node cached by script URL. */
+/** What Node cached beside a script it read a map for: the map, and the length of each line of the text it ran. */
+interface Cached {
+  readonly data?: unknown;
+  readonly lineLengths?: readonly number[];
+}
+
+/** One file of an export: its scripts, and what Node cached by script URL. */
 interface Exported {
   readonly result: readonly Reported[];
-  readonly maps: ReadonlyMap<string, unknown>;
+  readonly cache: ReadonlyMap<string, Cached>;
 }
 
 export interface SessionInput {
@@ -54,7 +66,7 @@ export async function readSession(path: string, served: string | undefined): Pro
   const skipped: string[] = [];
   for (const exported of await exportsAt(path)) {
     for (const reported of exported.result) {
-      const script = await scriptOf(reported, exported.maps, served);
+      const script = await scriptOf(reported, exported.cache, served);
       if (script === 'nobody') continue;
       if (script === undefined) skipped.push(reported.url);
       else scripts.push(script);
@@ -80,26 +92,33 @@ async function parsed(file: string): Promise<unknown> {
 }
 
 function exportOf(file: string, json: unknown): Exported {
-  if (Array.isArray(json)) return { result: json as Reported[], maps: new Map() };
-  const held = json as { result?: unknown; 'source-map-cache'?: Record<string, { data?: unknown }> } | null;
+  if (Array.isArray(json)) return { result: json as Reported[], cache: new Map() };
+  const held = json as { result?: unknown; 'source-map-cache'?: Record<string, Cached> } | null;
   if (held === null || typeof held !== 'object' || !Array.isArray(held.result)) {
     throw new OperatorError(`${file} is not a V8 coverage export: neither Playwright's array nor CDP's or Node's { result }`);
   }
-  const cache = Object.entries(held['source-map-cache'] ?? {});
-  return { result: held.result as Reported[], maps: new Map(cache.map(([url, entry]) => [url, entry.data])) };
+  return { result: held.result as Reported[], cache: new Map(Object.entries(held['source-map-cache'] ?? {})) };
 }
 
 /** The script `reported` names, `undefined` when it cannot be read, and `nobody` for a script no source is behind. */
-async function scriptOf(reported: Reported, cached: ReadonlyMap<string, unknown>, served: string | undefined): Promise<SessionScript | 'nobody' | undefined> {
+async function scriptOf(reported: Reported, cached: ReadonlyMap<string, Cached>, served: string | undefined): Promise<SessionScript | 'nobody' | undefined> {
   if (reported.url === '' || reported.url.startsWith('node:')) return 'nobody';
   const file = fileOf(reported.url, served);
   if (file === undefined) return undefined;
-  const text = reported.source ?? (await readFile(file, 'utf8').catch(() => undefined));
-  if (text === undefined) return undefined;
-  const map = cached.get(reported.url) ?? (await mapOf(text, file));
+  const disk = await readFile(file, 'utf8').catch(() => undefined);
+  if (disk === undefined) return undefined;
+  const entry = cached.get(reported.url);
+  if (reported.source === undefined && entry?.lineLengths !== undefined && !isDeepStrictEqual(lineLengths(disk), entry.lineLengths)) return undefined;
+  const text = reported.source ?? disk;
+  const map = entry?.data ?? (await mapOf(text, file));
   if (map === null) return undefined;
   if (map !== undefined && !isMap(map)) return undefined;
   return { file, text, functions: reported.functions, ...(map === undefined ? {} : { map }) };
+}
+
+/** Each line's length in UTF-16 code units, split where Node's source-map cache splits: at `\n`, U+2028 and U+2029. */
+function lineLengths(text: string): readonly number[] {
+  return text.split(/\n|\u2028|\u2029/).map((line) => line.length);
 }
 
 function fileOf(url: string, served: string | undefined): string | undefined {

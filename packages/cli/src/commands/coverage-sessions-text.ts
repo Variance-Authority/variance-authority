@@ -14,7 +14,12 @@ export function sessionsLines(sessions: CoverageSessions | undefined): readonly 
   const lines = ['sessions', ...table(sessionRows(sessions).map(([name, ...rest]) => [`  ${name}`, ...rest]))];
   for (const each of sessions.each) {
     if (each.skipped.length > 0) lines.push(`  ${each.name} skipped ${grouped(each.skipped.length)} script${each.skipped.length === 1 ? '' : 's'} it could not place: ${each.skipped.join(', ')}`);
-    if (each.unplaced.length > 0) lines.push(`  ${each.name} mapped to ${grouped(each.unplaced.length)} source${each.unplaced.length === 1 ? '' : 's'} not on this machine: ${each.unplaced.join(', ')}`);
+    if (each.unplaced.length > 0) lines.push(`  ${each.name} mapped to ${sources(each.unplaced.length)} not on this machine: ${each.unplaced.join(', ')}`);
+    if (each.uncut.length > 0) lines.push(`  ${each.name} could not cut ${sources(each.uncut.length)}: ${each.uncut.join(', ')}`);
+    if (each.outside.length > 0) lines.push(`  ${each.name} ran ${sources(each.outside.length)} outside the checkout or in a dependency: ${each.outside.join(', ')}`);
+  }
+  if (sessions.uncut.length > 0) {
+    lines.push(`  ${grouped(sessions.uncut.length)} file${sessions.uncut.length === 1 ? '' : 's'} a session ran could not be cut in the checkout's text: ${sessions.uncut.join(', ')}`);
   }
   if (sessions.uncounted > 0) lines.push(`  ${functions(sessions.uncounted)} ran in a text the record holds otherwise: no case can be counted for them`);
   const untested = sessions.untested.reduce((sum, file) => sum + file.functions.length, 0);
@@ -32,8 +37,8 @@ export function sessionsMarkdown(sessions: CoverageSessions | undefined): readon
     '',
     `<details><summary>🧭 Ran by a session, by no recorded case: ${functions(untested)}</summary>`,
     '',
-    '| Session | Functions ran | Loaded, not run |',
-    '|---|--:|--:|',
+    '| Session | Functions ran | Loaded, not run | Ran in another text |',
+    '|---|--:|--:|--:|',
     ...sessionRows(sessions).slice(1).map((row) => `| ${row.join(' | ')} |`),
   ];
   if (untested > 0) {
@@ -48,10 +53,11 @@ export function sessionsMarkdown(sessions: CoverageSessions | undefined): readon
 
 function sessionRows(sessions: CoverageSessions): (readonly string[])[] {
   return [
-    ['', 'functions ran', 'loaded, not run'],
+    ['', 'functions ran', 'loaded, not run', 'ran in another text'],
     ...sessions.names.map((name, at) => {
       const said = sessions.files.flatMap((file) => file.functions.map((each) => each.sessions[at]));
-      return [name, grouped(said.filter((each) => each === 'ran').length), grouped(said.filter((each) => each === 'unrun').length)];
+      const count = (verdict: string): string => grouped(said.filter((each) => each === verdict).length);
+      return [name, count('ran'), count('unrun'), count('other text')];
     }),
   ];
 }
@@ -59,6 +65,10 @@ function sessionRows(sessions: CoverageSessions): (readonly string[])[] {
 function linesOf(each: UntestedFunction): string {
   if (each.startLine === undefined) return '';
   return each.endLine === each.startLine ? String(each.startLine) : `${each.startLine}–${each.endLine}`;
+}
+
+function sources(count: number): string {
+  return `${grouped(count)} source${count === 1 ? '' : 's'}`;
 }
 
 function functions(count: number): string {

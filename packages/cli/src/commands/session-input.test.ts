@@ -32,6 +32,11 @@ function math(scripts: readonly SessionScript[]): Record<string, string> {
 
 const EXPECTED = { add: 'ran', never: 'unknown', twice: 'ran' };
 
+/** Each line's length as Node's source-map cache writes it beside a script. */
+function lineLengths(text: string): number[] {
+  return text.split(/\n|\u2028|\u2029/).map((line) => line.length);
+}
+
 describe('a session read from what V8 wrote', () => {
   it('reads a NODE_V8_COVERAGE directory through the source maps Node cached', async () => {
     const node = join(root, 'node-coverage');
@@ -41,7 +46,7 @@ describe('a session read from what V8 wrote', () => {
     await writeFile(join(root, 'dist/main.js.map'), '{}');
     await writeFile(join(node, 'coverage-1-1-0.json'), JSON.stringify({
       result: [{ url, scriptId: '1', functions }, { url: 'node:internal/main', scriptId: '2', functions: [] }],
-      'source-map-cache': { [url]: { lineLengths: [], data: BUNDLE_MAP, url: 'main.js.map' } },
+      'source-map-cache': { [url]: { lineLengths: lineLengths(BUNDLE), data: BUNDLE_MAP, url: 'main.js.map' } },
     }));
     try {
       const session = await readSession(node, undefined);
@@ -51,6 +56,32 @@ describe('a session read from what V8 wrote', () => {
     } finally {
       await writeFile(join(root, 'dist/main.js.map'), JSON.stringify(BUNDLE_MAP));
     }
+  });
+
+  it('names a Node script whose file no longer holds the text it ran, and reads none of it', async () => {
+    const node = join(root, 'node-rebuilt');
+    await mkdir(node);
+    const url = `file://${join(root, 'dist/main.js')}`;
+    // The text V8 counted had a two-line banner the file on disk has lost since.
+    const ran = `/**\n */\n${BUNDLE}`;
+    await writeFile(join(node, 'coverage-1-1-0.json'), JSON.stringify({
+      result: [{ url, scriptId: '1', functions }],
+      'source-map-cache': { [url]: { lineLengths: lineLengths(ran), data: BUNDLE_MAP, url: 'main.js.map' } },
+    }));
+    const session = await readSession(node, undefined);
+
+    expect(session.scripts).toEqual([]);
+    expect(session.skipped).toEqual([url]);
+  });
+
+  it('names a served script no file under the served directory answers, and reads none of it', async () => {
+    const at = join(root, 'cdn.json');
+    const url = 'https://cdn.example.com/analytics/track.js';
+    await writeFile(at, JSON.stringify([{ url, scriptId: '1', source: 'function track() {}\ntrack();\n', functions: [] }]));
+    const session = await readSession(at, join(root, 'dist'));
+
+    expect(session.scripts).toEqual([]);
+    expect(session.skipped).toEqual([url]);
   });
 
   it('reads Playwright\'s coverage of a page through the map beside the served script', async () => {
