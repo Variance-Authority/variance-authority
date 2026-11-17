@@ -1,6 +1,6 @@
 // What journals say: every edge the model declares and which the tests walked,
 // and where two walks part.
-import { back, stay, type AnyFragment, type Spec } from './broker.js';
+import { back, stay, type AnyFragment, type Spec } from './contract.js';
 
 /** One step a test walked, as a declared edge. */
 export interface Step {

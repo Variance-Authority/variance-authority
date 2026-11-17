@@ -3,7 +3,7 @@
 // are wrong on purpose: each declares an edge the app does not take that way.
 import { back, byLabel, byRole, fragment, leads, over, stay } from '../broker/broker.js';
 import { expect, test } from '../fixture.js';
-import { Header, Payment, SignIn } from '../shop.js';
+import { Billing, Header, Payment, SignIn } from '../shop.js';
 
 const form = byRole('form', 'Billing details');
 const fill = async (d: { select: Function; fill: Function }) => {
@@ -209,4 +209,27 @@ test('a part nested two deep answers to the owner between', async ({ page, app }
   await page.goto('/checkout?user=member', { waitUntil: 'commit' });
   const outer = await app.enter(Outer);
   await expect(outer.mid.leaf.go('socks') as unknown as Promise<unknown>).rejects.toThrow('search-leaf.go is declared to stay, and mid left');
+});
+
+// A fragment that uses an open dialog lives with the dialog, above what it covers.
+const SignInPanel = fragment('sign-in-panel', { probe: byRole('dialog', 'Sign in'), uses: { dialog: SignIn } });
+
+test('a fragment that uses an open dialog is not covered by it', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  const panel = await app.enter(SignInPanel);
+  expect(panel.dialog).toBe(signIn);
+  await panel.dialog.email('a@b.c');
+  await expect(form.street('Rokin 2') as unknown as Promise<unknown>).rejects.toThrow('billing is covered by sign-in');
+  expect(await signIn.cancel.to('billing')).toBe(form);
+  await form.street('Rokin 2');
+});
+
+test('a fragment cannot declare then', () => {
+  // The thenable is the point: the declaration refuses it.
+  // oxlint-disable-next-line unicorn/no-thenable
+  expect(() => fragment('thenable', { probe: byRole('main'), reads: { then: (r) => r.texts(byRole('alert')) } })).toThrow(
+    'thenable declares then, which makes its handle look like a promise',
+  );
 });

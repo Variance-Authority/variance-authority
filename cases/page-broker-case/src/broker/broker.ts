@@ -7,96 +7,11 @@
 import type { Locator, Page, Request } from '@playwright/test';
 import { settle, type Signals } from './settle.js';
 import type { Step } from './journal.js';
-import { driver, locate, readDriver, type Driver, type ReadDriver, type Where } from './driver.js';
+import { driver, locate, readDriver } from './driver.js';
+import { back, registry, stay, type Act, type AnyFragment, type Fragment, type Leads, type Outcomes, type Over, type Read, type Spec, type Stays } from './contract.js';
 
 export { byLabel, byRole, byTestId, type Driver, type ReadDriver, type Where } from './driver.js';
-
-// ── the contract ──
-
-type Act = (d: Driver, ...args: any[]) => Promise<unknown>;
-type Read = (r: ReadDriver, ...args: any[]) => Promise<unknown>;
-
-/** The action leaves the fragment where it is; this is the default. */
-export const stay = Symbol('stay');
-/** The action closes a fragment that arrived `over` another, returning to what it covered. */
-export const back = Symbol('back');
-
-/**
- * The outcome opens over the departing fragment instead of replacing it: the
- * covered handle may still be read, and acts again once the cover goes `back`.
- * Covering is the edge's, not the dialog's: one dialog can cover many pages.
- */
-export interface Over<F extends AnyFragment = AnyFragment> {
-  readonly cover: F;
-}
-export const over = <F extends AnyFragment>(cover: F): Over<F> => ({ cover });
-
-export interface Stays<A extends Act = Act> {
-  readonly kind: 'stays';
-  readonly act: A;
-  /** Holds the action open until the app says its effect landed. */
-  readonly until?: Until;
-}
-export interface Leads<O extends Outcomes = Outcomes, A extends Act = Act> {
-  readonly kind: 'leads';
-  readonly outcomes: O;
-  readonly act: A;
-}
-export type Outcomes = Record<string, AnyFragment | Over | typeof stay | typeof back>;
-
-/** A value read before the action, and the condition on it the action waits for. */
-export interface Until {
-  readonly read: Read;
-  readonly done: (before: unknown, now: unknown) => boolean;
-}
-export const changed = (read: Read): Until => ({ read, done: (before, now) => before !== now });
-
-export const stays = <A extends Act>(act: A, options: { until?: Until } = {}): Stays<A> => ({
-  kind: 'stays',
-  act,
-  until: options.until,
-});
-export const leads = <O extends Outcomes, A extends Act>(outcomes: O, act: A): Leads<O, A> => {
-  // Arrival is sensed by where it lands, so two outcomes landing alike would leave the order to decide.
-  const keys = Object.keys(outcomes);
-  const at = keys.map((key) => {
-    const to = outcomes[key];
-    return to === stay ? 'stay' : to === back ? 'back' : 'cover' in to ? to.cover.name : (to as AnyFragment).name;
-  });
-  const twice = keys.findIndex((_, index) => at.indexOf(at[index]) !== index);
-  if (twice !== -1) {
-    throw new Error(`${keys[at.indexOf(at[twice])]} and ${keys[twice]} both arrive at ${at[twice]}; nothing on the page tells them apart`);
-  }
-  return { kind: 'leads', outcomes, act };
-};
-
-export interface Spec {
-  readonly probe: Where;
-  readonly uses?: Record<string, AnyFragment>;
-  readonly actions?: Record<string, Act | Stays | Leads>;
-  readonly reads?: Record<string, Read>;
-}
-
-export interface Fragment<S extends Spec = Spec> {
-  readonly name: string;
-  readonly spec: S;
-}
-export type AnyFragment = Fragment<any>;
-
-const registry: AnyFragment[] = [];
-
-export function fragment<const S extends Spec>(name: string, spec: S): Fragment<S> {
-  // One namespace on the handle: a read and an action under one name would leave
-  // the test calling whichever was assigned last.
-  const names = [spec.actions, spec.reads, spec.uses].flatMap((part) => Object.keys(part ?? {}));
-  const twice = names.filter((each, at) => names.indexOf(each) !== at);
-  if (twice.length > 0) throw new Error(`${name} declares ${twice.join(', ')} twice`);
-  // The page is sensed by name: a second fragment under one would arrive wherever the first shows.
-  if (registry.some((each) => each.name === name)) throw new Error(`a fragment named ${name} is already declared`);
-  const made = { name, spec };
-  registry.push(made);
-  return made;
-}
+export * from './contract.js';
 
 // ── handles: the test's view of one arrived fragment ──
 
@@ -211,11 +126,18 @@ export class App {
     const existing = this.roots.get(fragment);
     if (existing !== undefined && this.alive(this.states.get(existing)!)) return existing as Handle<F>;
     const fresh = this.handle(fragment, this.page.locator(':root'));
+    const meta = (fresh as any)[META] as Meta;
+    const state = meta.state;
+    // What uses an open cover lives with it, above what it covers; its other parts stay beneath.
+    const cover = this.within(fresh).find((each) => this.covered.has(each) && this.alive(each));
+    if (cover !== undefined) {
+      meta.state = cover;
+      this.states.set(fresh, cover);
+    }
     // A modal covers the whole page, what was entered beneath it after it opened included. It goes
     // beneath the first cover still open, so closing a cover above that one leaves it covered.
-    const bottom = [...this.covered].find(([cover]) => this.alive(cover))?.[1];
+    const bottom = [...this.covered].find(([open]) => this.alive(open))?.[1];
     if (bottom !== undefined) {
-      const state = (fresh as any)[META].state as State;
       Object.assign(state, { status: 'covered', why: bottom.by });
       bottom.states.push(state);
     }
@@ -331,7 +253,14 @@ export class App {
     const meta = (handle as any)[META] as Meta;
     meta.owners = [...shared.owners];
     for (const name of Object.keys((meta.fragment.spec as Spec).uses ?? {})) this.own((handle as any)[name], shared.owners);
-    this.adopt(handle, shared.state);
+    // An open cover keeps its own lifecycle: its owner joins it, in enter.
+    if (!this.covered.has(meta.state)) this.adopt(handle, shared.state);
+  }
+
+  /** The states of a handle's parts, at any depth. */
+  private within(handle: object): State[] {
+    const parts = Object.keys((((handle as any)[META] as Meta).fragment.spec as Spec).uses ?? {}).map((name) => (handle as any)[name]);
+    return parts.flatMap((part) => [part[META].state as State, ...this.within(part)]);
   }
 
   private adopt(handle: object, state: State): void {
