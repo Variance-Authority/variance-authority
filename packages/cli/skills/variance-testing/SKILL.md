@@ -56,7 +56,7 @@ invariants you preserve, and those tests stay green.
 ## After each edit: run what it reached, nearest first
 
 ```bash
-VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run   # or jest, playwright test
 VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 ```
 
@@ -74,13 +74,14 @@ a value made elsewhere, or the test passes when it should not — record that on
 test and read its route:
 
 ```bash
-VARIANCE_AUTHORITY_STORY=1 npx vitest run src/cart.test.ts -t "removes the last item"
+VARIANCE_AUTHORITY_STORY=1 npx vitest run src/cart.test.ts -t "removes the last item"   # or jest, rstest run
 variance story --name "cart > removes the last item"
 ```
 
 Find the step where the route left the path you expected, or the `✗` on the
-branch the test is named for. Pass one test file and `-t`, never a directory,
-a pattern or no argument, and never record in CI.
+branch the test is named for. Pass one test file and `-t` (`-g` under
+Playwright), never a directory, a pattern or no argument, and never record in
+CI.
 
 | The test | Record | Then ask |
 |---|---|---|
@@ -111,7 +112,7 @@ separates the sides*:
 
 The log is a probe on one run, not a change to what the test checks. A story
 covers the test's own process under Vitest, Jest and Rstest, and the page under
-Playwright and Vitest and Rstest browser mode: record a Playwright test with
+Playwright, Storybook, and Vitest and Rstest browser mode: record a Playwright test with
 `VARIANCE_AUTHORITY_STORY=1 npx playwright test <spec> -g <name>`. To read
 what a page holds while it runs, see
 [live run](../variance-authority/references/live-run.md).

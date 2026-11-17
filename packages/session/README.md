@@ -125,7 +125,7 @@ it.
 
 Install `@variance-authority/session` when one live DOM can host many subjects
 and you can provide the mount function. It is a library runner, not an automatic
-Playwright, Vitest, or Jest integration: those runners call `createSession` and
+integration with any test runner: your suite's hooks call `createSession` and
 `session.run` themselves. Use `@variance-authority/dom` when you only need one
 capture, or `@variance-authority/react` to give the mount callback React
 provenance and a way to wait for React to settle. Skip this package when
@@ -270,13 +270,13 @@ sharing one baseline address.
 ## Wiring it into a runner
 
 A session outlives individual tests, so it belongs in a suite-level hook. An
-excerpt of the Vitest shape — it needs `environment: 'jsdom'` in your Vitest
-config to supply the global `document`, and the file listed under
-`setupFiles`:
+excerpt for Vitest, Jest or Rstest: the jsdom environment supplies the global `document`, and the file is
+listed where the runner loads setup that registers hooks — `setupFiles` in
+Vitest and Rstest, `setupFilesAfterEnv` in Jest:
 
 ```ts
-// vitest.setup.session.ts
-import { afterAll, beforeAll } from 'vitest';
+// session.setup.ts
+import { afterAll, beforeAll } from 'vitest'; // or '@jest/globals', '@rstest/core'
 import { createSession, type Session } from '@variance-authority/session';
 
 export let session: Session;

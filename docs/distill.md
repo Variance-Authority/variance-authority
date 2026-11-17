@@ -182,8 +182,8 @@ Covered with no addressed target attributed to the same file: 2.
   distillation opportunity at depth 0 — src/top-nav.tsx
 ```
 
-Depth is whatever the producer of the execution index recorded. The Vitest
-recorder in [Sense](../packages/sense/README.md) records every crossing at depth
+Depth is whatever the producer of the execution index recorded. Every runner
+seam in [Sense](../packages/sense/README.md) records every crossing at depth
 0: it reports which regions a test covered, not how many calls deep the call
 stack was when it covered them. The field shows a real number only from a
 producer that tracks call depth, so read `depth 0` as "not recorded here" rather

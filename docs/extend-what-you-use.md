@@ -60,8 +60,8 @@ broader would give it a different job.
 [Eyes](eyes.md) can record which elements the test addressed and which React
 components rendered them. The execution record can show which source the test
 ran. Those are observations beside the assertion, not replacements for it.
-React Testing Library still supplies the query, and Vitest or Jest still reports
-whether the assertion passed. If the observations expose an unrelated branch,
+React Testing Library still supplies the query, and Vitest, Jest or Rstest still
+reports whether the assertion passed. If the observations expose an unrelated branch,
 you can investigate it without changing what the original test promises.
 
 The same boundary applies in Playwright. Its `test`, `expect`, page, fixtures,

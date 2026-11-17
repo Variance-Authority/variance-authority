@@ -1,7 +1,6 @@
 # Split a test suite across CI jobs
 
-Shard a Vitest, Jest or Playwright suite with `--shard k/n`, and each shard
-takes whole test files by how long they took on the last recorded run, not by
+Shard a [supported](supported-frameworks.md#split-a-run-across-ci-jobs) suite with `--shard k/n`, and each shard takes whole test files by how long they took on the last recorded run, not by
 how many there are. Each file goes in turn, longest first, to the shard with
 the least time so far, so the shards finish close together. Each shard
 computes the split from the record the run handed it and the files it collects,
@@ -32,6 +31,8 @@ Run the shards as you do now:
 
 ```bash
 npx vitest run --shard 3/4
+npx jest --shard 3/4
+npx playwright test --shard 3/4
 ```
 
 Before the first file starts, the shard prints what it was given and which
@@ -157,6 +158,9 @@ jobs:
       - run: npx --no-install variance carry receive "$RUNNER_TEMP/base"
       - run: npx vitest run --shard ${{ matrix.shard }}
 ```
+
+The last step is your runner's own shard command: `npx jest --shard` and
+`npx playwright test --shard` take the same `${{ matrix.shard }}`.
 
 A shard run again now selects what it selected the first time. Selection takes
 the commit, the shard's number and the record, and none of them changes on a
@@ -340,6 +344,10 @@ jobs:
           npx vitest run --shard ${{ matrix.shard }}
 ```
 
+`npx vitest list --filesOnly` writes one test file per line, which is what
+`--collected` reads. The shard step takes your runner's command, as in
+[a shard run again](#run-a-failed-shard-again), with a pull request's
+Playwright shards kept out of the share as [above](#start-only-what-the-change-needs).
 `VARIANCE_AUTHORITY_SINCE` is set only on a pull request, since setting it at
 all selects. The record comes from the share, so the suite needs
 `"carry": "share"`: with no record to read, every test file runs. `plan` hands every

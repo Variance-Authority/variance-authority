@@ -14,9 +14,9 @@ answers: reusing an open page instead of starting a browser per capture,
 separating a timing flake from a shared-state one, running the tests a change
 actually reached, and finding the dependencies a test loads but never calls.
 
-Most of that needs no visual baselines. The Vitest and Jest integrations
-record execution through the transformer you already use, and [Eyes](eyes.md)
-records React Testing Library's `screen` queries from a setup file. Choosing
+Most of that needs no visual baselines. Vitest, Jest and Rstest record
+execution through the transform you run, Playwright through your app's build,
+and [Eyes](eyes.md) records Testing Library's `screen` queries. Choosing
 tests, investigating shared state and reducing unnecessary imports all work in a
 suite that never opens a browser. [Choose the operating
 model](compare-visual-review.md) compares the capture and review contracts of the hosted
@@ -128,10 +128,10 @@ An import graph tells you which tests might depend on a changed module. A
 recorded run also tells you which tests executed the changed code.
 `withTestSelection` wraps the runner configuration once, installing the reporter
 it needs along the way. Every run then records which source code each test file
-executed. Set `VARIANCE_AUTHORITY_SINCE` on the next Vitest or Jest run and the
-runner reads that record itself, leaving out the test files your diff did not
-reach; [run the tests an edit needs](test-an-edit.md) is that loop. Any other
-runner gets the same skip list from `variance select`.
+executed. Set `VARIANCE_AUTHORITY_SINCE` on the next run and the runner leaves out the
+test files your diff did not reach, or `variance select` prints them, as
+[supported frameworks](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach)
+lists; [run the tests an edit needs](test-an-edit.md) is that loop.
 
 The record also explains exclusions. A selection reports which tests have a
 complete recording and executed none of the changed code. Missing or incomplete
@@ -198,14 +198,14 @@ of everything the packages do.
 | --- | --- | --- |
 | One page across a run | the harness, or a shipped collector | a page this side opens; a runner that drives its own browser keeps its own lifecycle |
 | Test-order checks | a collector that can create a clean environment | the ability to mount the subject again, which a runner-owned mount does not offer |
-| Selection and distance | `withTestSelection` in a Vitest or Jest 30 config; the four `@variance-authority/sense/jest-*` modules for a Jest configuration assembled by hand; `@variance-authority/sense/journal` for a build driven through a browser | a recorded run and `@variance-authority/cli` installed, for the runner to read its selection; outside a wrapped Vitest or Jest run, repository-owned inventory and runner dispatch; the journal seam also needs a Vite-compatible build and a driver that can evaluate in the page |
+| Selection and distance | `withTestSelection` in the config of a [supported framework](supported-frameworks.md#record-which-tests-ran-each-line); the four `@variance-authority/sense/jest-*` modules for a Jest configuration assembled by hand; `@variance-authority/sense/journal` for a build driven through a browser | a recorded run and `@variance-authority/cli` installed, for the runner to read its selection; outside a run that [reads its selection itself](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach), repository-owned inventory and runner dispatch; the journal seam also needs a Vite-compatible build and a driver that can evaluate in the page |
 | Order-dependent module state | the same instrumentation | nothing further |
 | Finding unused imports and functions | the same instrumentation | one test's recorded execution, and `variance distill` |
 | Recording queried elements | `watch(screen)` from `@variance-authority/eyes/rtl`, in a setup file | any object with `getBy` / `queryBy` / `findBy` queries; React updates also need a commit hook installed before `react-dom` loads; `watch` attaches to that hook and reports when it is unavailable |
 
 Test selection, shared-state records and dependency analysis come from one wrap
-of the Vitest or Jest configuration. They work with your existing `test` and
-`expect`, and do not require visual baselines.
+of the runner configuration, under the runners the table names. They work with
+your existing `test` and `expect`, and do not require visual baselines.
 
 ---
 

@@ -211,7 +211,7 @@
     18
   ],
   "docs/run-relevant-work.md lead": [
-    23
+    22
   ],
   "docs/scale.md lead": [
     63
@@ -226,7 +226,7 @@
     23
   ],
   "docs/sharding.md lead": [
-    17
+    16
   ],
   "docs/source-index.md lead": [
     17
@@ -247,7 +247,7 @@
     20
   ],
   "docs/test-an-edit.md lead": [
-    30
+    23
   ],
   "docs/understand-execution.md lead": [
     16
@@ -2291,7 +2291,7 @@
     6
   ],
   "packages/sense/README.md lead": [
-    36
+    35
   ],
   "packages/sense/native/build.mjs docblock": [
     15

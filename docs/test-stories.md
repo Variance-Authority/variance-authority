@@ -85,7 +85,8 @@ and as its story.
 
 The format and the name come from [Wallaby.js](https://wallabyjs.com/docs/features/test-stories/),
 which shows a test story inside your editor. Here your own test runner records
-it — Vitest in Node or in browser mode, Jest, Rstest, Playwright or a runner recorded through `/runner` — and you read it with one command, in a
+it — Vitest or Rstest in Node or in browser mode, Jest, Playwright, Storybook or
+a runner recorded through `/runner` — and you read it with one command, in a
 terminal or in any editor.
 
 ## What does this test do with the code you are changing?
@@ -126,6 +127,10 @@ CLI](../packages/cli/README.md) prints that, step by step:
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 variance story --name "cart > removes the last item"
 ```
+
+The first line runs the test under Vitest. [Record one](#record-one) has the same
+line for Jest, Rstest, Playwright and Storybook: only the runner's own command
+and its name filter differ.
 
 In the output, `✗` is a branch the test never took, and `×2` is how many times
 something ran:
@@ -335,7 +340,9 @@ under a and c`.
 You label a run by setting `VARIANCE_AUTHORITY_STORY` to a name in place of
 `1`. Use labels for a test that passes alone and fails with its file, a feature flag on and off,
 or two versions of a dependency. For a test that passes alone and fails with
-its file, record each setup twice under its own label, then compare the labels:
+its file, record each setup twice under its own label, then compare the labels.
+The commands below use Vitest; under another runner, use its line from
+[Record one](#record-one):
 
 ```bash
 VARIANCE_AUTHORITY_STORY=alone yarn vitest run src/cart.test.ts -t "removes the last item"
@@ -360,7 +367,8 @@ other the way it sets [readings of one test](#compare-readings-of-one-test)
 against each other.
 
 Record each test twice or more, so a side is never one run. The runner's `-t`
-matches part of a name, so one pattern can record all three; run it twice:
+matches part of a name, so one pattern can record all three; run it twice. As
+above, the command is Vitest's, and [Record one](#record-one) has the others:
 
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/checkout.test.ts -t "charges"
@@ -526,6 +534,7 @@ arguments, one test or one file:
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
+VARIANCE_AUTHORITY_STORY=1 yarn rstest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn playwright test tests/cart.spec.ts -g "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 variance run --subjects "story:cart--*"
 ```
