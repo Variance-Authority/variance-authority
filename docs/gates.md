@@ -162,10 +162,10 @@ extra instrumentation; resolving to the exact call site needs optional
 review. Chromatic remains the better fit when branch baselines, managed
 stability, and a maintained review page are part of the service you want.
 
-## 4. Jest or Vitest jsdom workflow
+## 4. Vitest, Jest or Rstest jsdom workflow
 
-**Job:** capture a mounted DOM in vanilla Jest or Vitest without running a browser
-inside the unit process, then render pixels later.
+**Job:** capture a mounted DOM in vanilla Vitest, Jest or Rstest without running
+a browser inside the unit process, then render pixels later.
 
 | Requirement | Fit |
 | --- | --- |

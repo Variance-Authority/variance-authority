@@ -1,7 +1,7 @@
 # Choose from the state you already have
 
 You can already get to the state you want to watch: a story renders it, a
-Playwright test drives to it, a Vitest test mounts it. Which of those supplies
+Playwright test drives to it, a Vitest, Jest or Rstest test mounts it. Which of those supplies
 it decides what travels into a run, where the pixels are painted, and what your
 baselines end up named, so the choice below starts from the lifecycle you
 already trust. New to [Variance Authority](README.md)?
@@ -101,7 +101,7 @@ itself — when:
 In-place capture requires an explicit browser launch recipe, captures at least
 twice, and refuses disagreement before baseline comparison.
 
-## Browserless Vitest in jsdom
+## Browserless unit tests in jsdom
 
 Use [`@variance-authority/unit-test`](start-unit.md) when the test process owns
 a mounted DOM but must not own a browser. `capture` serializes the mounted
@@ -112,7 +112,7 @@ remotely.
 
 Choose it when:
 
-- the ordinary Vitest lifecycle must remain unchanged;
+- the ordinary Vitest, Jest or Rstest lifecycle must remain unchanged;
 - browser startup does not belong in unit workers;
 - the resource bytes can be copied into the capture, so the renderer needs
   nothing from your machine;
@@ -123,7 +123,8 @@ Nothing inside jsdom decides a verdict — the run's answer for a subject, such 
 later run that paints the capture. jsdom also has no layout engine, so a changed
 pixel region on this path is reported without the component that drew it. To
 keep a real engine inside the test instead, use
-[`@variance-authority/vitest-browser`](start-vitest-browser.md).
+[`@variance-authority/vitest-browser`](start-vitest-browser.md) or
+[Rstest with Playwright](start-rstest.md#in-place-observe-the-page-the-test-is-already-driving).
 
 ## Existing rasters
 

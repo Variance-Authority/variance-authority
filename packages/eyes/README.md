@@ -69,7 +69,7 @@ and bound whatever hook it found. Creating one then would attach to an object
 React never calls. So call `tapCommits()` yourself, in a setup file that runs before anything imports `react-dom`:
 
 ```ts
-// vitest.setup.eyes-hook.ts
+// eyes-hook.setup.ts
 import { tapCommits } from '@variance-authority/eyes';
 
 tapCommits();
@@ -89,10 +89,10 @@ the journal, by the id and the attempt the record joins on, so there is no id
 for you to build:
 
 ```ts
-// vitest.setup.eyes.ts
+// eyes.setup.ts
 import { screen } from '@testing-library/react';
 import { watchTest } from '@variance-authority/eyes/rtl';
-import { afterEach, beforeEach } from 'vitest';
+import { afterEach, beforeEach } from 'vitest'; // or '@jest/globals', '@rstest/core'
 
 let attention: ReturnType<typeof watchTest>;
 
@@ -106,15 +106,25 @@ afterEach(() => {
 ```
 
 ```ts
-// vitest.config.ts
+// vitest.config.ts — Rstest's rstest.config.ts takes the same two keys, with
+// testEnvironment in place of environment
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
     environment: 'jsdom',
-    setupFiles: ['./vitest.setup.eyes-hook.ts', './vitest.setup.eyes.ts'],
+    setupFiles: ['./eyes-hook.setup.ts', './eyes.setup.ts'],
   },
 });
+```
+
+```js
+// jest.config.js — the watch needs beforeEach, which setupFilesAfterEnv has
+module.exports = {
+  testEnvironment: 'jsdom',
+  setupFiles: ['./eyes-hook.setup.ts'],
+  setupFilesAfterEnv: ['./eyes.setup.ts'],
+};
 ```
 
 Under Vitest, Jest and Rstest, the recording seam holds each attempt's case

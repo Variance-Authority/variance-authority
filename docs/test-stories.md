@@ -85,7 +85,8 @@ and as its story.
 
 The format and the name come from [Wallaby.js](https://wallabyjs.com/docs/features/test-stories/),
 which shows a test story inside your editor. Here your own test runner records
-it — Vitest in Node or in browser mode, Jest, Rstest, Playwright or a runner recorded through `/runner` — and you read it with one command, in a
+it — Vitest or Rstest in Node or in browser mode, Jest, Playwright, Storybook or
+a runner recorded through `/runner` — and you read it with one command, in a
 terminal or in any editor.
 
 ## What does this test do with the code you are changing?
@@ -126,6 +127,10 @@ CLI](../packages/cli/README.md) prints that, step by step:
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 variance story --name "cart > removes the last item"
 ```
+
+The first line runs the test under Vitest. [Record one](#record-one) has the same
+line for Jest, Rstest, Playwright and Storybook: only the runner's own command
+and its name filter differ.
 
 In the output, `✗` is a branch the test never took, and `×2` is how many times
 something ran:
@@ -282,6 +287,10 @@ The comparison can also answer in three other ways:
   group does from what that one run happened to do, and it prints that under its
   first line. Record the test again. The runs you made earlier still count.
 
+What the browser said of its frames, the [paint, layout and long-frame
+notes](#what-the-browser-painted-held-and-moved), is left out of every
+comparison: its timings and its place change from run to run of the same code.
+
 ### Compare the runs the record kept
 
 You do not have to record a story to start. The coverage record keeps up to 16
@@ -331,7 +340,9 @@ under a and c`.
 You label a run by setting `VARIANCE_AUTHORITY_STORY` to a name in place of
 `1`. Use labels for a test that passes alone and fails with its file, a feature flag on and off,
 or two versions of a dependency. For a test that passes alone and fails with
-its file, record each setup twice under its own label, then compare the labels:
+its file, record each setup twice under its own label, then compare the labels.
+The commands below use Vitest; under another runner, use its line from
+[Record one](#record-one):
 
 ```bash
 VARIANCE_AUTHORITY_STORY=alone yarn vitest run src/cart.test.ts -t "removes the last item"
@@ -356,7 +367,8 @@ other the way it sets [readings of one test](#compare-readings-of-one-test)
 against each other.
 
 Record each test twice or more, so a side is never one run. The runner's `-t`
-matches part of a name, so one pattern can record all three; run it twice:
+matches part of a name, so one pattern can record all three; run it twice. As
+above, the command is Vitest's, and [Record one](#record-one) has the others:
 
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/checkout.test.ts -t "charges"
@@ -522,6 +534,7 @@ arguments, one test or one file:
 ```bash
 VARIANCE_AUTHORITY_STORY=1 yarn vitest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn jest src/cart.test.ts -t "removes the last item"
+VARIANCE_AUTHORITY_STORY=1 yarn rstest run src/cart.test.ts -t "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 yarn playwright test tests/cart.spec.ts -g "removes the last item"
 VARIANCE_AUTHORITY_STORY=1 variance run --subjects "story:cart--*"
 ```
@@ -714,6 +727,78 @@ answered with its `3xx`.
 The runner hears the requests from Playwright, so nothing in the page is
 replaced to see them. In the browser modes of Vitest and Rstest, Storybook and a
 test with no page, no line names its requests.
+
+## When a Suspense boundary falls back and unlocks
+
+With `@variance-authority/react/story` from [React](../packages/react) in the
+suite's setup files, the story tells each time a React `Suspense` boundary
+shows its fallback and each time it unlocks, at the moment it happens. Each
+note lands among the other notes of the line that was running, so the story
+reads in the order things happened:
+
+```text
+test line 13
+suspense CheckoutPage › Suspense shows its fallback
+console.log cart arrived
+suspense CheckoutPage › Suspense unlocks
+test line 15
+```
+
+A boundary has no name of its own, so it is named by the component that wrote
+it — in a production build, which keeps no writer, the one it sits inside.
+Each boundary gets its own notes, and one that falls back again is told again.
+A boundary that never showed its fallback gets no note. Neither does one taken
+off the page while it was showing it. A boundary out of sight, under a hidden
+`Activity`, is told when it comes into sight. The boundaries are read at each commit
+React makes, so a boundary whose fallback is empty is told too, and one that
+falls back and unlocks within one commit is not seen. React announces its
+commits only to a listener there before it loaded, which a setup file is.
+
+A test that times out waiting on data saw its boundary fall back and never
+unlock. When you [compare its readings](#compare-readings-of-one-test) with
+`--compare outcome` against a reading that passed, the boundary's `unlocks`
+note is listed under `only when it passed`. The notes read a document the setup
+file loaded into, as under jsdom and the browser modes of Vitest and Rstest:
+the page a Playwright spec or a Storybook story drives has none.
+
+## What the browser painted, held and moved
+
+In a page Chromium runs, under Playwright, Storybook or the browser modes of
+Vitest and Rstest, the story also says what the browser reported of its
+frames, after the step it followed:
+
+```text
+test line opens
+  first paint
+  largest paint: h1.title
+test line holds
+  handed item='cake'
+  console.log chose cake
+  held a frame (121 ms)
+test line pushes
+  page +1 −0 nodes, 0 attributes, 0 text
+  layout moved 0.25
+```
+
+- **`first paint`** is when the browser first drew the page.
+- **`largest paint: <element>`** is each time a larger element finished
+  drawing, named by its tag and its id or first class. It says `largest paint`
+  alone when the element is gone.
+- **`held a frame (N ms)`** is a frame that took more than 50 ms, placed after
+  the script that held it longest: a handler that blocked the page.
+- **`layout moved <score>`** is a move of content already on the page, scored
+  as the browser scores layout shift. A move right after a click or a key is
+  told too.
+
+The browser reports each of these after the frame ends, so each is placed by
+the time the browser gives, after the step that was running then. Only a
+report the browser delivers after that line's story was already read, at the
+next statement, is told on the next line instead.
+A browser that reports none of these types tells none of them, and one that
+reports some names the rest once, as `unseen here: long-animation-frame`.
+
+These notes are for reading. Their durations, scores and the line they land on
+change between runs of the same code, so `--compare` leaves them out.
 
 ## What a story does not show
 

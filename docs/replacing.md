@@ -84,7 +84,7 @@ hands the agreeing image to the same comparison.
 - the call takes a bounded locator, not a whole-page shot;
 - review and baseline retention are yours to operate.
 
-## Alongside Jest or Vitest
+## Alongside Vitest, Jest or Rstest
 
 **What you keep.** The runner, its `test` and `expect`, the jsdom
 lifecycle, mount helpers, and ordinary semantic assertions.
@@ -125,6 +125,11 @@ test('save button', async () => {
   await writeCapture('.variance/captures', artifact);
 });
 ```
+
+Under Jest or Rstest the test is the same: take `test` and `expect` from Jest's
+globals or `@rstest/core` instead of `vitest`, and set the runner's
+`testEnvironment` to `jsdom` in place of the comment. Jest's jsdom environment
+is the `jest-environment-jsdom` package.
 
 The unit process launches no browser, produces no screenshot and decides no
 verdict. It writes the markup, the CSS that applies to it, and the bytes of

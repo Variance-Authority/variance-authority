@@ -15,7 +15,7 @@ This page assumes you already have a **collector** — the module that mounts ea
 UI state and signals when it is ready to be captured. The CLI never navigates,
 logs in, or starts your application; that boundary is the collector's. If you do
 not have one, pick the shipped adapter for the harness you already run —
-Storybook, Playwright, served routes, Jest or Vitest — from [the
+Storybook, Playwright, served routes, Vitest, Jest or Rstest — from [the
 first-observation guide](start.md), and come back here for the review loop.
 
 ## Confirm the collector's shape

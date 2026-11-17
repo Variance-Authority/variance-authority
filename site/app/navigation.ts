@@ -74,6 +74,7 @@ export const NAVIGATION = [
   {
     label: "Your test suite",
     items: [
+      { href: "/docs/supported-frameworks", label: "Supported frameworks", cluster: "Test coverage and scope" },
       { href: "/docs/better-tests", label: "Make a test suite faster and more reliable", cluster: "Test coverage and scope" },
       { href: "/docs/review-coverage", label: "Review coverage on every pull request", cluster: "Test coverage and scope" },
       { href: "/docs/own-fewer-tests", label: "Own fewer tests", cluster: "Test coverage and scope" },

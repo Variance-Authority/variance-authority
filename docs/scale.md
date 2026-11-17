@@ -679,13 +679,13 @@ xychart-beta horizontal
 So the question worth asking before adopting this is not *how big is my
 repository*. It is **how often do my pull requests touch a hub**, and your own
 recording answers it, and three commands get you there. Run your suite once
-with the Vitest or Jest integration installed — that run writes the record —
+with its runner's integration installed — that run writes the record —
 then check out a recent pull request and ask
 [`variance select`](../packages/cli#select-what-your-own-runner-may-skip) what
 it would have skipped:
 
 ```bash
-npx vitest run
+npx vitest run    # or npx jest, npx rstest run, npx playwright test
 git switch <a recent pull-request branch>
 variance select --format json
 ```

@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 // A case's lines are read by sense's selection, which publishes no reader of
 // them, so this reads them the way it does.
 import { lineAt, linesOf } from '../../sense/src/test-selection/case-lines.js';
+import storyFrames from '../../sense/src/instrument/story-frames.cjs';
 import { BROWSER_AVAILABLE, removeRuns } from './runs.fixture.js';
 import { at, fixture, runWith, stories, type Story } from './story.fixture.js';
 
@@ -51,9 +52,10 @@ async function routeOf(directory: string, story: Story): Promise<string[]> {
  * What `story` told, in order: each statement's line where it began, by the
  * name the spec's comment gives it, and what the page printed and its regions were
  * handed, where it happened. A line counts the notes said before it, as a
- * route reads it.
+ * route reads it. What the browser reported of its frames is left out unless
+ * `frames` asks for it: when a paint is reported is the browser's to say.
  */
-async function toldIn(spec: string, story: Story): Promise<string[]> {
+async function toldIn(spec: string, story: Story, frames = false): Promise<string[]> {
   const text = (await readFile(resolve(fixture, 'tests', spec), 'utf8')).split('\n');
   // A statement is a line of code that ends in a comment, not a comment line.
   const named = new Map(
@@ -66,6 +68,7 @@ async function toldIn(spec: string, story: Story): Promise<string[]> {
     ...story.lines.map(([, number, said]) => [said, 0, `test line ${named.get(number) ?? number}`] as const),
     ...story.notes.map(([, note], index) => [index, 1, note] as const),
   ]
+    .filter(([, kind, told]) => kind === 0 || frames || !storyFrames.fromFrames(told))
     .sort((a, b) => a[0] - b[0] || a[1] - b[1])
     .map(([, , told]) => told);
 }
@@ -202,6 +205,34 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     const story = byName.get('ends while its order is still out')!;
 
     expect((await toldIn('requests.spec.ts', story)).slice(-3)).toEqual(['test line answers the stock', 'GET /api/stock 200', 'still out POST /api/order']);
+  }, 120_000);
+
+  it('notes what the browser painted, held and moved after the step it followed', async () => {
+    const { byName } = await storiesWritten();
+    const story = byName.get('paints, holds a frame and moves its layout')!;
+
+    expect(story.stopped).toBe(false);
+    // Each line runs two statements, an act and a wait for the browser's report
+    // of it, so it is cut twice; which cut a report lands after is the
+    // browser's to say. A duration and a score are too: read as their shape.
+    const lines = (told: string[]) => told.filter((note) => note.startsWith('test line '));
+    const told = (await toldIn('frames.spec.ts', story, true))
+      // A line's second cut is not told again.
+      .filter((note, index, all) => !note.startsWith('test line ') || lines(all.slice(0, index)).at(-1) !== note)
+      .map((note) => note.replace(/^held a frame \(\d+ ms\)$/, 'held a frame (N ms)').replace(/^layout moved 0\.\d\d$/, 'layout moved 0.NN'));
+    expect(told).toEqual([
+      'test line opens',
+      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'first paint',
+      'largest paint: h1.title',
+      'test line holds',
+      "handed item='cake'",
+      'console.log chose cake',
+      'held a frame (N ms)',
+      'test line pushes',
+      'page +1 −0 nodes, 0 attributes, 0 text',
+      'layout moved 0.NN',
+    ]);
   }, 120_000);
 
   it('records what a replaced document entered at the statement that replaced it', async () => {

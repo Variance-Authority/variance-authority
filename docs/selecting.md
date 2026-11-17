@@ -6,8 +6,8 @@ records **which parts each test actually covered**. It selects the tests that
 reached those lines and shows when no test did —
 [what a record shows that no graph can](#what-a-record-shows-that-no-graph-can).
 
-For a Vitest or Jest suite, [run the tests an edit needs](test-an-edit.md) puts
-that selection inside the runner you already call.
+[Run the tests an edit needs](test-an-edit.md) puts that selection inside each of the
+[supported frameworks](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach), or prints it with `variance select`.
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Every
@@ -272,15 +272,20 @@ the selection without `--ran-at` reads no record, or already runs every test
 file, `--ran-at` does nothing, and a note says so. These are among the
 [places selection widens](#where-selection-widens).
 
-A queue that runs its tests through the
-[runner's seam](../packages/sense/README.md#let-the-runner-skip-them) names the tested commit beside the
-base, and `variance shards` takes the same flag, so the plan counts the shards
+A queue that runs its tests through a runner's seam —
+[Vitest's](../packages/sense/README.md#let-the-runner-skip-them),
+[Jest's](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) or
+[Playwright's](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach) —
+names the tested commit beside the base, and `variance shards` takes the same flag, so the plan counts the shards
 the narrowed selection needs, none when every file is skipped:
 
 ```bash
 VARIANCE_AUTHORITY_SINCE="$BASE_SHA" VARIANCE_AUTHORITY_RAN_AT="$PR_HEAD_SHA" npx vitest run
 variance shards --since "$BASE_SHA" --ran-at "$PR_HEAD_SHA" --collected collected.txt
 ```
+
+The same two variables go in front of any runner that
+[reads them itself](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach).
 
 `VARIANCE_AUTHORITY_RAN_AT` beside an empty `VARIANCE_AUTHORITY_SINCE` is
 refused, as `--ran-at` is without `--since`: the base must be the commit the

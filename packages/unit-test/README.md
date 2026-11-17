@@ -56,9 +56,8 @@ npx playwright install chromium
 
 ```tsx
 // src/save-button.test.tsx
-// @vitest-environment jsdom
 import { render } from '@testing-library/react';
-import { expect, test } from 'vitest';
+import { expect, test } from 'vitest'; // or '@jest/globals', '@rstest/core'
 import { capture, writeCapture } from '@variance-authority/unit-test';
 import { SaveButton } from './save-button.js';
 
@@ -79,6 +78,10 @@ test('save button', async () => {
   await writeCapture('.variance/captures', artifact);
 });
 ```
+
+`test` and `expect` come from the runner you use. Set the jsdom environment
+for it as [Install](#install) says: under Vitest, the
+`// @vitest-environment jsdom` line above the imports does it.
 
 `capture(root, options)` takes any `Element` mounted in the document — Testing
 Library's `container`, a node from `getByRole`, or one you built with
@@ -188,22 +191,16 @@ other test files and deletes their captures.
 // variance/reset.mjs
 import { resetCaptures } from '@variance-authority/unit-test';
 
-export async function setup() {
+export default async function () {
   await resetCaptures('.variance/captures');
 }
 ```
 
-```js
-// vitest.config.mjs
-import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
-  test: { globalSetup: ['variance/reset.mjs'] },
-});
-```
-
-If your project already has a `globalSetup`, list both:
-`globalSetup: ['test/global-setup.ts', 'variance/reset.mjs']`. `resetCaptures`
+Vitest, Jest and Rstest all run a default export as global setup, so name this
+one module in `globalSetup` under each. If your project already has one, Vitest
+and Rstest take a list, so name both:
+`globalSetup: ['test/global-setup.ts', 'variance/reset.mjs']`. Jest takes one
+module, so call `resetCaptures` from the global setup you already have. `resetCaptures`
 removes capture files, leaves everything else in the directory alone, and a
 directory that does not exist yet is not an error.
 
@@ -264,7 +261,7 @@ ignore the contents and keep the baselines:
 ## Run, review, approve
 
 ```bash
-npx vitest run
+npx vitest run    # or: npx jest, npx rstest run
 variance run
 ```
 
@@ -327,7 +324,7 @@ the removed ones back, in insertion order, for the length of one capture.
 
 ```js
 // variance/capture-each.mjs
-import { afterEach, beforeEach, expect } from 'vitest';
+import { afterEach, beforeEach, expect } from 'vitest'; // or '@jest/globals', '@rstest/core'
 import { capture, retainStyles, writeCapture } from '@variance-authority/unit-test';
 
 const VIEWPORT = { width: 320, height: 200, deviceScaleFactor: 1, colorScheme: 'light' };
@@ -353,21 +350,13 @@ afterEach(async () => {
 });
 ```
 
-```js
-// vitest.config.mjs
-import { defineConfig } from 'vitest/config';
-
-export default defineConfig({
-  test: {
-    globalSetup: ['variance/reset.mjs'],
-    setupFiles: ['variance/capture-each.mjs'],
-  },
-});
-```
+Name it beside `variance/reset.mjs`, where the runner loads setup that
+registers hooks: `setupFiles` in Vitest and Rstest, `setupFilesAfterEnv` in
+Jest. The hooks and `expect` are the runner's own, as in the first test.
 
 Every test in every file this setup file applies to now writes a capture, under
-the test's own name as the subject id. Narrow it with a `test:` project or an
-`if` on the name if that is more than you want painted.
+the test's own name as the subject id. Narrow it with a project of its own or
+an `if` on the name if that is more than you want painted.
 
 `restore()` returns the undo; call it once the capture has read the document, so
 the page is left exactly as the teardown left it. `stop()` ends the observation
@@ -404,7 +393,7 @@ document, a GraphQL schema, a route table and a build manifest are all things a
 change can break, and none of them needs a DOM.
 
 ```ts
-import { test } from 'vitest';
+import { test } from 'vitest'; // or '@jest/globals', '@rstest/core'
 import { snapshotValue } from '@variance-authority/unit-test';
 
 test('the health endpoint', async () => {

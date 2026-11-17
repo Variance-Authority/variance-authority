@@ -539,12 +539,12 @@ says when that happens and when it does not.
 
 - [Run the tests an edit needs](test-an-edit.md) for the loop: wrap the
   runner once, then set one variable on each run.
-- [Record your Vitest, Jest or Rstest suite](../packages/sense/README.md) with
-  `@variance-authority/sense`, or [any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) with
-  `@variance-authority/sense/runner`. Under Vitest or Jest 30, set
-  `VARIANCE_AUTHORITY_SINCE` when you run it, and the runner
+- [Record your suite](supported-frameworks.md#record-which-tests-ran-each-line)
+  with the seam its runner takes. Where the runner
+  [reads the selection itself](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach),
+  set `VARIANCE_AUTHORITY_SINCE` when you run it, and the runner
   [drops what the change cannot reach](../packages/sense/README.md#let-the-runner-skip-them).
-  Rstest and a runner recorded through `/runner` have no such seam: read the
+  Elsewhere, read the
   skip list from `variance select --format json` and leave those files out
   where your runner lists its test files.
 - [Measure test distance](distance.md) to run the tests nearest to a change

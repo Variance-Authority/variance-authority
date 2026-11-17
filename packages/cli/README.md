@@ -192,7 +192,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 |---|---|
 | `run` | produces the **verdict** — the per-subject outcome (`unchanged`, `changed`, `new` or `ignored`) that decides the exit code |
 | `index` | publishes the file graph that `select`, `reach`, `covering` and `run --since` read |
-| `select` | names the test files a foreign runner may skip for this diff, for `vitest`, `jest` or a shell |
+| `select` | names the test files a foreign runner may skip for this diff, for any runner the record holds or a shell |
 | `shards` | prints how many shards a recorded suite is worth, and the `k/n` of each for a CI matrix, from what each shard spends before its first test |
 | `reach` | names every file a diff reaches, in any language it reads, for whatever you pipe it into |
 | `covering` | names the tests that covered one source file, line or function, nearest first with `--hops` |
@@ -2270,23 +2270,30 @@ No `variance.config.json` is read.
 ### `select`: what your own runner may skip
 
 `variance run --since` narrows the subjects this tool renders. `variance select`
-answers the same journal for a suite this tool does not run — `vitest`, `jest`,
-or any runner a shell script hands paths to — by naming the test files that diff
-cannot reach. A Vitest or Jest config wrapped by `withTestSelection` reads the
-same answer when you set `VARIANCE_AUTHORITY_SINCE`, and the runner drops those
-files itself, with no path on its command line:
+answers the same journal for a suite this tool does not run, under any runner
+that recorded it or that a shell script hands paths to, by naming the test files
+that diff cannot reach. A runner config wrapped by `withTestSelection`, where [the runner
+reads it](https://variance-authority.dev/docs/supported-frameworks#leave-out-the-tests-a-change-did-not-reach), reads the same answer when you set
+`VARIANCE_AUTHORITY_SINCE`, and the runner drops those files itself, with no
+path on its command line:
 
 ```bash
 VARIANCE_AUTHORITY_SINCE= vitest run
 VARIANCE_AUTHORITY_SINCE= jest
+VARIANCE_AUTHORITY_SINCE= playwright test
 variance select              # the same reading, printed
 ```
 
-[The seam's own page](https://variance-authority.dev/reference/packages/sense#let-the-runner-skip-them) says what
-the run prints and when it does not select.
+[Sense](https://variance-authority.dev/reference/packages/sense#let-the-runner-skip-them)
+says what a wrapped run prints and when it does not select, and
+[playwright-test](https://variance-authority.dev/reference/packages/playwright-test#leave-out-the-specs-a-change-did-not-reach)
+says the same for Playwright.
 
-The journal is what [`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense) wrote the
-last time that suite ran: its seams record Vitest, Jest and Rstest, and
+The journal is what the suite's recorder wrote the last time it ran:
+[`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)'s
+seams record Vitest, Jest and Rstest,
+[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test#record-what-each-spec-executed)
+records Playwright, and
 [`@variance-authority/sense/runner`](https://variance-authority.dev/reference/packages/sense#record-a-runner-this-package-has-no-seam-for)
 records any other runner.
 
@@ -2365,7 +2372,7 @@ that many imports from the change, and adds the rest to the skip list. Run
 `0-2`, then `3-`, and every selected file runs in one of the two:
 
 ```bash
-VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 vitest run
+VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 vitest run   # or jest, playwright test
 VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- vitest run
 ```
 
@@ -2594,9 +2601,9 @@ running, or the workflow that starts it.
 
 ### `shards`: how many CI jobs a suite is worth
 
-A Vitest or Jest config wrapped by `withTestSelection` places the files of
-`--shard k/n` by the time each took on the last recorded run, so the shards
-finish close together; [sharding](https://variance-authority.dev/docs/sharding) shows a build that
+A runner config wrapped by `withTestSelection`, under [the runners that
+shard](https://variance-authority.dev/docs/supported-frameworks#split-a-run-across-ci-jobs), places the files of `--shard k/n` by the time each took on the last recorded run, so the
+shards finish close together; [sharding](https://variance-authority.dev/docs/sharding) shows a build that
 does it. `variance shards` says what `n` to start, from the same record and
 what one shard spends before its first test:
 
@@ -2642,7 +2649,8 @@ records fold into the one the next build is placed by, as
 [sharding](https://variance-authority.dev/docs/sharding#start-only-what-the-change-needs) shows.
 The plan reads the record once and hands it to the shards, so they place by one
 record however far your mainline moves, and a shard re-run days later takes
-the files it took:
+the files it took. The example runs Vitest; under Jest the two runner lines are
+`npx jest --listTests` and `npx jest --shard`:
 
 ```yaml
 # a pull_request workflow
