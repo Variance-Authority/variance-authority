@@ -346,9 +346,9 @@ jobs:
 ```
 
 `npx vitest list --filesOnly` writes one test file per line, which is what
-`--collected` reads; under Jest, `npx jest --listTests` writes the same list.
-The shard step takes your runner's command, as in
-[a shard run again](#run-a-failed-shard-again).
+`--collected` reads. The shard step takes your runner's command, as in
+[a shard run again](#run-a-failed-shard-again), with a pull request's
+Playwright shards kept out of the share as [above](#start-only-what-the-change-needs).
 `VARIANCE_AUTHORITY_SINCE` is set only on a pull request, since setting it at
 all selects. The record comes from the share, so the suite needs
 `"carry": "share"`: with no record to read, every test file runs. `plan` hands every

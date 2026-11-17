@@ -79,8 +79,9 @@ test('save button', async () => {
 });
 ```
 
-`test` and `expect` come from the runner you use, and the file runs in the
-jsdom environment [Install](#install) sets for each.
+`test` and `expect` come from the runner you use. Set the jsdom environment
+for it as [Install](#install) says: under Vitest, the
+`// @vitest-environment jsdom` line above the imports does it.
 
 `capture(root, options)` takes any `Element` mounted in the document — Testing
 Library's `container`, a node from `getByRole`, or one you built with
