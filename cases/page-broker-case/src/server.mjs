@@ -61,18 +61,28 @@ form.addEventListener('submit', async (event) => {
 function signIn() {
   const dialog = document.createElement('dialog');
   dialog.setAttribute('aria-label', 'Sign in');
-  dialog.innerHTML = '<label>Email <input name="email"></label> <button value="in">Sign in</button> <button value="cancel">Cancel</button>';
+  dialog.innerHTML = '<label>Email <input name="email"></label> <button value="in">Sign in</button> <button value="cancel">Cancel</button> <button value="help">Help</button>';
   document.body.append(dialog);
   dialog.showModal();
   dialog.addEventListener('click', async (event) => {
     if (!(event.target instanceof HTMLButtonElement)) return;
     // A stuck query breaks Cancel, so the dialog stays open over the form.
     if (event.target.value === 'cancel') return location.search.includes('stuck') ? undefined : dialog.remove();
+    // Help opens over the sign-in, which opened over the form: a cover on a cover.
+    if (event.target.value === 'help') return help();
     dialog.setAttribute('aria-busy', 'true');
     await fetch('/api/sign-in', { method: 'POST' });
     dialog.remove();
     payment();
   });
+}
+function help() {
+  const dialog = document.createElement('dialog');
+  dialog.setAttribute('aria-label', 'Help');
+  dialog.innerHTML = '<p>Sign in with the email you ordered with.</p> <button>Close</button>';
+  document.body.append(dialog);
+  dialog.showModal();
+  dialog.querySelector('button').addEventListener('click', () => dialog.remove());
 }
 function payment() {
   // The billing form fades out over 300 ms: a departed region that still answers,

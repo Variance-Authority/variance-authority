@@ -276,9 +276,10 @@ export class App {
     within: Page | Locator,
     shared?: { state: State; owner: AnyFragment },
   ): Handle<F> {
-    // The same fragment entered alone earlier is this part: one fragment, one handle, one lifecycle.
+    // The same fragment entered alone, or reached already as this part, is this part: one handle, one lifecycle.
     const prior = this.roots.get(fragment);
-    if (shared && prior !== undefined && (prior as any)[META].owner === fragment && this.alive(this.states.get(prior)!)) {
+    const was = (prior as any)?.[META] as Meta | undefined;
+    if (shared && was !== undefined && (was.owner === fragment || was.state === shared.state) && this.alive(was.state)) {
       this.rebind(prior, shared);
       return prior as Handle<F>;
     }
@@ -416,14 +417,14 @@ export class App {
     const target = (to: Outcomes[string]): AnyFragment | undefined =>
       to === back ? under?.fragment : typeof to === 'object' && 'cover' in to ? to.cover : (to as AnyFragment);
     const keys = Object.keys(declared.outcomes);
-    // An owner seen gone is gone, whatever the outcome turns out to be, and before any check below refuses it.
-    if (!shown.includes(owner.name)) this.depart(name, fragment.name);
     const reached = keys.filter((key) => {
       const to = declared.outcomes[key];
       const where = to === stay ? undefined : target(to);
       // What a cover covers shows beneath it all along: going back is witnessed by the cover gone.
       return where !== undefined && shown.includes(where.name) && !(to === back && shown.includes(owner.name));
     });
+    // An owner seen gone is gone before any check below refuses the arrival; going back retires the cover alone.
+    if (!shown.includes(owner.name) && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name);
     if (reached.length > 1) {
       throw new Error(`${fragment.name}.${name} reached ${reached.join(' and ')} at once; the page shows ${list(shown)}`);
     }

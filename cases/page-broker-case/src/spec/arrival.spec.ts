@@ -135,3 +135,32 @@ test('a cover that stays is not taken for going back', async ({ page, app }) => 
   expect(await signIn.cancel.to('still')).toBe(signIn);
   await expect(billing.submit() as unknown as Promise<unknown>).rejects.toThrow('billing-patient is covered by sign-in-patient');
 });
+
+// A cover on a cover: help opens over the sign-in, which opened over the form.
+const Help = fragment('help', { probe: byRole('dialog', 'Help'), actions: { close: leads({ signIn: back }, (d) => d.click(byRole('button', 'Close'))) } });
+const Helped = fragment('sign-in-helped', { probe: dialog, actions: { help: leads({ help: over(Help) }, (d) => d.click(byRole('button', 'Help'))) } });
+const Reading = fragment('billing-reading', {
+  probe: form,
+  actions: { submit: leads({ payment: Payment, signIn: over(Helped) }, async (d) => { await fill(d as never); await d.click(byRole('button', 'Continue')); }) },
+  reads: { address: (r) => r.value(byLabel('Street')) },
+});
+
+test('closing a cover on a cover leaves the page beneath both still covered and readable', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const billing = await app.enter(Reading);
+  const signIn = await billing.submit.to('signIn');
+  const help = await signIn.help.to('help');
+  expect(await help.close.to('signIn')).toBe(signIn);
+  expect(await billing.address()).toBe('Damrak 1');
+  await expect(billing.submit() as unknown as Promise<unknown>).rejects.toThrow('billing-reading is covered by sign-in-helped');
+});
+
+// The same part used twice by one owner is one part.
+const Twice = fragment('billing-twice', { probe: form, uses: { top: Header, again: Header } });
+
+test('a part an owner uses twice is one handle', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const billing = await app.enter(Twice);
+  expect(billing.again).toBe(billing.top);
+  expect(await app.enter(Header)).toBe(billing.top);
+});
