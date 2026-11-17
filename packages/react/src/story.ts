@@ -12,7 +12,7 @@ import { watchSuspense } from './story-suspense.js';
  * memo by its `$$typeof`, and taps every commit to say one line per component
  * that rendered, where the case stood when React committed. The lines are in
  * the package README, under *React in a test story*. With no story listening
- * nothing is tapped, and a test pays nothing. It also watches the page's
+ * no commit is tapped for them. It also watches the page's
  * Suspense boundaries, telling the story each one that shows its fallback or
  * unlocks as it does.
  */
