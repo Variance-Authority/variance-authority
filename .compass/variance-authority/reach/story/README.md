@@ -17,6 +17,7 @@ drawn at the finest level that fits a page and read a part at a time.
 In: every probe hit in one realm, in the order it happened, while a run asks for
 stories; which case was open at each hit, and which test line, a hook's marked;
 what each test line changed on the realm's document;
+under Playwright, the requests each test line sent and what came back on it;
 from a page, each drain's tape, which the runner names with the case and the
 line it was drained under; and, to name what was visited, the region inventory
 the record beside it holds. Out: one **story** per case,
@@ -83,6 +84,8 @@ by guess.
 - `packages/playwright-test/src/documents.ts` — the recorder's document drain
   a Playwright case's story rides: every context it opens taped, and drained
   under the spec line each statement is on
+- `packages/playwright-test/src/requests.ts` — what a Playwright case's
+  contexts sent and got back, told at the end of each spec line
 - `packages/sense/src/story/format.cts` — one case's story on disk
 - `packages/sense/src/story/directory.ts` — the variable that asks for stories,
   and where they sit beside each record

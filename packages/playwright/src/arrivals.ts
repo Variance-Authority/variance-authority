@@ -21,7 +21,11 @@ export const ARRIVAL_GLOBAL = '__variance_authority_arrival__';
  */
 const NOT_AWAITED = new Set(['eventsource', 'font', 'image', 'media', 'websocket']);
 
-/** Whether `request` can carry what a render waits on: not a channel, a stream or an asset. */
+/**
+ * Whether `request` can carry what a render waits on: not a channel, a stream or
+ * an asset. A Playwright story names the same requests on its lines, so a kind
+ * added here leaves those notes too.
+ */
 export function awaitedRequest(request: Pick<Request, 'resourceType'>): boolean {
   return !NOT_AWAITED.has(request.resourceType());
 }

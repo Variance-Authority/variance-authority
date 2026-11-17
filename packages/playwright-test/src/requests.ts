@@ -10,12 +10,10 @@
  * A request is its method and path. The query and the body are the
  * application's data, often a token or a user's, and a story is written to disk
  * and read by whoever reads the run. The path is kept as it is.
- *
- * Only Playwright hears requests this way. The browser modes of Vitest and
- * Rstest and Storybook have no runner beside the page, and wait for the page's
- * own half: #1447.
  */
 
+// TODO: the browser modes of Vitest and Rstest and Storybook have no runner
+// beside the page, so no line of theirs names a request; the page's own half is #1447.
 import type { BrowserContext, Request, Response } from '@playwright/test';
 import { awaitedRequest } from '@variance-authority/playwright';
 
