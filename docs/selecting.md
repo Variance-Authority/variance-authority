@@ -284,7 +284,8 @@ VARIANCE_AUTHORITY_SINCE="$BASE_SHA" VARIANCE_AUTHORITY_RAN_AT="$PR_HEAD_SHA" np
 variance shards --since "$BASE_SHA" --ran-at "$PR_HEAD_SHA" --collected collected.txt
 ```
 
-The same two variables go in front of `npx jest` and `npx playwright test`.
+The same two variables go in front of any runner that
+[reads them itself](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach).
 
 `VARIANCE_AUTHORITY_RAN_AT` beside an empty `VARIANCE_AUTHORITY_SINCE` is
 refused, as `--ran-at` is without `--since`: the base must be the commit the

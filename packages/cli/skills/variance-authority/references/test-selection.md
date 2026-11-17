@@ -214,7 +214,7 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
   the change reached none of them` means the edit reached no recorded test: a
   type or comment edit, or a file no test ran. Ending `N test files are left for
   a later run` instead, a leg or `VARIANCE_AUTHORITY_LOCAL=1` left them, and
-  the lines below name the run that takes them. That run passes under Vitest, Jest and Playwright, with nothing run. A run that
+  the lines below name the run that takes them. That run passes, with nothing run. A run that
   found no test file at all has nothing to select from and fails: check
   `testMatch` and the working directory.
 - **Each run lands.** The next edit is measured from what each test last ran,

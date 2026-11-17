@@ -40,23 +40,15 @@ npm install --save-dev @variance-authority/sense @variance-authority/cli
 npm install --save-dev @variance-authority/playwright-test   # Playwright only
 ```
 
-Then wrap the configuration your runner reads with `withTestSelection`. Each
-seam says which parts of that configuration it reads and which you spell out:
-
-| Runner | `withTestSelection` from | Seam |
-|---|---|---|
-| Vitest | `@variance-authority/sense/vitest` | [Cut a Vitest run down to a diff](../packages/sense/README.md#cut-a-vitest-run-down-to-a-diff) |
-| Jest 30 | `@variance-authority/sense/jest` | [Cut a Jest run down to a diff](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) |
-| Playwright | `@variance-authority/playwright-test` | [Leave out the specs a change did not reach](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach) |
-| Rstest | `@variance-authority/sense/rstest` | [Cut an Rstest run down to a diff](../packages/sense/README.md#cut-an-rstest-run-down-to-a-diff) |
-
-Under Playwright, a spec file the selection keeps runs whole. Under Rstest the
-wrap records the run but does not yet read the variable
-([#1456](https://github.com/Variance-Authority/variance-authority/issues/1456)):
-`variance select` prints the files it would leave out.
+Then wrap the configuration your runner reads with the seam
+[supported frameworks](supported-frameworks.md#record-which-tests-ran-each-line)
+names for it; each seam says which parts of that configuration it reads and
+which you spell out. The same page says which runners
+[read the variable themselves](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach)
+and which take `variance select`'s printed list.
 
 Every wrapped run records, whether the variable is set or not. With it set,
-Vitest, Jest and Playwright drop the files the record proves your edit did not reach before it
+a runner that reads it drops the files the record proves your edit did not reach before it
 starts any of them, and print one line to stderr first:
 
 - `selected 12 of 340` — twelve test files run.
@@ -101,8 +93,9 @@ VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-2 npx vitest run
 VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=3- npx vitest run
 ```
 
-The same two variables go in front of `npx jest` and `npx playwright test`.
-Under Rstest, `variance select --at-distance 0-2` prints that leg's skip list.
+The same two variables go in front of any runner that
+[reads them itself](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach);
+for the rest, `variance select --at-distance 0-2` prints that leg's skip list.
 
 `0-2` runs the tests within two imports of the edit, including a test whose own
 source you changed, which is zero. `3-` runs the rest. Every selected file runs

@@ -12,7 +12,7 @@ short path through a module the test never loaded. Distance walks only the
 modules that test covered or loaded in a recorded run, so the count it gives you
 describes execution rather than possibility.
 
-A [wrapped run](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach) takes one range of distances at a time with
+A run that [leaves out unreached tests itself](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach) takes one range of distances at a time with
 `VARIANCE_AUTHORITY_AT_DISTANCE` beside `VARIANCE_AUTHORITY_SINCE`;
 `variance select --at-distance` prints that leg's skip list for the rest:
 

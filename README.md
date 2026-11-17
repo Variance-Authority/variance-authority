@@ -31,7 +31,7 @@ as the investigation grows.
 | Find where to start in an unfamiliar codebase | [Choose an orientation route](docs/orientation.md): exact text, exported names inside one import neighbourhood, or a captured UI subject you can describe. |
 | Use a library the way this project already does | [Ask what the file can import](docs/tech-stack.md): the packages its workspace declares, the installed signature of a name, and the agent skills a package ships, all read from `node_modules`. |
 | Find out why this test is stuck | [Hold a Playwright test at a line you chose](docs/agent-interrogate.md) and inspect the page and announced work while that exact test is still running. |
-| Run the tests this edit needs | [Set one variable on the Vitest, Jest or Playwright run you already call](docs/test-an-edit.md) and it leaves out every test file that never executed the code you changed, nearest tests first if you ask. A test with no complete recording always runs. |
+| Run the tests this edit needs | [Set one variable on the test run you already call](docs/test-an-edit.md) and it leaves out, under any of the [supported frameworks](docs/supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach), every test file that never executed the code you changed, nearest tests first if you ask. A test with no complete recording always runs. |
 | Make one test smaller | [Find the modules loaded and components rendered that the test never used](docs/distill.md), try one substitution, and confirm it with the same test. |
 | Understand an interface | [Measure grouping, spacing, alignment, emphasis, and repetition](docs/presentation.md) on the live page, make an edit, and measure again. |
 | Explain what changed | [Keep text, accessibility, layout, styles, and pixels separate](docs/explain-variance.md), then trace a changed region to its component and source location. |
@@ -228,8 +228,8 @@ only on identities their producers emitted.
 
 ## Where it fits
 
-The [adoption gates](docs/gates.md) state where the tool fits each of the
-[supported frameworks](docs/supported-frameworks.md). The
+The [adoption gates](docs/gates.md) state where visual review fits each
+[runner it starts from](docs/supported-frameworks.md#add-visual-review). The
 [product comparison](docs/compare-visual-review.md) states what Percy, Chromatic, Argos,
 and Applitools provide that this project does not.
 

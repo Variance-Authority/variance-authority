@@ -25,7 +25,7 @@ That command covers the subjects the CLI renders. For an existing suite under on
 [supported frameworks](supported-frameworks.md#record-which-tests-ran-each-line), its runner's seam
 wraps the configuration you already have: the run records itself, and
 with `VARIANCE_AUTHORITY_SINCE` set the runner leaves out the test files your
-edit did not reach. [Run the tests an edit needs](test-an-edit.md) is that
+edit did not reach, or `variance select` prints them. [Run the tests an edit needs](test-an-edit.md) is that
 loop.
 
 ## One decision, four readings
@@ -102,9 +102,9 @@ VARIANCE_AUTHORITY_SINCE= npx playwright test
 ```
 
 [Run the tests an edit needs](test-an-edit.md) owns that loop.
-`variance select --format json` prints the same reading for a runner the
-integration does not wrap, for Rstest, which records but does not read the
-selection itself, or for a program that decides for itself. `select` prints a
+`variance select --format json` prints the same reading for a runner that does
+not [leave tests out itself](supported-frameworks.md#leave-out-the-tests-a-change-did-not-reach),
+or for a program that decides for itself. `select` prints a
 **skip** list, never a run list: stdout is paths and nothing else, and an empty answer runs your whole suite rather than none of it.
 It needs no `variance.config.json`, so a repository that uses Variance Authority
 for nothing else can still ask; with one, it reads the declared suites and what
