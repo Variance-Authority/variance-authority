@@ -50,13 +50,16 @@ export const stays = <A extends Act>(act: A, options: { until?: Until } = {}): S
 export const leads = <O extends Outcomes, A extends Act>(outcomes: O, act: A): Leads<O, A> => {
   // Arrival is sensed by where it lands, so two outcomes landing alike would leave the order to decide.
   const keys = Object.keys(outcomes);
+  // Where each lands, by identity: a fragment named stay does not land where staying does.
   const at = keys.map((key) => {
     const to = outcomes[key];
-    return to === stay ? 'stay' : to === back ? 'back' : 'cover' in to ? to.cover.name : (to as AnyFragment).name;
+    return to === stay || to === back ? to : 'cover' in to ? to.cover : (to as AnyFragment);
   });
   const twice = keys.findIndex((_, index) => at.indexOf(at[index]) !== index);
   if (twice !== -1) {
-    throw new Error(`${keys[at.indexOf(at[twice])]} and ${keys[twice]} both arrive at ${at[twice]}; nothing on the page tells them apart`);
+    const where = at[twice];
+    const named = where === stay ? 'stay' : where === back ? 'back' : (where as AnyFragment).name;
+    throw new Error(`${keys[at.indexOf(where)]} and ${keys[twice]} both arrive at ${named}; nothing on the page tells them apart`);
   }
   return { kind: 'leads', outcomes, act };
 };

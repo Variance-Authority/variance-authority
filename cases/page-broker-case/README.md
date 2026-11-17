@@ -17,7 +17,8 @@ instead of on selectors and waits.
   leaves every handle on the page readable but refuses their actions, those entered beneath
   it after it opened included, and `back`, and no plain lead to the same
   fragment, uncovers exactly what that cover covered, every fragment of it whole and showing or
-  the page departs, and hands the owner's handle back. What is
+  the page departs, and hands the owner's handle back; a page that left
+  while covered stays left, and `back` arrives at it anew. What is
   entered using an open cover lives and leaves with it, with every part only
   it holds; a part another owner holds stays, and answers to that owner alone.
   Sharing a part with an open cover is not using the cover: the part waits
@@ -35,14 +36,16 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    cover itself gone, not only what uses it; a cover is what the action
    opened, so one already entered, or showing before it, does not arrive, and
    the acting fragment or an owner arrives again only on a new document: one
-   that never left stays. An outcome that shows beside its owner without
-   `over` is an error that names the fix.
+   that never left stays, and on a new document the acting fragment has left,
+   whatever there looks like it. An outcome that shows beside its owner, on
+   the same document, without `over` is an error that names the fix.
 2. **An arrival is unambiguous.** Two declared outcomes showing at once, each
    with every part, fail; one whose probe shows without its parts is not there,
    and loses to any other answer, a declared stay included;
    the order of the declaration never decides. Ambiguity a declaration holds
    already is refused where it is written: two outcomes of one action that
-   land alike, or two fragments under one name.
+   land alike, by what they are and not their names, or two fragments under
+   one name.
 3. **A fragment has one lifecycle, however it is reached.** Entering it again
    returns its one handle, covered or live, and a part is one handle however
    many owners use it, answering to all of them whichever came first, and to
@@ -54,7 +57,8 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    the document and its handles, even while another document is loading, a
    broker started on a page already loaded included. A staying action that
    loads a new document keeps its own handle and departs every other at
-   itself.
+   itself. Leaving is the whole page's: whatever leaves departs every handle
+   but what arrives, and a document the broker cannot read counts as new.
 4. **The declared edges are the app's test interface.** `edges(roots)` lists
    them, `walked(edges, journals)` counts which the tests took, and the
    `edges-reporter` prints both after a run, unwalked edges at zero.

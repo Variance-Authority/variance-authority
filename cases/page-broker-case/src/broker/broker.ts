@@ -167,7 +167,8 @@ export class App {
     const prior = this.roots.get(fragment);
     const was = (prior as any)?.[META] as Meta | undefined;
     if (shared && prior !== undefined && was !== undefined && this.alive(was.state)) {
-      if (was.owners.length === 1 && was.owners[0] === fragment) this.rebind(prior, shared);
+      // A part covered on the page waits beneath it: a cover that uses it shares it, and does not take it along.
+      if (was.owners.length === 1 && was.owners[0] === fragment && was.state.status === 'live') this.rebind(prior, shared);
       else this.own(prior, shared.owners);
       return prior as Handle<F>;
     }
@@ -359,7 +360,9 @@ export class App {
     for (const key of reached) if ((await this.missing(target(declared.outcomes[key])!)) === undefined) complete.push(key);
     if (complete.length > 0 || reached.length > 1 || stays) reached = complete;
     // An owner or the fragment itself seen gone is gone before any check below refuses the arrival; going back retires the cover alone.
-    const left = !kept || !shown.includes(fragment.name);
+    // A new document is the old one left, whatever on it looks the same: only staying keeps the acting handle.
+    const moved = state.doc !== this.documents.count;
+    const left = !kept || !shown.includes(fragment.name) || (moved && reached.length > 0);
     if (left && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name);
     if (reached.length > 1) {
       throw new Error(`${fragment.name}.${name} reached ${reached.join(' and ')} at once; the page shows ${list(shown)}`);
@@ -390,7 +393,7 @@ export class App {
       if (covering(outcome) && !kept) {
         throw new Error(`${fragment.name}.${name} reached ${to.name} over ${by}, and ${by} is gone`);
       }
-      if (declaredTo !== back && !covering(outcome) && !owners.includes(to) && kept) {
+      if (declaredTo !== back && !covering(outcome) && !owners.includes(to) && kept && !moved) {
         throw new Error(`${fragment.name}.${name} reached ${to.name}, and ${by} still shows; declare it over(${to.name})`);
       }
     }
@@ -415,8 +418,10 @@ export class App {
         meta.owners = meta.owners.filter((one) => !gone.has(one));
       }
       Object.assign(state, { status: 'departed', why: `${fragment.name}.${name}` });
-      for (const each of under.states) Object.assign(each, { status: 'live', why: undefined, doc: this.documents.count });
-      handle = under.handle;
+      // Only what is still on this document comes back: a page that left while covered stays left, and arrives anew.
+      const kept = under.states.filter((each) => this.alive(each));
+      for (const each of kept) Object.assign(each, { status: 'live', why: undefined, doc: this.documents.count });
+      handle = kept.includes((under.handle as any)[META].state) ? under.handle : this.handle(to as AnyFragment, this.page);
     } else {
       const next = to as AnyFragment;
       for (const each of beneath) Object.assign(each, { status: 'covered', why: next.name, doc: this.documents.count });
@@ -436,7 +441,6 @@ export class App {
     return named === undefined ? { outcome, handle } : handle;
   }
 
-  /** Leaving a page revokes everything on it, the dialogs over it included. */
   /** The acting handle stays on the document it is seen on; any other on an older one left with it, as the broker saw. */
   private stamp(state: State, action: string, from: string): void {
     for (const each of this.states.values()) {
@@ -445,6 +449,7 @@ export class App {
     state.doc = this.documents.count;
   }
 
+  /** Leaving a page revokes everything on it, the dialogs over it included. */
   private depart(action: string, from: string): void {
     for (const state of this.states.values()) {
       if (state.status !== 'departed') {
