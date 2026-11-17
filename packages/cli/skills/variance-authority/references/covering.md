@@ -174,6 +174,14 @@ the most a split saves, since each part still sends every test file that called
 into it). Under `--at-distance` the counts read only the band. `--format json` lists every file under
 `fanIn`; no field is a verdict.
 
+`variance coverage --session <name>=<path>` sets a run made by hand beside the
+record: V8 coverage a person exported from Playwright, CDP or
+`NODE_V8_COVERAGE`, read through its source maps into the record's functions;
+`--served <dir>` places a page's scripts. It lists the functions some session
+ran that no recorded case entered, the place to plan a test or question dead
+code. A session is evidence beside the record, never a case in it, so selection
+does not change.
+
 `variance coverage --format badge` prints the share `any suite` leads with as
 shields.io endpoint JSON, `{"schemaVersion":1,"label":"regions run",…}`, and
 exits 2 with nothing printed when no region was counted: no figure is not `0%`.
