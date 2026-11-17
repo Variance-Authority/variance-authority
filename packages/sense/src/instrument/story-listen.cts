@@ -7,6 +7,7 @@
 
 import util = require('node:util');
 import jestConsole = require('./jest-console.cjs');
+import storyFrames = require('./story-frames.cjs');
 import type storyTap = require('./story-tap.cjs');
 
 type Tap = ReturnType<typeof storyTap.createTap>;
@@ -103,11 +104,12 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
  * collector notes onto the tap it uses now. The console is wrapped once: the
  * wrapper looks the channel up when a line is printed, never when it is made.
  */
-function listen(tap: Pick<Tap, 'note' | 'nameIn' | 'drainWith'>, scope: object): void {
+function listen(tap: Pick<Tap, 'note' | 'noteAt' | 'stampWith' | 'nameIn' | 'drainWith'>, scope: object): void {
   const global = scope as Realm;
   global[NOTE] = (text: string): void => tap.note(String(text));
   tap.nameIn(scope);
   watchPage(tap, global);
+  storyFrames.watchFrames(tap, global);
   const printer = global.console as (Console & { [NOTE]?: true }) | undefined;
   if (printer === undefined || printer[NOTE] === true) return;
   Object.defineProperty(printer, NOTE, { value: true });

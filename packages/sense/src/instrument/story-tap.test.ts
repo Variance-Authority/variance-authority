@@ -259,6 +259,37 @@ describe('what a case says on the way', () => {
     expect(tap.read().lines).toEqual([[0, 'case', 8, 0, 1]]);
   });
 
+  it('places what is reported late after the last turn that began before it happened', async () => {
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    const { run } = load(tap.root);
+    let now = 0;
+    tap.stampWith(() => now);
+    tap.reset();
+
+    now = 10;
+    tap.root.c(3);
+    now = 20;
+    run(0);
+    await Promise.resolve();
+    now = 40;
+    tap.root.c(4);
+    now = 50;
+    run(1);
+    await Promise.resolve();
+    tap.noteAt(30, 'painted between the lines');
+    tap.noteAt(60, 'painted after all of it');
+
+    // Each line where it falls among the notes, as a story reads them.
+    const { lines, notes } = tap.read();
+    const told = [
+      ...lines.map(([, , line, said]) => [said, 0, `line ${line}`] as const),
+      ...notes.map(([, , text], index) => [index, 1, text] as const),
+    ].sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, , text]) => text);
+    expect(told).toEqual(['line 3', 'handed n=0', 'handed n=0', 'painted between the lines', 'line 4', 'handed n=1', 'handed n=1', 'painted after all of it']);
+  });
+
   it('is counted, not kept, past the limit, and starts again with the tape', () => {
     const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));

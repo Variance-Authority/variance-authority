@@ -116,6 +116,19 @@ describe('two sides of a case', () => {
     expect(comparison.unsteady.said).toBe(1);
   });
 
+  it('are not told apart by what the browser painted, held or moved, nor by where it said so', () => {
+    const comparison = compareLoaded(ROOT, [
+      passed(reading([1, 4], [[0, 'first paint'], [1, 'largest paint: img.hero']]), reading([1, 4], [[2, 'first paint'], [2, 'held a frame (61 ms)']])),
+      threw(reading([1, 4], [[1, 'layout moved 0.12']], true), reading([1, 4], [[1, 'largest paint: h1'], [2, 'layout moved <0.01']], true)),
+    ]);
+
+    expect({ only: comparison.only, orders: comparison.orders, unsteady: comparison.unsteady }).toEqual({
+      only: [],
+      orders: [],
+      unsteady: expect.objectContaining({ said: 0, order: 0 }),
+    });
+  });
+
   it('list the lines one side said every time in the order it said them, not by their text', () => {
     const lines: [number, string][] = [[1, 'console.log zeta'], [1, 'console.log beta'], [2, 'console.log alpha']];
     const comparison = compareLoaded(ROOT, [passed(reading([1, 4]), reading([1, 4])), threw(reading([1, 4], lines, true), reading([1, 4], lines, true))]);

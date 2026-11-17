@@ -127,6 +127,10 @@ interface Tap {
   read(): Tape;
   /** Put `text` on the tape where the realm is now, in the case running now. */
   note(text: string): void;
+  /** Have the tape keep when each turn of the realm began, read off `clock`. */
+  stampWith(clock: () => number): void;
+  /** Put `text` after every turn begun and line cut by `time` on that clock; without one, as {@link Tap.note}. */
+  noteAt(time: number, text: string): void;
   /**
    * Have `drain` said before each line opens, `opens` true where it is a test
    * line and false where it is a hook's, and false when a case's body settles:
@@ -209,6 +213,12 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   let rooting = false;
   // What has more to say about the line that is ending; see `drainWith`.
   let drain: ((opens: boolean) => void) | undefined;
+  // Once a clock is given: where each turn began on the tape and when, in
+  // pairs, and when each line was cut; see `noteAt`.
+  let clock: (() => number) | undefined;
+  let turns: number[] = [];
+  let cutAt: number[] = [];
+  let turning = false;
 
   // Made only when live: a page's tap is this function's source alone, without the module.
   const parts = live ? storyParts.createParts(engine, limit, { ids: rowIds, bases: rowBases }) : undefined;
@@ -317,6 +327,11 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
 
   const record = (entry: number): void => {
     if (parts !== undefined) return parts.tape(entry);
+    if (!turning && clock !== undefined) {
+      turning = true;
+      turns.push(taped, clock());
+      queueMicrotask(() => (turning = false));
+    }
     const activation = inner.a;
     if (activation !== seen) {
       seen = activation;
@@ -397,6 +412,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       const last = lines[lines.length - 1];
       if (last !== undefined && last[0] === taped && last[1] === key && last[3] === notes.length) lines[lines.length - 1] = cut;
       else lines.push(cut);
+      if (clock !== undefined) cutAt[lines.length - 1] = clock();
     },
   };
 
@@ -419,6 +435,23 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       spoken += 1;
       put(text);
     },
+    stampWith(given: () => number): void {
+      clock = given;
+    },
+    noteAt(time: number, text: string): void {
+      const kept = notes.length;
+      api.note(text);
+      if (parts !== undefined || clock === undefined || notes.length === kept) return;
+      // The first turn that began after `time` ran after it, and all that follow.
+      let turn = 0;
+      while (turn < turns.length && turns[turn + 1]! <= time) turn += 2;
+      const note = notes.pop()!;
+      note[0] = turn < turns.length ? turns[turn]! : taped;
+      let index = notes.length;
+      while (index > 0 && notes[index - 1]![0] > note[0]) index -= 1;
+      notes.splice(index, 0, note);
+      for (const [line, cut] of lines.entries()) if (cut[3] > index || (cut[3] === index && cutAt[line]! > time)) cut[3] += 1;
+    },
     drainWith(given: (opens: boolean) => void): void {
       drain = given;
     },
@@ -439,6 +472,8 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       at = [];
       keys = [];
       seen = -1;
+      turns = [];
+      cutAt = [];
     },
     take(key: string): Tape {
       const taken = parts?.take(key) ?? { tape: empty, visits: 0, at: [], keys: [], notes: [], unnoted: 0 };
