@@ -3,20 +3,9 @@ import { boundariesUnder, boundaryId, type SuspenseBoundary } from './suspense.j
 
 /**
  * Tell `note` each time a Suspense boundary on `page` shows its fallback and
- * each time it unlocks, as it happens, so a story places each where it fell:
- * between the request that went out and the one that came back, before the
- * click that waited for it.
- *
- * A boundary is named by the component that wrote it — in a production build,
- * which keeps no writer, the one it sits inside. The boundaries are read inside
- * each commit React announces, so a note comes before anything told after that
- * commit, and a boundary whose fallback puts nothing on the page is told all the
- * same. One that falls back and unlocks within one commit is not seen. A
- * boundary taken off the page is told nothing more.
- *
- * React announces commits only to a hook that existed before `react-dom` loaded,
- * so a watch started after it, with no hook to wrap, tells nothing. Returns what
- * stops the watch.
+ * each time it unlocks, as it happens, naming it by the component that wrote it
+ * or, in a production build, the one it sits inside. A boundary taken off the
+ * page is told nothing more. Returns what stops the watch.
  */
 export function watchSuspense(page: Node, note: (text: string) => void): () => void {
   // The boundaries showing their fallback at the last commit, by identity.
@@ -34,6 +23,8 @@ export function watchSuspense(page: Node, note: (text: string) => void): () => v
     }
     falling = now;
   };
+  // Read inside each commit, so a note precedes what is told after it and an empty fallback still counts; a boundary
+  // that falls back and unlocks within one commit is not seen. React tells only a hook there before it loaded.
   // Only the moment of each commit is wanted, so the tap keeps none of them.
   const tap = tapCommits({ keep: 0, onCommit: read });
   return () => tap.stop();
