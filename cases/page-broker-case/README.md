@@ -24,7 +24,8 @@ instead of on selectors and waits.
   Sharing a part with an open cover is not using the cover: the part waits
   beneath with the page, whichever owner came first.
 - Every step lands in a per-test **journal**, a failed or refused one with
-  why and no edge walked; `fork(a, b)` prints where two walks part, edge by edge, outcome
+  why and no edge walked, and a failed one departs every handle if its
+  fragment or an owner no longer shows; `fork(a, b)` prints where two walks part, edge by edge, outcome
   included.
 - Between steps the broker **settles** on `aria-busy`, requests in flight and
   announced `@variance-authority/event` work. `BROKER_DROP=busy,network,events`

@@ -252,3 +252,21 @@ test('a lead from an owner to its own part, the owner gone, keeps the part and d
   await expect(solo.label()).rejects.toThrow('sx-solo departed at sx-solo.go');
   await expect(arrived.ping()).resolves.toBeDefined();
 });
+
+const Broken = fragment('sx-broken', {
+  probe: byTestId('sx-leaving'),
+  actions: {
+    snap: async (d) => {
+      await d.click(byRole('button', 'Go'));
+      await d.click(byRole('button', 'Nowhere'));
+    },
+  },
+  reads: { label: (r) => r.texts(byRole('button')) },
+});
+
+test('an action that fails after its fragment left still departs it', async ({ page, app }) => {
+  await sharing(page);
+  const broken = await app.enter(Broken);
+  await expect(broken.snap()).rejects.toThrow();
+  await expect(broken.label()).rejects.toThrow('sx-broken departed at sx-broken.snap');
+});
