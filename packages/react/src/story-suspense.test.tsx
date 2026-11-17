@@ -136,6 +136,23 @@ describe('what the Suspense boundaries on the page did, as they did it', () => {
     ]);
   });
 
+  it('tells a boundary that unlocked while out of sight unlocking when it comes back into sight', async () => {
+    const cart = deferred();
+    await render(h(Activity, { mode: 'visible' }, h(Cart, { promise: cart.promise })));
+    await render(h(Activity, { mode: 'hidden' }, h(Cart, { promise: cart.promise })));
+    said.push('tab closed');
+    await cart.settle();
+    said.push('tab opened');
+    await render(h(Activity, { mode: 'visible' }, h(Cart, { promise: cart.promise })));
+
+    expect(said).toEqual([
+      'suspense Cart › Suspense shows its fallback',
+      'tab closed',
+      'tab opened',
+      'suspense Cart › Suspense unlocks',
+    ]);
+  });
+
   it('tells nothing of a boundary that never fell back', async () => {
     await render(h(Suspense, { fallback: 'loading' }, h('span', null, 'ready')));
 

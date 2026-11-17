@@ -13,7 +13,10 @@ export function watchSuspense(note: (text: string) => void): () => void {
   const read = (root: object): void => {
     const was = falling.get(root) ?? new Set<number>();
     const now = new Set<number>();
-    for (const boundary of boundariesOfRoot(root)) {
+    const { inSight, outOfSight } = boundariesOfRoot(root);
+    // One out of sight keeps what it last showed, to be told unlocking when it comes back into sight.
+    for (const boundary of outOfSight) if (was.has(boundaryId(boundary))) now.add(boundaryId(boundary));
+    for (const boundary of inSight) {
       const id = boundaryId(boundary);
       if (boundary.state === 'pending') {
         now.add(id);
