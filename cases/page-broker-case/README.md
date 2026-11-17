@@ -9,10 +9,11 @@ instead of on selectors and waits.
 - `leads({ payment: Payment, signIn: over(SignIn), invalid: stay })` names the
   outcomes; the broker senses which one the app reached. `.to('payment')`
   insists on one and fails with the branch actually taken.
-- A **handle** is linear: departing revokes it, a cover (`over`) leaves it
-  readable but refuses its actions, and `back` hands the same handle back.
+- A **handle** is linear: departing revokes it, a cover (`over`) leaves every
+  handle on the page readable but refuses their actions, and `back` uncovers
+  exactly what that cover covered and hands the owner's handle back.
 - Every step lands in a per-test **journal**; `fork(a, b)` prints where two
-  walks part.
+  walks part, edge by edge, outcome included.
 - Between steps the broker **settles** on `aria-busy`, requests in flight and
   announced `@variance-authority/event` work. `BROKER_DROP=busy,network,events`
   drops signals to see which one each case rests on.
@@ -26,10 +27,11 @@ Four rules keep the model honest, each pinned in `src/spec/`:
 2. **An arrival is unambiguous.** Two declared outcomes showing at once fail;
    the order of the declaration never decides.
 3. **A fragment has one lifecycle, however it is reached.** Entering it again
-   returns its one handle, covered or live, and entering a part returns the
-   one its owner holds; a part that stays, plainly or by a lead, needs its
+   returns its one handle, covered or live, and a part is one handle however
+   many owners use it; a part that stays, plainly or by a lead, needs its
    owner showing; and a navigation the broker did not take departs every
-   handle on the old document.
+   handle on the old document, where a history push or a hash change keeps
+   the document and its handles.
 4. **The declared edges are the app's test interface.** `edges(roots)` lists
    them, `walked(edges, journals)` counts which the tests took, and the
    `edges-reporter` prints both after a run, unwalked edges at zero.

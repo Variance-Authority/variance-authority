@@ -56,8 +56,9 @@ export function walked(declared: readonly string[], journals: readonly (readonly
 
 /** Two journals side by side, from the first step where they part. */
 export function fork(a: readonly Step[], b: readonly Step[]): string {
+  // A step is the declared edge it walked, so two outcomes that land on one fragment still part.
   const line = (step: Step | undefined) =>
-    step === undefined ? '(ended)' : `${step.from}.${step.action} → ${step.to}${step.named === undefined && step.kind === 'lead' ? ' (unnamed)' : ''}`;
+    step === undefined ? '(ended)' : `${edgeOf(step) ?? `${step.from}.raw`}${step.named === undefined && step.kind === 'lead' ? ' (unnamed)' : ''}`;
   let at = 0;
   while (at < Math.max(a.length, b.length) && line(a[at]) === line(b[at])) at += 1;
   if (at === Math.max(a.length, b.length)) return 'the same walk';

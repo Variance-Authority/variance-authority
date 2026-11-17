@@ -4,72 +4,12 @@
 //
 // A prototype. It runs on Playwright only; the driver and read driver are the
 // seam another runner would fill.
-import type { Locator, Page } from '@playwright/test';
+import type { Locator, Page, Request } from '@playwright/test';
 import { settle, type Signals } from './settle.js';
 import type { Step } from './journal.js';
+import { driver, locate, readDriver, type Driver, type ReadDriver, type Where } from './driver.js';
 
-// ── where: a selector is data, so a probe can be listed, printed and compared ──
-
-export type Where =
-  | { readonly by: 'role'; readonly role: string; readonly name?: string }
-  | { readonly by: 'label'; readonly text: string }
-  | { readonly by: 'testId'; readonly id: string };
-
-export const byRole = (role: string, name?: string): Where => ({ by: 'role', role, name });
-export const byLabel = (text: string): Where => ({ by: 'label', text });
-export const byTestId = (id: string): Where => ({ by: 'testId', id });
-
-function locate(scope: Page | Locator, where: Where): Locator {
-  if (where.by === 'role') {
-    return scope.getByRole(where.role as Parameters<Page['getByRole']>[0], { name: where.name, exact: true });
-  }
-  return where.by === 'label' ? scope.getByLabel(where.text, { exact: true }) : scope.getByTestId(where.id);
-}
-
-// ── drivers: an action gets hands, a read gets eyes only ──
-
-export interface ReadDriver {
-  text(where: Where): Promise<string>;
-  texts(where: Where): Promise<string[]>;
-  number(where: Where): Promise<number>;
-  count(where: Where): Promise<number>;
-  value(where: Where): Promise<string>;
-}
-
-export interface Driver extends ReadDriver {
-  click(where: Where): Promise<void>;
-  fill(where: Where, value: string): Promise<void>;
-  select(where: Where, value: string): Promise<void>;
-  press(where: Where, key: string): Promise<void>;
-}
-
-// Actions run against an arrived, settled region, so they never wait for one:
-// a missing element is a broken contract, said at once.
-const NOW = { timeout: 1_000 };
-
-function readDriver(scope: Locator): ReadDriver {
-  const at = (where: Where) => locate(scope, where);
-  return {
-    text: async (where) => (await at(where).innerText(NOW)).trim(),
-    texts: async (where) => (await at(where).allInnerTexts()).map((text) => text.trim()),
-    number: async (where) => Number((await at(where).innerText(NOW)).trim()),
-    count: (where) => at(where).count(),
-    value: (where) => at(where).inputValue(NOW),
-  };
-}
-
-function driver(scope: Locator): Driver {
-  const at = (where: Where) => locate(scope, where);
-  return {
-    ...readDriver(scope),
-    click: (where) => at(where).click(NOW),
-    fill: (where, value) => at(where).fill(value, NOW),
-    select: async (where, value) => {
-      await at(where).selectOption(value, NOW);
-    },
-    press: (where, key) => at(where).press(key, NOW),
-  };
-}
+export { byLabel, byRole, byTestId, type Driver, type ReadDriver, type Where } from './driver.js';
 
 // ── the contract ──
 
@@ -216,19 +156,32 @@ interface State {
 export class App {
   readonly journal: Step[] = [];
   private readonly states = new Map<object, State>();
-  /** A cover's handle, and what it covers. */
-  private readonly covered = new Map<State, { fragment: AnyFragment; handle: object; state: State }>();
+  /** What a cover covers: the whole page beneath it, so going back uncovers exactly that. */
+  private readonly covered = new Map<State, { fragment: AnyFragment; handle: object; states: State[] }>();
   /** The one handle each fragment has: a fragment on the page has one lifecycle, however it is reached. */
   private readonly roots = new Map<AnyFragment, object>();
-  /** Main-frame navigations so far; each one is a new document. */
+  /** Documents the main frame has loaded so far. */
   private doc = 0;
+  /** The main frame's document request in flight: only a navigation that made one replaces the document. */
+  private loading: Request | undefined;
 
   constructor(
     readonly page: Page,
     private readonly signals: Signals = {},
   ) {
+    // A history push or a hash change navigates the frame and keeps its document, and every handle on it.
+    page.on('request', (request) => {
+      if (request.isNavigationRequest() && request.frame() === page.mainFrame()) this.loading = request;
+    });
+    const ended = (request: Request) => {
+      if (request === this.loading) this.loading = undefined;
+    };
+    page.on('requestfinished', ended);
+    page.on('requestfailed', ended);
     page.on('framenavigated', (frame) => {
-      if (frame === page.mainFrame()) this.doc += 1;
+      if (frame !== page.mainFrame() || this.loading === undefined) return;
+      this.doc += 1;
+      this.loading = undefined;
     });
   }
 
@@ -276,11 +229,12 @@ export class App {
     within: Page | Locator,
     shared?: { state: State; owner: AnyFragment },
   ): Handle<F> {
-    // The same fragment entered alone, or reached already as this part, is this part: one handle, one lifecycle.
+    // A part already on the page is that part, whoever reached it first: one handle, one lifecycle.
+    // Entered alone, it takes its owner's lifecycle; held by another owner, it keeps that one.
     const prior = this.roots.get(fragment);
     const was = (prior as any)?.[META] as Meta | undefined;
-    if (shared && was !== undefined && (was.owner === fragment || was.state === shared.state) && this.alive(was.state)) {
-      this.rebind(prior!, shared);
+    if (shared && prior !== undefined && was !== undefined && this.alive(was.state)) {
+      if (was.owner === fragment) this.rebind(prior, shared);
       return prior as Handle<F>;
     }
     const region = locate(within, fragment.spec.probe).first();
@@ -459,15 +413,17 @@ export class App {
     } else if (under !== undefined && under.fragment === to) {
       // Leaving a cover for what it covered returns the covered handle, live again.
       Object.assign(state, { status: 'departed', why: `${fragment.name}.${name}` });
-      Object.assign(under.state, { status: 'live', why: undefined, doc: this.doc });
+      for (const each of under.states) Object.assign(each, { status: 'live', why: undefined, doc: this.doc });
       handle = under.handle;
     } else {
       const next = to as AnyFragment;
-      if (covering(outcome)) Object.assign(state, { status: 'covered', why: next.name, doc: this.doc });
-      else this.depart(name, fragment.name);
+      // A modal covers the whole page, not the fragment that opened it: every live handle waits beneath.
+      const beneath = covering(outcome) ? [...new Set(this.states.values())].filter((each) => this.alive(each) && each.status === 'live') : [];
+      for (const each of beneath) Object.assign(each, { status: 'covered', why: next.name, doc: this.doc });
+      if (!covering(outcome)) this.depart(name, fragment.name);
       handle = this.handle(next, this.page);
       // What waits beneath is the owner, not the part that opened the cover.
-      if (covering(outcome)) this.covered.set((handle as any)[META].state, { fragment: owner, handle: this.roots.get(owner) ?? self, state });
+      if (covering(outcome)) this.covered.set((handle as any)[META].state, { fragment: owner, handle: this.roots.get(owner) ?? self, states: beneath });
     }
     // A wrong branch is still the branch taken: the handles and the journal say so before the test fails.
     if (named !== undefined && outcome !== named) {

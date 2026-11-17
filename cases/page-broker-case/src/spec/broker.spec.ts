@@ -2,6 +2,7 @@
 // time: every wait is the broker's settle, fed by what the app says it is doing.
 // Each case navigates on purpose: the broker senses where a walk arrives across
 // page loads, so a page switched in place would not exercise it.
+import { byRole, fragment } from '../broker/broker.js';
 import { fork } from '../broker/journal.js';
 import { expect, test } from '../fixture.js';
 import { Billing, Header, Product } from '../shop.js';
@@ -95,6 +96,30 @@ test('a navigation the broker did not take revokes every handle', async ({ page,
   expect(await fresh.address()).toBe('Rokin 2');
 });
 
+// A second owner of the header on the same page: the search form inside it.
+const SearchBox = fragment('search-box', { probe: byRole('search'), uses: { header: Header } });
+
+test('a modal covers the whole page: a part two owners share is one handle, covered and uncovered once', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const box = await app.enter(SearchBox);
+  expect(box.header).toBe(form.header);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  await expect(box.header.search.to('results', 'socks')).rejects.toThrow('header is covered by sign-in');
+  await signIn.cancel.to('billing');
+  const results = await box.header.search.to('results', 'socks');
+  expect(await results.items()).toEqual(['socks — wool', 'socks — cotton']);
+});
+
+test('a navigation within the document keeps every handle', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  await page.evaluate(() => history.pushState({}, '', '/checkout?user=member&step=2'));
+  await page.evaluate(() => (location.hash = 'street'));
+  await form.street('Rokin 2');
+  expect(await form.address()).toBe('Rokin 2');
+});
+
 test('going back fails while the cover stays open', async ({ page, app }) => {
   await page.goto('/checkout?user=guest&stuck', { waitUntil: 'commit' });
   const form = await app.enter(Billing);
@@ -134,6 +159,11 @@ test('the raw escape hatch works, and is written down', async ({ page, app }) =>
   expect(app.journal).toContainEqual({ from: 'billing', action: 'raw', kind: 'raw', to: 'billing' });
 });
 
+test('two walks that end on the same fragment by different outcomes part', () => {
+  const submit = (outcome: string) => [{ from: 'form', action: 'submit', kind: 'lead' as const, outcome, named: outcome, to: 'form' }];
+  expect(fork(submit('invalid'), submit('saved'))).toBe(['shared: (nothing)', 'a: form.submit → invalid', 'b: form.submit → saved'].join('\n'));
+});
+
 test('two walks print where they part', async ({ browser, baseURL }) => {
   const { App } = await import('../broker/broker.js');
   const { watch } = await import('../broker/settle.js');
@@ -150,9 +180,9 @@ test('two walks print where they part', async ({ browser, baseURL }) => {
   const parted = fork(await walk('member'), await walk('guest'));
   expect(parted).toBe(
     [
-      'shared: billing.country → billing  ·  billing.street → billing',
+      'shared: billing.country  ·  billing.street',
       'a: billing.submit → payment (unnamed)',
-      'b: billing.submit → sign-in (unnamed)',
+      'b: billing.submit → signIn (unnamed)',
     ].join('\n'),
   );
 });
