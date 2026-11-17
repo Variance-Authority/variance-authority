@@ -54,7 +54,10 @@ describe('a scan of a directory git cannot list', () => {
 
   it('writes nothing again over files that did not change', async () => {
     const root = await unlisted();
-    const at = join(root, 'cache', 'source-index.bin');
+    // Publication is outside the inventory so it cannot change its directory witnesses.
+    const cache = await mkdtemp(join(tmpdir(), 'sense-unlisted-index-'));
+    made.push(cache);
+    const at = join(cache, 'source-index.bin');
     await scanned(root, at);
     const written = (await openImmutableLog(at)).digests;
 
