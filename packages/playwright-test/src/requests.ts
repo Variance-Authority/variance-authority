@@ -9,7 +9,11 @@
  *
  * A request is its method and path. The query and the body are the
  * application's data, often a token or a user's, and a story is written to disk
- * and read by whoever reads the run.
+ * and read by whoever reads the run. The path is kept as it is.
+ *
+ * Only Playwright hears requests this way. The browser modes of Vitest and
+ * Rstest and Storybook have no runner beside the page, and wait for the page's
+ * own half: #1447.
  */
 
 import type { BrowserContext, Request, Response } from '@playwright/test';
@@ -21,7 +25,7 @@ export interface HeardRequests {
   readonly hear: (context: BrowserContext) => () => void;
   /**
    * What the line that just ended did: what it sent, what came back on it, in
-   * the order heard, and what was still out at its end when it moved any.
+   * the order heard, and what was still out at its end.
    */
   readonly told: () => readonly string[];
 }
@@ -43,12 +47,6 @@ export function heardRequests(): HeardRequests {
   let sent: string[] = [];
   let came: string[] = [];
 
-  const onRequest = (request: Request): void => {
-    const name = named(request);
-    if (name === undefined || !awaitedRequest(request)) return;
-    out.set(request, name);
-    sent.push(name);
-  };
   const onResponse = (response: Response): void => {
     statuses.set(response.request(), response.status());
   };
@@ -63,6 +61,15 @@ export function heardRequests(): HeardRequests {
 
   return {
     hear: (context) => {
+      // A context that stops being heard can end no request it sent, so none stays out.
+      const own = new Set<Request>();
+      const onRequest = (request: Request): void => {
+        const name = named(request);
+        if (name === undefined || !awaitedRequest(request)) return;
+        own.add(request);
+        out.set(request, name);
+        sent.push(name);
+      };
       context.on('request', onRequest);
       context.on('response', onResponse);
       context.on('requestfinished', onFinished);
@@ -72,12 +79,13 @@ export function heardRequests(): HeardRequests {
         context.off('response', onResponse);
         context.off('requestfinished', onFinished);
         context.off('requestfailed', onFailed);
+        for (const request of own) out.delete(request);
       };
     },
     told: () => {
       const notes = sent.length === 0 ? [] : [`sent ${sent.join(', ')}`];
       notes.push(...came);
-      if (notes.length > 0 && out.size > 0) notes.push(`still out ${[...out.values()].join(', ')}`);
+      if (out.size > 0) notes.push(`still out ${[...out.values()].join(', ')}`);
       sent = [];
       came = [];
       return notes;

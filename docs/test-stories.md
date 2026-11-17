@@ -686,8 +686,8 @@ document has no `page` note.
 
 ## What each line sent
 
-Under Playwright, a line of the spec on which the page sent a request, or got
-an answer back, says so at its end:
+Under Playwright, a line of the spec on which the page sent a request, got an
+answer back, or still waited on one, says so at its end:
 
 ```text
 sent POST /api/order, GET /api/price
@@ -697,9 +697,8 @@ still out GET /api/price
 
 What the line sent, in the order the page sent it; each answer that came back
 while the line ran, with its status, or `failed` for one that never answered;
-then what the page had asked for and not yet got when the line ended. A line on
-which no request moved says nothing, though some are still out. So the line
-that waited on a response it never received names it, and when two runs heard
+then what the page had asked for and not yet got when the line ended. So a line
+that asserted while a response was still out names it, and when two runs heard
 the same two answers in opposite orders, [comparing
 them](#compare-readings-of-one-test) lists that order.
 
@@ -708,7 +707,8 @@ application's data, often a token, and the story is a file anyone who reads the
 run can open. Fonts, images, media and open channels such as a WebSocket are
 left out, since every page has them and no line waits on them. A request is told
 on the line during which the runner heard it, which is the line that sent it or
-a later one, never an earlier one.
+a later one, never an earlier one. A redirect is two requests, the first
+answered with its `3xx`.
 
 The runner hears the requests from Playwright, so nothing in the page is
 replaced to see them. In the browser modes of Vitest and Rstest, Storybook and a

@@ -251,8 +251,12 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
   const c: Cut = (line, file, hook) => {
     const theirs = outer?.(line, file, hook);
     // Once a drain was late no statement records its line, so none waits on
-    // the held drain again: the teardown drain reads what they reached.
-    if (late) return theirs;
+    // the held drain again: the teardown drain reads what they reached. What
+    // the network did on such a line has no line to stand on, and is dropped.
+    if (late) {
+      requests?.told();
+      return theirs;
+    }
     // A hook or a helper declared in another file is no line of this spec's:
     // what the line before it changed is said, and what it changes is not.
     const ours = file === testInfo.file;
@@ -292,12 +296,15 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     entry.unhear();
     // A page that held the statements' drain holds this one too, and the test's
     // timeout is all that would end it: the case is not believed whole instead.
+    const placed = !late;
     const inTime = await settlesInTime(draining);
     if (!inTime) late = true;
     if (inTime) {
       open(last);
       if (!(await drain(framesOf(context), last))) lost = true;
-      tell(last, requests?.told() ?? []);
+      // The last line's requests, unless a late drain left it no line of its own.
+      const heard = requests?.told() ?? [];
+      if (placed) tell(last, heard);
     }
     if (entry.watch.lost() || !inTime) lost = true;
   };

@@ -184,7 +184,9 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'test line answers the order',
       'POST /api/order 201',
       'still out GET /api/price, GET /api/stock',
-      // The line that checks moved no request, so it tells nothing, not even what is still out.
+      // The line that checks moved no request, and ends with two still out.
+      'test line checks',
+      'still out GET /api/price, GET /api/stock',
       'test line loses the stock',
       'GET /api/stock failed',
       'still out GET /api/price',

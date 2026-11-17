@@ -28,8 +28,8 @@ describe('the requests a story tells', () => {
     events.emit('requestfinished', order);
     events.emit('requestfailed', stock);
     expect(requests.told()).toEqual(['POST /api/order 201', 'GET /api/stock failed', 'still out GET /api/price']);
-    // A line on which nothing moved tells nothing of what is still out.
-    expect(requests.told()).toEqual([]);
+    // A line on which nothing moved still ends with the price out.
+    expect(requests.told()).toEqual(['still out GET /api/price']);
   });
 
   it('leaves out what is no fetch of a path, and what no page waits on', () => {
@@ -42,12 +42,15 @@ describe('the requests a story tells', () => {
     expect(requests.told()).toEqual([]);
   });
 
-  it('hears nothing more from a context once it stops', () => {
+  it('hears nothing more from a context once it stops, and holds none of its requests still out', () => {
     const { events, context: heard } = context();
     const requests = heardRequests();
-    requests.hear(heard)();
+    const stop = requests.hear(heard);
+    events.emit('request', request('GET', 'http://shop.test/api/stock'));
+    stop();
 
     events.emit('request', request('GET', 'http://shop.test/api/price'));
+    expect(requests.told()).toEqual(['sent GET /api/stock']);
     expect(requests.told()).toEqual([]);
   });
 });
