@@ -1,8 +1,18 @@
 // @vitest-environment jsdom
-import { Suspense, act, createElement as h, use } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+//
+// The watch hears React's commits, so the hook exists before react-dom does, as the setup file has it:
+// a tap at module scope, and React imported under it.
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { tapCommits } from './commits.js';
 import { watchSuspense } from './story-suspense.js';
+
+tapCommits();
+
+const { Suspense, act, createElement: h, use } = await import('react');
+const { createRoot } = await import('react-dom/client');
+const { flushSync } = await import('react-dom');
+
+type Root = ReturnType<typeof createRoot>;
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -94,6 +104,22 @@ describe('what the Suspense boundaries on the page did, as they did it', () => {
       'suspense Cart › Suspense shows its fallback',
       'suspense Cart › Suspense unlocks',
     ]);
+  });
+
+  it('tells a boundary falling back at the commit that shows it, before anything told after that commit', () => {
+    const cart = deferred();
+    flushSync(() => root.render(h(Cart, { promise: cart.promise })));
+    said.push('console.log rendered');
+
+    expect(said).toEqual(['suspense Cart › Suspense shows its fallback', 'console.log rendered']);
+  });
+
+  it('tells a boundary whose fallback is nothing falling back and unlocking', async () => {
+    const cart = deferred();
+    await render(h(Suspense, { fallback: null }, h(Late, { promise: cart.promise })));
+    await cart.settle();
+
+    expect(said).toEqual(['suspense Suspense shows its fallback', 'suspense Suspense unlocks']);
   });
 
   it('tells nothing of a boundary that never fell back', async () => {

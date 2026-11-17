@@ -1,3 +1,4 @@
+import { tapCommits } from './commits.js';
 import { boundariesUnder, boundaryId, type SuspenseBoundary } from './suspense.js';
 
 /**
@@ -7,15 +8,18 @@ import { boundariesUnder, boundaryId, type SuspenseBoundary } from './suspense.j
  * click that waited for it.
  *
  * A boundary is named by the component that wrote it — in a production build,
- * which keeps no writer, the one it sits inside. React commits a boundary's
- * change to the page, so the boundaries are read after each change to the page,
- * and one that falls back and unlocks within one commit is not seen. A boundary
- * taken off the page is told nothing more. Returns what stops the watch.
+ * which keeps no writer, the one it sits inside. The boundaries are read inside
+ * each commit React announces, so a note comes before anything told after that
+ * commit, and a boundary whose fallback puts nothing on the page is told all the
+ * same. One that falls back and unlocks within one commit is not seen. A
+ * boundary taken off the page is told nothing more.
+ *
+ * React announces commits only to a hook that existed before `react-dom` loaded,
+ * so a watch started after it, with no hook to wrap, tells nothing. Returns what
+ * stops the watch.
  */
 export function watchSuspense(page: Node, note: (text: string) => void): () => void {
-  const Watch = (globalThis as { MutationObserver?: typeof MutationObserver }).MutationObserver;
-  if (typeof Watch !== 'function') return () => undefined;
-  // The boundaries showing their fallback when the page last changed, by identity.
+  // The boundaries showing their fallback at the last commit, by identity.
   let falling = new Set<number>();
   const read = (): void => {
     const now = new Set<number>();
@@ -30,18 +34,11 @@ export function watchSuspense(page: Node, note: (text: string) => void): () => v
     }
     falling = now;
   };
-  const watch = new Watch(() => {
-    try {
-      read();
-    } catch {
-      // A page that cannot be read is not the story's failure.
-    }
-  });
-  watch.observe(page, { subtree: true, childList: true, attributes: true, characterData: true });
-  return () => watch.disconnect();
+  // Only the moment of each commit is wanted, so the tap keeps none of them.
+  const tap = tapCommits({ keep: 0, onCommit: read });
+  return () => tap.stop();
 }
 
-/** A boundary by the component that wrote it, for it has no name of its own. */
 function named(boundary: SuspenseBoundary): string {
   return [boundary.createdBy ?? boundary.owners[0], 'Suspense'].filter((part) => part !== undefined).join(' › ');
 }

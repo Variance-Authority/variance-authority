@@ -23,28 +23,28 @@ describe('what a story calls a React object', () => {
 describe('the watch a setup file puts on its page', () => {
   it('one Suspense watch, however many times the setup file is evaluated', async () => {
     const SUSPENSE = Symbol.for('variance-authority.react.story.suspense');
-    const realm = globalThis as { [SUSPENSE]?: unknown; document?: unknown };
-    const stops: unknown[] = [];
+    const HOOK = '__REACT_DEVTOOLS_GLOBAL_HOOK__';
+    const realm = globalThis as { [SUSPENSE]?: unknown; document?: unknown; [HOOK]?: unknown };
     realm.document = { nodeType: 9 };
-    const Watch = class {
-      observe(): void {}
-      disconnect(): void {}
+    // A watch wraps React's commit announcement; each wrap is one write to it.
+    let wraps = 0;
+    realm[HOOK] = {
+      set onCommitFiberRoot(_: unknown) {
+        wraps += 1;
+      },
+      get onCommitFiberRoot(): undefined {
+        return undefined;
+      },
     };
-    vi.stubGlobal('MutationObserver', class extends Watch {
-      constructor() {
-        super();
-        stops.push(this);
-      }
-    });
     try {
       vi.resetModules();
       await import('./story.js');
       vi.resetModules();
       await import('./story.js');
-      expect(stops).toHaveLength(1);
+      expect(wraps).toBe(1);
     } finally {
-      vi.unstubAllGlobals();
       delete realm.document;
+      delete realm[HOOK];
       delete realm[SUSPENSE];
     }
   });
