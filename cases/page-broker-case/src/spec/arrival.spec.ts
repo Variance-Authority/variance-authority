@@ -1,7 +1,7 @@
 // Navigation is the subject: each case loads the page it walks.
 // Arrival is witnessed from both ends, and by one outcome only. These fragments
 // are wrong on purpose: each declares an edge the app does not take that way.
-import { byLabel, byRole, fragment, leads, stay } from '../broker/broker.js';
+import { back, byLabel, byRole, fragment, leads, over, stay } from '../broker/broker.js';
 import { expect, test } from '../fixture.js';
 import { Header, Payment, SignIn } from '../shop.js';
 
@@ -85,4 +85,41 @@ test('a part whose lead stays does not hide its owner leaving', async ({ page, a
   const billing = await app.enter(Staying);
   await expect(billing.header.search('socks')).rejects.toThrow('header-staying.search declares here, and the page shows');
   await expect(billing.header.search('wool')).rejects.toThrow('departed');
+});
+
+const dialog = byRole('dialog', 'Sign in');
+const cancel = (d: { click: Function }) => d.click(byRole('button', 'Cancel'));
+const submitting = (name: string, signIn: Parameters<typeof over>[0]) =>
+  fragment(name, {
+    probe: form,
+    actions: {
+      submit: leads({ payment: Payment, signIn: over(signIn) }, async (d) => {
+        await fill(d as never);
+        await d.click(byRole('button', 'Continue'));
+      }),
+    },
+  });
+
+// The close button is a part of the dialog, and going back is the part's to do.
+const Closer = fragment('sign-in-closer', { probe: dialog, actions: { close: leads({ billing: back }, cancel as never) } });
+const Parted = fragment('sign-in-parted', { probe: dialog, uses: { closer: Closer } });
+const UnderParted = submitting('billing-parted', Parted);
+
+test('a part of a cover goes back to what the cover covers', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const billing = await app.enter(UnderParted);
+  const signIn = await billing.submit.to('signIn');
+  expect(await signIn.closer.close.to('billing')).toBe(billing);
+});
+
+// Going back may also not happen: the dialog refuses to close, and says so by staying.
+const Patient = fragment('sign-in-patient', { probe: dialog, actions: { cancel: leads({ billing: back, still: stay }, cancel as never) } });
+const UnderPatient = submitting('billing-patient', Patient);
+
+test('a cover that stays is not taken for going back', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest&stuck', { waitUntil: 'commit' });
+  const billing = await app.enter(UnderPatient);
+  const signIn = await billing.submit.to('signIn');
+  expect(await signIn.cancel.to('still')).toBe(signIn);
+  await expect(billing.submit() as unknown as Promise<unknown>).rejects.toThrow('billing-patient is covered by sign-in-patient');
 });

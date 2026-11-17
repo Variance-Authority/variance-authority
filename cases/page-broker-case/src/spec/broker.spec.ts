@@ -76,6 +76,14 @@ test('entering a part returns the part its owner holds, and a cover covers both'
   await expect(header.search.to('results', 'socks')).rejects.toThrow('header is covered by sign-in');
 });
 
+test('a part entered before its owner shares the owner\'s lifecycle', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const header = await app.enter(Header);
+  const form = await app.enter(Billing);
+  await form.country('NL').street('Damrak 1').submit.to('signIn');
+  await expect(header.search.to('results', 'socks')).rejects.toThrow('header is covered by sign-in');
+});
+
 test('a navigation the broker did not take revokes every handle', async ({ page, app }) => {
   await page.goto('/checkout?user=member', { waitUntil: 'commit' });
   const form = await app.enter(Billing);
