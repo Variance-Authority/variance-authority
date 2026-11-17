@@ -273,6 +273,20 @@ reference.
 to the minimal hunk responsible. It belongs to the *attribute* rung of
 [`instruments.md`](../instruments.md) and there is nothing like it here.
 
+**Chippy** ([atlassian-labs/chippy](https://github.com/atlassian-labs/chippy))
+localizes in the running React app rather than in a test run, production builds
+included: it maps a live element to its component and, outside a minified
+production build, its source line; it finds where
+a render cascade started, records what each commit held, and separates the
+trigger of a slow interaction from the renders that came with it. Its React
+probe reads the renderer root's `memoizedUpdaters`, and that read is the
+precedent the Eyes update initiator took
+([journal 0039](journal/0039-the-updater-had-a-location.md)); its helper,
+extension and page registry were not taken. The line between the two is the
+test: variance answers about tests and the code under them, and render causes,
+commit contents and profiling of the running product are Chippy's, deferred to
+and not rebuilt here.
+
 ## Web UI difference
 
 **XPERT** (Roy Choudhary, Prasad, Orso, ICSE 2013) detects cross-browser
