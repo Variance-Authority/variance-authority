@@ -1401,7 +1401,10 @@ each execution it reports there, and the account carries its story: the steps
 it took and the arguments each function was handed, which `variance ask ran
 --story` prints. It shows no local or module variable. Concurrent requests are
 taped apart, by the journey each runs under. Without the variable nothing is
-taped.
+taped. A page that calls `reportPage` tells its story the same way when its
+build ran with the variable: the build plugin reads it and serves the
+collector with the page's tape, and each execution is told, with the page's
+own notes, once the page runs nothing more for it or leaves.
 
 A journey's scope ends when what the body returned *settles*, not when the body
 returns, which is the only arrangement under which the code after an `await` is

@@ -2,10 +2,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { parseSync } from 'oxc-parser';
-import { afterEach, describe, expect, it } from 'vitest';
+import { runInNewContext } from 'node:vm';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { decode } from './map-segments.js';
 import probesLoader, { type ProbesLoaderContext } from './probes-loader.js';
-import { executionCollectorSource } from './probes.js';
+import { EXECUTION_GLOBAL, TELLER_GLOBAL } from './execution-global.js';
+import { type ExecutionCollector, executionCollectorSource } from './probes.js';
 import { testSelectionRule, type ProbesLoaderOptions } from './probes-rule.js';
 import type { HandedMap } from './loader-probes.js';
 
@@ -30,6 +32,7 @@ function load(file: string, code: string, map: HandedMap, options: ProbesLoaderO
     callback: (error, text, given) => {
       handed = { error, code: text, map: given };
     },
+    async: () => context.callback,
   };
   probesLoader.call(context, code, map);
   return handed!;
@@ -216,4 +219,29 @@ describe('the rule', () => {
     expect(testSelectionRule({ include: () => true }).exclude).toBeUndefined();
   });
 
+});
+
+describe('the collector the probes loader serves a build asked for stories', async () => {
+  /** Built, as `journey-story.test.ts` reads it: what tells the stories `require`s the tap by the names the build gives it. */
+  const built = (await import('../../dist/test-selection/probes-loader.js')).default as typeof probesLoader;
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('tapes a page and tells its executions under `VARIANCE_AUTHORITY_STORY=1`, answering once it has loaded what tells them', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_STORY', '1');
+    const code = await new Promise<string | undefined>((answer, refuse) => {
+      const context: ProbesLoaderContext = {
+        resourcePath: '/anywhere/probes-collector.js',
+        getOptions: () => ({ collector: 'presence' }),
+        callback: () => refuse(new Error('answered before it loaded what tells the stories')),
+        async: () => (error, text) => (error === null ? answer(text) : refuse(error)),
+      };
+      built.call(context, 'export {};\n');
+    });
+    const realm: Record<string, unknown> = { document: {}, console: { log: () => {} }, TextEncoder, btoa };
+    runInNewContext(code!, realm);
+    expect((realm[EXECUTION_GLOBAL] as ExecutionCollector).drain().story).toMatchObject({ visits: 0, notes: [] });
+    expect(realm[TELLER_GLOBAL]).toMatchObject({ add: expect.any(Function), tell: expect.any(Function) });
+  });
 });

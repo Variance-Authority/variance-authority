@@ -23,6 +23,7 @@ import { shifted } from './map-segments.js';
 import { executionCollectorSource } from './probes.js';
 import { COLLECTOR_FILE, PROBES_LOADER, type ProbesLoaderOptions } from './probes-rule.js';
 import { repositoryRoot } from './repository-root.js';
+import { storiesAsked } from '../story/asked.js';
 
 /** The subset of the Rspack and webpack loader surface this uses, so nothing here needs either. */
 export interface ProbesLoaderContext {
@@ -34,6 +35,8 @@ export interface ProbesLoaderContext {
   /** The configured loader paths, in the order the bundler lists them. */
   readonly loaders?: readonly { readonly path: string }[];
   readonly callback: (error: Error | null, code?: string, map?: HandedMap) => void;
+  /** Hands the answer to a later `callback`, as the collector of a build asked for stories is. */
+  readonly async: () => ProbesLoaderContext['callback'];
 }
 
 /**
@@ -44,6 +47,10 @@ const REMEDY = 'Have `devtool` write source maps and every loader ahead of the p
 
 function probesLoader(this: ProbesLoaderContext, code: string, handed?: HandedMap): void {
   const options = this.getOptions();
+  if (options.collector !== undefined && storiesAsked()) {
+    told(this.async(), options.collector);
+    return;
+  }
   let written: { code: string; map?: HandedMap };
   try {
     written = options.collector === undefined ? probed(this, options, code, handed) : { code: executionCollectorSource(recipe(options.collector)) };
@@ -55,6 +62,18 @@ function probesLoader(this: ProbesLoaderContext, code: string, handed?: HandedMa
     return;
   }
   this.callback(null, written.code, written.map);
+}
+
+/** The collector of a build asked for stories, which loads what tells them only then. */
+function told(callback: ProbesLoaderContext['callback'], mode: string): void {
+  let collector: string;
+  try {
+    collector = executionCollectorSource(recipe(mode));
+  } catch (error) {
+    callback(error as Error);
+    return;
+  }
+  import('../story/page-told.js').then(({ toldCollectorSource }) => callback(null, toldCollectorSource(collector)), (error: Error) => callback(error));
 }
 
 /** `code` probed, taking the collector, and the map moved with it; as handed where it is not a module to probe. */

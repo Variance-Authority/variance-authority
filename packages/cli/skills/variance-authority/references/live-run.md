@@ -112,7 +112,11 @@ taped apart. An execution told again lists what ran since under `told again`.
 What the tape lost is said above the steps; the watcher keeps 8 tellings of an
 execution, up to 1 MiB, and counts the rest as `told N more times`. A head
 without the variable tells no story, and the answer says so and lists regions.
-A `head page` tells none yet.
+A `head page` tells its story when its build ran with
+`VARIANCE_AUTHORITY_STORY=1`, which the build plugin reads; an execution is
+told once the page runs nothing more for it, at the next click or as it
+leaves, with its `console` lines, Suspense, paint, long frame and layout
+shift notes among the steps, and not the requests it sent.
 
 A region arrives as a number and is named from the checkout `ask` runs in, so
 ask from the repository the application was built from. A module whose regions

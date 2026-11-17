@@ -18,3 +18,10 @@ export const EXECUTION_GLOBAL = '__variance_authority_execution__';
  * names no head leaves none and still needs everything the collector holds.
  */
 export const DRIVEN_GLOBAL = '__variance_authority_driven__';
+
+/**
+ * Where a page built with `VARIANCE_AUTHORITY_STORY=1` keeps what tells each
+ * execution's story: the build installs it beside the collector, and
+ * `reportPage` hands it every drain and asks it for the story it sends.
+ */
+export const TELLER_GLOBAL = '__variance_authority_teller__';

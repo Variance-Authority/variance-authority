@@ -26,9 +26,9 @@ import { PAGE_STORY, type PageStory } from './page-story.js';
 /**
  * The script that makes a page tape: installed before any document loads, so
  * the collector a bundle evaluates finds the maker and every console line a
- * case prints is a note.
+ * case prints is a note. `limit` bounds what the page keeps between two drains.
  */
-export function storyPageSource(): string {
+export function storyPageSource(limit = storyTap.TAPE_LIMIT): string {
   return `(() => {
 const NOTE_LIMIT = ${storyTap.NOTE_LIMIT};
 const NOTE_LENGTH = ${storyTap.NOTE_LENGTH};
@@ -39,7 +39,7 @@ const NOTE = Symbol.for('variance-authority.story.note');
 const realm = globalThis;
 if (realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] !== undefined) return;
 realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
-  const tap = createTap(engine, ${storyTap.TAPE_LIMIT});
+  const tap = createTap(engine, ${limit});
   tap.nameIn(realm);
   // What has the page watch say a line's changes, kept so a runner whose test
   // lines run outside the page can open and close them.

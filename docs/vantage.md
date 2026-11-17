@@ -412,7 +412,25 @@ after it settles is told again with what it ran since. The watcher keeps the
 first 8 tellings of an execution from each head, up to 1 MiB of them, and
 `--story` counts the rest. A head started without the variable tapes nothing,
 and `--story` then says so and lists the regions as before. A request still
-open has told nothing yet: its story arrives when it settles. A page that calls `reportPage` tells no story yet.
+open has told nothing yet: its story arrives when it settles.
+
+A page that calls `reportPage` tells its story when its build ran with
+`VARIANCE_AUTHORITY_STORY=1`, such as
+`VARIANCE_AUTHORITY_STORY=1 npx vite`: the build plugin reads the variable,
+since a page has no environment of its own. A load or a click is told once
+the page has run nothing more for it, at the next click, or as the page
+leaves, and its story carries what the page saw as well: each `console` line,
+a Suspense fallback and the content that replaced it, paint, long frames and
+layout shifts. The requests the page sent are not in it.
+
+```
+  baf00ce29786f7e0cb4701aebbf0f4a5
+  head page
+      in .: cart.js
+      1  add  cart.js:1-4
+           » handed item='socks'
+           » console.log adding socks
+```
 
 ## Reading it from an agent
 

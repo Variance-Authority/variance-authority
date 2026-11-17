@@ -12,11 +12,18 @@
  * or `dist`, which is where an application finds this module.
  */
 import { JOURNEY_COOKIE, RETURN_COOKIE, channelFrom, channelTo } from '@variance-authority/wire';
-import { DRIVEN_GLOBAL, EXECUTION_GLOBAL } from './execution-global.js';
+import { DRIVEN_GLOBAL, EXECUTION_GLOBAL, TELLER_GLOBAL } from './execution-global.js';
+import type { PageStory } from '../story/page-story.js';
 import type { ExecutedModule, ExecutionCollector } from './probes.js';
 import type { JourneyAccount } from './stitch.js';
 
 // compass: variance-authority.reach.journey
+
+/** What a build asked for stories leaves beside the collector: it is handed every drain, and tells an execution's story since it last told. */
+interface Teller {
+  add(story: PageStory): void;
+  tell(journey: string): string | undefined;
+}
 
 /** A target of events, as far as this listens. */
 interface Listened {
@@ -57,7 +64,7 @@ export function reportPage(watcher: string | undefined): void {
   const home = watcher === undefined || watcher === '' ? undefined : channelTo(watcher, HEAD)?.home;
   if (home === undefined) return;
 
-  const browser = globalThis as unknown as Browser & Record<string, ExecutionCollector | true | undefined>;
+  const browser = globalThis as unknown as Browser & Record<string, ExecutionCollector | Teller | true | undefined>;
   let journey = '';
   let yielded = false;
   // A driver owns the page and what its collector holds. It says so itself, or its cookies, which answer somewhere else, do.
@@ -90,22 +97,29 @@ export function reportPage(watcher: string | undefined): void {
     return false;
   };
 
-  const flush = (): void => {
+  // An execution's story is told when it ends — at the next click, or as the page leaves — and when a
+  // flush finds it has gone quiet, since nothing else says a click has finished running.
+  const flush = (ended = false): void => {
     if (!mine()) return;
     const journal = (browser[EXECUTION_GLOBAL] as ExecutionCollector | undefined)?.drain();
-    if (journal === undefined || journal.modules.length === 0) return;
+    if (journal === undefined) return;
+    const teller = browser[TELLER_GLOBAL] as Teller | undefined;
+    if (journal.story !== undefined) teller?.add(journal.story);
+    const quiet = journal.modules.length === 0 && (journal.story === undefined || (journal.story.visits === 0 && journal.story.notes.length === 0));
+    const story = ended || quiet ? teller?.tell(journey) : undefined;
+    if (journal.modules.length === 0 && story === undefined) return;
     // A beacon and not the wire's `report`: a JSON `fetch` to another origin is
     // preflighted, which the watcher does not answer, and it dies with the page.
     // A browser refuses a beacon once about 64 KiB of them are on their way, which
     // a page of a few hundred modules exceeds, so a refused one goes as a request no preflight precedes.
-    const send = (scope: JourneyAccount['scope'], modules: readonly ExecutedModule[]): void => {
-      const account: JourneyAccount = { version: 1, instrumentation: journal.instrumentation, head: HEAD, scope, modules };
+    const send = (scope: JourneyAccount['scope'], modules: readonly ExecutedModule[], told?: string): void => {
+      const account: JourneyAccount = { version: 1, instrumentation: journal.instrumentation, head: HEAD, scope, modules, ...(told === undefined ? {} : { story: told }) };
       const to = `${home}/${journey}/journeys`;
       const body = JSON.stringify(account);
       if (browser.navigator.sendBeacon?.(to, body) === true) return;
       void fetch(to, { method: 'POST', body, mode: 'no-cors' }).catch(() => {});
     };
-    send('journey', journal.modules);
+    send('journey', journal.modules, story);
     // What ran while a module evaluated is no one execution's; a watcher leaves it out of this one, so it is said apart, as a server head says it.
     const loading = journal.modules.filter((module) => module.shared.length > 0);
     if (loading.length > 0) send('process', loading.map((module) => ({ id: module.id, hits: module.shared, shared: [] })));
@@ -119,13 +133,13 @@ export function reportPage(watcher: string | undefined): void {
     setTimeout(() => {
       turned = false;
     });
-    flush();
+    flush(true);
     if (mine()) name();
   };
   // The request that replaces this document has left with the cookies by now, so they go with the document: kept, every
   // page on this machine would send a dead execution. Not when the next document has already named its own.
   const depart = (): void => {
-    flush();
+    flush(true);
     forget();
   };
   // An observer does not break its subject: where a cookie cannot be left or nothing can be sent, the page runs on unreported.
@@ -151,8 +165,8 @@ export function reportPage(watcher: string | undefined): void {
   // Leaving starts before the document goes, and by then the collector has kept what is left for the next document,
   // which reports it as its load. So what a click ran is sent as the page starts to leave; when it
   // goes, only a page the browser keeps for the back button has anything left.
-  browser.addEventListener('beforeunload', quietly(flush));
+  browser.addEventListener('beforeunload', quietly(() => flush(true)));
   browser.addEventListener('pagehide', quietly(depart));
   // A cadence, since nothing says a click has finished running: its promises settle whenever they do, and a reader asks meanwhile.
-  setInterval(quietly(flush), CADENCE);
+  setInterval(quietly(() => flush()), CADENCE);
 }
