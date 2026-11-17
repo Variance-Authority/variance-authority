@@ -73,6 +73,8 @@ by guess.
 - `packages/react/src/story-suspense.ts` — the watch that tells the story each
   Suspense boundary that shows its fallback or unlocks, as it does, started on
   the realm's page by `@variance-authority/react/story`
+- `packages/sense/src/instrument/story-frames.cts` — what a browser reports of
+  its frames, placed on the tap by the time it gives
 - `packages/sense/src/test-selection/journey-story.ts` — a live head's tap,
   which tells each journey's story once and lets it go
 - `packages/sense/src/test-selection/collectors.cts` — where a realm installs
