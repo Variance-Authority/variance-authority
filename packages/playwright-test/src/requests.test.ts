@@ -37,8 +37,11 @@ describe('the requests a story tells', () => {
     const requests = heardRequests();
     requests.hear(heard);
 
+    const logo = request('GET', 'http://shop.test/logo.png', 'image');
     events.emit('request', request('GET', 'data:text/plain,hello'));
-    events.emit('request', request('GET', 'http://shop.test/logo.png', 'image'));
+    events.emit('request', logo);
+    // Its answer is heard too, and tells nothing of a request it never held.
+    events.emit('requestfinished', logo);
     expect(requests.told()).toEqual([]);
   });
 
