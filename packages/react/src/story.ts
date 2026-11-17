@@ -28,7 +28,7 @@ export function reactKind(value: object): string | undefined {
 const realm = globalThis as { [KIND]?: unknown[]; [LINE]?: unknown[]; [SUSPENSE]?: unknown };
 const namers = (realm[KIND] ??= []);
 if (!namers.includes(reactKind)) namers.push(reactKind);
-// TODO(#1448): a Playwright spec's page and a Storybook story's page import no setup file, so no reader is put there.
+// TODO: (#1448) a Playwright spec's page and a Storybook story's page import no setup file, so no reader is put there.
 if (realm[SUSPENSE] === undefined) {
   realm[SUSPENSE] = lineReader();
   (realm[LINE] ??= []).push(realm[SUSPENSE]);
