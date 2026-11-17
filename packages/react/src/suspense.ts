@@ -274,8 +274,9 @@ const boundaryIds = new WeakMap<SuspenseBoundary, number>();
 let lastId = 0;
 
 /** The boundary a description read, the same number on every read while it stays mounted. Internal to the package. */
-export function boundaryId(boundary: SuspenseBoundary): number | undefined {
-  return boundaryIds.get(boundary);
+export function boundaryId(boundary: SuspenseBoundary): number {
+  // Every description is made by `describe`, which numbers it before handing it out.
+  return boundaryIds.get(boundary) as number;
 }
 
 function idOf(fiber: Fiber): number {

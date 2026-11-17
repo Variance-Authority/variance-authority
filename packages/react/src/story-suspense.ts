@@ -23,7 +23,6 @@ export function lineReader(): (line?: { last?: boolean }) => string | undefined 
     let resolved = 0;
     for (const boundary of boundaries) {
       const id = boundaryId(boundary);
-      if (id === undefined) continue;
       if (boundary.state === 'resolved') {
         if (open.has(id)) resolved += 1;
         continue;
