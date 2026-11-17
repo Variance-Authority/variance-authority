@@ -280,7 +280,7 @@ export class App {
     const prior = this.roots.get(fragment);
     const was = (prior as any)?.[META] as Meta | undefined;
     if (shared && was !== undefined && (was.owner === fragment || was.state === shared.state) && this.alive(was.state)) {
-      this.rebind(prior, shared);
+      this.rebind(prior!, shared);
       return prior as Handle<F>;
     }
     const region = locate(within, fragment.spec.probe).first();
