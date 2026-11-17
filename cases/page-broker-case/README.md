@@ -53,8 +53,9 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    share a probe are told apart at run time, where both arriving fails.
 3. **A fragment has one lifecycle, however it is reached.** Entering it again
    returns its one handle, covered or live, as does a lead to it while it is
-   live on the same document, whole, its parts answering only to owners still
-   there, and a part is one handle however
+   live on the same document, whole, its parts answering only to what
+   arrived, and the owner that led there departing even when it shares a
+   lifecycle with them, and a part is one handle however
    many owners use it, answering to all of them whichever came first, and to
    every owner between it and them, however deep; a part
    that stays, plainly or by a lead, needs every owner showing, and one gone

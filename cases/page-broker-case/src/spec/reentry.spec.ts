@@ -236,3 +236,19 @@ test('an action refused on a departed handle still lands in the journal', async 
   await expect(leaving.go()).rejects.toThrow('sx-leaving departed at sx-leaving.go');
   expect(app.journal.at(-1)).toMatchObject({ from: 'sx-leaving', action: 'go', failed: expect.stringContaining('has nothing to act on') });
 });
+
+const Solo = fragment('sx-solo', {
+  probe: byTestId('sx-leaving'),
+  uses: { shared: Shared },
+  actions: { go: leads({ shared: Shared }, (d) => d.click(byRole('button', 'Go'))) },
+  reads: { label: (r) => r.texts(byRole('button')) },
+});
+
+test('a lead from an owner to its own part, the owner gone, keeps the part and departs the owner', async ({ page, app }) => {
+  await sharing(page);
+  const solo = await app.enter(Solo);
+  const arrived = await solo.go.to('shared');
+  expect(arrived).toBe(solo.shared);
+  await expect(solo.label()).rejects.toThrow('sx-solo departed at sx-solo.go');
+  await expect(arrived.ping()).resolves.toBeDefined();
+});

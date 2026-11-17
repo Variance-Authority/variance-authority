@@ -463,23 +463,22 @@ export class App {
     state.doc = this.documents.count;
   }
 
-  /** Leaving a page revokes everything on it, the dialogs over it included; what arrived live keeps its parts, answering to owners still there. */
+  /** Leaving a page revokes everything on it, the dialogs over it included; what arrived live keeps its part tree, owned within it, on a state of its own. */
   private depart(action: string, from: string, arrived?: object): void {
-    const spared = arrived === undefined ? undefined : ((arrived as any)[META] as Meta).state;
+    const tree = arrived === undefined ? [] : [arrived, ...this.within(arrived)];
+    const inside = new Set(tree.map((each) => ((each as any)[META] as Meta).fragment));
+    const own = tree.length === 0 ? undefined : ((arrived as any)[META] as Meta).state;
+    const shared = [...this.states].some(([each, state]) => state === own && !tree.includes(each));
+    const spared: State | undefined = shared ? { status: 'live', doc: this.documents.count } : own;
     for (const state of this.states.values()) {
-      if (state.status !== 'departed' && state !== spared) {
-        state.status = 'departed';
-        state.why = `${from}.${action}`;
-      }
+      if (state.status !== 'departed' && state !== spared) Object.assign(state, { status: 'departed', why: `${from}.${action}` });
     }
-    if (arrived === undefined) return;
-    for (const part of this.within(arrived)) {
-      const meta = (part as any)[META] as Meta;
-      meta.owners = meta.owners.filter((one) => ((this.roots.get(one) as any)?.[META] as Meta | undefined)?.state.status !== 'departed');
-      if (meta.state.status === 'departed') {
-        meta.state = spared!;
-        this.states.set(part, spared!);
-      }
+    for (const each of tree) {
+      const meta = (each as any)[META] as Meta;
+      const owners = meta.owners.filter((one) => inside.has(one));
+      meta.owners = owners.length > 0 ? owners : [meta.fragment];
+      meta.state = spared!;
+      this.states.set(each, spared!);
     }
   }
 }
