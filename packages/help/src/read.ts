@@ -154,20 +154,9 @@ export interface IndexedUsageOptions {
 }
 
 /**
- * A workspace, read with the index doing the expensive third of the work.
- *
- * The same value [`readHelp`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/package/src/help.ts) returns and the same
- * reading behind it — the manifests say which doors exist, the source behind
- * them says what is on the other side, and the repository says what it reaches
- * for. Only the third one changes: it comes from the source index rather than
- * from a walk, so asking a second question about an unchanged checkout costs the
- * manifests and nothing else.
- *
- * The scan brings the index up to date and saves it, and the value is read off
- * the saved index and published beside it, so a read whose index could not be
- * saved throws {@link UnsavedRead}. Asynchronous because the index is a file: a
- * caller with no cache directory to write to, or one reading a tree it does not
- * own, wants `readHelp` and should keep having it.
+ * Update the native source index and publish the workspace's declarations,
+ * documentation and usage. Unchanged source is reused without reading or
+ * parsing it again. A publication that cannot be saved throws {@link UnsavedRead}.
  */
 export async function readWorkspace(root: string, options: ReadingOptions = {}): Promise<Help> {
   return readAndPublish(root, options, new Date().toISOString());

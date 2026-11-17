@@ -1,10 +1,10 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { answerSearch } from './search.js';
@@ -61,7 +61,7 @@ async function workspace(): Promise<string> {
 
 it('lists the skills a package ships under the package, each with the file to read and the first sentence of its description', async () => {
   const root = await workspace();
-  const answer = stack.run(readHelp(root), { from: 'src/index.ts' }, { root });
+  const answer = stack.run((await readNativeHelp(root)), { from: 'src/index.ts' }, { root });
   expect(answer).toContain('1 package ships agent skills, each listed under its package with its SKILL.md.');
   const kit = answer.split('\n');
   const at = kit.findIndex((row) => row.startsWith('  env-kit@1.0.0'));
@@ -78,7 +78,7 @@ it('lists the skills a package ships under the package, each with the file to re
 
 it('leaves skills out of search: their words reach no package and no skill is printed', async () => {
   const root = await workspace();
-  const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'encrypt secrets' }, treeOf([], root), root);
+  const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'encrypt secrets' }, treeOf([], root), root);
   expect(said).not.toContain('env-kit');
   expect(said).not.toContain('SKILL.md');
 });
@@ -87,7 +87,7 @@ it('reads a skill again when its SKILL.md is edited, though nothing else in the 
   const root = await workspace();
   writeFileSync(join(root, 'node_modules/env-kit/skills/encrypted/SKILL.md'), '---\nname: encrypted\ndescription: Rotate the keys a vault holds.\n---\n');
   await refreshDependencyLexicon(root);
-  const answer = stack.run(readHelp(root), { from: 'src/index.ts' }, { root });
+  const answer = stack.run((await readNativeHelp(root)), { from: 'src/index.ts' }, { root });
   expect(answer).toContain('    skill encrypted: node_modules/env-kit/skills/encrypted/SKILL.md — Rotate the keys a vault holds.');
 });
 
@@ -96,7 +96,7 @@ it('reads a skill added to a package that already shipped skills', async () => {
   mkdirSync(join(root, 'node_modules/env-kit/skills/added'));
   writeFileSync(join(root, 'node_modules/env-kit/skills/added/SKILL.md'), '---\nname: added\ndescription: Arrived after the first refresh.\n---\n');
   await refreshDependencyLexicon(root);
-  const answer = stack.run(readHelp(root), { from: 'src/index.ts' }, { root });
+  const answer = stack.run((await readNativeHelp(root)), { from: 'src/index.ts' }, { root });
   expect(answer).toContain('    skill added: node_modules/env-kit/skills/added/SKILL.md — Arrived after the first refresh.');
 });
 
@@ -104,7 +104,7 @@ it('reads a SKILL.md written into a skill folder that held none', async () => {
   const root = await workspace();
   writeFileSync(join(root, 'node_modules/env-kit/skills/empty/SKILL.md'), '---\nname: filled\ndescription: Written after the folder was read.\n---\n');
   await refreshDependencyLexicon(root);
-  const answer = stack.run(readHelp(root), { from: 'src/index.ts' }, { root });
+  const answer = stack.run((await readNativeHelp(root)), { from: 'src/index.ts' }, { root });
   expect(answer).toContain('    skill filled: node_modules/env-kit/skills/empty/SKILL.md — Written after the folder was read.');
 });
 
@@ -116,7 +116,7 @@ it('reads no SKILL.md that a link inside the package points outside it', async (
   symlinkSync(join(root, 'outside/folder'), join(root, 'node_modules/env-kit/skills/borrowed'));
   symlinkSync(join(root, 'outside/file.md'), join(root, 'node_modules/env-kit/skills/empty/SKILL.md'));
   await refreshDependencyLexicon(root);
-  const answer = stack.run(readHelp(root), { from: 'src/index.ts' }, { root });
+  const answer = stack.run((await readNativeHelp(root)), { from: 'src/index.ts' }, { root });
   expect(answer).toContain('    skill encrypted: node_modules/env-kit/skills/encrypted/SKILL.md');
   expect(answer).not.toContain('borrowed');
   expect(answer).not.toContain('linked');

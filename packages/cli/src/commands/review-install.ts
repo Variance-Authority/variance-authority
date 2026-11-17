@@ -100,7 +100,7 @@ export function packagesReached(
  */
 function importedPackage(
   relations: Relations,
-  walked: Uint8Array,
+  walked: ArrayLike<number>,
   file: NodeId,
   chainOf: (id: NodeId) => readonly string[],
   row?: RelationRow,

@@ -1,9 +1,10 @@
+import { readWorkspace as readNativeHelp } from './read.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { type Entry, everyEntry, readHelp, undocumented } from './help.js';
+import { type Entry, everyEntry, undocumented } from '@variance-authority/package/help';
 
-const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
+const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), '../../package/src/__fixtures__/workspace');
 
 function entry(name: string, help = HELP): Entry {
   const found = [...everyEntry(help)].find(([, , candidate]) => candidate.name === name);
@@ -11,7 +12,7 @@ function entry(name: string, help = HELP): Entry {
   return found[2];
 }
 
-const HELP = readHelp(WORKSPACE);
+const HELP = (await readNativeHelp(WORKSPACE));
 
 describe('a workspace read three ways and joined', () => {
   it('is one entry per package that says it may be published', () => {
@@ -76,8 +77,8 @@ describe('a workspace read three ways and joined', () => {
     expect(HELP.unreadable).toEqual([]);
   });
 
-  it('reads the same workspace the same way twice', () => {
-    expect(readHelp(WORKSPACE)).toEqual(HELP);
+  it('reads the same workspace the same way twice', async () => {
+    expect((await readNativeHelp(WORKSPACE))).toEqual(HELP);
   });
 });
 
@@ -106,8 +107,8 @@ describe('the documentation gap', () => {
   });
 });
 
-const NEAR = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/near');
-const NEARBY = readHelp(NEAR);
+const NEAR = join(dirname(fileURLToPath(import.meta.url)), '../../package/src/__fixtures__/near');
+const NEARBY = (await readNativeHelp(NEAR));
 
 function near(name: string): Entry {
   return entry(name, NEARBY);

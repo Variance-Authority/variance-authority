@@ -1,11 +1,12 @@
+import { readWorkspace as readNativeHelp } from './read.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { readHelp, type Entry, type Help, type Opening } from './help.js';
-import { opening, writeGaps, writeIndex, writeLlms } from './write.js';
+import { type Entry, type Help, type Opening } from '@variance-authority/package/help';
+import { opening, writeGaps, writeIndex, writeLlms } from '@variance-authority/package/help';
 
-const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
-const HELP = readHelp(WORKSPACE);
+const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), '../../package/src/__fixtures__/workspace');
+const HELP = (await readNativeHelp(WORKSPACE));
 const PAGE = { title: 'Fixture workspace', summary: 'Three packages, read from disk.' };
 
 describe('the short page', () => {

@@ -1,6 +1,6 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { readWorkspace } from '../read.js';
 import { publishWorkspaceFromIndex } from '../refresh-native.js';
@@ -59,7 +59,7 @@ afterAll(() => vi.unstubAllEnvs());
 // stage's walk of the disk, Help's join over the source index's parses, and the
 // scanner's, which refreshes what was published last.
 describe.each<[string, () => Promise<SearchIndex>]>([
-  ['read off the disk', async () => searchIndexOf(readHelp(root))],
+  ['read off the disk', async () => searchIndexOf((await readNativeHelp(root)))],
   ['read through the source index', async () => searchIndexOf(await readWorkspace(root))],
   ['refreshed by the scanner', async () => {
     await publishWorkspaceFromIndex(root, { readStartedAt: new Date().toISOString() });
@@ -98,7 +98,7 @@ describe.each<[string, () => Promise<SearchIndex>]>([
 
 // A word only a signature holds reaches no name, and shows no row in a better one's place.
 it('show no row in the place of a better one for a word only its signature holds', async () => {
-  const index = searchIndexOf(readHelp(root));
+  const index = searchIndexOf((await readNativeHelp(root)));
   const row = (at: string, words: string[], signed: string[] = []): DescribedDeclaration => ({
     match: { source: 'declared', name: `${at}Kept`, kind: 'function', at, line: 1 },
     words, named: [], signed, near: 0, rows: 0, rank: Number.MAX_SAFE_INTEGER, docLength: 40,
@@ -109,7 +109,7 @@ it('show no row in the place of a better one for a word only its signature holds
 });
 
 it('keep no row in view for a word only its signature holds, in the place of one holding a word nothing shown holds', async () => {
-  const index = searchIndexOf(readHelp(root));
+  const index = searchIndexOf((await readNativeHelp(root)));
   const row = (at: string, words: string[], signed: string[] = []): DescribedDeclaration => ({
     match: { source: 'declared', name: `${at}Kept`, kind: 'function', at, line: 1 },
     words, named: [], signed, near: 0, rows: 0, rank: Number.MAX_SAFE_INTEGER, docLength: 40,

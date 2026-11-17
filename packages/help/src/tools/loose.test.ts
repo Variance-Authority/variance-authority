@@ -1,9 +1,10 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import MiniSearch from 'minisearch';
 import { describe, expect, it } from 'vitest';
 import type { Help, Named } from '@variance-authority/package/help';
-import { everyEntry, readHelp } from '@variance-authority/package/help';
+import { everyEntry, } from '@variance-authority/package/help';
 import { SPACE_OR_PUNCTUATION, openSearchIndex } from '../search-index.js';
 import { encodeStore } from '../store-encode.js';
 import { looseNames } from './loose.js';
@@ -86,8 +87,8 @@ const odd = (name: string): Named => ({
 /** A doc writes a name in a code span, and the span's backticks are not part of a word. */
 const SPANNED: Named = { ...odd('declaredRoles'), doc: 'The roles docs declare with `@testOnly` and `@production`.' };
 
-const HELP: Help = (() => {
-  const read = readHelp(WORKSPACE);
+const HELP: Help = (async () => {
+  const read = (await readNativeHelp(WORKSPACE));
   const extra = ['größe', 'Größenordnung', 'naïveCache', 'x', 'a_b', 'emoji😀Name', 'measureAll', 'mesure', 'ÅngströmUnit', 'parseHTTPResponse2', 'v8Flags', 'ΣύνολοΤιμών'];
   return { ...read, exported: [...read.exported, ...extra.map(odd), SPANNED] };
 })();

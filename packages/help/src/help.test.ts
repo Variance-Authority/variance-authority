@@ -1,11 +1,10 @@
+import { readWorkspace as readNativeHelp } from './read.js';
 import { PassThrough } from 'node:stream';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import * as packageHelp from '@variance-authority/package/help';
-import { readHelp } from '@variance-authority/package/help';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HELP, HELP_TOOLS, audience } from './tools.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';
@@ -13,7 +12,7 @@ import { FoundNothing } from './tools/find.js';
 import { publishing } from './__fixtures__/published-then-written.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
-const READING = readHelp(WORKSPACE);
+const READING = (await readNativeHelp(WORKSPACE));
 
 function call(name: string, args: Record<string, unknown> = {}): string {
   const tool = HELP_TOOLS.find((candidate) => candidate.name === name);
@@ -471,10 +470,7 @@ describe('the same answers as files', () => {
   it('writes four, and names the workspace from its own manifest', async () => {
     const out = await mkdtemp(join(tmpdir(), 'help-pages-'));
     try {
-      const walked = vi.spyOn(packageHelp, 'readHelp');
       const written = await writePages(WORKSPACE, out);
-      expect(walked).not.toHaveBeenCalled();
-      walked.mockRestore();
       expect(written.map((file) => file.at.slice(out.length + 1))).toEqual([
         'llms.txt',
         'help-index.md',

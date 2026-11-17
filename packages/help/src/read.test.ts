@@ -1,3 +1,4 @@
+import { readWorkspace as readNativeHelp } from './read.js';
 import { execFileSync } from 'node:child_process';
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -5,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { type Tree } from '@variance-authority/mcp/tools';
-import { readHelp, type Help } from '@variance-authority/package/help';
+import { type Help } from '@variance-authority/package/help';
 import { restampHelpStore } from '@variance-authority/sense';
 import { publishedHead, readWorkspaceSnapshot, workspaceGeneration, workspaceReadStarted, workspaceSnapshotPath } from './snapshot.js';
 import { readWorkspace, readWorkspaceForAnswer, refreshWorkspace } from './read.js';
@@ -19,7 +20,7 @@ let indexed: Help;
 
 beforeAll(async () => {
   index = join(await mkdtemp(join(tmpdir(), 'help-index-')), 'source-index.bin');
-  walked = readHelp(WORKSPACE);
+  walked = (await readNativeHelp(WORKSPACE));
   indexed = await readWorkspace(WORKSPACE, { index });
 });
 

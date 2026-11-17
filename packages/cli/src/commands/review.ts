@@ -320,9 +320,11 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const notUpdated = await indexUpToCheckout(root);
   // One it could not names the tree as the last update found it, so it names no text the record could have run as the tree.
   const graph = await sourceGraphFor(root, ['.']);
-  const { relations, sources } = graph;
-  const names = notUpdated === undefined ? graph.names : new Map<string, string>();
+  const { relations } = graph;
   const changed = changedLines(forward);
+  const sources = graph.sources([...changed.keys()]);
+  const queryNames = (files: readonly string[]) => notUpdated === undefined ? graph.names(files) : new Map<string, string>();
+  const names = queryNames([...changed.keys()]);
   const reading = readJourneyChange(forward, textsAt(await prefetch(point, [...changed.keys()], named)), {
     root,
     relations,
@@ -387,8 +389,8 @@ export async function review(request: ParsedReview, { motion: moves = true } = {
   const gap = await probesGap(from, root, request.suite);
   // The baseline is the mainline's record whatever base the cases were read from, fetched here when nothing asked for it yet.
   const drift: ReviewDrift = runs === undefined ? { unchecked: 'no runs record stands beside this record, so which test files this change observed whole is not known' } : await readReviewDrift({
-    root, declared: recorded.declared, record: own, runs, point, named, changed: [...changed.keys()], relations, sources, installed: beyond,
-    commit: head?.commit, rowBlobs: (files) => rowBlobs(recorded.file, files), blobOf: (file) => names.get(file),
+    root, declared: recorded.declared, record: own, runs, point, named, changed: [...changed.keys()], relations, sources: graph.sources, installed: beyond,
+    commit: head?.commit, rowBlobs: (files) => rowBlobs(recorded.file, files), names: queryNames,
     mainline: shared ?? (await mainlineBase(root, recorded.declared)),
   });
   return {

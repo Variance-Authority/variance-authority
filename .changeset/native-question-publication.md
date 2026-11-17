@@ -1,6 +1,10 @@
 ---
 '@variance-authority/help': minor
 '@variance-authority/sense': minor
+'@variance-authority/package': minor
+'@variance-authority/core': minor
+'@variance-authority/cli': minor
+'@variance-authority/mcp': minor
 ---
 
 Workspace questions keep source facts in the native index
@@ -13,3 +17,11 @@ The `records` and arbitrary `taints` options of workspace reads are removed.
 Use the `tree` callback to query the published graph. Test loads of real modules
 beside mocks remain in that graph. Workspace snapshots also use `tree` in place
 of `records`; old runtime callbacks receive an explicit refusal.
+
+Source-backed selection and name questions use batched native graph queries.
+The graph stays in Rust, including journey selection. The former JavaScript
+scanner, whole-index record readers and mutable source caches are removed.
+
+The standalone `@variance-authority/package/help` `readHelp` and `assembleHelp`
+APIs are removed. Use `await readWorkspace(root)` from `@variance-authority/help`.
+`writePages` is now asynchronous and uses that same reader.

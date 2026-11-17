@@ -1,3 +1,4 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -5,7 +6,6 @@ import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
 import type { FileRecord } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { searchNames } from '../tools.js';
@@ -59,7 +59,7 @@ async function workspace(more: Readonly<Record<string, string>> = {}, lexicon = 
 it('offers a name only from the workspace whose manifest declares it, not from one that merely reaches it', async () => {
   const root = await workspace();
   const tree = treeOf([reads('packages/alpha/src/index.ts'), reads('packages/beta/src/index.ts', 'packages/alpha/src/index.ts')], root);
-  const index = searchIndexOf(readHelp(root));
+  const index = searchIndexOf((await readNativeHelp(root)));
   const total = (query: string, from: string): number | undefined => searchNames(index, { query, from }, tree, root).thirdParty?.total;
   expect(total('alphaOnlyName', 'packages/beta/src/index.ts')).toBe(0);
   expect(total('betaOwnName', 'packages/beta/src/index.ts')).toBe(1);
@@ -73,7 +73,7 @@ it('offers a name only from the workspace whose manifest declares it, not from o
   expect(said('alphaOnlyName', 'packages/beta/src/index.ts')).toContain(
     'No third-party name matches `alphaonlyname`. Third-party names searched: 1 package under packages/beta/package.json.',
   );
-  expect(symbol.run(readHelp(root), { name: 'betaOwnName' }, { root })).toContain(
+  expect(symbol.run((await readNativeHelp(root)), { name: 'betaOwnName' }, { root })).toContain(
     '@1.0.0 · dependency in packages/beta/package.json · not imported',
   );
 });
@@ -83,7 +83,7 @@ it('answers an installed name a workspace file passes on as well as the file tha
     'packages/beta/src/fixtures.ts': "import { betaOwnName } from 'beta-kit';\nexport { betaOwnName };\n",
   });
 
-  const said = symbol.run(readHelp(root), { name: 'betaOwnName' }, { root });
+  const said = symbol.run((await readNativeHelp(root)), { name: 'betaOwnName' }, { root });
   expect(said).toContain('exported, without being published, at packages/beta/src/fixtures.ts:');
   expect(said).toContain('beta-kit · betaOwnName [const] · beta-kit@1.0.0');
 });
@@ -91,7 +91,7 @@ it('answers an installed name a workspace file passes on as well as the file tha
 it('answers a workspace export when no lexicon of installed names is published', async () => {
   const root = await workspace({ 'packages/beta/src/fixtures.ts': 'export const fixtureOnly = 1;\n' }, false);
 
-  expect(symbol.run(readHelp(root), { name: 'fixtureOnly' }, { root })).toContain(
+  expect(symbol.run((await readNativeHelp(root)), { name: 'fixtureOnly' }, { root })).toContain(
     'exported, without being published, at packages/beta/src/fixtures.ts:1',
   );
 });

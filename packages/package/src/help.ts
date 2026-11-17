@@ -1,9 +1,6 @@
-import { relative, resolve } from 'node:path';
-import { type Offering, type OfferingOptions, readOfferings } from './manifest.js';
-import { createReader, namesReachedBy, type Names, type Reached } from './reach.js';
-import { type Mention, type Readmes, readMention, readmes } from './mention.js';
-import { type Deep, type Named, type Usage, type UsageOptions, type Use } from './use.js';
-import { readUsage } from './read-usage.js';
+import type { OfferingOptions } from './manifest.js';
+import type { Mention } from './mention.js';
+import { type Deep, type Named, type UsageOptions, type Use } from './use.js';
 
 /**
  * What a workspace publishes, what it says about it, and what uses it.
@@ -149,42 +146,7 @@ export interface Help {
   readonly unreadable: readonly string[];
 }
 
-export interface HelpOptions extends OfferingOptions, UsageOptions {
-  /**
-   * What the repository already imports, when something read it already.
-   *
-   * The third reading is the expensive one — every module file in the
-   * repository, opened and parsed — and it is the one most likely to have been
-   * done. A caller holding a cached, incremental reading of the same tree passes
-   * it here and this reads the manifests and the entrypoints only.
-   */
-  readonly usage?: Usage;
-}
-
-/**
- * Who imports a name, and how often.
- *
- * A package importing its own name is excluded from `usedBy` and counted in
- * `uses`. Both halves of that are deliberate: a package's own tests import its
- * barrel constantly, so counting them as consumers would make every name look
- * load-bearing, and dropping them entirely would lose the fact that the name is
- * exercised at all. A read off the module's `default` is kept apart, in
- * `throughDefault`: it reads the name only when the module is CommonJS.
- */
-export function reachedFrom(usage: Usage, key: string, name: string, owner: string): Pick<Entry, 'usedBy' | 'uses' | 'sites' | 'throughDefault'> {
-  const held = usage.names.get(key)?.get(name) ?? [];
-  const uses = held.filter((use) => use.through?.throughDefault !== true);
-  const by: string[] = [];
-  for (const use of uses) {
-    if (use.by !== owner && !by.includes(use.by)) by.push(use.by);
-  }
-  return { usedBy: by, uses: uses.length, sites: uses, throughDefault: held.filter((use) => use.through?.throughDefault === true) };
-}
-
-/** Every place the module behind `key` goes on whole, recorded as the name `*`. */
-export function passedOn(usage: Usage, key: string): readonly Use[] {
-  return usage.names.get(key)?.get('*') ?? [];
-}
+export interface HelpOptions extends OfferingOptions, UsageOptions {}
 
 /**
  * The places outside `owner` that may read `entry` and are no use of it: reads
@@ -203,106 +165,6 @@ export function mayBeRead(places: readonly Use[]): string {
     ...(places.length > off ? [`${places.length - off} passing the module on whole`] : []),
   ];
   return `may be read in ${places.length} ${places.length === 1 ? 'place' : 'places'}: ${parts.join(', ')}`;
-}
-
-function entryOf(
-  name: string,
-  kinds: ReadonlyMap<string, Reached>,
-  reached: Pick<Entry, 'usedBy' | 'uses' | 'sites' | 'throughDefault'>,
-  found: (at: string) => Mention | undefined,
-): Entry {
-  // The kinds of one name are one thing declared once — an interface merged with
-  // a const is written in one place, under one comment — so the first of them
-  // carries the place and the prose, and the rest contribute their word.
-  const [first] = [...kinds.values()];
-  if (first === undefined) throw new Error(`\`${name}\` was reached with no declaration behind it`);
-
-  const mention = first.doc === undefined ? found(first.at) : undefined;
-
-  return {
-    name,
-    kind: [...kinds.keys()].sort().join('+'),
-    at: first.at,
-    declared: first.declared,
-    line: first.line,
-    ...(first.signature === undefined ? {} : { signature: first.signature }),
-    ...(first.doc === undefined ? {} : { doc: first.doc }),
-    ...(mention === undefined ? {} : { mention }),
-    ...reached,
-  };
-}
-
-/**
- * Read a workspace's active, documented API.
- *
- * Entries within a subpath are ordered by how much of the repository reaches for
- * them, then by name. That ordering is the product rather than a presentation
- * choice: everything downstream truncates somewhere, and what survives the
- * truncation should be what somebody was most likely to ask about.
- */
-export function readHelp(root: string, options: HelpOptions = {}): Help {
-  const where = resolve(root);
-  const offerings = readOfferings(where, options);
-
-  const entrypoints = new Map<string, string>();
-  for (const offering of offerings) {
-    for (const entry of offering.entrypoints) {
-      entrypoints.set(`${offering.name} ${entry.subpath}`, entry.source);
-    }
-  }
-
-  const reader = createReader(where, entrypoints);
-  const usage = options.usage ?? readUsage(where, new Set(entrypoints.keys()), options, reader.parses);
-
-  return assembleHelp(where, offerings, usage, (source) => namesReachedBy(reader, source));
-}
-
-/** Join manifests, declarations and usage after a caller has already read the source. */
-export function assembleHelp(
-  root: string,
-  offerings: readonly Offering[],
-  usage: Usage,
-  namesOf: (source: string) => Names,
-): Help {
-  const where = resolve(root);
-
-  // One cache for one reading, and one lookup per declaring file: a barrel and a
-  // subpath publishing the same declaration ask the same question twice.
-  const held: Readmes = readmes();
-  const mentions = new Map<string, Mention | undefined>();
-  const mentionOf = (name: string) => (at: string) => {
-    const key = `${at} ${name}`;
-    if (!mentions.has(key)) mentions.set(key, readMention(where, at, name, held));
-    return mentions.get(key);
-  };
-
-  const packages = offerings.map((offering) => ({
-    name: offering.name,
-    entry: offering.entry,
-    openings: offering.entrypoints.map((entry) => {
-      const key = `${offering.name} ${entry.subpath}`;
-      const entries = [...namesOf(entry.source)]
-        .map(([name, kinds]) =>
-          entryOf(name, kinds, reachedFrom(usage, key, name, offering.name), mentionOf(name)),
-        )
-        .sort(
-          (a, b) =>
-            b.usedBy.length - a.usedBy.length ||
-            b.uses - a.uses ||
-            (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
-        );
-      return { subpath: entry.subpath, source: relative(where, entry.source), entries, whole: passedOn(usage, key) };
-    }),
-  }));
-
-  return {
-    packages,
-    deep: usage.deep,
-    byPath: usage.byPath,
-    unfollowed: usage.unfollowed,
-    exported: usage.exported,
-    unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
-  };
 }
 
 /** Every entry of a reading, flattened, with the package and subpath each came from. */

@@ -29,7 +29,7 @@ import {
   rootConfig,
   rootConfigOf,
   whatLanded,
-  undone,
+  baseRelations,
   type BaseEdges,
   type ChangedText,
   type CommitRuns,
@@ -39,7 +39,7 @@ import {
 } from '@variance-authority/sense/test-selection';
 import { decidesResolution, workingTreeChanges } from '@variance-authority/sense';
 import { LOCKFILES } from '@variance-authority/sense/lock';
-import { idOf, type Relations } from '@variance-authority/core/relate';
+import { lookupNodes, type Relations } from '@variance-authority/core/relate';
 import { filesBetween } from './base-diff.js';
 import { installDiffBetween, type DiffPoint, type InstallDiff } from './installed.js';
 import { mainlineMissed, type MainlineBase } from './mainline-base.js';
@@ -116,7 +116,10 @@ export function reviewDrift(input: DriftInput): ReviewDrift {
   }
   if ('missing' in input.since) return { unchecked: `this record's runs could not be compared with the checkout: ${input.since.missing}` };
   const recorded = new Set([...baseline.coverage.modules, ...head.coverage.modules].map((module) => module.file));
-  const walked = (file: string) => idOf(relations, 'file', file) !== undefined || input.sources.has(file) || recorded.has(file) || resolves(file);
+  const candidates = [...new Set([...input.since, ...input.strayed, ...(input.between ?? [])])];
+  const nodes = lookupNodes(relations, candidates.map((name) => ({ kind: 'file', name })));
+  const indexed = new Set(candidates.filter((_, at) => nodes[at] != null));
+  const walked = (file: string) => indexed.has(file) || input.sources.has(file) || recorded.has(file) || resolves(file);
   // The head is walked as the checkout stands, so a file the walk reads that moved since the runs, and that they did not run as it stands, walks a graph they did not run.
   const stale = input.since.find((file) => walked(file) && !input.ran.has(file)) ?? input.strayed.find(walked);
   if (stale !== undefined) {
@@ -191,7 +194,7 @@ export interface DriftSources {
   /** The root-relative files the change touched. */
   readonly changed: readonly string[];
   readonly relations: Relations;
-  readonly sources: ReadonlySet<string>;
+  readonly sources: (files: readonly string[]) => ReadonlySet<string>;
   /** What the change installed differently, as `review` read it. */
   readonly installed: InstallDiff | undefined;
   /** The commit the checkout stands at, or `undefined` when git named none. */
@@ -199,7 +202,7 @@ export interface DriftSources {
   /** The git blob name of every text this checkout's record cut rows of each of `files` from (`rowBlobs`). */
   readonly rowBlobs: (files: readonly string[]) => ReadonlyMap<string, ReadonlySet<string>>;
   /** The git blob name the source index gives a file as the checkout holds it. */
-  readonly blobOf: (file: string) => string | undefined;
+  readonly names: (files: readonly string[]) => ReadonlyMap<string, string>;
 }
 
 /** {@link reviewDrift} over the records and texts `review` holds. */
@@ -215,7 +218,8 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     : await observedAt(from.runs.commit, from.record, 'this record');
   const between = 'missing' in baseline || baseline.commit === point.base ? undefined : await filesBetween(baseline.commit, point.base, root).catch((error: unknown) => (error instanceof Error ? error.message : String(error)));
   const suite = declared?.name;
-  const changes = await Promise.all(from.changed.filter((file) => from.sources.has(file) || !existsSync(resolve(root, file))).map(async (file) => textsOf(from, file)));
+  const changedSources = from.sources(from.changed);
+  const changes = await Promise.all(from.changed.filter((file) => changedSources.has(file) || !existsSync(resolve(root, file))).map(async (file) => textsOf(from, file)));
   const base = baseEdgesOf(root, from.relations, changes);
   const before = beforeOf(root, suite);
   const since = from.runs?.commit === undefined ? [] : await movedSince(root, point.repository, from.runs.commit, from.commit);
@@ -227,7 +231,7 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     : await movedBetweenOf(root, suite, from.relations, base, baseline.commit, point.base, baseBefore, between);
   return reviewDrift({
     relations: from.relations,
-    sources: from.sources,
+    sources: from.sources([...from.changed, ...(typeof between === 'object' ? between : []), ...('missing' in since ? [] : since), ...('missing' in head ? [] : head.coverage.modules.map((module) => module.file))]),
     before,
     baseBefore,
     unrelated: declared?.relations === false,
@@ -241,7 +245,7 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
     present: (test) => existsSync(resolve(root, test)),
     changed: from.changed,
     since,
-    ...atTree(from, 'missing' in since ? [] : since, 'missing' in head ? [] : head.coverage.modules.map((module) => module.file).filter((file) => from.sources.has(file))),
+    ...atTree(from, 'missing' in since ? [] : since, 'missing' in head ? [] : [...from.sources(head.coverage.modules.map((module) => module.file))]),
   });
 }
 
@@ -252,9 +256,11 @@ export async function readReviewDrift(from: DriftSources): Promise<ReviewDrift> 
  * name. A file whose rows keep none is not judged.
  */
 function atTree(from: DriftSources, since: readonly string[], recorded: readonly string[]): { readonly ran: ReadonlySet<string>; readonly strayed: readonly string[] } {
-  const blobs = from.rowBlobs([...new Set([...since, ...recorded])]);
+  const files = [...new Set([...since, ...recorded])];
+  const blobs = from.rowBlobs(files);
+  const names = from.names(files);
   const asTree = (file: string) => {
-    const blob = from.blobOf(file);
+    const blob = names.get(file);
     return blob !== undefined && blobs.get(file)?.has(blob) === true;
   };
   return { ran: new Set(since.filter(asTree)), strayed: recorded.filter((file) => blobs.has(file) && !asTree(file)) };
@@ -282,7 +288,7 @@ async function movedSince(root: string, repository: string, commit: string, chec
 export async function movedBetweenOf(root: string, suite: string | undefined, relations: Relations, edges: BaseEdges, commit: string, base: string, baseBefore: readonly string[], between: readonly string[]): Promise<string | undefined> {
   const then = await beforeAt(root, await commitPoint(commit, [], root), suite, "the mainline record's commit");
   if ('missing' in then) return `may have declared \`before\` differently: ${then.missing}`;
-  return await movedUnder({ ...relations, depends: undone(relations, edges) }, [then, baseBefore], between, async () => installDiffBetween(commit, base, between, root));
+  return await movedUnder(baseRelations(relations, edges), [then, baseBefore], between, async () => installDiffBetween(commit, base, between, root));
 }
 
 /** The record at `file`, with the test files the runs beside it observed whole at `commit`. */

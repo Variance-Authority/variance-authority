@@ -47,7 +47,7 @@ What it reads to find your packages:
 | A `pnpm-workspace.yaml` | Its `packages:` list, read the same way when the root `package.json` lists no `workspaces`. A directory whose manifest is a `package.yaml` is a package too. |
 | A member list that is not a list of globs | Throws an error naming the file: a `pnpm-workspace.yaml` that is not YAML or not a mapping, and a `workspaces` or `packages:` entry that is empty or is not a string. |
 | A repository with one package and no `workspaces` | Read as a single package. This is a supported case, not a degenerate one. |
-| A repository with no root `package.json` | Publishes nothing, which is an answer rather than an error. `readHelp` still reads every name the source exports. |
+| A repository with no root `package.json` | Publishes nothing, which is an answer rather than an error. `readWorkspace` still reads every name the source exports. |
 | `private: true` | The only filter. A private package is skipped. |
 | The shape of `exports` | Read as Node reads it. A string, an array of fallbacks, and an object with no key that starts with `.` all open the one subpath `.`. An object whose keys all start with `.` lists subpaths. An object that mixes the two throws an error naming the manifest, because Node refuses to load it. |
 | A custom condition | Taken when the package's `tsconfig.json`, through its `extends` chain, names it in `customConditions` and it is written before `types`. `"@zod/source": "./src/index.ts"` opens that source, not a declaration file only a build writes. |
@@ -114,15 +114,16 @@ what kind of thing it is.
 
 ## Rank names and find undocumented exports
 
-`readHelp` is the same walk with two more readings taken: what was
+`readWorkspace` from `@variance-authority/help` reads the native source index for what was
 written above each name — its **doc**, the block comment attached to the
 declaration — and which packages import it. Names come back ordered by how
 many packages import them, so the ones most consumers depend on sort first.
 
 ```ts
-import { readHelp, undocumented } from '@variance-authority/package/help';
+import { undocumented } from '@variance-authority/package/help';
+import { readWorkspace } from '@variance-authority/help';
 
-const help = readHelp('.', { skip: ['fixtures'] });
+const help = await readWorkspace('.', { skip: ['fixtures'] });
 
 for (const published of help.packages) {
   for (const opening of published.openings) {
@@ -136,7 +137,7 @@ for (const entry of undocumented(help)) {
 }
 ```
 
-`openings` is the `readHelp` name for what the surface calls `names`: one entry
+`openings` is the `readWorkspace` name for what the surface calls `names`: one entry
 per subpath the manifest opens, made of that subpath, the source file behind
 it, and the ranked `entries`. `skip` adds directory names the walk never
 descends into, on top of the defaults `node_modules`, `coverage`, `build`,
@@ -196,7 +197,7 @@ manifest never promised to keep stable. A subpath `exports`
 names exactly is not one of them, even when its source could not be read: that
 subpath is listed in `help.unreadable` instead. Each import carries the names it
 takes, and `to`, the file the specifier resolves to, when the reading resolved
-it: the index's scan does, `readHelp` on its own does not.
+it. The native source index resolves those imports.
 
 ```json
 [{ "specifier": "@acme/parser/src/parse.js", "by": "@acme/app", "at": "packages/app/src/deepuse.ts", "line": 1,
@@ -213,25 +214,14 @@ the expected answer.
 
 ### Reuse a reading you already paid for
 
-The third reading — every module file in the repository, opened and parsed — is
-the expensive one. `readUsage` produces it, and `usage` hands it back so
-`readHelp` reads the manifests and the entrypoints only. `readUsage` takes the
-set of `<package> <subpath>` keys the manifests open, which `readOfferings`
-gives you:
+`readWorkspace` updates and reuses its native source index. An unchanged file
+is neither read nor parsed again. Call it again after editing the checkout;
+there is no JavaScript usage table to pass back into the reader.
 
 ```ts
-import { readOfferings } from '@variance-authority/package';
-import { readHelp, readUsage } from '@variance-authority/package/help';
+import { readWorkspace } from '@variance-authority/help';
 
-const opened = new Set(
-  readOfferings('.').flatMap((offering) =>
-    offering.entrypoints.map((entry) => `${offering.name} ${entry.subpath}`),
-  ),
-);
-
-const usage = readUsage('.', opened);
-
-readHelp('.', { usage }); // the same value, without re-reading the tree
+const help = await readWorkspace('.');
 ```
 
 ## Compare two readings
@@ -345,11 +335,11 @@ graph or its release history.
 
 `readSurface` records each name as what kind of thing it is (function,
 interface, `const`, and so on) and nothing more, so **a signature that changes
-under a name that does not is a change the surface misses**. `readHelp`
+under a name that does not is a change the surface misses**. `readWorkspace`
 returns the head of each declaration — everything written before the body —
 for a consumer that needs to watch signatures too.
 
-A site is an import, not a call. `readHelp` records the line a name was brought
+A site is an import, not a call. `readWorkspace` records the line a name was brought
 into a file on, and where it is used inside that file is a question for a
 language server.
 

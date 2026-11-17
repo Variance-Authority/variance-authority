@@ -1,7 +1,7 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { realpathSync } from 'node:fs';
 import { afterEach, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { areaOf, type Area } from './area.js';
@@ -48,7 +48,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       ...kit('a-kit', 'export interface Placement {\n  readonly shard: number;\n}\n'),
       ...kit('b-kit', '/** Where a case was placed: the file it is in, at the commit it ran at, and the text of that file then. */\nexport interface Placement {\n  readonly at: string;\n}\n'),
     });
-    const index = searchIndexOf(readHelp(root));
+    const index = searchIndexOf((await readNativeHelp(root)));
     const placement = index.namesContaining('placement').find((name) => index.name(name) === 'Placement') as number;
     const rows = [...index.publishedOf(placement)];
     const held = rows.find((row) => index.published(row).doc !== undefined);
@@ -92,7 +92,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
   it('shows a name through the exported row whose doc holds the words, not the published row with none', async () => {
     const doc = '/** Where a case was placed: the file it is in, at the commit it ran at, and the text of that file then. */\n';
     const root = await placedTwice('', doc);
-    const index = searchIndexOf(readHelp(root));
+    const index = searchIndexOf((await readNativeHelp(root)));
     const reached = reachedBy(index, 'text of a file at a commit')?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('exported');
     const said = answerSearch(index, { query: 'text of a file at a commit' }, treeOf([], root), root);
@@ -103,7 +103,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
 
   it('weighs and shows a name through its published row when an exported doc as long adds as many other words', async () => {
     const root = await placedTwice('/** Kept with the text it holds. */\n', '/** Kept at the commit, as read. */\n');
-    const index = searchIndexOf(readHelp(root));
+    const index = searchIndexOf((await readNativeHelp(root)));
     const [exportedRow] = [...index.exportedOf(placementOf(index))];
     const reached = reachedBy(index, 'commit text')?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('published');
@@ -116,7 +116,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
 
   it('weighs and shows a name through the shorter of two docs adding as many other words, though the longer is published', async () => {
     const root = await placedTwice('/** Where a case was put: the file it is in and the text of that file then, kept while the run is read. */\n', '/** At a commit. */\n');
-    const index = searchIndexOf(readHelp(root));
+    const index = searchIndexOf((await readNativeHelp(root)));
     const reached = reachedBy(index, 'commit text')?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('exported');
     expect(reached?.words).toEqual(['commit']);
@@ -142,7 +142,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
         'b-kit': { 'index.ts': `${second}export interface Placement {\n  readonly at: string;\n}\n` },
         'c-kit': { 'index.ts': 'export const kit = 1;\n', 'inner.ts': '/** The text of a commit. */\nexport interface Placement {\n  readonly at: string;\n}\n' },
       });
-      const index = searchIndexOf(readHelp(root));
+      const index = searchIndexOf((await readNativeHelp(root)));
       const reached = reachedBy(index, 'commit text shard')?.find((one) => one.name === placementOf(index));
       const line = answerSearch(index, { query: 'commit text shard' }, treeOf([], root), root).split('\n').find((one) => one.includes('Placement'));
       return { through: reached?.through.kind, words: reached?.words, line };
@@ -153,28 +153,28 @@ describe('which row a described name is weighed, ordered and shown through', () 
   });
 
   /** Each described row for `query` as its name, the row it is shown through, its doc and the words it holds. */
-  const describedBy = (root: string, query: string): unknown =>
-    searchNames(searchIndexOf(readHelp(root)), { query }).described?.shown.map((one) =>
+  const describedBy = async (root: string, query: string): Promise<unknown> =>
+    searchNames(searchIndexOf((await readNativeHelp(root))), { query }).described?.shown.map((one) =>
       [one.name, 'specifier' in one ? one.specifier : one.at, 'summary' in one ? one.summary : undefined, one.words]);
   // Both docs are 31 bytes and add one word of three as rare as the other's, so the two rows weigh alike.
   const TEXT = '/** Kept with its text at a commit. */\n';
   const PAGE = '/** Kept with its page at a commit. */\n';
 
   it('weighs and shows a name published twice through the same row whatever its packages are called, at a tie on all else', async () => {
-    const placed = async (first: string): Promise<unknown> => describedBy(await kits({
+    const placed = async (first: string): Promise<unknown> => (await describedBy(await kits({
       [first]: { 'index.ts': `${TEXT}export interface Placement {\n  readonly at: string;\n}\n` },
       'b-kit': { 'index.ts': `${PAGE}export interface Placement {\n  readonly at: string;\n}\n` },
-    }), 'commit text page');
+    }), 'commit text page'));
     const shown = [['Placement', 'b-kit', 'Kept with its page at a commit.', ['commit', 'page']]];
     expect(await placed('a-kit')).toEqual(shown);
     expect(await placed('z-kit')).toEqual(shown);
   });
 
   it('weighs and shows a name exported twice through the same row whatever its files are called, at a tie on all else', async () => {
-    const placed = async (first: string): Promise<unknown> => describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+    const placed = async (first: string): Promise<unknown> => (await describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       [first]: `${TEXT}export interface Placement {\n  readonly at: string;\n}\n`,
       'src/b.ts': `${PAGE}export interface Placement {\n  readonly at: string;\n}\n`,
-    }), 'commit text page');
+    }), 'commit text page'));
     const shown = [['Placement', 'src/b.ts', 'Kept with its page at a commit.', ['commit', 'page']]];
     expect(await placed('src/a.ts')).toEqual(shown);
     expect(await placed('src/c.ts')).toEqual(shown);
@@ -182,7 +182,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
 
   it('weighs and shows a name through the shorter of two rows whose docs hold the same words, though the longer is published', async () => {
     const root = await placedTwice(LONG, SHORT);
-    const index = searchIndexOf(readHelp(root));
+    const index = searchIndexOf((await readNativeHelp(root)));
     const reached = reachedBy(index, 'placement text')?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('exported');
     expect(reached?.docLength).toBe(index.exportedDocLength(reached?.through?.row as number));
@@ -199,7 +199,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
     const root = await placedTwice(LONG, SHORT, {
       'c-kit': { 'index.ts': `export const seed = 1;\n${fillers}/** The text kept with a placement. */\nexport const omega = 1;\n` },
     });
-    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'placement text' }, treeOf([], root), root);
+    const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'placement text' }, treeOf([], root), root);
     const at = (name: string): number => said.search(new RegExp(`^(?:\\S+ · )?${name} `, 'mu'));
     expect(at('omega')).toBeGreaterThan(-1);
     expect(at('Placement')).toBeGreaterThan(-1);
@@ -223,7 +223,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       { file: 'packages/a-kit/src/index.ts', edges: [{ to: 'packages/a-kit/src/inner.ts', kind: 'imports' }] },
       { file: 'packages/b-kit/src/index.ts' },
     ], root);
-    const described = searchNames(searchIndexOf(readHelp(root)), { query: 'kept text', from: APP }, tree).described;
+    const described = searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'kept text', from: APP }, tree).described;
     expect(described?.total).toBe(described?.shown.length);
     expect(described?.shown.map((one) => one.name)).toEqual(['Inner']);
   });
@@ -237,7 +237,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
     }, { app: ['z-kit', 'b-kit'] });
     const files = [APP, 'packages/z-kit/src/index.ts', 'packages/b-kit/src/index.ts'];
     const tree = treeOf([{ file: APP, edges: files.slice(1).map((to) => ({ to, kind: 'imports' as const })) }, ...files.slice(1).map((file) => ({ file }))], root);
-    const index = searchIndexOf(readHelp(root));
+    const index = searchIndexOf((await readNativeHelp(root)));
     const reached = reachedBy(index, 'kept text', areaOf(APP, undefined, tree))?.find((one) => one.name === placementOf(index));
     expect(reached?.through?.kind).toBe('exported');
     expect(index.exported(reached?.through?.row as number).at).toBe('packages/z-kit/src/index.ts');
@@ -254,7 +254,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       'app': { 'index.ts': "import type { Inner } from '../../a-kit/src/inner.js';\nexport type Used = Inner;\n" },
     }));
     const tree = treeOf([{ file: APP, edges: [{ to: 'packages/a-kit/src/inner.ts', kind: 'imports' }] }, { file: 'packages/a-kit/src/inner.ts' }], root);
-    const described = searchNames(searchIndexOf(readHelp(root)), { query: 'placement kept text', from: APP }, tree).described;
+    const described = searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'placement kept text', from: APP }, tree).described;
     expect(described?.shown.map((one) => one.name)).toEqual(['Inner']);
     expect(described?.total).toBe(1);
   });
@@ -264,7 +264,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       'b-kit': { 'index.ts': `${KEPT}export interface Placement {\n  readonly at: string;\n}\n` },
       'app': { 'index.ts': "import type { Placement } from 'b-kit';\nexport type Used = Placement;\n" },
     }, { app: ['b-kit'] });
-    const described = searchNames(searchIndexOf(readHelp(root)), { query: 'placement text', from: APP }, treeOf([{ file: APP }], root)).described;
+    const described = searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'placement text', from: APP }, treeOf([{ file: APP }], root)).described;
     const shown = described?.shown.find((one) => one.name === 'Placement');
     expect(shown && 'specifier' in shown ? shown.specifier : undefined).toBe('b-kit');
     expect(shown?.words).toEqual(['placement', 'text']);
@@ -290,7 +290,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
         { file: 'src/beta.ts' },
         ...Object.keys(outside).map((file) => imports(file, ['src/alpha.ts'])),
       ], root);
-      const described = searchNames(searchIndexOf(readHelp(root)), { query: 'cache alpha beta', from: 'src/app.ts' }, tree).described;
+      const described = searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'cache alpha beta', from: 'src/app.ts' }, tree).described;
       return described?.shown.map((one) => one.name) ?? [];
     };
     expect(await order(0)).toEqual(['cacheBeta', 'cacheAlpha']);
@@ -305,7 +305,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       'c-kit': { 'index.ts': '/** The text. */\nexport const one = 1;\n/** The text. */\nexport const two = 2;\n' },
       'app': { 'index.ts': "import type { Placement } from 'b-kit';\nexport type Used = Placement;\n" },
     }, { app: ['b-kit'] });
-    const index = searchIndexOf(readHelp(root));
+    const index = searchIndexOf((await readNativeHelp(root)));
     const placement = placementOf(index);
     const [firstRow, shownRow] = index.publishedOf(placement);
     expect(index.published(firstRow as number).specifier).toBe('a-kit');
@@ -334,7 +334,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       const [one, two, more] = ['packages/a-kit/src/index.ts', 'packages/b-kit/src/index.ts', 'packages/app/src/more.ts'];
       const edges = (...to: string[]) => to.map((file) => ({ to: file, kind: 'imports' as const }));
       const tree = treeOf([{ file: APP, edges: edges(one, two, more) }, { file: more, edges: edges(two) }, { file: one }, { file: two }], root);
-      return searchNames(searchIndexOf(readHelp(root)), { query: 'placement kit zebra', from: APP }, tree).described?.shown.map((one) =>
+      return searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'placement kit zebra', from: APP }, tree).described?.shown.map((one) =>
         [one.name, 'specifier' in one ? one.specifier : one.at, 'summary' in one ? one.summary : undefined]);
     };
     const alone = await shown([]);
@@ -346,13 +346,13 @@ describe('which row a described name is weighed, ordered and shown through', () 
     const shown = async (first: string): Promise<unknown> => {
       const placed = (doc: string): string => `/** ${doc} */\nexport interface PlacementKit {\n  readonly at: string;\n}\n`;
       const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
-        [`src/${first}.ts`]: placed('The kit of a placement.'),
-        'src/b.ts': placed('A kit for one placement.'),
+        [`src/${first}.ts`]: (await placed('The kit of a placement.')),
+        'src/b.ts': (await placed('A kit for one placement.')),
         'src/app.ts': `import type { PlacementKit } from './${first}.js';\nimport type { PlacementKit as Kit } from './b.js';\nexport type Used = PlacementKit | Kit;\n`,
       });
       const files = [`src/${first}.ts`, 'src/b.ts'];
       const tree = treeOf([{ file: 'src/app.ts', edges: files.map((to) => ({ to, kind: 'imports' as const })) }, ...files.map((file) => ({ file }))], root);
-      return searchNames(searchIndexOf(readHelp(root)), { query: 'placement kit zebra', from: 'src/app.ts' }, tree).described?.shown.map((one) =>
+      return searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'placement kit zebra', from: 'src/app.ts' }, tree).described?.shown.map((one) =>
         [one.name, one.at, 'summary' in one ? one.summary : undefined]);
     };
     const named = await shown('a');
@@ -364,11 +364,11 @@ describe('which row a described name is weighed, ordered and shown through', () 
   const declaring = (name: string, doc: string): Record<string, string> => ({ 'index.ts': `/** ${doc} */\nexport interface ${name} {\n  readonly at: string;\n}\n` });
 
   it('shows a name no doc adds a word to, asked without an area, through the same published row whatever its packages are called', async () => {
-    const shown = async (first: string): Promise<unknown> => describedBy(await kits({
+    const shown = async (first: string): Promise<unknown> => (await describedBy(await kits({
       [first]: declaring('PlacementKit', 'The kit of a placement.'),
       'b-kit': declaring('PlacementKit', 'A kit for one placement.'),
       'c-kit': declaring('KitPlacement', 'The placement kit.'),
-    }), 'placement kit zebra');
+    }), 'placement kit zebra'));
     const named = await shown('a-kit');
     expect(named).toEqual(await shown('z-kit'));
     expect(named).toEqual([
@@ -378,10 +378,10 @@ describe('which row a described name is weighed, ordered and shown through', () 
   });
 
   it('shows a name no doc adds a word to, asked without an area, through the same exported row whatever its files are called', async () => {
-    const shown = async (first: string): Promise<unknown> => describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+    const shown = async (first: string): Promise<unknown> => (await describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       [`src/${first}.ts`]: declaring('PlacementKit', 'The kit of a placement.')['index.ts'] as string,
       'src/b.ts': declaring('PlacementKit', 'A kit for one placement.')['index.ts'] as string,
-    }), 'placement kit zebra');
+    }), 'placement kit zebra'));
     const named = await shown('a');
     expect(named).toEqual(await shown('z'));
     expect(named).toEqual([['PlacementKit', 'src/b.ts', 'A kit for one placement.', ['kit', 'placement']]]);
@@ -403,7 +403,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
       const [one, two, more] = [`packages/${first}/src/index.ts`, 'packages/b-kit/src/index.ts', 'packages/app/src/more.ts'];
       const edges = (...to: string[]) => to.map((file) => ({ to: file, kind: 'imports' as const }));
       const tree = treeOf([{ file: APP, edges: edges(one, two, more) }, { file: more, edges: edges(two) }, { file: one }, { file: two }], root);
-      const match = searchNames(searchIndexOf(readHelp(root)), { query: 'placement text', from: APP }, tree).described?.shown.find(({ name }) => name === 'Placement');
+      const match = searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'placement text', from: APP }, tree).described?.shown.find(({ name }) => name === 'Placement');
       return match && 'specifier' in match ? [match.specifier, match.inArea?.files, match.inArea?.imports] : match;
     };
     expect(await shown('a-kit')).toEqual(['b-kit', 2, 2]);
@@ -414,7 +414,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
     const shown = async (first: string): Promise<unknown> => {
       const used = { 'index.ts': "import type { Placement } from 'b-kit';\nexport type Used = Placement;\n" };
       const root = await kits({ [first]: KEPT_PLACEMENT, 'b-kit': KEPT_PLACEMENT, 'app': used }, { app: ['b-kit'] });
-      const match = searchNames(searchIndexOf(readHelp(root)), { query: 'placement text' }).described?.shown.find(({ name }) => name === 'Placement');
+      const match = searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'placement text' }).described?.shown.find(({ name }) => name === 'Placement');
       return match && 'specifier' in match ? [match.specifier, match.otherPackages] : match;
     };
     expect(await shown('a-kit')).toEqual(['b-kit', 1]);
@@ -424,7 +424,7 @@ describe('which row a described name is weighed, ordered and shown through', () 
   it('weighs and shows a name through its source row before a test row when two docs add the same words', async () => {
     const shown = async (test: string): Promise<unknown> => {
       const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], { [test]: KEPT_PLACEMENT['index.ts'], 'src/b.ts': KEPT_PLACEMENT['index.ts'] });
-      return searchNames(searchIndexOf(readHelp(root)), { query: 'placement text' }).described?.shown.find(({ name }) => name === 'Placement')?.at;
+      return searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'placement text' }).described?.shown.find(({ name }) => name === 'Placement')?.at;
     };
     expect(await shown('src/a.test.ts')).toBe('src/b.ts');
     expect(await shown('src/c.test.ts')).toBe('src/b.ts');
@@ -438,17 +438,17 @@ describe('which row a described name is weighed, ordered and shown through', () 
       'src/b.ts': drawn('Drawn as a mermaid.'),
       'src/boards.ts': boards,
     });
-    const shown = searchNames(searchIndexOf(readHelp(root)), { query: 'kit mermaid chart palette' }).described?.shown.find(({ name }) => name === 'DrawKit');
+    const shown = searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'kit mermaid chart palette' }).described?.shown.find(({ name }) => name === 'DrawKit');
     expect(shown && [shown.at, 'summary' in shown ? shown.summary : undefined, shown.words]).toEqual(['src/b.ts', 'Drawn as a mermaid.', ['kit', 'mermaid']]);
   });
 
   it('shows a name through the row writing the question nearer, of two weighing alike, whatever the other one says first', async () => {
     // Both `Placement` docs hold `commit` and `text` in 21 bytes; only `src/b.ts` writes them side by side, as `Rival`'s does.
-    const placed = async (first: string): Promise<unknown> => describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+    const placed = async (first: string): Promise<unknown> => (await describedBy(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'src/a.ts': `/** ${first} text at the commit. */\nexport interface Placement {\n  readonly at: string;\n}\n`,
       'src/b.ts': '/** The commit text kept. */\nexport interface Placement {\n  readonly at: string;\n}\n',
       'src/r.ts': '/** The commit text kept. */\nexport interface Rival {\n  readonly at: string;\n}\n',
-    }), 'commit text shard');
+    }), 'commit text shard'));
     const shown = [
       ['Placement', 'src/b.ts', 'The commit text kept.', ['commit', 'text']],
       ['Rival', 'src/r.ts', 'The commit text kept.', ['commit', 'text']],
@@ -459,11 +459,11 @@ describe('which row a described name is weighed, ordered and shown through', () 
 
   it('keeps a name in the described section by the words of the row it is shown through, never of its rows added up', async () => {
     // The three `Gadget` docs hold the three words between them, and no one of them holds two.
-    const found = searchNames(searchIndexOf(readHelp(await kits({
+    const found = searchNames(searchIndexOf((await readNativeHelp(await kits({
       'a-kit': declaring('Gadget', 'Kept for the walrus.'),
       'b-kit': declaring('Gadget', 'Kept for the pelican.'),
       'c-kit': declaring('Gadget', 'Kept for the narwhal.'),
-    }))), { query: 'walrus pelican narwhal' });
+    })))), { query: 'walrus pelican narwhal' });
     expect(found.described?.shown.map((one) => one.name) ?? []).toEqual([]);
     expect(found.loose?.shown.map((one) => one.name)).toEqual(['Gadget', 'Gadget', 'Gadget']);
   });

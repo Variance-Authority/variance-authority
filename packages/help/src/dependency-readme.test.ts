@@ -1,10 +1,10 @@
+import { readWorkspace as readNativeHelp } from './read.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { readHelp } from '@variance-authority/package/help';
 import { refreshDependencyLexicon, queryDependencyLexicon } from './dependency-lexicon.js';
 import { HELP_TOOLS } from './tools.js';
 
@@ -57,10 +57,10 @@ afterAll(() => {
   else process.env['VARIANCE_AUTHORITY_CACHE'] = before;
 });
 
-function ask(args: Record<string, unknown>, at = root): string {
+async function ask(args: Record<string, unknown>, at = root): Promise<string> {
   const tool = HELP_TOOLS.find((candidate) => candidate.name === 'docs_symbol');
   if (tool === undefined) throw new Error('no docs_symbol tool');
-  return tool.run(readHelp(at), args, { root: at });
+  return tool.run((await readNativeHelp(at)), args, { root: at });
 }
 
 it('records the README beside an unavailable package, and none beside one that ships none', () => {
@@ -70,42 +70,42 @@ it('records the README beside an unavailable package, and none beside one that s
   expect(readmes).toContainEqual(['mute-kit', undefined, undefined]);
 });
 
-it('says where the README is when the caller names the package, whether or not it names the symbol', () => {
-  const text = ask({ name: 'hush', package: 'bare-kit' });
+it('says where the README is when the caller names the package, whether or not it names the symbol', async () => {
+  const text = (await ask({ name: 'hush', package: 'bare-kit' }));
   expect(text).toContain('bare-kit@2.0.0 — the project resolver found no declarations for `bare-kit`');
   expect(text).toContain('README: node_modules/bare-kit/README.md (6 lines)');
   expect(text).not.toContain('names `hush`');
 });
 
-it('labels the passage as the package README and never as a doc comment', () => {
-  const text = ask({ name: 'spin' });
+it('labels the passage as the package README and never as a doc comment', async () => {
+  const text = (await ask({ name: 'spin' }));
   expect(text).toContain('node_modules/bare-kit/README.md:5 names `spin`:');
   expect(text).toContain('Call `spin` to turn the wheel once.');
   expect(text).not.toContain('mute-kit');
 });
 
-it('says a package with no README ships none, when asked about it by name', () => {
-  expect(ask({ name: 'hush', package: 'mute-kit' })).toContain('It ships no README.md beside its manifest.');
+it('says a package with no README ships none, when asked about it by name', async () => {
+  expect((await ask({ name: 'hush', package: 'mute-kit' }))).toContain('It ships no README.md beside its manifest.');
 });
 
-it('answers a declared name from its declaration alone, not from the doors of the same package that declare nothing', () => {
-  const text = ask({ name: 'wake', package: 'door-kit' });
+it('answers a declared name from its declaration alone, not from the doors of the same package that declare nothing', async () => {
+  const text = (await ask({ name: 'wake', package: 'door-kit' }));
   expect(text.startsWith('door-kit · wake [function] · door-kit@3.0.0')).toBe(true);
   expect(text).toContain('Wakes the kit before anything else runs.');
   expect(text).not.toMatch(/door-kit\/(boot|cli)/);
   expect(text).not.toContain('README');
 });
 
-it('puts a declared match before another package that falls back to its README', () => {
-  const text = ask({ name: 'wake' });
+it('puts a declared match before another package that falls back to its README', async () => {
+  const text = (await ask({ name: 'wake' }));
   expect(text.startsWith('door-kit · wake [function] · door-kit@3.0.0')).toBe(true);
   expect(text).toContain('note-kit · note-kit@2.0.0 — the project resolver found no declarations for `note-kit`');
   expect(text).toContain('node_modules/note-kit/README.md:3 names `wake`:');
   expect(text).not.toMatch(/door-kit\/(boot|cli)/);
 });
 
-it('prints a silent package README once, under every door that falls back to it', () => {
-  const text = ask({ name: 'sleep', package: 'door-kit' });
+it('prints a silent package README once, under every door that falls back to it', async () => {
+  const text = (await ask({ name: 'sleep', package: 'door-kit' }));
   expect(text.split('README: node_modules/door-kit/README.md').length - 1).toBe(1);
   expect(text).toContain('door-kit/boot · door-kit@3.0.0 — the declarations for `door-kit/boot` publish no names');
   expect(text).toContain('door-kit/boot.js · door-kit@3.0.0');
@@ -128,7 +128,7 @@ it('keeps the README of another installed copy of the same version, whose declar
     'legacy/node_modules/door-kit/index.js': 'exports.wake = () => {};\n',
     'legacy/node_modules/door-kit/README.md': '# door-kit\n\nCall `wake` before anything else.\n',
   });
-  const text = ask({ name: 'wake', package: 'door-kit' }, twin);
+  const text = (await ask({ name: 'wake', package: 'door-kit' }, twin));
   expect(text.startsWith('door-kit · wake [function] · door-kit@3.0.0')).toBe(true);
   expect(text).toContain('README: legacy/node_modules/door-kit/README.md');
   expect(text).toContain('legacy/node_modules/door-kit/README.md:3 names `wake`:');

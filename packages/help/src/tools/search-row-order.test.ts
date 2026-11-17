@@ -1,6 +1,6 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { treeOf, type Tree } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { searchNames } from './search-answer.js';
@@ -54,8 +54,8 @@ const placed = (doc: string): string => `/** ${doc} */\nexport interface Placeme
  * exported sections asked by its name, the described section by words its name
  * holds and no doc adds to, every `renamed` written as `<renamed>`.
  */
-function sections(root: string, renamed: string, from?: string, tree?: Tree): unknown {
-  const index = searchIndexOf(readHelp(root));
+async function sections(root: string, renamed: string, from?: string, tree?: Tree): Promise<unknown> {
+  const index = searchIndexOf((await readNativeHelp(root)));
   const where = from === undefined ? {} : { from };
   const named = searchNames(index, { query: 'PlacementKit', ...where }, tree);
   const described = searchNames(index, { query: 'placement kit zebra', ...where }, tree).described;
@@ -81,7 +81,7 @@ describe('the order one name\'s rows are shown in', () => {
       }, { app: [first, 'b-kit'], far: [first] });
       const files = [first, 'b-kit'].map((name) => `packages/${name}/src/index.ts`);
       const tree = treeOf([{ file: APP, edges: files.map((to) => ({ to, kind: 'imports' as const })) }, ...files.map((file) => ({ file }))], root);
-      return sections(root, first, APP, tree);
+      return (await sections(root, first, APP, tree));
     };
     const expected = { published: ['<renamed>', 'b-kit'], exported: [], described: ['<renamed>'] };
     expect(await shown('a-kit')).toEqual(expected);
@@ -89,30 +89,30 @@ describe('the order one name\'s rows are shown in', () => {
   });
 
   it('lists a name published twice, nothing importing either, by its docs whatever its packages are called', async () => {
-    const shown = async (first: string): Promise<unknown> => sections(await kits({
+    const shown = async (first: string): Promise<unknown> => (await sections(await kits({
       [first]: { 'index.ts': placed('The kit of a placement.') },
       'b-kit': { 'index.ts': placed('A kit for one placement.') },
-    }), first);
+    }), first));
     const expected = { published: ['b-kit', '<renamed>'], exported: [], described: ['b-kit'] };
     expect(await shown('a-kit')).toEqual(expected);
     expect(await shown('z-kit')).toEqual(expected);
   });
 
   it('shows a name exported from two source files through the same row in both sections whatever its files are called', async () => {
-    const shown = async (first: string): Promise<unknown> => sections(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+    const shown = async (first: string): Promise<unknown> => (await sections(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       [`src/${first}.ts`]: placed('The kit of a placement.'),
       'src/b.ts': placed('A kit for one placement.'),
-    }), `src/${first}.ts`);
+    }), `src/${first}.ts`));
     const expected = { published: [], exported: ['src/b.ts'], described: ['src/b.ts'] };
     expect(await shown('a')).toEqual(expected);
     expect(await shown('c')).toEqual(expected);
   });
 
   it('shows a name a doc reached through that doc\'s row, though the order puts another of its rows first', async () => {
-    const index = searchIndexOf(readHelp(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+    const index = searchIndexOf((await readNativeHelp(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'src/a.ts': placed('A kit for one placement.'),
       'src/b.ts': placed('The placement kit a zebra rides.'),
-    })));
+    }))));
     const through = { name: 'PlacementKit', at: 'src/b.ts', summary: 'The placement kit a zebra rides.' };
     expect(searchNames(index, { query: 'zebra rides' }).exported?.shown).toContainEqual(expect.objectContaining(through));
     expect(searchNames(index, { query: 'rides zebra' }).described?.shown).toContainEqual(expect.objectContaining(through));
@@ -127,11 +127,11 @@ describe('the order one name\'s rows are shown in', () => {
     shown?.map((one) => [one.name, one.at, one.summary]);
 
   it('shows a name in the exported section through the row whose doc opens with the question, the row that ranks it', async () => {
-    const index = searchIndexOf(readHelp(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+    const index = searchIndexOf((await readNativeHelp(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'src/a.ts': LATER,
       'src/b.ts': OPENS,
       'src/r.ts': documented(['zebra rides for the rival.'], 'export interface Rival {\n  readonly at: string;\n}\n'),
-    })));
+    }))));
     expect(exportedBy(searchNames(index, { query: 'zebra rides' }).exported?.shown)).toEqual([
       ['PlacementKit', 'src/b.ts', 'The kit for zebra rides.'],
       ['Rival', 'src/r.ts', 'zebra rides for the rival.'],
@@ -145,7 +145,7 @@ describe('the order one name\'s rows are shown in', () => {
       'src/index.ts': "import type { PlacementKit } from './a.js';\nimport type { PlacementKit as Kit } from './b.js';\nexport type Used = PlacementKit | Kit;\n",
     });
     const tree = treeOf([{ file: 'src/index.ts', edges: ['src/a.ts', 'src/b.ts'].map((to) => ({ to, kind: 'imports' as const })) }, { file: 'src/a.ts' }, { file: 'src/b.ts' }], root);
-    const index = searchIndexOf(readHelp(root));
+    const index = searchIndexOf((await readNativeHelp(root)));
     const shown = [['PlacementKit', 'src/b.ts', 'The kit for zebra rides.']];
     for (const where of [{}, { from: 'src/index.ts' }]) {
       expect(exportedBy(searchNames(index, { query: 'zebra rides', ...where }, tree).exported?.shown)).toEqual(shown);
@@ -160,7 +160,7 @@ describe('the order one name\'s rows are shown in', () => {
         'b-kit': { 'index.ts': OPENS },
         'app': { 'index.ts': `import type { PlacementKit } from '${first}';\nexport type Used = PlacementKit;\n` },
       }, { app: [first] });
-      const shown = searchNames(searchIndexOf(readHelp(root)), { query: 'zebra rides' }).published?.shown;
+      const shown = searchNames(searchIndexOf((await readNativeHelp(root))), { query: 'zebra rides' }).published?.shown;
       return JSON.parse(JSON.stringify(shown?.map((one) => [one.specifier, one.otherPackages, one.summary])).replaceAll(first, '<renamed>'));
     };
     const expected = [['b-kit', 0, 'The kit for zebra rides.'], ['<renamed>', 1, 'It holds zebra rides.']];
@@ -170,7 +170,7 @@ describe('the order one name\'s rows are shown in', () => {
 
   it('orders a name published twice under one doc by its declaration\'s kind before its package\'s name', async () => {
     const shown = async (first: string, declared: string, other: string, doc: string): Promise<unknown> => {
-      const index = searchIndexOf(readHelp(await kits({ [first]: { 'index.ts': `${doc}${declared}` }, 'm-kit': { 'index.ts': `${doc}${other}` } })));
+      const index = searchIndexOf((await readNativeHelp(await kits({ [first]: { 'index.ts': `${doc}${declared}` }, 'm-kit': { 'index.ts': `${doc}${other}` } }))));
       const kinds = (query: string, section: 'published' | 'described'): unknown =>
         searchNames(index, { query })[section]?.shown.map((one) => ['specifier' in one ? one.specifier : one.at, 'kind' in one ? one.kind : undefined]);
       return JSON.parse(JSON.stringify({ published: kinds('PlacementKit', 'published'), described: kinds('placement kit zebra', 'described') }).replaceAll(first, '<renamed>'));
@@ -189,10 +189,10 @@ describe('the order one name\'s rows are shown in', () => {
   it('shows a name exported twice under one doc through the row declared on the earlier line before the file\'s name', async () => {
     const shown = async (first: string): Promise<unknown> => {
       const fillers = ['one', 'two', 'three', 'four'].map((name) => `export const ${name} = 1;\n`).join('');
-      const index = searchIndexOf(readHelp(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
+      const index = searchIndexOf((await readNativeHelp(await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
         [`src/${first}.ts`]: placed('The placement kit.'),
         'src/m.ts': `${fillers}${placed('The placement kit.')}`,
-      })));
+      }))));
       const lines = (query: string, section: 'exported' | 'described'): unknown =>
         searchNames(index, { query })[section]?.shown.filter((one) => one.name === 'PlacementKit').map((one) => [one.at, 'line' in one ? one.line : undefined]);
       return JSON.parse(JSON.stringify({ exported: lines('PlacementKit', 'exported'), described: lines('placement kit zebra', 'described') }).replaceAll(`src/${first}.ts`, '<renamed>'));

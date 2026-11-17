@@ -1,6 +1,6 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import { answerSearch } from './search.js';
@@ -20,7 +20,7 @@ afterEach(() => {
 
 const ask = async (files: Record<string, string>, query: string, from?: string): Promise<string> => {
   const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], files);
-  return answerSearch(searchIndexOf(readHelp(root)), { query, ...(from === undefined ? {} : { from }) }, treeOf(from === undefined ? [] : [{ file: from }], root), root);
+  return answerSearch(searchIndexOf((await readNativeHelp(root))), { query, ...(from === undefined ? {} : { from }) }, treeOf(from === undefined ? [] : [{ file: from }], root), root);
 };
 
 /** `count` declarations, each written by `line`. */

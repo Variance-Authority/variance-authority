@@ -1,9 +1,9 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { readHelp } from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { stack } from './stack.js';
@@ -47,7 +47,7 @@ it('lists every package usable at a path, imported before unused, and pages with
   await updateSourceIndex(root);
   await refreshDependencyLexicon(root);
 
-  const help = readHelp(root);
+  const help = (await readNativeHelp(root));
   const ask = (input: Record<string, unknown>): string => stack.run(help, input, { root });
   const all = ask({ from: 'packages/alpha/src/x.ts' });
   expect(all).toContain('3 packages usable from packages/alpha/src/x.ts, under packages/alpha/package.json: 1 imported, 2 declared and not imported, 0 with imports not read.');
