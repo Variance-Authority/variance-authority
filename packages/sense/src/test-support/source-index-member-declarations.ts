@@ -1,5 +1,5 @@
 import { rangeOf, sameLength, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
-import type { MemberDeclaration } from './cache.js';
+import type { MemberDeclaration } from '../cache.js';
 import { spanAt, spanColumns } from './source-index-harvest.js';
 
 /**

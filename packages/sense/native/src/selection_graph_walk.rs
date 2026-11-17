@@ -82,7 +82,7 @@ impl State {
         Carry::Names(out)
     }
 
-    pub(super) fn walk(&self, options: SelectionWalkOptions) -> SelectionWalk {
+    pub(super) fn walked(&self, options: SelectionWalkOptions) -> (Walk, Vec<String>) {
         let missing: Vec<_> = options.seeds.iter().filter(|node| self.id(node).is_none()).map(|node| node.name.clone()).collect();
         let seeds: Vec<_> = options.seeds.iter().filter_map(|node| self.id(node)).collect();
         let mut avoid: HashSet<_> = options.avoid.iter().filter_map(|node| self.id(node)).collect();
@@ -110,6 +110,27 @@ impl State {
             }
             shadowed.sort_unstable(); walk.shadowed = shadowed;
         }
+        (walk, missing)
+    }
+
+    /// Journey selection uses the same runtime walk and mock cuts as source selection.
+    pub(crate) fn runtime_importers(&self, file: &str) -> Option<Vec<&str>> {
+        self.file(file)?;
+        let (walk, _) = self.walked(SelectionWalkOptions {
+            seeds: vec![SelectionNode { kind: "file".into(), name: file.to_owned() }],
+            reverse: true, through: Some(KINDS.iter().filter(|&&kind| kind != "type").map(|kind| (*kind).into()).collect()),
+            avoid: Vec::new(), moved: Vec::new(), shadows: true,
+        });
+        Some(walk.nodes.into_iter().filter(|&id| self.kinds[id as usize] == 0)
+            .map(|id| self.names[id as usize].as_str()).collect())
+    }
+
+    pub(super) fn walk(&self, options: SelectionWalkOptions) -> SelectionWalk {
+        let (walk, missing) = self.walked(options);
+        self.answer(walk, missing)
+    }
+
+    pub(super) fn answer(&self, walk: Walk, missing: Vec<String>) -> SelectionWalk {
         let nodes: Vec<_> = walk.nodes.iter().filter_map(|&id| self.info(id)).collect();
         let parents: Vec<_> = walk.nodes.iter().map(|&id| SelectionParent { id, parent: walk.parents[id as usize] }).collect();
         let mut missing = missing; missing.sort_unstable_by(|a, b| crate::order::code_unit(a, b));

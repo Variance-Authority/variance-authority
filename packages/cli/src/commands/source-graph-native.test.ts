@@ -9,7 +9,7 @@ import { relationsFor } from './source-graph.js';
 vi.mock('ci-info', () => ({ isCI: true }));
 vi.mock('@variance-authority/sense', async (original) => {
   const actual = await original<typeof import('@variance-authority/sense')>();
-  return { ...actual, publishedSources: vi.fn(actual.publishedSources), readPublishedSources: vi.fn(actual.readPublishedSources), openSourceIndex: vi.fn(actual.openSourceIndex), runGraphOf: vi.fn(actual.runGraphOf) };
+  return { ...actual, runGraphOf: vi.fn(actual.runGraphOf) };
 });
 
 it('answers selection from native graph state without decoding or rebuilding the whole source index in JavaScript', async () => {
@@ -19,18 +19,18 @@ it('answers selection from native graph state without decoding or rebuilding the
   await writeFile(join(root, 'mocked.test.ts'), "import { vi } from 'vitest';\nimport { value } from './value';\nvi.mock('./value');\nexport const result = value;\n");
   await writeFile(join(root, 'types.test.ts'), "import type { value } from './value';\nexport type Result = typeof value;\n");
   await sense.updateSourceIndex(root);
-  vi.mocked(sense.publishedSources).mockClear();
-  vi.mocked(sense.readPublishedSources).mockClear();
-  vi.mocked(sense.openSourceIndex).mockClear();
   vi.mocked(sense.runGraphOf).mockClear();
 
   const graph = await relationsFor(root, ['.']);
+  expect('native' in graph).toBe(true);
+  expect('names' in graph).toBe(false);
+  expect('depends' in graph).toBe(false);
   const reached = affectedBy(graph, ['value.ts'], { through: RUNTIME_EDGES });
 
   expect(reached.files).toEqual(['live.test.ts', 'value.ts']);
   expect(reached.shadowed).toEqual(['mocked.test.ts']);
-  expect(sense.publishedSources).not.toHaveBeenCalled();
-  expect(sense.readPublishedSources).not.toHaveBeenCalled();
-  expect(sense.openSourceIndex).not.toHaveBeenCalled();
+  expect('publishedSources' in sense).toBe(false);
+  expect('readPublishedSources' in sense).toBe(false);
+  expect('openSourceIndex' in sense).toBe(false);
   expect(sense.runGraphOf).not.toHaveBeenCalled();
 });

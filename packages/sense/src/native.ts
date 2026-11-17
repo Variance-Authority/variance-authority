@@ -32,6 +32,7 @@ import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict }
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 import type { NativeHelpListing } from './help-reading.js';
 import type { NativeSourceTreeReader } from './native-source-tree.js';
+import type { NativeSelectionGraph } from './native-selection-graph.js';
 import type { NativeSelectionGraphs } from './native-selection-graph.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing, NativeParseOrigins, NativeDependencyLexiconListing, NativeHelpListing {
@@ -264,6 +265,13 @@ export interface NativeScanner extends NativeSelectionGraphs, NativeOrientMaps, 
     file: string,
     changed: NativeJourneyChange[],
     graph?: NativeJourneyGraph,
+    declines?: boolean,
+  ): NativeJourneySelection;
+  /** Journey selection borrows the same Rust graph that answered source selection. */
+  selectJourneysNative?(
+    file: string,
+    changed: NativeJourneyChange[],
+    graph: NativeSelectionGraph,
     declines?: boolean,
   ): NativeJourneySelection;
   /** The packages `files` belong to and the names crossing their edges, read off the source index at `index`; `null` when none was published. */

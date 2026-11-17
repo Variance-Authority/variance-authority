@@ -2,8 +2,10 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { openSourceIndex, readSourceRecords } from './source-index.js';
-import { scanRelations } from './scan.js';
+import { openImmutableLog } from './immutable-log.js';
+import { updateSourceIndex } from './published.js';
+import { readPublishedSources } from './test-support/published.js';
+import { scanFixtureGraph } from './test-support/scan.js';
 
 /**
  * A directory git cannot list: a tarball, a sandbox, a fixture made in a
@@ -34,10 +36,8 @@ async function unlisted(): Promise<string> {
   return root;
 }
 
-async function scanned(root: string, at: string, digests?: false): Promise<string | undefined> {
-  const index = await openSourceIndex(at);
-  await scanRelations({ root, dirs: ['src'], cache: index.cache, reuse: index.reuse, ...(digests === false ? { digests } : {}) });
-  return index.save();
+async function scanned(root: string, at: string): Promise<string | undefined> {
+  return (await updateSourceIndex(root, { index: at, dirs: ['src'] })).refused;
 }
 
 describe('a scan of a directory git cannot list', () => {
@@ -47,7 +47,7 @@ describe('a scan of a directory git cannot list', () => {
 
     expect(await scanned(root, at)).toBeUndefined();
 
-    const records = await readSourceRecords(at);
+    const { records } = await readPublishedSources(at);
     expect(records.map((record) => record.file)).toEqual(['src/a.ts', 'src/b.ts']);
     expect(records[0]?.edges).toEqual([{ to: 'src/b.ts', kind: 'imports' }]);
   });
@@ -56,19 +56,20 @@ describe('a scan of a directory git cannot list', () => {
     const root = await unlisted();
     const at = join(root, 'cache', 'source-index.bin');
     await scanned(root, at);
-    const written = (await openSourceIndex(at)).written;
+    const written = (await openImmutableLog(at)).digests;
 
     await scanned(root, at);
 
-    expect((await openSourceIndex(at)).written).toEqual(written);
+    expect((await openImmutableLog(at)).digests).toEqual(written);
   });
 
-  it('keeps none when it was told not to trust digests', async () => {
+  it('publishes byte identities from an explicit filesystem read', async () => {
     const root = await unlisted();
     const at = join(root, 'cache', 'source-index.bin');
-
-    await scanned(root, at, false);
-
-    expect(await readSourceRecords(at)).toEqual([]);
+    const { graph } = await scanFixtureGraph({ root, dirs: ['src'], digests: false });
+    expect(graph.publish(at, [])).toBeNull();
+    const { records } = await readPublishedSources(at);
+    expect(records.map((record) => record.file)).toEqual(['src/a.ts', 'src/b.ts']);
+    expect(records.every((record) => record.digest !== undefined)).toBe(true);
   });
 });

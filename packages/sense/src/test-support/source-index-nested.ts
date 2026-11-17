@@ -1,8 +1,8 @@
 // compass: variance-authority.reach.source-index
 
 import { NONE, rangeOf, sameLength, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
-import type { NestedDeclaration } from './cache.js';
-import type { TextSpan } from './harvest.js';
+import type { NestedDeclaration } from '../cache.js';
+import type { TextSpan } from '../harvest.js';
 import { spanAt, spanColumns, type SpanColumns } from './source-index-harvest.js';
 
 /**

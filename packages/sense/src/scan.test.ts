@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LARGEST_FILE, scanRelations } from './scan.js';
+import { LARGEST_FILE, scanRelations } from './test-support/scan.js';
 
 /**
  * What the scan declines to open.

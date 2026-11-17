@@ -6,14 +6,14 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { native } from './addon.js';
 import { openImmutableLog } from './immutable-log.js';
 import { fillParseStore, parseStorePath, pruneParseStore } from './parse-store.js';
-import { updateSourceIndex } from './published.js';
+import { updateSourceIndex } from './test-support/published.js';
 import { realPath } from './resolve.js';
 import { nativeIndexGraph } from './native-index-graph.js';
 import { shapeOf } from './reuse.js';
-import { LARGEST_FILE, scanCount, scanRelations } from './scan.js';
-import { openSourceIndexFile } from './source-index-file.js';
-import { decodeSourceIndex, encodeSourceIndex, SOURCE_INDEX_VERSION } from './source-index-format.js';
-import { openSourceIndex, sourceIndexPath } from './source-index.js';
+import { LARGEST_FILE, scanFixtureGraph, scanRelations } from './test-support/scan.js';
+import { openSourceIndexFile } from './test-support/source-index-file.js';
+import { decodeSourceIndex, encodeSourceIndex, SOURCE_INDEX_VERSION } from './test-support/source-index-format.js';
+import { sourceIndexPath } from './source-index.js';
 import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
 import { gitTreeOf } from './tree.js';
 
@@ -334,11 +334,9 @@ describe('the parse store a cache keeps', () => {
     file = 'packages/a/src/entry.css',
   ): Promise<unknown> {
     const stores = options.stored ? [parseStorePath(cache)] : [];
-    const source = await openSourceIndex(join(await temporary('variance-parse-store-index-'), 'index.bin'), { stores });
     const found = await scanRelations({
       root,
       dirs: ['packages/a'],
-      cache: source.cache,
       stores,
       ...(options.packs === undefined ? {} : { packs: options.packs }),
       ...(options.largestFile === undefined ? {} : { largestFile: options.largestFile }),
@@ -400,9 +398,8 @@ describe('the parse store a cache keeps', () => {
       return root;
     };
     const path = join(await temporary('variance-parse-store-index-'), 'index.bin');
-    const source = await openSourceIndex(path);
-    const { listing } = await scanCount({ root: await committed(), dirs: ['packages/a'], cache: source.cache, largestFile: 2 * LARGEST_FILE });
-    await source.save();
+    const { graph, listing } = await scanFixtureGraph({ root: await committed(), dirs: ['packages/a'], largestFile: 2 * LARGEST_FILE });
+    expect(graph.publish(path, [])).toBeNull();
     fillParseStore(listing, [parseStorePath(cache)], path);
     const second = await committed();
     const scan = async (largestFile?: number) => {
@@ -414,19 +411,16 @@ describe('the parse store a cache keeps', () => {
     expect(await scan()).toBe(present ? 0 : 1);
   });
 
-  it('publishes the parse of every module a store answered, when another root appended it after the index was opened', async () => {
+  it('publishes every store-answered parse into its native generation', async () => {
     const root = await checkout();
     const stores = [parseStorePath(cache)];
     const path = join(await temporary('variance-parse-store-index-'), 'index.bin');
-    const source = await openSourceIndex(path, { stores });
-    // Another root fills the store between the index's read of it and the scan's.
     await updateSourceIndex(root);
-
-    const found = await scanRelations({ root, dirs: ['packages/a'], cache: source.cache, stores });
-    await source.save();
-
+    const { graph } = await scanFixtureGraph({ root, dirs: ['packages/a'], stores });
+    expect(graph.parsed).toBe(0);
+    expect(graph.publish(path, [])).toBeNull();
     const parses = (await openSourceIndexFile(path)).stored.parses;
-    expect(found.filter((record) => record.digest !== undefined).map((record) => record.file)).toHaveLength(parses.size);
+    expect(parses.size).toBe(graph.size);
     expect(parses.size).toBeGreaterThan(0);
   });
 

@@ -6,11 +6,10 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import { native } from './addon.js';
-import { readPublishedSources, updateSourceIndex } from './published.js';
-import { scanRelations } from './scan.js';
-import { openSourceIndex } from './source-index.js';
-import { openSourceIndexFile } from './source-index-file.js';
-import { encodeSourceIndex } from './source-index-format.js';
+import { readPublishedSources, updateSourceIndex } from './test-support/published.js';
+import { scanRelations } from './test-support/scan.js';
+import { openSourceIndexFile } from './test-support/source-index-file.js';
+import { encodeSourceIndex } from './test-support/source-index-format.js';
 
 /**
  * Writers that share one index, rather than one each.
@@ -51,14 +50,14 @@ describe('writers saving one source index at once', () => {
     const updates = await Promise.allSettled(roots.map((root) => updateSourceIndex(root, { index: at })));
     expect(updates.map((update) => update.status)).toEqual(roots.map(() => 'fulfilled'));
 
-    expect((await openSourceIndex(at)).state).toBe('published');
+    expect((await openSourceIndexFile(at)).state).toBe('published');
     const held = (await readPublishedSources(at)).records;
     const scans = await Promise.all(roots.map((root) => scanRelations({ root, dirs: ['.'] })));
     expect(scans).toContainEqual(held);
 
     for (const [at_, root] of roots.entries()) {
       await updateSourceIndex(root, { index: at });
-      expect((await openSourceIndex(at)).state).toBe('published');
+      expect((await openSourceIndexFile(at)).state).toBe('published');
       expect((await readPublishedSources(at)).records).toEqual(scans[at_]);
     }
   });

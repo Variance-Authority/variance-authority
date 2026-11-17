@@ -31,7 +31,7 @@
  * stay readable under several taints, or none, without a second recording.
  */
 
-import { RUNTIME_EDGES, affectedBy, dependenciesOf, idOf, nodeAt, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, affectedBy, dependenciesOf, idOf, nodeAt, type NodeId, type Relations, type MemoryRelations } from '@variance-authority/core/relate';
 import type { TestCoverageView } from './format-view.js';
 import { testPathOf } from './lookup.js';
 import type { ExecutionBlock, ExecutionCrossing, ExecutionIndex, ExecutionModule } from './reverse.js';
@@ -64,8 +64,28 @@ const NONE: ReadonlySet<string> = new Set();
  * Memoized per test and per graph, because a selection asks once per crossing,
  * a covering answer asks from several readers, and the walk is the cost.
  */
-export function shadowedFor(relations: Relations | undefined): ShadowedFor | undefined {
-  if (relations === undefined || relations.shadows.size === 0) return undefined;
+export function shadowedFor(relations: Relations | undefined, tests: readonly string[] = []): ShadowedFor | undefined {
+  if (relations === undefined) return undefined;
+  if ('native' in relations) {
+    let cached = nativePerGraph.get(relations);
+    if (cached === undefined) {
+      if (!relations.native.hasShadows()) return undefined;
+      const held = new Map<string, ReadonlySet<string>>();
+      const answer = (test: string): ReadonlySet<string> => {
+        let found = held.get(test);
+        if (found === undefined) { found = new Set(relations.native.shadowed([test])[0]); held.set(test, found); }
+        return found;
+      };
+      cached = { held, answer }; nativePerGraph.set(relations, cached);
+    }
+    const missing = [...new Set(tests)].filter((test) => !cached.held.has(test));
+    if (missing.length > 0) {
+      const rows = relations.native.shadowed(missing);
+      for (const [at, test] of missing.entries()) cached.held.set(test, new Set(rows[at]));
+    }
+    return cached.answer;
+  }
+  if (relations.shadows.size === 0) return undefined;
   const kept = perGraph.get(relations);
   if (kept !== undefined) return kept;
   const { shadows } = relations;
@@ -85,8 +105,9 @@ export function shadowedFor(relations: Relations | undefined): ShadowedFor | und
 
 /** One answer per graph, so every reader of one question shares its walks. */
 const perGraph = new WeakMap<Relations, ShadowedFor>();
+const nativePerGraph = new WeakMap<Relations, { held: Map<string, ReadonlySet<string>>; answer: ShadowedFor }>();
 
-function closure(relations: Relations, test: string, direct: readonly string[]): ReadonlySet<string> {
+function closure(relations: MemoryRelations, test: string, direct: readonly string[]): ReadonlySet<string> {
   const found = new Set(direct);
   const seed = idOf(relations, 'file', test);
   if (seed === undefined) return found;
@@ -113,7 +134,7 @@ function closure(relations: Relations, test: string, direct: readonly string[]):
 export type Disowned = (file: string, test: number, block?: number) => boolean;
 
 export function disownedIn(coverage: TestCoverageView, relations: Relations | undefined): Disowned | undefined {
-  const shadowed = shadowedFor(relations);
+  const shadowed = shadowedFor(relations, Array.from({ length: coverage.testPath.length }, (_, test) => testPathOf(coverage, test)));
   if (shadowed === undefined) return undefined;
   // Asked once per crossing, so a test's path is decoded once per test row
   // rather than once per question, and its shadows are walked once per test.
@@ -171,6 +192,16 @@ export function ownedIn(
  * only of a graph that carries shadows.
  */
 function loadOwned(index: ExecutionIndex, file: string, relations: Relations): boolean {
+  if ('native' in relations) {
+    let held = nativeOwnership.get(index);
+    if (held?.relations !== relations) {
+      const files = index.modules.map((module) => module.file);
+      const owned = relations.native.loadOwned(files, index.tests.map((test) => test.file));
+      held = {relations, files: new Map(files.map((file, at) => [file, owned[at] === true]))};
+      nativeOwnership.set(index, held);
+    }
+    return held.files.get(file) ?? true;
+  }
   const affected = affectedBy(relations, [file], { through: RUNTIME_EDGES });
   if (affected.missing.length > 0) return true;
   const recorded = new Set(index.tests.map((test) => test.file));
@@ -191,7 +222,7 @@ function loadOwned(index: ExecutionIndex, file: string, relations: Relations): b
  * that file ran under the mock's evaluation. One walk per graph, whatever the
  * module asked.
  */
-function unreadFor(relations: Relations): readonly string[] {
+function unreadFor(relations: MemoryRelations): readonly string[] {
   const kept = unreadPerGraph.get(relations);
   if (kept !== undefined) return kept;
   const seeds = [];
@@ -203,6 +234,8 @@ function unreadFor(relations: Relations): readonly string[] {
   unreadPerGraph.set(relations, found);
   return found;
 }
+
+const nativeOwnership = new WeakMap<ExecutionIndex, { readonly relations: Relations; readonly files: ReadonlyMap<string, boolean> }>();
 
 const unreadPerGraph = new WeakMap<Relations, readonly string[]>();
 
@@ -218,7 +251,7 @@ export function ownedBlocks(
   relations: Relations | undefined,
 ): readonly ExecutionBlock[] {
   if (relations === undefined) return module.blocks;
-  const shadowed = shadowedFor(relations);
+  const shadowed = shadowedFor(relations, index.tests.map((test) => test.file));
   if (shadowed === undefined) return module.blocks;
   const owned = ownedIn(index, module, shadowed);
   const loads = module.blocks.some((block) => block.loaded === true) && !loadOwned(index, module.file, relations);

@@ -5,6 +5,7 @@
  * `distill_cases.rs` the case index and what a charge asks of it,
  * `distill_own.rs` owns and `distill_gather.rs` gathers.
  */
+import type { NativeSelectionGraph } from './native-selection-graph.js';
 import type { NativeJourneyGraph } from './native-journey.js';
 
 /** The file graph, and the `EDGE_KINDS` indices a distillation reads. */
@@ -92,6 +93,8 @@ export interface NativeDistillRegion {
 }
 
 export interface NativeDistillRecords {
+  scopeNative(within: string | undefined, graph: NativeSelectionGraph): NativeDistillScope;
+  fileNative(file: string, graph: NativeSelectionGraph): NativeDistillFile;
   scope(within: string | undefined, graph: NativeDistillGraph | undefined): NativeDistillScope;
   file(file: string, graph: NativeDistillGraph | undefined): NativeDistillFile;
   /** The record that holds `file`, by its place among the records; null when none does. */

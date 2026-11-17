@@ -7,8 +7,9 @@
  */
 
 import { rm } from 'node:fs/promises';
-import { relationsOfFiles } from '@variance-authority/core/relate';
-import { scanRelations } from '../../scan.js';
+import { publishedSelectionGraph } from '../../published-selection.js';
+import { updateSourceIndex } from '../../published.js';
+import { sourceIndexPath } from '../../source-index.js';
 import { layeredFiles, repositoryLayers } from '../cache-layers.js';
 import { changedLines } from '../diff-lines.js';
 import { keptDigests, keptTexts, narrowByExecution } from '../index.js';
@@ -35,7 +36,9 @@ export async function forgetKept(walk: Walk): Promise<void> {
 export async function selectedFromTree(walk: Walk, next: string): Promise<readonly string[]> {
   const diff = await patchTo(walk, next);
   const recorded = textAtRecording(walk.root, changedLines(diff).keys());
-  const relations = relationsOfFiles(await scanRelations({ root: walk.root, dirs: ['.'] }));
+  const index = sourceIndexPath(walk.root, walk.cacheRoot);
+  await updateSourceIndex(walk.root, { index });
+  const relations = await publishedSelectionGraph(walk.root, { index, dirs: ['.'], raw: true });
   const { entered, incomplete } = await narrowByExecution(walk.coverageFile, diff, {
     root: walk.root,
     relations,

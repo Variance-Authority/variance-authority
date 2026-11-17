@@ -292,6 +292,7 @@ export function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<Na
 
 /** The source index the addon read and checked once for one question; `close` lets its bytes go. */
 export interface OpenedIndex {
+  recordNames(files: string[]): { readonly file: string; readonly digest: string }[];
   status(): { readonly state: SourceIndexState; readonly written?: number };
   status(): { readonly state: import('./source-index-file.js').SourceIndexState; readonly written?: number };
   sourceTree(root: string, tsconfig: string | boolean | null, code: string[], names: boolean): NativeSourceTreeReader | null;

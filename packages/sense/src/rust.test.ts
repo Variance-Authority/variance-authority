@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { native } from './addon.js';
 import type { Read } from './read.js';
 import { isRustRelative } from './specifier.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * The two certainties a Rust file offers, and the one it does not.

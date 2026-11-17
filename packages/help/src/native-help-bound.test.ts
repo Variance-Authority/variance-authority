@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
-import { readUsage } from './read-usage.js';
+import { readWorkspace } from './read.js';
 
 /**
  * Every export the package stage reads carries the name it binds in its own
@@ -21,7 +21,7 @@ writeFileSync(join(root, 'src/pass.ts'), "import b from './badge.js';\nexport de
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-const exported = readUsage(root, new Set()).exported;
+const exported = (await readWorkspace(root)).exported;
 const bound = (at: string): readonly (readonly [string, string | undefined])[] =>
   exported.filter((one) => one.at === at).map((one) => [one.name, one.bound] as const);
 

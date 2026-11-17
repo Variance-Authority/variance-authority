@@ -23,7 +23,6 @@
 
 // compass: variance-authority.reach
 
-export { scanRelations, type ScanOptions } from './scan.js';
 export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, nearOfNative, phraseOfNative, wordStemsNative } from './dependency-lexicon.js';
 
 /**
@@ -44,10 +43,8 @@ export { indexDeclarations } from './declarations.js';
 
 export {
   memoryParseCache,
-  openParseCache,
   type Parsed,
   type ParseCache,
-  type PersistentParseCache,
   type SourceSize,
 } from './cache.js';
 export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from './harvest.js';
@@ -55,27 +52,16 @@ export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from
 export {
   decidesResolution,
   treeShapeOf,
-  memoryRecordCache,
-  openRecordCache,
-  type RecordCache,
-  type PersistentRecordCache,
   type TreeShape,
 } from './reuse.js';
 
 export {
-  openSourceIndex,
-  readSourceRecords,
   sourceIndexPath,
-  type PersistentSourceIndex,
 } from './source-index.js';
 
 export {
-  publishedSources,
-  readPublishedSources,
-  sourcesWithin,
   updateSourceIndex,
   SourceIndexUnpublished,
-  type PublishedSources,
   type PublishedSourcesOptions,
   type SourceUpdate,
   type SourceUpdateOptions,

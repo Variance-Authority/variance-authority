@@ -1,5 +1,5 @@
 import { NONE, sameLength, type OpenSegment } from '@variance-authority/core/segment';
-import type { SourceSize } from './cache.js';
+import type { SourceSize } from '../cache.js';
 
 /**
  * The size columns of a source-index generation: per parse, the module's bytes,

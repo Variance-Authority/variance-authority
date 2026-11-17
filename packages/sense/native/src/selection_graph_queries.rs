@@ -23,6 +23,34 @@ pub struct SelectionBeyond { pub files: Vec<String>, pub chains: Vec<SelectionCh
 #[napi]
 impl SelectionGraph {
     #[napi]
+    pub fn depends_readers(&self, files: Vec<String>) -> Vec<String> {
+        let allowed = allowed(Some(&["depends".to_owned()]));
+        let mut readers = HashSet::new();
+        for seed in files.iter().filter_map(|file| self.state.file(file)) {
+            readers.extend(self.state.search(&[seed], true, &allowed, &HashSet::new(), &HashMap::new()).nodes.into_iter().filter(|&id| id != seed));
+        }
+        let mut readers: Vec<_> = readers.into_iter().collect(); readers.sort_unstable();
+        readers.into_iter().map(|id| self.state.names[id as usize].clone()).collect()
+    }
+    #[napi]
+    pub fn load_owned(&self, files: Vec<String>, recorded: Vec<String>) -> Vec<bool> {
+        let graph = &self.state;
+        let recorded: HashSet<_> = recorded.into_iter().collect();
+        if recorded.iter().any(|file| graph.file(file).is_none()) { return vec![true; files.len()] }
+        let unknown: Vec<_> = graph.unknown.keys().filter(|&&id| graph.kinds[id as usize] == 0).filter_map(|&id| graph.info(id))
+            .map(|node| super::SelectionNode {kind:node.kind,name:node.name}).collect();
+        let runtime: Vec<_> = KINDS.iter().filter(|&&kind| kind != "type").map(|kind| (*kind).to_owned()).collect();
+        let unread = graph.walk(super::walk::SelectionWalkOptions {seeds:unknown,reverse:true,through:Some(runtime.clone()),avoid:Vec::new(),moved:Vec::new(),shadows:true});
+        files.iter().map(|file| {
+            let (walk, missing) = graph.walked(super::walk::SelectionWalkOptions {
+                seeds:vec![super::SelectionNode{kind:"file".to_owned(),name:file.clone()}], reverse:true, through:Some(runtime.clone()),avoid:Vec::new(),moved:Vec::new(),shadows:true,
+            });
+            if !missing.is_empty() || walk.nodes.iter().any(|&id| recorded.contains(&graph.names[id as usize])) { return true }
+            if unread.nodes.iter().any(|node| recorded.contains(&node.name) && !graph.shadow_names.get(&node.id).is_some_and(|shadows| shadows.contains(file))) { return true }
+            !walk.shadowed.iter().any(|&id| recorded.contains(&graph.names[id as usize]))
+        }).collect()
+    }
+    #[napi]
     pub fn has_shadows(&self) -> bool { !self.state.shadow_names.is_empty() }
     #[napi]
     pub fn shadows(&self, tests: Vec<String>) -> Vec<Vec<String>> {
@@ -115,14 +143,9 @@ fn shadowed(graph: &State, tests: Vec<String>) -> Vec<Vec<String>> {
 }
 
 fn declared_behind(graph: &State, files: Vec<String>) -> Vec<SelectionNodeInfo> {
-    let asked: HashSet<_> = files.iter().filter_map(|file| graph.file(file)).collect();
-    let mut found = Vec::new();
-    for id in 0..graph.names.len() as u32 {
-        if !graph.dependents.row(id).any(|(_, kind)| kind == 7) { continue }
-        let walk = graph.search(&[id], false, &runtime(), &HashSet::new(), &HashMap::new());
-        if asked.iter().any(|&id| walk.mask[id as usize]) { found.extend(graph.info(id)); }
-    }
-    found
+    let seeds: Vec<_> = files.iter().filter_map(|file| graph.file(file)).collect();
+    let walk = graph.search(&seeds, true, &runtime(), &HashSet::new(), &HashMap::new());
+    walk.nodes.into_iter().filter(|&id| graph.dependents.row(id).any(|(_,kind)| kind == 7)).filter_map(|id| graph.info(id)).collect()
 }
 
 fn beyond(graph: &State, packages: Vec<String>, moved: Vec<String>) -> SelectionBeyond {

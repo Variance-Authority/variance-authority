@@ -152,6 +152,16 @@ impl DistillRecords {
     #[napi(catch_unwind)]
     pub fn scope(&mut self, within: Option<String>, graph: Option<DistillGraph>) -> napi::Result<DistillScope> {
         let graph = graph.map(|graph| FileGraph::new(&graph, &mut self.paths)).transpose().map_err(napi::Error::from_reason)?;
+        self.scope_using(within, graph)
+    }
+
+    #[napi(catch_unwind)]
+    pub fn scope_native(&mut self, within: Option<String>, graph: &crate::selection_graph::SelectionGraph) -> napi::Result<DistillScope> {
+        let graph = FileGraph::native(graph, &mut self.paths);
+        self.scope_using(within, Some(graph))
+    }
+
+    fn scope_using(&mut self, within: Option<String>, graph: Option<FileGraph>) -> napi::Result<DistillScope> {
         let paths = &self.paths;
         let inside = |file: u32| within.as_ref().is_none_or(|within| {
             paths.name(file).strip_prefix(within.as_str()).is_some_and(|rest| rest.starts_with('/'))
@@ -207,6 +217,16 @@ impl DistillRecords {
     #[napi(catch_unwind)]
     pub fn file(&mut self, file: String, graph: Option<DistillGraph>) -> napi::Result<DistillFile> {
         let graph = graph.map(|graph| FileGraph::new(&graph, &mut self.paths)).transpose().map_err(napi::Error::from_reason)?;
+        self.file_using(file, graph)
+    }
+
+    #[napi(catch_unwind)]
+    pub fn file_native(&mut self, file: String, graph: &crate::selection_graph::SelectionGraph) -> napi::Result<DistillFile> {
+        let graph = FileGraph::native(graph, &mut self.paths);
+        self.file_using(file, Some(graph))
+    }
+
+    fn file_using(&mut self, file: String, graph: Option<FileGraph>) -> napi::Result<DistillFile> {
         let id = self.paths.id(&file);
         let found = id.and_then(|id| self.records.iter().position(|record| record.holds(id)).map(|at| (id, at)));
         let mut names = Names::default();

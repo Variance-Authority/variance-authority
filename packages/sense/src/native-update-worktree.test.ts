@@ -3,8 +3,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { openSourceIndexFile } from './source-index-file.js';
-import { updateSourceIndex } from './published.js';
+import { openSourceIndexFile } from './test-support/source-index-file.js';
+import { updateSourceIndex } from './test-support/published.js';
 import { realPath } from './resolve.js';
 
 const ORIGINAL = "/** Selects a side. */\nimport { side } from './left.js';\nexport const entry = side;\n";

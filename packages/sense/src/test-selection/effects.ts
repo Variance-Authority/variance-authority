@@ -65,6 +65,10 @@ export function listedIn(relations: Relations | undefined): string[] | undefined
   if (relations === undefined) return undefined;
   let listed = LISTED.get(relations);
   if (listed === undefined) {
+    if ('native' in relations) {
+      listed = relations.native.list('file', undefined, '(^|/)(build|dist|node_modules)/').map((node) => node.name).filter(onlyListed);
+      LISTED.set(relations, listed); return listed;
+    }
     listed = nodesOfKind(relations, 'file').map((id) => relations.names[id]!).filter(onlyListed);
     LISTED.set(relations, listed);
   }
@@ -75,6 +79,7 @@ export function listedIn(relations: Relations | undefined): string[] | undefined
 function unchangedImports(relations: Relations | undefined, file: string, moved: readonly string[]): readonly string[] {
   const id = relations === undefined ? undefined : idOf(relations, 'file', file);
   if (relations === undefined || id === undefined) return [];
+  if ('native' in relations) return relations.native.rows([id], false)[0]!.edges.filter((edge) => edge.to.kind === 'file' && edge.kind !== 'type' && !moved.includes(edge.to.name)).map((edge) => edge.to.name);
   const skip = new Set(moved);
   return runtimeTargets(relations, id).flatMap((target) => {
     const node = nodeAt(relations, target);
@@ -84,6 +89,10 @@ function unchangedImports(relations: Relations | undefined, file: string, moved:
 
 /** These files and every file they load at runtime, at any depth, as the graph holds them. */
 function loadedFrom(relations: Relations | undefined, files: readonly string[]): readonly string[] {
+  if (relations !== undefined && 'native' in relations) {
+    const answer = relations.native.walk({seeds: files.map((name) => ({kind:'file',name})), reverse:false, through:RUNTIME_EDGES, avoid:[], moved:[], shadows:false});
+    return [...answer.nodes.filter((node) => node.kind === 'file').map((node) => node.name), ...answer.missing];
+  }
   const loaded: string[] = [];
   const seen = new Set<NodeId>();
   for (const file of files) {
@@ -101,6 +110,7 @@ function loadedFrom(relations: Relations | undefined, files: readonly string[]):
 
 /** The files `id` loads at runtime, itself left out. */
 export function runtimeTargets(relations: Relations, id: NodeId): readonly NodeId[] {
+  if ('native' in relations) return relations.native.rows([id], false)[0]!.edges.filter((edge) => edge.kind !== 'type' && edge.to.id !== id).map((edge) => edge.to.id);
   const { offset, target, kind } = relations.depends;
   const targets: NodeId[] = [];
   for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) {

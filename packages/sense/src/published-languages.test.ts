@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { native } from './addon.js';
-import { readPublishedSources, updateSourceIndex } from './published.js';
+import { readPublishedSources, updateSourceIndex } from './test-support/published.js';
 
 it('publishes mixed language edges natively without returning per-file parses to JavaScript', async () => {
   const root = await mkdtemp(join(tmpdir(), 'variance-native-languages-'));

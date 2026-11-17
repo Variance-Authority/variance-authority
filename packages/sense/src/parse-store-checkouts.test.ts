@@ -3,9 +3,9 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, afterEach, describe, expect, it } from 'vitest';
-import { updateSourceIndex } from './published.js';
+import { updateSourceIndex } from './test-support/published.js';
 import { realPath } from './resolve.js';
-import { openSourceIndexFile } from './source-index-file.js';
+import { openSourceIndexFile } from './test-support/source-index-file.js';
 import { sourceIndexPath } from './source-index.js';
 import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
 

@@ -1,5 +1,5 @@
 import { rangeOf, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
-import type { OwnUse } from './cache.js';
+import type { OwnUse } from '../cache.js';
 
 /**
  * The own-use columns of a source-index generation: per parse, every line that

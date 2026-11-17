@@ -80,3 +80,34 @@
         assert!(opened.status().is_err());
         assert!(opened_chain(&opened, |layers| layers.len()).is_err());
     }
+
+#[test]
+fn record_names_use_the_opened_prefix_and_newest_record_decision_without_reopening() {
+    use crate::generation::{encode_generation, Deleted, Generation};
+    use crate::record::{FileRecord, Indexed};
+    let directory = std::env::temp_dir().join(format!("va-record-names-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("index.bin").to_string_lossy().into_owned();
+    let row = |file: &str, digest: Option<&str>| Indexed {
+        record: FileRecord { file: file.into(), digest: digest.map(str::to_owned), ..FileRecord::default() },
+        witnesses: Vec::new(), targets: None,
+    };
+    let (a, b, c) = (row("a.ts", Some("git:a")), row("b.ts", Some("git:b")), row("c.ts", Some("git:c")));
+    let before = encode_generation::<crate::read::Read>(&Generation {
+        config: None, directories: &[], parses: &[], records: &[("a.ts", &a), ("b.ts", &b), ("c.ts", &c)], deleted: Deleted::default(),
+    });
+    let (changed, unnamed) = (row("a.ts", Some("git:new")), row("b.ts", None));
+    let after = encode_generation::<crate::read::Read>(&Generation {
+        config: None, directories: &[], parses: &[], records: &[("a.ts", &changed), ("b.ts", &unnamed)],
+        deleted: Deleted { records: &["c.ts".into()], ..Deleted::default() },
+    });
+    written(&path, Over::Nothing, &[], &[&before, &after], &[], 0).unwrap();
+    let mut opened = open_index(path.clone()).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    let names = opened.record_names(vec!["a.ts".into(), "b.ts".into(), "c.ts".into(), "missing.ts".into(), "a.ts".into()]).unwrap();
+    assert_eq!(names.iter().map(|row| (row.file.as_str(), row.digest.as_str())).collect::<Vec<_>>(), [("a.ts", "git:new")]);
+    opened.close();
+    assert!(opened.record_names(vec!["a.ts".into()]).is_err());
+    std::fs::remove_dir_all(directory).unwrap();
+}

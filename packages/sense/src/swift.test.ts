@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { grainOf } from './language.js';
 import { native } from './addon.js';
 import type { Read } from './read.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * The language with no file-grain edge, answered at the grain it has.

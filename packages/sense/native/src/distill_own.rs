@@ -63,6 +63,16 @@ impl FileGraph {
         if !valid {
             return Err("graph dependencies are invalid".to_owned());
         }
+        Ok(Self::from_rows(names, kinds, paths, |node| (offset[node] as usize..offset[node + 1] as usize).map(|at| (target[at], kind[at])).collect(), &input.loading, &input.lazy, input.reexports))
+    }
+
+    pub(crate) fn native(graph: &crate::selection_graph::SelectionGraph, paths: &mut Paths) -> FileGraph {
+        let state = &graph.state;
+        Self::from_rows(&state.names, &state.kinds, paths, |node| state.depends.row(node as u32).collect(), &[0,1,4], &[2], 1)
+    }
+
+    fn from_rows(names: &[String], kinds: &[u8], paths: &mut Paths, row: impl Fn(usize) -> Vec<(u32,u8)>, loading: &[u32], lazy_kinds: &[u32], reexports: u32) -> FileGraph {
+        let nodes = names.len();
         let mut ids = vec![NONE; nodes];
         for node in 0..nodes {
             if kinds[node] == FILE {
@@ -80,23 +90,23 @@ impl FileGraph {
             if id == NONE {
                 continue;
             }
-            let edges = offset[node] as usize..offset[node + 1] as usize;
-            let files = || edges.clone().filter(|at| kinds[target[*at] as usize] == FILE);
+            let edges = row(node);
+            let files = || edges.iter().copied().filter(|(to, _)| kinds[*to as usize] == FILE);
             let start = targets.len() as u32;
             let mut barrel = None;
-            for at in files().filter(|at| input.loading.contains(&(kind[*at] as u32))) {
-                targets.push(ids[target[at] as usize]);
-                barrel = Some(barrel.unwrap_or(true) && kind[at] as u32 == input.reexports);
+            for (to, kind) in files().filter(|(_, kind)| loading.contains(&(*kind as u32))) {
+                targets.push(ids[to as usize]);
+                barrel = Some(barrel.unwrap_or(true) && kind as u32 == reexports);
             }
             imports[id as usize] = (start, targets.len() as u32);
             republishes[id as usize] = barrel == Some(true);
             held.clear();
-            held.extend(files().filter(|at| input.lazy.contains(&(kind[*at] as u32))).map(|at| ids[target[at] as usize]));
+            held.extend(files().filter(|(_, kind)| lazy_kinds.contains(&(*kind as u32))).map(|(to, _)| ids[to as usize]));
             let start = targets.len() as u32;
             targets.extend_from_slice(&held);
             lazy[id as usize] = (start, targets.len() as u32);
         }
-        Ok(FileGraph { imports, lazy, targets, republishes })
+        FileGraph { imports, lazy, targets, republishes }
     }
 
     fn span(&self, spans: &[(u32, u32)], file: u32) -> &[u32] {

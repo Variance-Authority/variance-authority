@@ -317,6 +317,9 @@ impl OpenedIndex {
 }
 
 #[napi(object)]
+pub struct RecordTextName { pub file: String, pub digest: String }
+
+#[napi(object)]
 pub struct SourceIndexStatus {
     pub state: String,
     pub written: Option<u32>,
@@ -328,6 +331,21 @@ impl OpenedIndex {
     pub fn status(&self) -> napi::Result<SourceIndexStatus> {
         if self.closed { return Err(napi::Error::from_reason("the source index question has ended")); }
         Ok(SourceIndexStatus { state: self.state.clone(), written: self.written })
+    }
+
+    /// Sparse identities from the valid prefix; status reports whether that prefix is complete.
+    #[napi]
+    pub fn record_names(&self, files: Vec<String>) -> napi::Result<Vec<RecordTextName>> {
+        if self.closed { return Err(napi::Error::from_reason("the source index question has ended")); }
+        let Some(source) = self.opened.as_ref() else { return Ok(Vec::new()) };
+        let layers = source.layers();
+        let mut seen = std::collections::HashSet::new();
+        Ok(files.into_iter().filter_map(|file| {
+            if !seen.insert(file.clone()) { return None; }
+            let (_, (layer, row)) = crate::chain_lookup::record(layers, &file)?;
+            let digest = layers[layer].stored.optional(layers[layer].records.digest.at(row))?.to_owned();
+            Some(RecordTextName { file, digest })
+        }).collect())
     }
 
     #[napi(catch_unwind)]

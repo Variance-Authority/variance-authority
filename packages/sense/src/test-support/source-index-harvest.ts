@@ -5,7 +5,7 @@ import {
   validateOffsets,
   type OpenSegment,
 } from '@variance-authority/core/segment';
-import type { SourceSymbol, SourceSymbolReach, TextSpan } from './harvest.js';
+import type { SourceSymbol, SourceSymbolReach, TextSpan } from '../harvest.js';
 
 /** The reaches `symbols.reach` stores, from 1; 0 is none. `REACHES` in `native/src/harvest.rs`. */
 const REACHES: readonly SourceSymbolReach[] = ['file', 'module', 'underscore', 'all'];

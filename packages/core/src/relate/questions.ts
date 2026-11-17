@@ -36,6 +36,8 @@ export interface RelationQuestions {
   walkWithin(seeds: readonly NodeId[], open: readonly NodeId[]): RelationWalk;
   entries(starts: readonly NodeId[], open: readonly NodeId[], alike: readonly (readonly NodeId[])[]): readonly NodeId[];
   drift(modules: readonly { readonly file: string; readonly source: string; readonly tests: readonly string[] }[], before: readonly string[], created: readonly NodeId[], unknown: readonly string[]): { readonly rows: readonly { readonly file: string; readonly test: string }[]; readonly unread: readonly { readonly file: string; readonly test: string }[] };
+  loadOwned(files: readonly string[], recorded: readonly string[]): readonly boolean[];
+  dependsReaders(files: readonly string[]): readonly string[];
   hasShadows(): boolean;
   shadows(tests: readonly string[]): readonly (readonly string[])[];
   unknown(): readonly RelationNode[];

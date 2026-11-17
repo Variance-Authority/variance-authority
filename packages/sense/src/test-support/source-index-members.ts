@@ -1,5 +1,5 @@
 import { rangeOf, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
-import type { Member } from './cache.js';
+import type { Member } from '../cache.js';
 
 /**
  * The member columns of a source-index generation: per parse, the names the

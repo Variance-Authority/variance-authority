@@ -5,16 +5,14 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
-import type { Digest } from '@variance-authority/core/format';
-import type { FileRecord } from '@variance-authority/core/relate';
 import { nativeIndexGraph } from './native-index-graph.js';
 import { native, nativeAvailable } from './addon.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { resolveTo, resolversFor } from './resolve.js';
-import { LARGEST_FILE } from './scan.js';
-import { openSourceIndexFile, readSourceIndex } from './source-index-file.js';
+import { LARGEST_FILE } from './test-support/scan.js';
+import { readSourceIndex } from './test-support/source-index-file.js';
 import { requestOf } from './specifier.js';
-import { decodeSourceIndex } from './source-index-format.js';
+import { decodeSourceIndex } from './test-support/source-index-format.js';
 
 /**
  * Native resolution against the module resolver, and binary records against
@@ -110,31 +108,19 @@ describe('the native scanner over this repository', () => {
   it.runIf(available)('publishes a parse layer the source index reads back beside its own', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'variance-native-index-'));
     const file = join(directory, 'source-index.bin');
-    const record: FileRecord = {
-      file: 'packages/sense/src/scan.ts',
-      digest: 'git:4444444444444444444444444444444444444444' as Digest,
-      edges: [{ to: 'packages/sense/src/native.ts', kind: 'imports' }],
-    };
-
     try {
       const graph = nativeIndexGraph(native()!.gitTree(root)!, {
-        root, seeds: [record.file], largestFile: LARGEST_FILE,
+        root, seeds: ['packages/sense/src/native-update.ts'], largestFile: LARGEST_FILE,
         aliases: undefined, directories: new Map(), remembering: true,
       });
       const bytes = graph.parseSegment();
       const keys = new Set(decodeSourceIndex(bytes).parses.keys());
       expect(keys.size).toBeGreaterThan(0);
 
-      const index = await openSourceIndexFile(file);
-      await index.save({
-        parses: new Map(),
-        directories: new Map(),
-        records: new Map([[record.file, { record, witnesses: ['packages/sense/src'] }]]),
-      }, { bytes, keys });
-
+      expect(graph.publish(file, [])).toBeNull();
       expect(await readdir(`${file}.segments`)).toHaveLength(2);
       const stored = await readSourceIndex(file);
-      expect([...stored.records.keys()]).toEqual([record.file]);
+      expect(new Set(stored.records.keys())).toEqual(new Set(decodeSourceIndex(graph.encode([])).records.keys()));
       expect([...keys].filter((key) => !stored.parses.has(key))).toEqual([]);
     } finally {
       await rm(directory, { recursive: true, force: true });

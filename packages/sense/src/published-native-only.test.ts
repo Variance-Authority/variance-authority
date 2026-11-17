@@ -3,16 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, expect, it, vi } from 'vitest';
 
-const { update, scan } = vi.hoisted(() => ({
-  update: vi.fn().mockResolvedValue(undefined),
-  scan: vi.fn().mockRejectedValue(new Error('JavaScript indexing ran')),
-}));
+const { update } = vi.hoisted(() => ({ update: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('./native-update.js', () => ({ updateNatively: update }));
-vi.mock('./scan.js', async (original) => ({
-  ...await original<typeof import('./scan.js')>(),
-  scanCount: scan,
-}));
-
 import { updateSourceIndex } from './published.js';
 
 beforeEach(() => {
@@ -24,7 +16,6 @@ it('surfaces a native indexing refusal without constructing an index in JavaScri
   await expect(updateSourceIndex('/native-only-fixture', { index: '/native-only-fixture/index.bin' }))
     .rejects.toThrow('native source indexing');
   expect(update).toHaveBeenCalledOnce();
-  expect(scan).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -42,5 +33,11 @@ it.each([
 
   expect(update).toHaveBeenCalledOnce();
   expect(update.mock.calls[0]?.[7]).toBe(prepared);
-  expect(scan).not.toHaveBeenCalled();
+});
+
+it('publishes no whole-index JavaScript scanner or cache API', async () => {
+  const sense = await import('./index.js');
+  for (const name of ['scanRelations', 'openSourceIndex', 'readSourceRecords', 'publishedSources', 'readPublishedSources', 'openParseCache', 'openRecordCache', 'memoryRecordCache']) {
+    expect(sense).not.toHaveProperty(name);
+  }
 });

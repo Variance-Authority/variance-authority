@@ -12,10 +12,10 @@ import {
   sourcesWithin,
   updateSourceIndex,
   SourceIndexUnpublished,
-} from './published.js';
-import { scanRelations } from './scan.js';
+} from './test-support/published.js';
+import { scanRelations } from './test-support/scan.js';
 import { sourceIndexPath } from './source-index.js';
-import { SOURCE_INDEX_VERSION } from './source-index-format.js';
+import { SOURCE_INDEX_VERSION } from './test-support/source-index-format.js';
 
 /**
  * One step publishes the index; a reader reads it and scans nothing.

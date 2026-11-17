@@ -4,11 +4,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openImmutableLog } from './immutable-log.js';
-import { decodeSourceIndex } from './source-index-format.js';
-import { openSourceIndexFile } from './source-index-file.js';
+import { decodeSourceIndex } from './test-support/source-index-format.js';
+import { openSourceIndexFile } from './test-support/source-index-file.js';
 import { updateNatively } from './native-update.js';
 import { readySourceIndex } from './ready-index.js';
-import { updateSourceIndex } from './published.js';
+import { updateSourceIndex } from './test-support/published.js';
 import { realPath } from './resolve.js';
 
 /**

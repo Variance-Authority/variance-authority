@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { native } from './addon.js';
 import { BadLogPath } from './immutable-log.js';
-import { readPublishedSources, updateSourceIndex } from './published.js';
+import { readPublishedSources, updateSourceIndex } from './test-support/published.js';
 
 it.each(['', { file: 'index.bin' }])('refuses an invalid native publication path %j before listing source', async (index) => {
   const listing = vi.spyOn(native()!, 'changeTree');

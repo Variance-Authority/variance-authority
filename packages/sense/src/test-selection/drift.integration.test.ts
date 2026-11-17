@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Relations } from '@variance-authority/core/relate';
-import { scanRelations } from '../scan.js';
+import { scanRelations } from '../test-support/scan.js';
 import { runGraphOf } from '../taint/graph.js';
 import { driftChange, type DriftSide } from './drift-change.js';
 import { driftFromWalk } from './drift.js';

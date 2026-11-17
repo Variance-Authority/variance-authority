@@ -5,7 +5,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { native } from './addon.js';
 import { openImmutableLog } from './immutable-log.js';
 import { readPublishedNames } from './published-names.js';
-import { encodeSourceIndex } from './source-index-format.js';
+import { encodeSourceIndex } from './test-support/source-index-format.js';
 
 /** The manifests reads of `path` are handed in turn, the last one held: writers moving it, then stopping. */
 const writers = vi.hoisted(() => ({ path: '', manifests: [] as Buffer[], reads: 0 }));

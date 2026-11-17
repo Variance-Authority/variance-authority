@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { native } from './addon.js';
 import { BadLogPath, openImmutableLog } from './immutable-log.js';
-import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
+import { decodeSourceIndex, encodeSourceIndex } from './test-support/source-index-format.js';
 
 /**
  * Segments written as the addon writes them. With nothing read, a save's layers

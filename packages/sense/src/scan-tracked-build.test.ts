@@ -6,7 +6,7 @@ import { relationsOfFiles, type FileRecord } from '@variance-authority/core/rela
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { nativeAvailable } from './addon.js';
 import { realPath } from './resolve.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 import { taintRecords, taintTable } from './taint/index.js';
 import { declaredEffects } from './test-selection/effects.js';
 import { gitDigests } from './tree.js';

@@ -1,5 +1,5 @@
 import { rangeOf, validateOffsets, type OpenSegment } from '@variance-authority/core/segment';
-import type { ImportDiff } from './taint/index.js';
+import type { ImportDiff } from '../taint/index.js';
 
 /**
  * The mock columns of a source-index generation: per parse, the specifiers the

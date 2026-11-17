@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { EdgeUse, Uses } from '@variance-authority/core/relate';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readPublishedSources, updateSourceIndex } from './published.js';
+import { readPublishedSources, updateSourceIndex } from './test-support/published.js';
 
 /**
  * The names each file uses of each file it imports, read back from a published

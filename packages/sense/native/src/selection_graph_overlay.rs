@@ -3,7 +3,8 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use napi_derive::napi;
-use super::{SelectionGraph, SelectionNodeInfo, State};
+use super::{SelectionGraph, State};
+use super::walk::SelectionWalk;
 
 #[napi(object)]
 pub struct SelectionOverlayRow { pub id: u32, pub targets: Vec<u32> }
@@ -41,15 +42,12 @@ impl SelectionGraph {
     }
 
     #[napi]
-    pub fn walk_within(&self, seeds: Vec<u32>, open: Vec<u32>) -> super::walk::SelectionWalk {
+    pub fn walk_within(&self, seeds: Vec<u32>, open: Vec<u32>) -> SelectionWalk {
         let open: HashSet<_> = open.into_iter().collect();
-        let avoid: Vec<_> = (0..self.state.names.len() as u32).filter(|id| !open.contains(id)).filter_map(|id| self.state.info(id))
-            .map(|node| super::SelectionNode { kind: node.kind, name: node.name }).collect();
-        self.state.walk(super::walk::SelectionWalkOptions {
-            seeds: seeds.into_iter().filter_map(|id| self.state.info(id)).map(|node| super::SelectionNode { kind: node.kind, name: node.name }).collect(),
-            reverse: false, through: Some(super::KINDS.iter().filter(|&&kind| kind != "type").map(|kind| (*kind).to_owned()).collect()),
-            avoid, moved: Vec::new(), shadows: false,
-        })
+        let avoid = (0..self.state.names.len() as u32).filter(|id| !open.contains(id)).collect();
+        let runtime = std::array::from_fn(|kind| kind != 3);
+        let walk = self.state.search(&seeds, false, &runtime, &avoid, &HashMap::new());
+        self.state.answer(walk, Vec::new())
     }
 
     #[napi]

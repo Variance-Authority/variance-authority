@@ -8,7 +8,7 @@ import { keyFor, parseWay } from './files.js';
 import { declinedForSize, parsedOnce, stillTooLarge } from './record.js';
 import { native } from './addon.js';
 import { nativeIndexGraph } from './native-index-graph.js';
-import { decodeSourceIndex } from './source-index-format.js';
+import { decodeSourceIndex } from './test-support/source-index-format.js';
 import { realPath } from './resolve.js';
 import type { Digest } from '@variance-authority/core/format';
 
