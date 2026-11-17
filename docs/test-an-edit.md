@@ -2,14 +2,14 @@
 
 Set `VARIANCE_AUTHORITY_SINCE` and the Vitest, Jest or Playwright run you already call
 leaves out every test file a recorded run shows never executed the code you
-changed. Nothing goes on the command line and no script sits between you and
-the runner, so the edit-and-test loop you or your coding agent already runs
-stays the same loop, only shorter.
+changed. Under Rstest or any other runner, `variance select` prints the same
+files for your script to leave out. The edit-and-test loop you or your coding
+agent already runs stays the same loop, only shorter.
 
-`vitest --changed` and `jest --onlyChanged` run every test that imports a file
-you changed. Edit one function in a module half the suite imports, and half the
-suite runs. A recorded run knows which of those tests executed that function,
-and only those run. Under Jest and Vitest it can also skip the cases inside a
+A runner's changed-files mode runs every test that imports a file you changed.
+Edit one function in a module half the suite imports, and half the suite runs.
+A recorded run knows which of those tests executed that function, and only
+those run. Under Jest and Vitest it can also skip the cases inside a
 file that did not execute it. Each run then updates the record, so your next
 edit is measured from what ran last rather than from your branch point.
 
@@ -33,12 +33,13 @@ variance-authority: selected 12 of 340
 
 ## Wrap once, then set one variable
 
-Install two packages: [`@variance-authority/sense`](../packages/sense/README.md)
-records the run, and [`@variance-authority/cli`](../packages/cli/README.md)
-reads the selection the wrapped configuration asks for.
+Install [`@variance-authority/sense`](../packages/sense/README.md), which
+records the run, and [`@variance-authority/cli`](../packages/cli/README.md),
+which reads the selection. Playwright records through a third package:
 
 ```bash
 npm install --save-dev @variance-authority/sense @variance-authority/cli
+npm install --save-dev @variance-authority/playwright-test   # Playwright only
 ```
 
 Then wrap the configuration your runner reads with `withTestSelection`. Each
@@ -48,9 +49,12 @@ seam says which parts of that configuration it reads and which you spell out:
 |---|---|---|
 | Vitest | `@variance-authority/sense/vitest` | [Cut a Vitest run down to a diff](../packages/sense/README.md#cut-a-vitest-run-down-to-a-diff) |
 | Jest 30 | `@variance-authority/sense/jest` | [Cut a Jest run down to a diff](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) |
-| Playwright | `@variance-authority/playwright-test`, installed beside the two above | [Leave out the specs a change did not reach](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach) |
+| Playwright | `@variance-authority/playwright-test` | [Leave out the specs a change did not reach](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach) |
+| Rstest | `@variance-authority/sense/rstest` | [Cut an Rstest run down to a diff](../packages/sense/README.md#cut-an-rstest-run-down-to-a-diff) |
 
-Under Playwright, a spec file the selection keeps runs whole.
+Under Playwright, a spec file the selection keeps runs whole. Under Rstest the
+wrap records the run, and the variable does not reach the runner:
+`variance select --format plain` prints the files to leave out, one per line.
 
 Every wrapped run records, whether the variable is set or not. With it set, the
 runner drops the files the record proves your edit did not reach before it
