@@ -45,6 +45,8 @@ test('two outcomes that both show are refused, not chosen by order', async ({ pa
   await page.goto('/checkout?user=member', { waitUntil: 'commit' });
   const billing = await app.enter(Blurred);
   await expect(billing.submit()).rejects.toThrow('billing-blurred.submit reached payment and header at once');
+  // The form is gone whichever outcome it was: its handle goes with it.
+  await expect(billing.submit()).rejects.toThrow('billing-blurred departed at billing-blurred.submit');
 });
 
 // Forgets that searching leaves the page: the search box stays, the form does not.
@@ -66,6 +68,16 @@ test('a part that stays does not hide its owner leaving', async ({ page, app }) 
     'header-still.search is declared to stay, and billing-searching left',
   );
   await expect(billing.header.search('wool') as unknown as Promise<unknown>).rejects.toThrow('departed');
+});
+
+test('a part entered before its owner checks the owner it learns', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const header = await app.enter(StillHeader);
+  const billing = await app.enter(Searching);
+  expect(billing.header).toBe(header);
+  await expect(header.search('socks') as unknown as Promise<unknown>).rejects.toThrow(
+    'header-still.search is declared to stay, and billing-searching left',
+  );
 });
 
 // The same mistake, declared as a lead that stays.

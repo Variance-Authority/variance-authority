@@ -21,10 +21,7 @@ export const byTestId = (id: string): Where => ({ by: 'testId', id });
 
 function locate(scope: Page | Locator, where: Where): Locator {
   if (where.by === 'role') {
-    return scope.getByRole(where.role as Parameters<Page['getByRole']>[0], {
-      name: where.name,
-      exact: true,
-    });
+    return scope.getByRole(where.role as Parameters<Page['getByRole']>[0], { name: where.name, exact: true });
   }
   return where.by === 'label' ? scope.getByLabel(where.text, { exact: true }) : scope.getByTestId(where.id);
 }
@@ -213,11 +210,7 @@ interface State {
   why?: string;
   /** The document it was last seen on; another one means it went with the old. */
   doc: number;
-  /** The lifecycle it joined when its fragment, entered alone, turned out to be a part. */
-  follows?: State;
 }
-
-const own = (state: State): State => (state.follows === undefined ? state : own(state.follows));
 
 /** One test's session with the app. */
 export class App {
@@ -240,12 +233,8 @@ export class App {
   }
 
   /** Whether a state outlived every navigation since the broker last saw it; one that did not departs. */
-  private alive(shared: State): boolean {
-    const state = own(shared);
-    if (state.status !== 'departed' && state.doc !== this.doc) {
-      state.status = 'departed';
-      state.why = 'a navigation the broker did not take';
-    }
+  private alive(state: State): boolean {
+    if (state.status !== 'departed' && state.doc !== this.doc) Object.assign(state, { status: 'departed', why: 'a navigation the broker did not take' });
     return state.status !== 'departed';
   }
 
@@ -287,24 +276,27 @@ export class App {
     within: Page | Locator,
     shared?: { state: State; owner: AnyFragment },
   ): Handle<F> {
+    // The same fragment entered alone earlier is this part: one fragment, one handle, one lifecycle.
+    const prior = this.roots.get(fragment);
+    if (shared && prior !== undefined && (prior as any)[META].owner === fragment && this.alive(this.states.get(prior)!)) {
+      this.rebind(prior, shared);
+      return prior as Handle<F>;
+    }
     const region = locate(within, fragment.spec.probe).first();
     const state: State = shared?.state ?? { status: 'live', doc: this.doc };
-    const owner = shared?.owner ?? fragment;
-    // The same fragment entered alone earlier joins this lifecycle: one fragment, one lifecycle.
-    const prior = (this.roots.get(fragment) as any)?.[META] as Meta | undefined;
-    if (shared && prior?.owner === fragment && prior.state.follows === undefined && this.alive(prior.state)) prior.state.follows = state;
-    const meta: Meta = { fragment, owner, region, state };
+    const meta: Meta = { fragment, owner: shared?.owner ?? fragment, region, state };
     const self: Record<string | symbol, unknown> = { [META]: meta };
     this.states.set(self, state);
     // The latest handle is the one alive: any earlier one for this fragment departed or is covered with its owner.
     this.roots.set(fragment, self);
 
+    // Owner and state are read from the meta each time: a handle entered alone is rebound when its owner arrives.
     const guard = (action: string, acting: boolean) => {
-      if (!this.alive(state)) {
-        throw new Revoked(`${fragment.name} departed at ${own(state).why}; ${action} has nothing to act on`);
+      if (!this.alive(meta.state)) {
+        throw new Revoked(`${fragment.name} departed at ${meta.state.why}; ${action} has nothing to act on`);
       }
-      if (acting && own(state).status === 'covered') {
-        throw new Revoked(`${fragment.name} is covered by ${own(state).why}; ${action} would act under it`);
+      if (acting && meta.state.status === 'covered') {
+        throw new Revoked(`${fragment.name} is covered by ${meta.state.why}; ${action} would act under it`);
       }
     };
 
@@ -317,7 +309,7 @@ export class App {
     for (const [name, child] of Object.entries((fragment.spec as Spec).uses ?? {})) {
       // A part lives and dies with the fragment that uses it. It is found on the
       // page, not inside the region: a header is beside a form, not in it.
-      self[name] = this.handle(child, this.page, { state, owner });
+      self[name] = this.handle(child, this.page, { state, owner: meta.owner });
     }
 
     const actions = Object.entries((fragment.spec as Spec).actions ?? {});
@@ -325,10 +317,10 @@ export class App {
       guard(name, true);
       const declared = actions.find(([key]) => key === name)![1];
       if (typeof declared === 'function' || declared.kind === 'stays') {
-        await this.stayed(fragment, owner, own(state), region, name, declared, args);
+        await this.stayed(fragment, meta.owner, meta.state, region, name, declared, args);
         return self;
       }
-      return this.lead(fragment, self, own(state), name, declared, args);
+      return this.lead(fragment, self, meta.state, name, declared, args);
     };
 
     // A chain queues calls on one promise, so `form.country('NL').street('x')` reads
@@ -356,6 +348,13 @@ export class App {
     for (const [name] of actions) self[name] = start[name];
     self[Symbol.asyncDispose] = () => settle(this.page, this.signals);
     return self as Handle<F>;
+  }
+
+  private rebind(handle: object, shared: { state: State; owner: AnyFragment }): void {
+    const meta = (handle as any)[META] as Meta;
+    Object.assign(meta, shared);
+    this.states.set(handle, shared.state);
+    for (const name of Object.keys((meta.fragment.spec as Spec).uses ?? {})) this.rebind((handle as any)[name], shared);
   }
 
   private async stayed(
@@ -417,6 +416,8 @@ export class App {
     const target = (to: Outcomes[string]): AnyFragment | undefined =>
       to === back ? under?.fragment : typeof to === 'object' && 'cover' in to ? to.cover : (to as AnyFragment);
     const keys = Object.keys(declared.outcomes);
+    // An owner seen gone is gone, whatever the outcome turns out to be, and before any check below refuses it.
+    if (!shown.includes(owner.name)) this.depart(name, fragment.name);
     const reached = keys.filter((key) => {
       const to = declared.outcomes[key];
       const where = to === stay ? undefined : target(to);
@@ -430,7 +431,6 @@ export class App {
     // A part stays only with its owner, as on a plain stay.
     const outcome = reached[0] ?? (staying !== undefined && shown.includes(fragment.name) && shown.includes(owner.name) ? staying : undefined);
     if (outcome === undefined) {
-      if (!shown.includes(owner.name)) this.depart(name, fragment.name);
       if (under !== undefined && keys.some((key) => declared.outcomes[key] === back)) {
         throw new Error(`${fragment.name}.${name} went back to ${under.fragment.name}, and ${owner.name} still shows`);
       }
@@ -491,9 +491,9 @@ const NAMED = Symbol('named');
 interface Meta {
   readonly fragment: AnyFragment;
   /** The fragment whose arrival made this handle: itself, or the one using it as a part. */
-  readonly owner: AnyFragment;
+  owner: AnyFragment;
   readonly region: Locator;
-  readonly state: State;
+  state: State;
 }
 
 const list = (names: readonly string[]) => (names.length === 0 ? 'nothing' : names.join(', '));
