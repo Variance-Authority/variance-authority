@@ -19,6 +19,8 @@ const SPEC = '/repo/tests/shop.spec.ts';
 
 /** The scripts a context was given to run before each of its pages. */
 const installed: string[] = [];
+/** What hears the requests a context sends, for a test to send one itself. */
+const hearing: Array<(request: unknown) => void> = [];
 
 /** A context of one page with one frame, whose events nothing fires. */
 function contextOfOneFrame(navigations = 0): BrowserContext {
@@ -29,6 +31,7 @@ function contextOfOneFrame(navigations = 0): BrowserContext {
     addInitScript: async (script: string) => void installed.push(script),
     pages: () => [page],
     on: (event: string, listener: (request: unknown) => void) => {
+      if (event === 'request') hearing.push(listener);
       if (event === 'request') for (let count = 0; count < navigations; count += 1) queueMicrotask(() => listener(request));
       return context;
     },
@@ -81,6 +84,7 @@ function contextFixture(recorder: ExecutionRecorder, use: (context: BrowserConte
 afterEach(() => {
   vi.useRealTimers();
   installed.length = 0;
+  hearing.length = 0;
 });
 
 describe('the `context` fixture', () => {
@@ -141,5 +145,24 @@ describe('the `context` fixture', () => {
     expect({ carried: carried.marked, lost: lost.marked }).toEqual({ carried: [], lost: [false] });
     // The case's story is told the same, so a reader knows what it is missing.
     expect({ carried: carried.lost, lost: lost.lost }).toEqual({ carried: [], lost: ['t1'] });
+  });
+
+  it('says on a line what it sent and what was still out at its end, and on the last what the test ended with out', async () => {
+    const said: string[] = [];
+    const recorder = {
+      ...recorderCarrying(1),
+      cut: (_owner: string, _subject: unknown, line: number) => said.push(`line ${line}`),
+      say: (_owner: string, _subject: unknown, note: string) => said.push(note),
+    } as unknown as ExecutionRecorder;
+    const price = { isNavigationRequest: () => false, method: () => 'GET', url: () => 'http://shop.test/api/price', resourceType: () => 'fetch' };
+    const realm = globalThis as { __VA__?: { c?: (line: number, file: string) => unknown } };
+
+    await contextFixture(recorder, async () => {
+      await realm.__VA__?.c?.(10, SPEC);
+      for (const listener of hearing) listener(price);
+      await realm.__VA__?.c?.(11, SPEC);
+    });
+
+    expect(said).toEqual(['line 10', 'sent GET /api/price', 'still out GET /api/price', 'line 11', 'still out GET /api/price']);
   });
 });

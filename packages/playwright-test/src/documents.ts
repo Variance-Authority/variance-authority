@@ -30,6 +30,7 @@ import type {
 import { format } from 'node:util';
 import { claimPageSource } from '@variance-authority/sense/journal';
 import type { RecorderFixture } from './completed.js';
+import { heardRequests } from './requests.js';
 import { testOf } from './test-coordinate.js';
 
 export interface VarianceDocumentFixtures {
@@ -170,6 +171,8 @@ const CLOSES: Statement = { line: 0, hook: true };
 /** A context this test adopted. */
 interface Adopted {
   readonly watch: Watch;
+  /** Stops hearing its requests, when the run tells them. */
+  readonly unhear: () => void;
   settled: boolean;
 }
 
@@ -209,12 +212,20 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
   let lost = false;
   let closed = false;
   let draining: Promise<void> = Promise.resolve();
+  // What the pages sent, told only where a story is written.
+  const requests = recorder.say === undefined ? undefined : heardRequests();
 
   const lineOf = (statement: Statement | undefined) => (late ? undefined : statement?.line);
   const open = (statement: Statement | undefined): void => {
     if (statement === undefined || late || opened === statement || adopted.size === 0) return;
     opened = statement;
     recorder.cut?.(owner, subject, statement.line, statement.hook);
+  };
+  /** Say `notes` at the end of `statement`'s line. */
+  const tell = (statement: Statement | undefined, notes: readonly string[]): void => {
+    if (notes.length === 0) return;
+    open(statement);
+    for (const note of notes) recorder.say?.(owner, subject, note);
   };
   const framesOf = (context: BrowserContext): Frame[] => context.pages().flatMap((page) => page.frames());
   /** Drain `frames` under `statement`, before `next`; resolves to whether every one was read. */
@@ -240,7 +251,8 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
   const c: Cut = (line, file, hook) => {
     const theirs = outer?.(line, file, hook);
     // Once a drain was late no statement records its line, so none waits on
-    // the held drain again: the teardown drain reads what they reached.
+    // the held drain again: the teardown drain reads what they reached, and
+    // says what the network did since, where the case is, as the page's notes.
     if (late) return theirs;
     // A hook or a helper declared in another file is no line of this spec's:
     // what the line before it changed is said, and what it changes is not.
@@ -248,9 +260,12 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     const reached = last;
     const next = ours ? { line, hook } : CLOSES;
     if (ours) last = next;
+    // What the network did is the line's as Node heard it, taken now, before the next line moves it.
+    const heard = requests?.told() ?? [];
     draining = draining.then(async () => {
       open(reached);
       for (const context of await unsettled()) await drain(framesOf(context), reached, next);
+      tell(reached, heard);
     });
     const waited = settlesInTime(draining).then((inTime) => {
       if (!inTime) late = true;
@@ -275,6 +290,10 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     if (entry.settled) return;
     entry.settled = true;
     entry.watch.stop();
+    // The last line's requests, taken before the context stops being heard
+    // forgets what it still had out.
+    const heard = requests?.told() ?? [];
+    entry.unhear();
     // A page that held the statements' drain holds this one too, and the test's
     // timeout is all that would end it: the case is not believed whole instead.
     const inTime = await settlesInTime(draining);
@@ -282,6 +301,7 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
     if (inTime) {
       open(last);
       if (!(await drain(framesOf(context), last))) lost = true;
+      tell(last, heard);
     }
     if (entry.watch.lost() || !inTime) lost = true;
   };
@@ -305,7 +325,7 @@ function testDocuments(recorder: NonNullable<RecorderFixture['varianceRecorder']
           taped.add(context);
           await context.addInitScript(recorder.storyPage);
         }
-        return { watch: watchDocuments(context, carried), settled: false };
+        return { watch: watchDocuments(context, carried), unhear: requests?.hear(context) ?? (() => {}), settled: false };
       })();
       adopted.set(context, adoption);
       await adoption;

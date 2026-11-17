@@ -697,6 +697,37 @@ change. For the React commits behind it, use [Eyes](eyes.md), which writes each
 commit under its step with the components that rendered. A test run without a
 document has no `page` note.
 
+## What each line sent
+
+Under Playwright, a line of the spec on which the page sent a request, got an
+answer back, or still waited on one, says so at its end:
+
+```text
+sent POST /api/order, GET /api/price
+POST /api/order 201
+still out GET /api/price
+```
+
+What the line sent, in the order the page sent it; each answer that came back
+while the line ran, with its status, or `failed` for one that never answered;
+then what the page had asked for and not yet got when the line ended. So a line
+that asserted while a response was still out names it, and when two runs heard
+the same two answers in opposite orders, [comparing
+them](#compare-readings-of-one-test) lists that order.
+
+A request is its method and path, never its query or its body: those carry the
+application's data, often a token, and the story is a file anyone who reads the
+run can open. The path is written as it is, so a token carried in a path is
+written too. Fonts, images, media and open channels such as a WebSocket are
+left out, since every page has them and no line waits on them. A request is told
+on the line during which the runner heard it, which is the line that sent it or
+a later one, never an earlier one. A redirect is two requests, the first
+answered with its `3xx`.
+
+The runner hears the requests from Playwright, so nothing in the page is
+replaced to see them. In the browser modes of Vitest and Rstest, Storybook and a
+test with no page, no line names its requests.
+
 ## When a Suspense boundary falls back and unlocks
 
 With `@variance-authority/react/story` from [React](../packages/react) in the
@@ -776,7 +807,8 @@ change between runs of the same code, so `--compare` leaves them out.
   again, or set a breakpoint at the line the story names.
 - **Other processes.** A story covers the test's own process, or under
   Playwright, Storybook and the browser modes of Vitest and Rstest, the page. Code the test calls in another
-  process, such as a server, is not on it.
+  process, such as a server, is not on it; under Playwright, each line names
+  [the requests it sent](#what-each-line-sent) there.
 - **Some pages.** Under Playwright, a page closed or replaced before its
   statement ended loses what it ran since the statement before. The header says
   so.
