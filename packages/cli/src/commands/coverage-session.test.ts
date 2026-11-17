@@ -160,6 +160,7 @@ describe('`coverage --session`', () => {
       uncut: [join(root, '..gen/bad.js')],
       outside: [join(away, 'away.js'), join(root, 'node_modules/dep/index.js')].sort(),
       stale: [],
+      gone: [],
     }]);
     expect(sessions.uncut).toEqual(['..gen/broken.js']);
 
@@ -212,6 +213,19 @@ describe('`coverage --session`', () => {
       expect(answer.out).not.toMatch(/\btwice\s+9/);
     } finally {
       await writeRecord(record, 'presence');
+    }
+  });
+
+  it('names, per session, the functions it ran that the checkout no longer holds, and none it only loaded', async () => {
+    await writeFile(join(root, 'src/math.ts'), MATH.replace('twice', 'thrice'));
+    try {
+      const answer = await ask(['coverage', '--root', root, ...SESSIONS()]);
+
+      expect(answer.out).toContain('  checkout ran 1 function the checkout no longer holds, removed or renamed since: twice in src/math.ts');
+      // The node session loaded `twice` and never called it.
+      expect(answer.out).not.toContain('  node ran 1 function the checkout no longer holds');
+    } finally {
+      await writeFile(join(root, 'src/math.ts'), MATH);
     }
   });
 

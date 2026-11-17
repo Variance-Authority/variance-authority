@@ -60,6 +60,8 @@ export interface SessionDropped {
   readonly outside: readonly string[];
   /** Sources its maps hold no text of, written since the script that ran them was built. */
   readonly stale: readonly string[];
+  /** Functions it ran that the checkout no longer holds, each as `<name> in <file>`. */
+  readonly gone: readonly string[];
 }
 
 /** `sessions`, set beside the records at `records`, with every file read from `root`. */
@@ -95,9 +97,13 @@ export async function coverageSessions(
       else own.push({ ...source, file });
     }
     named.push({ name: session.name, sources: own });
-    each.push({ name: session.name, skipped: input.skipped, unplaced: walked.unplaced, uncut: walked.uncut, outside: [...outside].sort(codeUnitOrder), stale: walked.stale });
+    each.push({ name: session.name, skipped: input.skipped, unplaced: walked.unplaced, uncut: walked.uncut, outside: [...outside].sort(codeUnitOrder), stale: walked.stale, gone: [] });
   }
   const answer = sessionsAgainst(named, suites.map((suite): readonly CoverageModule[] => suite.modules), read, mode);
+  const withGone = each.map((dropped) => ({
+    ...dropped,
+    gone: answer.files.flatMap(({ file, gone }) => gone.filter((ran) => ran.sessions.includes(dropped.name)).map((ran) => `${ran.name} in ${file}`)),
+  }));
   const names = sessions.map((session) => session.name);
   const untested = answer.files.flatMap(({ file, functions }) => {
     const ran = functions.filter((each) => each.testFiles?.length === 0 && each.sessions.includes('ran')).map((each): UntestedFunction => ({
@@ -108,7 +114,7 @@ export async function coverageSessions(
     return ran.length === 0 ? [] : [{ file, functions: ran }];
   });
   const uncounted = answer.files.flatMap((file) => file.functions).filter((each) => each.testFiles === undefined && each.sessions.includes('ran')).length;
-  return { names, each, untested, uncounted, files: answer.files, notLoaded: answer.notLoaded, uncut: answer.uncut };
+  return { names, each: withGone, untested, uncounted, files: answer.files, notLoaded: answer.notLoaded, uncut: answer.uncut };
 }
 
 /** The one mode every record was cut in: a session is walked as the records were, or the two would name different regions. */

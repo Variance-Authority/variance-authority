@@ -52,6 +52,7 @@ function dropped(sessions: CoverageSessions): readonly string[] {
     if (each.unplaced.length > 0) lines.push(`${each.name} mapped to ${sources(each.unplaced.length)} not on this machine: ${each.unplaced.join(', ')}`);
     if (each.stale.length > 0) lines.push(`${each.name} ran ${sources(each.stale.length)} edited since its build, whose text its map does not hold: ${each.stale.join(', ')}`);
     if (each.uncut.length > 0) lines.push(`${each.name} could not cut ${sources(each.uncut.length)}: ${each.uncut.join(', ')}`);
+    if (each.gone.length > 0) lines.push(`${each.name} ran ${functions(each.gone.length)} the checkout no longer holds, removed or renamed since: ${each.gone.join(', ')}`);
     if (each.outside.length > 0) lines.push(`${each.name} ran ${sources(each.outside.length)} outside the checkout or in a dependency: ${each.outside.join(', ')}`);
   }
   if (sessions.uncut.length > 0) {

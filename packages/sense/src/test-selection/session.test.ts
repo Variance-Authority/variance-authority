@@ -147,6 +147,29 @@ describe('sessions set beside the record', () => {
     expect(add.testFiles).toBeUndefined();
   });
 
+  it('counts no case for a function one suite ran by no case while another loaded its file unprobed', () => {
+    const session = named('checkout', sessionSources([bundle], 'presence'));
+    const unprobed = { file: 'src/math.ts', sourceDigest: 'x', instrumented: false, blocks: [] };
+    const answer = sessionsAgainst([session], [[recorded(MATH)], [unprobed]], (file) => disk.get(file), 'presence');
+
+    const math = answer.files.find((file) => file.file === 'src/math.ts')!;
+    expect(math.functions.map(({ name, testFiles }) => ({ name, testFiles }))).toEqual([
+      { name: 'add', testFiles: ['src/math.test.ts'] },
+      { name: 'never', testFiles: undefined },
+      { name: 'twice', testFiles: undefined },
+    ]);
+  });
+
+  it('names a function a session ran that the checkout no longer holds, with the sessions that ran it', () => {
+    const session = named('checkout', sessionSources([bundle], 'presence'));
+    const renamed = new Map([...disk, ['src/math.ts', MATH.replace('twice', 'thrice')]]);
+    const answer = sessionsAgainst([session, { name: 'idle', sources: [] }], [[recorded(MATH)]], (file) => renamed.get(file), 'presence');
+
+    const math = answer.files.find((file) => file.file === 'src/math.ts')!;
+    expect(math.gone).toEqual([{ name: 'twice', sessions: ['checkout'] }]);
+    expect(answer.files.find((file) => file.file === 'src/main.ts')!.gone).toEqual([]);
+  });
+
   it('counts no case for a function in a file the record loaded but did not probe, and none ran for one it never loaded', () => {
     const session = named('checkout', sessionSources([bundle], 'presence'));
     const unprobed = { file: 'src/main.ts', sourceDigest: 'x', instrumented: false, blocks: [] };

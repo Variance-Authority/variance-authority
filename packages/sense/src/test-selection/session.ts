@@ -115,6 +115,8 @@ export interface SessionsFunction {
 export interface SessionsFile {
   readonly file: string;
   readonly functions: readonly SessionsFunction[];
+  /** Functions a session ran that the checkout's text holds none of by kind, name and path: removed or renamed since. */
+  readonly gone: readonly { readonly name: string; readonly sessions: readonly string[] }[];
 }
 
 export interface SessionsAgainst {
@@ -181,10 +183,20 @@ export function sessionsAgainst(
       // Siblings may share a kind, name and path, and their own text tells them apart.
       const held = records.filter((block) => sameRegion(block, row));
       const same = held.filter((block) => block.digest === row.digest);
-      const testFiles = held.length === 0 ? (unprobed ? undefined : []) : same.length === 0 ? undefined : [...new Set(same.flatMap((block) => block.testFiles))].sort();
+      const entered = [...new Set(same.flatMap((block) => block.testFiles))].sort();
+      const testFiles = held.length > 0 && same.length === 0 ? undefined : entered.length === 0 && unprobed ? undefined : entered;
       return { row, name: row.name, sessions: sessionsSay, ...(testFiles === undefined ? {} : { testFiles }) };
     });
-    files.push({ file, functions });
+    const checkout = cut.rows.filter((row) => row.kind === 'function');
+    const gone = new Map<string, { name: string; sessions: string[] }>();
+    perSession.forEach((ran, index) => {
+      for (const { row } of ran.flatMap((source) => source.functions).filter((each) => each.state === 'ran' && !checkout.some((own) => sameRegion(own, each.row)))) {
+        const each = gone.get(`${row.name}\0${row.path}`) ?? { name: row.name, sessions: [] };
+        if (!each.sessions.includes(sessions[index]!.name)) each.sessions.push(sessions[index]!.name);
+        gone.set(`${row.name}\0${row.path}`, each);
+      }
+    });
+    files.push({ file, functions, gone: [...gone.values()] });
   }
   const notLoaded = [...recorded.keys()].filter((file) => !loaded.has(file)).sort();
   return { files, notLoaded, uncut };
