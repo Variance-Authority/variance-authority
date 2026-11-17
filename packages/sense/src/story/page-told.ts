@@ -32,6 +32,8 @@ const PART = 'page';
  * once a flush finds its part grew no more since the one before: what it
  * runs after that is told again. A part holding notes alone waits for the
  * end, so a page that only paints spends none of the watcher's tellings.
+ * `reportPage` sets `telling` while it reports, so the collector's drains
+ * leave the part to the teller, and clears it when a driver claims the page.
  * Given `room`, the story it tells is at most that long: the first of what ran
  * and what was said, and the rest counted, as a tape that stopped counts it.
  */
@@ -63,6 +65,7 @@ const cut = (part, kept, said) => {
   };
 };
 globalThis[${JSON.stringify(TELLER_GLOBAL)}] = {
+  telling: false,
   tell(key, ended, room) {
     const tap = globalThis.__VA__?.[Symbol.for('variance-authority.story.tap')];
     if (tap === undefined) return undefined;

@@ -223,6 +223,7 @@ describe('a page built to tell its story', () => {
   function teller() {
     const asked: [string, boolean, number | undefined][] = [];
     vi.stubGlobal(TELLER_GLOBAL, {
+      telling: false,
       tell: (journey: string, ended: boolean, room?: number) => {
         asked.push([journey, ended, room]);
         return `${ended ? 'ended' : 'told'} ${journey}`;
@@ -272,6 +273,20 @@ describe('a page built to tell its story', () => {
 
     expect(asked).toEqual([[loaded, false, undefined]]);
     expect(accounts(page)).toEqual([[loaded, 'journey', 0, `told ${loaded}`]]);
+  });
+
+  it('has the teller keep what ran while it reports, and hands it to a driver that claims the page', () => {
+    standIn({ beacon: () => true });
+    teller();
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [] }) });
+    const told = globalThis as unknown as Record<string, { telling: boolean }>;
+    reportPage(WATCHER);
+    expect(told[TELLER_GLOBAL]!.telling).toBe(true);
+
+    vi.stubGlobal(DRIVEN_GLOBAL, true);
+    vi.advanceTimersByTime(500);
+
+    expect(told[TELLER_GLOBAL]!.telling).toBe(false);
   });
 
   it('tells nothing where no teller was built in, and sends what it ran as before', () => {

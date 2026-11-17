@@ -24,6 +24,8 @@ import type { JourneyAccount } from './stitch.js';
  * `room`, no longer than that.
  */
 interface Teller {
+  /** Whether a page reports what it runs, so a drain leaves the story to the teller. */
+  telling: boolean;
   tell(journey: string, ended: boolean, room?: number): string | undefined;
 }
 
@@ -102,6 +104,9 @@ export function reportPage(watcher: string | undefined): void {
     if (yielded) return false;
     if (!driven()) return true;
     yielded = true;
+    // What the page tapes is the driver's from now on, as what its collector holds is.
+    const teller = browser[TELLER_GLOBAL] as Teller | undefined;
+    if (teller !== undefined) teller.telling = false;
     forget();
     return false;
   };
@@ -166,6 +171,8 @@ export function reportPage(watcher: string | undefined): void {
     return;
   }
   reporting.add(browser.document);
+  const teller = browser[TELLER_GLOBAL] as Teller | undefined;
+  if (teller !== undefined) teller.telling = true;
   // On the window, where an event is heard first: a handler the application puts there later runs under this click's execution.
   browser.addEventListener('click', quietly(turn), true);
   browser.addEventListener('submit', quietly(turn), true);

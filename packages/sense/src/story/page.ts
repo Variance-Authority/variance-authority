@@ -23,6 +23,7 @@ import caseOwner from '../test-selection/case-owner.cjs';
 import format from './format.cjs';
 import storyBytes from './story-bytes.cjs';
 import type { ModuleId } from '../instrument/index.js';
+import { TELLER_GLOBAL } from '../test-selection/execution-global.js';
 import { PAGE_STORY, type PageStory } from './page-story.js';
 
 /**
@@ -32,8 +33,9 @@ import { PAGE_STORY, type PageStory } from './page-story.js';
  *
  * Given `part`, the page tapes as a live head does, everything it runs into
  * that one part, bounded per execution: a page that tells its own executions
- * takes the part from the tap when one ends, as `page-told.ts` does, and a
- * runner that drains such a page takes it in its stead.
+ * takes the part from the tap when one ends, as `page-told.ts` does. While
+ * its teller is `telling`, a drain leaves the part to it; otherwise, as when
+ * a runner claims the page, the drain takes it.
  */
 export function storyPageSource(limit = storyTap.TAPE_LIMIT, part?: string): string {
   return `(() => {
@@ -61,8 +63,8 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
       if (opens === true) turn(true);
       else tap.settle();
       frames();
-      // A live tap keeps what ran in its part, which a driver that claims the page takes.
-      const read = ${part === undefined ? 'tap.read()' : `tap.take(${JSON.stringify(part)})`};
+      // A live tap keeps what ran in its part: the page's teller's while it tells, and a driver's that claims the page.
+      const read = ${part === undefined ? 'tap.read()' : `realm[${JSON.stringify(TELLER_GLOBAL)}]?.telling === true ? tap.read() : tap.take(${JSON.stringify(part)})`};
       const notes = read.notes.map(([at, , text]) => [at, text]);
       const lines = read.lines.map(([at, , line, said, hook]) => (hook === 1 ? [at, line, said, 1] : [at, line, said]));
       const story = {

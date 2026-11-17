@@ -36,7 +36,7 @@ function page() {
   const made = make(engine);
   realm.__VA__ = made.root;
   runInContext(instrument(CART, 'cart.js')!.code, realm, { filename: 'cart.js' });
-  const teller = realm[TELLER_GLOBAL] as { tell(journey: string, ended: boolean, room?: number): string | undefined };
+  const teller = realm[TELLER_GLOBAL] as { telling: boolean; tell(journey: string, ended: boolean, room?: number): string | undefined };
   return {
     run: (code: string): unknown => runInContext(code, realm),
     say: (text: string): void => (runInContext("globalThis[Symbol.for('variance-authority.story.note')]", realm) as (said: string) => void)(text),
@@ -46,6 +46,9 @@ function page() {
     },
     told: (journey: string, room: number) => teller.tell(journey, true, room)!,
     drain: () => made.take(),
+    telling: (now: boolean) => {
+      teller.telling = now;
+    },
   };
 }
 
@@ -128,6 +131,16 @@ describe('a page that tells what an execution ran', () => {
     expect(drained.visits).toBeGreaterThan(0);
     expect(drained.notes.map(([, text]) => text)).toEqual(["handed item='socks'", 'console.log adding socks']);
     expect(cart.tell('7f3a')).toBeUndefined();
+  });
+
+  it('leaves what ran to the teller while the page tells it, so a drain for its regions takes none of it', () => {
+    const cart = page();
+    cart.tell('7f3a');
+    cart.telling(true);
+    cart.run("add('socks')");
+
+    expect(cart.drain().visits).toBe(0);
+    expect(texts(cart.tell('7f3a')!)).toEqual(["handed item='socks'", 'console.log adding socks']);
   });
 
   it('keeps what a live head keeps of one execution, and counts the rest', () => {
