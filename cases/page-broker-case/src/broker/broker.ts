@@ -381,7 +381,7 @@ export class App {
     const prior = plain && !moved ? this.roots.get(target(declared.outcomes[reached[0]])!) : undefined;
     const spare = prior === undefined ? undefined : this.states.get(prior);
     const arrived = spare?.status === 'live' && spare.doc === this.documents.count ? prior : undefined;
-    if (left && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name, arrived);
+    if (left && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name, arrived && [arrived]);
     if (reached.length > 1) {
       throw new Error(`${fragment.name}.${name} reached ${reached.join(' and ')} at once; the page shows ${list(shown)}`);
     }
@@ -443,7 +443,7 @@ export class App {
     } else {
       const next = to as AnyFragment;
       for (const each of beneath) Object.assign(each, { status: 'covered', why: next.name, doc: this.documents.count });
-      if (!covering(outcome)) this.depart(name, fragment.name, arrived);
+      if (!covering(outcome)) this.depart(name, fragment.name, arrived && [arrived]);
       handle = arrived ?? this.handle(next, this.page);
       // What waits beneath is the part's one root owner, not the part that opened the cover; with several, the part itself.
       const roots = owners.filter((each) => ((this.roots.get(each) as any)?.[META] as Meta | undefined)?.owners[0] === each);
@@ -459,19 +459,17 @@ export class App {
     return named === undefined ? { outcome, handle } : handle;
   }
 
-  /** The acting handle stays on the document it is seen on; any other on an older one left with it, as the broker saw. */
+  /** The acting handle stays on the document it is seen on, its part tree whole; any other on an older one left with it, as the broker saw. */
   private stamp(state: State, action: string, from: string): void {
-    for (const each of this.states.values()) {
-      if (each !== state && each.status !== 'departed' && each.doc !== this.documents.count) Object.assign(each, { status: 'departed', why: `${from}.${action}` });
-    }
+    if (state.doc !== this.documents.count) this.depart(action, from, [...this.states].filter(([, each]) => each === state).map(([each]) => each));
     state.doc = this.documents.count;
   }
 
   /** Leaving a page revokes everything on it, the dialogs over it included; what arrived live keeps its part tree, owned within it, on a state of its own. */
-  private depart(action: string, from: string, arrived?: object): void {
-    const tree = arrived === undefined ? [] : [arrived, ...this.within(arrived)];
+  private depart(action: string, from: string, arrived: readonly object[] = []): void {
+    const tree = [...new Set(arrived.flatMap((each) => [each, ...this.within(each)]))];
     const inside = new Set(tree.map((each) => ((each as any)[META] as Meta).fragment));
-    const own = tree.length === 0 ? undefined : ((arrived as any)[META] as Meta).state;
+    const own = tree.length === 0 ? undefined : ((tree[0] as any)[META] as Meta).state;
     const shared = [...this.states].some(([each, state]) => state === own && !tree.includes(each));
     const spared: State | undefined = shared ? { status: 'live', doc: this.documents.count } : own;
     for (const state of this.states.values()) {

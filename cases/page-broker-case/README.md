@@ -65,8 +65,8 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    `about:blank`, where a history push or a hash change keeps
    the document and its handles, even while another document is loading, a
    broker started on a page already loaded included. A staying action that
-   loads a new document keeps its own handle and departs every other at
-   itself. Leaving is the whole page's: whatever leaves departs every handle
+   loads a new document keeps its own handle with every part, a part it
+   shares answering to it alone, and departs every other at itself. Leaving is the whole page's: whatever leaves departs every handle
    but what arrives, and a document the broker cannot read counts as new.
 4. **The declared edges are the app's test interface.** `edges(roots)` lists
    them, `walked(edges, journals)` counts which the tests took, and the

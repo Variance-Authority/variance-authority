@@ -295,3 +295,30 @@ test('an action that fails after taking a part departs its fragment', async ({ p
   await expect(cut.cut()).rejects.toThrow();
   await expect(cut.label()).rejects.toThrow('sx-cut departed at sx-cut.cut');
 });
+
+// A stay that reloads keeps what acted whole, in either entry order: a part it shares with a fragment left behind answers to it alone.
+const Common = fragment('sr-common', { probe: byTestId('sr-common'), reads: { text: (r) => r.texts(byRole('button')) } });
+const Behind = fragment('sr-behind', { probe: byTestId('sr-behind'), uses: { common: Common } });
+const Reloader = fragment('sr-reloader', {
+  probe: byTestId('sr-reloader'),
+  uses: { common: Common },
+  actions: { reload: stays((d) => d.click(byRole('button', 'Reload'))) },
+});
+
+for (const first of ['behind', 'reloader'] as const) {
+  test(`a stay that reloads keeps its shared part, ${first} entered first`, async ({ page, app }) => {
+    await page.route('**/srdoc', (route) =>
+      route.fulfill({
+        contentType: 'text/html',
+        body: '<!doctype html><div data-testid="sr-behind">b</div><div data-testid="sr-reloader"><button type="button" onclick="location.reload()">Reload</button></div><div data-testid="sr-common"><button type="button">C</button></div>',
+      }),
+    );
+    await page.goto('/srdoc');
+    const behind = first === 'behind' ? await app.enter(Behind) : undefined;
+    const reloader = await app.enter(Reloader);
+    if (behind === undefined) await app.enter(Behind);
+    await reloader.reload();
+    expect(await reloader.common.text()).toEqual(['C']);
+    expect(await (await app.enter(Reloader)).common.text()).toEqual(['C']);
+  });
+}
