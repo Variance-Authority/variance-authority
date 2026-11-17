@@ -1,29 +1,23 @@
 import { describe, it } from 'vitest';
-import { comparedByCli } from './__fixtures__/carry-comparison.js';
 import { lastCasesByCli, selectedByCli } from './__fixtures__/carry-contract.js';
 import { CONTRACT_SEED, generated, seedsOr } from './__fixtures__/carry-histories.js';
-import { ranByCli } from './__fixtures__/carry-ran.js';
-import { sinceByCli } from './__fixtures__/carry-since.js';
 import {
   bothRanOverAnUnkeptEdit,
   branchDeletedThenRun,
   branchDeletedThenRunElsewhere,
-  changeRecordedThenAsked,
   commentThenRunElsewhere,
-  importEditedThenRunElsewhere,
   lackedCallbackThenComment,
   lastRunAfterCarry,
   ranOverAnUnkeptTextThenAnother,
   ranOverAnotherTestsRegion,
-  ranOverThenCommittedElsewhere,
   ranOverThenKeptForgotten,
-  renamedThenEdited,
   typeWrittenThenRunElsewhere,
 } from './__fixtures__/carry-stories.js';
 import { forgetKept } from './__fixtures__/carry-tree.js';
 
 // The same histories, each last selection asked of `variance select --execution`
-// in a process of its own: the record is opened cold, by the native reader.
+// in a process of its own: the record is opened cold, by the native reader. What
+// `variance covering` and `variance coverage` answer is a file of its own.
 describe('a record carried through a history, asked by the CLI after a restart', () => {
   it('keeps compact last-run membership through a carry and a later partial run', async () => {
     await lastRunAfterCarry(selectedByCli, lastCasesByCli);
@@ -65,21 +59,6 @@ describe('a record carried through a history, asked by the CLI after a restart',
     await ranOverAnUnkeptTextThenAnother(selectedByCli, forgetKept);
   });
 
-  it('dates a test file by the landing it last ran in, never by a later one that carried it, and holds the text it ran over only while it is kept or committed', async () => {
-    await ranOverThenCommittedElsewhere(ranByCli, forgetKept);
-  });
-
-  it('answers for a change the record already holds by the test that entered it, and for what it does not hold beside it', async () => {
-    await changeRecordedThenAsked(sinceByCli);
-  });
-
-  it('holds nothing of a file the mainline renamed, the record having run it under the old path', async () => {
-    await renamedThenEdited(sinceByCli);
-  });
-
-  it('compares a top level whose carried cases an import edit dropped as unmeasured, never as no longer run', async () => {
-    await importEditedThenRunElsewhere(comparedByCli);
-  });
 });
 
 // The contract's seed, the last selection asked of the CLI for the labels the

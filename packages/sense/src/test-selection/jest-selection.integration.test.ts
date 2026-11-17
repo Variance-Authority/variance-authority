@@ -1,75 +1,15 @@
-import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
-import { dirname, relative, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
-import { codeUnitOrder } from '@variance-authority/core/segment';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
 import { instrumentationId } from '../instrument/index.js';
+import { at, FOUND, jestSelection } from './__fixtures__/jest-selection.js';
 import { decodeTestCoverage } from './format.js';
 import { writeTestCoverage } from './index.js';
 
-const execute = promisify(execFile);
-const here = dirname(fileURLToPath(import.meta.url));
-const repository = resolve(here, '../../../..');
-const fixture = resolve(repository, 'packages/sense/test/fixtures/external-jest');
-const at = (path: string): string => `${relative(repository, fixture)}/${path}`;
-const jest = resolve(repository, 'node_modules/jest/bin/jest.js');
-const FOUND = ['alpha', 'beta', 'delta', 'each', 'gamma'].map((name) => at(`test/${name}.case.ts`));
-const UNFOUND = 'variance-authority: Jest left no test file to select from';
-
-let directory: string;
-beforeAll(async () => {
-  directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-jest-selected-'));
-});
-afterAll(async () => {
-  await rm(directory, { recursive: true, force: true });
-});
-
-/** One run of the Jest fixture, handed `skip`: what it printed and which test files it recorded. */
-async function run(name: string, skip: readonly string[], ...args: string[]) {
-  return runWith(name, { FIXTURE_SKIP: JSON.stringify(skip) }, ...args);
-}
-
-async function runWith(name: string, fixtureEnv: Record<string, string>, ...args: string[]) {
-  return runConfig('jest.config.mjs', name, fixtureEnv, ...args);
-}
-
-async function runConfig(config: string, name: string, fixtureEnv: Record<string, string>, ...args: string[]) {
-  const coverageFile = resolve(directory, `${name}.bin`);
-  const { stdout, stderr } = await execute(
-    process.execPath,
-    [jest, '--config', resolve(fixture, config), '--watchman=false', ...args],
-    {
-      cwd: fixture,
-      env: {
-        ...process.env,
-        VARIANCE_AUTHORITY_COVERAGE: coverageFile,
-        VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'jest-cache'),
-        VARIANCE_AUTHORITY_CACHE: resolve(directory, name),
-        ...fixtureEnv,
-      },
-    },
-  );
-  const ran = existsSync(coverageFile)
-    ? [...new Set(decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file))].sort()
-    : [];
-  return { stdout, stderr, ran };
-}
-
-/** One run of the two-project fixture, handed `skip`, with `empty`'s `testMatch` matching nothing. */
-async function runProjects(name: string, skip: readonly string[], empty: readonly string[]) {
-  return runConfig('jest.projects.config.mjs', name, { FIXTURE_SKIP: JSON.stringify(skip), FIXTURE_EMPTY_PROJECTS: JSON.stringify(empty) });
-}
-
-/** How a run ended: the exit code, what it printed to stderr, and what it ran. */
-const ended = (running: Promise<{ readonly stderr: string; readonly ran: readonly string[] }>) => running.then(
-  ({ stderr, ran }) => ({ code: 0, stderr, ran }),
-  ({ code, stderr }: { readonly code: number; readonly stderr: string }) => ({ code, stderr, ran: [] as readonly string[] }),
-);
+// What a selection makes of a Jest run that has files to run: which it runs,
+// which cases of a file it cuts, and how shards split them. The order under
+// `--randomize`, and a run left with no file, are each a file of their own.
+const { directory, run, runWith } = jestSelection();
 
 describe('a Jest run handed a selection', () => {
   it('runs what the selection kept, and counts it against what Jest found', async () => {
@@ -95,115 +35,22 @@ describe('a Jest run handed a selection', () => {
   });
 });
 
-describe('a Jest run with no file left to run', () => {
-  const NOTHING = ['--testPathPatterns', 'no-such-case'];
-
-  it('exits 0 when the selection dropped every file it found, and prints that none runs', async () => {
-    const { code, stderr } = await ended(run('none', FOUND));
-
-    expect(stderr).toContain('variance-authority: selected none of 5, so none of them runs');
-    expect(code).toBe(0);
-  });
-
-  it('exits 0 when the selection dropped every file of every project', async () => {
-    const skip = ['alpha', 'beta'].map((name) => at(`test/${name}.case.ts`));
-    const { code, stderr } = await ended(runConfig('jest.projects.config.mjs', 'none-projects', { FIXTURE_SKIP: JSON.stringify(skip) }));
-
-    expect(stderr).toContain('variance-authority: selected none of 1, so none of them runs');
-    expect(code).toBe(0);
-  });
-
-  it('fails as Jest fails when a selected run found no file, because nothing was there to select from', async () => {
-    const { code, stderr } = await ended(run('none-found', [], ...NOTHING));
-
-    expect(stderr).toContain(UNFOUND);
-    expect(code).toBe(1);
-  });
-
-  it('fails when a testMatch that matches nothing leaves the selection no file', async () => {
-    const { code, stderr } = await ended(runWith('broken-match', { FIXTURE_SKIP: '[]', FIXTURE_TEST_MATCH: '<rootDir>/test/*.no-such-case.ts' }));
-
-    expect(stderr).toContain(UNFOUND);
-    expect(code).toBe(1);
-  });
-
-  it('fails on every shard when no shard found a file', async () => {
-    expect((await ended(run('none-found-shard', [], ...NOTHING, '--shard=1/2'))).code).toBe(1);
-  });
-
-  it('fails a sharded run whose sequencer the command line replaced, as the seam says it does', async () => {
-    const sequencer = createRequire(createRequire(jest).resolve('jest-cli')).resolve('@jest/test-sequencer');
-    const { code, stderr } = await ended(run('none-found-replaced', [], ...NOTHING, '--shard=1/2', `--testSequencer=${sequencer}`));
-
-    expect(stderr).toContain('so Jest fails both');
-    expect(code).toBe(1);
-  });
-
-  it('fails when no project found a file', async () => {
-    const { code, stderr } = await ended(runProjects('none-found-projects', [], ['alpha', 'beta']));
-
-    expect(stderr).toContain(UNFOUND);
-    expect(code).toBe(1);
-  });
-
-  it('exits 0 when one project found no file and the selection dropped every file of the other', async () => {
-    const { code, stderr } = await ended(runProjects('one-found-none-kept', [at('test/alpha.case.ts')], ['beta']));
-
-    expect(stderr).not.toContain(UNFOUND);
-    expect(code).toBe(0);
-  });
-
-  it('runs a project that found files beside one that found none, as Jest does', async () => {
-    const { code, ran } = await ended(runProjects('one-found-one-kept', [], ['beta']));
-
-    expect(ran).toEqual([at('test/alpha.case.ts')]);
-    expect(code).toBe(0);
-  });
-
-  it('passes a selected run that found no file when the configuration says such a run passes', async () => {
-    expect((await ended(runWith('none-found-set', { FIXTURE_SKIP: '[]', FIXTURE_PASS_WITH_NO_TESTS: 'true' }, ...NOTHING))).code).toBe(0);
-  });
-
-  it('passes a selected run that found no file under --passWithNoTests', async () => {
-    expect((await ended(run('none-found-flag', [], ...NOTHING, '--passWithNoTests'))).code).toBe(0);
-  });
-
-  it('lists no file and exits 0 under --listTests, as Jest does', async () => {
-    expect((await ended(run('none-found-listed', [], ...NOTHING, '--listTests'))).code).toBe(0);
-  });
-
-  it('leaves the exit to Jest under --skipFilter, where nothing is selected', async () => {
-    const { code, stderr } = await ended(run('none-found-unfiltered', [], ...NOTHING, '--skipFilter'));
-
-    expect(stderr).not.toContain(UNFOUND);
-    expect(code).toBe(1);
-  });
-
-  it('keeps Jest\'s exit 1 when no selection was handed in', async () => {
-    expect((await ended(runWith('unselected', {}, ...NOTHING))).code).toBe(1);
-  });
-
-  it('keeps a passWithNoTests the configuration sets on a run with no selection', async () => {
-    expect((await ended(runWith('set-true', { FIXTURE_PASS_WITH_NO_TESTS: 'true' }, ...NOTHING))).code).toBe(0);
-  });
-});
-
 describe('a Jest run handed the cases to skip in a file it runs', () => {
   // Two files, two workers, and a Jest cache with no times in it, which Jest
   // would otherwise read as fast tests and run in band: the cut reaches a
   // worker the filter's process forked.
   it('runs the other cases of that file, in a worker, and records the file incomplete', async () => {
-    const report = resolve(directory, 'cut.json');
+    const report = resolve(directory(), 'cut.json');
     await runWith('cut', {
       FIXTURE_SKIP: JSON.stringify(FOUND.filter((file) => !/alpha|beta/.test(file))),
       FIXTURE_CASES: JSON.stringify({ [at('test/alpha.case.ts')]: ['ran after the project\'s own setup file'] }),
-      VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory, 'jest-cache-cut'),
+      VARIANCE_AUTHORITY_JEST_CACHE: resolve(directory(), 'jest-cache-cut'),
     }, '--maxWorkers=2', '--json', '--outputFile', report);
     const { testResults } = JSON.parse(await readFile(report, 'utf8')) as {
       testResults: { name: string; assertionResults: { title: string; status: string }[] }[];
     };
     const alpha = testResults.find((file) => file.name.endsWith('alpha.case.ts'))!;
-    const recorded = decodeTestCoverage(await readFile(resolve(directory, 'cut.bin'))).tests;
+    const recorded = decodeTestCoverage(await readFile(resolve(directory(), 'cut.bin'))).tests;
 
     expect(alpha.assertionResults.map(({ title, status }) => [title, status])).toEqual([
       ['takes the alpha path', 'passed'],
@@ -223,7 +70,7 @@ describe('a Jest run whose cut is gone', () => {
   it('runs every case, as a run with no cut does', async () => {
     const { ran } = await runWith('gone', {
       FIXTURE_SKIP: JSON.stringify([]),
-      VARIANCE_AUTHORITY_TEST_SELECTION_CUT: resolve(directory, 'no-such-cut.json'),
+      VARIANCE_AUTHORITY_TEST_SELECTION_CUT: resolve(directory(), 'no-such-cut.json'),
     });
 
     expect(ran).toEqual(FOUND);
@@ -233,7 +80,7 @@ describe('a Jest run whose cut is gone', () => {
 describe('a Jest run under --shard, with the times a record holds', () => {
   it('places each file by its recorded time, and says what each shard takes', async () => {
     // Alpha is recorded as the slow one, so on two shards it is alone on the first.
-    const timed = (k: number) => writeTestCoverage(resolve(directory, `timed-${k}.bin`), {
+    const timed = (k: number) => writeTestCoverage(resolve(directory(), `timed-${k}.bin`), {
       version: 3,
       instrumentation: instrumentationId('presence'),
       tests: FOUND.map((file) => ({ file, complete: true, preconditions: [], duration: file.includes('alpha') ? 9000 : 100 })),
@@ -257,40 +104,5 @@ describe('a Jest run under --shard, with the times a record holds', () => {
 
     expect(stderr).toContain('variance-authority: shard 6/6 by file count: 0 of 5 files;');
     expect(ran).toEqual([]);
-  });
-});
-
-describe('a Jest run handed a selection, under --randomize', () => {
-  /** Each file's tests in the order they ran, by file, and the seed Jest printed. */
-  async function shuffled(config: string, name: string, skip: readonly string[], ...args: string[]) {
-    const report = resolve(directory, `${name}.json`);
-    const { stderr } = await runConfig(config, name, { FIXTURE_SKIP: JSON.stringify(skip) }, '--randomize', '--json', '--outputFile', report, ...args);
-    const { testResults } = JSON.parse(await readFile(report, 'utf8')) as {
-      testResults: { name: string; assertionResults: { title: string }[] }[];
-    };
-    const order = testResults
-      .map((file) => [relative(repository, file.name), file.assertionResults.map((test) => test.title)] as const)
-      .toSorted(([a], [b]) => codeUnitOrder(a, b));
-    return { order, seed: /^Seed: +(-?\d+)$/m.exec(stderr)?.[1] };
-  }
-
-  const skip = [at('test/gamma.case.ts')];
-  const kept = 'test/(alpha|beta|delta|each)';
-
-  // Two seeds that put the tests of `alpha` and `each` in two different orders,
-  // so an order that ignores the seed cannot match both.
-  it.each([1, 2])('runs each kept file\'s tests in the order Jest gives those files alone with seed %i, and prints the seed', async (seed) => {
-    const own = await shuffled('jest.plain.config.mjs', `own-${seed}`, [], `--seed=${seed}`, kept);
-    const wrapped = await shuffled('jest.config.mjs', `wrapped-${seed}`, skip, `--seed=${seed}`);
-
-    expect(wrapped.order).toEqual(own.order);
-    expect(wrapped.seed).toBe(String(seed));
-  });
-
-  it('prints the seed it picked, and that seed runs the tests in the same order', async () => {
-    const picked = await shuffled('jest.config.mjs', 'picked', skip);
-    expect(picked.seed).toBeDefined();
-
-    expect((await shuffled('jest.config.mjs', 'again', skip, `--seed=${picked.seed}`)).order).toEqual(picked.order);
   });
 });
