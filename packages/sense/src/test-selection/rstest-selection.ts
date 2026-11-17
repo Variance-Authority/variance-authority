@@ -63,10 +63,15 @@ export function selectionPlugins(
   return [selectingPlugin(selection, root, argv)];
 }
 
-/** Whether Rstest was started to watch: its `watch` command, or `-w` on its default one. */
+/**
+ * Whether Rstest was started to watch: its `watch` command, or `-w` on its
+ * default one. Options may come before the command, and Rstest does not export
+ * which take a value, so any `watch` reads as the command: the error leaves a
+ * run unselected, never a watch session selected.
+ */
 function watching(argv: readonly string[]): boolean {
   const args = argv.slice(2);
-  return args[0] === 'watch' || args.some((arg) => arg === '-w' || arg === '--watch' || (arg.startsWith('--watch=') && arg !== '--watch=false'));
+  return args.some((arg) => arg === 'watch') || args.some((arg) => arg === '-w' || arg === '--watch' || (arg.startsWith('--watch=') && arg !== '--watch=false'));
 }
 
 /**
@@ -77,8 +82,7 @@ function watching(argv: readonly string[]): boolean {
  */
 function narrowed(argv: readonly string[]): boolean {
   const args = argv.slice(2);
-  const rest = ['run', 'watch', 'list'].includes(args[0] ?? '') ? args.slice(1) : args;
-  return rest.some((arg) => !arg.startsWith('-') || arg === '--shard' || arg.startsWith('--shard='));
+  return args.some((arg) => arg === '--shard' || arg.startsWith('--shard=') || (!arg.startsWith('-') && arg !== 'run' && arg !== 'list'));
 }
 
 /**
