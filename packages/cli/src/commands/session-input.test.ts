@@ -122,9 +122,21 @@ describe('a session read from what V8 wrote', () => {
     await writeFile(join(root, 'dist/maps/main.js.map'), JSON.stringify({ ...BUNDLE_MAP, sources: ['../../src/math.ts', '../../src/main.ts'] }));
     const at = join(root, 'apart.json');
     const source = BUNDLE.replace('sourceMappingURL=main.js.map', 'sourceMappingURL=maps/main.js.map');
-    await writeFile(at, JSON.stringify({ result: [{ url: `file://${join(root, 'dist/main.js')}`, scriptId: '1', source, functions }] }));
+    await writeFile(join(root, 'dist/apart.js'), source);
+    await writeFile(at, JSON.stringify({ result: [{ url: `file://${join(root, 'dist/apart.js')}`, scriptId: '1', source, functions }] }));
 
     expect(math((await readSession(at, undefined)).scripts)).toEqual(EXPECTED);
+  });
+
+  it('names a served script whose file is another build than the one that ran, rather than read it through that build\'s map', async () => {
+    const at = join(root, 'rebuilt.json');
+    const url = 'http://localhost:5173/main.js';
+    // The page ran a build with a banner the file on disk, and the map beside it, no longer have.
+    await writeFile(at, JSON.stringify([{ url, scriptId: '1', source: `/**/\n${BUNDLE}`, functions }]));
+    const session = await readSession(at, join(root, 'dist'));
+
+    expect(session.scripts).toEqual([]);
+    expect(session.skipped).toEqual([url]);
   });
 
   it('names a served script it cannot place without a served directory, and reads none of it', async () => {

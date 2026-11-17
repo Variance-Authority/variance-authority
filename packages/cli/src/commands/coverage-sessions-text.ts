@@ -57,7 +57,7 @@ function dropped(sessions: CoverageSessions): readonly string[] {
   if (sessions.uncut.length > 0) {
     lines.push(`${grouped(sessions.uncut.length)} file${sessions.uncut.length === 1 ? '' : 's'} a session ran could not be cut in the checkout's text: ${sessions.uncut.join(', ')}`);
   }
-  if (sessions.uncounted > 0) lines.push(`${functions(sessions.uncounted)} ran in a text the record holds otherwise: no case can be counted for them`);
+  if (sessions.uncounted > 0) lines.push(`${functions(sessions.uncounted)} ran that no case can be counted for: the record holds them in another text, or loaded their file unprobed`);
   return lines;
 }
 

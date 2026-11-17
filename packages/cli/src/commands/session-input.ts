@@ -91,15 +91,8 @@ function exportOf(file: string, json: unknown): Exported {
 
 /**
  * The script `reported` names, `undefined` when it cannot be read, and `nobody`
- * for a script no source is behind. A `file:` URL is that file, and an
- * `http(s):` one the file at its path under `served`, which only the person who
- * ran it can name; a URL no file answers, as another origin's does, is not
- * placed. Node keeps no script text, so the file is read only when its lines are
- * as long as the ones Node counted: a loader's transform, or a rebuild since,
- * leaves other text there, and V8's offsets would land in other functions. The
- * map is the one Node cached, else the one `sourceMappingURL` names, and its
- * sources resolve against the file it was read from. The file's last write
- * stands for when it was built.
+ * for a script no source is behind. The file's last write stands for when it
+ * was built, and its map's sources resolve against the file the map was read from.
  */
 async function scriptOf(reported: Reported, cached: ReadonlyMap<string, Cached>, served: string | undefined): Promise<SessionScript | 'nobody' | undefined> {
   if (reported.url === '' || reported.url.startsWith('node:')) return 'nobody';
@@ -109,13 +102,17 @@ async function scriptOf(reported: Reported, cached: ReadonlyMap<string, Cached>,
   if (disk === undefined) return undefined;
   const builtAt = (await stat(file)).mtimeMs;
   const entry = cached.get(reported.url);
+  // Node keeps no script text: a file whose lines are not the ones Node counted holds another build, or a loader's output.
   if (reported.source === undefined && entry?.lineLengths !== undefined && !isDeepStrictEqual(lineLengths(disk), entry.lineLengths)) return undefined;
   const text = reported.source ?? disk;
+  // Node's cached map first, else the one `sourceMappingURL` names.
   const found = entry?.data === undefined ? await mapOf(text, file) : { map: entry.data, file: mapFileOf(entry.url, file) };
   if (found === null) return undefined;
   const script = { file, text, functions: reported.functions, builtAt };
   if (found === undefined) return script;
   if (!isMap(found.map)) return undefined;
+  // A map read from disk belongs to the build on disk, which is not the one that ran when its text differs.
+  if (found.file !== undefined && entry?.data === undefined && text !== disk) return undefined;
   return { ...script, map: found.map, ...(found.file === undefined ? {} : { mapFile: found.file }) };
 }
 
@@ -124,6 +121,7 @@ function lineLengths(text: string): readonly number[] {
   return text.split(/\n|\u2028|\u2029/).map((line) => line.length);
 }
 
+/** A path or `file:` URL is that file, and an `http(s):` one the file at its path under `served`, which only the person who ran it can name. */
 function fileOf(url: string, served: string | undefined): string | undefined {
   if (url.startsWith('/')) return url;
   let parsedUrl: URL;

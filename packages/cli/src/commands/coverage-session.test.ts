@@ -208,7 +208,7 @@ describe('`coverage --session`', () => {
     try {
       const answer = await ask(['coverage', '--root', root, ...SESSIONS()]);
 
-      expect(answer.out).toContain('1 function ran in a text the record holds otherwise: no case can be counted for them');
+      expect(answer.out).toContain('1 function ran that no case can be counted for: the record holds them in another text, or loaded their file unprobed');
       expect(answer.out).not.toMatch(/\btwice\s+9/);
     } finally {
       await writeRecord(record, 'presence');

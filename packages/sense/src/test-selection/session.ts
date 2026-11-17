@@ -104,8 +104,9 @@ export interface SessionsFunction {
   readonly sessions: readonly SessionVerdict[];
   /**
    * The test files any suite's record entered this function from, `[]` when no
-   * record holds it, and absent when a record holds it in another text: no case
-   * can be counted for a function whose recorded text is not the checkout's.
+   * record holds it, and absent when a record holds it in another text or
+   * loaded its file unprobed: no case can be counted for a function whose
+   * recorded text is not the checkout's, or that no probe watched.
    */
   readonly testFiles?: readonly string[];
 }
@@ -170,6 +171,8 @@ export function sessionsAgainst(
       return states;
     });
     const records = (recorded.get(file) ?? []).flatMap((module) => module.blocks);
+    // A file a record loaded unprobed holds no regions, which says nothing of what its cases ran.
+    const unprobed = (recorded.get(file) ?? []).some((module) => !module.instrumented);
     const functions = cut.rows.filter((row) => row.kind === 'function').map((row): SessionsFunction => {
       const sessionsSay = verdicts.map((states, index): SessionVerdict => {
         if (perSession[index]!.length === 0) return 'not loaded';
@@ -178,7 +181,7 @@ export function sessionsAgainst(
       // Siblings may share a kind, name and path, and their own text tells them apart.
       const held = records.filter((block) => sameRegion(block, row));
       const same = held.filter((block) => block.digest === row.digest);
-      const testFiles = held.length === 0 ? [] : same.length === 0 ? undefined : [...new Set(same.flatMap((block) => block.testFiles))].sort();
+      const testFiles = held.length === 0 ? (unprobed ? undefined : []) : same.length === 0 ? undefined : [...new Set(same.flatMap((block) => block.testFiles))].sort();
       return { row, name: row.name, sessions: sessionsSay, ...(testFiles === undefined ? {} : { testFiles }) };
     });
     files.push({ file, functions });

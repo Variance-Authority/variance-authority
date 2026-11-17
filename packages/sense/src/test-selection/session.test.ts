@@ -146,4 +146,14 @@ describe('sessions set beside the record', () => {
     expect(add.sessions).toEqual(['ran']);
     expect(add.testFiles).toBeUndefined();
   });
+
+  it('counts no case for a function in a file the record loaded but did not probe, and none ran for one it never loaded', () => {
+    const session = named('checkout', sessionSources([bundle], 'presence'));
+    const unprobed = { file: 'src/main.ts', sourceDigest: 'x', instrumented: false, blocks: [] };
+    const answer = sessionsAgainst([session], [[recorded(MATH), unprobed]], (file) => disk.get(file), 'presence');
+    const testFiles = (file: string) => answer.files.find((each) => each.file === file)!.functions.map((each) => each.testFiles);
+
+    expect(testFiles('src/main.ts').every((each) => each === undefined)).toBe(true);
+    expect(sessionsAgainst([session], [[recorded(MATH)]], (file) => disk.get(file), 'presence').files.find((each) => each.file === 'src/main.ts')!.functions.map((each) => each.testFiles)).toEqual(testFiles('src/main.ts').map(() => []));
+  });
 });

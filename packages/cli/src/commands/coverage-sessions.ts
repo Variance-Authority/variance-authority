@@ -37,7 +37,7 @@ export interface CoverageSessions {
   readonly each: readonly SessionDropped[];
   /** Per file, the functions some session ran and no recorded case entered. */
   readonly untested: readonly { readonly file: string; readonly functions: readonly UntestedFunction[] }[];
-  /** Functions some session ran whose record holds them in another text: no case can be counted for them. */
+  /** Functions some session ran that no case can be counted for: the record holds them in another text, or loaded their file unprobed. */
   readonly uncounted: number;
   /** Every function of every file a session loaded, with each session's verdict and the test files that entered it. */
   readonly files: readonly SessionsFile[];
