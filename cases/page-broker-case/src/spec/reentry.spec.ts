@@ -270,3 +270,28 @@ test('an action that fails after its fragment left still departs it', async ({ p
   await expect(broken.snap()).rejects.toThrow();
   await expect(broken.label()).rejects.toThrow('sx-broken departed at sx-broken.snap');
 });
+
+// A failed action that took a part with it leaves its fragment unwhole: the handle departs, even though the fragment still shows.
+const Piece = fragment('sx-piece', { probe: byTestId('sx-piece') });
+const Cut = fragment('sx-cut', {
+  probe: byTestId('sx-cut'),
+  uses: { piece: Piece },
+  actions: {
+    cut: async (d) => {
+      await d.click(byRole('button', 'Cut'));
+      await d.click(byRole('button', 'Nowhere'));
+    },
+  },
+  reads: { label: (r) => r.texts(byRole('button')) },
+});
+
+test('an action that fails after taking a part departs its fragment', async ({ page, app }) => {
+  await open(page);
+  await page.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', '<div data-testid="sx-cut"><button type="button">Cut</button><div data-testid="sx-piece">p</div></div>');
+    document.querySelector('[data-testid="sx-cut"] button')!.addEventListener('click', () => document.querySelector('[data-testid="sx-piece"]')!.remove());
+  });
+  const cut = await app.enter(Cut);
+  await expect(cut.cut()).rejects.toThrow();
+  await expect(cut.label()).rejects.toThrow('sx-cut departed at sx-cut.cut');
+});

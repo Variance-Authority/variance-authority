@@ -220,9 +220,10 @@ export class App {
         if (this.journal.length === steps) {
           this.journal.push({ from: fragment.name, action: name, kind: stays ? 'stay' : 'lead', to: fragment.name, failed: (error as Error).message });
         }
-        // What failed may still have left: the page is read again, and the test's error stands whatever it says.
+        // What failed may still have left or lost a part: the page is read again, and the test's error stands whatever it says.
         const shown = !(error instanceof Revoked) && this.alive(meta.state) ? await this.sense().catch((): string[] => []) : undefined;
-        if (shown !== undefined && [fragment, ...meta.owners].some((each) => !shown.includes(each.name))) this.depart(name, fragment.name);
+        const broke = async (each: AnyFragment) => !shown!.includes(each.name) || (await this.missing(each).catch(() => 'unread')) !== undefined;
+        if (shown !== undefined && (await Promise.all([fragment, ...meta.owners].map(broke))).some(Boolean)) this.depart(name, fragment.name);
         throw error;
       }
     };
