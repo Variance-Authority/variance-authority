@@ -7,7 +7,8 @@ instead of on selectors and waits.
 - A **fragment** is a stable state: a probe that says it shows, actions that
   stay by default, reads, parts it `uses`. Parts agree with the whole: a
   fragment whose part, however deep, does not show is neither entered nor
-  arrived at, and one that stays with a part gone departs.
+  arrived at, and one that stays with a part gone, its owners' parts
+  included, departs.
 - `leads({ payment: Payment, signIn: over(SignIn), invalid: stay })` names the
   outcomes; the broker senses which one the app reached. `.to('payment')`
   insists on one and fails with the branch actually taken.

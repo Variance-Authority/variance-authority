@@ -197,12 +197,14 @@ export class App {
     return undefined;
   }
 
-  /** A fragment that stays keeps every part: one gone is the page changed, and every handle on it departs. */
-  private async whole(fragment: AnyFragment, action: string, how: string): Promise<void> {
-    const missing = await this.missing(fragment);
-    if (missing === undefined) return;
-    this.depart(action, fragment.name);
-    throw new Error(`${fragment.name}.${action} ${how}, and its part ${missing} is missing`);
+  /** What stays keeps every part, its owners' included: one gone is the page changed, and every handle on it departs. */
+  private async whole(fragment: AnyFragment, owners: readonly AnyFragment[], action: string, how: string): Promise<void> {
+    for (const each of new Set([fragment, ...owners])) {
+      const missing = await this.missing(each);
+      if (missing === undefined) continue;
+      this.depart(action, fragment.name);
+      throw new Error(`${fragment.name}.${action} ${how}, and ${each === fragment ? 'its' : `${each.name}'s`} part ${missing} is missing`);
+    }
   }
 
   private async shows(fragment: AnyFragment): Promise<boolean> {
@@ -355,7 +357,7 @@ export class App {
         throw new Error(`${fragment.name}.${name} is declared to stay, and${who} left: the page shows ${list(await this.sense())}`);
       }
     }
-    await this.whole(fragment, name, 'is declared to stay');
+    await this.whole(fragment, owners, name, 'is declared to stay');
     state.doc = this.doc;
     this.journal.push({ from: fragment.name, action: name, kind: 'stay', to: fragment.name });
   }
@@ -433,7 +435,7 @@ export class App {
         throw new Error(`${fragment.name}.${name} reached ${to.name}, and ${by} still shows; declare it over(${to.name})`);
       }
     }
-    if (to === stay) await this.whole(fragment, name, 'stayed');
+    if (to === stay) await this.whole(fragment, owners, name, 'stayed');
     const toName = to === stay ? fragment.name : (to as AnyFragment).name;
     this.journal.push({ from: fragment.name, action: name, kind: 'lead', outcome, named, to: toName });
 

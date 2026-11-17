@@ -404,3 +404,26 @@ test('a cover that showed before the action does not arrive by it', async ({ pag
   await expect(opener.open.to('bar')).rejects.toThrow('billing-opener.open reached banner-cover over billing-opener, and banner-cover showed before it');
   await opener.open.to('bar').catch(() => {});
 });
+
+// A part that stays keeps every owner whole: a sibling part gone is the page changed.
+const Remover = fragment('remover', {
+  probe: byTestId('remover'),
+  actions: { drop: (d) => d.click(byRole('button', 'Drop')), dropTo: leads({ here: stay }, (d) => d.click(byRole('button', 'Drop'))) },
+});
+const Pair = fragment('form-pair', { probe: form, uses: { vanisher: Vanisher, remover: Remover } });
+
+for (const how of ['drop', 'dropTo'] as const) {
+  test(`a part that stays while its sibling leaves is refused (${how})`, async ({ page, app }) => {
+    await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+    await app.enter(Billing);
+    await page.evaluate(() => {
+      const form = document.querySelector('form[aria-label="Billing details"]')!;
+      form.insertAdjacentHTML('beforeend', '<div data-testid="vanisher">v</div><div data-testid="remover"><button type="button">Drop</button></div>');
+      form.querySelector('[data-testid="remover"] button')!.addEventListener('click', () => form.querySelector('[data-testid="vanisher"]')!.remove());
+    });
+    const pair = await app.enter(Pair);
+    const act = how === 'drop' ? pair.remover.drop() : pair.remover.dropTo.to('here');
+    await expect(act as unknown as Promise<unknown>).rejects.toThrow("and form-pair's part vanisher is missing");
+    await expect(pair.remover.drop() as unknown as Promise<unknown>).rejects.toThrow('departed');
+  });
+}
