@@ -46,3 +46,24 @@ test('two outcomes that both show are refused, not chosen by order', async ({ pa
   const billing = await app.enter(Blurred);
   await expect(billing.submit()).rejects.toThrow('billing-blurred.submit reached payment and header at once');
 });
+
+// Forgets that searching leaves the page: the search box stays, the form does not.
+const StillHeader = fragment('header-still', {
+  probe: byRole('banner'),
+  actions: {
+    search: async (d, q: string) => {
+      await d.fill(byRole('searchbox', 'Search'), q);
+      await d.press(byRole('searchbox', 'Search'), 'Enter');
+    },
+  },
+});
+const Searching = fragment('billing-searching', { probe: form, uses: { header: StillHeader } });
+
+test('a part that stays does not hide its owner leaving', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const billing = await app.enter(Searching);
+  await expect(billing.header.search('socks') as unknown as Promise<unknown>).rejects.toThrow(
+    'header-still.search is declared to stay, and billing-searching left',
+  );
+  await expect(billing.header.search('wool') as unknown as Promise<unknown>).rejects.toThrow('departed');
+});

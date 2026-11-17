@@ -17,7 +17,7 @@ instead of on selectors and waits.
   announced `@variance-authority/event` work. `BROKER_DROP=busy,network,events`
   drops signals to see which one each case rests on.
 
-Three rules keep the model honest, each pinned in `src/spec/`:
+Four rules keep the model honest, each pinned in `src/spec/`:
 
 1. **An arrival is witnessed from both ends.** A leaving outcome needs its
    owner gone, `over` needs the owner still showing, and `back` needs the
@@ -25,7 +25,11 @@ Three rules keep the model honest, each pinned in `src/spec/`:
    error that names the fix.
 2. **An arrival is unambiguous.** Two declared outcomes showing at once fail;
    the order of the declaration never decides.
-3. **The declared edges are the app's test interface.** `edges(roots)` lists
+3. **A fragment has one lifecycle, however it is reached.** Entering it again
+   returns its one handle, covered or live; a part that stays still needs its
+   owner showing; and a navigation the broker did not take departs every
+   handle on the old document.
+4. **The declared edges are the app's test interface.** `edges(roots)` lists
    them, `walked(edges, journals)` counts which the tests took, and the
    `edges-reporter` prints both after a run, unwalked edges at zero.
 

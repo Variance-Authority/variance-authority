@@ -6,6 +6,7 @@
 // seam another runner would fill.
 import type { Locator, Page } from '@playwright/test';
 import { settle, type Signals } from './settle.js';
+import type { Step } from './journal.js';
 
 // ── where: a selector is data, so a probe can be listed, printed and compared ──
 
@@ -204,25 +205,14 @@ export type Handle<F> = Actions<F> & {
   readonly [K in keyof NonNullable<SpecOf<F>['uses']>]: Handle<NonNullable<SpecOf<F>['uses']>[K]>;
 } & { readonly [Symbol.asyncDispose]: () => Promise<void> };
 
-// ── the journal: what the test walked, as declared edges ──
-
-export interface Step {
-  readonly from: string;
-  readonly action: string;
-  readonly kind: 'stay' | 'lead' | 'raw';
-  /** The declared outcome the app took, on a lead. */
-  readonly outcome?: string;
-  /** The outcome the test named; undefined when it went exploring. */
-  readonly named?: string;
-  readonly to: string;
-}
-
 class Revoked extends Error {}
 
 interface State {
   status: 'live' | 'covered' | 'departed';
   /** Who covers it, or the action it departed at. */
   why?: string;
+  /** The document it was last seen on; another one means it went with the old. */
+  doc: number;
 }
 
 /** One test's session with the app. */
@@ -231,11 +221,28 @@ export class App {
   private readonly states = new Map<object, State>();
   /** A cover's handle, and what it covers. */
   private readonly covered = new Map<object, { fragment: AnyFragment; handle: object; state: State }>();
+  /** The one handle each fragment has: a fragment on the page has one lifecycle, however it is reached. */
+  private readonly roots = new Map<AnyFragment, object>();
+  /** Main-frame navigations so far; each one is a new document. */
+  private doc = 0;
 
   constructor(
     readonly page: Page,
     private readonly signals: Signals = {},
-  ) {}
+  ) {
+    page.on('framenavigated', (frame) => {
+      if (frame === page.mainFrame()) this.doc += 1;
+    });
+  }
+
+  /** Whether a state outlived every navigation since the broker last saw it; one that did not departs. */
+  private alive(state: State): boolean {
+    if (state.status !== 'departed' && state.doc !== this.doc) {
+      state.status = 'departed';
+      state.why = 'a navigation the broker did not take';
+    }
+    return state.status !== 'departed';
+  }
 
   /** Settles, then requires the fragment to be what the page shows. */
   async enter<F extends AnyFragment>(fragment: F): Promise<Handle<F>> {
@@ -244,6 +251,8 @@ export class App {
     if (!found.includes(fragment.name)) {
       throw new Error(`entered expecting ${fragment.name}, the page shows ${list(found)}`);
     }
+    const existing = this.roots.get(fragment);
+    if (existing !== undefined && this.alive(this.states.get(existing)!)) return existing as Handle<F>;
     return this.handle(fragment, this.page.locator(':root'));
   }
 
@@ -274,14 +283,15 @@ export class App {
     shared?: { state: State; owner: AnyFragment },
   ): Handle<F> {
     const region = locate(within, fragment.spec.probe).first();
-    const state: State = shared?.state ?? { status: 'live' };
+    const state: State = shared?.state ?? { status: 'live', doc: this.doc };
     const owner = shared?.owner ?? fragment;
     const meta: Meta = { fragment, owner, region, state };
     const self: Record<string | symbol, unknown> = { [META]: meta };
     this.states.set(self, state);
+    if (shared === undefined) this.roots.set(fragment, self);
 
     const guard = (action: string, acting: boolean) => {
-      if (state.status === 'departed') {
+      if (!this.alive(state)) {
         throw new Revoked(`${fragment.name} departed at ${state.why}; ${action} has nothing to act on`);
       }
       if (acting && state.status === 'covered') {
@@ -306,7 +316,7 @@ export class App {
       guard(name, true);
       const declared = actions.find(([key]) => key === name)![1];
       if (typeof declared === 'function' || declared.kind === 'stays') {
-        await this.stayed(fragment, region, name, declared, args);
+        await this.stayed(fragment, owner, state, region, name, declared, args);
         return self;
       }
       return this.lead(fragment, self, state, name, declared, args);
@@ -341,6 +351,8 @@ export class App {
 
   private async stayed(
     fragment: AnyFragment,
+    owner: AnyFragment,
+    state: State,
     region: Locator,
     name: string,
     declared: Act | Stays,
@@ -358,9 +370,15 @@ export class App {
         await settle(this.page, this.signals);
       }
     }
-    if (!(await this.shows(fragment))) {
-      throw new Error(`${fragment.name}.${name} is declared to stay, and left: the page shows ${list(await this.sense())}`);
+    // A part stays only if what owns it does: a header still showing says nothing of the form beside it.
+    for (const each of new Set([fragment, owner])) {
+      if (!(await this.shows(each))) {
+        this.depart(name, fragment.name);
+        const who = each === fragment ? '' : ` ${each.name}`;
+        throw new Error(`${fragment.name}.${name} is declared to stay, and${who} left: the page shows ${list(await this.sense())}`);
+      }
     }
+    state.doc = this.doc;
     this.journal.push({ from: fragment.name, action: name, kind: 'stay', to: fragment.name });
   }
 
@@ -428,6 +446,7 @@ export class App {
 
     let handle: object;
     if (to === stay) {
+      state.doc = this.doc;
       handle = self;
     } else if (under !== undefined && under.fragment === to) {
       // Leaving a cover for what it covered returns the covered handle, live again.
@@ -435,12 +454,14 @@ export class App {
       state.why = `${fragment.name}.${name}`;
       under.state.status = 'live';
       under.state.why = undefined;
+      under.state.doc = this.doc;
       handle = under.handle;
     } else {
       const next = to as AnyFragment;
       if (covering(outcome)) {
         state.status = 'covered';
         state.why = next.name;
+        state.doc = this.doc;
       } else {
         this.depart(name, fragment.name);
       }
@@ -476,18 +497,3 @@ interface Meta {
 }
 
 const list = (names: readonly string[]) => (names.length === 0 ? 'nothing' : names.join(', '));
-
-/** Two journals side by side, from the first step where they part. */
-export function fork(a: readonly Step[], b: readonly Step[]): string {
-  const line = (step: Step | undefined) =>
-    step === undefined ? '(ended)' : `${step.from}.${step.action} → ${step.to}${step.named === undefined && step.kind === 'lead' ? ' (unnamed)' : ''}`;
-  let at = 0;
-  while (at < Math.max(a.length, b.length) && line(a[at]) === line(b[at])) at += 1;
-  if (at === Math.max(a.length, b.length)) return 'the same walk';
-  const shared = a.slice(0, at).map(line);
-  return [
-    `shared: ${shared.length === 0 ? '(nothing)' : shared.join('  ·  ')}`,
-    `a: ${a.slice(at).map(line).join('  ·  ') || '(ended)'}`,
-    `b: ${b.slice(at).map(line).join('  ·  ') || '(ended)'}`,
-  ].join('\n');
-}

@@ -2,7 +2,7 @@
 // time: every wait is the broker's settle, fed by what the app says it is doing.
 // Each case navigates on purpose: the broker senses where a walk arrives across
 // page loads, so a page switched in place would not exercise it.
-import { fork } from '../broker/broker.js';
+import { fork } from '../broker/journal.js';
 import { expect, test } from '../fixture.js';
 import { Billing, Product } from '../shop.js';
 
@@ -56,6 +56,26 @@ test('a guest who signs in pays, and the form under the cover departs with it', 
   expect(payment).toBeDefined();
   await expect(signIn.email('x@y.z') as unknown as Promise<unknown>).rejects.toThrow('sign-in departed at sign-in.signIn');
   await expect(form.address()).rejects.toThrow('departed');
+});
+
+test('entering a covered fragment again hands back its one handle, still covered', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  await form.country('NL').street('Damrak 1').submit.to('signIn');
+  const again = await app.enter(Billing);
+  expect(again).toBe(form);
+  await expect(again.street('Rokin 2') as unknown as Promise<unknown>).rejects.toThrow('billing is covered by sign-in');
+});
+
+test('a navigation the broker did not take revokes every handle', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  await expect(form.address()).rejects.toThrow('billing departed at a navigation the broker did not take');
+  const fresh = await app.enter(Billing);
+  expect(fresh).not.toBe(form);
+  await fresh.street('Rokin 2');
+  expect(await fresh.address()).toBe('Rokin 2');
 });
 
 test('going back fails while the cover stays open', async ({ page, app }) => {

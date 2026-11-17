@@ -1,5 +1,5 @@
 // The declared edges are the app's test interface; the journals say which were walked.
-import { edges, walked } from '../broker/edges.js';
+import { edges, walked } from '../broker/journal.js';
 import { expect, test } from '../fixture.js';
 import { Billing } from '../shop.js';
 

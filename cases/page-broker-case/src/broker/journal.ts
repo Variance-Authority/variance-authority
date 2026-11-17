@@ -1,6 +1,18 @@
-// The model as the app's test interface: every edge it declares, and which the
-// journals walked.
-import { back, stay, type AnyFragment, type Spec, type Step } from './broker.js';
+// What journals say: every edge the model declares and which the tests walked,
+// and where two walks part.
+import { back, stay, type AnyFragment, type Spec } from './broker.js';
+
+/** One step a test walked, as a declared edge. */
+export interface Step {
+  readonly from: string;
+  readonly action: string;
+  readonly kind: 'stay' | 'lead' | 'raw';
+  /** The declared outcome the app took, on a lead. */
+  readonly outcome?: string;
+  /** The outcome the test named; undefined when it went exploring. */
+  readonly named?: string;
+  readonly to: string;
+}
 
 /** Every edge the model declares, from the fragments given to those their outcomes and parts reach. */
 export function edges(roots: readonly AnyFragment[]): string[] {
@@ -40,4 +52,19 @@ export function walked(declared: readonly string[], journals: readonly (readonly
     else counts[edge] = (counts[edge] ?? 0) + 1;
   }
   return { walked: counts, unwalked: declared.filter((edge) => counts[edge] === undefined), raw };
+}
+
+/** Two journals side by side, from the first step where they part. */
+export function fork(a: readonly Step[], b: readonly Step[]): string {
+  const line = (step: Step | undefined) =>
+    step === undefined ? '(ended)' : `${step.from}.${step.action} → ${step.to}${step.named === undefined && step.kind === 'lead' ? ' (unnamed)' : ''}`;
+  let at = 0;
+  while (at < Math.max(a.length, b.length) && line(a[at]) === line(b[at])) at += 1;
+  if (at === Math.max(a.length, b.length)) return 'the same walk';
+  const shared = a.slice(0, at).map(line);
+  return [
+    `shared: ${shared.length === 0 ? '(nothing)' : shared.join('  ·  ')}`,
+    `a: ${a.slice(at).map(line).join('  ·  ') || '(ended)'}`,
+    `b: ${b.slice(at).map(line).join('  ·  ') || '(ended)'}`,
+  ].join('\n');
 }
