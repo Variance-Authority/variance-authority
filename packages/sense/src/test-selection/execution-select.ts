@@ -162,6 +162,11 @@ export function narrowByJourneys(
 /** The modules that declare they read any of these files (`/// <depends>`), by name. */
 export function dependsReaders(relations: Relations | undefined, files: readonly string[]): readonly string[] {
   if (relations === undefined) return [];
+  if ('native' in relations) {
+    const answer = relations.native.walk({ seeds: files.map((name) => ({kind: 'file', name})), reverse: true, through: ['depends'], avoid: [], moved: [], shadows: false });
+    const starts = new Set(files);
+    return answer.nodes.filter((node) => !starts.has(node.name)).map((node) => node.name);
+  }
   // Each file on its own: a reader the suite ignores as well still declared it reads another.
   const readers = files.flatMap((file) => {
     const id = idOf(relations, 'file', file);

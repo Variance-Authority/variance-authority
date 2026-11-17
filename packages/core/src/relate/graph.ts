@@ -70,6 +70,7 @@
  */
 
 import type { Uses } from './narrow.js';
+import type { RelationQuestions } from './questions.js';
 
 /** Node kinds, in id order. An id is an index into this, never the word. */
 export const NODE_KINDS = ['file', 'component', 'package'] as const;
@@ -149,7 +150,11 @@ export interface Adjacency {
   readonly kind: Uint8Array;
 }
 
-export interface Relations {
+/** A graph owned by its reader. Its columns cannot be read from JavaScript. */
+export interface NativeRelations { readonly native: RelationQuestions }
+export type Relations = MemoryRelations | NativeRelations;
+
+export interface MemoryRelations {
   /** Node names by id, ordered by kind and then by code unit. */
   readonly names: readonly string[];
   /** The `NODE_KINDS` index of each node. */
@@ -223,11 +228,13 @@ export function keyOf(kind: NodeKind, name: string): string {
 
 /** The id a node is known by in these relations, or `undefined` for a name the scan never met. */
 export function idOf(relations: Relations, kind: NodeKind, name: string): NodeId | undefined {
+  if ('native' in relations) return relations.native.lookup([{ kind, name }])[0]?.id;
   return relations.index.get(keyOf(kind, name));
 }
 
 /** The node an id names: its kind and name, or `undefined` past the end. */
 export function nodeAt(relations: Relations, id: NodeId): Node | undefined {
+  if ('native' in relations) return relations.native.nodes([id])[0] ?? undefined;
   const name = relations.names[id];
   if (name === undefined) return undefined;
   return { kind: NODE_KINDS[relations.kinds[id]!]!, name };
@@ -235,6 +242,7 @@ export function nodeAt(relations: Relations, id: NodeId): Node | undefined {
 
 /** Every node of one kind, as ids. Contiguous, because the order is kind-major. */
 export function nodesOfKind(relations: Relations, kind: NodeKind): readonly NodeId[] {
+  if ('native' in relations) return relations.native.list(kind).map((node) => node.id);
   const wanted = NODE_KINDS.indexOf(kind);
   const found: NodeId[] = [];
   for (let id = 0; id < relations.kinds.length; id += 1) {
@@ -271,7 +279,7 @@ export function relationsOf(input: {
   readonly shadows?: ReadonlyMap<string, readonly string[]>;
   /** See {@link Relations.uses}. */
   readonly uses?: Uses;
-}): Relations {
+}): MemoryRelations {
   const relations = [...input.relations];
   const unknownNodes = [...(input.unknown ?? [])].map((entry) =>
     Array.isArray(entry) ? entry : ([entry, undefined] as const),

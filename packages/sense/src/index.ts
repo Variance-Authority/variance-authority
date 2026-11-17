@@ -284,3 +284,9 @@ export { mayMock, mockTaint, type MockTaintOptions } from './taint/mocks.js';
 export { runGraphOf, type RunGraphOptions } from './taint/graph.js';
 export { shadowReach, type ShadowReach } from './taint/reach.js';
 export { auditTaints, type TaintAuditOptions, type TaintDeviation, type TaintDeviationKind } from './taint/audit.js';
+
+export { openSourceTree, type NativeSourceTreeReader, type NativeSourceTreeWalk, type NameEvidence, type NamesAnswer, type NamesGroup, type NamesOperand } from './native-source-tree.js';
+export { sourceTreeFromIndex } from './help-reading.js';
+
+export { publishedSelectionGraph, publishedSelectionQuestions, type PublishedSelectionOptions } from './published-selection.js';
+export type { NativeSelectionGraph } from './native-selection-graph.js';

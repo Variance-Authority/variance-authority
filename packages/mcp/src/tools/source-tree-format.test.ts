@@ -28,6 +28,9 @@ describe('published source tree', () => {
     expect([...decoded.distanceFrom(['src/a.ts'])]).toEqual([...expected.distanceFrom(['src/a.ts'])]);
     expect([...decoded.distanceTo(['src/c.ts'])]).toEqual([...expected.distanceTo(['src/c.ts'])]);
     expect(decoded.unknownAmong(decoded.files)).toEqual(expected.unknownAmong(expected.files));
+    expect([...decoded.hopsFrom(['src/a.ts'])]).toEqual([...expected.hopsFrom(['src/a.ts'])]);
+    expect([...decoded.hopsTo(['src/c.ts'])]).toEqual([...expected.hopsTo(['src/c.ts'])]);
+    expect(decoded.chainsTo(['src/c.ts']).chain('src/a.ts')).toEqual(expected.chainsTo(['src/c.ts']).chain('src/a.ts'));
   });
 
   it('retains a target that has no record of its own', () => {
@@ -54,4 +57,20 @@ describe('published source tree', () => {
     expect([...nested.files]).toEqual(['src/a.ts']);
     expect([...nested.reachedFrom(['src/a.ts'])]).toEqual(['product/src/a.ts', 'shared/b.ts']);
   });
+});
+
+
+it('keeps runtime evidence when a file imports the same target through types and values', () => {
+  const records: readonly FileRecord[] = [
+    { file: 'area/start.ts', edges: [{ to: 'area/one.ts', kind: 'type' }, { to: 'area/one.ts', kind: 'dynamic' }, { to: 'other/bridge.ts', kind: 'imports' }] },
+    { file: 'area/one.ts', edges: [{ to: 'area/deep/two.ts', kind: 'imports' }] },
+    { file: 'area/deep/two.ts', edges: [{ to: 'other/final.ts', kind: 'imports' }] },
+    { file: 'other/bridge.ts', edges: [{ to: 'other/final.ts', kind: 'imports' }] },
+    { file: 'other/final.ts' },
+  ];
+  const expected = treeOf(records, '/repo');
+  const native = decodeSourceTree(encodeSourceTree(records), '/repo');
+  expect([...native.hopsFrom(['area/start.ts'])]).toEqual([...expected.hopsFrom(['area/start.ts'])]);
+  expect([...native.hopsTo(['other/final.ts'])]).toEqual([...expected.hopsTo(['other/final.ts'])]);
+  expect(native.chainsTo(['area/one.ts']).chain('area/start.ts')).toEqual([{ file: 'area/start.ts', kind: 'dynamic' }, { file: 'area/one.ts' }]);
 });

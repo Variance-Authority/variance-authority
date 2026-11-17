@@ -25,9 +25,7 @@ import {
   cappedTiers,
   declaredRoles,
   packageLayers,
-  publishedSources,
-  restrictedChains,
-  restrictedImports,
+  publishedSelectionQuestions,
   shippedFiles,
   type CapViolation,
   type ChainViolation,
@@ -150,14 +148,17 @@ function text(found: Found, files: number): string {
 export async function restrictionsOutput(request: ParsedRestrictions): Promise<{ out: string; code: ExitCode }> {
   const tiers = readTiers(request.root);
   const files = ruleFiles(request.root, tiers);
-  const published = await publishedSources(request.root, {
+  const published = await publishedSelectionQuestions(request.root, {
+    dirs: ['.'], raw: true,
     ci: isCI,
     step: 'variance index',
     announce: (line) => process.stderr.write(`variance: ${line}\n`),
   });
+  if (published === undefined) throw new Error('sense: native source questions could not open the published index');
+  const checked = published.restrictions(files, seeds(request.root, files));
   const found: Found = {
-    imports: restrictedImports(published.records, files),
-    chains: restrictedChains(published.records, files, seeds(request.root, files)),
+    imports: checked.imports,
+    chains: checked.chains,
     capped: cappedPackages(request.root, files),
     tiers: budgeted(request.root, files, tiers),
     roles: await roles(request.root),

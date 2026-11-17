@@ -11,11 +11,12 @@ import {
   type FileRecord,
   type Traversal,
   type NodeId,
-  type Relations,
+  type MemoryRelations,
 } from '@variance-authority/core/relate';
 import { relative } from 'node:path';
 import { costsFrom } from './hops.js';
-import { namesOf, type FileNames, type SourceNames } from './names.js';
+import type { SourceNames } from './names.js';
+import { treeFromNative } from './native-tree.js';
 
 /**
  * The source tree, as the one thing allowed to say whether a path exists.
@@ -169,7 +170,7 @@ export function treeOf(
 
 /** Build the path-query surface from an already folded source graph. */
 export function treeFromRelations(
-  relations: Relations,
+  relations: MemoryRelations,
   root = '.',
   packages: readonly string[] = [],
 ): Tree {
@@ -218,14 +219,14 @@ export function treeAtWorkspace(tree: Tree, workspace: string): Tree {
 
 /** Minimum edge count to every reached file, recovered from the BFS forest. */
 function distances(
-  relations: Relations,
+  relations: MemoryRelations,
   seeds: Iterable<string>,
   direction: Direction,
 ): ReadonlyMap<string, number> {
   return depthsOf(relations, direction(relations, idsOf(relations, seeds), { through: EDGE_KINDS }));
 }
 
-function chainsTo(relations: Relations, seeds: Iterable<string>): Chains {
+function chainsTo(relations: MemoryRelations, seeds: Iterable<string>): Chains {
   const traversal = dependentsOf(relations, idsOf(relations, seeds), { through: EDGE_KINDS });
   return {
     distance: depthsOf(relations, traversal),
@@ -247,7 +248,7 @@ function chainsTo(relations: Relations, seeds: Iterable<string>): Chains {
  * The kind of the import `from` makes of `to`. A file that imports another
  * both ways is said by the import that runs: the type one is the weaker claim.
  */
-function importKind(relations: Relations, from: NodeId, to: NodeId): EdgeKind {
+function importKind(relations: MemoryRelations, from: NodeId, to: NodeId): EdgeKind {
   const { offset, target, kind } = relations.depends;
   let found: EdgeKind | undefined;
   for (let at = offset[from]!; at < offset[from + 1]!; at += 1) {
@@ -259,7 +260,7 @@ function importKind(relations: Relations, from: NodeId, to: NodeId): EdgeKind {
   return found!;
 }
 
-function depthsOf(relations: Relations, traversal: Traversal): ReadonlyMap<string, number> {
+function depthsOf(relations: MemoryRelations, traversal: Traversal): ReadonlyMap<string, number> {
   const depths = new Int32Array(relations.names.length).fill(-1);
   const found = new Map<string, number>();
 
@@ -290,7 +291,7 @@ function depthsOf(relations: Relations, traversal: Traversal): ReadonlyMap<strin
   return found;
 }
 
-function idsOf(relations: Relations, seeds: Iterable<string>): readonly NodeId[] {
+function idsOf(relations: MemoryRelations, seeds: Iterable<string>): readonly NodeId[] {
   const ids: NodeId[] = [];
   for (const seed of seeds) {
     const id = idOf(relations, 'file', seed);
@@ -302,7 +303,7 @@ function idsOf(relations: Relations, seeds: Iterable<string>): readonly NodeId[]
 /** One direction of the walk. Both directions are the same code and one call. */
 type Direction = typeof dependenciesOf;
 
-function walk(relations: Relations, seeds: Iterable<string>, direction: Direction): ReadonlySet<string> {
+function walk(relations: MemoryRelations, seeds: Iterable<string>, direction: Direction): ReadonlySet<string> {
   const ids = idsOf(relations, seeds);
   const found = new Set<string>();
   if (ids.length === 0) return found;
@@ -320,7 +321,7 @@ function walk(relations: Relations, seeds: Iterable<string>, direction: Directio
   return found;
 }
 
-function unknownAmong(relations: Relations, among: Iterable<string>): readonly string[] {
+function unknownAmong(relations: MemoryRelations, among: Iterable<string>): readonly string[] {
   const found: string[] = [];
   for (const file of among) {
     const id = idOf(relations, 'file', file);
@@ -347,10 +348,8 @@ export interface TreeOptions {
    */
   readonly index?: string;
   /**
-   * Receives every file's names, read off the parses that drew the tree, once
-   * the scan is done. Asked for only by a question that names a name: holding
-   * them costs a map the size of the tree, which a question about paths would
-   * pay for nothing.
+   * Receives a batched query over names retained in the native source index.
+   * A question about paths retains only the native path graph.
    */
   readonly names?: (names: SourceNames) => void;
 }
@@ -376,30 +375,14 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
     );
   }
 
-  const source = options.index === undefined ? undefined : await scanner.openSourceIndex(options.index);
-  const names = options.names === undefined ? undefined : new Map<string, FileNames>();
-  const records = await scanner.scanRelations({
-    root: options.root,
-    dirs: options.dirs ?? ['.'],
-    ...(source === undefined ? {} : { cache: source.cache, reuse: source.reuse }),
-    ...(names === undefined ? {} : {
-      // A parse that holds no declarations is left out of the names, which
-      // counts its file as unread rather than declaring nothing.
-      indexed: (file, parsed, targets) => {
-        if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
-      },
-    }),
+  const updated = await scanner.updateSourceIndex(options.root, {
+    ...(options.index === undefined ? {} : { index: options.index }),
+    ...(options.dirs === undefined ? {} : { dirs: options.dirs }),
   });
-  // The graph every reader of the checkout walks, with the mocks read off
-  // what the parse recorded, so it is the graph `variance covering --since` cuts by.
-  const relations = await scanner.runGraphOf(records, {
-    root: options.root,
-    ...(source === undefined ? {} : { cache: source.cache }),
-  });
-  await source?.save();
-  if (names !== undefined) options.names?.(names);
-
-  return treeFromRelations(relations, options.root);
+  if (updated.refused !== undefined) throw new Error(updated.refused);
+  const reader = scanner.sourceTreeFromIndex(options.root, updated.path, options.names !== undefined);
+  options.names?.({ query: (operands) => reader.queryNames([...operands]) });
+  return treeFromNative(reader, options.root);
 }
 
 function messageOf(error: unknown): string {

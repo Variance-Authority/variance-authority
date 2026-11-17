@@ -3,7 +3,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import * as packageHelp from '@variance-authority/package/help';
 import { readHelp } from '@variance-authority/package/help';
 import { HELP, HELP_TOOLS, audience } from './tools.js';
 import { serveWorkspace } from './server.js';
@@ -470,7 +471,10 @@ describe('the same answers as files', () => {
   it('writes four, and names the workspace from its own manifest', async () => {
     const out = await mkdtemp(join(tmpdir(), 'help-pages-'));
     try {
-      const written = writePages(WORKSPACE, out);
+      const walked = vi.spyOn(packageHelp, 'readHelp');
+      const written = await writePages(WORKSPACE, out);
+      expect(walked).not.toHaveBeenCalled();
+      walked.mockRestore();
       expect(written.map((file) => file.at.slice(out.length + 1))).toEqual([
         'llms.txt',
         'help-index.md',

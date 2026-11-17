@@ -13,6 +13,8 @@
 
 import { native, nativeRefusal } from './addon.js';
 import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
+import type { NativeSourceTreeReader } from './native-source-tree.js';
+import type { SourceIndexState } from './source-index-file.js';
 import type { DeclaredNames, NameTerms } from './declared-names.js';
 import { sourceIndexPath } from './source-index.js';
 import { CODE_EXTENSIONS } from './language.js';
@@ -290,6 +292,9 @@ export function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<Na
 
 /** The source index the addon read and checked once for one question; `close` lets its bytes go. */
 export interface OpenedIndex {
+  status(): { readonly state: SourceIndexState; readonly written?: number };
+  status(): { readonly state: import('./source-index-file.js').SourceIndexState; readonly written?: number };
+  sourceTree(root: string, tsconfig: string | boolean | null, code: string[], names: boolean): NativeSourceTreeReader | null;
   close(): void;
 }
 
@@ -359,6 +364,13 @@ export function readHelp(
 function mocking(root: string): [string | boolean | null, string[]] {
   const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
   return [tsconfig ?? null, [...CODE_EXTENSIONS]];
+}
+
+/** The published source generation as a native path graph, retaining names only when asked. */
+export function sourceTreeFromIndex(root: string, index: string = sourceIndexPath(root), names = false): NativeSourceTreeReader {
+  const reader = onIndex(index, (opened) => opened.sourceTree(root, ...mocking(root), names));
+  if (reader === null) throw new Error(`no source index is published at ${index}; run \`variance index\``);
+  return reader;
 }
 
 /** The store of `store` and `exported`, stamped with `meta` when it is published, and the digest of `exported`. */

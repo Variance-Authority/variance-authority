@@ -31,6 +31,8 @@ import type { NativeRecords } from './native-record.js';
 import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict } from './native-module-reads.js';
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 import type { NativeHelpListing } from './help-reading.js';
+import type { NativeSourceTreeReader } from './native-source-tree.js';
+import type { NativeSelectionGraphs } from './native-selection-graph.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing, NativeParseOrigins, NativeDependencyLexiconListing, NativeHelpListing {
   readonly size: number;
@@ -116,7 +118,7 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly kept: Buffer;
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts, NativeSourceIndexes {
+export interface NativeScanner extends NativeSelectionGraphs, NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts, NativeSourceIndexes {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
@@ -134,6 +136,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * shifts they were made from, or `null`: `native/instrument/src/cadence.rs`.
    */
   cadence(source: string, file: string, awaited?: boolean): { code: string; mappings: string; shifts: number[] } | null;
+  /** Published source-tree bytes remain native while callers query paths and traversals. */
+  openSourceTree(bytes: Uint8Array): NativeSourceTreeReader;
   gitTree(root: string): NativeGitTree | null;
   /**
    * The alias table the `tsconfig` and `jsconfig` files among `paths` declare,

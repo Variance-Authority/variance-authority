@@ -29,6 +29,7 @@
  */
 
 import { carried, inIdOrder, WHOLE } from './carried.js';
+import type { RelationNode, RelationWalk } from './questions.js';
 import type { Adjacency, EdgeKind, NodeId, Relations } from './graph.js';
 import { narrowed } from './narrow.js';
 
@@ -39,14 +40,16 @@ import { narrowed } from './narrow.js';
  */
 export interface Traversal {
   /** `1` where the node was visited, including the seeds themselves. */
-  readonly mask: Uint8Array;
+  readonly mask: ArrayLike<number>;
   /**
    * The node each one was entered from, or `-1` for a seed and for anything
    * not visited. Walking it back lands on a seed, which is what `trailOf` does.
    */
-  readonly via: Int32Array;
+  readonly via: ArrayLike<number>;
   /** Visited nodes in id order, which is kind-major and then code unit. */
   readonly nodes: readonly NodeId[];
+  /** Metadata only for nodes returned by a native traversal. */
+  readonly info?: ReadonlyMap<NodeId, RelationNode>;
 }
 
 export interface TraversalOptions {
@@ -83,6 +86,7 @@ export function dependentsOf(
   seeds: Iterable<NodeId>,
   options: TraversalOptions = {},
 ): Traversal {
+  if ('native' in relations) return nativeTraversal(relations, seeds, true, options);
   if (options.moved !== undefined && relations.uses !== undefined) {
     return narrowed(relations.dependents, relations.names, seeds, options.moved, relations.uses, options);
   }
@@ -95,6 +99,7 @@ export function dependenciesOf(
   seeds: Iterable<NodeId>,
   options: TraversalOptions = {},
 ): Traversal {
+  if ('native' in relations) return nativeTraversal(relations, seeds, false, options);
   return search(relations.depends, relations.names.length, seeds, options);
 }
 
@@ -135,3 +140,24 @@ function search(
   return { mask, via, nodes: inIdOrder(mask) };
 }
 
+
+/** Materialize traversal marks, never source graph columns. */
+export function traversalOf(answer: RelationWalk): Traversal {
+  const mask: number[] = [];
+  const via: number[] = [];
+  for (const node of answer.nodes) mask[node.id] = 1;
+  for (const row of answer.parents) via[row.id] = row.parent;
+  return { mask, via, nodes: answer.nodes.map((node) => node.id), info: new Map(answer.nodes.map((node) => [node.id, node])) };
+}
+
+function nativeTraversal(relations: Extract<Relations, { native: unknown }>, seeds: Iterable<NodeId>, reverse: boolean, options: TraversalOptions): Traversal {
+  const seedIds = [...seeds];
+  const avoidIds = [...(options.avoid ?? [])];
+  const movedIds = [...(options.moved?.keys() ?? [])];
+  const found = relations.native.nodes([...seedIds, ...avoidIds, ...movedIds]);
+  const seedsAt = found.slice(0, seedIds.length).filter((node) => node !== null);
+  const avoid = found.slice(seedIds.length, seedIds.length + avoidIds.length).filter((node) => node !== null);
+  const moved = found.slice(seedIds.length + avoidIds.length).flatMap((node) => node === null ? [] : [{ file: node.name, names: options.moved!.get(node.id)! }]);
+  return traversalOf(relations.native.walk({ seeds: seedsAt, reverse, avoid, moved, shadows: false,
+    ...(options.through === undefined ? {} : { through: [...options.through] }) }));
+}

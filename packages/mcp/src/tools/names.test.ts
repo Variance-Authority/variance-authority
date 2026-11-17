@@ -1,9 +1,15 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import * as sense from '@variance-authority/sense';
 import type { SourceNames } from './names.js';
 import { readTree } from './tree.js';
+
+vi.mock('@variance-authority/sense', async (original) => {
+  const actual = await original<typeof import('@variance-authority/sense')>();
+  return { ...actual, scanRelations: vi.fn(actual.scanRelations), runGraphOf: vi.fn(actual.runGraphOf), openSourceIndex: vi.fn(actual.openSourceIndex) };
+});
 
 describe('readTree draws the names with the tree when asked', () => {
   let root: string;
@@ -28,6 +34,9 @@ describe('readTree draws the names with the tree when asked', () => {
   it("queries matching evidence without reconstructing every file's names", async () => {
     let drawn: SourceNames | undefined;
     const tree = await readTree({ root, names: (names) => { drawn = names; } });
+    expect(sense.scanRelations).not.toHaveBeenCalled();
+    expect(sense.runGraphOf).not.toHaveBeenCalled();
+    expect(sense.openSourceIndex).not.toHaveBeenCalled();
     expect(tree.files).toContain('src/theme.ts');
     const answer = drawn!.query([
       { kind: 'declares', pattern: '^ThemeContext$' },

@@ -41,8 +41,9 @@ const recorded = (): readonly Silent[] => JSON.parse(readFileSync(BASELINE, 'utf
 
 const key = (entry: Silent): string => `${entry.name} [${entry.kind}] ${entry.at}`;
 
+const found = await silent() as readonly Silent[];
+
 describe('names other packages import', () => {
-  const found = silent() as readonly Silent[];
   const before = new Set(recorded().map(key));
   const now = new Set(found.map(key));
 

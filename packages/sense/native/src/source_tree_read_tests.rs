@@ -30,10 +30,18 @@ fn weighted_walk_keeps_half_hops_separate_from_import_distance() {
     let reader = SourceTreeReader::open(graph(vec![1, 2, 2])).unwrap();
     assert_eq!(reader.walk(vec!["a.ts".into()], false, true).distances(), [0, 2, 2]);
     let reverse = reader.walk(vec!["dir/c.ts".into()], true, true);
-    assert_eq!(reverse.distances(), [2, 2, 0]);
+    assert_eq!(reverse.files(), ["dir/c.ts", "a.ts", "dir/b.ts"]);
+    assert_eq!(reverse.distances(), [0, 2, 2]);
 }
 
 #[test]
 fn malformed_edges_are_refused_at_open() {
     assert!(SourceTreeReader::open(graph(vec![1, 3, 2])).is_err());
+}
+
+#[test]
+fn a_chain_prefers_a_runtime_edge_over_a_type_edge_to_the_same_file() {
+    let reader = SourceTreeReader::open(graph(vec![1, 1, 2])).unwrap();
+    let chain = reader.walk(vec!["dir/b.ts".into()], true, false).chain("a.ts".into());
+    assert_eq!(chain[0].kind.as_deref(), Some("dynamic"));
 }

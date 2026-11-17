@@ -1,8 +1,7 @@
 //! Native ownership of published path graphs and their query traversals.
 // compass: variance-authority.reach.source-index
 
-use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
@@ -99,15 +98,18 @@ impl SourceTreeReader {
         let mut parents = vec![NONE; graph.paths.len()];
         let mut kinds = vec![0; graph.paths.len()];
         let seeds: Vec<_> = seeds.iter().filter_map(|seed| graph.at.get(seed.as_str()).copied()).collect();
+        let mut found = Vec::new();
         if weighted {
-            let mut queue = BinaryHeap::new();
-            for seed in seeds { distance[seed] = 0; queue.push(Reverse((0u32, seed))); }
-            while let Some(Reverse((paid, at))) = queue.pop() {
+            let mut queue = Costs::default();
+            for seed in seeds { if distance[seed] == NONE { distance[seed] = 0; queue.push(seed, 0u32); } }
+            while let Some((at, paid)) = queue.pop() {
                 if distance[at] != paid { continue; }
+                found.push(at);
                 graph.edges(at, reverse, |to, kind| {
                     let (from_path, to_path) = if reverse { (graph.paths[to], graph.paths[at]) } else { (graph.paths[at], graph.paths[to]) };
                     let next = paid.saturating_add(cost(from_path, to_path));
-                    if next < distance[to] { distance[to] = next; parents[to] = at as u32; kinds[to] = kind; queue.push(Reverse((next, to))); }
+                    if next < distance[to] { distance[to] = next; parents[to] = at as u32; kinds[to] = kind; queue.push(to, next); }
+                    else if next == distance[to] && parents[to] == at as u32 && kinds[to] == 3 && kind != 3 { kinds[to] = kind; }
                 });
             }
         } else {
@@ -116,11 +118,43 @@ impl SourceTreeReader {
             while let Some(at) = queue.pop_front() {
                 graph.edges(at, reverse, |to, kind| {
                     if distance[to] == NONE { distance[to] = distance[at] + 1; parents[to] = at as u32; kinds[to] = kind; queue.push_back(to); }
+                    else if parents[to] == at as u32 && kinds[to] == 3 && kind != 3 { kinds[to] = kind; }
                 });
             }
         }
-        let found = (0..distance.len()).filter(|&at| distance[at] != NONE).collect();
+        if !weighted { found = (0..distance.len()).filter(|&at| distance[at] != NONE).collect(); }
         SourceTreeWalk { graph: Arc::clone(&self.graph), distance, parents, kinds, found }
+    }
+}
+
+/// Cost-only heap: equal priorities keep the same finalization order as the explicit-record Tree.
+#[derive(Default)]
+struct Costs(Vec<(usize, u32)>);
+
+impl Costs {
+    fn push(&mut self, node: usize, cost: u32) {
+        self.0.push((node, cost));
+        let mut at = self.0.len() - 1;
+        while at > 0 {
+            let parent = (at - 1) / 2;
+            if self.0[parent].1 <= self.0[at].1 { break; }
+            self.0.swap(parent, at); at = parent;
+        }
+    }
+
+    fn pop(&mut self) -> Option<(usize, u32)> {
+        if self.0.is_empty() { return None; }
+        let first = self.0.swap_remove(0);
+        let mut at = 0;
+        loop {
+            let (left, right) = (at * 2 + 1, at * 2 + 2);
+            let mut least = at;
+            if left < self.0.len() && self.0[left].1 < self.0[least].1 { least = left; }
+            if right < self.0.len() && self.0[right].1 < self.0[least].1 { least = right; }
+            if least == at { break; }
+            self.0.swap(at, least); at = least;
+        }
+        Some(first)
     }
 }
 

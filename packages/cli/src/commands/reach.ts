@@ -216,9 +216,11 @@ function seedsOf(
   const inDirs =
     changedDirs.length === 0
       ? []
-      : nodesOfKind(relations, 'file')
-          .map((id) => relations.names[id]!)
-          .filter((file) => within(file, changedDirs));
+      : 'native' in relations
+        ? relations.native.list('file', changedDirs).map((node) => node.name)
+        : nodesOfKind(relations, 'file')
+            .map((id) => relations.names[id]!)
+            .filter((file) => within(file, changedDirs));
   const expanded = [...new Set([...inDirs, ...beyond.files])];
 
   const narrowed = files.filter((file) => (movedExports.get(file)?.length ?? 0) > 0);
@@ -401,6 +403,10 @@ function sample(files: readonly string[]): string {
 
 /** The modules that declare `file` with a `/// <depends>`, near and far. */
 function declaring(relations: Relations, file: string): readonly string[] {
+  if ('native' in relations) {
+    return relations.native.walk({ seeds: [{ kind: 'file', name: file }], reverse: true, through: ['depends'], avoid: [], moved: [], shadows: false }).nodes
+      .filter((node) => node.kind === 'file' && node.name !== file).map((node) => node.name);
+  }
   const id = idOf(relations, 'file', file);
   if (id === undefined) return [];
   return [...dependentsOf(relations, [id], { through: ['depends'] }).nodes].filter((other) => other !== id).map((other) => relations.names[other]!);

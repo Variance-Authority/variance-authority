@@ -272,6 +272,9 @@ pub struct OpenedIndex {
     /// The opened chain; `None` when nothing was ever published.
     opened: Option<std::sync::Arc<Opened>>,
     closed: bool,
+    state: String,
+    written: Option<u32>,
+    error: Option<String>,
 }
 
 /// The layers opened over a chain's segments.
@@ -289,20 +292,47 @@ self_cell::self_cell!(
 
 impl Opened {
     pub(crate) fn layers(&self) -> &[Layer<'_>] { self.borrow_dependent() }
-    fn open(segments: Vec<Vec<u8>>) -> Result<Self, String> {
-        Opened::try_new(segments, |segments| {
-            segments.par_iter().enumerate()
-                .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
-                .collect()
-        })
+    fn open(segments: Vec<Vec<u8>>, damaged: bool) -> (Self, String, Option<u32>, Option<String>) {
+        let mut status = (String::new(), None, None);
+        let opened = Opened::new(segments, |segments| {
+            let read = crate::index_layers::open(segments, damaged);
+            status = (read.state.to_owned(), read.written, read.error);
+            read.layers
+        });
+        (opened, status.0, status.1, status.2)
     }
+}
+
+impl OpenedIndex {
+    fn readable(&self) -> napi::Result<()> {
+        if self.closed { return Err(napi::Error::from_reason("the source index question has ended")); }
+        if let Some(error) = &self.error { return Err(refused(&self.index, error.clone())); }
+        Ok(())
+    }
+
+    pub(crate) fn snapshot(&self) -> napi::Result<Option<std::sync::Arc<Opened>>> {
+        self.readable()?;
+        Ok(self.opened.as_ref().map(std::sync::Arc::clone))
+    }
+}
+
+#[napi(object)]
+pub struct SourceIndexStatus {
+    pub state: String,
+    pub written: Option<u32>,
 }
 
 #[napi]
 impl OpenedIndex {
+    #[napi]
+    pub fn status(&self) -> napi::Result<SourceIndexStatus> {
+        if self.closed { return Err(napi::Error::from_reason("the source index question has ended")); }
+        Ok(SourceIndexStatus { state: self.state.clone(), written: self.written })
+    }
+
     #[napi(catch_unwind)]
     pub fn source_tree(&self, root: String, tsconfig: Option<napi::Either<String, bool>>, code: Vec<String>, names: bool) -> napi::Result<Option<crate::source_tree_read::SourceTreeReader>> {
-        if self.closed { return Err(napi::Error::from_reason("the source index question has ended")); }
+        self.readable()?;
         let Some(source) = self.opened.as_ref() else { return Ok(None) };
         let mocking = Mocking::at(&root, crate::resolve::Tsconfig::from_js(tsconfig), code);
         let bytes = tree(source.layers(), &mocking);
@@ -323,9 +353,16 @@ impl OpenedIndex {
 /// The chain at `index`, read and opened for one question.
 #[napi(catch_unwind)]
 pub fn open_index(index: String) -> napi::Result<OpenedIndex> {
-    let chain = read_chain(&index).map_err(|error| refused(&index, error))?;
-    let opened = chain.map(|chain| Opened::open(chain.segments).map(std::sync::Arc::new)).transpose().map_err(|error| refused(&index, error))?;
-    Ok(OpenedIndex { index, opened, closed: false })
+    let (opened, state, written, error) = match read_chain(&index) {
+        Ok(Some(chain)) => {
+            let damaged = chain.damaged() != 0;
+            let (opened, state, written, error) = Opened::open(chain.segments, damaged);
+            (Some(std::sync::Arc::new(opened)), state, written, error)
+        }
+        Ok(None) => (None, "missing".to_owned(), None, None),
+        Err(error) => (None, "damaged".to_owned(), None, Some(error)),
+    };
+    Ok(OpenedIndex { index, opened, closed: false, state, written, error })
 }
 
 fn refused(index: &str, error: String) -> napi::Error {
@@ -334,9 +371,7 @@ fn refused(index: &str, error: String) -> napi::Error {
 
 /// The layers `opened` holds, handed to `read`; `None` when there is no index.
 fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {
-    if opened.closed {
-        return Err(napi::Error::from_reason(format!("the source index at {} was opened for a question that has ended", opened.index)));
-    }
+    opened.readable()?;
     Ok(opened.opened.as_ref().map(|held| read(held.borrow_dependent())))
 }
 
@@ -390,60 +425,5 @@ impl Held {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::generation::Delta;
-    use crate::log::{written, Over};
-
-    /// A segment of no files, told apart from another by its configuration.
-    fn segment(config: &str) -> Vec<u8> {
-        let document = format!(r#"{{"config": "{config}", "records": [], "parses": [], "deletedRecords": [], "deletedParses": []}}"#);
-        crate::graph_index::merged(&[], &Delta::of(vec![document]).unwrap())
-    }
-
-    /// A chain of segments `a` and `b` at a fresh path, and where `b` is kept.
-    fn published(name: &str) -> (std::path::PathBuf, String, String) {
-        let directory = std::env::temp_dir().join(format!("va-opened-{name}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&directory);
-        std::fs::create_dir_all(&directory).unwrap();
-        let path = directory.join("index.bin").to_str().unwrap().to_owned();
-        let (a, b) = (segment("v1:a"), segment("v1:b"));
-        assert!(written(&path, Over::Nothing, &[], &[&a, &b], &[], 0).unwrap());
-        let digest = crate::digest::of_sha256(Sha256::digest(&b).as_slice());
-        let second = format!("{path}.segments/{}.bin", digest.replacen(':', "-", 1));
-        (directory, path, second)
-    }
-
-    /// The configuration of every layer `opened` reads.
-    fn configs(opened: &OpenedIndex) -> Option<Vec<String>> {
-        opened_chain(opened, |layers| layers.iter().map(|layer| layer.config.unwrap_or("").to_owned()).collect()).unwrap()
-    }
-
-    #[test]
-    fn a_segment_cut_short_or_missing_at_the_open_ends_the_chain_there() {
-        for (name, damage) in [("cut", (|at: &str| std::fs::write(at, b"").unwrap()) as fn(&str)), ("gone", |at| std::fs::remove_file(at).unwrap())] {
-            let (directory, path, second) = published(name);
-            damage(&second);
-            assert_eq!(configs(&open_index(path).unwrap()), Some(vec!["v1:a".to_owned()]), "{name}");
-            std::fs::remove_dir_all(directory).unwrap();
-        }
-    }
-
-    #[test]
-    fn a_segment_damaged_after_the_open_is_read_as_it_was() {
-        let (directory, path, second) = published("after");
-        let opened = open_index(path).unwrap();
-        std::fs::write(&second, b"").unwrap();
-        assert_eq!(configs(&opened), Some(vec!["v1:a".to_owned(), "v1:b".to_owned()]));
-        std::fs::remove_dir_all(directory).unwrap();
-    }
-
-    #[test]
-    fn nothing_published_is_no_chain_and_a_closed_index_is_refused() {
-        let directory = std::env::temp_dir().join(format!("va-opened-none-{}", std::process::id()));
-        let mut opened = open_index(directory.join("index.bin").to_str().unwrap().to_owned()).unwrap();
-        assert!(opened_chain(&opened, |layers| layers.len()).unwrap().is_none());
-        opened.close();
-        assert!(opened_chain(&opened, |layers| layers.len()).is_err());
-    }
-}
+#[path = "help_publish_tests.rs"]
+mod tests;

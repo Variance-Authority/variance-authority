@@ -30,9 +30,10 @@ import {
   type NodeKind,
   type Relation,
   type Relations,
+  type MemoryRelations,
 } from './graph.js';
 import type { Uses } from './narrow.js';
-import { dependenciesOf, dependentsOf, trailOf, type Traversal, type TraversalOptions } from './reach.js';
+import { dependenciesOf, dependentsOf, trailOf, type Traversal, type TraversalOptions, traversalOf } from './reach.js';
 
 export interface FileEdge {
   /** Repository-relative, already resolved. A specifier is not an edge. */
@@ -129,7 +130,7 @@ const pkg = (name: string): Node => ({ kind: 'package', name });
  * declares it, so one walk against the arrows from a changed file reaches every
  * importer and every component in the same pass.
  */
-export function relationsOfFiles(records: Iterable<FileRecord>, options: RelationsOptions = {}): Relations {
+export function relationsOfFiles(records: Iterable<FileRecord>, options: RelationsOptions = {}): MemoryRelations {
   const relations: Relation[] = [];
   const isolated: Node[] = [];
   const unknown: (readonly [Node, string])[] = [];
@@ -280,6 +281,19 @@ export function affectedBy(
   changed: Iterable<string | Node>,
   options: AffectedOptions = {},
 ): Affected {
+  if ('native' in relations) {
+    const avoid = relations.native.nodes([...(options.avoid ?? [])]).filter((node) => node !== null);
+    const answer = relations.native.walk({
+      seeds: [...changed].map((entry) => typeof entry === 'string' ? file(entry) : entry),
+      reverse: true, avoid, shadows: true,
+      moved: [...(options.moved ?? [])].map(([file, names]) => ({ file, names })),
+      ...(options.through === undefined ? {} : { through: [...options.through] }),
+    });
+    const found: Record<NodeKind, string[]> = { file: [], component: [], package: [] };
+    for (const node of answer.nodes) found[node.kind].push(node.name);
+    return { files: found.file, components: found.component, packages: found.package,
+      missing: answer.missing, shadowed: answer.shadowed, traversal: traversalOf(answer) };
+  }
   const seeds: NodeId[] = [];
   const missing: string[] = [];
 
@@ -337,7 +351,7 @@ function movedIds(
 }
 
 function unshadowed(
-  relations: Relations,
+  relations: MemoryRelations,
   seeds: readonly NodeId[],
   options: Omit<AffectedOptions, 'moved'> & TraversalOptions,
 ): Traversal & { readonly shadowed: readonly string[] } {
@@ -388,7 +402,9 @@ function unshadowed(
 export function explain(relations: Relations, affected: Affected, node: Node): readonly string[] {
   const id = idOf(relations, node.kind, node.name);
   if (id === undefined) return [];
-  return trailOf(affected.traversal, id).map((step) => relations.names[step]!);
+  const trail = trailOf(affected.traversal, id);
+  if ('native' in relations) return relations.native.nodes(trail).flatMap((node) => node === null ? [] : [node.name]);
+  return trail.map((step) => relations.names[step]!);
 }
 
 function byCodeUnit(a: string, b: string): number {

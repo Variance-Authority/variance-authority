@@ -2,7 +2,8 @@
 import { writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readHelp, undocumented } from '@variance-authority/package/help';
+import { undocumented } from '@variance-authority/package/help';
+import { readWorkspace } from '@variance-authority/help';
 
 /**
  * The names another package imports and which say nothing about themselves.
@@ -36,8 +37,8 @@ export const BASELINE = join(ROOT, 'tools/documented.baseline.json');
  * depends on whether the examples have been built is a ratchet that moves when
  * nobody edited anything, which is the one thing it exists not to do.
  */
-export function silent() {
-  return undocumented(readHelp(ROOT, { skip: ['docs-examples'] })).map((entry) => ({
+export async function silent() {
+  return undocumented(await readWorkspace(ROOT, { skip: ['docs-examples'] })).map((entry) => ({
     name: entry.name,
     kind: entry.kind,
     at: entry.at,
@@ -46,7 +47,7 @@ export function silent() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const found = silent();
+  const found = await silent();
   const text = `${JSON.stringify(found, null, 2)}\n`;
 
   if (process.argv.includes('--write')) {

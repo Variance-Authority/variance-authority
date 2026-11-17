@@ -61,7 +61,7 @@ export function localLadder(question: LocalQuestion): LocalAnswer {
   const { files, missing } = affectedBy(relations, changed, { through: RUNTIME_EDGES });
   const universe = [
     ...new Set([
-      ...nodesOfKind(relations, 'file').map((id) => relations.names[id]!).filter(isTestPath),
+      ...('native' in relations ? relations.native.list('file').map((node) => node.name) : nodesOfKind(relations, 'file').map((id) => relations.names[id]!)).filter(isTestPath),
       ...question.whole,
     ]),
   ].sort(codeUnitOrder);

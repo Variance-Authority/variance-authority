@@ -67,6 +67,7 @@ pub(crate) struct Added {
     pub(crate) edges: Vec<(String, &'static str)>,
     pub(crate) holes: Option<String>,
     pub(crate) shadows: Vec<String>,
+    pub(crate) missed: Vec<String>,
 }
 
 /// Every test's loads beside its mocks, resolved, keyed by the test.
@@ -83,11 +84,12 @@ pub(crate) fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usiz
     phases.next("resolve mock additions");
     // A tracked `build/` is source only where the index holds it, as the scan's
     // own resolve decides: the indexed files under one are what it may land on.
-    let known: HashMap<String, u32> = folded
-        .keys()
-        .filter(|path| path.split('/').any(crate::path::excluded))
-        .map(|path| ((*path).to_owned(), 0))
-        .collect();
+    let mut known: HashMap<String, u32> = folded.keys().map(|path| ((*path).to_owned(), 0)).collect();
+    for &(layer, row) in folded.values() {
+        if let Some(edges) = layers[layer].records.edges_of(&layers[layer].stored, row) {
+            known.extend(edges.map(|(to, _)| (to.to_owned(), 0)));
+        }
+    }
     let statistics = phases.enabled().then(|| (AtomicUsize::new(0), AtomicUsize::new(0)));
     let added: HashMap<&str, Added> = crossings
         .par_iter()
@@ -109,12 +111,14 @@ pub(crate) fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usiz
             }
             if let Some((attempts, _)) = &statistics { attempts.fetch_add(said.len(), Ordering::Relaxed); }
             let from = mocking.root.join(crossing.file);
-            let (mut targets, mut holes) = (Vec::new(), Vec::new());
+            let (mut targets, mut holes, mut missed) = (Vec::new(), Vec::new(), Vec::new());
             for value in said {
                 match mocking.resolvers.resolve(&mocking.root, &from, value, Some(&known)) {
                     Some(to) => targets.push(to),
-                    None if request_of(value).is_some_and(is_relative) => holes.push(value),
-                    None => {}
+                    None => {
+                        missed.push(value.to_owned());
+                        if request_of(value).is_some_and(is_relative) { holes.push(value); }
+                    }
                 }
             }
             if let Some((_, missed)) = &statistics { missed.fetch_add(holes.len(), Ordering::Relaxed); }
@@ -129,7 +133,7 @@ pub(crate) fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usiz
                 .filter_map(|value| mocking.resolvers.resolve(&mocking.root, &from, value, Some(&known))).collect();
             shadows.sort_unstable_by(|left, right| crate::order::code_unit(left, right));
             shadows.dedup();
-            Some((crossing.file, Added { edges, holes, shadows }))
+            Some((crossing.file, Added { edges, holes, shadows, missed }))
         })
         .collect();
     if let Some((attempts, missed)) = statistics {

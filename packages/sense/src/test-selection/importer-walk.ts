@@ -56,6 +56,14 @@ export function walkImporters(
   moved: Carried,
   visit: (importer: string, moved: Carry<string>) => Carry<string>,
 ): void {
+  if ('native' in relations) {
+    const carry = (value: Carry<string>) => ({ whole: value === WHOLE, names: value === WHOLE ? [] : [...value].map(([name, origin]) => ({ name, origin })) });
+    const walk = relations.native.importerFrontier(id, carry(moved), false, true, true);
+    for (let frontier = walk.frontier(); frontier.length > 0; frontier = walk.frontier()) {
+      walk.advance(frontier.map(({ node, carry: value }) => ({ id: node.id, carry: carry(visit(node.name, value.whole ? WHOLE : new Map(value.names.map(({ name, origin }) => [name, origin])))) })));
+    }
+    return;
+  }
   const { kinds, names, dependents } = relations;
   const mask = idle.get(dependents) ?? new Uint8Array(dependents.offset.length - 1);
   idle.delete(dependents);

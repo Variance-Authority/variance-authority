@@ -1,4 +1,4 @@
-import type { Adjacency, NodeId, Relations } from '@variance-authority/core/relate';
+import type { Adjacency, NodeId, MemoryRelations } from '@variance-authority/core/relate';
 import { nodeAt } from '@variance-authority/core/relate';
 
 /**
@@ -201,7 +201,7 @@ export function hopBetween(importer: string, imported: string, roots: readonly s
  * walk cross between them would hand back a cost that is not about any import.
  */
 export function costsFrom(
-  relations: Relations,
+  relations: MemoryRelations,
   seeds: readonly NodeId[],
   along: Adjacency,
   roots: readonly string[],

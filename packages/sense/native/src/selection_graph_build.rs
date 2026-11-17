@@ -3,33 +3,35 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
-use serde::Deserialize;
+use napi_derive::napi;
 use crate::chain_lookup::fold;
 use crate::help_publish::Opened;
 use crate::source_tree::{additions, Mocking};
 use super::{Adjacency, State, KINDS};
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct Options {
-    root: String,
-    dirs: Vec<String>,
-    #[serde(default)] before: Vec<String>,
-    code: Vec<String>,
-    #[serde(default)] builtins: Vec<String>,
-    tsconfig: Option<serde_json::Value>,
-    #[serde(default)] taints: Vec<Taint>,
-    #[serde(default)] depends: Vec<(String, String)>,
+#[napi(object)]
+pub struct SelectionGraphOptions {
+    pub root: String,
+    pub raw: Option<bool>,
+    pub dirs: Vec<String>,
+    pub before: Vec<String>,
+    pub code: Vec<String>,
+    pub builtins: Vec<String>,
+    pub tsconfig: Option<napi::Either<String, bool>>,
+    pub taints: Vec<SelectionTaint>,
+    pub depends: Vec<SelectionDepend>,
 }
 
-#[derive(Deserialize)]
-struct Taint { file: String, #[serde(default)] plus: Vec<String>, #[serde(default)] minus: Vec<String> }
+#[napi(object)]
+pub struct SelectionTaint { pub file: String, pub plus: Vec<String>, pub minus: Vec<String> }
+#[napi(object)]
+pub struct SelectionDepend { pub from: String, pub to: String }
 
 type Key = (u8, String);
 type Edge = (Key, Key, u8);
 fn file(path: &str) -> Key { (0, path.to_owned()) }
 
-pub(super) fn graph(source: Arc<Opened>, options: Options) -> Result<State, String> {
+pub(super) fn graph(source: Arc<Opened>, options: SelectionGraphOptions) -> Result<State, String> {
     let layers = source.layers();
     let all = fold(layers);
     let paths: Vec<_> = all.keys().map(|path| (*path).to_owned()).collect();
@@ -44,24 +46,24 @@ pub(super) fn graph(source: Arc<Opened>, options: Options) -> Result<State, Stri
             queue.extend(edges.map(|(to, _)| to.to_owned()));
         }
     }
-    let tsconfig = match options.tsconfig {
-        Some(serde_json::Value::String(path)) if path != "auto" => crate::resolve::Tsconfig::Named(path.into()),
-        Some(serde_json::Value::Bool(false)) => crate::resolve::Tsconfig::Off,
-        _ => crate::resolve::Tsconfig::Auto,
-    };
+    let tsconfig = crate::resolve::Tsconfig::from_js(options.tsconfig);
     let mocking = Mocking::at(&options.root, tsconfig, options.code);
-    let mut changed = additions(layers, &scoped, &mocking, true);
+    let mut changed = if options.raw == Some(true) { HashMap::new() } else { additions(layers, &scoped, &mocking, true) };
     let mut extra_packages: HashMap<&str, Vec<String>> = HashMap::new();
-    let known: HashMap<String, u32> = scoped.keys().map(|path| ((*path).to_owned(), 0)).collect();
+    let mut known: HashMap<String, u32> = scoped.keys().map(|path| ((*path).to_owned(), 0)).collect();
+    for &(layer, row) in scoped.values() {
+        if let Some(edges) = layers[layer].records.edges_of(&layers[layer].stored, row) {
+            known.extend(edges.map(|(to, _)| (to.to_owned(), 0)));
+        }
+    }
     let builtins = options.builtins.into_iter().collect();
     for taint in options.taints {
         let Some((&path, _)) = scoped.get_key_value(taint.file.as_str()) else { continue };
-        let row = changed.entry(path).or_insert_with(|| crate::source_tree::Added { edges: Vec::new(), shadows: Vec::new(), holes: None });
+        let row = changed.entry(path).or_insert_with(|| crate::source_tree::Added { edges: Vec::new(), shadows: Vec::new(), holes: None, missed: Vec::new() });
         let from = mocking.root.join(path);
         for value in taint.minus {
             if let Some(to) = mocking.resolvers.resolve(&mocking.root, &from, &value, Some(&known)) { row.shadows.push(to); }
         }
-        let mut holes = Vec::new();
         for value in taint.plus {
             let Some(request) = crate::specifier::request_of(&value) else { continue };
             match mocking.resolvers.resolve(&mocking.root, &from, request, Some(&known)) {
@@ -70,15 +72,20 @@ pub(super) fn graph(source: Arc<Opened>, options: Options) -> Result<State, Stri
                     row.edges.push((to, kind));
                 }
                 None => {
-                    if crate::specifier::is_relative(request) { holes.push(value.clone()); }
-                    if let Some(package) = crate::specifier::package_of(request, &builtins) { extra_packages.entry(path).or_default().push(package.to_owned()); }
+                    if !row.missed.contains(&value) { row.missed.push(value); }
                 }
             }
         }
-        if !holes.is_empty() {
-            let reason = format!("{} tainted relative specifier(s) that resolve to nothing: {}", holes.len(), holes.join(", "));
-            row.holes = Some(row.holes.take().map_or_else(|| reason.clone(), |prior| format!("{prior}; {reason}")));
+    }
+    for (&path, change) in &mut changed {
+        let holes: Vec<_> = change.missed.iter().filter(|value| crate::specifier::request_of(value).is_some_and(crate::specifier::is_relative)).collect();
+        change.holes = (!holes.is_empty()).then(|| format!("{} tainted relative specifier(s) that resolve to nothing: {}", holes.len(), holes.into_iter().map(|value| value.as_str()).collect::<Vec<_>>().join(", ")));
+        for value in &change.missed {
+            if let Some(package) = crate::specifier::request_of(value).and_then(|request| crate::specifier::package_of(request, &builtins)) {
+                extra_packages.entry(path).or_default().push(package.to_owned());
+            }
         }
+        change.shadows.sort_unstable_by(|a,b| crate::order::code_unit(a,b)); change.shadows.dedup();
     }
     let mut nodes = HashSet::new();
     let mut edges: Vec<Edge> = Vec::new();
@@ -116,7 +123,7 @@ pub(super) fn graph(source: Arc<Opened>, options: Options) -> Result<State, Stri
         for package in extra_packages.remove(path).unwrap_or_default() { edges.push((from.clone(), (2, package), 0)); }
         if !reasons.is_empty() { unknown.insert(from, reasons.join("; ")); }
     }
-    edges.extend(options.depends.into_iter().map(|(from, to)| ((2, from), (2, to), 6)));
+    edges.extend(options.depends.into_iter().map(|edge| ((2, edge.from), (2, edge.to), 6)));
     for (from, to, _) in &edges { nodes.insert(from.clone()); nodes.insert(to.clone()); }
     let mut nodes: Vec<_> = nodes.into_iter().collect();
     nodes.sort_unstable_by(|left, right| left.0.cmp(&right.0).then_with(|| crate::order::code_unit(&left.1, &right.1)));
@@ -127,6 +134,10 @@ pub(super) fn graph(source: Arc<Opened>, options: Options) -> Result<State, Stri
     let dependents = adjacency(&edges, nodes.len(), true);
     let unknown = unknown.into_iter().filter_map(|(key, reason)| Some((*ids.get(&key)?, reason))).collect();
     let additions = added.into_iter().filter_map(|(from, to)| Some((*ids.get(&from)?, *ids.get(&to)?))).collect();
+    let mut shadow_names: HashMap<u32, Vec<String>> = HashMap::new();
+    for (&path, change) in &changed {
+        if let Some(&id) = ids.get(&file(path)) { shadow_names.insert(id, change.shadows.clone()); }
+    }
     let mut shadow_ids: HashMap<u32, Vec<u32>> = HashMap::new();
     for (from, to) in shadows {
         if let (Some(&from), Some(&to)) = (ids.get(&from), ids.get(&to)) { shadow_ids.entry(from).or_default().push(to); }
@@ -134,10 +145,10 @@ pub(super) fn graph(source: Arc<Opened>, options: Options) -> Result<State, Stri
     for row in shadow_ids.values_mut() { row.sort_unstable(); row.dedup(); }
     let (kinds, names) = nodes.into_iter().unzip();
     Ok(State { source: Arc::clone(&source), names, kinds, ids, depends, dependents, sources, unknown,
-        shadows: shadow_ids, additions, uses: Mutex::new(HashMap::new()) })
+        shadows: shadow_ids, shadow_names, additions, uses: Mutex::new(HashMap::new()) })
 }
 
-fn adjacency(edges: &[(u32, u32, u8)], nodes: usize, reverse: bool) -> Adjacency {
+pub(super) fn adjacency(edges: &[(u32, u32, u8)], nodes: usize, reverse: bool) -> Adjacency {
     let mut offsets = vec![0; nodes + 1];
     for &(from, to, _) in edges { offsets[if reverse { to } else { from } as usize + 1] += 1; }
     for id in 0..nodes { offsets[id + 1] += offsets[id]; }

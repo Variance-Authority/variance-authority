@@ -33,7 +33,7 @@ import {
   trailOf,
   type FileRecord,
   type NodeId,
-  type Relations,
+  type MemoryRelations,
 } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { chainBetween, holds, inside, type Decision, type RuleFile } from './restrictions.js';
@@ -73,7 +73,7 @@ function keyOf(files: readonly RuleFile[], seed: string): string | undefined {
  * rule on arriving in it. For the same reason a restricted `at` counts only
  * itself.
  */
-function seedsBehind(relations: Relations, group: readonly NodeId[], restricted: ReadonlyMap<NodeId, Decision>, at: NodeId): number {
+function seedsBehind(relations: MemoryRelations, group: readonly NodeId[], restricted: ReadonlyMap<NodeId, Decision>, at: NodeId): number {
   if (restricted.has(at)) return group.includes(at) ? 1 : 0;
   const back = dependentsOf(relations, [at], { through: EDGE_KINDS, avoid: restricted.keys() });
   const { offset, target } = relations.depends;

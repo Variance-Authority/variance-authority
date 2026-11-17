@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -12,6 +12,8 @@ import { decodeExecutionIndex } from './execution-format.js';
 import { narrowByJourneys, type JourneyRead } from './execution-select.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { projectJourneyFile, selectJourneyFile } from './journey-native.js';
+import { updateSourceIndex } from '../published.js';
+import { publishedSelectionGraph } from '../published-selection.js';
 
 /**
  * `api.ts` imports `http.ts`; `card.ts` imports `api.ts`. `card.test.ts` mocks
@@ -122,6 +124,21 @@ function bumpedFiles(relations: Relations | undefined, packages: readonly string
 }
 
 describe('selecting off a journey file in the addon', () => {
+  it('passes a source-backed graph handle to native journey selection without flattening its columns', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'journey-native-graph-'));
+    mkdirSync(join(root, 'src'));
+    mkdirSync(join(root, 'test'));
+    writeFileSync(join(root, 'src/leaf.ts'), 'export const value = 1;\n');
+    writeFileSync(join(root, 'test/plain.test.ts'), "import { value } from '../src/leaf'; console.log(value);\n");
+    writeFileSync(join(root, 'test/card.test.ts'), "import { value } from '../src/leaf'; vi.mock('../src/leaf'); console.log(value);\n");
+    writeFileSync(join(root, 'test/wire.test.ts'), "import type { value } from '../src/leaf';\n");
+    await updateSourceIndex(root);
+    const relations = await publishedSelectionGraph(root, { dirs: ['.'] });
+    const selected = await selectJourneyFile(FILE, new Map([['src/leaf.ts', []]]), { relations });
+    expect(selected?.entered).toEqual(['test/plain.test.ts']);
+    expect(selected?.unread).toEqual([]);
+  });
+
   const index = decodeExecutionIndex(readFileSync(FILE));
 
   for (const [graph, relations] of [['mocks', mocked], ['no mocks', plain], ['no graph', undefined]] as const) {

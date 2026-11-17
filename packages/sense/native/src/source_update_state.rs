@@ -97,16 +97,10 @@ impl Baseline {
     pub fn view(&self, config: &str) -> View<'_> {
         let mut view = View { layers: Vec::new(), count: 0, was: if self.missing { "missing" } else { "damaged" }, written: None, repair: true, records_current: false };
         let Some(chain) = &self.chain else { return view };
-        view.was = if chain.damaged() == 0 { "published" } else { "damaged" };
-        for bytes in &chain.segments {
-            let opened = std::panic::catch_unwind(|| Layer::open(bytes)).ok().and_then(Result::ok);
-            let Some(layer) = opened else {
-                view.written = other_version(bytes);
-                view.was = if view.written.is_some() { "other-version" } else { "damaged" };
-                break;
-            };
-            view.layers.push(layer);
-        }
+        let opened = crate::index_layers::open(&chain.segments, chain.damaged() != 0);
+        view.layers = opened.layers;
+        view.was = opened.state;
+        view.written = opened.written;
         let legacy = chain.references.is_empty();
         let changed = view.layers.last().and_then(|layer| layer.config) != Some(config);
         view.repair = view.was != "published" || legacy || changed;
@@ -133,16 +127,6 @@ impl Baseline {
     pub fn working(&self, count: usize) -> usize {
         self.chain.as_ref().map_or(0, |chain| count.saturating_sub(chain.references.len() - chain.working))
     }
-}
-
-/// A foreign source-index header is a version mismatch, not generic damage.
-fn other_version(bytes: &[u8]) -> Option<u32> {
-    #[derive(serde::Deserialize)]
-    struct Header { format: String, version: u32 }
-    let length = u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?) as usize;
-    let text = std::str::from_utf8(bytes.get(4..4usize.checked_add(length)?)?).ok()?;
-    let header: Header = serde_json::from_str(text.trim_end_matches('\0')).ok()?;
-    (header.format == crate::segment::FORMAT && header.version != u32::from(crate::segment::VERSION)).then_some(header.version)
 }
 
 #[cfg(test)]

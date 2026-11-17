@@ -117,6 +117,10 @@ export function beforeReach(
   entries: readonly string[],
   options: BeforeReachOptions = {},
 ): BeforeReach {
+  if ('native' in relations) {
+    const answer = relations.native.before(entries, options.sensed ?? []);
+    return { ...answer, files: new Set(answer.files) };
+  }
   const files = new Set<string>();
   const unread: string[] = [];
   if (entries.length === 0) return { entries, files, unread };

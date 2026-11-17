@@ -2,27 +2,26 @@
 // compass: variance-authority.reach.relations
 
 use std::collections::{HashMap, HashSet};
-use serde::Serialize;
+use napi_derive::napi;
 use crate::package_graph::{join_parses, Crossing};
 use super::State;
 
-#[derive(Clone, Debug, Default, Serialize)]
-pub(crate) struct EdgeUse {
-    #[serde(skip_serializing_if = "Option::is_none")]
+#[derive(Clone, Debug, Default)]
+#[napi(object)]
+pub struct SelectionEdgeUse {
     pub imports: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reexports: Option<Vec<(String, String)>>,
+    pub reexports: Option<Vec<Vec<String>>>,
 }
 
 impl State {
-    pub(crate) fn edge_use(&self, importer: u32, target: u32) -> Option<EdgeUse> {
+    pub(crate) fn edge_use(&self, importer: u32, target: u32) -> Option<SelectionEdgeUse> {
         if self.additions.contains(&(importer, target)) { return None }
         let mut uses = self.uses.lock().unwrap_or_else(|poison| poison.into_inner());
         let row = uses.entry(importer).or_insert_with(|| self.uses_of(importer));
         row.get(self.names.get(target as usize)?).cloned()
     }
 
-    fn uses_of(&self, importer: u32) -> HashMap<String, EdgeUse> {
+    fn uses_of(&self, importer: u32) -> HashMap<String, SelectionEdgeUse> {
         let layers = self.source.layers();
         let Some(file) = self.names.get(importer as usize) else { return HashMap::new() };
         let Some((file, at)) = crate::chain_lookup::record(layers, file) else { return HashMap::new() };
@@ -50,14 +49,14 @@ impl State {
             }
         }
         let exports_present = parses.exports_present[row] == 1;
-        let mut passes: HashMap<&str, Vec<(String, String)>> = HashMap::new();
+        let mut passes: HashMap<&str, Vec<Vec<String>>> = HashMap::new();
         if exports_present {
             for export in parses.exports.range(row) {
                 if parses.export_type[export] == 1 { continue }
                 let Some(from) = text.optional(parses.export_from.at(export)) else { continue };
                 let Some(&target) = republishing.get(from) else { continue };
-                passes.entry(target).or_default().push((text.optional(parses.export_imported.at(export)).unwrap_or("*").to_owned(),
-                    text.optional(parses.export_exported.at(export)).unwrap_or("*").to_owned()));
+                passes.entry(target).or_default().push(vec![text.optional(parses.export_imported.at(export)).unwrap_or("*").to_owned(),
+                    text.optional(parses.export_exported.at(export)).unwrap_or("*").to_owned()]);
             }
         }
         let targets: HashSet<_> = imports.keys().cloned().chain(republishing.values().map(|to| (*to).to_owned())).collect();
@@ -66,7 +65,7 @@ impl State {
                 let mut names: Vec<_> = names.into_iter().collect(); names.sort_unstable_by(|a, b| crate::order::code_unit(a, b)); names
             });
             let reexports = exports_present.then(|| passes.remove(target.as_str()).unwrap_or_default());
-            (target, EdgeUse { imports: imported, reexports })
+            (target, SelectionEdgeUse { imports: imported, reexports })
         }).collect()
     }
 }

@@ -17,7 +17,7 @@
  */
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { EDGE_KINDS, RUNTIME_EDGES, idOf, type Adjacency, type NodeId, type Relations } from '@variance-authority/core/relate';
-import { undone, type BaseEdges } from './base-edges.js';
+import { baseRelations, undone, type BaseEdges } from './base-edges.js';
 
 /** One module's row of a record, as far as this reading needs it. */
 export interface LoadedModule {
@@ -54,6 +54,12 @@ export function driftFromWalk(
   before: readonly string[],
   { sourceOf = (file) => file, base }: DriftOptions = {},
 ): Drift {
+  if ('native' in relations) {
+    const graph = base === undefined ? relations : baseRelations(relations, base);
+    if (!('native' in graph)) throw new Error('a native overlay must retain its native graph');
+    const answer = graph.native.drift(modules.map((module) => ({ file: module.file, source: sourceOf(module.file), tests: module.blocks.find((block) => block.kind === 'module')?.testFiles ?? [] })), before, [...(base?.created ?? [])], [...(base?.unknown ?? [])]);
+    return { rows: [...answer.rows], unread: [...answer.unread] };
+  }
   const sources = new Map<string, string>();
   const loadedBy = new Map<string, string[]>();
   for (const module of modules) {

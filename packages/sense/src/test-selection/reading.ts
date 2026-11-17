@@ -48,7 +48,7 @@
  */
 
 import { extname } from 'node:path';
-import { NOTHING, WHOLE, idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { NOTHING, WHOLE, idOf, nodeAt, lookupNodes, type NodeId, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native } from '../addon.js';
 import type { NativeScanner } from '../native.js';
@@ -262,7 +262,7 @@ function rowlessSubject(
   if (!MODULE_EXTENSIONS.includes(extname(file))) return { file, unread: 'language' };
   const scanner = native();
   if (!readsModules(scanner)) return { file, unread: 'addon' };
-  return { names, name: relations.names[id]!, sourceAt, scanner };
+  return { names, name: nodeAt(relations, id)!.name, sourceAt, scanner };
 }
 
 type ModuleScanner = NativeScanner & Required<Pick<NativeScanner, 'moduleVerdict' | 'moduleReaders'>>;
@@ -317,7 +317,7 @@ function readValues(
   // The declaring file, asked as an importer of its own names, speaks for no
   // test: every test that loaded it crossed its rows, whatever edge it came by.
   const covered = new Set<number>();
-  const declaring = relations.names[id];
+  const declaring = nodeAt(relations, id)?.name;
   walkImporters(relations, id, moved, (importer, carried) => {
     const audience = importer === declaring ? new Set<number>() : covered;
     if (carried !== WHOLE) return readImporter(context, importer, carried, verdict.gone, reader, audience);
@@ -492,6 +492,7 @@ function chargeModule(
 
 /** The first of these names the graph holds as a file. */
 function firstId(relations: Relations, names: readonly string[]): NodeId | undefined {
+  if ('native' in relations) return lookupNodes(relations, names.map((name) => ({kind:'file', name}))).find((node) => node !== null)?.id;
   for (const name of names) {
     const id = idOf(relations, 'file', name);
     if (id !== undefined) return id;

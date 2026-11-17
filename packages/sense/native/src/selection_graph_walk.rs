@@ -2,21 +2,32 @@
 // compass: variance-authority.reach.relations
 
 use std::collections::{HashMap, HashSet, VecDeque};
-use serde::Deserialize;
-use serde_json::{json, Value};
-use super::{Node, State, KINDS};
+use napi_derive::napi;
+use super::{SelectionGraph, SelectionNode, SelectionNodeInfo, State, KINDS};
 
-#[derive(Clone, Deserialize)]
-pub(super) struct Moved { pub file: String, pub names: Vec<String> }
-#[derive(Default, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct Options {
-    pub seeds: Vec<Node>,
-    #[serde(default)] pub reverse: bool,
+#[derive(Clone)]
+#[napi(object)]
+pub struct SelectionMoved { pub file: String, pub names: Vec<String> }
+#[napi(object)]
+pub struct SelectionWalkOptions {
+    pub seeds: Vec<SelectionNode>,
+    pub reverse: bool,
     pub through: Option<Vec<String>>,
-    #[serde(default)] pub avoid: Vec<Node>,
-    #[serde(default)] pub moved: Vec<Moved>,
-    #[serde(default)] pub shadows: bool,
+    pub avoid: Vec<SelectionNode>,
+    pub moved: Vec<SelectionMoved>,
+    pub shadows: bool,
+}
+#[napi(object)]
+pub struct SelectionParent { pub id: u32, pub parent: i64 }
+#[napi(object)]
+pub struct SelectionWalk {
+    pub nodes: Vec<SelectionNodeInfo>, pub parents: Vec<SelectionParent>, pub missing: Vec<String>, pub shadowed: Vec<String>,
+}
+
+#[napi]
+impl SelectionGraph {
+    #[napi]
+    pub fn walk(&self, options: SelectionWalkOptions) -> SelectionWalk { self.state.walk(options) }
 }
 
 #[derive(Clone)]
@@ -63,14 +74,15 @@ impl State {
         }
         let Some(passes) = used.reexports else { return Carry::Whole };
         let mut out = HashSet::new();
-        for (imported, exported) in passes {
+        for pair in passes {
+            let (imported, exported) = (&pair[0], &pair[1]);
             if imported == "*" && exported == "*" { out.extend(names.iter().filter(|name| name.as_str() != "default").cloned()); }
-            else if imported == "*" || names.contains(&imported) { out.insert(exported); }
+            else if imported == "*" || names.contains(imported) { out.insert(exported.clone()); }
         }
         Carry::Names(out)
     }
 
-    pub(super) fn walk(&self, options: Options) -> Value {
+    pub(super) fn walk(&self, options: SelectionWalkOptions) -> SelectionWalk {
         let missing: Vec<_> = options.seeds.iter().filter(|node| self.id(node).is_none()).map(|node| node.name.clone()).collect();
         let seeds: Vec<_> = options.seeds.iter().filter_map(|node| self.id(node)).collect();
         let mut avoid: HashSet<_> = options.avoid.iter().filter_map(|node| self.id(node)).collect();
@@ -99,10 +111,10 @@ impl State {
             shadowed.sort_unstable(); walk.shadowed = shadowed;
         }
         let nodes: Vec<_> = walk.nodes.iter().filter_map(|&id| self.info(id)).collect();
-        let parents: Vec<_> = walk.nodes.iter().map(|&id| (id, walk.parents[id as usize])).collect();
+        let parents: Vec<_> = walk.nodes.iter().map(|&id| SelectionParent { id, parent: walk.parents[id as usize] }).collect();
         let mut missing = missing; missing.sort_unstable_by(|a, b| crate::order::code_unit(a, b));
-        json!({ "nodes": nodes, "parents": parents, "missing": missing,
-            "shadowed": walk.shadowed.iter().map(|&id| &self.names[id as usize]).collect::<Vec<_>>() })
+        SelectionWalk { nodes, parents, missing,
+            shadowed: walk.shadowed.iter().map(|&id| self.names[id as usize].clone()).collect() }
     }
 }
 
