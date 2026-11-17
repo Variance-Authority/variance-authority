@@ -1,5 +1,7 @@
 // The shop through its broker. No test here waits for anything by name or by
 // time: every wait is the broker's settle, fed by what the app says it is doing.
+// Each case navigates on purpose: the broker senses where a walk arrives across
+// page loads, so a page switched in place would not exercise it.
 import { fork } from '../broker/broker.js';
 import { expect, test } from '../fixture.js';
 import { Billing, Product } from '../shop.js';

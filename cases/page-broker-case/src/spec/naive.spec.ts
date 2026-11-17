@@ -1,6 +1,8 @@
 // The same shop driven the usual way, with `timeout: 0` so each assertion asks
 // the screen once. Each test below passes, and that is the finding: it passes
 // on a state the broker would never let a test stand in.
+// Each case navigates on purpose: the broker senses where a walk arrives across
+// page loads, so a page switched in place would not exercise it.
 import { expect, test } from '@playwright/test';
 
 test('an empty form "has no errors" when asked before the answer', async ({ page }) => {

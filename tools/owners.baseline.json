@@ -651,6 +651,16 @@
   },
   {
     "idiom": "fresh-page",
+    "at": "cases/page-broker-case/src/spec/broker.spec.ts",
+    "count": 10
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/page-broker-case/src/spec/naive.spec.ts",
+    "count": 4
+  },
+  {
+    "idiom": "fresh-page",
     "at": "cases/playwright-storybook-case/src/spec/after-each.spec.mjs",
     "count": 1
   },
