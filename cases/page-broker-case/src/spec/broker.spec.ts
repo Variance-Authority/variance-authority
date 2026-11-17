@@ -48,6 +48,16 @@ test('naming the wrong branch fails with the branch that was taken', async ({ pa
   expect(app.journal.at(-1)).toMatchObject({ action: 'submit', named: 'signIn', to: 'payment' });
 });
 
+test('a guest who signs in pays, and the form under the cover departs with it', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  const payment = await signIn.email('a@b.c').signIn.to('payment');
+  expect(payment).toBeDefined();
+  await expect(signIn.email('x@y.z') as unknown as Promise<unknown>).rejects.toThrow('sign-in departed at sign-in.signIn');
+  await expect(form.address()).rejects.toThrow('departed');
+});
+
 test('going back fails while the cover stays open', async ({ page, app }) => {
   await page.goto('/checkout?user=guest&stuck', { waitUntil: 'commit' });
   const form = await app.enter(Billing);
