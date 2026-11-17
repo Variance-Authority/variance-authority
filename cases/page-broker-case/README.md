@@ -12,8 +12,9 @@ instead of on selectors and waits.
 - `leads({ payment: Payment, signIn: over(SignIn), invalid: stay })` names the
   outcomes; the broker senses which one the app reached. `.to('payment')`
   insists on one and fails with the branch actually taken.
-- A **handle** is linear: departing revokes it, a cover (`over`) leaves every
-  handle on the page readable but refuses their actions, those entered beneath
+- A **handle** is linear: departing revokes it, a cover (`over`) opens only
+  over a page whole and showing, every fragment of it, or the page departs, and
+  leaves every handle on the page readable but refuses their actions, those entered beneath
   it after it opened included, and `back`, and no plain lead to the same
   fragment, uncovers exactly what that cover covered, every fragment of it whole and showing or
   the page departs, and hands the owner's handle back. What is
@@ -34,7 +35,8 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    cover itself gone, not only what uses it; a cover is what the action
    opened, so one already entered, or showing before it, does not arrive. An outcome that shows beside its owner without `over` is an
    error that names the fix.
-2. **An arrival is unambiguous.** Two declared outcomes showing at once fail;
+2. **An arrival is unambiguous.** Two declared outcomes showing at once, each
+   with every part, fail; one whose probe shows without its parts is not there;
    the order of the declaration never decides. Ambiguity a declaration holds
    already is refused where it is written: two outcomes of one action that
    land alike, or two fragments under one name.

@@ -8,65 +8,13 @@ import type { Locator, Page } from '@playwright/test';
 import { Documents } from './documents.js';
 import { settle, type Signals } from './settle.js';
 import type { Step } from './journal.js';
+import type { Handle } from './handle.js';
 import { driver, locate, readDriver } from './driver.js';
-import { back, registry, stay, type Act, type AnyFragment, type Fragment, type Leads, type Outcomes, type Over, type Read, type Spec, type Stays } from './contract.js';
+import { back, registry, stay, type Act, type AnyFragment, type Leads, type Outcomes, type Read, type Spec, type Stays } from './contract.js';
 
 export { byLabel, byRole, byTestId, type Driver, type ReadDriver, type Where } from './driver.js';
 export * from './contract.js';
-
-// ── handles: the test's view of one arrived fragment ──
-
-type Rest<F> = F extends (d: any, ...args: infer P) => any ? P : never;
-type Arrived<F, O> = O extends typeof stay
-  ? Handle<F>
-  : O extends typeof back
-    ? Handle<AnyFragment>
-    : O extends Over<infer C>
-      ? Handle<C>
-      : Handle<O>;
-
-type Actions<F> = { [K in StayKeys<F>]: (...args: Rest<ActOf<F, K>>) => Chain<F> } & {
-  [K in LeadKeys<F>]: LeadCall<F, K>;
-};
-type Chain<F> = Actions<F> & PromiseLike<Handle<F>>;
-
-type SpecOf<F> = F extends Fragment<infer S> ? S : never;
-type ActionsOf<F> = NonNullable<SpecOf<F>['actions']>;
-type ActOf<F, K> = K extends keyof ActionsOf<F>
-  ? ActionsOf<F>[K] extends { act: infer A }
-    ? A
-    : ActionsOf<F>[K]
-  : never;
-type StayKeys<F> = {
-  [K in keyof ActionsOf<F>]: ActionsOf<F>[K] extends Leads ? never : K;
-}[keyof ActionsOf<F>];
-type LeadKeys<F> = {
-  [K in keyof ActionsOf<F>]: ActionsOf<F>[K] extends Leads ? K : never;
-}[keyof ActionsOf<F>];
-type OutcomesOf<F, K> = K extends keyof ActionsOf<F>
-  ? ActionsOf<F>[K] extends Leads<infer O> ? O : never
-  : never;
-
-interface LeadCall<F, K> {
-  /** Exploratory: goes wherever the app goes. The journal marks the step unnamed. */
-  (...args: Rest<ActOf<F, K>>): Promise<Arrival<F, OutcomesOf<F, K>>>;
-  /** The test names the branch; any other arrival fails, naming what it found. */
-  to<N extends keyof OutcomesOf<F, K> & string>(
-    outcome: N,
-    ...args: Rest<ActOf<F, K>>
-  ): Promise<Arrived<F, OutcomesOf<F, K>[N]>>;
-}
-type Arrival<F, O> = {
-  [N in keyof O]: { readonly outcome: N; readonly handle: Arrived<F, O[N]> };
-}[keyof O];
-
-export type Handle<F> = Actions<F> & {
-  readonly [K in keyof NonNullable<SpecOf<F>['reads']>]: (
-    ...args: Rest<NonNullable<SpecOf<F>['reads']>[K]>
-  ) => Promise<Awaited<ReturnType<NonNullable<SpecOf<F>['reads']>[K]>>>;
-} & {
-  readonly [K in keyof NonNullable<SpecOf<F>['uses']>]: Handle<NonNullable<SpecOf<F>['uses']>[K]>;
-} & { readonly [Symbol.asyncDispose]: () => Promise<void> };
+export type { Handle } from './handle.js';
 
 class Revoked extends Error {}
 
@@ -188,6 +136,19 @@ export class App {
       if (missing === undefined) continue;
       this.depart(action, fragment.name);
       throw new Error(`${fragment.name}.${action} ${how}, and ${each === fragment ? 'its' : `${each.name}'s`} part ${missing} is missing`);
+    }
+  }
+
+  /** The page beneath a cover goes under and comes back whole: every fragment on it showing, with every part, or the page departs. */
+  private async intact(states: readonly State[], action: string, from: string, says: string): Promise<void> {
+    const fragments = new Set([...this.states].filter(([, each]) => states.includes(each)).map(([each]) => ((each as any)[META] as Meta).fragment));
+    for (const look of [async (each: AnyFragment) => ((part) => part && `${each.name}'s part ${part} is missing`)(await this.missing(each)), async (each: AnyFragment) => ((await this.shows(each)) ? undefined : `${each.name} is gone`)]) {
+      for (const each of fragments) {
+        const why = await look(each);
+        if (why === undefined) continue;
+        this.depart(action, from);
+        throw new Error(`${says}, and ${why}`);
+      }
     }
   }
 
@@ -382,12 +343,16 @@ export class App {
     const target = (to: Outcomes[string]): AnyFragment | undefined =>
       to === back ? under?.fragment : typeof to === 'object' && 'cover' in to ? to.cover : (to as AnyFragment);
     const keys = Object.keys(declared.outcomes);
-    const reached = keys.filter((key) => {
+    let reached = keys.filter((key) => {
       const to = declared.outcomes[key];
       const where = to === stay ? undefined : target(to);
       // What a cover covers shows beneath it all along: going back is witnessed by the cover gone, and its owners.
       return where !== undefined && shown.includes(where.name) && !(to === back && (kept || shown.includes(under!.by)));
     });
+    // Two outcomes showing are two only if both are whole: a probe alone with a part missing is not that fragment.
+    const complete: string[] = [];
+    for (const key of reached.length > 1 ? reached : []) if ((await this.missing(target(declared.outcomes[key])!)) === undefined) complete.push(key);
+    if (complete.length > 0) reached = complete;
     // An owner or the fragment itself seen gone is gone before any check below refuses the arrival; going back retires the cover alone.
     const left = !kept || !shown.includes(fragment.name);
     if (left && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name);
@@ -413,14 +378,7 @@ export class App {
         throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name}, and its part ${missing} is missing`);
       }
       // Going back restores the whole page beneath the cover, and all of it comes back whole or none of it does.
-      const restored = new Set([...this.states].filter(([, each]) => under?.states.includes(each) && declaredTo === back).map(([each]) => ((each as any)[META] as Meta).fragment));
-      for (const look of [async (each: AnyFragment) => ((part) => part && `${each.name}'s part ${part} is missing`)(await this.missing(each)), async (each: AnyFragment) => ((await this.shows(each)) ? undefined : `${each.name} is gone`)]) {
-        for (const each of restored) {
-          const why = await look(each);
-          if (why !== undefined) this.depart(name, fragment.name);
-          if (why !== undefined) throw new Error(`${fragment.name}.${name} went back to ${(to as AnyFragment).name}, and ${why}`);
-        }
-      }
+      if (declaredTo === back) await this.intact(under!.states, name, fragment.name, `${fragment.name}.${name} went back to ${(to as AnyFragment).name}`);
       const held = this.roots.get(to as AnyFragment);
       if (covering(outcome) && held !== undefined && this.alive(this.states.get(held)!)) {
         throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name} over ${by}, and ${(to as AnyFragment).name} was entered before it opened`);
@@ -435,6 +393,9 @@ export class App {
     }
     // What an arrival keeps, it keeps whole: a stay keeps the fragment, and a cover keeps what it opened over.
     if (to === stay || covering(outcome)) await this.whole(fragment, owners, name, to === stay ? 'stayed' : `opened ${(to as AnyFragment).name}`);
+    // A modal covers the whole page, not the fragment that opened it: every live handle waits beneath, and waits whole.
+    const beneath = covering(outcome) ? [...new Set(this.states.values())].filter((each) => this.alive(each) && each.status === 'live') : [];
+    if (covering(outcome)) await this.intact(beneath, name, fragment.name, `${fragment.name}.${name} opened ${(to as AnyFragment).name}`);
     const toName = to === stay ? fragment.name : (to as AnyFragment).name;
     this.journal.push({ from: fragment.name, action: name, kind: 'lead', outcome, named, to: toName });
 
@@ -455,8 +416,6 @@ export class App {
       handle = under.handle;
     } else {
       const next = to as AnyFragment;
-      // A modal covers the whole page, not the fragment that opened it: every live handle waits beneath.
-      const beneath = covering(outcome) ? [...new Set(this.states.values())].filter((each) => this.alive(each) && each.status === 'live') : [];
       for (const each of beneath) Object.assign(each, { status: 'covered', why: next.name, doc: this.documents.count });
       if (!covering(outcome)) this.depart(name, fragment.name);
       handle = this.handle(next, this.page);

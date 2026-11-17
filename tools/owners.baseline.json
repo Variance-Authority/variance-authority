@@ -652,7 +652,7 @@
   {
     "idiom": "fresh-page",
     "at": "cases/page-broker-case/src/spec/arrival.spec.ts",
-    "count": 31
+    "count": 20
   },
   {
     "idiom": "fresh-page",
@@ -663,6 +663,11 @@
     "idiom": "fresh-page",
     "at": "cases/page-broker-case/src/spec/naive.spec.ts",
     "count": 4
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/page-broker-case/src/spec/whole.spec.ts",
+    "count": 13
   },
   {
     "idiom": "fresh-page",
