@@ -10,9 +10,11 @@
 import { resolve } from 'node:path';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { parseSync } from 'oxc-parser';
-import { describe, expect, it } from 'vitest';
+import { runInNewContext } from 'node:vm';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { instrumentationId, probeRecipe } from '../instrument/index.js';
-import { testSelectionProbes } from './probes.js';
+import { EXECUTION_GLOBAL, TELLER_GLOBAL } from './execution-global.js';
+import { type ExecutionCollector, testSelectionProbes } from './probes.js';
 import { inRoot } from './__fixtures__/browser-page.js';
 
 const CLIENT = '"use client";\nimport { useState } from "react";\nexport function Since() { return useState(0)[0]; }\n';
@@ -90,5 +92,35 @@ describe('a plugin that runs its `transform` after the probes', () => {
     const plugin = testSelectionProbes({ placement: 'before-transforms' });
     const plugins = [plugin, { name: 'their-post', transform: { order: 'post', handler } }];
     expect(() => plugin.configResolved({ command: 'build', plugins } as never)).not.toThrow();
+  });
+});
+
+describe('the collector a build asked for stories serves', async () => {
+  /** Built, as `journey-story.test.ts` reads it: what tells the stories `require`s the tap by the names the build gives it. */
+  const built = (await import('../../dist/test-selection/probes.js')) as typeof import('./probes.js');
+  const COLLECTOR = '\0variance-authority:execution-collector';
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  /** What a page evaluating `source` is left with: what its drain carries, and whether it can tell an execution's story. */
+  function page(source: string) {
+    const realm: Record<string, unknown> = { document: {}, console: { log: () => {} }, TextEncoder, btoa };
+    runInNewContext(source, realm);
+    return { story: (realm[EXECUTION_GLOBAL] as ExecutionCollector).drain().story, teller: realm[TELLER_GLOBAL] };
+  }
+
+  it('tapes a page and tells its executions under `VARIANCE_AUTHORITY_STORY=1`', async () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_STORY', '1');
+    const served = page(await built.testSelectionProbes().load(COLLECTOR) as string);
+    expect(served.story).toMatchObject({ visits: 0, notes: [] });
+    expect(served.teller).toMatchObject({ tell: expect.any(Function) });
+  });
+
+  it('serves the collector alone without it, as it was served before', () => {
+    const source = built.testSelectionProbes().load(COLLECTOR) as string;
+    expect(source).toBe(built.executionCollectorSource());
+    expect(page(source)).toEqual({ story: undefined, teller: undefined });
   });
 });

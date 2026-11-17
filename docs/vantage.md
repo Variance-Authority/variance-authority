@@ -412,7 +412,22 @@ after it settles is told again with what it ran since. The watcher keeps the
 first 8 tellings of an execution from each head, up to 1 MiB of them, and
 `--story` counts the rest. A head started without the variable tapes nothing,
 and `--story` then says so and lists the regions as before. A request still
-open has told nothing yet: its story arrives when it settles. A page that calls `reportPage` tells no story yet.
+open has told nothing yet: its story arrives when it settles.
+
+A page that calls `reportPage` tells its story when its build ran with
+`VARIANCE_AUTHORITY_STORY=1`, such as
+`VARIANCE_AUTHORITY_STORY=1 npx vite`: the build plugin reads the variable
+as it is made, since a page has no environment of its own. A load or a click
+is told once the page has run nothing more for it, at the next click, or as
+the page leaves; one that runs again after that, as a response arrives, is
+told again with what it ran since, or with the next click's story if that
+click came first, since a page runs one execution at a time. Its story
+carries what the page saw as well: each `console` line, and the notes a
+browser test's story carries, such as a Suspense fallback, paint or a long
+frame, told with the execution's end. The requests the page sent are not in it.
+A story told as a click or the page's leaving ends it holds what a beacon
+carries, about 32 KiB: its first steps and notes, and the rest counted as
+steps and notes not taped.
 
 ## Reading it from an agent
 

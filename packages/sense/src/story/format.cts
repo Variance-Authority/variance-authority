@@ -55,6 +55,7 @@ import type crypto = require('node:crypto');
 import type fs = require('node:fs');
 import type path = require('node:path');
 import caseOwner = require('../test-selection/case-owner.cjs');
+import storyBytes = require('./story-bytes.cjs');
 import type { ModuleId } from '../instrument/index.js';
 import type storyTap = require('../instrument/story-tap.cjs');
 
@@ -66,9 +67,7 @@ const builtins = (): { crypto: typeof crypto; fs: typeof fs; path: typeof path }
 
 type Tape = ReturnType<ReturnType<typeof storyTap.createTap>['read']>;
 
-const MAGIC = [0x56, 0x41, 0x53, 0x54, 0x52, 0x59, 0x00, 0x01];
-const EVALUATING = -2147483648;
-const INDEX = 0x7fffffff;
+const { MAGIC, EVALUATING, rowAt } = storyBytes;
 
 /** A story read back. */
 interface Story {
@@ -172,18 +171,6 @@ function labelOf(asked: string | undefined): string | undefined {
   return label === '' ? undefined : label;
 }
 
-/** The row whose region range holds `index`: the last of `bases`, ascending, at or below it. */
-function rowAt(bases: readonly number[], index: number): number {
-  let low = 0;
-  let high = bases.length - 1;
-  while (low < high) {
-    const middle = (low + high + 1) >> 1;
-    if (bases[middle]! <= index) low = middle;
-    else high = middle - 1;
-  }
-  return low;
-}
-
 /**
  * The story of the case keyed `key` on `tape`.
  *
@@ -193,132 +180,9 @@ function rowAt(bases: readonly number[], index: number): number {
  * before such a case is not told, because a case with no visit has no place on
  * the tape to begin.
  */
-function encodeStory(tape: Tape, key: string, stopped?: boolean, page: { readonly lost?: boolean; readonly parts?: readonly Part[] } = {}): Buffer {
-  const { at, keys } = tape;
-  const ends = (segment: number): number => (segment + 1 < at.length ? at[segment + 1]! : tape.taped);
-  const own: number[] = [];
-  let interleaved = 0;
-  let foreign = 0;
-  for (let segment = 0; segment < keys.length; segment += 1) {
-    if (keys[segment] === key) {
-      if (own.length > 0 && foreign > 0) interleaved += 1;
-      foreign = 0;
-      own.push(segment);
-    } else if (own.length > 0 && keys[segment] !== '') foreign += 1;
-  }
-  let first = own[0] ?? keys.length;
-  while (own.length > 0 && first > 0 && keys[first - 1] === '') first -= 1;
-  // What ran outside any case right after this one, up to the next case, is
-  // its hooks', as what ran right before it is: a story written once its
-  // attempt ended holds its `afterEach`.
-  let last = own[own.length - 1] ?? -1;
-  const after = own.length;
-  while (last >= 0 && last + 1 < keys.length && keys[last + 1] === '') own.push((last += 1));
-
-  const bases = tape.rows.bases;
-  const dense = new Map<number, number>();
-  const rows: [ModuleId, number][] = [];
-  let total = 0;
-  const entries: number[] = [];
-  const take = (from: number, to: number): void => {
-    for (let at = from; at < to; at += 1) {
-      const entry = tape.tape[at]!;
-      const index = entry & INDEX;
-      const low = rowAt(bases, index);
-      let base = dense.get(low);
-      if (base === undefined) {
-        base = total;
-        dense.set(low, base);
-        rows.push([tape.rows.ids[low]!, tape.rows.counts[low]!]);
-        total += tape.rows.counts[low]!;
-      }
-      entries.push((base + index - bases[low]!) | (entry & EVALUATING));
-    }
-  };
-  // Where each taken segment starts on the tape and in `entries`, so a note
-  // said at a tape position lands at the visit it came after.
-  const placed: [tape: number, end: number, entry: number, before: boolean][] = [];
-  for (let segment = first; segment < (own[0] ?? first); segment += 1) {
-    placed.push([at[segment]!, ends(segment), entries.length, true]);
-    take(at[segment]!, ends(segment));
-  }
-  const before = entries.length;
-  for (const segment of own) {
-    placed.push([at[segment]!, ends(segment), entries.length, false]);
-    take(at[segment]!, ends(segment));
-  }
-
-  const notes: [number, string][] = [];
-  const beforeNotes: [number, string][] = [];
-  const opens = own.length === 0 ? Infinity : at[own[0]!]!;
-  const from = own.length === 0 ? Infinity : at[first]!;
-  const trails = own.length === after ? Infinity : at[own[after]!]!;
-  const closes = own.length === after ? -Infinity : ends(last);
-  // Where something at a tape position in bucket `noteKey` lands: in the
-  // case, before it, or neither.
-  const placeOf = (position: number, noteKey: string): { said: boolean; at: number } | undefined => {
-    const said = noteKey === key || (noteKey === '' && position >= trails && position <= closes);
-    // What was said outside any case just before this one is its hooks'.
-    if (!said && !(noteKey === '' && position >= from && position <= opens)) return undefined;
-    let entry: number | undefined;
-    for (const [start, end, offset, early] of placed) {
-      if (position < start || early === said) continue;
-      entry = offset + Math.min(position, end) - start;
-    }
-    return { said, at: said ? (entry ?? before) - before : (entry ?? 0) };
-  };
-  // How many notes each section held when the tape had said `n`, so a line
-  // counts the notes said before it in the section it lands in.
-  const saidBy: number[] = [0];
-  const beforeBy: number[] = [0];
-  for (const [position, noteKey, text] of tape.notes) {
-    const place = placeOf(position, noteKey);
-    if (place !== undefined) (place.said ? notes : beforeNotes).push([place.at, text]);
-    saidBy.push(notes.length);
-    beforeBy.push(beforeNotes.length);
-  }
-  const lines: TestLine[] = [];
-  const beforeLines: TestLine[] = [];
-  for (const [position, lineKey, line, said, hook] of tape.lines) {
-    const place = placeOf(position, lineKey);
-    if (place === undefined) continue;
-    const counted = (place.said ? saidBy : beforeBy)[said]!;
-    (place.said ? lines : beforeLines).push(hook === 1 ? [place.at, line, counted, 1] : [place.at, line, counted]);
-  }
-  // What a module held was said once, when it loaded, and the tape started
-  // again before the first case: every case that went through it opens with it.
-  const told = new Set([...notes, ...beforeNotes].map(([, text]) => text));
-  const holding = rows.flatMap(([id]): [number, string][] => {
-    const line = tape.held.get(id);
-    return line === undefined || told.has(line) ? [] : [[0, line]];
-  });
-  beforeNotes.unshift(...holding);
-  for (const [index, cut] of beforeLines.entries()) {
-    beforeLines[index] = cut[3] === 1 ? [cut[0], cut[1], cut[2] + holding.length, 1] : [cut[0], cut[1], cut[2] + holding.length];
-  }
-
-  const { file, name, project } = caseOwner.unpackCase(key);
-  const header = Buffer.from(
-    JSON.stringify({
-      file, name, ...(project === undefined ? {} : { project }), rows, before, untaped: tape.visits - tape.taped, interleaved, stopped,
-      ...(notes.length === 0 ? {} : { notes }),
-      ...(beforeNotes.length === 0 ? {} : { beforeNotes }),
-      ...(tape.unnoted === 0 ? {} : { unnoted: tape.unnoted }),
-      ...(lines.length === 0 ? {} : { lines }),
-      ...(beforeLines.length === 0 ? {} : { beforeLines }),
-      ...(page.lost === undefined ? {} : { lost: page.lost }),
-      ...(page.parts === undefined || page.parts.length === 0 ? {} : { parts: page.parts }),
-    }),
-    'utf8',
-  );
-  const padded = (header.length + 3) & ~3;
-  const out = Buffer.alloc(MAGIC.length + 4 + padded + entries.length * 4, 0x20);
-  out.set(MAGIC, 0);
-  out.writeUInt32LE(header.length, MAGIC.length);
-  header.copy(out, MAGIC.length + 4);
-  const body = MAGIC.length + 4 + padded;
-  for (let at = 0; at < entries.length; at += 1) out.writeInt32LE(entries[at]!, body + at * 4);
-  return out;
+function encodeStory(tape: Tape, key: string, stopped?: boolean, page: Parameters<typeof storyBytes.storyBytes>[5] = {}): Buffer {
+  const bytes = storyBytes.storyBytes(tape, key, caseOwner.unpackCase(key), (text) => Buffer.from(text, 'utf8'), stopped, page);
+  return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
 /** A story's bytes read back, or an error naming what they are not. */
