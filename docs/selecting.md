@@ -963,7 +963,7 @@ A scan runs before every run that selects, so the number that matters is not the
 first one — it is the one after a one-line edit. Three things arrive already
 known, and each removes a layer:
 
-- **`git` names every file's content without opening one.** A blob's name *is*
+- **Git supplies tracked content identities.** A blob's name *is*
   the hash of its bytes. The Git index supplies tracked blob ids, and
   `git status` identifies paths that need working-tree reads.
 - **A digest names the parse.** The parse cache is keyed by content and by the
