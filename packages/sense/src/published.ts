@@ -113,6 +113,8 @@ export function sourcesWithin(
 }
 
 export interface SourceUpdateOptions {
+  /** Authoritative scan-root-relative paths to refresh instead of asking Git status. */
+  readonly changed?: readonly string[];
   /** The index to update. The checkout's own, from `sourceIndexPath`, when absent. */
   readonly index?: string;
   /** `false` reads each file's bytes from the working tree, as `scanRelations` takes it. */
@@ -187,7 +189,7 @@ export async function updateSourceIndex(
     dirname(path) === dirname(sourceIndexPath(where)) ? parseStoresFor(where) : undefined);
   const everything = `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
   const natively = await updateNatively(
-    realPath(where), path, options.progress, dirs, stores, missing ? everything : undefined, options.packs, options.prepareMap === true && missing,
+    realPath(where), path, options.progress, dirs, stores, missing ? everything : undefined, options.packs, options.prepareMap === true && missing, options.changed,
   );
   if (natively === undefined) throw new Error(`sense: native source indexing could not update ${path}`);
   if (options.index === undefined) markCheckout(realPath(where));

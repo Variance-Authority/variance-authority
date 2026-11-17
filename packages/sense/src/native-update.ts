@@ -64,8 +64,9 @@ export async function updateNatively(
   reading = 'reading the files that changed since the last index',
   packs?: boolean,
   prepareMap = false,
+  changed?: readonly string[],
 ): Promise<NativelyUpdated | undefined> {
-  const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
+  const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs, changed));
   const held = tree?.native;
   if (held?.vouched) progress?.('Watchman reports nothing moved since the listing the index holds, so git listed nothing')?.();
   if (tree === undefined || held?.updateIndex === undefined) return undefined;

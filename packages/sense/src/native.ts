@@ -142,6 +142,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    */
   aliasesIn(root: string, paths: string[]): AliasTable | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
+  gitTreeForChanged(root: string, dirs: string[], changed: string[]): NativeGitTree | null;
   /** A native source tree outside Git, or for a scan that opens files from disk. */
   filesystemTree(root: string, dirs: string[]): NativeGitTree;
   /** The caller's exact source membership and seeds, acquired and resolved natively. */

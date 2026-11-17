@@ -308,9 +308,16 @@ export async function gitTreeOf(
  * listing the index carries when Watchman reports nothing moved since it was
  * taken, else git's (spec 0107). `undefined` where {@link gitTreeOf} answers it.
  */
-export async function changeTreeOf(root: string, index: string, dirs: readonly string[]): Promise<Tree | undefined> {
+export async function changeTreeOf(root: string, index: string, dirs: readonly string[], changed?: readonly string[]): Promise<Tree | undefined> {
   const addon = native();
-  if (addon === undefined) return gitTreeOf(root, dirs);
+  if (addon === undefined) return undefined;
+  if (changed !== undefined) {
+    for (const path of changed) {
+      if (path === '' || isAbsolute(path) || path.split('/').includes('..') || path.includes('\0')) throw new Error(`known changed path must be scan-root-relative: ${path}`);
+    }
+    const held = addon.gitTreeForChanged(root, [...dirs], [...changed]);
+    return nativeTree(held ?? addon.filesystemTree(root, [...dirs]));
+  }
   const held = addon.changeTree(root, index, [...dirs]);
   return held === null ? undefined : nativeTree(held);
 }

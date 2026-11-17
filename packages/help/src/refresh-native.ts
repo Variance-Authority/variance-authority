@@ -7,21 +7,15 @@ import {
   stepped,
   updateSourceIndex,
   type Progress,
-  type PublishedName,
   type SourceUpdate,
 } from '@variance-authority/sense';
 
 import {
-  assembleHelp,
   readWorkspaceManifests,
-  type DeclarationKind,
   type Help,
   type HelpOptions,
   type ImportTargets,
-  type Names,
   type Offering,
-  type Reached,
-  type Use,
 } from '@variance-authority/package/help';
 import {
   hexDigestOf,
@@ -34,8 +28,6 @@ import {
   workspaceTreeOpens,
 } from './snapshot.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
-import { storeOf } from './store-encode.js';
-import { useOf } from './native-use.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -143,23 +135,6 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
     readHelp(root, entries, targets, index, publication.tree === undefined, publication));
   if (reading === null) return undefined;
 
-  const read = reading.usage();
-  const names = new Map<string, Map<string, Use[]>>();
-  for (const use of read.names) {
-    const held = names.get(use.key) ?? new Map<string, Use[]>();
-    names.set(use.key, held);
-    const uses = held.get(use.name) ?? [];
-    held.set(use.name, uses);
-    uses.push(useOf(use));
-  }
-  const published = reading.names();
-  const namesBySource = new Map<string, Names>();
-  sources.forEach(({ entry }, at) => namesBySource.set(entry.source, namesOf(published[at]!)));
-  // The export list and the imports by path are the reading's, encoded by the addon; the value joined here carries the packages.
-  const help = await stepped(progress, 'reading the signatures and comments of the exported names', async () =>
-    assembleHelp(root, offerings, { names, deep: [], byPath: [], unfollowed: [], exported: [], unreadable: read.unreadable }, (source) =>
-      namesBySource.get(source) ?? new Map()));
-
   return stepped(progress, 'publishing the questions', async () => {
     const timing = process.env.VARIANCE_SENSE_TIMINGS === '1' ? progress : undefined;
     const input = await stepped(timing, 'preparing the questions for encoding', () => {
@@ -171,8 +146,12 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
         readStartedAt: publication.readStartedAt,
         ...(indexDigest === undefined ? {} : { indexDigest }),
         packagesDigest: packagesDigest(root, offerings),
-        packages: storeOf(help).packages,
-        unreadable: help.unreadable,
+        packages: offerings.map((offering) => ({
+          name: offering.name,
+          entry: offering.entry,
+          openings: offering.entrypoints.map((entry) => ({ subpath: entry.subpath, source: relative(root, entry.source) })),
+        })),
+        unreadable: offerings.flatMap((offering) => offering.unreadable ?? []),
         ...(graphDigest === undefined ? {} : { graphDigest }),
       };
     });
@@ -183,18 +162,6 @@ export async function publishHelp(publication: HelpPublication): Promise<{ reado
       return { help: await publishStore(publication.own, encoded.store, tree, encoded.graphDigest), tree };
     });
   });
-}
-
-/** One entry's names as the documented surface reads them: by name, then by kind. */
-function namesOf(published: readonly PublishedName[]): Names {
-  return new Map(published.map(({ name, kinds }) => [name, new Map(kinds.map((kind): [DeclarationKind, Reached] => [kind.kind as DeclarationKind, {
-    kind: kind.kind as DeclarationKind,
-    at: kind.at,
-    line: kind.line,
-    ...(kind.signature === undefined || kind.signature === null ? {} : { signature: kind.signature }),
-    ...(kind.doc === undefined || kind.doc === null ? {} : { doc: kind.doc }),
-    declared: kind.declared,
-  }]))]));
 }
 
 /** An entry's file as the index records it: relative to `root`, through any link on the way. */

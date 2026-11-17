@@ -63,13 +63,14 @@ static TEST_LIKE: LazyLock<Regex> = LazyLock::new(|| {
 
 
 /// What one test adds: its edges, and the reason its relative misses make it unknown.
-struct Added {
-    edges: Vec<(String, &'static str)>,
-    holes: Option<String>,
+pub(crate) struct Added {
+    pub(crate) edges: Vec<(String, &'static str)>,
+    pub(crate) holes: Option<String>,
+    pub(crate) shadows: Vec<String>,
 }
 
 /// Every test's loads beside its mocks, resolved, keyed by the test.
-fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>, mocking: &Mocking) -> HashMap<&'l str, Added> {
+pub(crate) fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>, mocking: &Mocking, with_shadows: bool) -> HashMap<&'l str, Added> {
     let mut phases = crate::timings::Phases::new("question mock additions", "select test candidates");
     let mut crossings: Vec<Crossing> = folded
         .iter()
@@ -100,7 +101,10 @@ fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>,
                     said.push(value);
                 }
             }
-            if said.is_empty() {
+            let cut: Vec<&str> = if with_shadows {
+                parses.mocks_minus.range(row).map(|at| stored.text(parses.mock_minus.at(at))).collect()
+            } else { Vec::new() };
+            if said.is_empty() && cut.is_empty() {
                 return None;
             }
             if let Some((attempts, _)) = &statistics { attempts.fetch_add(said.len(), Ordering::Relaxed); }
@@ -121,7 +125,11 @@ fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>,
                 (to, kind)
             }).collect();
             let holes = (!holes.is_empty()).then(|| format!("{} tainted relative specifier(s) that resolve to nothing: {}", holes.len(), holes.join(", ")));
-            Some((crossing.file, Added { edges, holes }))
+            let mut shadows: Vec<String> = cut.into_iter()
+                .filter_map(|value| mocking.resolvers.resolve(&mocking.root, &from, value, Some(&known))).collect();
+            shadows.sort_unstable_by(|left, right| crate::order::code_unit(left, right));
+            shadows.dedup();
+            Some((crossing.file, Added { edges, holes, shadows }))
         })
         .collect();
     if let Some((attempts, missed)) = statistics {
@@ -136,7 +144,7 @@ pub(crate) fn tree(layers: &[Layer], mocking: &Mocking) -> Vec<u8> {
     let folded = fold(layers);
     phases.note(format_args!("{} records, {} layers", folded.len(), layers.len()));
     phases.next("mock additions");
-    let added = additions(layers, &folded, mocking);
+    let added = additions(layers, &folded, mocking, false);
     phases.next("collect and sort paths");
     let mut files: Collected = Collected::default();
     for (&path, &(layer, row)) in &folded {

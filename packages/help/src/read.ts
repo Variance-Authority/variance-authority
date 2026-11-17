@@ -32,16 +32,13 @@
  */
 
 import { resolve } from 'node:path';
-import { encodeSourceTree, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
+import { type Tree } from '@variance-authority/mcp/tools';
 import {
-  openSourceIndex,
-  placesOf,
-  scanRelations,
+  updateSourceIndex,
   sourceIndexPath,
   stepped,
   type Progress,
 } from '@variance-authority/sense';
-import { mockTaint, taintRecords, type Taint } from '@variance-authority/sense/taint';
 import {
   readWorkspaceManifests,
   type Help,
@@ -91,6 +88,8 @@ export async function readWorkspaceForAnswer(
   root: string,
   options: AnsweringOptions = {},
 ): Promise<Help> {
+  const removed = options as ReadingOptions & { readonly records?: unknown; readonly taints?: unknown };
+  if (removed.records !== undefined || removed.taints !== undefined) throw new Error('records and taints callbacks are no longer supported by workspace reads; use the native published tree');
   const {
     justAnswer = false,
     refreshAfterMs = 60 * 60 * 1000,
@@ -99,8 +98,8 @@ export async function readWorkspaceForAnswer(
   if (!Number.isFinite(refreshAfterMs) || refreshAfterMs < 0) {
     throw new Error('refreshAfterMs must be a finite, non-negative number');
   }
-  if (justAnswer && (reading.changed !== undefined || reading.taints !== undefined)) {
-    throw new Error('justAnswer cannot be combined with changed paths or taints, which request a refresh');
+  if (justAnswer && (reading.changed !== undefined)) {
+    throw new Error('justAnswer cannot be combined with changed paths, which request a refresh');
   }
 
   let recorded: Help;
@@ -122,18 +121,18 @@ export async function readWorkspaceForAnswer(
 
   const at = workspaceGeneration(recorded);
   const age = at === undefined ? Number.POSITIVE_INFINITY : Date.now() - Date.parse(at);
-  if (justAnswer || (reading.changed === undefined && reading.taints === undefined && age <= refreshAfterMs)) {
+  if (justAnswer || (reading.changed === undefined && age <= refreshAfterMs)) {
     return recorded;
   }
-  if (reading.changed?.length === 0 && reading.taints === undefined) {
+  if (reading.changed?.length === 0) {
     await republishWorkspaceSnapshot(recorded, reading.index ?? sourceIndexPath(resolve(root)));
     return recorded;
   }
   try {
-    return await (reading.changed !== undefined || reading.taints !== undefined ? refreshWorkspace(root, recorded, reading) : readWorkspace(root, reading));
+    return await (reading.changed !== undefined ? refreshWorkspace(root, recorded, reading) : readWorkspace(root, reading));
   } catch (error) {
     // The read is lost and the generation is whole: the look says what it did not compare. A read asked for now, or for edges only a taint adds, has no such answer.
-    if (error instanceof UnsavedRead && refreshAfterMs !== 0 && reading.taints === undefined) return recorded;
+    if (error instanceof UnsavedRead && refreshAfterMs !== 0) return recorded;
     throw error;
   }
 }
@@ -148,32 +147,6 @@ export interface IndexedUsageOptions {
    * Present skips Git status discovery; renames name both paths.
    */
   readonly changed?: readonly string[];
-  /**
-   * Additional declarative module loads to join onto the graph used by path
-   * questions.
-   *
-   * These do not manufacture symbol bindings: usage counts remain facts from
-   * ordinary imports inside the files the additional edge makes reachable.
-   * Subtractive taints are refused because a mock is relative to one file's
-   * run and cannot be flattened into the workspace-wide source tree.
-   */
-  readonly taints?: readonly Taint[];
-  /**
-   * Handed the arrows the scan drew, for a caller that needs the graph as well
-   * as the names.
-   *
-   * The scan walks the whole checkout and returns the import graph whichever
-   * question asked for it; this reading wanted only the half that says which
-   * names each file takes and hands out, and threw the other half away. A
-   * caller that has to answer *which files does this path reach* would then
-   * scan the repository a second time to learn something the first scan had
-   * already worked out and dropped on the floor.
-   *
-   * So it is a door rather than a return value: the reading that wants it is
-   * not the reading this function performs, and a caller that does not want it
-   * should not be handed a graph it has to ignore.
-   */
-  readonly records?: (records: readonly FileRecord[], graphRoot: string) => void;
   /** Handed the queryable graph when a caller asks a path-shaped question: the tree this reading publishes. */
   readonly tree?: (tree: Tree) => void;
   /** Told each step as it starts and ends: the manifests, the source, the names, the publish. */
@@ -218,6 +191,8 @@ export async function refreshWorkspace(
 }
 
 async function readAndPublish(root: string, options: ReadingOptions, readStartedAt: string): Promise<Help> {
+  const removed = options as ReadingOptions & { readonly records?: unknown; readonly taints?: unknown };
+  if (removed.records !== undefined || removed.taints !== undefined) throw new Error('records and taints callbacks are no longer supported by workspace reads; use the native published tree');
   const where = resolve(root);
   const { offerings, targets } = await stepped(options.progress, `reading the package manifests of ${where}`, () =>
     readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
@@ -230,32 +205,13 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
   const scope = scanScope(where, offerings);
   const own = options.index ?? sourceIndexPath(where);
   const at = scopeSourceIndexPath(own, scope.dirs);
-  const index = await openSourceIndex(at);
-  const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(scope.root, scope.dirs)}`, () => scanRelations({
-    root: scope.root,
-    dirs: scope.dirs,
-    cache: index.cache,
-    reuse: index.reuse,
+  const update = await updateSourceIndex(scope.root, {
+    index: at, dirs: scope.dirs,
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.packs === undefined ? {} : { packs: options.packs }),
-  }));
-  const given = await taintRecords(records, options.taints ?? [], { root: scope.root, cache: index.cache });
-  if (given.shadows.size > 0) {
-    throw new Error(
-      `Help source areas cannot apply subtractive taints: ${given.shadows.size} file(s) shadow a module. ` +
-      'Pass addition-only taints for declarative module loads.',
-    );
-  }
-  // What a test loads for real beside its mocks joins the published tree. The
-  // addon draws it off the saved index; only a caller's taints, which the index
-  // never holds, keep the published tree on this side, and then this side joins
-  // the mocks the same way. A mock's cut is one test's run and stays out of either.
-  const tainted = options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root, cache: index.cache });
-  options.records?.(tainted.records, scope.root);
-
-  // A tool reads lines out of the index on disk, so the value is read off the index this scan saved, or not at all.
-  const refused = await stepped(options.progress, 'saving the source index', () => index.save());
-  if (refused !== undefined) throw new UnsavedRead(refused);
+    ...(options.progress === undefined ? {} : { progress: options.progress }),
+  });
+  if (update.refused !== undefined) throw new UnsavedRead(update.refused);
   const published = await publishHelp({
     workspace: where,
     root: scope.root,
@@ -264,7 +220,8 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
     index: at,
     own,
     readStartedAt,
-    ...(options.taints === undefined ? {} : { tree: encodeSourceTree(tainted.records) }),
+    ...(update.listing === undefined ? {} : { listing: update.listing }),
+    ...(update.packs === undefined ? {} : { packs: update.packs }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
   if (published === undefined) throw new UnsavedRead(`no source index opens at ${at}`);

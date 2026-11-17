@@ -61,7 +61,7 @@ mod git;
 mod git_fixture;
 mod git_store;
 mod git_tree;
-pub use git_tree::{git_tree, git_tree_for, GitTree};
+pub use git_tree::{git_tree, git_tree_for, git_tree_for_changed, GitTree};
 #[cfg(feature = "grammars")]
 mod grammar;
 mod graph_dominators;
@@ -179,6 +179,8 @@ mod source_style;
 mod source_languages;
 mod source_read;
 mod source_tree;
+mod source_tree_read;
+mod source_names;
 mod source_update;
 mod specifier;
 mod stored;

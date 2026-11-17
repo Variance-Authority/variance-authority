@@ -86,6 +86,14 @@ pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
     Some(tree_from_snapshot(&root, snapshot, seeds))
 }
 
+/// Build the listing using only the caller's authoritative changed paths.
+#[napi(catch_unwind)]
+pub fn git_tree_for_changed(root: String, dirs: Vec<String>, changed: Vec<String>) -> Option<GitTree> {
+    let snapshot = git::snapshot_with(&root, Some(&changed))?;
+    let seeds = seed::seeds_of(&root, &dirs, &snapshot);
+    Some(tree_from_snapshot(&root, snapshot, seeds))
+}
+
 impl GitTree {
     /// Every tracked path, in code-unit order.
     pub(crate) fn listed(&self) -> &[String] {

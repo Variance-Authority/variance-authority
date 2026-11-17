@@ -43,16 +43,19 @@ async function drawn(index?: string): Promise<SourceNames | undefined> {
 
 describe('readTree over a checkout the graph reads', () => {
   it('declares what a file does not export', async () => {
-    expect((await drawn())?.get('src/theme.ts')?.declared).toEqual([
-      { name: 'ThemeContext', line: 1 },
-      { name: 'useTheme', line: 2 },
-    ]);
+    expect((await drawn())?.query([{ kind: 'declares', pattern: '^(ThemeContext|useTheme)$' }])).toEqual({
+      unread: 0,
+      groups: [{ files: [{ file: 'src/theme.ts', evidence: [{ name: 'ThemeContext', line: 1 }, { name: 'useTheme', line: 2 }] }] }],
+    });
   }, 120_000);
 
   it('declares it when `variance index` wrote the rows the tree is read back from', async () => {
     const index = sourceIndexPath(root);
     rmSync(index, { force: true });
     await updateSourceIndex(root, { index });
-    expect((await drawn(index))?.get('src/theme.ts')?.declared).toContainEqual({ name: 'ThemeContext', line: 1 });
+    expect((await drawn(index))?.query([{ kind: 'declares', pattern: '^ThemeContext$' }])).toEqual({
+      unread: 0,
+      groups: [{ files: [{ file: 'src/theme.ts', evidence: [{ name: 'ThemeContext', line: 1 }] }] }],
+    });
   }, 120_000);
 });

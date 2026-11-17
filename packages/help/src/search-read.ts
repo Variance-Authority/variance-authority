@@ -88,13 +88,13 @@ const reasonOf = (error: unknown): string => (error instanceof Error ? error.mes
 export async function readSearchForAnswer(root: string, options: AnsweringOptions = {}): Promise<SearchReading> {
   const { justAnswer = false, refreshAfterMs: _age, ...reading } = options;
   const index = reading.index ?? sourceIndexPath(resolve(root));
-  if (reading.changed !== undefined || reading.taints !== undefined) {
+  if (reading.changed !== undefined) {
     let help: Help;
     try {
       help = await readWorkspaceForAnswer(root, { ...options, refreshAfterMs: 0 });
     } catch (error) {
       if (!(error instanceof UnsavedRead)) throw error;
-      const { changed: _, taints: _taints, ...last } = reading;
+      const { changed: _, ...last } = reading;
       help = await readWorkspaceForAnswer(root, { ...last, justAnswer: true });
       return { index: searchIndexOf(help), compared: false, value: held(help) };
     }

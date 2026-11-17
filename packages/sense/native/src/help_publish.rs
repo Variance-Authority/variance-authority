@@ -4,7 +4,7 @@
 //!
 //! `publishHelp` in `packages/help/src/refresh-native.ts` drives it. A reading
 //! holds what the chain says — the uses and the names each published entry
-//! hands out, which JavaScript joins into the documented surface, and the
+//! hands out, which it joins with manifest metadata into the documented surface, and the
 //! export list, the imports by path and the path graph it has nothing to add
 //! to — and encoding turns it into the two files written beside the index: the
 //! graph, and the store (`help_store.rs`).
@@ -21,7 +21,11 @@ use crate::git_tree::GitTree;
 use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
-use crate::help_store::{encode, DeepRef, StoreMeta, StorePackage, StoreRef};
+use crate::help_store::{encode, DeepRef, StoreMeta, StoreRef};
+
+#[path = "help_assembly.rs"]
+mod assembly;
+use assembly::HelpPackage;
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_names::{published_names, HelpEntry, PublishedName};
 use crate::help_origin::{declaration_exported, export_line, ExportedDeclaration};
@@ -36,23 +40,20 @@ use crate::timings::Phases;
 pub struct HelpReading {
     /// What encoding reads; `None` once it was encoded.
     held: Option<Held>,
-    /// What `usage` hands over, with its export list and imports by path left empty.
-    usage: Option<IndexedUsage>,
-    /// What `names` hands over, or the first export the reading cannot say.
-    names: Option<Result<Vec<Vec<PublishedName>>, String>>,
 }
 
 /// What encoding reads, moved to the thread that encodes it.
 struct Held {
     exported: Vec<NamedExport>,
+    usage: IndexedUsage,
+    names: Result<Vec<Vec<PublishedName>>, String>,
     /// The deep imports, those of packages that declare no entry, and those unfollowed.
     deep: [Vec<DeepRequest>; 3],
     /// `None` when the caller draws the tree it publishes.
     tree: Option<Vec<u8>>,
 }
 
-/// The value's own fields, joined by JavaScript: they are the documented
-/// surface and are small.
+/// Manifest metadata and publication identity; source facts stay with the reading.
 #[napi(object)]
 pub struct HelpEncode {
     pub root: String,
@@ -66,7 +67,7 @@ pub struct HelpEncode {
     pub index_digest: Option<String>,
     /// What `workspacePackagesDigest` states of the manifests the value was joined against.
     pub packages_digest: String,
-    pub packages: Vec<StorePackage>,
+    pub packages: Vec<HelpPackage>,
     pub unreadable: Vec<String>,
     /// The digest of the tree the caller publishes, when the reading drew none.
     pub graph_digest: Option<String>,
@@ -153,7 +154,7 @@ fn read_help_from(root: String, index: String, entries: Vec<HelpEntry>, publishe
             );
             let exported = std::mem::take(&mut read.exported);
             let deep = [std::mem::take(&mut read.deep), std::mem::take(&mut read.by_path), std::mem::take(&mut read.unfollowed)];
-            HelpReading { held: Some(Held { exported, deep, tree }), usage: Some(read), names: Some(names) }
+            HelpReading { held: Some(Held { exported, deep, tree, usage: read, names }) }
         });
         phases.next("opened index cleanup");
         drop(index);
@@ -269,7 +270,7 @@ pub fn declared_loose_of(root: String, index: &OpenedIndex, groups: Vec<Vec<Stri
 pub struct OpenedIndex {
     index: String,
     /// The opened chain; `None` when nothing was ever published.
-    opened: Option<Opened>,
+    opened: Option<std::sync::Arc<Opened>>,
     closed: bool,
 }
 
@@ -279,7 +280,7 @@ type Layers<'a> = Vec<Layer<'a>>;
 self_cell::self_cell!(
     /// Segments and the layers opened over them, kept together because the
     /// layers borrow the bytes.
-    struct Opened {
+    pub(crate) struct Opened {
         owner: Vec<Vec<u8>>,
         #[covariant]
         dependent: Layers,
@@ -287,6 +288,7 @@ self_cell::self_cell!(
 );
 
 impl Opened {
+    pub(crate) fn layers(&self) -> &[Layer<'_>] { self.borrow_dependent() }
     fn open(segments: Vec<Vec<u8>>) -> Result<Self, String> {
         Opened::try_new(segments, |segments| {
             segments.par_iter().enumerate()
@@ -298,6 +300,17 @@ impl Opened {
 
 #[napi]
 impl OpenedIndex {
+    #[napi(catch_unwind)]
+    pub fn source_tree(&self, root: String, tsconfig: Option<napi::Either<String, bool>>, code: Vec<String>, names: bool) -> napi::Result<Option<crate::source_tree_read::SourceTreeReader>> {
+        if self.closed { return Err(napi::Error::from_reason("the source index question has ended")); }
+        let Some(source) = self.opened.as_ref() else { return Ok(None) };
+        let mocking = Mocking::at(&root, crate::resolve::Tsconfig::from_js(tsconfig), code);
+        let bytes = tree(source.layers(), &mocking);
+        crate::source_tree_read::SourceTreeReader::open(bytes)
+            .map(|reader| Some(reader.with_source(names.then(|| std::sync::Arc::clone(source)))))
+            .map_err(napi::Error::from_reason)
+    }
+
     /// Let the bytes go: a question that ended holds nothing until the
     /// collector reaches the handle, and a reading through it is refused.
     #[napi]
@@ -311,7 +324,7 @@ impl OpenedIndex {
 #[napi(catch_unwind)]
 pub fn open_index(index: String) -> napi::Result<OpenedIndex> {
     let chain = read_chain(&index).map_err(|error| refused(&index, error))?;
-    let opened = chain.map(|chain| Opened::open(chain.segments)).transpose().map_err(|error| refused(&index, error))?;
+    let opened = chain.map(|chain| Opened::open(chain.segments).map(std::sync::Arc::new)).transpose().map_err(|error| refused(&index, error))?;
     Ok(OpenedIndex { index, opened, closed: false })
 }
 
@@ -329,27 +342,6 @@ fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> na
 
 #[napi]
 impl HelpReading {
-    /// The uses and unreadable files, handed over once: the export list and
-    /// the imports by path are left empty, and stay here.
-    #[napi]
-    pub fn usage(&mut self) -> IndexedUsage {
-        self.usage.take().unwrap_or_else(|| IndexedUsage {
-            exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new(),
-        })
-    }
-
-    /// The names each entry hands out, in the order the entries were given,
-    /// handed over once; refused with the first export whose declaration the
-    /// reading cannot say.
-    #[napi]
-    pub fn names(&mut self) -> napi::Result<Vec<Vec<PublishedName>>> {
-        match self.names.take() {
-            Some(Ok(names)) => Ok(names),
-            Some(Err(refused)) => Err(napi::Error::from_reason(refused)),
-            None => Err(napi::Error::from_reason("the names of this reading were handed over already")),
-        }
-    }
-
     /// The store's bytes and the tree's, once: the export list and the
     /// imports by path go into the store from here.
     #[napi(ts_return_type = "Promise<HelpEncoded>")]
@@ -369,6 +361,9 @@ impl Held {
             (None, None) => return Err(napi::Error::from_reason("a reading that drew no tree is encoded under the digest of the caller's")),
         };
         phases.next("store inputs");
+        let packages = assembly::assemble(&o.graph_root, o.packages, self.names.map_err(napi::Error::from_reason)?, &self.usage).map_err(napi::Error::from_reason)?;
+        let mut unreadable = o.unreadable;
+        unreadable.extend(self.usage.unreadable);
         let meta = StoreMeta {
             root: o.root,
             graph_root: o.graph_root,
@@ -379,15 +374,15 @@ impl Held {
             packages_digest: Some(o.packages_digest),
         };
         let deep = [&self.deep[0], &self.deep[1], &self.deep[2]].map(|held| held.iter().map(DeepRef::from).collect());
-        let input = StoreRef { packages: &o.packages, deep, unreadable: &o.unreadable };
+        let input = StoreRef { packages: &packages, deep, unreadable: &unreadable };
         phases.next("store encoding");
         let (store, _) = encode(&input, &self.exported, Some(&meta), None);
         phases.next("reading cleanup");
         let encoded = HelpEncoded { store: store.into(), tree: self.tree.map(Buffer::from), graph_digest };
         drop(input);
         drop(meta);
-        drop(o.packages);
-        drop(o.unreadable);
+        drop(packages);
+        drop(unreadable);
         drop(self.deep);
         drop(self.exported);
         Ok(encoded)

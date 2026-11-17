@@ -1,8 +1,6 @@
-import { extname } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { FileSet, Link, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
+import type { FileSet, Link, NameEvidence, NamesGroup, NamesOperand, SourceNames, Tool, ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { entryPoints, limitOf, notShown, pathsOf, refusalFor, spellingOf, startPointArg } from '@variance-authority/mcp/tools';
-import { READABLE } from '@variance-authority/sense';
 import { startPointNeeded } from './area.js';
 import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
@@ -33,8 +31,7 @@ import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
  *
  * ## Names are read with the tree
  *
- * `declares`, and `imports` of a package or a specifier as written, read every
- * file's names, which the scan that drew the tree holds as it parses. A host
+ * `declares`, and `imports` of a package or a specifier as written, query the native source index in one batch. A host
  * that read the tree without them refuses those operands rather than answering
  * as though no file declared anything. A name out of a file the tree holds is
  * read off the source index, as `uses` reads it, and needs no names.
@@ -79,21 +76,6 @@ const counted = (count: number): string => `${count} ${count === 1 ? 'file' : 'f
 const imports = (count: number): string => `${count} ${count === 1 ? 'import' : 'imports'}`;
 const none = (): readonly Evidence[] => [];
 const said = (unread: string | undefined): string => (unread === undefined ? '' : ` — ${unread}`);
-
-/**
- * The files a reader claims and the names do not hold: a file whose names the
- * scan could not hand over is unknown, never a file that declares and imports
- * nothing, so a name operand says how many there are. A file no reader claims,
- * a README or a manifest, has no names to read and is not counted.
- */
-function unreadOf(tree: Tree, names: SourceNames): string | undefined {
-  let unread = 0;
-  for (const file of tree.files) if (READABLE.has(extname(file)) && !names.has(file)) unread += 1;
-  return unread === 0 ? undefined : `the names of ${counted(unread)} were not read`;
-}
-
-/** `react/jsx-runtime` is `react`; `./store/selectors` is not `./store`. */
-const isBare = (spec: string): boolean => !spec.startsWith('.') && !spec.startsWith('/');
 
 /** One or several values, said as a string or an array. */
 function listArg(input: Readonly<Record<string, unknown>>, name: string): readonly string[] {
@@ -235,29 +217,25 @@ function reachingName(term: string, file: string, name: string, tree: Tree, root
  * followed, so an import through a barrel counts. Anything else — a package, a
  * specifier as written, a file with no name — is matched in the names.
  */
-function importsOf(written: string, tree: Tree, names: () => SourceNames, root: string | undefined): Operand {
-  const { spec, name } = nameOf(written);
-  if (name !== undefined && tree.files.has(spec)) return importersOfFile(spec, name, root);
-  const held = names();
-  const files = new Set<string>();
-  const lines = new Map<string, Evidence[]>();
-  for (const [file, read] of held) {
-    for (const entry of read.imported) {
-      const module = entry.from === spec || (isBare(spec) && entry.from.startsWith(`${spec}/`)) || entry.to === spec;
-      if (!module || (name !== undefined && entry.name !== name)) continue;
-      files.add(file);
+function importsOf(spec: string, name: string | undefined, group: NamesGroup, unread: number): Operand {
+  return namedOperand(
+    `importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\``, group, unread,
+    (entry) => {
       const what = entry.name === undefined ? '' : `${entry.name} `;
       const as = entry.local === undefined ? '' : ` as ${entry.local}`;
       const through = entry.through === undefined ? '' : ` through ${entry.through}`;
-      const list = lines.get(file) ?? [];
-      list.push({ line: entry.line, text: `imports ${what}from ${entry.from}${as}${through}` });
-      lines.set(file, list);
-    }
-  }
-  const unread = unreadOf(tree, held);
+      return `imports ${what}from ${entry.from}${as}${through}`;
+    },
+  );
+}
+
+/** Only matching evidence crosses the native boundary. */
+function namedOperand(header: string, group: NamesGroup, unreadCount: number, text: (entry: NameEvidence) => string): Operand {
+  const lines = new Map(group.files.map(({ file, evidence }) => [file, evidence.map((entry) => ({ line: entry.line, text: text(entry) }))]));
+  const unread = unreadCount === 0 ? undefined : `the names of ${counted(unreadCount)} were not read`;
   return {
-    header: `${counted(files.size)} importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\`${said(unread)}`,
-    files,
+    header: `${counted(lines.size)} ${header}${said(unread)}`,
+    files: new Set(lines.keys()),
     evidence: (file) => lines.get(file) ?? [],
     ...(unread === undefined ? {} : { unread }),
   };
@@ -307,25 +285,6 @@ function passedOn(through: readonly string[]): string {
   return through.length === 0 ? '' : `, through ${counted(through.length)} that ${through.length === 1 ? 'passes' : 'pass'} it on`;
 }
 
-function declaresOf(pattern: string, tree: Tree, names: SourceNames): Operand {
-  const matches = regexOf('declares', pattern, 'i');
-  const files = new Set<string>();
-  const lines = new Map<string, Evidence[]>();
-  for (const [file, held] of names) {
-    const declared = held.declared.filter((entry) => matches.test(entry.name));
-    if (declared.length === 0) continue;
-    files.add(file);
-    lines.set(file, declared.map((entry) => ({ line: entry.line, text: `declares ${entry.name}` })));
-  }
-  const unread = unreadOf(tree, names);
-  return {
-    header: `${counted(files.size)} declaring a name matching /${pattern}/i${said(unread)}`,
-    files,
-    evidence: (file) => lines.get(file) ?? [],
-    ...(unread === undefined ? {} : { unread }),
-  };
-}
-
 function pathOf(pattern: string, tree: Tree): Operand {
   const matches = regexOf('path', pattern, '');
   const files = new Set([...tree.files].filter((file) => matches.test(file)));
@@ -334,33 +293,47 @@ function pathOf(pattern: string, tree: Tree): Operand {
 
 /** The operands a call names, positive and taken out, in the order the schema lists them. */
 function operandsOf(input: Readonly<Record<string, unknown>>, tree: Tree, names: SourceNames | undefined, root: string | undefined) {
-  const named = (): SourceNames => {
-    if (names !== undefined) return names;
-    throw new Error(
-      '`discover` ran nothing: no names were read with the source tree here, so `declares`, and ' +
-        '`imports` of anything but a name out of a repository file, have nothing to answer from. Ask ' +
-        '`variance ask discover` in the checkout, which reads them as it reads the tree.',
-    );
+  const queries: NamesOperand[] = [];
+  const pending = (query: NamesOperand, make: (group: NamesGroup, unread: number) => Operand): (() => Operand) => {
+    if (names === undefined) {
+      throw new Error(
+        '`discover` ran nothing: no names were read with the source tree here, so `declares`, and ' +
+          '`imports` of anything but a name out of a repository file, have nothing to answer from. Ask ' +
+          '`variance ask discover` in the checkout, which reads them as it reads the tree.',
+      );
+    }
+    const index = queries.push(query) - 1;
+    return () => make(answer!.groups[index]!, answer!.unread);
   };
-  const read = (prefix: '' | 'except'): Operand[] => {
+  const read = (prefix: '' | 'except'): (() => Operand)[] => {
     const key = (name: string): string => (prefix === '' ? name : `${prefix}${name[0]!.toUpperCase()}${name.slice(1)}`);
-    const operands: Operand[] = [];
-    for (const term of listArg(input, key('from'))) operands.push(reach(term, tree, true, root));
-    for (const term of listArg(input, key('to'))) operands.push(reach(term, tree, false, root));
-    for (const written of listArg(input, key('imports'))) operands.push(importsOf(written, tree, named, root));
+    const operands: (() => Operand)[] = [];
+    const known = (operand: Operand): void => { operands.push(() => operand); };
+    for (const term of listArg(input, key('from'))) known(reach(term, tree, true, root));
+    for (const term of listArg(input, key('to'))) known(reach(term, tree, false, root));
+    for (const written of listArg(input, key('imports'))) {
+      const { spec, name } = nameOf(written);
+      if (name !== undefined && tree.files.has(spec)) known(importersOfFile(spec, name, root));
+      else operands.push(pending({ kind: 'imports', specifier: spec, ...(name === undefined ? {} : { name }) },
+        (group, unread) => importsOf(spec, name, group, unread)));
+    }
     const declares = textArg(input, key('declares'));
-    if (declares !== undefined) operands.push(declaresOf(declares, tree, named()));
+    if (declares !== undefined) operands.push(pending({ kind: 'declares', pattern: declares },
+      (group, unread) => namedOperand(`declaring a name matching /${declares}/i`, group, unread, (entry) => `declares ${entry.name}`)));
     const path = textArg(input, key('path'));
-    if (path !== undefined) operands.push(pathOf(path, tree));
+    if (path !== undefined) known(pathOf(path, tree));
     return operands;
   };
-  return { kept: read(''), out: read('except') };
+  const kept = read('');
+  const out = read('except');
+  const answer = queries.length === 0 ? undefined : names!.query(queries);
+  return { kept: kept.map((make) => make()), out: out.map((make) => make()) };
 }
 
 /**
  * Whether a call names an operand read off the names. A question about paths
  * alone reads the tree and nothing else: on a large checkout the names cost a
- * second read of every file for its declarations.
+ * native query over the source declarations.
  */
 export function readsNames(input: Readonly<Record<string, unknown>>): boolean {
   // Read as `operandsOf` reads them, so a set said empty costs no names.
@@ -380,15 +353,15 @@ export const discover: Tool<unknown> = {
     'who declares a name matching a pattern (`declares`), whose path matches one (`path`). Several ' +
     'values of one operand are several sets, crossed. `except…` operands take their files out, and ' +
     '`text` keeps only the files with a line ripgrep matches. Nearest first, with the line that puts ' +
-    'each file in each set. `declares`, and `imports` of anything but `file#name`, read the names a scan ' +
-    'of the checkout hands over; a host that holds none refuses them.',
+    'each file in each set. `declares`, and `imports` of anything but `file#name`, read names ' +
+    'stored in the native source index; a host that holds none refuses them.',
   inputSchema: {
     type: 'object',
     properties: {
       from: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files it reaches along the imports, itself included. Same path forms as `search --from`.' },
       to: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files that reach it along the imports, every kind of import walked, itself included, and each file shown carries one shortest chain of imports to it. `file#name` for a repo-relative file starts at the imports of that name, as `docs_uses` reads them from the source index, so a file importing another name through the same barrel is not reached.' },
       imports: { type: 'array', items: { type: 'string' }, description: '`module#name` or `module`, as written in the import or as the repo-relative file it resolved to; each is the set of files importing it. A subpath of a package matches the package; a relative specifier matches only as written. `file#name` for a repo-relative file is answered as `docs_uses` answers it, from the source index: an import through a barrel that passes the name on counts.' },
-      declares: { type: 'string', description: 'A regular expression, case-insensitive; the set of files declaring a matching name. An export of an imported name, with `from` or without, is declared where it comes from; `export default function make()` declares `make`.' },
+      declares: { type: 'string', description: 'A Rust regular expression, case-insensitive; the set of files declaring a matching name. An export of an imported name, with `from` or without, is declared where it comes from; `export default function make()` declares `make`.' },
       path: { type: 'string', description: 'A regular expression over repo-relative paths.' },
       text: { type: 'string', description: 'A ripgrep pattern, run only over the files every other operand kept.' },
       exceptFrom: { type: 'array', items: { type: 'string' }, description: 'As `from`, taken out.' },

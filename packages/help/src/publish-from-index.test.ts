@@ -34,7 +34,7 @@ vi.mock('@variance-authority/package/help', async (original) => {
 
 vi.mock('@variance-authority/sense', async (original) => {
   const actual = await original<typeof import('@variance-authority/sense')>();
-  return { ...actual, scanRelations: vi.fn(actual.scanRelations) };
+  return { ...actual, scanRelations: vi.fn(actual.scanRelations), readHelp: vi.fn(actual.readHelp) };
 });
 
 /** Every read of the manifests since `beforeEach`, by the function that made it. */
@@ -175,14 +175,34 @@ describe('publishing the questions from the index', () => {
     ]);
   });
 
-  it('reads the workspace for a question with no parse handed to JavaScript', async () => {
+  it('reads the workspace for a question without reconstructing the source graph in JavaScript', async () => {
     await read.readWorkspace(root, { index });
 
-    expect(sense.scanRelations).toHaveBeenCalled();
-    for (const [options] of vi.mocked(sense.scanRelations).mock.calls) {
-      expect(options).not.toHaveProperty('parsed');
-      expect(options).not.toHaveProperty('indexed');
-    }
+    expect(sense.scanRelations).not.toHaveBeenCalled();
+  });
+
+  it('joins documentation and usage without handing source names across the native boundary', async () => {
+    const actual = await vi.importActual<typeof import('@variance-authority/sense')>('@variance-authority/sense');
+    const usage = vi.fn();
+    const names = vi.fn();
+    vi.mocked(sense.readHelp).mockImplementationOnce(async (...args) => {
+      const reading = await actual.readHelp(...args);
+      if (reading === null) return null;
+      return new Proxy(reading, { get(target, property) {
+        if (property === 'usage') return usage;
+        if (property === 'names') return names;
+        const value: unknown = Reflect.get(target, property);
+        return typeof value === 'function' ? value.bind(target) : value;
+      } });
+    });
+
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+
+    expect(usage).not.toHaveBeenCalled();
+    expect(names).not.toHaveBeenCalled();
+    const help = await readWorkspaceSnapshot(root, { index });
+    const see = help.packages.flatMap((owner) => owner.openings).flatMap((opening) => opening.entries).find((entry) => entry.name === 'see');
+    expect(see).toMatchObject({ name: 'see', usedBy: ['b'], uses: 1 });
   });
 
   /** The entry `a` publishes as `name` in the value on disk. */

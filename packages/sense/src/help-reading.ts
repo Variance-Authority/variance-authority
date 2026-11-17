@@ -4,10 +4,9 @@
  * On a large repository the value is mostly its export list — every export of
  * every file — and handing that list across as objects cost more than
  * everything done with it. So the reading keeps the list, and the path graph,
- * on the addon's side: JavaScript takes the uses it joins against the
- * documented surface, compares the list by its digest, and asks the reading to
- * publish. The search is encoded by the same code for a value JavaScript
- * already holds, which hands its list across once.
+ * on the addon's side: JavaScript supplies manifest metadata and asks the
+ * reading to join declarations, usage and README mentions before publishing.
+ * The search encoder also accepts values already held by a caller.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -139,7 +138,11 @@ export interface HelpEncode {
   readonly indexDigest?: string;
   /** What the package manifests the value was joined against state, as the store keeps it. */
   readonly packagesDigest: string;
-  readonly packages: readonly StorePackage[];
+  readonly packages: readonly {
+    readonly name: string;
+    readonly entry: boolean;
+    readonly openings: readonly { readonly subpath: string; readonly source: string }[];
+  }[];
   readonly unreadable: readonly string[];
   /** The digest of the tree the caller publishes, when the reading drew none. */
   readonly graphDigest?: string;
@@ -154,15 +157,6 @@ export interface HelpEncoded {
 
 /** The chain's answer for a Help value; the export list and the imports by path stay with the addon. */
 export interface HelpReading {
-  /** The uses and unreadable files, handed over once; `exported`, `deep`, `byPath` and `unfollowed` are empty. */
-  usage(): NativeIndexedUsage;
-  /**
-   * The names each entry hands out, in the order the entries were given,
-   * handed over once. Throws with the first export whose declaration the
-   * reading cannot say: a name nothing in its file binds, or one the file it
-   * leads to does not hand out.
-   */
-  names(): PublishedName[][];
   /** The store's bytes and the tree's, once. */
   encode(options: HelpEncode): Promise<HelpEncoded>;
 }

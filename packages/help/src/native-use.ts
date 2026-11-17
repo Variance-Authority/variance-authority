@@ -8,11 +8,10 @@
 
 // compass: variance-authority.report.agent-surface
 
-import type { readHelp } from '@variance-authority/sense';
+import type { importersOf } from '@variance-authority/sense';
 import type { Use } from '@variance-authority/package/help';
 
-export type NativeUsage = ReturnType<NonNullable<Awaited<ReturnType<typeof readHelp>>>['usage']>;
-type NativeUse = NativeUsage['names'][number];
+type NativeUse = NonNullable<ReturnType<typeof importersOf>>['groups'][number]['uses'][number];
 
 /** A use as the addon hands it over: `through` flattened, and `null` for absent. */
 export function useOf(use: NativeUse): Use {

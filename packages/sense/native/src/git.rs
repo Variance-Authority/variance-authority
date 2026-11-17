@@ -37,7 +37,10 @@ pub struct Snapshot {
 /// own digest is correct and merely slower, and a tool that refused to run
 /// outside a repository would be useless in exactly the tarball and sandbox
 /// cases it should handle quietly.
-pub fn snapshot(root: &str) -> Option<Snapshot> {
+pub fn snapshot(root: &str) -> Option<Snapshot> { snapshot_with(root, None) }
+
+/// Overlay the caller's authoritative path set through the ordinary worktree reader.
+pub(crate) fn snapshot_with(root: &str, changed: Option<&[String]>) -> Option<Snapshot> {
     let asked = git(root, &["rev-parse", "--show-prefix"], None)?;
     let prefix = trim(&asked);
     let (listing, status) = std::thread::scope(|scope| {
@@ -45,6 +48,16 @@ pub fn snapshot(root: &str) -> Option<Snapshot> {
         // Without `--sparse`, Git expands sparse entries and owns split indexes.
         let listing = scope.spawn(|| git(root, &["ls-files", "--stage", "-z", "--full-name", "--", "."], None));
         let status = scope.spawn(|| {
+            if let Some(changed) = changed {
+                let mut status = Vec::new();
+                for path in changed {
+                    status.extend_from_slice(b" M ");
+                    status.extend_from_slice(prefix);
+                    status.extend_from_slice(path.as_bytes());
+                    status.push(0);
+                }
+                return Some(status);
+            }
             let listed = configured(root);
             // Preserve the repository's fsmonitor and untracked-cache choices.
             // A reader never refreshes the index or takes the user's index.lock.

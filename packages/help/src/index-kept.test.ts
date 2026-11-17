@@ -63,7 +63,7 @@ describe('a reading over a published source index', () => {
     const before = await held(index);
 
     let scanned: readonly string[] = [];
-    await readWorkspace(link, { index, records: (records) => { scanned = records.map((record) => record.file); } });
+    await readWorkspace(link, { index, tree: (tree) => { scanned = tree.files; } });
 
     expect(before).toEqual(['src/index.ts', 'test/value.test.ts']);
     expect(scanned).toEqual(before);
