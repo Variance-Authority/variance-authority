@@ -9,4 +9,6 @@ if (coverageFile === undefined || cacheRoot === undefined) {
   throw new Error('VARIANCE_AUTHORITY_COVERAGE and VARIANCE_AUTHORITY_CACHE are required');
 }
 
-export default defineConfig(withTestSelection({ testDir: 'tests', workers: 1, reporter: [['line']] }, { root, cacheRoot, coverageFile }));
+// `clicks` and `ticks` run side by side: each is judged against its own runs,
+// and a throw restarts only its own worker.
+export default defineConfig(withTestSelection({ testDir: 'tests', fullyParallel: true, workers: 2, reporter: [['line']] }, { root, cacheRoot, coverageFile }));

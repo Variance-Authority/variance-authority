@@ -310,6 +310,11 @@
     "count": 1
   },
   {
+    "idiom": "commonjs-load",
+    "at": "packages/playwright-test/src/story.fixture.ts",
+    "count": 1
+  },
+  {
     "idiom": "timer",
     "at": "packages/playwright-test/src/vantage.ts",
     "count": 2

@@ -137,3 +137,10 @@ opt-level = 3
 # with on macOS and Linux, whose allocators keep a freed large block resident.
 [target.'cfg(any(target_os = "macos", target_os = "linux"))'.dependencies]
 libc = "0.2"
+
+# The tests' dependencies, oxc above all, built optimised: the instrument crate
+# walks every installed module through the parser, and a debug parser made that
+# one test cost a minute of CPU. Our own crates stay debug, so a failing
+# assertion still reads as written; the release build is untouched.
+[profile.test.package."*"]
+opt-level = 2
