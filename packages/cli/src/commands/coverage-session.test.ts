@@ -108,6 +108,15 @@ describe('`coverage --session`', () => {
     expect(answer.out).toMatch(/src\/math\.ts\n\s+twice\s+9\s+checkout/);
   });
 
+  it('says it in markdown, folded under one summary', async () => {
+    const answer = await ask(['coverage', '--root', root, ...SESSIONS(), '--format', 'markdown']);
+
+    expect(answer.code).toBe(0);
+    expect(answer.out).toContain('<summary>🧭 Ran by a session, by no recorded case: 1 function</summary>');
+    expect(answer.out).toContain('| checkout | 2 | 1 |\n| node | 1 | 2 |');
+    expect(answer.out).toContain('| `src/math.ts` | `twice` | 9 | checkout |');
+  });
+
   it('leaves the record as it was: a session is never a case', async () => {
     const before = await readFile(record);
     await ask(['coverage', '--root', root, ...SESSIONS()]);
