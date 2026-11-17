@@ -189,7 +189,11 @@ test('two fragments cannot share a name', () => {
 // A part answers to every fragment it is reached through, at any depth, and whichever arrived first.
 const Leaf = fragment('search-leaf', {
   probe: byRole('search'),
-  actions: { go: async (d, q: string) => { await d.fill(byRole('searchbox', 'Search'), q); await d.press(byRole('searchbox', 'Search'), 'Enter'); } },
+  actions: {
+    go: async (d, q: string) => { await d.fill(byRole('searchbox', 'Search'), q); await d.press(byRole('searchbox', 'Search'), 'Enter'); },
+    type: (d, q: string) => d.fill(byRole('searchbox', 'Search'), q),
+  },
+  reads: { query: (r) => r.value(byRole('searchbox', 'Search')) },
 });
 const TopBar = fragment('top-bar', { probe: byRole('banner'), uses: { leaf: Leaf } });
 const FormWithLeaf = fragment('billing-with-search', { probe: form, uses: { leaf: Leaf } });
@@ -258,4 +262,32 @@ test('going back needs the dialog gone, not only what uses it', async ({ page, a
   await expect(signIn.cancel.to('billing')).rejects.toThrow('sign-in.cancel went back to billing, and sign-in still shows');
   // An owner gone is the page left: nothing beneath the dialog acts again.
   await expect(form.street('Rokin 2') as unknown as Promise<unknown>).rejects.toThrow('billing departed at sign-in.cancel');
+});
+
+// A dialog that closes takes only what it alone held: a part the page also holds stays, and answers to the page alone.
+const LeafDialog = fragment('sign-in-leaf', { probe: dialog, uses: { dialog: SignIn, leaf: Leaf } });
+const BarDialog = fragment('sign-in-bar', { probe: dialog, uses: { dialog: SignIn, bar: TopBar } });
+
+test('a part the page shares with a dialog answers to the page alone once the dialog closes', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const held = await app.enter(FormWithLeaf);
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  const shared = await app.enter(LeafDialog);
+  expect(shared.leaf).toBe(held.leaf);
+  await signIn.cancel.to('billing');
+  await held.leaf.type('socks');
+  expect(await held.leaf.query()).toBe('socks');
+});
+
+test('a part another owner holds stays when a dialog adopts and closes over its first owner', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const bar = await app.enter(TopBar);
+  const held = await app.enter(FormWithLeaf);
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  const wrapped = await app.enter(BarDialog);
+  expect(wrapped.bar).toBe(bar);
+  await signIn.cancel.to('billing');
+  expect(await held.leaf.query()).toBe('');
 });

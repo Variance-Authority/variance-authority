@@ -14,7 +14,7 @@ instead of on selectors and waits.
   it after it opened included, and `back` uncovers
   exactly what that cover covered and hands the owner's handle back. What is
   entered using an open cover lives and leaves with it, with every part only
-  it holds.
+  it holds; a part another owner holds stays, and answers to that owner alone.
 - Every step lands in a per-test **journal**; `fork(a, b)` prints where two
   walks part, edge by edge, outcome included.
 - Between steps the broker **settles** on `aria-busy`, requests in flight and
