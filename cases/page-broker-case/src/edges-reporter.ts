@@ -1,6 +1,7 @@
 // After the run: which of the shop's declared edges the tests walked, and which none did.
 import type { Reporter, TestCase, TestResult } from '@playwright/test/reporter';
-import { edges, walked, type Step } from './broker/broker.js';
+import type { Step } from './broker/broker.js';
+import { edges, walked } from './broker/edges.js';
 import { Billing, Product } from './shop.js';
 
 export default class EdgesReporter implements Reporter {
