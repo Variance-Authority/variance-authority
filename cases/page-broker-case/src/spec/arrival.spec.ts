@@ -1,7 +1,7 @@
 // Navigation is the subject: each case loads the page it walks.
 // Arrival is witnessed from both ends, and by one outcome only. These fragments
 // are wrong on purpose: each declares an edge the app does not take that way.
-import { back, byLabel, byRole, fragment, leads, over, stay } from '../broker/broker.js';
+import { back, byLabel, byRole, byTestId, fragment, leads, over, stay } from '../broker/broker.js';
 import { expect, test } from '../fixture.js';
 import { Billing, Header, Payment, SignIn } from '../shop.js';
 
@@ -232,4 +232,30 @@ test('a fragment cannot declare then', () => {
   expect(() => fragment('thenable', { probe: byRole('main'), reads: { then: (r) => r.texts(byRole('alert')) } })).toThrow(
     'thenable declares then, which makes its handle look like a promise',
   );
+});
+
+// What uses an open dialog leaves with it, and so do the parts only it holds.
+const FrameSearch = fragment('frame-search', { probe: byRole('search'), reads: { query: (r) => r.value(byRole('searchbox', 'Search')) } });
+const SignInFrame = fragment('sign-in-frame', { probe: byRole('dialog', 'Sign in'), uses: { dialog: SignIn, search: FrameSearch } });
+const Marker = fragment('sign-in-marker', { probe: byTestId('marker'), uses: { dialog: SignIn } });
+
+test('the parts of what uses an open dialog leave with it', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  const frame = await app.enter(SignInFrame);
+  await signIn.cancel.to('billing');
+  await expect(frame.search.query()).rejects.toThrow('frame-search departed at sign-in.cancel');
+});
+
+test('going back needs the dialog gone, not only what uses it', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest&stuck', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  await page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<p data-testid="marker">marked</p>'));
+  await app.enter(Marker);
+  await page.evaluate(() => document.querySelector('[data-testid="marker"]')!.remove());
+  await expect(signIn.cancel.to('billing')).rejects.toThrow('sign-in.cancel went back to billing, and sign-in still shows');
+  // An owner gone is the page left: nothing beneath the dialog acts again.
+  await expect(form.street('Rokin 2') as unknown as Promise<unknown>).rejects.toThrow('billing departed at sign-in.cancel');
 });

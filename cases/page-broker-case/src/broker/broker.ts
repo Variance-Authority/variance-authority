@@ -126,13 +126,16 @@ export class App {
     const existing = this.roots.get(fragment);
     if (existing !== undefined && this.alive(this.states.get(existing)!)) return existing as Handle<F>;
     const fresh = this.handle(fragment, this.page.locator(':root'));
-    const meta = (fresh as any)[META] as Meta;
-    const state = meta.state;
-    // What uses an open cover lives with it, above what it covers; its other parts stay beneath.
-    const cover = this.within(fresh).find((each) => this.covered.has(each) && this.alive(each));
+    const state = (fresh as any)[META].state as State;
+    // What uses an open cover lives and leaves with it, and so does every part only it holds.
+    const tree = [fresh, ...this.within(fresh)];
+    const cover = tree.map((each) => (each as any)[META].state as State).find((each) => this.covered.has(each) && this.alive(each));
     if (cover !== undefined) {
-      meta.state = cover;
-      this.states.set(fresh, cover);
+      for (const each of tree.filter((one) => (one as any)[META].state === state)) {
+        (each as any)[META].state = cover;
+        this.states.set(each, cover);
+      }
+      return fresh;
     }
     // A modal covers the whole page, what was entered beneath it after it opened included. It goes
     // beneath the first cover still open, so closing a cover above that one leaves it covered.
@@ -257,10 +260,10 @@ export class App {
     if (!this.covered.has(meta.state)) this.adopt(handle, shared.state);
   }
 
-  /** The states of a handle's parts, at any depth. */
-  private within(handle: object): State[] {
+  /** A handle's parts, at any depth. */
+  private within(handle: object): object[] {
     const parts = Object.keys((((handle as any)[META] as Meta).fragment.spec as Spec).uses ?? {}).map((name) => (handle as any)[name]);
-    return parts.flatMap((part) => [part[META].state as State, ...this.within(part)]);
+    return parts.flatMap((part) => [part, ...this.within(part)]);
   }
 
   private adopt(handle: object, state: State): void {
@@ -342,8 +345,8 @@ export class App {
     const reached = keys.filter((key) => {
       const to = declared.outcomes[key];
       const where = to === stay ? undefined : target(to);
-      // What a cover covers shows beneath it all along: going back is witnessed by the cover gone.
-      return where !== undefined && shown.includes(where.name) && !(to === back && kept);
+      // What a cover covers shows beneath it all along: going back is witnessed by the cover gone, and its owners.
+      return where !== undefined && shown.includes(where.name) && !(to === back && (kept || shown.includes(under!.by)));
     });
     // An owner seen gone is gone before any check below refuses the arrival; going back retires the cover alone.
     if (!kept && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name);
@@ -355,7 +358,7 @@ export class App {
     const outcome = reached[0] ?? (staying !== undefined && shown.includes(fragment.name) && kept ? staying : undefined);
     if (outcome === undefined) {
       if (under !== undefined && keys.some((key) => declared.outcomes[key] === back)) {
-        throw new Error(`${fragment.name}.${name} went back to ${under.fragment.name}, and ${by} still shows`);
+        throw new Error(`${fragment.name}.${name} went back to ${under.fragment.name}, and ${shown.includes(under.by) ? under.by : by} still shows`);
       }
       throw new Error(`${fragment.name}.${name} declares ${list(keys)}, and the page shows ${list(shown)}`);
     }

@@ -12,7 +12,9 @@ instead of on selectors and waits.
 - A **handle** is linear: departing revokes it, a cover (`over`) leaves every
   handle on the page readable but refuses their actions, those entered beneath
   it after it opened included, and `back` uncovers
-  exactly what that cover covered and hands the owner's handle back.
+  exactly what that cover covered and hands the owner's handle back. What is
+  entered using an open cover lives and leaves with it, with every part only
+  it holds.
 - Every step lands in a per-test **journal**; `fork(a, b)` prints where two
   walks part, edge by edge, outcome included.
 - Between steps the broker **settles** on `aria-busy`, requests in flight and
@@ -23,7 +25,7 @@ Four rules keep the model honest, each pinned in `src/spec/`:
 
 1. **An arrival is witnessed from both ends.** A leaving outcome needs its
    owner gone, `over` needs the owner still showing, and `back` needs the
-   cover gone. An outcome that shows beside its owner without `over` is an
+   cover itself gone, not only what uses it. An outcome that shows beside its owner without `over` is an
    error that names the fix.
 2. **An arrival is unambiguous.** Two declared outcomes showing at once fail;
    the order of the declaration never decides. Ambiguity a declaration holds
