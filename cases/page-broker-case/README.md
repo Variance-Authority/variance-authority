@@ -25,8 +25,8 @@ instead of on selectors and waits.
   beneath with the page, whichever owner came first.
 - Every step lands in a per-test **journal**, a failed or refused one with
   why and no edge walked, and a failed one departs every handle if its
-  fragment or an owner no longer shows; `fork(a, b)` prints where two walks part, edge by edge, outcome
-  included.
+  fragment or an owner no longer shows or lost a part it uses; `fork(a, b)`
+  prints where two walks part, edge by edge, outcome included.
 - Between steps the broker **settles** on `aria-busy`, requests in flight and
   announced `@variance-authority/event` work. `BROKER_DROP=busy,network,events`
   drops signals to see which one each case rests on. A probe reads its first
