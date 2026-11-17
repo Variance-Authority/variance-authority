@@ -23,7 +23,7 @@ import caseOwner from '../test-selection/case-owner.cjs';
 import format from './format.cjs';
 import storyBytes from './story-bytes.cjs';
 import type { ModuleId } from '../instrument/index.js';
-import { TELLER_GLOBAL } from '../test-selection/execution-global.js';
+import { DRIVEN_GLOBAL, TELLER_GLOBAL } from '../test-selection/execution-global.js';
 import { PAGE_STORY, type PageStory } from './page-story.js';
 
 /**
@@ -63,8 +63,9 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
       if (opens === true) turn(true);
       else tap.settle();
       frames();
-      // A live tap keeps what ran in its part: the page's teller's while it tells, and a driver's that claims the page.
-      const read = ${part === undefined ? 'tap.read()' : `realm[${JSON.stringify(TELLER_GLOBAL)}]?.telling === true ? tap.read() : tap.take(${JSON.stringify(part)})`};
+      // A live tap keeps what ran in its part: the page's teller's while it tells, and a driver's once one claims the page,
+      // which it does as it drains, before the teller hears of it.
+      const read = ${part === undefined ? 'tap.read()' : `realm[${JSON.stringify(TELLER_GLOBAL)}]?.telling === true && realm[${JSON.stringify(DRIVEN_GLOBAL)}] !== true ? tap.read() : tap.take(${JSON.stringify(part)})`};
       const notes = read.notes.map(([at, , text]) => [at, text]);
       const lines = read.lines.map(([at, , line, said, hook]) => (hook === 1 ? [at, line, said, 1] : [at, line, said]));
       const story = {

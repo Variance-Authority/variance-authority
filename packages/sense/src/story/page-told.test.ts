@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { instrument } from '../instrument/index.js';
 import probeLog from '../instrument/probe-log.cjs';
 import probeSet from '../instrument/probe-set.cjs';
-import { TELLER_GLOBAL } from '../test-selection/execution-global.js';
+import { DRIVEN_GLOBAL, TELLER_GLOBAL } from '../test-selection/execution-global.js';
 import { PAGE_STORY } from './page-story.js';
 
 /** Built, as `format.test.ts` reads it: the format `require`s its neighbours by the names the build gives them. */
@@ -46,6 +46,9 @@ function page() {
     },
     told: (journey: string, room: number) => teller.tell(journey, true, room)!,
     drain: () => made.take(),
+    claim: () => {
+      realm[DRIVEN_GLOBAL] = true;
+    },
     telling: (now: boolean) => {
       teller.telling = now;
     },
@@ -141,6 +144,16 @@ describe('a page that tells what an execution ran', () => {
 
     expect(cart.drain().visits).toBe(0);
     expect(texts(cart.tell('7f3a')!)).toEqual(["handed item='socks'", 'console.log adding socks']);
+  });
+
+  it('hands what ran to a driver that claims the page as it drains, before the page stops telling', () => {
+    const cart = page();
+    cart.tell('7f3a');
+    cart.telling(true);
+    cart.run("add('socks')");
+    cart.claim();
+
+    expect(cart.drain().notes.map(([, text]) => text)).toEqual(["handed item='socks'", 'console.log adding socks']);
   });
 
   it('keeps what a live head keeps of one execution, and counts the rest', () => {
