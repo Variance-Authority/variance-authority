@@ -146,6 +146,14 @@ export class App {
     // beneath the first cover still open, so closing a cover above that one leaves it covered.
     const bottom = [...this.covered].find(([open]) => this.alive(open))?.[1];
     if (bottom !== undefined) {
+      // A part a cover's owners hold, reached from the page too, waits beneath with the page: it acts only when every owner can.
+      for (const each of tree) {
+        const meta = (each as any)[META] as Meta;
+        const open = this.covered.get(meta.state);
+        if (open === undefined || open.by === meta.fragment.name || !this.alive(meta.state)) continue;
+        meta.state = state;
+        this.states.set(each, state);
+      }
       Object.assign(state, { status: 'covered', why: bottom.by });
       bottom.states.push(state);
     }
@@ -357,8 +365,9 @@ export class App {
       // What a cover covers shows beneath it all along: going back is witnessed by the cover gone, and its owners.
       return where !== undefined && shown.includes(where.name) && !(to === back && (kept || shown.includes(under!.by)));
     });
-    // An owner seen gone is gone before any check below refuses the arrival; going back retires the cover alone.
-    if (!kept && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name);
+    // An owner or the fragment itself seen gone is gone before any check below refuses the arrival; going back retires the cover alone.
+    const left = !kept || !shown.includes(fragment.name);
+    if (left && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name);
     if (reached.length > 1) {
       throw new Error(`${fragment.name}.${name} reached ${reached.join(' and ')} at once; the page shows ${list(shown)}`);
     }
@@ -392,18 +401,10 @@ export class App {
     } else if (under !== undefined && under.fragment === to) {
       // Leaving a cover for what it covered returns the covered handle, live again. What left with the
       // cover owns nothing that stays: a part the page also holds answers to the page alone.
-      const rootState = (one: AnyFragment) => ((this.roots.get(one) as any)?.[META] as Meta | undefined)?.state;
-      const leaving = [...this.states].filter(([, each]) => each === state).map(([each]) => (each as any)[META] as Meta);
-      const gone = new Set<AnyFragment>();
-      for (const meta of leaving) {
-        const stays = meta.owners.find((one) => rootState(one) !== undefined && rootState(one) !== state);
-        if (stays === undefined) gone.add(meta.fragment);
-        else meta.state = rootState(stays)!;
-      }
-      for (const [each] of this.states) {
+      const gone = new Set([...this.states].filter(([, each]) => each === state).map(([each]) => ((each as any)[META] as Meta).fragment));
+      for (const each of this.states.keys()) {
         const meta = (each as any)[META] as Meta;
         meta.owners = meta.owners.filter((one) => !gone.has(one));
-        this.states.set(each, meta.state);
       }
       Object.assign(state, { status: 'departed', why: `${fragment.name}.${name}` });
       for (const each of under.states) Object.assign(each, { status: 'live', why: undefined, doc: this.doc });

@@ -306,3 +306,34 @@ test('a page fragment entered after a dialog that shares its part is not bound t
   await held.leaf.type('socks');
   expect(await held.leaf.query()).toBe('socks');
 });
+
+test('a part a dialog and the page share is covered whichever owner came first', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  const shared = await app.enter(LeafDialog);
+  await app.enter(FormWithLeaf);
+  await expect(shared.leaf.type('socks') as unknown as Promise<unknown>).rejects.toThrow('search-leaf is covered by sign-in');
+  await signIn.cancel.to('billing');
+  await shared.leaf.type('socks');
+});
+
+// A part that removes itself and declares it stays has left, though its owner shows.
+const Vanisher = fragment('vanisher', {
+  probe: byTestId('vanisher'),
+  actions: { vanish: leads({ here: stay }, (d) => d.click(byRole('button', 'Vanish'))) },
+  reads: { label: (r) => r.texts(byRole('button')) },
+});
+const Holding = fragment('billing-holding', { probe: form, uses: { vanisher: Vanisher } });
+
+test('a part gone after a lead that stays departs, though its owner shows', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  await page.evaluate(() => {
+    document.body.insertAdjacentHTML('beforeend', '<div data-testid="vanisher"><button>Vanish</button></div>');
+    document.querySelector('[data-testid="vanisher"] button')!.addEventListener('click', () => document.querySelector('[data-testid="vanisher"]')!.remove());
+  });
+  const holding = await app.enter(Holding);
+  expect(await holding.vanisher.label()).toEqual(['Vanish']);
+  await expect(holding.vanisher.vanish()).rejects.toThrow('vanisher.vanish declares here');
+  await expect(holding.vanisher.label()).rejects.toThrow('vanisher departed at vanisher.vanish');
+});
