@@ -1,9 +1,11 @@
 # Supported frameworks
 
-Variance Authority records which tests ran each line of your code under Vitest,
+[Variance Authority](README.md) records which tests ran each line of your code under Vitest,
 Jest 30, Rstest, Playwright, Storybook, a JVM on the JUnit Platform, and any
 other runner you wrap by hand. This page lists what each of them does with that
 record, and where each capability is turned on.
+
+## What each runner does
 
 | Your tests run under | [Records which tests ran](#record-which-tests-ran-each-line) | [Leaves out unreached tests](#leave-out-the-tests-a-change-did-not-reach) | [Skips unreached cases](#skip-the-cases-a-change-did-not-reach) | [Shards by recorded time](#split-a-run-across-ci-jobs) | [Test stories](#record-a-test-story) | [Visual review starts from](#add-visual-review) |
 |---|---|---|---|---|---|---|
