@@ -43,6 +43,17 @@ test('naming the wrong branch fails with the branch that was taken', async ({ pa
   await expect(form.country('NL').street('Damrak 1').submit.to('signIn')).rejects.toThrow(
     'billing.submit was expected to reach signIn, and reached payment',
   );
+  // The branch taken still happened: the form departed, and the journal says where it went.
+  await expect(form.errors()).rejects.toThrow('billing departed at billing.submit');
+  expect(app.journal.at(-1)).toMatchObject({ action: 'submit', named: 'signIn', to: 'payment' });
+});
+
+test('going back fails while the cover stays open', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest&stuck', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  await expect(signIn.cancel.to('billing')).rejects.toThrow('sign-in.cancel declares billing, and the page shows');
+  await expect(form.street('Rokin 2') as unknown as Promise<unknown>).rejects.toThrow('billing is covered by sign-in');
 });
 
 test('a like lands before the count is read', async ({ page, app }) => {

@@ -386,7 +386,14 @@ export class App {
       const to = declared.outcomes[key];
       return typeof to === 'object' && 'cover' in to;
     };
-    const moved = entries.find(([, to]) => to !== stay && to !== undefined && shown.includes((to as AnyFragment).name));
+    // Going back needs the cover gone, not only what it covers showing: that showed under it all along.
+    const moved = entries.find(
+      ([key, to]) =>
+        to !== stay &&
+        to !== undefined &&
+        shown.includes((to as AnyFragment).name) &&
+        !(declared.outcomes[key] === back && shown.includes(fragment.name)),
+    );
     const stayed = entries.find(([, to]) => to === stay);
     const arrived = moved ?? (stayed !== undefined && shown.includes(fragment.name) ? stayed : undefined);
     if (arrived === undefined) {
@@ -395,9 +402,6 @@ export class App {
       );
     }
     const [outcome, to] = arrived;
-    if (named !== undefined && outcome !== named) {
-      throw new Error(`${fragment.name}.${name} was expected to reach ${named}, and reached ${outcome} (${list(shown)})`);
-    }
     const toName = to === stay ? fragment.name : (to as AnyFragment).name;
     this.journal.push({ from: fragment.name, action: name, kind: 'lead', named, to: toName });
 
@@ -421,6 +425,10 @@ export class App {
       }
       handle = this.handle(next, this.page);
       if (covering(outcome)) this.covered.set(handle, { fragment, handle: self, state });
+    }
+    // A wrong branch is still the branch taken: the handles and the journal say so before the test fails.
+    if (named !== undefined && outcome !== named) {
+      throw new Error(`${fragment.name}.${name} was expected to reach ${named}, and reached ${outcome} (${list(shown)})`);
     }
     return named === undefined ? { outcome, handle } : handle;
   }

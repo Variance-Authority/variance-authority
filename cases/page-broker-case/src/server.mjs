@@ -66,7 +66,8 @@ function signIn() {
   dialog.showModal();
   dialog.addEventListener('click', async (event) => {
     if (!(event.target instanceof HTMLButtonElement)) return;
-    if (event.target.value === 'cancel') return dialog.remove();
+    // A stuck query breaks Cancel, so the dialog stays open over the form.
+    if (event.target.value === 'cancel') return location.search.includes('stuck') ? undefined : dialog.remove();
     dialog.setAttribute('aria-busy', 'true');
     await fetch('/api/sign-in', { method: 'POST' });
     dialog.remove();
