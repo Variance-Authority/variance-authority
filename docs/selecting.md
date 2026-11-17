@@ -7,9 +7,7 @@ reached those lines and shows when no test did —
 [what a record shows that no graph can](#what-a-record-shows-that-no-graph-can).
 
 For a Vitest, Jest or Playwright suite, [run the tests an edit needs](test-an-edit.md)
-puts that selection inside the runner you already call; for Rstest or any other
-runner, [`variance select`](../packages/cli/README.md#select-what-your-own-runner-may-skip)
-prints the test files that runner may skip.
+puts that selection inside the runner you already call; `variance select` prints it for any other.
 
 Suppose one changed component reaches **two subjects in a 300-subject suite**.
 Selection observes those two when the evidence supports that decision. Every

@@ -14,9 +14,8 @@ answers: reusing an open page instead of starting a browser per capture,
 separating a timing flake from a shared-state one, running the tests a change
 actually reached, and finding the dependencies a test loads but never calls.
 
-Most of that needs no visual baselines. The Vitest, Jest, Rstest and
-Playwright integrations record execution through the transform you already
-run, and [Eyes](eyes.md)
+Most of that needs no visual baselines. Every runner integration records
+execution through the transform you already run, and [Eyes](eyes.md)
 records React Testing Library's `screen` queries from a setup file. Choosing
 tests, investigating shared state and reducing unnecessary imports all work in a
 suite that never opens a browser. [Choose the operating

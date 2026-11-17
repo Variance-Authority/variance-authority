@@ -22,11 +22,8 @@ npx playwright install chromium
 [Your first run](start.md) has the config and the collector that command reads.
 
 That command covers the subjects the CLI renders. For an existing Vitest, Jest
-or Playwright suite, a seam wraps the runner configuration you already have —
-[`@variance-authority/sense`](https://variance-authority.dev/reference/packages/sense)
-for Vitest and Jest,
-[`@variance-authority/playwright-test`](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach)
-for Playwright. The run records itself, and
+or Playwright suite, [its runner's seam](own-fewer-tests.md#ask-which-tests-cover-a-line)
+wraps the configuration you already have: the run records itself, and
 with `VARIANCE_AUTHORITY_SINCE` set the runner leaves out the test files your
 edit did not reach. [Run the tests an edit needs](test-an-edit.md) is that
 loop.

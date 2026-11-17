@@ -11,10 +11,8 @@ Use this package to cut a test run down to the files a diff can actually affect.
 It adds probes to your product source while your tests run, records which test
 file covered which region of which module, and later answers a unified diff with
 the list of test files that provably did not go near it. Wrap your runner
-configuration once and set `VARIANCE_AUTHORITY_SINCE`, and Vitest or Jest leaves
-those files out itself, as Playwright does through
-[`@variance-authority/playwright-test`](https://variance-authority.dev/reference/packages/playwright-test#leave-out-the-specs-a-change-did-not-reach);
-any other runner gets the same list of paths to skip.
+configuration once and set `VARIANCE_AUTHORITY_SINCE`, and Vitest, Jest or
+[Playwright](https://variance-authority.dev/reference/packages/playwright-test) leaves those files out itself; any other runner gets the same list of paths to skip.
 
 It answers four questions:
 
