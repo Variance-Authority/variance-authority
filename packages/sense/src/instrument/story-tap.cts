@@ -104,7 +104,7 @@ interface Tape {
    * bounds them.
    */
   readonly lines: readonly (readonly [at: number, key: string, line: number, said: number, hook?: 1])[];
-  /** Notes past either {@link NOTE_LIMIT}, counted and not kept. */
+  /** Notes past any {@link NOTE_LIMIT}, counted and not kept. */
   readonly unnoted: number;
   /**
    * What each module held when it last ran, by module. A module runs once, when
@@ -159,7 +159,7 @@ const TAPE_LIMIT = 1 << 24;
 
 /**
  * How many notes one tape keeps of what the code said, and as many again of
- * what its regions were handed; and how many characters of each.
+ * what its regions were handed and of its frames; and how many characters of each.
  */
 const NOTE_LIMIT = 4096;
 const NOTE_LENGTH = 240;
@@ -200,10 +200,9 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
   let seen = -1;
   let notes: [number, string, string][] = [];
   let unnoted = 0;
-  // How many notes each kind put on the tape: what a region was handed never
-  // crowds out what the code said, however hot the function.
-  let spoken = 0;
-  let handedOver = 0;
+  // How many notes each kind put on the tape: what a region was handed, or the
+  // browser reported of its frames, never crowds out what the code said.
+  let [spoken, handedOver, framed] = [0, 0, 0];
   // Every test line, and how many notes there were at the last one: a line
   // nothing followed, visit or note, gives way to the next.
   type Line = [at: number, key: string, line: number, said: number, hook?: 1];
@@ -439,9 +438,10 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       clock = given;
     },
     noteAt(time: number, text: string): void {
-      const kept = notes.length;
-      api.note(text);
-      if (parts !== undefined || clock === undefined || notes.length === kept) return;
+      if (parts !== undefined || clock === undefined) return api.note(text);
+      if (framed >= NOTE_LIMIT) return void (unnoted += 1);
+      framed += 1;
+      put(text);
       // The first turn that began after `time` ran after it, and all that follow.
       let turn = 0;
       while (turn < turns.length && turns[turn + 1]! <= time) turn += 2;
@@ -468,8 +468,7 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       notes = [];
       lines = [];
       unnoted = 0;
-      spoken = 0;
-      handedOver = 0;
+      [spoken, handedOver, framed] = [0, 0, 0];
       taped = 0;
       visits = 0;
       at = [];

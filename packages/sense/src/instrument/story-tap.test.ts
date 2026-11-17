@@ -315,6 +315,19 @@ describe('what a case says on the way', () => {
     expect(notes.map(([at]) => at)).toEqual([0, 0, 0]);
   });
 
+  it('never crowds out what the code said, however often the browser reports a frame', () => {
+    const engine = probeLog.createEngine(false, probeSet.probeSet);
+    engine.use(engine.open('case'));
+    const tap = storyTap.createTap(engine, storyTap.TAPE_LIMIT);
+    tap.stampWith(() => 0);
+    tap.reset();
+    for (let report = 0; report < storyTap.NOTE_LIMIT + 2; report += 1) tap.noteAt(0, 'layout moved 0.10');
+    tap.note('console.error it broke');
+
+    expect(tap.read().notes.at(-1)?.[2]).toBe('console.error it broke');
+    expect(tap.read()).toMatchObject({ unnoted: 2 });
+  });
+
   it('is counted, not kept, past the limit, and starts again with the tape', () => {
     const engine = probeLog.createEngine(false, probeSet.probeSet);
     engine.use(engine.open('case'));
