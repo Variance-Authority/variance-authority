@@ -423,15 +423,6 @@ leaves, and its story carries what the page saw as well: each `console` line,
 a Suspense fallback and the content that replaced it, paint, long frames and
 layout shifts. The requests the page sent are not in it.
 
-```
-  baf00ce29786f7e0cb4701aebbf0f4a5
-  head page
-      in .: cart.js
-      1  add  cart.js:1-4
-           » handed item='socks'
-           » console.log adding socks
-```
-
 ## Reading it from an agent
 
 `variance-authority-mcp --watch`, from

@@ -91,6 +91,8 @@ let server: Server | undefined;
 let browser: Browser | undefined;
 let page: Page | undefined;
 let port = 0;
+/** The documents the server answers, by path: a later case adds its own, reached by a link. */
+const pages: Record<string, string> = {};
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'variance-ran-page-'));
@@ -137,7 +139,7 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
       '<button id="early">early</button>' +
       '<button id="ask" onclick="__shop_ask()">ask</button>' +
       '<form id="order" onsubmit="event.preventDefault(); __shop_ask()"><button id="buy" onclick="__shop_pick()">buy</button></form>' +
-      '<a id="next" href="/next" onclick="__shop_pick()">next</a> <a id="wide" href="/wide">wide</a>' +
+      '<a id="next" href="/next" onclick="__shop_pick()">next</a> <a id="wide" href="/wide">wide</a> <a id="cart" href="/cart">cart</a>' +
       '<p id="out"></p></body></html>';
     await mkdir(join(root, 'wide'));
     const modules = Array.from({ length: WIDE }, (_, module) => [`wide/module-${module}.js`, wideSource(module)] as const);
@@ -147,7 +149,7 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
       // Each in a scope of its own, as a module has: a probed file declares what it reports through.
       modules.map(([name, source]) => `<script>(() => {${probed(root, name, source)}\n})();</script>`).join('') +
       '</head><body><a id="away" href="/plain">away</a></body></html>';
-    const pages: Record<string, string> = { '/': shop, '/wide': wide, '/plain': '<!doctype html><title>plain</title><a id="home" href="/">home</a>' };
+    Object.assign(pages, { '/': shop, '/wide': wide, '/plain': '<!doctype html><title>plain</title><a id="home" href="/">home</a>' });
 
     /** The execution each request to a handler arrived under, in the order they arrived. */
     const asked: string[] = [];
@@ -264,6 +266,51 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
     expect(await journeyOf()).toBe('');
   }, 120_000);
 
+  it('tells a click\'s story under `VARIANCE_AUTHORITY_STORY`, as a server head does', async () => {
+    const watcher = vantage!.address;
+    const CART_SOURCE = [
+      'globalThis.__cart_add = function add(item) {',
+      "  console.log('adding ' + item);",
+      "  document.querySelector('#out').textContent = item;",
+      '};',
+    ].join('\n');
+    await writeFile(join(root, 'cart.js'), CART_SOURCE, 'utf8');
+    // The collector a build serves when it was asked for stories, as the build plugin loads it.
+    vi.stubEnv('VARIANCE_AUTHORITY_STORY', '1');
+    const probes = testSelectionProbes({ root, label: 'build' });
+    const collector = await probes.load(probes.resolveId('variance-authority:execution-collector')!);
+    vi.unstubAllEnvs();
+    pages['/cart'] =
+      '<!doctype html><html><head><script type="importmap">{"imports":{"@variance-authority/wire":"/wire.js","@variance-authority/sense/page":"/sense/' +
+      `${basename(MOUNTED)}"}}</script>` +
+      `<script>${typeof collector === 'string' ? collector : collector!.code}</script>` +
+      '<script type="module">import { reportPage } from "@variance-authority/sense/page";' +
+      `reportPage(${JSON.stringify(watcher)});</script><script>${probed(root, 'cart.js', CART_SOURCE)}</script></head><body>` +
+      '<button id="add" onclick="__cart_add(\'socks\')">add</button><a id="home" href="/">home</a><p id="out"></p></body></html>';
+    const journeyOf = async (): Promise<string> =>
+      /variance-authority-journey=([^;]+)/.exec(await page!.evaluate(() => document.cookie))?.[1] ?? '';
+
+    await page!.click('#home');
+    await page!.click('#cart');
+    await page!.waitForURL('**/cart');
+    await expect.poll(journeyOf).not.toBe('');
+    await page!.click('#add');
+    await expect.poll(() => page!.textContent('#out')).toBe('socks');
+    const click = await journeyOf();
+    process.chdir(root);
+    const story = async (): Promise<string> => {
+      let out = '';
+      await main(['ask', 'ran', '--at', watcher, '--story'], { out: (text) => { out += text; }, err: () => {} });
+      // The click's own block, and nothing listed after it.
+      return out.includes(click) ? out.slice(out.indexOf(click)).split('\n\n')[0]! : '';
+    };
+    // Told once the page has run nothing more for the click.
+    await expect.poll(story, { timeout: 10_000 }).toContain('console.log adding socks');
+    const out = await story();
+    expect(out).toContain('add  cart.js:1-4');
+    expect(out).toContain("handed item='socks'");
+  }, 60_000);
+
   it('yields the page and all its collector holds to a test that drives it, come late or before the page', async () => {
     const journeyOf = async (): Promise<string> =>
       /variance-authority-journey=([^;]+)/.exec(await page!.evaluate(() => document.cookie))?.[1] ?? '';
@@ -296,69 +343,5 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
     expect(await journeyOf()).toBe('');
     expect(await drained()).toEqual([expect.stringContaining('shop.js')]);
     expect(told()).toBe(before);
-  }, 60_000);
-
-  it('tells a click\'s story under `VARIANCE_AUTHORITY_STORY`, as a server head does', async () => {
-    const watcher = vantage!.address;
-    const CART_SOURCE = [
-      'globalThis.__cart_add = function add(item) {',
-      "  console.log('adding ' + item);",
-      "  document.querySelector('#out').textContent = item;",
-      '};',
-    ].join('\n');
-    await writeFile(join(root, 'cart.js'), CART_SOURCE, 'utf8');
-    // The collector a build serves when it was asked for stories, as the build plugin loads it.
-    vi.stubEnv('VARIANCE_AUTHORITY_STORY', '1');
-    const probes = testSelectionProbes({ root, label: 'build' });
-    const collector = await probes.load(probes.resolveId('variance-authority:execution-collector')!);
-    vi.unstubAllEnvs();
-    const cart =
-      '<!doctype html><html><head><script type="importmap">{"imports":{"@variance-authority/wire":"/wire.js","@variance-authority/sense/page":"/sense/' +
-      `${basename(MOUNTED)}"}}</script>` +
-      `<script>${typeof collector === 'string' ? collector : collector!.code}</script>` +
-      '<script type="module">import { reportPage } from "@variance-authority/sense/page";' +
-      `reportPage(${JSON.stringify(watcher)});</script><script>${probed(root, 'cart.js', CART_SOURCE)}</script></head><body>` +
-      '<button id="add" onclick="__cart_add(\'socks\')">add</button><p id="out"></p></body></html>';
-    const told = createServer((request, response) => {
-      const path = request.url ?? '/';
-      if (path === '/') response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(cart);
-      else if (path === '/wire.js' || /^\/sense\/[\w-]+\.js$/.test(path)) {
-        void readFile(path === '/wire.js' ? WIRE : join(dirname(MOUNTED), basename(path)), 'utf8').then((body) =>
-          response.writeHead(200, { 'content-type': 'text/javascript' }).end(body),
-        );
-      } else response.writeHead(404).end('not found');
-    });
-    const at = await new Promise<number>((settle) => {
-      told.listen(0, '127.0.0.1', () => {
-        const address = told.address();
-        settle(address === null || typeof address === 'string' ? 0 : address.port);
-      });
-    });
-    try {
-      const tab = await browser!.newPage();
-      const journeyOf = async (): Promise<string> =>
-        /variance-authority-journey=([^;]+)/.exec(await tab.evaluate(() => document.cookie))?.[1] ?? '';
-      await tab.goto(`http://127.0.0.1:${at}/`);
-      await expect.poll(journeyOf).not.toBe('');
-      await tab.click('#add');
-      await expect.poll(() => tab.textContent('#out')).toBe('socks');
-      const click = await journeyOf();
-      process.chdir(root);
-      const story = async (): Promise<string> => {
-        let out = '';
-        await main(['ask', 'ran', '--at', watcher, '--story'], { out: (text) => { out += text; }, err: () => {} });
-        // The click's own block, and nothing listed after it.
-        return out.includes(click) ? out.slice(out.indexOf(click)).split('\n\n')[0]! : '';
-      };
-      // Told once the page has nothing more to say of the click.
-      await expect.poll(story, { timeout: 10_000 }).toContain('adding socks');
-      const out = await story();
-      await tab.close();
-      expect(out).toContain('add  cart.js:1-4');
-      expect(out).toContain("handed item='socks'");
-    } finally {
-      told.closeAllConnections();
-      await new Promise<void>((settle) => told.close(() => settle()));
-    }
   }, 60_000);
 });
