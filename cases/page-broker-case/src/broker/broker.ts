@@ -89,6 +89,8 @@ export class App {
   private doc = 0;
   /** The main frame's document request in flight: only a navigation that made one replaces the document. */
   private loading: Request | undefined;
+  /** The main frame's origin: a document that changes it replaced the one before, with or without a request. */
+  private origin: string | undefined;
 
   constructor(
     readonly page: Page,
@@ -104,7 +106,11 @@ export class App {
     page.on('requestfinished', ended);
     page.on('requestfailed', ended);
     page.on('framenavigated', (frame) => {
-      if (frame !== page.mainFrame() || this.loading === undefined) return;
+      if (frame !== page.mainFrame()) return;
+      const origin = new URL(frame.url()).origin;
+      const moved = origin !== this.origin;
+      this.origin = origin;
+      if (this.loading === undefined && !moved) return;
       this.doc += 1;
       this.loading = undefined;
     });
@@ -123,6 +129,8 @@ export class App {
     if (!found.includes(fragment.name)) {
       throw new Error(`entered expecting ${fragment.name}, the page shows ${list(found)}`);
     }
+    const missing = await this.missing(fragment);
+    if (missing !== undefined) throw new Error(`entered expecting ${fragment.name}, and its part ${missing} is missing`);
     const existing = this.roots.get(fragment);
     if (existing !== undefined && this.alive(this.states.get(existing)!)) return existing as Handle<F>;
     const fresh = this.handle(fragment, this.page.locator(':root'));
@@ -177,6 +185,16 @@ export class App {
     const meta = (handle as any)[META] as Meta;
     this.journal.push({ from: meta.fragment.name, action: 'raw', kind: 'raw', to: meta.fragment.name });
     return meta.region;
+  }
+
+  /** The first part, however deep, the page does not show: parts agree with the whole, or there is no handle. */
+  private async missing(fragment: AnyFragment): Promise<string | undefined> {
+    for (const [name, child] of Object.entries((fragment.spec as Spec).uses ?? {})) {
+      if (!(await this.shows(child))) return name;
+      const deeper = await this.missing(child);
+      if (deeper !== undefined) return `${name}.${deeper}`;
+    }
+    return undefined;
   }
 
   private async shows(fragment: AnyFragment): Promise<boolean> {
@@ -387,6 +405,14 @@ export class App {
     const to = declaredTo === stay ? stay : target(declaredTo)!;
     const covering = (key: string) => typeof declared.outcomes[key] === 'object' && 'cover' in declared.outcomes[key];
     if (to !== stay) {
+      const missing = await this.missing(to as AnyFragment);
+      if (missing !== undefined) {
+        throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name}, and its part ${missing} is missing`);
+      }
+      const held = this.roots.get(to as AnyFragment);
+      if (covering(outcome) && held !== undefined && this.alive(this.states.get(held)!)) {
+        throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name} over ${by}, and ${(to as AnyFragment).name} was entered before it opened`);
+      }
       if (covering(outcome) && !kept) {
         throw new Error(`${fragment.name}.${name} reached ${to.name} over ${by}, and ${by} is gone`);
       }

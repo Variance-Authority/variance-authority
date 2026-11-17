@@ -211,3 +211,10 @@ test('two walks print where they part', async ({ browser, baseURL }) => {
     ].join('\n'),
   );
 });
+
+test('a navigation without a request revokes every handle too', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  await page.goto('about:blank');
+  await expect(form.address()).rejects.toThrow('billing departed at a navigation the broker did not take');
+});

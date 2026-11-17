@@ -5,7 +5,9 @@ the app — fragments, the actions they offer, and where each action leads —
 instead of on selectors and waits.
 
 - A **fragment** is a stable state: a probe that says it shows, actions that
-  stay by default, reads, parts it `uses`.
+  stay by default, reads, parts it `uses`. Parts agree with the whole: a
+  fragment whose part, however deep, does not show is neither entered nor
+  arrived at.
 - `leads({ payment: Payment, signIn: over(SignIn), invalid: stay })` names the
   outcomes; the broker senses which one the app reached. `.to('payment')`
   insists on one and fails with the branch actually taken.
@@ -27,7 +29,8 @@ Four rules keep the model honest, each pinned in `src/spec/`:
 
 1. **An arrival is witnessed from both ends.** A leaving outcome needs its
    owner gone, `over` needs the owner still showing, and `back` needs the
-   cover itself gone, not only what uses it. An outcome that shows beside its owner without `over` is an
+   cover itself gone, not only what uses it; a cover is what the action
+   opened, so one already entered does not arrive again. An outcome that shows beside its owner without `over` is an
    error that names the fix.
 2. **An arrival is unambiguous.** Two declared outcomes showing at once fail;
    the order of the declaration never decides. Ambiguity a declaration holds
@@ -39,7 +42,8 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    every owner between it and them, however deep; a part
    that stays, plainly or by a lead, needs every owner showing, and one gone
    is the page left; and a navigation the broker did not take departs every
-   handle on the old document, where a history push or a hash change keeps
+   handle on the old document, with a request or without one, as to
+   `about:blank`, where a history push or a hash change keeps
    the document and its handles.
 4. **The declared edges are the app's test interface.** `edges(roots)` lists
    them, `walked(edges, journals)` counts which the tests took, and the

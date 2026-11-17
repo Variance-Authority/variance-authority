@@ -351,3 +351,26 @@ test('a second fragment using an open dialog lives and leaves with it too', asyn
   await signIn.cancel.to('billing');
   await expect(typer.type('x@y.z') as unknown as Promise<unknown>).rejects.toThrow('sign-in-typer departed at sign-in.cancel');
 });
+
+// Parts agree with the whole: a part the page does not show fails the entry, before any handle exists.
+const Ghost = fragment('ghost', { probe: byTestId('ghost'), reads: { lines: (r) => r.texts(byRole('listitem')) } });
+const Haunted = fragment('billing-haunted', { probe: form, uses: { ghost: Ghost } });
+
+test('a fragment whose part is missing is not entered', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  await expect(app.enter(Haunted)).rejects.toThrow('entered expecting billing-haunted, and its part ghost is missing');
+});
+
+// A cover is what the action opened: one already entered did not arrive, and a second handle would split its lifecycle.
+const Banner = fragment('banner-cover', { probe: byRole('banner'), actions: { type: (d, q: string) => d.fill(byRole('searchbox', 'Search'), q) } });
+const Opener = fragment('billing-opener', { probe: form, actions: { open: leads({ bar: over(Banner) }, async () => {}) } });
+
+test('a cover already entered does not arrive again', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const banner = await app.enter(Banner);
+  const opener = await app.enter(Opener);
+  await expect(opener.open.to('bar')).rejects.toThrow('billing-opener.open reached banner-cover over billing-opener, and banner-cover was entered before it opened');
+  await banner.type('socks');
+  await opener.open.to('bar').catch(() => {});
+  expect(await app.enter(Banner)).toBe(banner);
+});
