@@ -1,9 +1,8 @@
 # Spec 0098 — the runner is handed its selection
 
-**Missing:** the argv formats' removal, a drop point for Rstest, and the
-acceptance run. `--format vitest` and `--format jest` still print runner
-arguments, past the one minor release item 6 gave their deprecation. Rstest has
-no drop point (question 6), so it records and does not select. No run has
+**Missing:** the argv formats' removal and the acceptance run. `--format
+vitest` and `--format jest` still print runner arguments, past the one minor
+release item 6 gave their deprecation. No run has
 handed twenty-five thousand test files to Jest and Vitest on macOS and Windows,
 which is the acceptance below.
 **Built on:** the recording seams in `@variance-authority/sense` — `./vitest`,
@@ -109,7 +108,7 @@ every runner's flags to pass them through.
 |---|---|---|
 | Jest 30 | A `filter` module. Jest runs it before sharding, sorting and `--listTests`. | `filter` is a global setting, not a project one, so the seam sets it on the global configuration and chains the project's own. A command-line `--filter` replaces it and `--skipFilter` turns it off; either means no selection, and the seam says so on stderr. Jest 29 reads the paths a filter returns as no files, so the seam declares `jest ^30.0.0` as a peer and a selecting configuration under an older Jest throws while it loads, naming the version. |
 | Vitest 2–5 | A `sequence.sequencer` that wraps the project's sequencer and removes skipped specifications before calling its `shard` and `sort`. Vitest publishes no filter hook in any major. | The sequencer is read from the root configuration only, so under `projects` the seam wraps the root. Reporters are handed the collected paths, skipped files included (`onPathsCollected` in 2, `onTestRunStart` in 4); the summary's "Test Files" count is the run's. The run the seam records is the set the sequencer kept, not the paths reporters were handed. |
-| Rstest | None found. The seam's `include` decides which bundled modules are product source, for instrumentation, and drops no test file. | Unresolved; out of the first cut until a drop point is named. |
+| Rstest | `modifyRstestConfig`, from the Rsbuild plugin API Rstest exposes. Rstest awaits its callbacks, then plans the project's entries again; the seam adds the skipped files to the project's `exclude`, grouped in brace alternations under their common directory. | The seam finds the project's files as Rstest's planning does, with the same glob and options, to count them, so a later Rstest that plans differently miscounts. Case grain is refused: a kept file runs whole. |
 | Playwright Test | `testIgnore`: a `RegExp` whose `test` looks the file up in the skip set. Playwright asks each project's `testIgnore` about every file it finds, before it loads one and before it places a shard. | Playwright publishes no filter hook, and `--test-list-invert` is a flag that loads files first and compares every test against every entry, so the seam takes `testIgnore`. A project's own `testIgnore` replaces the top level's, so the seam appends to each one a project sets. The configuration is evaluated synchronously, so the selection is read in a `globalSetup` the seam puts ahead of the project's own, which runs in the same process before files are collected. `--list` runs no global setup and does not select; the seam says so. The pattern's source matches nothing, so a copy serialized to a worker drops nothing. |
 | `./runner` | The `skip` function, exported as it is. The author drops files where their runner discovers them, as they place the four existing calls. | Nothing new. |
 
@@ -261,8 +260,8 @@ These are the owner's to decide; each has a recommendation.
    point that costs nothing per file; Rstest has none named and Playwright's
    brings back the costs refused above), or all four together. Answered for
    Playwright: `testIgnore` is a drop point that costs one lookup a file and
-   loads nothing, so it selects. Rstest still has none named and does not
-   select.
+   loads nothing, so it selects. Rstest's is `modifyRstestConfig`, named
+   after the first cut (#1456).
 7. **The deprecation window** for `--format vitest|jest`: one minor release
    (recommended: the documented loop uses them, so a reader gets one release of
    the message naming the variable), or removal in the change that lands item 1.

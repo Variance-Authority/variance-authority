@@ -44,6 +44,8 @@ import { refuseUnreadable } from './precondition-entries.js';
 import { buildingPlugin, buildsTestFile, declareEntries, isBuilding, joinEntries, noteBuilding } from './rstest-entries.js';
 import { governingPreconditions } from './governing-config.js';
 import { limitAcross } from './execution-set-columns.js';
+import { rootSelection, selectionPlugins } from './rstest-selection.js';
+import type { SuiteSelection } from './suite-selection.js';
 
 export interface RstestTestSelectionOptions {
   /**
@@ -132,6 +134,8 @@ export interface RstestTestSelectionOptions {
    * before cuts existed.
    */
   readonly cadence?: boolean;
+  /** The selection this run is handed, as {@link selectionPlugins} reads it; absent, `VARIANCE_AUTHORITY_SINCE` asks. */
+  readonly selection?: () => Promise<SuiteSelection>;
 }
 
 /** Where a case stands in its file, as Rstest names it to a reporter. */
@@ -336,7 +340,7 @@ export function withTestSelection(
         ? { ...project, plugins: [...array((project as RstestConfig).plugins), buildingPlugin(run)] }
         : project
     ));
-    return { ...config, projects, reporters: [...reporters, reporter] };
+    return { ...config, projects, reporters: [...reporters, reporter], ...rootSelection(options, coverageFile, root, configRoot) };
   }
 
   // Both spellings of the same registrar, because a project may use either and
@@ -365,7 +369,7 @@ export function withTestSelection(
     // First, so a setup file of the project's that loads an instrumented
     // module finds the probe log its header resolves.
     setupFiles: [seam, ...setupFiles],
-    plugins: [...array(config.plugins), pagePlugin(setupId, run, mode, story !== undefined, own, entries)],
+    plugins: [...array(config.plugins), pagePlugin(setupId, run, mode, story !== undefined, own, entries), ...selectionPlugins(options, coverageFile, root, configRoot)],
     reporters: [...reporters, reporter],
     tools: {
       ...config.tools,

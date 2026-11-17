@@ -75,8 +75,9 @@ either one turns the selection off, and stderr says so.
 Each seam gives the details — where the files are dropped, and why `--shard`
 sees the same list in every shard:
 [Vitest](../packages/sense/README.md#let-the-runner-skip-them),
-[Jest](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff) and
-[Playwright](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach). For Rstest or any other runner,
+[Jest](../packages/sense/README.md#cut-a-jest-run-down-to-a-diff),
+[Rstest](../packages/sense/README.md#cut-an-rstest-run-down-to-a-diff) and
+[Playwright](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach). For any other runner,
 [`variance select`](../packages/cli/README.md#select-what-your-own-runner-may-skip)
 prints the same skip list, one path per line, for your script to subtract.
 
@@ -154,8 +155,9 @@ depend on each other. A case that reads what an earlier case left, such as a
 memoized result or a variable its `describe` shares, is skipped when it entered
 nothing your edit changed, though the value it reads did change. Skipping a
 case that sets up a later one fails the later one instead. Where the cases of
-a file depend on their order, run it at file grain. Playwright and Rstest
-run every selected file whole, and watch mode does not select at either grain.
+a file depend on their order, run it at file grain. Playwright runs every
+selected file whole, Rstest refuses case grain rather than run a kept file
+whole, and watch mode does not select at either grain.
 File grain is the default, and `VARIANCE_AUTHORITY_GRAIN=file` names it.
 
 ## Each run moves the starting point
@@ -198,9 +200,8 @@ in it is a script of ours:
 tsc --build && VARIANCE_AUTHORITY_SINCE= VARIANCE_AUTHORITY_AT_DISTANCE=0-1 npx vitest run
 ```
 
-Under Jest 30 and Playwright the same two variables go in front of `npx jest`
-or `npx playwright test`; under Rstest, `variance select` with the same range
-prints the files your script leaves out. Give your agent that line as the
+Under Jest 30, Rstest and Playwright the same two variables go in front of
+`npx jest`, `npx rstest run` or `npx playwright test`. Give your agent that line as the
 command it runs after each edit, and tell it to read the verdict before it
 makes the next one. Each edit ends one of four
 ways:
