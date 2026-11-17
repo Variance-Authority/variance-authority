@@ -106,7 +106,7 @@ async function scriptOf(reported: Reported, cached: ReadonlyMap<string, Cached>,
   if (reported.source === undefined && entry?.lineLengths !== undefined && !isDeepStrictEqual(lineLengths(disk), entry.lineLengths)) return undefined;
   const text = reported.source ?? disk;
   // Node's cached map first, else the one `sourceMappingURL` names.
-  const found = entry?.data === undefined ? await mapOf(text, file) : { map: entry.data, file: mapFileOf(entry.url, file) };
+  const found = entry?.data === undefined ? await mapOf(text, (url) => mapPlaceOf(url, reported.url, file, served)) : { map: entry.data, file: mapFileOf(entry.url, file) };
   if (found === null) return undefined;
   const script = { file, text, functions: reported.functions, builtAt };
   if (found === undefined) return script;
@@ -143,19 +143,29 @@ interface Found {
   readonly file?: string;
 }
 
-/** The map `text` names: `undefined` when it names none, `null` when it names one that cannot be read. */
-async function mapOf(text: string, file: string): Promise<Found | null | undefined> {
+/** The map `text` names, placed by `place`: `undefined` when it names none, `null` when it names one that cannot be read. */
+async function mapOf(text: string, place: (url: string) => string | undefined): Promise<Found | null | undefined> {
   const url = sourceMappingUrlOf(text);
   if (url === null) return undefined;
   const inline = inlineSourceMapOf(url);
   if (inline === null && url.startsWith('data:')) return null;
-  const at = inline === null ? mapFileOf(url, file) : undefined;
+  const at = inline === null ? place(url) : undefined;
   const json = inline ?? (at === undefined ? null : await readFile(at, 'utf8').catch(() => null));
   if (json === null) return null;
   try {
     return { map: JSON.parse(json), ...(at === undefined ? {} : { file: at }) };
   } catch {
     return null;
+  }
+}
+
+/** The file a map URL names: a served script's resolves against the URL it was served from, then sits under `served`; any other's beside `file`. */
+function mapPlaceOf(url: string, scriptUrl: string, file: string, served: string | undefined): string | undefined {
+  if (!/^https?:/.test(scriptUrl) || url.startsWith('data:')) return mapFileOf(url, file);
+  try {
+    return fileOf(new URL(url, scriptUrl).href, served);
+  } catch {
+    return undefined;
   }
 }
 

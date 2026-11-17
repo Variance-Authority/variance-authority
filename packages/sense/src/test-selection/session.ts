@@ -181,10 +181,14 @@ export function sessionsAgainst(
         return states.get(keyOf(row)) ?? 'other text';
       });
       // Siblings may share a kind, name and path, and their own text tells them apart.
-      const held = records.filter((block) => sameRegion(block, row));
-      const same = held.filter((block) => block.digest === row.digest);
+      const same = records.filter((block) => sameRegion(block, row) && block.digest === row.digest);
       const entered = [...new Set(same.flatMap((block) => block.testFiles))].sort();
-      const testFiles = held.length > 0 && same.length === 0 ? undefined : entered.length === 0 && unprobed ? undefined : entered;
+      // No case entered it, and a suite that holds it only in another text, or loaded its file unprobed, may have.
+      const elsewhere = (recorded.get(file) ?? []).some((module) => {
+        const its = module.blocks.filter((block) => sameRegion(block, row));
+        return its.length > 0 && its.every((block) => block.digest !== row.digest);
+      });
+      const testFiles = entered.length > 0 ? entered : unprobed || elsewhere ? undefined : entered;
       return { row, name: row.name, sessions: sessionsSay, ...(testFiles === undefined ? {} : { testFiles }) };
     });
     const checkout = cut.rows.filter((row) => row.kind === 'function');

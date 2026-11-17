@@ -128,6 +128,24 @@ describe('a session read from what V8 wrote', () => {
     expect(math((await readSession(at, undefined)).scripts)).toEqual(EXPECTED);
   });
 
+  it('reads a served script\'s map from the URL its comment names, under the served directory', async () => {
+    await mkdir(join(root, 'dist/assets'), { recursive: true });
+    await writeFile(join(root, 'dist/assets/app.js.map'), JSON.stringify({ ...BUNDLE_MAP, sources: ['../../src/math.ts', '../../src/main.ts'] }));
+    const at = join(root, 'absolute-map.json');
+    const scripts = ['/assets/app.js.map', 'http://localhost:5173/assets/app.js.map', 'app.js.map?v=1'].map((url, index) => {
+      const source = BUNDLE.replace('sourceMappingURL=main.js.map', `sourceMappingURL=${url}`);
+      return { url: `http://localhost:5173/assets/app.js?${index}`, scriptId: String(index), source, functions };
+    });
+    for (const script of scripts) {
+      await writeFile(at, JSON.stringify([script]));
+      await writeFile(join(root, 'dist/assets/app.js'), script.source);
+      const session = await readSession(at, join(root, 'dist'));
+
+      expect(session.skipped).toEqual([]);
+      expect(math(session.scripts)).toEqual(EXPECTED);
+    }
+  });
+
   it('names a served script whose file is another build than the one that ran, rather than read it through that build\'s map', async () => {
     const at = join(root, 'rebuilt.json');
     const url = 'http://localhost:5173/main.js';
