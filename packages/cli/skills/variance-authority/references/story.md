@@ -187,8 +187,8 @@ The answer prints a key for its marks. What the key leaves out:
   emitted before the first step are in the header.
 - In a Chromium page, `» first paint`, `» largest paint: h1.title`, `» held a
   frame (121 ms)` and `» layout moved 0.25` are what the browser reported of
-  its frames, after the step it followed; a late report lands on the next
-  line. `--compare` leaves them out.
+  its frames, after the step running when it happened; one delivered after
+  that line was read lands on the next line. `--compare` leaves them out.
 - `loaded N files` is modules loaded one inside another. `… steps 1-2 left out`
   is what this part leaves out; ask `--around` a step at its edge to read
   further.

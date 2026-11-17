@@ -690,8 +690,9 @@ document has no `page` note.
 
 ## What the browser painted, held and moved
 
-In a Chromium page a Playwright spec drives, the story also says what the
-browser reported of its frames, after the step it followed:
+In a page Chromium runs, under Playwright, Storybook or the browser modes of
+Vitest and Rstest, the story also says what the browser reported of its
+frames, after the step it followed:
 
 ```text
 test line opens
@@ -717,8 +718,9 @@ test line pushes
   told too.
 
 The browser reports each of these after the frame ends, so each is placed by
-the time the browser gives, after the last step that began before it. A report
-that arrives after the line's statement ended is told on the next line.
+the time the browser gives, after the step that was running then. Only a
+report the browser delivers after that line's story was already read, at the
+next statement, is told on the next line instead.
 A browser that reports none of these types tells none of them, and one that
 reports some names the rest once, as `unseen here: long-animation-frame`.
 
