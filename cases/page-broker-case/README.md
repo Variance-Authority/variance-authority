@@ -31,7 +31,8 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    land alike, or two fragments under one name.
 3. **A fragment has one lifecycle, however it is reached.** Entering it again
    returns its one handle, covered or live, and a part is one handle however
-   many owners use it, answering to all of them whichever came first; a part
+   many owners use it, answering to all of them whichever came first, and to
+   every owner between it and them, however deep; a part
    that stays, plainly or by a lead, needs every owner showing, and one gone
    is the page left; and a navigation the broker did not take departs every
    handle on the old document, where a history push or a hash change keeps

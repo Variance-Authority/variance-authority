@@ -284,7 +284,8 @@ export class App {
     for (const [name, child] of Object.entries((fragment.spec as Spec).uses ?? {})) {
       // A part lives and dies with the fragment that uses it. It is found on the
       // page, not inside the region: a header is beside a form, not in it.
-      self[name] = this.handle(child, this.page, { state, owners: meta.owners });
+      // It answers to every fragment it is reached through: its owner, and that owner's owners.
+      self[name] = this.handle(child, this.page, { state, owners: [...new Set([...meta.owners, fragment])] });
     }
 
     const actions = Object.entries((fragment.spec as Spec).actions ?? {});
@@ -325,11 +326,19 @@ export class App {
     return self as Handle<F>;
   }
 
+  /** A fragment entered alone takes its new owner's lifecycle; its parts keep every owner they had, and gain that one. */
   private rebind(handle: object, shared: { state: State; owners: AnyFragment[] }): void {
     const meta = (handle as any)[META] as Meta;
-    Object.assign(meta, { state: shared.state, owners: [...shared.owners] });
-    this.states.set(handle, shared.state);
-    for (const name of Object.keys((meta.fragment.spec as Spec).uses ?? {})) this.rebind((handle as any)[name], shared);
+    meta.owners = [...shared.owners];
+    for (const name of Object.keys((meta.fragment.spec as Spec).uses ?? {})) this.own((handle as any)[name], shared.owners);
+    this.adopt(handle, shared.state);
+  }
+
+  private adopt(handle: object, state: State): void {
+    const meta = (handle as any)[META] as Meta;
+    meta.state = state;
+    this.states.set(handle, state);
+    for (const name of Object.keys((meta.fragment.spec as Spec).uses ?? {})) this.adopt((handle as any)[name], state);
   }
 
   /** A part reached by a second owner answers to both: which arrived first decides nothing. */
@@ -451,8 +460,9 @@ export class App {
       for (const each of beneath) Object.assign(each, { status: 'covered', why: next.name, doc: this.doc });
       if (!covering(outcome)) this.depart(name, fragment.name);
       handle = this.handle(next, this.page);
-      // What waits beneath is the part's one owner, not the part that opened the cover; with several, the part itself.
-      const waiting = owners.length === 1 ? owners[0] : fragment;
+      // What waits beneath is the part's one root owner, not the part that opened the cover; with several, the part itself.
+      const roots = owners.filter((each) => ((this.roots.get(each) as any)?.[META] as Meta | undefined)?.owners[0] === each);
+      const waiting = roots.length === 1 ? roots[0] : fragment;
       if (covering(outcome)) {
         this.covered.set((handle as any)[META].state, { by: next.name, fragment: waiting, handle: this.roots.get(waiting) ?? self, states: beneath });
       }

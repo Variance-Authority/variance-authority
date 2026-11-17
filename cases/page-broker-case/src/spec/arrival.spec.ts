@@ -185,3 +185,28 @@ test('two outcomes that arrive at the same place cannot be declared', () => {
 test('two fragments cannot share a name', () => {
   expect(() => fragment('payment', { probe: byRole('form', 'Other') })).toThrow('a fragment named payment is already declared');
 });
+
+// A part answers to every fragment it is reached through, at any depth, and whichever arrived first.
+const Leaf = fragment('search-leaf', {
+  probe: byRole('search'),
+  actions: { go: async (d, q: string) => { await d.fill(byRole('searchbox', 'Search'), q); await d.press(byRole('searchbox', 'Search'), 'Enter'); } },
+});
+const TopBar = fragment('top-bar', { probe: byRole('banner'), uses: { leaf: Leaf } });
+const FormWithLeaf = fragment('billing-with-search', { probe: form, uses: { leaf: Leaf } });
+const Wrap = fragment('wrap', { probe: byRole('banner'), uses: { bar: TopBar } });
+const Mid = fragment('mid', { probe: form, uses: { leaf: Leaf } });
+const Outer = fragment('outer', { probe: byRole('banner'), uses: { mid: Mid } });
+
+test('a part adopted by a new owner keeps answering to the others it had', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const bar = await app.enter(TopBar);
+  await app.enter(FormWithLeaf);
+  await app.enter(Wrap);
+  await expect(bar.leaf.go('socks') as unknown as Promise<unknown>).rejects.toThrow('search-leaf.go is declared to stay, and billing-with-search left');
+});
+
+test('a part nested two deep answers to the owner between', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  const outer = await app.enter(Outer);
+  await expect(outer.mid.leaf.go('socks') as unknown as Promise<unknown>).rejects.toThrow('search-leaf.go is declared to stay, and mid left');
+});
