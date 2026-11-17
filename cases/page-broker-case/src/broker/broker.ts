@@ -18,13 +18,6 @@ export const byRole = (role: string, name?: string): Where => ({ by: 'role', rol
 export const byLabel = (text: string): Where => ({ by: 'label', text });
 export const byTestId = (id: string): Where => ({ by: 'testId', id });
 
-const spell = (where: Where): string =>
-  where.by === 'role'
-    ? `${where.role}${where.name === undefined ? '' : ` "${where.name}"`}`
-    : where.by === 'label'
-      ? `label "${where.text}"`
-      : `testId "${where.id}"`;
-
 function locate(scope: Page | Locator, where: Where): Locator {
   if (where.by === 'role') {
     return scope.getByRole(where.role as Parameters<Page['getByRole']>[0], {
@@ -316,6 +309,8 @@ export class App {
     // as a sentence and still runs one action at a time.
     const chain = (pending: Promise<unknown>): Record<string, unknown> => {
       const link: Record<string, unknown> = {
+        // The chain is awaited on purpose: awaiting it yields the handle.
+        // oxlint-disable-next-line unicorn/no-thenable
         then: (resolve: any, reject: any) => pending.then(() => self).then(resolve, reject),
       };
       for (const [name, declared] of actions) {
