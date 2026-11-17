@@ -23,7 +23,10 @@ const BROWSER_AVAILABLE = (() => {
 const live = BROWSER_AVAILABLE ? describe : describe.skip;
 
 if (!BROWSER_AVAILABLE) {
-  unbuilt('\ncases/page-broker-case: skipped.' + '\n  no browser — npx playwright install chromium\n');
+  unbuilt(
+    '\ncases/page-broker-case: skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
 }
 
 /** A port nothing listens on, so the shop does not meet another case's server. */
