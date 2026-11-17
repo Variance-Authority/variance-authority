@@ -110,7 +110,7 @@ test('going back to a fragment whose part left with the cover departs the page, 
     const cancel = [...document.querySelectorAll('button')].find((b) => b.textContent === 'Cancel')!;
     cancel.addEventListener('click', () => document.querySelector('header')!.remove());
   });
-  await expect(signIn.cancel.to('billing')).rejects.toThrow('sign-in.cancel reached billing, and its part header is missing');
+  await expect(signIn.cancel.to('billing')).rejects.toThrow('sign-in.cancel found billing without its part header');
   await expect(signIn.email('a@b.c') as unknown as Promise<unknown>).rejects.toThrow('departed');
   await expect(form.address()).rejects.toThrow('departed');
 });

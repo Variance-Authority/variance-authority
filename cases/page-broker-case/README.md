@@ -23,11 +23,14 @@ instead of on selectors and waits.
   it holds; a part another owner holds stays, and answers to that owner alone.
   Sharing a part with an open cover is not using the cover: the part waits
   beneath with the page, whichever owner came first.
-- Every step lands in a per-test **journal**; `fork(a, b)` prints where two
-  walks part, edge by edge, outcome included.
+- Every step lands in a per-test **journal**, a failed one with why and no
+  edge walked; `fork(a, b)` prints where two walks part, edge by edge, outcome
+  included.
 - Between steps the broker **settles** on `aria-busy`, requests in flight and
   announced `@variance-authority/event` work. `BROKER_DROP=busy,network,events`
-  drops signals to see which one each case rests on.
+  drops signals to see which one each case rests on. A probe reads its first
+  match; an action waits 1 s for what it touches, and `until` 10 s for its
+  effect.
 
 Four rules keep the model honest, each pinned in `src/spec/`:
 
@@ -41,13 +44,16 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    the same document, without `over` is an error that names the fix.
 2. **An arrival is unambiguous.** Two declared outcomes showing at once, each
    with every part, fail; one whose probe shows without its parts is not there,
-   and loses to any other answer, a declared stay included;
+   and loses to any other answer, a declared stay included, and alone fails
+   without anything having left;
    the order of the declaration never decides. Ambiguity a declaration holds
    already is refused where it is written: two outcomes of one action that
-   land alike, by what they are and not their names, or two fragments under
-   one name.
+   land alike — one fragment, plainly or `over`, under two keys — or two
+   fragments under one name, across the whole suite. Two fragments that only
+   share a probe are told apart at run time, where both arriving fails.
 3. **A fragment has one lifecycle, however it is reached.** Entering it again
-   returns its one handle, covered or live, and a part is one handle however
+   returns its one handle, covered or live, as does a lead to it while it is
+   live on the same document, and a part is one handle however
    many owners use it, answering to all of them whichever came first, and to
    every owner between it and them, however deep; a part
    that stays, plainly or by a lead, needs every owner showing, and one gone

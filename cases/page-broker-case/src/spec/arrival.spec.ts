@@ -332,3 +332,9 @@ test('a second fragment using an open dialog lives and leaves with it too', asyn
   await signIn.cancel.to('billing');
   await expect(typer.type('x@y.z') as unknown as Promise<unknown>).rejects.toThrow('sign-in-typer departed at sign-in.cancel');
 });
+
+test('a read and an action under one name are refused', () => {
+  expect(() =>
+    fragment('clash', { probe: byRole('main'), actions: { total: (d) => d.click(byRole('button')) }, reads: { total: (r) => r.texts(byRole('alert')) } }),
+  ).toThrow('clash declares total twice');
+});

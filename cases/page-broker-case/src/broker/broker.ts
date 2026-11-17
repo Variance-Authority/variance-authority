@@ -209,11 +209,19 @@ export class App {
       await this.documents.counted;
       guard(name, true);
       const declared = actions.find(([key]) => key === name)![1];
-      if (typeof declared === 'function' || declared.kind === 'stays') {
-        await this.stayed(fragment, meta.owners, meta.state, region, name, declared, args);
+      const stays = typeof declared === 'function' || declared.kind === 'stays';
+      const steps = this.journal.length;
+      try {
+        if (!stays) return await this.lead(fragment, self, meta.state, name, declared as Leads, args);
+        await this.stayed(fragment, meta.owners, meta.state, region, name, declared as Act | Stays, args);
         return self;
+      } catch (error) {
+        // A step that fails was still taken: the journal says where the walk stopped, and why.
+        if (this.journal.length === steps) {
+          this.journal.push({ from: fragment.name, action: name, kind: stays ? 'stay' : 'lead', to: fragment.name, failed: (error as Error).message });
+        }
+        throw error;
       }
-      return this.lead(fragment, self, meta.state, name, declared, args);
     };
 
     // A chain queues calls on one promise, so `form.country('NL').street('x')` reads
@@ -344,6 +352,7 @@ export class App {
     const target = (to: Outcomes[string]): AnyFragment | undefined =>
       to === back ? under?.fragment : typeof to === 'object' && 'cover' in to ? to.cover : (to as AnyFragment);
     const keys = Object.keys(declared.outcomes);
+    const covering = (key: string) => typeof declared.outcomes[key] === 'object' && 'cover' in declared.outcomes[key];
     let reached = keys.filter((key) => {
       const to = declared.outcomes[key];
       const where = to === stay ? undefined : target(to);
@@ -363,7 +372,12 @@ export class App {
     // A new document is the old one left, whatever on it looks the same: only staying keeps the acting handle.
     const moved = state.doc !== this.documents.count;
     const left = !kept || !shown.includes(fragment.name) || (moved && reached.length > 0);
-    if (left && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name);
+    // What arrives by a plain lead, entered already and live on this document, never left: it keeps its one handle.
+    const plain = reached.length === 1 && !covering(reached[0]) && declared.outcomes[reached[0]] !== back;
+    const prior = plain && !moved ? this.roots.get(target(declared.outcomes[reached[0]])!) : undefined;
+    const spare = prior === undefined ? undefined : this.states.get(prior);
+    const arrived = spare?.status === 'live' && spare.doc === this.documents.count ? spare : undefined;
+    if (left && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name, arrived);
     if (reached.length > 1) {
       throw new Error(`${fragment.name}.${name} reached ${reached.join(' and ')} at once; the page shows ${list(shown)}`);
     }
@@ -376,21 +390,21 @@ export class App {
     }
     const declaredTo = declared.outcomes[outcome];
     const to = declaredTo === stay ? stay : target(declaredTo)!;
-    const covering = (key: string) => typeof declared.outcomes[key] === 'object' && 'cover' in declared.outcomes[key];
     if (to !== stay) {
       const missing = await this.missing(to as AnyFragment);
       if (missing !== undefined) {
-        this.depart(name, fragment.name);
-        throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name}, and its part ${missing} is missing`);
+        // Not there is not arrived: the page departs only if what acted left it, or a cover closed over it.
+        if (left || declaredTo === back) this.depart(name, fragment.name);
+        throw new Error(`${fragment.name}.${name} found ${(to as AnyFragment).name} without its part ${missing}`);
       }
       // Going back restores the whole page beneath the cover, and all of it comes back whole or none of it does.
-      if (declaredTo === back) await this.intact(under!.states, name, fragment.name, `${fragment.name}.${name} went back to ${(to as AnyFragment).name}`);
+      if (declaredTo === back) await this.intact(under!.states.filter((each) => this.alive(each)), name, fragment.name, `${fragment.name}.${name} went back to ${(to as AnyFragment).name}`);
       const held = this.roots.get(to as AnyFragment);
       if (covering(outcome) && held !== undefined && this.alive(this.states.get(held)!)) {
         throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name} over ${by}, and ${(to as AnyFragment).name} was entered before it opened`);
       }
       if (covering(outcome) && showed.has((to as AnyFragment).name)) throw new Error(`${fragment.name}.${name} reached ${(to as AnyFragment).name} over ${by}, and ${(to as AnyFragment).name} showed before it`);
-      if (covering(outcome) && !kept) {
+      if (covering(outcome) && (!kept || moved)) {
         throw new Error(`${fragment.name}.${name} reached ${to.name} over ${by}, and ${by} is gone`);
       }
       if (declaredTo !== back && !covering(outcome) && !owners.includes(to) && kept && !moved) {
@@ -425,8 +439,8 @@ export class App {
     } else {
       const next = to as AnyFragment;
       for (const each of beneath) Object.assign(each, { status: 'covered', why: next.name, doc: this.documents.count });
-      if (!covering(outcome)) this.depart(name, fragment.name);
-      handle = this.handle(next, this.page);
+      if (!covering(outcome)) this.depart(name, fragment.name, arrived);
+      handle = arrived !== undefined ? prior! : this.handle(next, this.page);
       // What waits beneath is the part's one root owner, not the part that opened the cover; with several, the part itself.
       const roots = owners.filter((each) => ((this.roots.get(each) as any)?.[META] as Meta | undefined)?.owners[0] === each);
       const waiting = roots.length === 1 ? roots[0] : fragment;
@@ -450,9 +464,9 @@ export class App {
   }
 
   /** Leaving a page revokes everything on it, the dialogs over it included. */
-  private depart(action: string, from: string): void {
+  private depart(action: string, from: string, arrived?: State): void {
     for (const state of this.states.values()) {
-      if (state.status !== 'departed') {
+      if (state.status !== 'departed' && state !== arrived) {
         state.status = 'departed';
         state.why = `${from}.${action}`;
       }

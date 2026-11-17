@@ -3,7 +3,6 @@ import { back, byLabel, byRole, byTestId, fragment, leads, over, stay, stays } f
 import { expect, test } from '../fixture.js';
 import { Header, Payment } from '../shop.js';
 
-// Rule 1: on a new document the acting fragment has left, even when the new page shows one like it.
 test('a header entered alone leads to results on a new document', async ({ page, app }) => {
   await page.goto('/checkout?user=member', { waitUntil: 'commit' });
   const header = await app.enter(Header);
@@ -101,8 +100,100 @@ test('a part on the page before a cover that uses it is uncovered by back', asyn
   expect(await leaf.query()).toBe('socks');
 });
 
-// Rule 2: declaration ambiguity is by where outcomes land; a fragment named "stay" does not land where `stay` does.
 const Named = fragment('stay', { probe: byTestId('re-never') });
 test('a fragment named stay is not taken for the stay outcome', () => {
   expect(() => leads({ here: stay, there: Named }, async () => {})).not.toThrow();
+});
+
+// A page reloaded under an action, and a step that fails.
+
+// A form whose Open button opens the cover by loading a new document, and a cover that can reload under itself.
+const reloading = `<!doctype html><meta charset="utf-8">
+<form aria-label="Reloading form"><label>Name <input name="n"></label><button type="button" id="open">Open</button><button type="button" id="openload">Open by reload</button><button type="button" id="leave">Leave</button></form>
+<div id="c" data-testid="rx-cover" hidden><button type="button" id="reload">Reload</button><button type="button" id="close">Close</button></div>
+<script>
+const c = document.getElementById('c');
+if (sessionStorage.rxopen) c.hidden = false;
+document.getElementById('open').onclick = () => { sessionStorage.rxopen = '1'; c.hidden = false; };
+document.getElementById('openload').onclick = () => { sessionStorage.rxopen = '1'; location.reload(); };
+document.getElementById('leave').onclick = () => document.querySelector('form').remove();
+document.getElementById('reload').onclick = () => location.reload();
+document.getElementById('close').onclick = () => { delete sessionStorage.rxopen; c.hidden = true; };
+</script>`;
+
+const Extra = fragment('rx-extra', { probe: byTestId('rx-extra'), reads: { text: (r) => r.texts(byRole('listitem')) } });
+const ReloadCover = fragment('rx-cover', {
+  probe: byTestId('rx-cover'),
+  actions: { reload: stays((d) => d.click(byRole('button', 'Reload'))), close: leads({ form: back }, (d) => d.click(byRole('button', 'Close'))) },
+});
+const ReloadForm = fragment('rx-form', {
+  probe: byRole('form', 'Reloading form'),
+  actions: {
+    open: leads({ cover: over(ReloadCover) }, (d) => d.click(byRole('button', 'Open'))),
+    openByReload: leads({ cover: over(ReloadCover) }, (d) => d.click(byRole('button', 'Open by reload'))),
+    leave: leads({ extra: Extra }, (d) => d.click(byRole('button', 'Leave'))),
+  },
+  reads: { name: (r) => r.value(byLabel('Name')) },
+});
+
+const open = async (page: import('@playwright/test').Page) => {
+  await page.route('**/rxdoc', (route) => route.fulfill({ contentType: 'text/html', body: reloading }));
+  await page.goto('/rxdoc');
+};
+const addExtra = (page: import('@playwright/test').Page) =>
+  page.evaluate(() => document.body.insertAdjacentHTML('beforeend', '<div data-testid="rx-extra"><ul><li>x</li></ul></div>'));
+
+test('a cover that arrives on a new document has no owner beneath it, and is refused', async ({ page, app }) => {
+  await open(page);
+  const form = await app.enter(ReloadForm);
+  await expect(form.openByReload.to('cover')).rejects.toThrow('rx-form.openByReload reached rx-cover over rx-form, and rx-form is gone');
+});
+
+// The handles that left with the old document are not "what that cover covered" any more.
+test('back after the page left while covered arrives anew, whatever else stood on the old page', async ({ page, app }) => {
+  await open(page);
+  const form = await app.enter(ReloadForm);
+  await addExtra(page);
+  await app.enter(Extra);
+  const cover = await form.open.to('cover');
+  await cover.reload();
+  const again = await cover.close.to('form');
+  expect(again).not.toBe(form);
+});
+
+const Absent = fragment('rx-missing', { probe: byTestId('rx-missing') });
+const Partial = fragment('rx-partial', { probe: byTestId('rx-partial'), uses: { missing: Absent } });
+const Holder = fragment('rx-holder', {
+  probe: byRole('form', 'Reloading form'),
+  actions: { go: leads({ partial: Partial }, (d) => d.click(byRole('button', 'Open'))) },
+  reads: { name: (r) => r.value(byLabel('Name')) },
+});
+
+test('an outcome showing without its parts is not reached, and the fragment that never left keeps its handle', async ({ page, app }) => {
+  await open(page);
+  await page.evaluate(() => {
+    document.getElementById('open')!.addEventListener('click', () => document.body.insertAdjacentHTML('beforeend', '<div data-testid="rx-partial">p</div>'));
+  });
+  const holder = await app.enter(Holder);
+  const failed = await holder.go().then(() => 'resolved', (error: Error) => error.message);
+  expect(failed).not.toContain('reached r3-partial');
+  expect(await holder.name()).toBe('');
+});
+
+test('a lead to a fragment already entered and still showing hands back its one handle', async ({ page, app }) => {
+  await open(page);
+  await addExtra(page);
+  const extra = await app.enter(Extra);
+  const form = await app.enter(ReloadForm);
+  const arrived = await form.leave.to('extra');
+  expect(arrived).toBe(extra);
+  expect(await extra.text()).toEqual(['x']);
+});
+
+test('a step that fails still lands in the journal', async ({ page, app }) => {
+  await open(page);
+  const form = await app.enter(ReloadForm);
+  await page.evaluate(() => (document.getElementById('open')!.onclick = null));
+  await form.open.to('cover').catch(() => {});
+  expect(app.journal.at(-1)).toMatchObject({ from: 'rx-form', action: 'open', failed: expect.stringContaining('rx-form.open declares cover') });
 });
