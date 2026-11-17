@@ -708,7 +708,8 @@ A boundary has no name of its own, so it is named by the component that wrote
 it — in a production build, which keeps no writer, the one it sits inside.
 Each boundary gets its own notes, and one that falls back again is told again.
 A boundary that never showed its fallback gets no note. Neither does one taken
-off the page while it was showing it. The boundaries are read at each commit
+off the page while it was showing it. A boundary out of sight, under a hidden
+`Activity`, is told when it comes into sight. The boundaries are read at each commit
 React makes, so a boundary whose fallback is empty is told too, and one that
 falls back and unlocks within one commit is not seen. React announces its
 commits only to a listener there before it loaded, which a setup file is.

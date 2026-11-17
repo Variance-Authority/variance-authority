@@ -198,11 +198,15 @@ export function boundariesUnder(node: Node): readonly SuspenseBoundary[] | null 
   return found;
 }
 
-/** Every Suspense boundary a `FiberRoot` holds, wherever its container sits. Internal to the package. */
+/**
+ * The Suspense boundaries a `FiberRoot` holds in sight, wherever its container
+ * sits: none under a hidden `Activity` or under a boundary's hidden content,
+ * whose Offscreen fiber keeps a state while it hides. Internal to the package.
+ */
 export function boundariesOfRoot(root: object): readonly SuspenseBoundary[] {
   const current = (root as { readonly current?: Fiber | null }).current;
   const found: SuspenseBoundary[] = [];
-  if (current) collectFrom(current, found);
+  if (current) collectFrom(current, found, (fiber) => fiber.tag === FiberTag.OffscreenComponent && fiber.memoizedState != null);
   return found;
 }
 
@@ -249,7 +253,7 @@ export function pendingSuspense(node: Node): readonly SuspenseBoundary[] {
  * with it. Bounded for the reason `fiber.ts` bounds its walks: a cyclic `child`
  * chain must fail the read, not hang the collector.
  */
-function collectFrom(root: Fiber, into: SuspenseBoundary[]): void {
+function collectFrom(root: Fiber, into: SuspenseBoundary[], hidden?: (fiber: Fiber) => boolean): void {
   const stack: { fiber: Fiber; boundaries: number }[] = [{ fiber: root, boundaries: 0 }];
   let visited = 0;
 
@@ -272,7 +276,7 @@ function collectFrom(root: Fiber, into: SuspenseBoundary[]): void {
     if (fiber.sibling && fiber !== root) {
       stack.push({ fiber: fiber.sibling, boundaries: entry.boundaries });
     }
-    if (fiber.child) stack.push({ fiber: fiber.child, boundaries });
+    if (fiber.child && hidden?.(fiber) !== true) stack.push({ fiber: fiber.child, boundaries });
   }
 }
 

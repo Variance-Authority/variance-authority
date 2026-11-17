@@ -8,7 +8,7 @@ import { watchSuspense } from './story-suspense.js';
 
 tapCommits();
 
-const { Suspense, act, createElement: h, use } = await import('react');
+const { Activity, Suspense, act, createElement: h, use } = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { flushSync } = await import('react-dom');
 
@@ -120,6 +120,20 @@ describe('what the Suspense boundaries on the page did, as they did it', () => {
     await cart.settle();
 
     expect(said).toEqual(['suspense Suspense shows its fallback', 'suspense Suspense unlocks']);
+  });
+
+  it('tells a boundary falling back out of sight only when it comes into sight', async () => {
+    const cart = deferred();
+    await render(h(Activity, { mode: 'hidden' }, h(Cart, { promise: cart.promise })));
+    said.push('tab opened');
+    await render(h(Activity, { mode: 'visible' }, h(Cart, { promise: cart.promise })));
+    await cart.settle();
+
+    expect(said).toEqual([
+      'tab opened',
+      'suspense Cart › Suspense shows its fallback',
+      'suspense Cart › Suspense unlocks',
+    ]);
   });
 
   it('tells nothing of a boundary that never fell back', async () => {
