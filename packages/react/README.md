@@ -251,10 +251,12 @@ export default defineConfig({
 In Jest the same entry goes in `setupFiles`. It reads the mark as a property
 and runs none of React's code.
 
-The same entry has each test line that opened or resolved a `Suspense`
-boundary say so — `suspense 1 opened, 1 still open: CheckoutPage › Suspense` —
-naming every boundary still showing its fallback by the component that wrote
-it, so a test that timed out waiting on data names the boundary it waited on.
+The same entry tells the story each time a `Suspense` boundary shows its
+fallback and each time it unlocks, as it happens —
+`suspense CheckoutPage › Suspense shows its fallback`, then
+`suspense CheckoutPage › Suspense unlocks` — naming the boundary by the
+component that wrote it. A test that timed out waiting on data shows the
+boundary that fell back and never unlocked.
 
 ## Where the source location comes from
 

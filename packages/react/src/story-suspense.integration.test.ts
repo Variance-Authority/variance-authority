@@ -52,19 +52,19 @@ afterEach(async () => {
 });
 
 describe('a story of a React tree that suspends', () => {
-  it('names the boundary a line left open, and the line its promise settled on', async () => {
+  it('tells the boundary showing its fallback on the line that rendered it, and unlocking on the line its promise settled on', async () => {
     const lines = said(await reading('waits on the cart', true)).filter((line) => !line.startsWith('handed ') && !line.startsWith('page '));
 
     expect(lines.slice(lines.indexOf('test line 13'))).toEqual([
       'test line 13',
-      'suspense 1 opened, 1 still open: CheckoutPage › Suspense',
+      'suspense CheckoutPage › Suspense shows its fallback',
       'test line 15',
-      'suspense 1 resolved',
+      'suspense CheckoutPage › Suspense unlocks',
       'test line 16',
     ]);
   }, 60_000);
 
-  it('lists the boundary still open on the side that threw, though both sides opened it', async () => {
+  it('tells the boundary unlocking only on the side that passed, though both sides saw it fall back', async () => {
     const entry = (path: string): StoryEntry => ({ path, file: '', name: 'shows the cart', visits: 0 });
     const passed = await Promise.all([reading('shows the cart', true), reading('shows the cart', true)]);
     const threw = await Promise.all([reading('shows the cart', false), reading('shows the cart', false)]);
@@ -74,11 +74,11 @@ describe('a story of a React tree that suspends', () => {
       { name: 'threw', readings: threw.map(entry) },
     ]);
 
-    // Both sides open the boundary on the render line, so that note is shared:
-    // what tells them apart is where it went next.
+    // Both sides see the boundary fall back on the render line, so that note is
+    // shared: what tells them apart is whether it unlocked.
     const suspense = (side: string): string[] =>
       (comparison.only.find(({ sides }) => sides.join() === side)?.said ?? []).filter((line) => line.startsWith('suspense '));
-    expect(suspense('threw')).toEqual(['suspense 1 still open at the end: CheckoutPage › Suspense']);
-    expect(suspense('passed')).toEqual(['suspense 1 resolved']);
+    expect(suspense('threw')).toEqual([]);
+    expect(suspense('passed')).toEqual(['suspense CheckoutPage › Suspense unlocks']);
   }, 60_000);
 });

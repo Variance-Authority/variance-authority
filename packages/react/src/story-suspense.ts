@@ -1,43 +1,44 @@
 import { boundariesUnder, boundaryId, type SuspenseBoundary } from './suspense.js';
 
 /**
- * What a story line did to the Suspense boundaries on the page.
+ * Tell `note` each time a Suspense boundary on `page` shows its fallback and
+ * each time it unlocks, as it happens, so a story places each where it fell:
+ * between the request that went out and the one that came back, before the
+ * click that waited for it.
  *
- * A line that leaves a boundary showing its fallback is where a case that
- * times out began to wait, and the boundary is named by the component that
- * wrote it — in a production build, which keeps no writer, the one it sits
- * inside. The case's last line also says which were still open when its body
- * settled, so readings that threw waiting differ from those that waited and
- * went on. A reader samples the page when each line ends, so a boundary that
- * opens and resolves within one line is not seen.
+ * A boundary is named by the component that wrote it — in a production build,
+ * which keeps no writer, the one it sits inside. React commits a boundary's
+ * change to the page, so the boundaries are read after each change to the page,
+ * and one that falls back and unlocks within one commit is not seen. A boundary
+ * taken off the page is told nothing more. Returns what stops the watch.
  */
-export function lineReader(): (line?: { last?: boolean }) => string | undefined {
-  // The boundaries open when the last line ended, by identity.
-  let open = new Set<number>();
-  return (line) => {
-    const page = (globalThis as { document?: Document }).document;
-    const boundaries = page === undefined ? [] : boundariesUnder(page) ?? [];
+export function watchSuspense(page: Node, note: (text: string) => void): () => void {
+  const Watch = (globalThis as { MutationObserver?: typeof MutationObserver }).MutationObserver;
+  if (typeof Watch !== 'function') return () => undefined;
+  // The boundaries showing their fallback when the page last changed, by identity.
+  let falling = new Set<number>();
+  const read = (): void => {
     const now = new Set<number>();
-    const still: string[] = [];
-    let opened = 0;
-    let resolved = 0;
-    for (const boundary of boundaries) {
+    for (const boundary of boundariesUnder(page) ?? []) {
       const id = boundaryId(boundary);
-      if (boundary.state === 'resolved') {
-        if (open.has(id)) resolved += 1;
-        continue;
+      if (boundary.state === 'pending') {
+        now.add(id);
+        if (!falling.has(id)) note(`suspense ${named(boundary)} shows its fallback`);
+      } else if (boundary.state === 'resolved' && falling.has(id)) {
+        note(`suspense ${named(boundary)} unlocks`);
       }
-      now.add(id);
-      still.push(named(boundary));
-      if (!open.has(id)) opened += 1;
     }
-    open = now;
-    const parts = [...(opened > 0 ? [`${opened} opened`] : []), ...(resolved > 0 ? [`${resolved} resolved`] : [])];
-    const last = line?.last === true && still.length > 0;
-    if (parts.length === 0 && !last) return undefined;
-    const listed = still.length > 0 ? `${still.length} still open${last ? ' at the end' : ''}: ${still.join('; ')}` : '';
-    return `suspense ${[...parts, ...(listed === '' ? [] : [listed])].join(', ')}`;
+    falling = now;
   };
+  const watch = new Watch(() => {
+    try {
+      read();
+    } catch {
+      // A page that cannot be read is not the story's failure.
+    }
+  });
+  watch.observe(page, { subtree: true, childList: true, attributes: true, characterData: true });
+  return () => watch.disconnect();
 }
 
 /** A boundary by the component that wrote it, for it has no name of its own. */

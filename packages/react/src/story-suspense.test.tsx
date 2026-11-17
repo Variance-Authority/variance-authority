@@ -2,14 +2,20 @@
 import { Suspense, act, createElement as h, use } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { lineReader } from './story-suspense.js';
+import { watchSuspense } from './story-suspense.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let container: HTMLDivElement;
 let root: Root;
 
+// What the story was told, in the order it was told: the watch's notes, and the test's own.
+let said: string[];
+let stop: () => void;
+
 beforeEach(() => {
+  said = [];
+  stop = watchSuspense(document, (text) => said.push(text));
   container = document.body.appendChild(document.createElement('div'));
   root = createRoot(container);
 });
@@ -17,6 +23,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  stop();
 });
 
 /** A promise the test settles by hand, so an open boundary is a state it holds. */
@@ -40,44 +47,69 @@ function Reviews({ promise }: { promise: Promise<string> }) {
 
 const render = (element: unknown): Promise<void> => act(async () => root.render(element as never));
 
-describe('what a line did to the Suspense boundaries on the page', () => {
-  it('names a boundary the line opened, the line its promise settled on, and nothing for a line between', async () => {
-    const line = lineReader();
+describe('what the Suspense boundaries on the page did, as they did it', () => {
+  it('tells a boundary showing its fallback and unlocking where each happened, between what else was told', async () => {
     const cart = deferred();
-    expect(line()).toBeUndefined();
-
+    said.push('page created');
     await render(h(Cart, { promise: cart.promise }));
-    expect(line()).toBe('suspense 1 opened, 1 still open: Cart › Suspense');
-    expect(line()).toBeUndefined();
-
+    said.push('GET /cart 200');
     await cart.settle();
-    expect(line()).toBe('suspense 1 resolved');
-    expect(line()).toBeUndefined();
+    said.push('clicked Pay');
+
+    expect(said).toEqual([
+      'page created',
+      'suspense Cart › Suspense shows its fallback',
+      'GET /cart 200',
+      'suspense Cart › Suspense unlocks',
+      'clicked Pay',
+    ]);
   });
 
-  it('counts each boundary, and names those still open in tree order', async () => {
-    const line = lineReader();
+  it('tells each boundary on its own, in the order they changed', async () => {
     const cart = deferred();
     const reviews = deferred();
-
     await render(h('main', null, h(Cart, { promise: cart.promise }), h(Reviews, { promise: reviews.promise })));
-    expect(line()).toBe('suspense 2 opened, 2 still open: Cart › Suspense; Reviews › Suspense');
-
+    await reviews.settle();
     await cart.settle();
-    expect(line()).toBe('suspense 1 resolved, 1 still open: Reviews › Suspense');
+
+    expect(said).toEqual([
+      'suspense Cart › Suspense shows its fallback',
+      'suspense Reviews › Suspense shows its fallback',
+      'suspense Reviews › Suspense unlocks',
+      'suspense Cart › Suspense unlocks',
+    ]);
   });
 
-  it('calls an open boundary that was taken off the page neither resolved nor open', async () => {
-    const line = lineReader();
-    await render(h(Cart, { promise: deferred().promise }));
-    line();
+  it('tells a boundary that falls back again each time it does', async () => {
+    const first = deferred();
+    await render(h(Cart, { promise: first.promise }));
+    await first.settle();
+    const second = deferred();
+    await render(h(Cart, { promise: second.promise }));
+    await second.settle();
 
+    expect(said).toEqual([
+      'suspense Cart › Suspense shows its fallback',
+      'suspense Cart › Suspense unlocks',
+      'suspense Cart › Suspense shows its fallback',
+      'suspense Cart › Suspense unlocks',
+    ]);
+  });
+
+  it('tells nothing of a boundary that never fell back', async () => {
+    await render(h(Suspense, { fallback: 'loading' }, h('span', null, 'ready')));
+
+    expect(said).toEqual([]);
+  });
+
+  it('calls a boundary taken off the page while falling back neither unlocked nor anything else', async () => {
+    await render(h(Cart, { promise: deferred().promise }));
     await render(null);
-    expect(line()).toBeUndefined();
+
+    expect(said).toEqual(['suspense Cart › Suspense shows its fallback']);
   });
 
   it('names a boundary by the component that wrote it, not the one it was handed to', async () => {
-    const line = lineReader();
     const cart = deferred();
     function Layout({ children }: { children: unknown }) {
       return h('section', null, children as never);
@@ -86,66 +118,39 @@ describe('what a line did to the Suspense boundaries on the page', () => {
       return h(Layout, null, h(Suspense, { fallback: 'loading' }, h(Late, { promise: cart.promise })));
     }
     await render(h(Page));
-    expect(line()).toBe('suspense 1 opened, 1 still open: Page › Suspense');
+
+    expect(said).toEqual(['suspense Page › Suspense shows its fallback']);
   });
 
-  it('calls a boundary swapped for one already showing its content neither resolved nor open', async () => {
-    const line = lineReader();
-    await render(h('main', null, h(Cart, { key: 'a', promise: deferred().promise })));
-    line();
-
-    const shown = deferred();
-    await shown.settle();
-    await render(h('main', null, h(Cart, { key: 'b', promise: shown.promise })));
-    expect(line()).toBeUndefined();
-  });
-
-  it('tells apart two boundaries of one writer, one resolving as the other opens', async () => {
-    const line = lineReader();
+  it('tells apart two boundaries of one writer, one unlocking as the other falls back', async () => {
     const first = deferred();
     await render(h('main', null, h(Cart, { key: 'a', promise: first.promise })));
-    line();
-
     await first.settle();
     await render(h('main', null, h(Cart, { key: 'a', promise: first.promise }), h(Cart, { key: 'b', promise: deferred().promise })));
-    expect(line()).toBe('suspense 1 opened, 1 resolved, 1 still open: Cart › Suspense');
-  });
 
-  it('says on the last line which boundaries were still open, though it changed none', async () => {
-    const line = lineReader();
-    await render(h(Cart, { promise: deferred().promise }));
-    line();
-
-    expect(line({ last: false })).toBeUndefined();
-    expect(line({ last: true })).toBe('suspense 1 still open at the end: Cart › Suspense');
-  });
-
-  it('says nothing on a last line with nothing open', async () => {
-    const line = lineReader();
-    const cart = deferred();
-    await render(h(Cart, { promise: cart.promise }));
-    line();
-    await cart.settle();
-
-    expect(line({ last: true })).toBe('suspense 1 resolved');
-    expect(line({ last: true })).toBeUndefined();
+    expect(said).toEqual([
+      'suspense Cart › Suspense shows its fallback',
+      'suspense Cart › Suspense unlocks',
+      'suspense Cart › Suspense shows its fallback',
+    ]);
   });
 
   it('reads a root mounted at the document itself', async () => {
-    const line = lineReader();
     const cart = deferred();
     const whole = createRoot(document);
     try {
       await act(async () => whole.render(h('html', null, h('body', null, h(Cart, { promise: cart.promise })))));
-      expect(line()).toBe('suspense 1 opened, 1 still open: Cart › Suspense');
       await cart.settle();
-      expect(line({ last: true })).toBe('suspense 1 resolved');
+      expect(said).toEqual(['suspense Cart › Suspense shows its fallback', 'suspense Cart › Suspense unlocks']);
     } finally {
       await act(async () => whole.unmount());
     }
   });
 
-  it('says nothing where nothing has suspended', () => {
-    expect(lineReader()()).toBeUndefined();
+  it('tells nothing once stopped', async () => {
+    stop();
+    await render(h(Cart, { promise: deferred().promise }));
+
+    expect(said).toEqual([]);
   });
 });

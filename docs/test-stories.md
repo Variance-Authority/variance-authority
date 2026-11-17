@@ -684,37 +684,36 @@ change. For the React commits behind it, use [Eyes](eyes.md), which writes each
 commit under its step with the components that rendered. A test run without a
 document has no `page` note.
 
-## Which Suspense boundary a line left open
+## When a Suspense boundary falls back and unlocks
 
 With `@variance-authority/react/story` from [React](../packages/react) in the
-suite's setup files, each test line that opened or resolved a React `Suspense`
-boundary says so, beside its `page` note:
+suite's setup files, the story tells each time a React `Suspense` boundary
+shows its fallback and each time it unlocks, at the moment it happens. Each
+note lands among the other notes of the line that was running, so the story
+reads in the order things happened:
 
 ```text
-suspense 1 opened, 1 still open: CheckoutPage › Suspense
-suspense 1 resolved
+test line 13
+suspense CheckoutPage › Suspense shows its fallback
+console.log cart arrived
+suspense CheckoutPage › Suspense unlocks
+test line 15
 ```
 
-A boundary is open while it shows its fallback. It has no name of its own, so
-it is named by the component that wrote it — in a production build, which
-keeps no writer, the one it sits inside — and every boundary still open when
-the line ended is listed, in tree order. The line whose promise settled says
-`resolved`. A line that changed no boundary says nothing, and so does one whose
-boundary opened and resolved before it ended: the boundaries are read as each
-test line ends, as the `page` note is. The test's last line also says which
-boundaries were still open when its body settled:
+A boundary has no name of its own, so it is named by the component that wrote
+it — in a production build, which keeps no writer, the one it sits inside.
+Each boundary gets its own notes, and one that falls back again is told again.
+A boundary that never showed its fallback gets no note. Neither does one taken
+off the page while it was showing it. The boundaries are read after each
+change to the page, so a boundary that falls back and unlocks within one React
+commit is not seen.
 
-```text
-suspense 1 still open at the end: CheckoutPage › Suspense
-```
-
-A test that times out waiting on data usually ends with a boundary open, and a
-reading that passed opened the same boundary and saw it resolve. When you
-[compare its readings](#compare-readings-of-one-test) with `--compare
-outcome`, `suspense 1 resolved` is listed under `only when it passed`, and the
-boundary still open at the end under `only when it threw`. The note reads a document the setup file loaded into, as under jsdom
-and the browser modes of Vitest and Rstest: the page a Playwright spec or a
-Storybook story drives has none.
+A test that times out waiting on data saw its boundary fall back and never
+unlock. When you [compare its readings](#compare-readings-of-one-test) with
+`--compare outcome` against a reading that passed, the boundary's `unlocks`
+note is listed under `only when it passed`. The notes read a document the setup
+file loaded into, as under jsdom and the browser modes of Vitest and Rstest:
+the page a Playwright spec or a Storybook story drives has none.
 
 ## What a story does not show
 
