@@ -109,6 +109,12 @@ journal is an unavailable surface.
 - It does not divide by the Fiber tree: hidden, lazy, unmounted, and
   never-observed branches do not form one honest denominator.
 
+Eyes reads a test run, not the product your users run. To find out why a
+component rendered, what a commit held, or which renders made an interaction
+slow in a running app, production builds included, use
+[Chippy](https://github.com/atlassian-labs/chippy): a React developer tool that
+shows a coding agent the live component tree, its source and its renders.
+
 ## Put it beside the test surface you already own
 
 Eyes has additive adapters for React Testing Library and Playwright. The RTL
