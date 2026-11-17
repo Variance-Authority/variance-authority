@@ -131,6 +131,20 @@ describe('what a line did to the Suspense boundaries on the page', () => {
     expect(line({ last: true })).toBeUndefined();
   });
 
+  it('reads a root mounted at the document itself', async () => {
+    const line = lineReader();
+    const cart = deferred();
+    const whole = createRoot(document);
+    try {
+      await act(async () => whole.render(h('html', null, h('body', null, h(Cart, { promise: cart.promise })))));
+      expect(line()).toBe('suspense 1 opened, 1 still open: Cart › Suspense');
+      await cart.settle();
+      expect(line({ last: true })).toBe('suspense 1 resolved');
+    } finally {
+      await act(async () => whole.unmount());
+    }
+  });
+
   it('says nothing where nothing has suspended', () => {
     expect(lineReader()()).toBeUndefined();
   });

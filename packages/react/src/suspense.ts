@@ -180,9 +180,10 @@ export function boundariesUnder(node: Node): readonly SuspenseBoundary[] | null 
 
   const roots: Fiber[] = [];
   // The node itself first, and `querySelectorAll` never returns it — which is
-  // exactly how case 2 above went missing.
-  if (node.nodeType === 1) {
-    const here = containerFiber(node as Element);
+  // exactly how case 2 above went missing. A document is one too:
+  // `createRoot(document)` and `hydrateRoot(document)` mount there.
+  if (node.nodeType === 1 || node.nodeType === 9) {
+    const here = containerFiber(node);
     if (here !== null) roots.push(here);
   }
   for (const container of findReactContainers(node as ParentNode)) {
