@@ -110,7 +110,8 @@ describe('what a test line did to the page', () => {
     const { window } = new JSDOM('<main></main>');
     let asked = 0;
     const answers = ['before', 'third', '', 'fifth', 'hooked', 'eighth'];
-    const realm = { console: { ...console }, document: window.document, MutationObserver: window.MutationObserver, [Symbol.for('variance-authority.story.line')]: [() => answers[asked++], 'not a reader', () => { throw new Error('cannot tell'); }] };
+    const lasts: unknown[] = [];
+    const realm = { console: { ...console }, document: window.document, MutationObserver: window.MutationObserver, [Symbol.for('variance-authority.story.line')]: [(line: { last: boolean }) => (lasts.push(line.last), answers[asked++]), 'not a reader', () => { throw new Error('cannot tell'); }] };
     listen(tap, realm);
 
     tap.root.c(3);
@@ -125,6 +126,8 @@ describe('what a test line did to the page', () => {
     // answer says nothing, and what it answers for a hook or before the first line is dropped.
     expect(tap.read().notes.map(([, , text]) => text)).toEqual(['third', 'fifth', 'eighth']);
     expect(asked).toBe(6);
+    // `last` where no test line follows: a hook's line opens, or the case settles.
+    expect(lasts).toEqual([false, false, false, true, false, true]);
   });
 
   it('starts no page watch in a realm with no document', () => {

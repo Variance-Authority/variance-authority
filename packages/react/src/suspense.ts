@@ -267,6 +267,25 @@ function collectFrom(root: Fiber, into: SuspenseBoundary[]): void {
   }
 }
 
+// Which boundary a description is of, for a reader comparing two reads: React
+// swaps a fiber with its alternate on every commit, so both carry one number.
+const fiberIds = new WeakMap<Fiber, number>();
+const boundaryIds = new WeakMap<SuspenseBoundary, number>();
+let lastId = 0;
+
+/** The boundary a description read, the same number on every read while it stays mounted. Internal to the package. */
+export function boundaryId(boundary: SuspenseBoundary): number | undefined {
+  return boundaryIds.get(boundary);
+}
+
+function idOf(fiber: Fiber): number {
+  const alternate = fiber.alternate ?? null;
+  const id = fiberIds.get(fiber) ?? (alternate === null ? undefined : fiberIds.get(alternate)) ?? (lastId += 1);
+  fiberIds.set(fiber, id);
+  if (alternate !== null) fiberIds.set(alternate, id);
+  return id;
+}
+
 function describe(fiber: Fiber, depth: number): SuspenseBoundary {
   const state = stateOf(fiber);
   const createdBy = debugOwnerName(fiber._debugOwner);
@@ -281,6 +300,7 @@ function describe(fiber: Fiber, depth: number): SuspenseBoundary {
 
   if (createdBy !== null) boundary.createdBy = createdBy;
   if (fiber.key !== null) boundary.key = fiber.key;
+  boundaryIds.set(boundary, idOf(fiber));
 
   return boundary;
 }

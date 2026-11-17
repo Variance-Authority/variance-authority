@@ -18,7 +18,9 @@ it('waits on the cart', async () => {
 
 it('shows the cart', async () => {
   const host = document.body.appendChild(document.createElement('div'));
-  const cart = process.env['CART_ARRIVES'] === '1' ? Promise.resolve('3 items') : new Promise<string>(() => {});
+  let arrive = (_: string): void => {};
+  const cart = new Promise<string>((resolve) => (arrive = resolve));
   await act(async () => createRoot(host).render(<CheckoutPage cart={cart} />));
+  if (process.env['CART_ARRIVES'] === '1') await act(async () => arrive('3 items'));
   expect(host.textContent).toContain('3 items');
 });

@@ -89,16 +89,46 @@ describe('what a line did to the Suspense boundaries on the page', () => {
     expect(line()).toBe('suspense 1 opened, 1 still open: Page › Suspense');
   });
 
-  it('calls a boundary taken off the page not resolved, though a twin already showed its content', async () => {
+  it('calls a boundary swapped for one already showing its content neither resolved nor open', async () => {
     const line = lineReader();
-    const shown = deferred();
-    await render(h('main', null, h(Cart, { key: 'a', promise: shown.promise })));
-    await shown.settle();
-    await render(h('main', null, h(Cart, { key: 'a', promise: shown.promise }), h(Cart, { key: 'b', promise: deferred().promise })));
+    await render(h('main', null, h(Cart, { key: 'a', promise: deferred().promise })));
     line();
 
-    await render(h('main', null, h(Cart, { key: 'a', promise: shown.promise })));
+    const shown = deferred();
+    await shown.settle();
+    await render(h('main', null, h(Cart, { key: 'b', promise: shown.promise })));
     expect(line()).toBeUndefined();
+  });
+
+  it('tells apart two boundaries of one writer, one resolving as the other opens', async () => {
+    const line = lineReader();
+    const first = deferred();
+    await render(h('main', null, h(Cart, { key: 'a', promise: first.promise })));
+    line();
+
+    await first.settle();
+    await render(h('main', null, h(Cart, { key: 'a', promise: first.promise }), h(Cart, { key: 'b', promise: deferred().promise })));
+    expect(line()).toBe('suspense 1 opened, 1 resolved, 1 still open: Cart › Suspense');
+  });
+
+  it('says on the last line which boundaries were still open, though it changed none', async () => {
+    const line = lineReader();
+    await render(h(Cart, { promise: deferred().promise }));
+    line();
+
+    expect(line({ last: false })).toBeUndefined();
+    expect(line({ last: true })).toBe('suspense 1 still open at the end: Cart › Suspense');
+  });
+
+  it('says nothing on a last line with nothing open', async () => {
+    const line = lineReader();
+    const cart = deferred();
+    await render(h(Cart, { promise: cart.promise }));
+    line();
+    await cart.settle();
+
+    expect(line({ last: true })).toBe('suspense 1 resolved');
+    expect(line({ last: true })).toBeUndefined();
   });
 
   it('says nothing where nothing has suspended', () => {

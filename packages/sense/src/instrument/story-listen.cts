@@ -44,19 +44,20 @@ type Realm = {
  * A hook's line and a case's settling close the watch until a test line opens.
  * Then each reader in the realm's `Symbol.for('variance-authority.story.line')`
  * array is asked, at every drain, what the line that ended did by its measure,
- * and a word it answers for a test line is that line's note.
+ * and a word it answers for a test line is that line's note. `last` tells it no
+ * test line follows, as when the case's body settled.
  * Self-contained: a page's tape puts its source on the page.
  */
 function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
   const LINE = Symbol.for('variance-authority.story.line');
   // Asked even when nothing is noted, so a reader's line starts where the last one ended.
-  const ask = (noting: boolean): void => {
+  const ask = (noting: boolean, last: boolean): void => {
     const readers = (global as { [LINE]?: unknown })[LINE];
     if (!Array.isArray(readers)) return;
     for (const reader of readers) {
       if (typeof reader !== 'function') continue;
       try {
-        const said: unknown = reader();
+        const said: unknown = reader({ last });
         if (noting && typeof said === 'string' && said !== '') tap.note(said);
       } catch {
         // A reader that cannot tell is not the story's failure.
@@ -103,7 +104,7 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
       held.tap.note(`page +${added} −${removed} nodes, ${attributes} ${attributes === 1 ? 'attribute' : 'attributes'}, ${text} text`);
     }
     held.counts = [0, 0, 0, 0];
-    ask(!held.quiet);
+    ask(!held.quiet, !opens);
     held.quiet = !opens;
     // Observed from the first test line on, which a runner whose lines run
     // outside the page opens at its drain: what came before is no line's.

@@ -699,14 +699,20 @@ A boundary is open while it shows its fallback. It has no name of its own, so
 it is named by the component that wrote it — in a production build, which
 keeps no writer, the one it sits inside — and every boundary still open when
 the line ended is listed, in tree order. The line whose promise settled says
-`resolved`. A line that changed no boundary says
-nothing, and so does one whose boundary opened and resolved before it ended:
-the boundaries are read as each test line ends, as the `page` note is.
+`resolved`. A line that changed no boundary says nothing, and so does one whose
+boundary opened and resolved before it ended: the boundaries are read as each
+test line ends, as the `page` note is. The test's last line also says which
+boundaries were still open when its body settled:
 
-A test that times out waiting on data usually ends with a boundary open. When
-you [compare its readings](#compare-readings-of-one-test) with `--compare
-outcome`, the note is listed under `only when it threw`, with the boundary it
-names. The note reads a document the setup file loaded into, as under jsdom
+```text
+suspense 1 still open at the end: CheckoutPage › Suspense
+```
+
+A test that times out waiting on data usually ends with a boundary open, and a
+reading that passed opened the same boundary and saw it resolve. When you
+[compare its readings](#compare-readings-of-one-test) with `--compare
+outcome`, `suspense 1 resolved` is listed under `only when it passed`, and the
+boundary still open at the end under `only when it threw`. The note reads a document the setup file loaded into, as under jsdom
 and the browser modes of Vitest and Rstest: the page a Playwright spec or a
 Storybook story drives has none.
 

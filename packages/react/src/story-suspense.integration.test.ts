@@ -64,7 +64,7 @@ describe('a story of a React tree that suspends', () => {
     ]);
   }, 60_000);
 
-  it('lists the boundary still open on the side that threw', async () => {
+  it('lists the boundary still open on the side that threw, though both sides opened it', async () => {
     const entry = (path: string): StoryEntry => ({ path, file: '', name: 'shows the cart', visits: 0 });
     const passed = await Promise.all([reading('shows the cart', true), reading('shows the cart', true)]);
     const threw = await Promise.all([reading('shows the cart', false), reading('shows the cart', false)]);
@@ -74,11 +74,11 @@ describe('a story of a React tree that suspends', () => {
       { name: 'threw', readings: threw.map(entry) },
     ]);
 
-    expect(comparison.only.find(({ sides }) => sides.join() === 'threw')?.said ?? []).toContain(
-      'suspense 1 opened, 1 still open: CheckoutPage › Suspense',
-    );
-    expect(comparison.only.flatMap(({ said: lines }) => lines).filter((line) => line.startsWith('suspense '))).toEqual([
-      'suspense 1 opened, 1 still open: CheckoutPage › Suspense',
-    ]);
+    // Both sides open the boundary on the render line, so that note is shared:
+    // what tells them apart is where it went next.
+    const suspense = (side: string): string[] =>
+      (comparison.only.find(({ sides }) => sides.join() === side)?.said ?? []).filter((line) => line.startsWith('suspense '));
+    expect(suspense('threw')).toEqual(['suspense 1 still open at the end: CheckoutPage › Suspense']);
+    expect(suspense('passed')).toEqual(['suspense 1 resolved']);
   }, 60_000);
 });
