@@ -253,7 +253,7 @@ and runs none of React's code.
 
 The same entry has each test line that opened or resolved a `Suspense`
 boundary say so — `suspense 1 opened, 1 still open: CheckoutPage › Suspense` —
-naming every boundary still showing its fallback by the components that wrote
+naming every boundary still showing its fallback by the component that wrote
 it, so a test that timed out waiting on data names the boundary it waited on.
 
 ## Where the source location comes from

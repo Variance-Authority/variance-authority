@@ -10,10 +10,12 @@
  * boundaries in its line array, which the tap asks as each line ends.
  */
 
-import { suspenseLine } from './story-suspense.js';
+import { lineReader } from './story-suspense.js';
 
 const KIND = Symbol.for('variance-authority.story.kind');
 const LINE = Symbol.for('variance-authority.story.line');
+// Where a realm keeps the one Suspense reader it was given, so a setup file evaluated per test file adds no second.
+const SUSPENSE = Symbol.for('variance-authority.react.story.suspense-line');
 
 /** The kind React marked `value` with, read without running any of its code. */
 export function reactKind(value: object): string | undefined {
@@ -23,8 +25,11 @@ export function reactKind(value: object): string | undefined {
   return kind?.startsWith('react.') ? kind : undefined;
 }
 
-const realm = globalThis as { [KIND]?: unknown[]; [LINE]?: unknown[] };
+const realm = globalThis as { [KIND]?: unknown[]; [LINE]?: unknown[]; [SUSPENSE]?: unknown };
 const namers = (realm[KIND] ??= []);
 if (!namers.includes(reactKind)) namers.push(reactKind);
-const readers = (realm[LINE] ??= []);
-if (!readers.includes(suspenseLine)) readers.push(suspenseLine);
+// TODO(#1448): a Playwright spec's page and a Storybook story's page import no setup file, so no reader is put there.
+if (realm[SUSPENSE] === undefined) {
+  realm[SUSPENSE] = lineReader();
+  (realm[LINE] ??= []).push(realm[SUSPENSE]);
+}

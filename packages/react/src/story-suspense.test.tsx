@@ -76,6 +76,31 @@ describe('what a line did to the Suspense boundaries on the page', () => {
     expect(line()).toBeUndefined();
   });
 
+  it('names a boundary by the component that wrote it, not the one it was handed to', async () => {
+    const line = lineReader();
+    const cart = deferred();
+    function Layout({ children }: { children: unknown }) {
+      return h('section', null, children as never);
+    }
+    function Page() {
+      return h(Layout, null, h(Suspense, { fallback: 'loading' }, h(Late, { promise: cart.promise })));
+    }
+    await render(h(Page));
+    expect(line()).toBe('suspense 1 opened, 1 still open: Page › Suspense');
+  });
+
+  it('calls a boundary taken off the page not resolved, though a twin already showed its content', async () => {
+    const line = lineReader();
+    const shown = deferred();
+    await render(h('main', null, h(Cart, { key: 'a', promise: shown.promise })));
+    await shown.settle();
+    await render(h('main', null, h(Cart, { key: 'a', promise: shown.promise }), h(Cart, { key: 'b', promise: deferred().promise })));
+    line();
+
+    await render(h('main', null, h(Cart, { key: 'a', promise: shown.promise })));
+    expect(line()).toBeUndefined();
+  });
+
   it('says nothing where nothing has suspended', () => {
     expect(lineReader()()).toBeUndefined();
   });

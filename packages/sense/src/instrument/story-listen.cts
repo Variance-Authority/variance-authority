@@ -64,14 +64,7 @@ function watchPage(tap: Pick<Tap, 'note' | 'drainWith'>, global: Realm): void {
     }
   };
   const { document, MutationObserver: Watch } = global;
-  if (document === undefined || typeof Watch !== 'function') {
-    let quiet = true;
-    tap.drainWith((opens) => {
-      ask(!quiet);
-      quiet = !opens;
-    });
-    return;
-  }
+  if (document === undefined || typeof Watch !== 'function') return;
   // Where a document keeps the one watch a story put on it.
   const PAGE = Symbol.for('variance-authority.story.page-watch');
   type Watching = {

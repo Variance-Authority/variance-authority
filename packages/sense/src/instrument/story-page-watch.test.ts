@@ -127,14 +127,6 @@ describe('what a test line did to the page', () => {
     expect(asked).toBe(6);
   });
 
-  it('asks the line readers in a realm with no document too', () => {
-    const tap = openTap();
-    listen(tap, { console: { ...console }, [Symbol.for('variance-authority.story.line')]: [() => 'sent 1'] });
-    tap.root.c(1);
-    tap.settle();
-    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['sent 1']);
-  });
-
   it('starts no page watch in a realm with no document', () => {
     const tap = openTap();
     listen(tap, { console: { ...console } });

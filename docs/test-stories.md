@@ -696,9 +696,10 @@ suspense 1 resolved
 ```
 
 A boundary is open while it shows its fallback. It has no name of its own, so
-it is named by the components that wrote it, outermost first, and every
-boundary still open when the line ended is listed, in tree order. The line
-whose promise settled says `resolved`. A line that changed no boundary says
+it is named by the component that wrote it — in a production build, which
+keeps no writer, the one it sits inside — and every boundary still open when
+the line ended is listed, in tree order. The line whose promise settled says
+`resolved`. A line that changed no boundary says
 nothing, and so does one whose boundary opened and resolved before it ended:
 the boundaries are read as each test line ends, as the `page` note is.
 
