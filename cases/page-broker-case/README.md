@@ -23,8 +23,8 @@ instead of on selectors and waits.
   it holds; a part another owner holds stays, and answers to that owner alone.
   Sharing a part with an open cover is not using the cover: the part waits
   beneath with the page, whichever owner came first.
-- Every step lands in a per-test **journal**, a failed one with why and no
-  edge walked; `fork(a, b)` prints where two walks part, edge by edge, outcome
+- Every step lands in a per-test **journal**, a failed or refused one with
+  why and no edge walked; `fork(a, b)` prints where two walks part, edge by edge, outcome
   included.
 - Between steps the broker **settles** on `aria-busy`, requests in flight and
   announced `@variance-authority/event` work. `BROKER_DROP=busy,network,events`
@@ -53,7 +53,8 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    share a probe are told apart at run time, where both arriving fails.
 3. **A fragment has one lifecycle, however it is reached.** Entering it again
    returns its one handle, covered or live, as does a lead to it while it is
-   live on the same document, and a part is one handle however
+   live on the same document, whole, its parts answering only to owners still
+   there, and a part is one handle however
    many owners use it, answering to all of them whichever came first, and to
    every owner between it and them, however deep; a part
    that stays, plainly or by a lead, needs every owner showing, and one gone

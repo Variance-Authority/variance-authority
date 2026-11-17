@@ -197,3 +197,42 @@ test('a step that fails still lands in the journal', async ({ page, app }) => {
   await form.open.to('cover').catch(() => {});
   expect(app.journal.at(-1)).toMatchObject({ from: 'rx-form', action: 'open', failed: expect.stringContaining('rx-form.open declares cover') });
 });
+
+// A lead to a fragment already live keeps it whole: the part it shares with what left answers to it alone.
+const Shared = fragment('sx-shared', { probe: byTestId('sx-shared'), actions: { ping: (d) => d.click(byRole('button', 'Ping')) } });
+const Kept = fragment('sx-kept', { probe: byTestId('sx-kept'), uses: { shared: Shared } });
+const Leaving = fragment('sx-leaving', {
+  probe: byTestId('sx-leaving'),
+  uses: { shared: Shared },
+  actions: { go: leads({ kept: Kept }, (d) => d.click(byRole('button', 'Go'))) },
+});
+const sharing = async (page: import('@playwright/test').Page) => {
+  await open(page);
+  await page.evaluate(() => {
+    document.body.insertAdjacentHTML(
+      'beforeend',
+      '<div data-testid="sx-leaving"><button type="button">Go</button></div><div data-testid="sx-kept">k</div><div data-testid="sx-shared"><button type="button">Ping</button></div>',
+    );
+    document.querySelector('[data-testid="sx-leaving"] button')!.addEventListener('click', () => document.querySelector('[data-testid="sx-leaving"]')!.remove());
+  });
+};
+
+for (const first of ['leaving', 'kept'] as const) {
+  test(`a lead to a fragment already live keeps its shared part, the one that left entered ${first === 'leaving' ? 'first' : 'second'}`, async ({ page, app }) => {
+    await sharing(page);
+    const before = first === 'leaving' ? await app.enter(Leaving) : undefined;
+    const kept = await app.enter(Kept);
+    const leaving = before ?? (await app.enter(Leaving));
+    const arrived = await leaving.go.to('kept');
+    expect(arrived).toBe(kept);
+    await expect(kept.shared.ping()).resolves.toBeDefined();
+  });
+}
+
+test('an action refused on a departed handle still lands in the journal', async ({ page, app }) => {
+  await sharing(page);
+  const leaving = await app.enter(Leaving);
+  await leaving.go.to('kept');
+  await expect(leaving.go()).rejects.toThrow('sx-leaving departed at sx-leaving.go');
+  expect(app.journal.at(-1)).toMatchObject({ from: 'sx-leaving', action: 'go', failed: expect.stringContaining('has nothing to act on') });
+});
