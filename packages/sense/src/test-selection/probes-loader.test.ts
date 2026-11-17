@@ -2,10 +2,12 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { parseSync } from 'oxc-parser';
-import { afterEach, describe, expect, it } from 'vitest';
+import { runInNewContext } from 'node:vm';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { decode } from './map-segments.js';
 import probesLoader, { type ProbesLoaderContext } from './probes-loader.js';
-import { executionCollectorSource } from './probes.js';
+import { EXECUTION_GLOBAL, TELLER_GLOBAL } from './execution-global.js';
+import { type ExecutionCollector, executionCollectorSource } from './probes.js';
 import { testSelectionRule, type ProbesLoaderOptions } from './probes-rule.js';
 import type { HandedMap } from './loader-probes.js';
 
@@ -30,6 +32,7 @@ function load(file: string, code: string, map: HandedMap, options: ProbesLoaderO
     callback: (error, text, given) => {
       handed = { error, code: text, map: given };
     },
+    async: () => context.callback,
   };
   probesLoader.call(context, code, map);
   return handed!;
@@ -90,6 +93,14 @@ describe('the probes loader', () => {
     const columns = decode((map as { mappings: string }).mappings)[1]!.map((segment) => segment.column);
     expect(lines[1]!.indexOf('var __vaL')).toBe(0);
     expect(columns).toEqual([0]);
+  });
+
+  it('asks for the collector with stories where its rule asked for them, so a cache keyed by the request keeps the two apart', async () => {
+    const root = await checkout();
+    await writeFile(resolve(root, 'client.js'), SOURCE, 'utf8');
+    const { code } = load(resolve(root, 'client.js'), SOURCE, { ...IDENTITY, mappings: 'AAAA;AACA;AACA' }, { root, stories: true });
+
+    expect(code).toMatch(/probes-loader\.js\?collector=presence&stories=1!.*probes-collector\.js/);
   });
 
   it('ends an `.mjs` file with an import of the collector even where its text reads as a script, since it has no `require`', async () => {
@@ -216,4 +227,36 @@ describe('the rule', () => {
     expect(testSelectionRule({ include: () => true }).exclude).toBeUndefined();
   });
 
+});
+
+describe('the collector the probes loader serves a build asked for stories', async () => {
+  /** Built, as `journey-story.test.ts` reads it: what tells the stories `require`s the tap by the names the build gives it. */
+  const built = (await import('../../dist/test-selection/probes-loader.js')).default as typeof probesLoader;
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('is asked for it by a rule made under `VARIANCE_AUTHORITY_STORY=1`, in the query that names the collector', () => {
+    vi.stubEnv('VARIANCE_AUTHORITY_STORY', '1');
+    const options = testSelectionRule().use[0].options;
+    expect(options.stories).toBe(true);
+    vi.unstubAllEnvs();
+    expect(testSelectionRule().use[0].options.stories).toBeUndefined();
+  });
+
+  it('tapes a page and tells its executions when the query asks for stories, answering once it has loaded what tells them', async () => {
+    const code = await new Promise<string | undefined>((answer, refuse) => {
+      const context: ProbesLoaderContext = {
+        resourcePath: '/anywhere/probes-collector.js',
+        getOptions: () => ({ collector: 'presence', stories: '1' }),
+        callback: () => refuse(new Error('answered before it loaded what tells the stories')),
+        async: () => (error, text) => (error === null ? answer(text) : refuse(error)),
+      };
+      built.call(context, 'export {};\n');
+    });
+    const realm: Record<string, unknown> = { document: {}, console: { log: () => {} }, TextEncoder, btoa };
+    runInNewContext(code!, realm);
+    expect((realm[EXECUTION_GLOBAL] as ExecutionCollector).drain().story).toMatchObject({ visits: 0, notes: [] });
+    expect(realm[TELLER_GLOBAL]).toMatchObject({ tell: expect.any(Function) });
+  });
 });

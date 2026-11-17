@@ -151,7 +151,8 @@
     "@variance-authority/wire": "workspace:^",
     "oxc-parser": "^0.157.0",
     "oxc-resolver": "^11.24.2",
-    "picomatch": "^4.0.7"
+    "picomatch": "^4.0.7",
+    "tinyglobby": "^0.2.17"
   },
   "optionalDependencies": {
     "@variance-authority/sense-darwin-arm64": "workspace:*",

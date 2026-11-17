@@ -984,7 +984,7 @@ export default defineConfig(withTestSelection({
 ```
 
 The second argument accepts `root`, `suite`, `coverageFile`, `include`,
-`unprobed`, `preconditions`, `mode`, `placement`, `continuations`, and `cadence`, with the meanings above. Rstest
+`unprobed`, `preconditions`, `mode`, `placement`, `continuations`, `cadence`, and `selection`, with the meanings above. Rstest
 does not report which config file it loaded, so name it in `preconditions`. The
 regions are cut from the text you wrote, so the lines a record carries are the
 ones you edited, and a second loader at `enforce: 'post'` writes the probes into
@@ -1014,6 +1014,17 @@ from, so its tests run and the run fails when they end, and `rstest merge-report
 fails the same way, for an entry a merged test rests on. Neither writes a record
 without that entry. A project named by a path and not wrapped itself records no
 coverage: wrap it to have its tests recorded.
+
+`VARIANCE_AUTHORITY_SINCE` and `VARIANCE_AUTHORITY_AT_DISTANCE` read as in
+[Let the runner skip them](#let-the-runner-skip-them): the wrap adds the files
+the selection skips to the project's `exclude` before Rstest plans its entries,
+and stderr shows the same `selected` line first. A selection that keeps no file
+runs none and passes. Under `projects`, each wrapped project selects from its
+own files and prints its own line. The variables read there read the same way;
+`--shard` divides the kept files as Rstest divides any, not by recorded time,
+and watch mode does not select. A kept file runs whole, so
+`VARIANCE_AUTHORITY_GRAIN=case` fails the run rather than run more than it
+asked for.
 
 A `--reporter` on the command line replaces the seam's reporter, which is the
 one that refuses and records. Such a run, and such a `rstest merge-reports`,
@@ -1401,7 +1412,12 @@ each execution it reports there, and the account carries its story: the steps
 it took and the arguments each function was handed, which `variance ask ran
 --story` prints. It shows no local or module variable. Concurrent requests are
 taped apart, by the journey each runs under. Without the variable nothing is
-taped.
+taped. A page that calls `reportPage` tells its story the same way when its
+build ran with the variable: the build plugin reads it and serves the
+collector with the page's tape, and each execution is told, with the page's
+own notes, once the page runs nothing more for it or leaves. The webpack and Rspack
+rule carries the variable to its loader as the option `stories`, read as the
+rule is made, so a bundler's cache keeps the two collectors apart.
 
 A journey's scope ends when what the body returned *settles*, not when the body
 returns, which is the only arrangement under which the code after an `await` is

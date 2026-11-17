@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import type { InstrumentMode } from '../instrument/index.js';
 import type { ProbePlacement } from './instrumented-modules.js';
 import { repositoryRoot } from './repository-root.js';
+import { storiesAsked } from '../story/asked.js';
 
 /**
  * What `testSelectionRule` takes: where names start, which modules are yours,
@@ -56,6 +57,12 @@ export interface ProbesLoaderOptions {
    */
   readonly include?: 'rule';
   readonly placement?: ProbePlacement;
+  /**
+   * Set where the rule was made under `VARIANCE_AUTHORITY_STORY=1`: the collector is
+   * then served with the page's tape and teller. An option, not the loader's own
+   * read of the variable, so a bundler's cache keys it.
+   */
+  readonly stories?: true;
 }
 
 /** A rule for `module.rules`, in the shape Rspack and webpack both read. */
@@ -106,6 +113,7 @@ export function testSelectionRule(options: TestSelectionRuleOptions = {}): TestS
     ...(options.mode === undefined ? {} : { mode: options.mode }),
     ...(options.include === undefined ? {} : { include: 'rule' as const }),
     ...(options.placement === undefined ? {} : { placement: options.placement }),
+    ...(storiesAsked() ? { stories: true as const } : {}),
   };
   const enforce = options.placement === 'before-transforms' ? 'pre' : 'post';
   const test = /\.[cm]?[jt]sx?$/;

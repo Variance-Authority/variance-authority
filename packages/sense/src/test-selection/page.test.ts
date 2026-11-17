@@ -1,6 +1,6 @@
 import { JOURNEY_COOKIE, RETURN_COOKIE } from '@variance-authority/wire';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DRIVEN_GLOBAL, EXECUTION_GLOBAL } from './execution-global.js';
+import { DRIVEN_GLOBAL, EXECUTION_GLOBAL, TELLER_GLOBAL } from './execution-global.js';
 import { reportPage } from './page.js';
 
 const WATCHER = 'http://127.0.0.1:4000';
@@ -215,5 +215,92 @@ describe('a page that cannot be reported from', () => {
     expect(() => reportPage(WATCHER)).not.toThrow();
     expect(page.put).toEqual([]);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('a page built to tell its story', () => {
+  /** A teller that tells each time it is asked, as `told <execution>` or `ended <execution>`, and records what it was asked. */
+  function teller() {
+    const asked: [string, boolean, number | undefined][] = [];
+    vi.stubGlobal(TELLER_GLOBAL, {
+      telling: false,
+      tell: (journey: string, ended: boolean, room?: number) => {
+        asked.push([journey, ended, room]);
+        return `${ended ? 'ended' : 'told'} ${journey}`;
+      },
+    });
+    return asked;
+  }
+
+  /** Each account sent, as `[execution, scope, modules, story]`. */
+  const accounts = (page: ReturnType<typeof standIn>) =>
+    page.sent.mock.calls
+      .map(([url, init]) => [url.split('/')[3], JSON.parse(init.body) as { scope: string; story?: string; modules: unknown[] }] as const)
+      .map(([journey, account]) => [journey, account.scope, account.modules.length, account.story]);
+
+  it('sends what an execution ran, then its story on an account of its own, when a click ends it and as the page leaves', () => {
+    const page = standIn({ beacon: () => false });
+    const asked = teller();
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [RAN] }) });
+    reportPage(WATCHER);
+    const loaded = page.jar.get(JOURNEY_COOKIE);
+    page.on.get('click')!();
+    const clicked = page.jar.get(JOURNEY_COOKIE);
+    page.on.get('pagehide')!();
+
+    expect(accounts(page)).toEqual([
+      [loaded, 'journey', 1, undefined],
+      [loaded, 'journey', 0, `ended ${loaded}`],
+      [clicked, 'journey', 1, undefined],
+      [clicked, 'journey', 0, `ended ${clicked}`],
+    ]);
+    // A click may take the page away, so an ended story is no longer than a beacon carries, with room for its account.
+    const room = asked[0]![2]!;
+    expect(room).toBeLessThan(64 << 10);
+    expect(asked).toEqual([
+      [loaded, true, room],
+      [clicked, true, room],
+    ]);
+  });
+
+  it('asks the teller at each beat whether the execution has gone quiet, and sends a story even where nothing more ran', () => {
+    const page = standIn({ beacon: () => false });
+    const asked = teller();
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [] }) });
+    reportPage(WATCHER);
+    const loaded = page.jar.get(JOURNEY_COOKIE);
+    vi.advanceTimersByTime(500);
+
+    expect(asked).toEqual([[loaded, false, undefined]]);
+    expect(accounts(page)).toEqual([[loaded, 'journey', 0, `told ${loaded}`]]);
+  });
+
+  it('has the teller keep what ran while it reports, and hands it to a driver that claims the page', () => {
+    standIn({ beacon: () => true });
+    teller();
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [] }) });
+    const told = globalThis as unknown as Record<string, { telling: boolean }>;
+    reportPage(WATCHER);
+    expect(told[TELLER_GLOBAL]!.telling).toBe(true);
+
+    vi.stubGlobal(DRIVEN_GLOBAL, true);
+    vi.advanceTimersByTime(500);
+
+    expect(told[TELLER_GLOBAL]!.telling).toBe(false);
+  });
+
+  it('tells nothing where no teller was built in, and sends what it ran as before', () => {
+    const page = standIn({ beacon: () => false });
+    vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [RAN] }) });
+    reportPage(WATCHER);
+    const loaded = page.jar.get(JOURNEY_COOKIE);
+    page.on.get('click')!();
+    const clicked = page.jar.get(JOURNEY_COOKIE);
+    page.on.get('pagehide')!();
+
+    expect(accounts(page)).toEqual([
+      [loaded, 'journey', 1, undefined],
+      [clicked, 'journey', 1, undefined],
+    ]);
   });
 });

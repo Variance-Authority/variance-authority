@@ -8,7 +8,7 @@ import { chromium, type Browser, type Page } from '@playwright/test';
 import { claimPageSource, drainExecution, executionCollectorSource, testSelectionProbes } from '@variance-authority/sense/journal';
 import { collectJourneys } from '@variance-authority/sense/journey';
 import { attachVantage, type AttachedVantage } from '@variance-authority/vantage/attach';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
 
@@ -91,6 +91,8 @@ let server: Server | undefined;
 let browser: Browser | undefined;
 let page: Page | undefined;
 let port = 0;
+/** The documents the server answers, by path: a later case adds its own, reached by a link. */
+const pages: Record<string, string> = {};
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'variance-ran-page-'));
@@ -137,7 +139,7 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
       '<button id="early">early</button>' +
       '<button id="ask" onclick="__shop_ask()">ask</button>' +
       '<form id="order" onsubmit="event.preventDefault(); __shop_ask()"><button id="buy" onclick="__shop_pick()">buy</button></form>' +
-      '<a id="next" href="/next" onclick="__shop_pick()">next</a> <a id="wide" href="/wide">wide</a>' +
+      '<a id="next" href="/next" onclick="__shop_pick()">next</a> <a id="wide" href="/wide">wide</a> <a id="cart" href="/cart">cart</a>' +
       '<p id="out"></p></body></html>';
     await mkdir(join(root, 'wide'));
     const modules = Array.from({ length: WIDE }, (_, module) => [`wide/module-${module}.js`, wideSource(module)] as const);
@@ -147,7 +149,7 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
       // Each in a scope of its own, as a module has: a probed file declares what it reports through.
       modules.map(([name, source]) => `<script>(() => {${probed(root, name, source)}\n})();</script>`).join('') +
       '</head><body><a id="away" href="/plain">away</a></body></html>';
-    const pages: Record<string, string> = { '/': shop, '/wide': wide, '/plain': '<!doctype html><title>plain</title><a id="home" href="/">home</a>' };
+    Object.assign(pages, { '/': shop, '/wide': wide, '/plain': '<!doctype html><title>plain</title><a id="home" href="/">home</a>' });
 
     /** The execution each request to a handler arrived under, in the order they arrived. */
     const asked: string[] = [];
@@ -263,6 +265,51 @@ chromium_('a page with `reportPage` mounted, used by hand', () => {
     await page.waitForURL('**/plain');
     expect(await journeyOf()).toBe('');
   }, 120_000);
+
+  it('tells a click\'s story under `VARIANCE_AUTHORITY_STORY`, as a server head does', async () => {
+    const watcher = vantage!.address;
+    const CART_SOURCE = [
+      'globalThis.__cart_add = function add(item) {',
+      "  console.log('adding ' + item);",
+      "  document.querySelector('#out').textContent = item;",
+      '};',
+    ].join('\n');
+    await writeFile(join(root, 'cart.js'), CART_SOURCE, 'utf8');
+    // The collector a build serves when it was asked for stories, as the build plugin loads it.
+    vi.stubEnv('VARIANCE_AUTHORITY_STORY', '1');
+    const probes = testSelectionProbes({ root, label: 'build' });
+    const collector = await probes.load(probes.resolveId('variance-authority:execution-collector')!);
+    vi.unstubAllEnvs();
+    pages['/cart'] =
+      '<!doctype html><html><head><script type="importmap">{"imports":{"@variance-authority/wire":"/wire.js","@variance-authority/sense/page":"/sense/' +
+      `${basename(MOUNTED)}"}}</script>` +
+      `<script>${typeof collector === 'string' ? collector : collector!.code}</script>` +
+      '<script type="module">import { reportPage } from "@variance-authority/sense/page";' +
+      `reportPage(${JSON.stringify(watcher)});</script><script>${probed(root, 'cart.js', CART_SOURCE)}</script></head><body>` +
+      '<button id="add" onclick="__cart_add(\'socks\')">add</button><a id="home" href="/">home</a><p id="out"></p></body></html>';
+    const journeyOf = async (): Promise<string> =>
+      /variance-authority-journey=([^;]+)/.exec(await page!.evaluate(() => document.cookie))?.[1] ?? '';
+
+    await page!.click('#home');
+    await page!.click('#cart');
+    await page!.waitForURL('**/cart');
+    await expect.poll(journeyOf).not.toBe('');
+    await page!.click('#add');
+    await expect.poll(() => page!.textContent('#out')).toBe('socks');
+    const click = await journeyOf();
+    process.chdir(root);
+    const story = async (): Promise<string> => {
+      let out = '';
+      await main(['ask', 'ran', '--at', watcher, '--story'], { out: (text) => { out += text; }, err: () => {} });
+      // The click's own block, and nothing listed after it.
+      return out.includes(click) ? out.slice(out.indexOf(click)).split('\n\n')[0]! : '';
+    };
+    // Told once the page has run nothing more for the click.
+    await expect.poll(story, { timeout: 10_000 }).toContain('console.log adding socks');
+    const out = await story();
+    expect(out).toContain('add  cart.js:1-4');
+    expect(out).toContain("handed item='socks'");
+  }, 60_000);
 
   it('yields the page and all its collector holds to a test that drives it, come late or before the page', async () => {
     const journeyOf = async (): Promise<string> =>

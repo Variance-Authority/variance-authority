@@ -297,4 +297,6 @@ export const REQUIRED_WITHOUT_IMPORT: Readonly<Record<string, readonly string[]>
   // Storybook's React renderer resolves this itself; no story file imports it.
   '@variance-authority/case-playwright-storybook': ['react-dom'],
   '@variance-authority/case-storybook': ['react-dom'],
+  // The shop serves the event module's built file to the page by path; nothing imports it.
+  '@variance-authority/case-page-broker': ['@variance-authority/event'],
 };

@@ -43,7 +43,8 @@ it('loads in a realm with no host globals, as a jsdom suite\'s is, though no sto
   const path = require.resolve('../../dist/instrument/story-parts.cjs');
   const module = { exports: {} as Partial<typeof storyParts> };
   // Only what ECMAScript itself gives: no `TextEncoder`, no `Buffer`.
-  runInNewContext(`(function (module, exports, require) {${readFileSync(path, 'utf8')}\n})`)(module, module.exports, require);
+  // Its neighbours are required beside it, as Node would: the encoder it reads is as bare.
+  runInNewContext(`(function (module, exports, require) {${readFileSync(path, 'utf8')}\n})`)(module, module.exports, createRequire(path));
 
   expect(module.exports.PART_LIMIT).toBe(storyParts.PART_LIMIT);
 });

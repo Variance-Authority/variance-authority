@@ -16,10 +16,13 @@ drawn at the finest level that fits a page and read a part at a time.
 
 In: every probe hit in one realm, in the order it happened, while a run asks for
 stories; which case was open at each hit, and which test line, a hook's marked;
-what each test line changed on the realm's document; what a package's setup
+what each test line changed on the realm's document;
+under Playwright, the requests each test line sent and what came back on it;
+what a package's setup
 file tells the realm's note channel as it happens, without importing sense;
 from a page, each drain's tape, which the runner names with the case and the
-line it was drained under; and, to name what was visited, the region inventory
+line it was drained under, or, from a page under Vantage, each execution's
+part as `reportPage` names it; and, to name what was visited, the region inventory
 the record beside it holds; and the lines a setup file says through the story's
 note channel, such as the React story setup's one line per component a commit
 rendered and why. Out: one **story** per case,
@@ -89,13 +92,20 @@ by guess.
   the assembler that lays one case's page drains end to end as one story
 - `packages/sense/src/story/page-story.ts` — one page drain's tape, as the page
   hands it over
+- `packages/sense/src/story/page-told.ts` — a page under Vantage, built with
+  the story switch, taping as a live head does and telling each execution's
+  story to `reportPage`
 - `packages/sense/src/test-selection/carried-stories.ts` — the hooks that leave
   a page case's tape on its result's `meta`, and the writer both page runners
   call with the names the result gives the case
 - `packages/playwright-test/src/documents.ts` — the recorder's document drain
   a Playwright case's story rides: every context it opens taped, and drained
   under the spec line each statement is on
+- `packages/playwright-test/src/requests.ts` — what a Playwright case's
+  contexts sent and got back, told at the end of each spec line
 - `packages/sense/src/story/format.cts` — one case's story on disk
+- `packages/sense/src/story/story-bytes.cts` — a story's bytes, written with
+  nothing but the language, so a page writes them as Node does
 - `packages/sense/src/story/directory.ts` — the variable that asks for stories,
   and where they sit beside each record
 - `packages/sense/src/story/read.ts` — a story named through the record beside
