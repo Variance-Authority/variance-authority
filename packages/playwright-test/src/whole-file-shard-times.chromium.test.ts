@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { BROWSER_AVAILABLE, passing, removeRuns } from './sharded-files.fixture.js';
+import { BROWSER_AVAILABLE, removeRuns } from './runs.fixture.js';
+import { passing } from './sharded-files.fixture.js';
 
 // Three spec files of three tests each under `fullyParallel`, and `three` is
 // the slow file: once a run has recorded it, it outweighs the other two

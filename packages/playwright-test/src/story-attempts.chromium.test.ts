@@ -2,7 +2,8 @@ import { readdir, readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { caseIndexOf, decodeExecutionIndex, recordedAttemptsAt } from '@variance-authority/sense/test-selection';
 import { afterAll, describe, expect, it } from 'vitest';
-import { at, BROWSER_AVAILABLE, fixture, removeRuns, runWith, stories } from './story.fixture.js';
+import { BROWSER_AVAILABLE, removeRuns } from './runs.fixture.js';
+import { at, fixture, runWith, stories } from './story.fixture.js';
 
 // A real Playwright run over a case that fails its first attempt and passes its
 // second, recorded through `withTestSelection`. The story of a case that ran

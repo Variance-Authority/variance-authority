@@ -16,6 +16,13 @@ const BROWSER_AVAILABLE = ((): boolean => {
   }
 })();
 
+if (!BROWSER_AVAILABLE) {
+  console.warn(
+    '\npackages/route-collector (late font): skipped.' +
+      '\n  no browser — npx playwright install chromium\n',
+  );
+}
+
 /**
  * A web font the page asks for after `load`, served by a route that never answers.
  *

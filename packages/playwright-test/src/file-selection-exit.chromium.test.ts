@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
-import { BROWSER_AVAILABLE, named, removeRuns, run } from './sharded-files.fixture.js';
+import { BROWSER_AVAILABLE, removeRuns } from './runs.fixture.js';
+import { named, run } from './sharded-files.fixture.js';
 
 // Three spec files of three tests each, run through `withTestSelection` with a
 // selection handed in by `FIXTURE_SKIP` or refused by `FIXTURE_REFUSE`, and

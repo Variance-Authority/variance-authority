@@ -7,7 +7,8 @@ import { afterAll, describe, expect, it } from 'vitest';
 // A case's lines are read by sense's selection, which publishes no reader of
 // them, so this reads them the way it does.
 import { lineAt, linesOf } from '../../sense/src/test-selection/case-lines.js';
-import { at, BROWSER_AVAILABLE, fixture, removeRuns, runWith, stories, type Story } from './story.fixture.js';
+import { BROWSER_AVAILABLE, removeRuns } from './runs.fixture.js';
+import { at, fixture, runWith, stories, type Story } from './story.fixture.js';
 
 // A real Playwright run over a page an instrumented build serves, recorded
 // through `withTestSelection` with `VARIANCE_AUTHORITY_STORY=1`. What a retried

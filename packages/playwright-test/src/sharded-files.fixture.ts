@@ -1,11 +1,9 @@
 import { execFile } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import { copyFile, mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { copyFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { chromium } from '@playwright/test';
+import { runDirectory } from './runs.fixture.js';
 
 // What the tests of a selected or sharded Playwright run drive: three spec files
 // of three tests each under `fullyParallel`, recorded through
@@ -14,23 +12,9 @@ import { chromium } from '@playwright/test';
 const here = dirname(fileURLToPath(import.meta.url));
 const repository = resolve(here, '../../..');
 const fixture = resolve(here, '../test/fixtures/sharded-files');
-const directories: string[] = [];
 
 /** A spec file of the fixture, by the path the record names it with. */
 export const named = (file: string) => `packages/playwright-test/test/fixtures/sharded-files/tests/${file}`;
-
-export const BROWSER_AVAILABLE = ((): boolean => {
-  try {
-    return existsSync(chromium.executablePath());
-  } catch {
-    return false;
-  }
-})();
-
-/** Removes every directory a run recorded into. */
-export async function removeRuns(): Promise<void> {
-  await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
-}
 
 export interface Run {
   /** Each file the line reporter says ran. */
@@ -51,8 +35,7 @@ export async function run(
   args: readonly string[],
   { env = {}, recorded }: { readonly env?: Readonly<Record<string, string>>; readonly recorded?: string } = {},
 ): Promise<Run> {
-  const directory = await mkdtemp(resolve(tmpdir(), 'variance-authority-playwright-sharded-'));
-  directories.push(directory);
+  const directory = await runDirectory('variance-authority-playwright-sharded-');
   const coverageFile = resolve(directory, 'coverage.bin');
   if (recorded !== undefined) await copyFile(recorded, coverageFile);
   const done = await promisify(execFile)(

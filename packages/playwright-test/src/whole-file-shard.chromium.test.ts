@@ -2,7 +2,8 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { decodeExecutionIndex } from '@variance-authority/sense/test-selection';
 import { afterAll, describe, expect, it } from 'vitest';
-import { BROWSER_AVAILABLE, passing, removeRuns } from './sharded-files.fixture.js';
+import { BROWSER_AVAILABLE, removeRuns } from './runs.fixture.js';
+import { passing } from './sharded-files.fixture.js';
 
 // Three spec files of three tests each under `fullyParallel`. With nothing
 // recorded before the run, every file is priced the same and placed in
