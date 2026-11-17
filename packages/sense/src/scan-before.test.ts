@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { scanRelations } from './test-support/scan.js';
+import { publishedSelectionQuestions } from './published-selection.js';
+import { updateSourceIndex } from './published.js';
 
 /**
  * Seeding the harness, which lives where no component scan would look.
@@ -68,4 +69,16 @@ async function write(root: string, path: string, contents: string): Promise<void
   const file = join(root, path);
   await mkdir(dirname(file), { recursive: true });
   await writeFile(file, `${contents}\n`, 'utf8');
+}
+
+/** The retained native graph's source rows, projected only for these assertions. */
+async function scanRelations(options: { root: string; dirs: readonly string[]; before?: readonly string[] }) {
+  const index = join(options.root, '.cache', 'before-index.bin');
+  await updateSourceIndex(options.root, { index });
+  const graph = await publishedSelectionQuestions(options.root, { ...options, index, raw: true });
+  const nodes = graph.lookup(graph.sourceFiles().map((name) => ({ kind: 'file', name }))).filter((node) => node != null);
+  const rows = graph.rows(nodes.map((node) => node.id), false);
+  return nodes.map((node, at) => ({ file: node.name, ...(node.unknown == null ? {} : { unknown: node.unknown }),
+    edges: rows[at]!.edges.filter((edge) => edge.to.kind === 'file').map((edge) => ({ to: edge.to.name, kind: edge.kind })),
+  }));
 }
