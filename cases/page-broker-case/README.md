@@ -33,10 +33,13 @@ Four rules keep the model honest, each pinned in `src/spec/`:
 1. **An arrival is witnessed from both ends.** A leaving outcome needs its
    owner gone, `over` needs the owner still showing, and `back` needs the
    cover itself gone, not only what uses it; a cover is what the action
-   opened, so one already entered, or showing before it, does not arrive. An outcome that shows beside its owner without `over` is an
-   error that names the fix.
+   opened, so one already entered, or showing before it, does not arrive, and
+   the acting fragment or an owner arrives again only on a new document: one
+   that never left stays. An outcome that shows beside its owner without
+   `over` is an error that names the fix.
 2. **An arrival is unambiguous.** Two declared outcomes showing at once, each
-   with every part, fail; one whose probe shows without its parts is not there;
+   with every part, fail; one whose probe shows without its parts is not there,
+   and loses to any other answer, a declared stay included;
    the order of the declaration never decides. Ambiguity a declaration holds
    already is refused where it is written: two outcomes of one action that
    land alike, or two fragments under one name.
@@ -48,8 +51,10 @@ Four rules keep the model honest, each pinned in `src/spec/`:
    is the page left; and a navigation the broker did not take departs every
    handle on the old document, with a request or without one, as to
    `about:blank`, where a history push or a hash change keeps
-   the document and its handles, a broker started on a page already loaded
-   included.
+   the document and its handles, even while another document is loading, a
+   broker started on a page already loaded included. A staying action that
+   loads a new document keeps its own handle and departs every other at
+   itself.
 4. **The declared edges are the app's test interface.** `edges(roots)` lists
    them, `walked(edges, journals)` counts which the tests took, and the
    `edges-reporter` prints both after a run, unwalked edges at zero.

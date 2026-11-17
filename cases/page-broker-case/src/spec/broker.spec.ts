@@ -2,7 +2,7 @@
 // time: every wait is the broker's settle, fed by what the app says it is doing.
 // Each case navigates on purpose: the broker senses where a walk arrives across
 // page loads, so a page switched in place would not exercise it.
-import { byRole, fragment } from '../broker/broker.js';
+import { byRole, fragment, stays } from '../broker/broker.js';
 import { fork } from '../broker/journal.js';
 import { expect, test } from '../fixture.js';
 import { Billing, Header, Product } from '../shop.js';
@@ -236,4 +236,25 @@ test('a broker started on a loaded page keeps its handles through a history push
   await page.evaluate(() => history.pushState({}, '', '/checkout?user=member&step=2'));
   await form.street('Rokin 2');
   expect(await form.address()).toBe('Rokin 2');
+});
+
+// Billing whose page reloads on a button the test puts there.
+const Reloading = fragment('billing-reloading', {
+  probe: byRole('form', 'Billing details'),
+  actions: { reload: stays((d) => d.click(byRole('button', 'Reload'))) },
+  reads: { address: (r) => r.value(byRole('textbox', 'Street')) },
+});
+
+test('a staying action that loads a new document keeps its own handle, and departs the rest at it', async ({ page, app }) => {
+  await page.goto('/checkout?user=member', { waitUntil: 'commit' });
+  await page.evaluate(() => {
+    const reload = Object.assign(document.createElement('button'), { textContent: 'Reload', type: 'button' });
+    reload.onclick = () => location.reload();
+    document.querySelector('form[aria-label="Billing details"]')!.append(reload);
+  });
+  const form = await app.enter(Reloading);
+  const header = await app.enter(Header);
+  await form.reload();
+  expect(await form.address()).toBe('');
+  await expect(header.search.to('results', 'socks')).rejects.toThrow('header departed at billing-reloading.reload');
 });

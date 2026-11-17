@@ -657,12 +657,22 @@
   {
     "idiom": "fresh-page",
     "at": "cases/page-broker-case/src/spec/broker.spec.ts",
-    "count": 25
+    "count": 28
   },
   {
     "idiom": "fresh-page",
     "at": "cases/page-broker-case/src/spec/naive.spec.ts",
     "count": 4
+  },
+  {
+    "idiom": "fresh-page",
+    "at": "cases/page-broker-case/src/spec/unmoved.spec.ts",
+    "count": 3
+  },
+  {
+    "idiom": "timer",
+    "at": "cases/page-broker-case/src/spec/unmoved.spec.ts",
+    "count": 1
   },
   {
     "idiom": "fresh-page",

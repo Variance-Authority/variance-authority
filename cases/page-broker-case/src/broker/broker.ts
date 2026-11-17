@@ -305,7 +305,7 @@ export class App {
       }
     }
     await this.whole(fragment, owners, name, 'is declared to stay');
-    state.doc = this.documents.count;
+    this.stamp(state, name, fragment.name);
     this.journal.push({ from: fragment.name, action: name, kind: 'stay', to: fragment.name });
   }
 
@@ -347,21 +347,24 @@ export class App {
       const to = declared.outcomes[key];
       const where = to === stay ? undefined : target(to);
       // What a cover covers shows beneath it all along: going back is witnessed by the cover gone, and its owners.
-      return where !== undefined && shown.includes(where.name) && !(to === back && (kept || shown.includes(under!.by)));
+      if (where === undefined || !shown.includes(where.name) || (to === back && (kept || shown.includes(under!.by)))) return false;
+      // The fragment or an owner arrives again only on a new document: one that never left did not arrive.
+      return !((where === fragment || owners.includes(where)) && state.doc === this.documents.count);
     });
-    // Two outcomes showing are two only if both are whole: a probe alone with a part missing is not that fragment.
+    const staying = keys.find((key) => declared.outcomes[key] === stay);
+    // A part stays only with its owners, as on a plain stay.
+    const stays = staying !== undefined && shown.includes(fragment.name) && kept;
+    // An outcome is there only whole: a probe alone with a part missing is not that fragment, and loses to any other answer.
     const complete: string[] = [];
-    for (const key of reached.length > 1 ? reached : []) if ((await this.missing(target(declared.outcomes[key])!)) === undefined) complete.push(key);
-    if (complete.length > 0) reached = complete;
+    for (const key of reached) if ((await this.missing(target(declared.outcomes[key])!)) === undefined) complete.push(key);
+    if (complete.length > 0 || reached.length > 1 || stays) reached = complete;
     // An owner or the fragment itself seen gone is gone before any check below refuses the arrival; going back retires the cover alone.
     const left = !kept || !shown.includes(fragment.name);
     if (left && !(reached.length === 1 && declared.outcomes[reached[0]] === back)) this.depart(name, fragment.name);
     if (reached.length > 1) {
       throw new Error(`${fragment.name}.${name} reached ${reached.join(' and ')} at once; the page shows ${list(shown)}`);
     }
-    const staying = keys.find((key) => declared.outcomes[key] === stay);
-    // A part stays only with its owners, as on a plain stay.
-    const outcome = reached[0] ?? (staying !== undefined && shown.includes(fragment.name) && kept ? staying : undefined);
+    const outcome = reached[0] ?? (stays ? staying : undefined);
     if (outcome === undefined) {
       if (under !== undefined && keys.some((key) => declared.outcomes[key] === back)) {
         throw new Error(`${fragment.name}.${name} went back to ${under.fragment.name}, and ${shown.includes(under.by) ? under.by : by} still shows`);
@@ -401,7 +404,7 @@ export class App {
 
     let handle: object;
     if (to === stay) {
-      state.doc = this.documents.count;
+      this.stamp(state, name, fragment.name);
       handle = self;
     } else if (under !== undefined && declaredTo === back) {
       // Going back, and only going back, returns the covered handle, live again. What left with the
@@ -434,6 +437,14 @@ export class App {
   }
 
   /** Leaving a page revokes everything on it, the dialogs over it included. */
+  /** The acting handle stays on the document it is seen on; any other on an older one left with it, as the broker saw. */
+  private stamp(state: State, action: string, from: string): void {
+    for (const each of this.states.values()) {
+      if (each !== state && each.status !== 'departed' && each.doc !== this.documents.count) Object.assign(each, { status: 'departed', why: `${from}.${action}` });
+    }
+    state.doc = this.documents.count;
+  }
+
   private depart(action: string, from: string): void {
     for (const state of this.states.values()) {
       if (state.status !== 'departed') {
