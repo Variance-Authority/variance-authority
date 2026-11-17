@@ -155,6 +155,16 @@ test('closing a cover on a cover leaves the page beneath both still covered and 
   await expect(billing.submit() as unknown as Promise<unknown>).rejects.toThrow('billing-reading is covered by sign-in-helped');
 });
 
+test('a fragment entered under two covers stays covered when only the top one closes', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const billing = await app.enter(Reading);
+  const signIn = await billing.submit.to('signIn');
+  const help = await signIn.help.to('help');
+  const header = await app.enter(Header);
+  await help.close.to('signIn');
+  await expect(header.search.to('results', 'socks')).rejects.toThrow('header is covered by sign-in-helped');
+});
+
 // The same part used twice by one owner is one part.
 const Twice = fragment('billing-twice', { probe: form, uses: { top: Header, again: Header } });
 

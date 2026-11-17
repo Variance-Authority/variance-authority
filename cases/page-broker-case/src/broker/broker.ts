@@ -201,12 +201,13 @@ export class App {
     const existing = this.roots.get(fragment);
     if (existing !== undefined && this.alive(this.states.get(existing)!)) return existing as Handle<F>;
     const fresh = this.handle(fragment, this.page.locator(':root'));
-    // A modal covers the whole page, what was entered beneath it after it opened included.
-    const top = [...this.covered].find(([cover]) => this.alive(cover) && cover.status === 'live')?.[1];
-    if (top !== undefined) {
+    // A modal covers the whole page, what was entered beneath it after it opened included. It goes
+    // beneath the first cover still open, so closing a cover above that one leaves it covered.
+    const bottom = [...this.covered].find(([cover]) => this.alive(cover))?.[1];
+    if (bottom !== undefined) {
       const state = (fresh as any)[META].state as State;
-      Object.assign(state, { status: 'covered', why: top.by });
-      top.states.push(state);
+      Object.assign(state, { status: 'covered', why: bottom.by });
+      bottom.states.push(state);
     }
     return fresh;
   }
