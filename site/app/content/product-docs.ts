@@ -82,6 +82,7 @@ import selectionZod from "../../../docs/selection-zod.md?raw";
 import sharding from "../../../docs/sharding.md?raw";
 import sharing from "../../../docs/sharing.md?raw";
 import sourceIndex from "../../../docs/source-index.md?raw";
+import supportedFrameworks from "../../../docs/supported-frameworks.md?raw";
 import sourceStructures from "../../../docs/source-structures.md?raw";
 import executionRecord from "../../../docs/execution-record.md?raw";
 import source from "../../../docs/source.md?raw";
@@ -200,6 +201,7 @@ const documents = [
   ["distill", distill, "docs/distill.md"],
   ["optimize-a-test", optimizeATest, "docs/optimize-a-test.md"],
   ["source-index", sourceIndex, "docs/source-index.md"],
+  ["supported-frameworks", supportedFrameworks, "docs/supported-frameworks.md"],
   ["source-structures", sourceStructures, "docs/source-structures.md"],
   ["execution-record", executionRecord, "docs/execution-record.md"],
   ["observability", observability, "docs/observability.md"],

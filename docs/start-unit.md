@@ -1,7 +1,7 @@
 # Add visual review to the unit tests you already have
 
-Your Vitest or Jest tests already mount components in jsdom and assert on them.
-This path puts those same mounted states into visual review: the test writes a
+Your Vitest, Jest or [Rstest](start-rstest.md) tests already mount components
+in jsdom and assert on them. This path puts those same mounted states into visual review: the test writes a
 capture, a later process paints it in Chromium, and the screenshot is compared
 against an approved baseline. You get visual coverage of the components you
 already cover, without writing and maintaining a second Playwright or Storybook
@@ -21,7 +21,9 @@ The cost is what jsdom cannot see. It has no layout engine, so a capture
 includes structure and declared style and nothing computed; the run produces
 pixels and a verdict, but a changed pixel region is reported unattributed
 rather than joined to the component that produced it. If you want the browser
-inside the test, use [Vitest browser mode](start-vitest-browser.md) instead.
+inside the test, use [Vitest browser mode](start-vitest-browser.md) or
+[Rstest with Playwright](start-rstest.md#in-place-observe-the-page-the-test-is-already-driving)
+instead.
 
 ## Install
 
@@ -31,8 +33,10 @@ npm install --save-dev @variance-authority/cli
 npx playwright install chromium
 ```
 
-Vitest's jsdom environment loads jsdom from your project rather than bundling
-it; drop it from the first line if your suite already installs it. The CLI and
+The jsdom environments of Vitest and Rstest load jsdom from your project rather
+than bundling it; drop it from the first line if your suite already installs it.
+Jest's comes in its own package, so under Jest install `jest-environment-jsdom`
+in place of `jsdom`. The CLI and
 Chromium are the render half — a separate process, and the only place a browser
 is launched.
 
@@ -53,36 +57,54 @@ export const CAPTURES = '.variance/captures';
 
 `writeCapture` refuses to write a second capture under a subject id that already
 has one, so a directory reused across two runs fails on the second. Empty it
-once per run, from a once-per-run hook — never from a test file, where it races
-the other test files and deletes their captures:
+once per run, from your runner's global setup — never from a test file, where it
+races the other test files and deletes their captures:
 
 ```js
 // variance/reset.mjs
 import { resetCaptures } from '@variance-authority/unit-test';
 import { CAPTURES } from './captures.mjs';
 
-export async function setup() {
+export default async function () {
   await resetCaptures(CAPTURES);
 }
 ```
+
+Vitest, Jest and Rstest all run a default export as global setup, so this one
+module serves each of them. Set the jsdom environment and the global setup in
+your runner's config:
 
 ```js
 // vitest.config.mjs
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  test: { globalSetup: ['variance/reset.mjs'] },
+  test: { environment: 'jsdom', globalSetup: ['variance/reset.mjs'] },
 });
 ```
 
-This `globalSetup` replaces whatever your project already had there. If you have
-one, list both: `globalSetup: ['test/global-setup.ts', 'variance/reset.mjs']`.
+```js
+// jest.config.mjs
+export default {
+  testEnvironment: 'jsdom',
+  globalSetup: './variance/reset.mjs',
+};
+```
+
+Under Rstest the config is the same two keys, `testEnvironment: 'jsdom'` and
+`globalSetup: ['./variance/reset.mjs']`, as
+[the Rstest page](start-rstest.md#keep-the-capture-directory-in-one-place)
+shows.
+
+This `globalSetup` replaces whatever your project already had there. Vitest and
+Rstest take a list, so name both: `globalSetup: ['test/global-setup.ts',
+'variance/reset.mjs']`. Jest takes one module, so call `resetCaptures` from the
+global setup you already have.
 
 ## Capture from an existing test
 
 ```tsx
 // src/save-button.test.tsx
-// @vitest-environment jsdom
 import { render, screen } from '@testing-library/react';
 import { test, expect } from 'vitest';
 import { capture, writeCapture } from '@variance-authority/unit-test';
@@ -107,8 +129,10 @@ test('save button', async () => {
 });
 ```
 
-The test keeps its own assertions and still passes or fails on them. The capture
-is written beside them and compares nothing here.
+The test is the same under each runner except for where `test` and `expect`
+come from: `vitest` here, `@rstest/core` under Rstest, and Jest's globals or
+`@jest/globals` under Jest. The test keeps its own assertions and still passes or
+fails on them. The capture is written beside them and compares nothing here.
 
 `capture(root, options)` takes any `Element` that is mounted in the document:
 Testing Library's `container`, a node returned by `getByRole`, or something you
@@ -243,7 +267,7 @@ A `--save-dev` install puts `variance` in `node_modules/.bin`, so run it through
 `npx` or from a package script.
 
 ```bash
-npx vitest run
+npx vitest run       # or: npx jest, npx rstest run
 variance doctor --config variance.config.json
 variance run --config variance.config.json
 ```
@@ -288,7 +312,7 @@ variance run --config variance.config.json
 
 `accept` promotes the image this run already produced; it never renders one, so
 there is nothing to regenerate and no reason to re-run the suite. The captures
-stay on disk until the next `vitest run` empties the directory, and the rerun
+stay on disk until the next run of the suite empties the directory, and the rerun
 reads the same ones. It exits `0` and reports `button/save` as `unchanged`.
 
 From here the loop is: change the component, run the suite, run `variance run`.
@@ -302,8 +326,8 @@ A run that exits `1` has something for you in the report.
   browser collected.
 - [attribution](attribution.md) — what a report can name a change by, and what
   each hop needs to succeed.
-- [`@variance-authority/unit-test`](../packages/unit-test/README.md) — Jest
-  setup, `retainStyles`, the framework readers that attach component names and
+- [`@variance-authority/unit-test`](../packages/unit-test/README.md) —
+  `retainStyles`, the framework readers that attach component names and
   props to a capture, and `snapshotValue`, which records a public surface that
   is not a page — an API response, a schema, a route table — as a value capture
   rather than a document.

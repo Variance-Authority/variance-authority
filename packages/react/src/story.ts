@@ -2,6 +2,7 @@ import { tapCommits, type Commit } from './commits.js';
 import { FiberTag, MAX_FIBER_DEPTH, compositeAbove, type Fiber } from './fiber.js';
 import { fiberComponentName } from './names.js';
 import { renderCausesOf, type RenderCause } from './renders.js';
+import { watchSuspense } from './story-suspense.js';
 
 /**
  * What a test story calls a React object, and why each component rendered.
@@ -11,10 +12,15 @@ import { renderCausesOf, type RenderCause } from './renders.js';
  * memo by its `$$typeof`, and taps every commit to say one line per component
  * that rendered, where the case stood when React committed. The lines are in
  * the package README, under *React in a test story*. With no story listening
- * nothing is tapped, and a test pays nothing.
+ * nothing is tapped, and a test pays nothing. It also watches the page's
+ * Suspense boundaries, telling the story each one that shows its fallback or
+ * unlocks as it does.
  */
 
 const KIND = Symbol.for('variance-authority.story.kind');
+const NOTE = Symbol.for('variance-authority.story.note');
+// Where a realm keeps the one Suspense watch it was given, so a setup file evaluated per test file adds no second.
+const SUSPENSE = Symbol.for('variance-authority.react.story.suspense');
 
 /** The kind React marked `value` with, read without running any of its code. */
 export function reactKind(value: object): string | undefined {
@@ -24,11 +30,10 @@ export function reactKind(value: object): string | undefined {
   return kind?.startsWith('react.') ? kind : undefined;
 }
 
-const realm = globalThis as { [KIND]?: unknown[] };
+const realm = globalThis as { [KIND]?: unknown[]; [NOTE]?: unknown; [SUSPENSE]?: unknown; document?: Document };
 const namers = (realm[KIND] ??= []);
 if (!namers.includes(reactKind)) namers.push(reactKind);
 
-const NOTE = Symbol.for('variance-authority.story.note');
 const TAPPED = Symbol.for('variance-authority.react.story.tapped');
 
 /** A line and the values between its strings, which the story's tap shows as it shows what a region was handed. */
@@ -275,4 +280,13 @@ if (typeof scope[NOTE] === 'function' && scope[TAPPED] !== true) {
     delete scope[TAPPED];
     (scope[NOTE] as Channel)([`renders not read: ${tap.reason ?? 'unknown'}`]);
   }
+}
+
+// TODO: (#1448) a Playwright spec's page and a Storybook story's page import no setup file, so no watch is put there.
+if (realm[SUSPENSE] === undefined && realm.document !== undefined) {
+  // The story's channel is looked up at each note, for a realm's collector replaces it.
+  realm[SUSPENSE] = watchSuspense((text) => {
+    const channel = realm[NOTE];
+    if (typeof channel === 'function') channel(text);
+  });
 }

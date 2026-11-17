@@ -224,8 +224,8 @@ export interface TapOptions {
   /** How many update initiators one commit may retain. Defaults to 64. */
   readonly updaterLimit?: number;
   readonly keep?: number;
-  /** Observe each retained commit synchronously. A failure never breaks the page. */
-  readonly onCommit?: (commit: Commit) => void;
+  /** Observe each retained commit synchronously, with the `FiberRoot` it committed. A failure never breaks the page. */
+  readonly onCommit?: (commit: Commit, root: object | undefined) => void;
   /**
    * Observe each composite that rendered, outermost first, while the commit is
    * still the tree React just finished: `fiber.alternate` is what it rendered
@@ -343,7 +343,7 @@ export function tapCommits(options: TapOptions = {}): CommitTap {
       recorded.shift();
       lost += 1;
     }
-    options.onCommit?.(commit);
+    options.onCommit?.(commit, fiberRoot);
   };
 
   const hook: DevToolsHook = existing ?? installHook(scope);

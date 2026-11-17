@@ -180,9 +180,10 @@ export function boundariesUnder(node: Node): readonly SuspenseBoundary[] | null 
 
   const roots: Fiber[] = [];
   // The node itself first, and `querySelectorAll` never returns it — which is
-  // exactly how case 2 above went missing.
-  if (node.nodeType === 1) {
-    const here = containerFiber(node as Element);
+  // exactly how case 2 above went missing. A document is one too:
+  // `createRoot(document)` and `hydrateRoot(document)` mount there.
+  if (node.nodeType === 1 || node.nodeType === 9) {
+    const here = containerFiber(node);
     if (here !== null) roots.push(here);
   }
   for (const container of findReactContainers(node as ParentNode)) {
@@ -195,6 +196,23 @@ export function boundariesUnder(node: Node): readonly SuspenseBoundary[] | null 
   const found: SuspenseBoundary[] = [];
   for (const root of roots) collectFrom(root, found);
   return found;
+}
+
+/**
+ * The Suspense boundaries a `FiberRoot` holds, apart by whether they are in
+ * sight: out of sight is under a hidden `Activity` or a boundary's hidden
+ * content, whose Offscreen fiber keeps a state while it hides. Internal to the package.
+ */
+export function boundariesOfRoot(root: object): {
+  readonly inSight: readonly SuspenseBoundary[];
+  readonly outOfSight: readonly SuspenseBoundary[];
+} {
+  const current = (root as { readonly current?: Fiber | null }).current;
+  const inSight: SuspenseBoundary[] = [];
+  const outOfSight: SuspenseBoundary[] = [];
+  const hides = (fiber: Fiber): boolean => fiber.tag === FiberTag.OffscreenComponent && fiber.memoizedState != null;
+  if (current) collectFrom(current, inSight, { hides, into: outOfSight });
+  return { inSight, outOfSight };
 }
 
 /**
@@ -240,8 +258,12 @@ export function pendingSuspense(node: Node): readonly SuspenseBoundary[] {
  * with it. Bounded for the reason `fiber.ts` bounds its walks: a cyclic `child`
  * chain must fail the read, not hang the collector.
  */
-function collectFrom(root: Fiber, into: SuspenseBoundary[]): void {
-  const stack: { fiber: Fiber; boundaries: number }[] = [{ fiber: root, boundaries: 0 }];
+function collectFrom(
+  root: Fiber,
+  into: SuspenseBoundary[],
+  aside?: { readonly hides: (fiber: Fiber) => boolean; readonly into: SuspenseBoundary[] },
+): void {
+  const stack: { fiber: Fiber; boundaries: number; hidden: boolean }[] = [{ fiber: root, boundaries: 0, hidden: false }];
   let visited = 0;
 
   while (stack.length > 0) {
@@ -253,7 +275,7 @@ function collectFrom(root: Fiber, into: SuspenseBoundary[]): void {
     let { boundaries } = entry;
 
     if (fiber.tag === FiberTag.SuspenseComponent) {
-      into.push(describe(fiber, boundaries));
+      (entry.hidden && aside ? aside.into : into).push(describe(fiber, boundaries));
       boundaries += 1;
     }
 
@@ -261,10 +283,30 @@ function collectFrom(root: Fiber, into: SuspenseBoundary[]): void {
     // followed. Every fiber below the root is inside the subtree, and its
     // siblings are too.
     if (fiber.sibling && fiber !== root) {
-      stack.push({ fiber: fiber.sibling, boundaries: entry.boundaries });
+      stack.push({ fiber: fiber.sibling, boundaries: entry.boundaries, hidden: entry.hidden });
     }
-    if (fiber.child) stack.push({ fiber: fiber.child, boundaries });
+    if (fiber.child) stack.push({ fiber: fiber.child, boundaries, hidden: entry.hidden || aside?.hides(fiber) === true });
   }
+}
+
+// Which boundary a description is of, for a reader comparing two reads: React
+// swaps a fiber with its alternate on every commit, so both carry one number.
+const fiberIds = new WeakMap<Fiber, number>();
+const boundaryIds = new WeakMap<SuspenseBoundary, number>();
+let lastId = 0;
+
+/** The boundary a description read, the same number on every read while it stays mounted. Internal to the package. */
+export function boundaryId(boundary: SuspenseBoundary): number {
+  // Every description is made by `describe`, which numbers it before handing it out.
+  return boundaryIds.get(boundary) as number;
+}
+
+function idOf(fiber: Fiber): number {
+  const alternate = fiber.alternate ?? null;
+  const id = fiberIds.get(fiber) ?? (alternate === null ? undefined : fiberIds.get(alternate)) ?? (lastId += 1);
+  fiberIds.set(fiber, id);
+  if (alternate !== null) fiberIds.set(alternate, id);
+  return id;
 }
 
 function describe(fiber: Fiber, depth: number): SuspenseBoundary {
@@ -281,6 +323,7 @@ function describe(fiber: Fiber, depth: number): SuspenseBoundary {
 
   if (createdBy !== null) boundary.createdBy = createdBy;
   if (fiber.key !== null) boundary.key = fiber.key;
+  boundaryIds.set(boundary, idOf(fiber));
 
   return boundary;
 }

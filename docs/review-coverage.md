@@ -1,8 +1,9 @@
 # Review coverage on every pull request
 
-A Jest or Vitest library on GitHub can get one comment on each pull request that
-names the changed functions no test ran and what the change stopped running
-that its main branch ran. The comparison with the main branch is kept between
+A library on GitHub, tested under any of the [supported
+frameworks](supported-frameworks.md), can get
+one comment on each pull request that names the changed functions no test ran
+and what the change stopped running that its main branch ran. The comparison with the main branch is kept between
 runs in the GitHub Actions cache, and a badge on the README is one more line.
 Your workflow names your test command and one action.
 
@@ -18,9 +19,8 @@ pnpm add --save-dev @variance-authority/sense @variance-authority/cli
 yarn add --dev @variance-authority/sense @variance-authority/cli
 ```
 
-Keep the Jest configuration you have and wrap what it exports. Jest refuses two
-configuration files, so do not add a second one beside it. A `jest.config.js`
-in CommonJS:
+Keep the configuration you have and wrap what it exports; do not add a second
+file beside it, which Jest refuses. A `jest.config.js` in CommonJS:
 
 ```js
 // jest.config.js
@@ -34,10 +34,8 @@ module.exports = withTestSelection({
 
 A `preset` and a `transform` with its own options stay as they are: the wrap
 keeps each transformer, on the same pattern with the same options, and wraps
-it, so copy nothing from a preset into your file. In a `jest.config.mjs` or `jest.config.ts`, `import {
-withTestSelection } from '@variance-authority/sense/jest'` and wrap the default
-export the same way. For Vitest, wrap `defineConfig` in the configuration you
-have:
+it. In a `jest.config.mjs` or `jest.config.ts`, import `withTestSelection` and
+wrap the default export the same way. Vitest and Rstest wrap theirs:
 
 ```ts
 // vitest.config.ts
@@ -46,6 +44,18 @@ import { withTestSelection } from '@variance-authority/sense/vitest';
 
 export default withTestSelection(defineConfig({ test: {} }));
 ```
+
+```ts
+// rstest.config.ts
+import { defineConfig } from '@rstest/core';
+import { withTestSelection } from '@variance-authority/sense/rstest';
+
+export default defineConfig(withTestSelection({}));
+```
+
+Under Playwright the package is `@variance-authority/playwright-test` in place of
+`@variance-authority/sense`, and its README shows [the wrap and the
+fixture](../packages/playwright-test/README.md#leave-out-the-specs-a-change-did-not-reach).
 
 Then name the tests in `variance.config.json` at the repository root. `unit` is
 the name the workflow uses for them, and `"carry": "actions-cache"` keeps what
@@ -82,7 +92,9 @@ means the tests ran without the wrap. On your machine the record is kept under
 
 ## Add the job
 
-This is the whole workflow, for npm and Jest. If you already have a test job,
+This is the whole workflow, for npm. `test` is the command you run your tests
+with — `npx vitest run`, `npx jest`, `npx rstest run` or `npx playwright test`;
+the workflow shows Jest. If you already have a test job,
 replace its test step with the action rather than adding this workflow beside
 it, or your tests run twice. When that job runs a matrix of Node versions, keep
 it as it is and add the `review` job beside it, once, in the same workflow:
@@ -142,8 +154,9 @@ request, holds the write token and posts what the first handed it.
 whatever your tests need first, such as a build, is a step before it. Keep the
 steps that set up your package manager, such as `pnpm/action-setup` and
 setup-node's `cache:`. With pnpm, run `pnpm install --frozen-lockfile` and set
-`test: pnpm exec jest` or `pnpm exec vitest run`; with Yarn, `yarn install --immutable` (`--frozen-lockfile` on Yarn 1) and
-`test: yarn jest`.
+`test: pnpm exec` and your runner's command, such as `pnpm exec vitest run`; with
+Yarn, `yarn install --immutable` (`--frozen-lockfile` on Yarn 1) and `test: yarn`
+and the same command, such as `yarn jest`.
 
 ## The first runs
 

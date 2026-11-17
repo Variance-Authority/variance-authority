@@ -373,7 +373,7 @@ index costs a source scan and cannot change the selected answer.
 
 ### Sense runtime information
 
-The Vitest integration consolidates temporary worker journals into a versioned
+Each runner integration consolidates temporary worker journals into a versioned
 `TestCoverage` binary. Its default location is
 `<cache>/test-selection/<repository-digest>/coverage.bin`, in
 [your cache](cache.md). `coverageFile` gives it an explicit path when CI must

@@ -195,7 +195,8 @@ component in a production build leave this field the same way.
 
 Pass a mounted DOM node and read the fields you are asserting on. The call is
 synchronous, and unlike the commit tap below it does not have to be loaded ahead
-of `react-dom`.
+of `react-dom`. The example imports from `vitest`; under Jest or Rstest it is the
+same with `expect` and `test` from Jest's globals or `@rstest/core`.
 
 ```ts
 import { expect, test } from 'vitest';
@@ -439,7 +440,7 @@ flags set when a retention limit cut a list short.
 `TapOptions` is `{ scope?, nameLimit?, updaterLimit?, keep?, onCommit?,
 refuseIfLoaded?, createHook? }`. `keep` bounds retained commits (default 512);
 `updaterLimit` bounds initiators per commit (default 64); `onCommit` observes
-each retained commit synchronously; `refuseIfLoaded` (default true) decides
+each retained commit synchronously, with the `FiberRoot` that committed it; `refuseIfLoaded` (default true) decides
 whether an already-mounted page is a refusal; `createHook` (default true) decides
 whether a missing hook may be installed, and a caller that cannot promise it ran
 first passes `false` and reads `no-hook`; `scope` substitutes the global the hook
