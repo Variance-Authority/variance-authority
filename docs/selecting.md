@@ -964,7 +964,8 @@ first one — it is the one after a one-line edit. Three things arrive already
 known, and each removes a layer:
 
 - **`git` names every file's content without opening one.** A blob's name *is*
-  the hash of its bytes, so `git ls-tree` plus `git status` is the entire walk.
+  the hash of its bytes. The Git index supplies tracked blob ids, and
+  `git status` identifies paths that need working-tree reads.
 - **A digest names the parse.** The parse cache is keyed by content and by the
   parse settings the file's name selects, so it can never go stale: two files
   with one key had one content read one way, on any machine, in any branch, in
