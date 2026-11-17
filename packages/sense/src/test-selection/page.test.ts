@@ -221,10 +221,10 @@ describe('a page that cannot be reported from', () => {
 describe('a page built to tell its story', () => {
   /** A teller that tells each time it is asked, as `told <execution>` or `ended <execution>`, and records what it was asked. */
   function teller() {
-    const asked: [string, boolean][] = [];
+    const asked: [string, boolean, number | undefined][] = [];
     vi.stubGlobal(TELLER_GLOBAL, {
-      tell: (journey: string, ended: boolean) => {
-        asked.push([journey, ended]);
+      tell: (journey: string, ended: boolean, room?: number) => {
+        asked.push([journey, ended, room]);
         return `${ended ? 'ended' : 'told'} ${journey}`;
       },
     });
@@ -239,7 +239,7 @@ describe('a page built to tell its story', () => {
 
   it('sends what an execution ran, then its story on an account of its own, when a click ends it and as the page leaves', () => {
     const page = standIn({ beacon: () => false });
-    teller();
+    const asked = teller();
     vi.stubGlobal(EXECUTION_GLOBAL, { drain: () => ({ instrumentation: 'regions', modules: [RAN] }) });
     reportPage(WATCHER);
     const loaded = page.jar.get(JOURNEY_COOKIE);
@@ -253,6 +253,13 @@ describe('a page built to tell its story', () => {
       [clicked, 'journey', 1, undefined],
       [clicked, 'journey', 0, `ended ${clicked}`],
     ]);
+    // A click may take the page away, so an ended story is no longer than a beacon carries, with room for its account.
+    const room = asked[0]![2]!;
+    expect(room).toBeLessThan(64 << 10);
+    expect(asked).toEqual([
+      [loaded, true, room],
+      [clicked, true, room],
+    ]);
   });
 
   it('asks the teller at each beat whether the execution has gone quiet, and sends a story even where nothing more ran', () => {
@@ -263,7 +270,7 @@ describe('a page built to tell its story', () => {
     const loaded = page.jar.get(JOURNEY_COOKIE);
     vi.advanceTimersByTime(500);
 
-    expect(asked).toEqual([[loaded, false]]);
+    expect(asked).toEqual([[loaded, false, undefined]]);
     expect(accounts(page)).toEqual([[loaded, 'journey', 0, `told ${loaded}`]]);
   });
 

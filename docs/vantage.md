@@ -425,6 +425,9 @@ click came first, since a page runs one execution at a time. Its story
 carries what the page saw as well: each `console` line, and the notes a
 browser test's story carries, such as a Suspense fallback, paint or a long
 frame, told with the execution's end. The requests the page sent are not in it.
+A story told as a click or the page's leaving ends it holds what a beacon
+carries, about 32 KiB: its first steps and notes, and the rest counted as
+steps and notes not taped.
 
 ## Reading it from an agent
 

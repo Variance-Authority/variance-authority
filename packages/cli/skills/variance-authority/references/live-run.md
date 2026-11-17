@@ -117,6 +117,8 @@ A `head page` tells its story when its build ran with
 told once the page runs nothing more for it, at the next click or as it
 leaves, and told again if it runs on after that, before the next click, with its `console` lines
 and the notes a browser test's story carries among the steps, and not the requests it sent.
+A story told as a click or leaving ends it fits a beacon, about 32 KiB, and
+counts what did not fit as untaped.
 
 A region arrives as a number and is named from the checkout `ask` runs in, so
 ask from the repository the application was built from. A module whose regions

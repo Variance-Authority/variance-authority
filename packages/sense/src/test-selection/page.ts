@@ -20,10 +20,11 @@ import type { JourneyAccount } from './stitch.js';
 
 /**
  * What a build asked for stories leaves beside the collector: an execution's
- * story since it last told, when `ended`, or once it has gone quiet.
+ * story since it last told, when `ended`, or once it has gone quiet; given
+ * `room`, no longer than that.
  */
 interface Teller {
-  tell(journey: string, ended: boolean): string | undefined;
+  tell(journey: string, ended: boolean, room?: number): string | undefined;
 }
 
 /** A target of events, as far as this listens. */
@@ -39,6 +40,13 @@ interface Browser extends Listened {
 
 /** What a page is listed under, beside the heads its requests reached. */
 const HEAD = 'page';
+
+/**
+ * How long an ended execution's story may be: a click may take the page away and a
+ * request still going dies with it, so it fits a beacon, which carries 64 KiB,
+ * with room left for its account and what the page sends beside it.
+ */
+const ROOM = 32 << 10;
 
 /** How long, in milliseconds, what a page ran can wait for the next click before it is sent. */
 const CADENCE = 500;
@@ -104,7 +112,7 @@ export function reportPage(watcher: string | undefined): void {
     if (!mine()) return;
     const journal = (browser[EXECUTION_GLOBAL] as ExecutionCollector | undefined)?.drain();
     if (journal === undefined) return;
-    const story = (browser[TELLER_GLOBAL] as Teller | undefined)?.tell(journey, ended);
+    const story = (browser[TELLER_GLOBAL] as Teller | undefined)?.tell(journey, ended, ended ? ROOM : undefined);
     // A beacon and not the wire's `report`: a JSON `fetch` to another origin is
     // preflighted, which the watcher does not answer, and it dies with the page.
     // A browser refuses a beacon once about 64 KiB of them are on their way, which

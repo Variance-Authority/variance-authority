@@ -32,6 +32,8 @@ const PART = 'page';
  * once a flush finds its part grew no more since the one before: what it
  * runs after that is told again. A part holding notes alone waits for the
  * end, so a page that only paints spends none of the watcher's tellings.
+ * Given `room`, the story it tells is at most that long: the first of what ran
+ * and what was said, and the rest counted, as a tape that stopped counts it.
  */
 export function pageTellerSource(): string {
   return `(() => {
@@ -42,8 +44,26 @@ const rowAt = (${storyBytes.rowAt.toString()});
 const storyBytes = (${storyBytes.storyBytes.toString()});
 const encoder = new TextEncoder();
 let before = -1;
+const encode = (part, key) => {
+  const bytes = storyBytes(
+    { ...part, keys: part.keys.map(() => key), notes: part.notes.map(([at, , text]) => [at, key, text]) },
+    key, { file: key, name: '' }, (text) => encoder.encode(text),
+  );
+  let binary = '';
+  for (let at = 0; at < bytes.length; at += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(at, at + 0x8000));
+  return btoa(binary);
+};
+// The first \`kept\` visits of a part and the first \`said\` of the notes said by then.
+const cut = (part, kept, said) => {
+  const notes = part.notes.filter(([at]) => at <= kept).slice(0, said);
+  const segments = part.at.flatMap((at, segment) => (segment === 0 || at < kept ? [segment] : []));
+  return {
+    ...part, taped: kept, at: segments.map((segment) => part.at[segment]), keys: segments.map((segment) => part.keys[segment]),
+    notes, unnoted: part.unnoted + part.notes.length - notes.length,
+  };
+};
 globalThis[${JSON.stringify(TELLER_GLOBAL)}] = {
-  tell(key, ended) {
+  tell(key, ended, room) {
     const tap = globalThis.__VA__?.[Symbol.for('variance-authority.story.tap')];
     if (tap === undefined) return undefined;
     if (!ended) {
@@ -56,13 +76,14 @@ globalThis[${JSON.stringify(TELLER_GLOBAL)}] = {
     // An execution that ran nothing since it was last told tells nothing.
     const taken = tap.take(${JSON.stringify(PART)});
     if (taken.visits === 0 && taken.notes.length === 0 && taken.unnoted === 0) return undefined;
-    const bytes = storyBytes(
-      { ...taken, keys: taken.keys.map(() => key), notes: taken.notes.map(([at, , text]) => [at, key, text]) },
-      key, { file: key, name: '' }, (text) => encoder.encode(text),
-    );
-    let binary = '';
-    for (let at = 0; at < bytes.length; at += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(at, at + 0x8000));
-    return btoa(binary);
+    let told = encode(taken, key);
+    // Halved until it fits: the visits first, then what was said before any.
+    for (let kept = taken.taped, said = taken.notes.length; room !== undefined && told.length > room && kept + said > 0; ) {
+      if (kept > 0) kept >>= 1;
+      else said >>= 1;
+      told = encode(cut(taken, kept, said), key);
+    }
+    return told;
   },
 };
 })();
