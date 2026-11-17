@@ -129,10 +129,13 @@ export class App {
     const state = (fresh as any)[META].state as State;
     // What uses an open cover lives and leaves with it, and so does every part only it holds.
     const tree = [fresh, ...this.within(fresh)];
-    // Using the cover is holding a handle on it that answers to this tree alone; sharing one of its parts is not.
+    // Using the cover is reaching the cover itself, or a handle on it that answers to this tree alone; sharing one of its parts is not.
     const mine = new Set(tree.map((each) => ((each as any)[META] as Meta).fragment));
     const cover = tree
-      .filter((each) => ((each as any)[META] as Meta).owners.every((one) => mine.has(one)))
+      .filter((each) => {
+        const meta = (each as any)[META] as Meta;
+        return this.covered.get(meta.state)?.by === meta.fragment.name || meta.owners.every((one) => mine.has(one));
+      })
       .map((each) => (each as any)[META].state as State)
       .find((each) => this.covered.has(each) && this.alive(each));
     if (cover !== undefined) {

@@ -337,3 +337,17 @@ test('a part gone after a lead that stays departs, though its owner shows', asyn
   await expect(holding.vanisher.vanish()).rejects.toThrow('vanisher.vanish declares here');
   await expect(holding.vanisher.label()).rejects.toThrow('vanisher departed at vanisher.vanish');
 });
+
+// Two fragments may use one open dialog: each lives and leaves with it.
+const Typer = fragment('sign-in-typer', { probe: dialog, uses: { dialog: SignIn }, actions: { type: (d, email: string) => d.fill(byLabel('Email'), email) } });
+
+test('a second fragment using an open dialog lives and leaves with it too', async ({ page, app }) => {
+  await page.goto('/checkout?user=guest', { waitUntil: 'commit' });
+  const form = await app.enter(Billing);
+  const signIn = await form.country('NL').street('Damrak 1').submit.to('signIn');
+  await app.enter(SignInPanel);
+  const typer = await app.enter(Typer);
+  await typer.type('a@b.c');
+  await signIn.cancel.to('billing');
+  await expect(typer.type('x@y.z') as unknown as Promise<unknown>).rejects.toThrow('sign-in-typer departed at sign-in.cancel');
+});
