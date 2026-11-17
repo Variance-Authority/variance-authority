@@ -54,8 +54,9 @@ function grouped(paths: readonly string[]): string[] {
 /**
  * A path as a glob that matches it alone: its glob characters escaped, unlike a
  * regular expression's, and its commas too, which tinyglobby's `escapePath`
- * leaves alone and a brace alternation would split on.
+ * leaves alone and a brace alternation would split on, and its pipes, which
+ * split an alternation as commas do.
  */
 function escaped(path: string): string {
-  return path.replace(/[*?[\]{}()!+@,\\]/g, '\\$&');
+  return path.replace(/[*?[\]{}()!+@,|\\]/g, '\\$&');
 }

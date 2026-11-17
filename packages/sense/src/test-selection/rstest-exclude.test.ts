@@ -8,8 +8,8 @@ import { excluded } from './rstest-exclude.js';
 describe('the files a selection skips, as `exclude` patterns', () => {
   const base = mkdtempSync(join(tmpdir(), 'variance-authority-rstest-exclude-'));
   afterAll(() => rmSync(base, { recursive: true, force: true }));
-  const skipped = ['test/[id]/page.test.ts', 'test/a,b.test.ts', 'test/{x}.test.ts', 'test/(y)!.test.ts', '../shared/s.test.ts'];
-  const others = ['test/i/page.test.ts', 'test/a.test.ts', 'test/x.test.ts', 'test/y.test.ts', '../shared/t.test.ts'];
+  const skipped = ['test/[id]/page.test.ts', 'test/a,b.test.ts', 'test/{x}.test.ts', 'test/(y)!.test.ts', 'test/p|q.test.ts', '../shared/s.test.ts'];
+  const others = ['test/i/page.test.ts', 'test/a.test.ts', 'test/x.test.ts', 'test/y.test.ts', 'test/p.test.ts', 'test/q.test.ts', '../shared/t.test.ts'];
 
   it.each([['plain'], ['@scope/name'], ['a+b,c']])(
     'leave out each skipped file under a root named %s, however its name reads as a glob, and no other',

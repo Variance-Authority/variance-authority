@@ -21,7 +21,7 @@ describe('the Rstest selection', () => {
     expect(plugins(['run']).found).toHaveLength(1);
   });
 
-  it.each([[['watch']], [['-w']], [['--watch']], [['alpha', '--watch']], [['--config=rstest.config.mjs', 'watch']], [['-c', 'rstest.config.mjs', 'watch']]])(
+  it.each([[['watch']], [['-w']], [['--watch']], [['alpha', '--watch']], [['--config=rstest.config.mjs', 'watch']], [['-c', 'rstest.config.mjs', 'watch']], [['-w=true']], [['-uw']]])(
     'does not select under watch mode, %j, and says so',
     (argv) => {
       expect(plugins(argv)).toEqual({ found: [], said: ['variance-authority: watch mode does not select'] });

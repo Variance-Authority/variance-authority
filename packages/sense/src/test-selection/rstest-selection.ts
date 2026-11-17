@@ -63,6 +63,9 @@ export function selectionPlugins(
   return [selectingPlugin(selection, root, argv)];
 }
 
+/** `-w`, alone, with a value, or among other short flags, as in `-uw`. */
+const watchFlag = /^-[a-zA-Z]*w[a-zA-Z]*(=|$)/;
+
 /**
  * Whether Rstest was started to watch: its `watch` command, or `-w` on its
  * default one. Options may come before the command, and Rstest does not export
@@ -71,7 +74,7 @@ export function selectionPlugins(
  */
 function watching(argv: readonly string[]): boolean {
   const args = argv.slice(2);
-  return args.some((arg) => arg === 'watch') || args.some((arg) => arg === '-w' || arg === '--watch' || (arg.startsWith('--watch=') && arg !== '--watch=false'));
+  return args.some((arg) => arg === 'watch' || ((watchFlag.test(arg) || arg === '--watch' || arg.startsWith('--watch=')) && !arg.endsWith('=false')));
 }
 
 /**
