@@ -273,6 +273,13 @@ pub(crate) fn number<'a>(root: &'a Node, names: &[String]) -> Vec<Area<'a>> {
 /// with what comes into each and where each goes, counted in files.
 pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32]) -> Vec<Page> {
     let n = read.packages.len();
+    let mut incident = vec![Vec::new(); n];
+    for (edge, &(a, b, _)) in read.edges.iter().enumerate() {
+        if a != b {
+            incident[a as usize].push(edge);
+            incident[b as usize].push(edge);
+        }
+    }
     // Each package's deepest area, and each area's parent.
     let mut deepest: Vec<Option<usize>> = vec![None; n];
     let mut parent: Vec<Option<usize>> = vec![None; areas.len()];
@@ -316,24 +323,29 @@ pub(crate) fn pages(read: &Read, signals: &Signals, areas: &[Area], layer: &[u32
             let mut landed: Vec<HashMap<usize, u32>> = vec![HashMap::new(); focus.kids.len()];
             let mut roads: Vec<HashMap<usize, u32>> = vec![HashMap::new(); focus.kids.len()];
             if !focus.kids.is_empty() {
-                for &(a, b, count) in &read.edges {
-                    let (a, b) = (a as usize, b as usize);
-                    if !inner.contains(&a) && !inner.contains(&b) {
-                        continue;
-                    }
-                    let (sa, sb) = (area_at(a), area_at(b));
-                    if sa == sb {
-                        continue;
-                    }
-                    if let Some(&i) = sb.and_then(|x| kid.get(&x)) {
-                        incoming[i] += count;
-                        *landed[i].entry(b).or_default() += count;
-                    }
-                    if let (Some(&i), Some(sb)) = (sa.and_then(|x| kid.get(&x)), sb) {
-                        outgoing[i] += count;
-                        // The page's own area holds the row; it is not a road.
-                        if sb != here {
-                            *roads[i].entry(sb).or_default() += count;
+                for &p in &focus.node.members {
+                    let p = package(p);
+                    for &edge in &incident[p] {
+                        let (a, b, count) = read.edges[edge];
+                        let (a, b) = (a as usize, b as usize);
+                        // An internal edge was already visited from its source.
+                        if a != p && inner.contains(&a) {
+                            continue;
+                        }
+                        let (sa, sb) = (area_at(a), area_at(b));
+                        if sa == sb {
+                            continue;
+                        }
+                        if let Some(&i) = sb.and_then(|x| kid.get(&x)) {
+                            incoming[i] += count;
+                            *landed[i].entry(b).or_default() += count;
+                        }
+                        if let (Some(&i), Some(sb)) = (sa.and_then(|x| kid.get(&x)), sb) {
+                            outgoing[i] += count;
+                            // The page's own area holds the row; it is not a road.
+                            if sb != here {
+                                *roads[i].entry(sb).or_default() += count;
+                            }
                         }
                     }
                 }

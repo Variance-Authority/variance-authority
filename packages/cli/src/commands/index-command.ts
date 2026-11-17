@@ -90,7 +90,7 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
 
 async function inline(request: IndexRequest, readied?: () => void): Promise<string> {
   const alone: Alone = new Set();
-  const update = await written(request, alone);
+  const update = await written(request, alone, true);
   return report(update, alone, await followUps(request, update, alone, readied));
 }
 
@@ -99,8 +99,9 @@ function report(update: SourceUpdate, alone: Alone, after: readonly string[]): s
   return `${[describe(update), ...alone, ...after].join('\n')}\n`;
 }
 
-async function written(request: IndexRequest, alone: Alone): Promise<SourceUpdate> {
+async function written(request: IndexRequest, alone: Alone, prepareMap = false): Promise<SourceUpdate> {
   const update = await turn(request, alone, () => updateSourceIndex(request.cwd, {
+    ...(prepareMap ? { prepareMap: true } : {}),
     ...(request.noGit ? { packs: false } : {}),
     ...(request.progress === undefined ? {} : { progress: request.progress }),
   }));

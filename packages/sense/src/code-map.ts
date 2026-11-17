@@ -13,6 +13,7 @@
 import { native, nativeRefusal } from './addon.js';
 import type { NativeDeclaredRoleCheck, NativeOrientLayers, NativeOrientMapAnswer, NativeOrientMapPrepared, NativeOrientShipped } from './native-orient.js';
 import type { SourceUpdate } from './published.js';
+import { realPath } from './resolve.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
 
@@ -46,6 +47,7 @@ export async function prepareCodeMap(
   index: string = sourceIndexPath(root),
   scanned?: Pick<SourceUpdate, 'listing' | 'packs'>,
 ): Promise<PreparedCodeMap> {
+  root = realPath(root);
   const carried = scanned?.listing?.prepareOrientMap?.bind(scanned.listing);
   // A manifest's entry lands where the scan that built the index put it.
   const tsconfig = declaredTsconfig(root);

@@ -21,7 +21,7 @@ use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Generation};
 use crate::git::Oid;
 use crate::index::way;
-use crate::log::written;
+use crate::log::{written, written_reusing};
 use crate::order::code_unit;
 use crate::package_graph::names_object;
 use crate::parse_store::{self, Stores};
@@ -52,6 +52,8 @@ pub struct UpdateOptions {
     pub readers: Option<u32>,
     /// `false` opens source bytes from the checkout only.
     pub packs: Option<bool>,
+    /// Complete Git map metadata alongside an explicitly requested full preparation.
+    pub prepare_map: Option<bool>,
     pub tsconfig: Option<napi::Either<String, bool>>,
     pub condition_names: Option<Vec<String>>,
     /// `Aliases.table` as JSON, when a configuration maps specifiers.
@@ -384,7 +386,7 @@ fn update_with(o: UpdateOptions, tree: Tree, damaged: bool) -> napi::Result<Opti
         deleted: Deleted { parses: &deleted_parses, records: &deleted_records, directories: &deleted_directories },
     });
     phases.next("parse stores");
-    add_unheld();
+    let reusable = add_unheld();
     phases.next("release source facts");
     drop(prepared);
     drop(prefetched);
@@ -413,7 +415,7 @@ fn update_with(o: UpdateOptions, tree: Tree, damaged: bool) -> napi::Result<Opti
     }
     phases.next("write publication");
     // Another writer between the read and here: its chain is not the one this delta is against.
-    let refused = match written(&o.index, published, &references[..base], &publications, &original[base..], working_count) {
+    let refused = match written_reusing(&o.index, published, &references[..base], &publications, &original[base..], working_count, if cold { &reusable } else { &[] }) {
         Ok(false) => Some(format!("{} moved after it was read; run the index update again", o.index)),
         Ok(true) => None,
         Err(error) => Some(format!("{}: {error}", o.index)),

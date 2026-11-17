@@ -117,6 +117,8 @@ export interface SourceUpdateOptions {
   readonly index?: string;
   /** `false` reads each file's bytes from the working tree, as `scanRelations` takes it. */
   readonly packs?: boolean;
+  /** Prepare the code map's Git metadata during a missing-index build. */
+  readonly prepareMap?: boolean;
   /** Told each step as it starts and ends: the git listing, then the read of what changed. */
   readonly progress?: Progress;
   /**
@@ -185,7 +187,7 @@ export async function updateSourceIndex(
     dirname(path) === dirname(sourceIndexPath(where)) ? parseStoresFor(where) : undefined);
   const everything = `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
   const natively = await updateNatively(
-    realPath(where), path, options.progress, dirs, stores, missing ? everything : undefined, options.packs,
+    realPath(where), path, options.progress, dirs, stores, missing ? everything : undefined, options.packs, options.prepareMap === true && missing,
   );
   if (natively === undefined) throw new Error(`sense: native source indexing could not update ${path}`);
   if (options.index === undefined) markCheckout(realPath(where));

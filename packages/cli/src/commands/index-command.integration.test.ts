@@ -111,6 +111,17 @@ describe('variance index', () => {
     }
   });
 
+  it('prepares Git map marks only for the missing index in a complete command', () => {
+    const root = checkout();
+    const env = { ...process.env, VARIANCE_SENSE_TIMINGS: '1' };
+    const cold = spawnSync(process.execPath, [BIN, 'index', '--wait'], { cwd: root, env, encoding: 'utf8' });
+    expect(cold.status, cold.stderr).toBe(EXIT_CLEAN);
+    expect(cold.stderr).toContain('sense source map marks:');
+    const warm = spawnSync(process.execPath, [BIN, 'index', '--wait'], { cwd: root, env, encoding: 'utf8' });
+    expect(warm.status, warm.stderr).toBe(EXIT_CLEAN);
+    expect(warm.stderr).not.toContain('sense source map marks:');
+  });
+
   it('builds, then updates in place, naming how many files it read again', async () => {
     const root = checkout();
     const at = sourceIndexPath(root);

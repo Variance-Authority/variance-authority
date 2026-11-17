@@ -3,10 +3,13 @@
 use super::UpdateOptions;
 use crate::git_fixture::{repository, write};
 
+#[path = "git_tree_marks_tests.rs"]
+mod marks;
+
 fn options(root: &std::path::Path, index: &std::path::Path, config: &str) -> UpdateOptions {
     UpdateOptions {
         root: root.to_str().unwrap().to_owned(), index: index.to_str().unwrap().to_owned(),
-        config: config.to_owned(), largest_file: None, readers: None, packs: None,
+        config: config.to_owned(), largest_file: None, readers: None, packs: None, prepare_map: None,
         tsconfig: None, condition_names: None, aliases: None,
         builtins: Vec::new(), code_extensions: vec![".ts".to_owned()], readable: vec![".ts".to_owned()], stores: None,
     }

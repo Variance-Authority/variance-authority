@@ -20,6 +20,7 @@ export interface NativeUpdateOptions {
   readonly config: string;
   readonly largestFile?: number;
   readonly packs?: boolean;
+  readonly prepareMap?: boolean;
   readonly tsconfig?: string | false;
   readonly conditionNames?: string[];
   readonly aliases?: string;
@@ -62,6 +63,7 @@ export async function updateNatively(
   stores?: readonly string[],
   reading = 'reading the files that changed since the last index',
   packs?: boolean,
+  prepareMap = false,
 ): Promise<NativelyUpdated | undefined> {
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
   const held = tree?.native;
@@ -81,6 +83,7 @@ export async function updateNatively(
     index,
     config,
     ...(packs === undefined ? {} : { packs }),
+    ...(prepareMap ? { prepareMap: true } : {}),
     ...(tsconfig === undefined ? {} : { tsconfig }),
     ...(aliases === undefined ? {} : { aliases: JSON.stringify(aliases.table) }),
     builtins: BUILTINS,

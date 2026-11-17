@@ -35,6 +35,8 @@ pub struct GitTree {
     pub(crate) listing: OnceLock<Arc<emitted::Listing>>,
     /// The parse stores the last scan named, read once for every frontier of it.
     pub(crate) stores: std::sync::Mutex<Option<(Vec<String>, Arc<parse_store::Stores>)>>,
+    /// Optional Git metadata completed alongside this tree's last publication.
+    pub(crate) prepared_marks: std::sync::Mutex<Option<PreparedMarks>>,
     /// The parses this tree's reads made from the blob each is kept under.
     pub(crate) from_blob: parse_origin::FromBlob,
     /// The object store this tree's scans read from, once they have read enough.
@@ -42,6 +44,27 @@ pub struct GitTree {
     /// How the tree was come by, when a change source other than git had a say.
     #[cfg(unix)]
     pub(crate) change: Option<held_listing::Change>,
+}
+
+pub(crate) struct PreparedMarks {
+    root: std::path::PathBuf,
+    index: String,
+    answer: Option<Vec<u8>>,
+}
+
+/// Git owns generated and vendored membership, for either preparation's caller.
+pub(crate) fn git_marks(root: &str) -> Option<Vec<u8>> {
+    git::git(root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
+}
+
+/// The optional I/O job is joined on return and by the scope while unwinding.
+pub(crate) fn while_marks<T>(query: impl FnOnce() -> Option<Vec<u8>> + Send, update: impl FnOnce() -> T) -> (T, Option<Vec<u8>>) {
+    std::thread::scope(|scope| {
+        let marks = std::thread::Builder::new().name("source map marks".to_owned()).spawn_scoped(scope, query).ok();
+        let updated = update();
+        let _waiting = crate::timings::Phases::new("source map marks wait", "join");
+        (updated, marks.and_then(|marks| marks.join().ok().flatten()))
+    })
 }
 
 /// Every tracked path under `root`, or nothing when this is not a checkout.
@@ -77,6 +100,12 @@ impl GitTree {
         Arc::clone(self.listing.get_or_init(made))
     }
 
+    /// Consume even a mismatched preparation so it cannot survive another call.
+    pub(crate) fn take_marks(&self, root: &str, index: &str) -> Option<Option<Vec<u8>>> {
+        let marks = self.prepared_marks.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()?;
+        (marks.root == std::path::Path::new(root) && marks.index == index).then_some(marks.answer)
+    }
+
     /// The stores at `paths`, read the first time a scan names them: a scan
     /// asks once per frontier, and what it adds is published after it.
     fn stores(&self, paths: Option<Vec<String>>) -> Option<Arc<parse_store::Stores>> {
@@ -110,6 +139,7 @@ pub(crate) fn tree_from_snapshot(root: &str, snapshot: git::Snapshot, seeds: Vec
         seeds,
         listing: OnceLock::new(),
         stores: std::sync::Mutex::new(None),
+        prepared_marks: std::sync::Mutex::new(None),
         from_blob: parse_origin::FromBlob::default(),
         store: Arc::new(acquire::TreeObjects::default()),
         #[cfg(unix)]
@@ -263,8 +293,11 @@ impl GitTree {
     /// side, or `null` when it could not complete (`source_update.rs`).
     #[napi(catch_unwind)]
     pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
+        self.prepared_marks.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
         #[cfg(unix)]
         let carry = match change_tree::carry(&self.change, &options.config, &options.index) { Ok(carry) => carry, Err(done) => return Ok(Some(done)) };
+        let prepare = (options.prepare_map == Some(true) && self.filesystem_root.is_none() && self.root == std::path::Path::new(&options.root))
+            .then(|| (options.root.clone(), options.index.clone()));
         let worktree = acquire::TreeObjects::worktree();
         let store = if options.packs == Some(false) { &worktree } else { self.store.as_ref() };
         let tree = source_update::Tree {
@@ -282,10 +315,19 @@ impl GitTree {
         };
         // A same-length damaged segment can pass framing and fail when a row
         // is read. Rebuild against its original publication on this side.
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options.clone(), tree.clone()))) {
+        let update = || match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options.clone(), tree.clone()))) {
             Ok(updated) => updated,
             Err(_) => source_update::rebuild(options, tree),
+        };
+        let Some((root, index)) = prepare else { return update() };
+        let (updated, answer) = while_marks(|| {
+            let _query = crate::timings::Phases::new("source map", "marks");
+            git_marks(&root)
+        }, update);
+        if updated.as_ref().ok().and_then(Option::as_ref).is_some_and(|updated| updated.published && updated.refused.is_none()) {
+            *self.prepared_marks.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(PreparedMarks { root: root.into(), index, answer });
         }
+        updated
     }
 
     /// Every path, sorted by code unit.

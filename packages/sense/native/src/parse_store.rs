@@ -24,7 +24,7 @@ use crate::source_read::SourceRead;
 use crate::segment::{Collected, Strings};
 use crate::index::parses_only;
 use crate::index_chain::{read_chain, Chain};
-use crate::log::{file_name, written, LogSegment, Over};
+use crate::log::{file_name, written, written_retaining, LogSegment, Over, WrittenSegment};
 use crate::order::code_unit;
 use crate::parse_columns::{ParseColumns, ParseRow};
 
@@ -144,8 +144,8 @@ impl Stores {
 
     /// Select full parse views only after the last read settled Git provenance.
     /// An entirely eligible cold input seeds the missing destination verbatim.
-    pub(crate) fn add_encoded(&self, opened: &Opened, encoded: &[Vec<u8>], from_blob: &crate::parse_origin::FromBlob, prepared: &[crate::scan_session::PreparedParse]) {
-        if self.chains.is_empty() { return }
+    pub(crate) fn add_encoded<'a>(&self, opened: &Opened, encoded: &'a [Vec<u8>], from_blob: &crate::parse_origin::FromBlob, prepared: &[crate::scan_session::PreparedParse]) -> Vec<WrittenSegment<'a>> {
+        if self.chains.is_empty() { return Vec::new() }
         let layers: Vec<_> = encoded.iter().map(|bytes| Layer::open(bytes).expect("the encoder wrote a complete generation")).collect();
         let mut rows: Vec<_> = unheld_views(&layers, opened, from_blob).into_iter().map(|(key, view)| (key, Parse::Kept(view))).collect();
         let complete = rows.len() == layers.iter().map(|layer| layer.parses.key.len()).sum::<usize>();
@@ -153,26 +153,32 @@ impl Stores {
         rows.extend(prepared.iter().filter(|row| !row.kept && from_blob.shares(&row.identity, &crate::index::way(row.file)))
             .filter(|row| !opened.holds(&row.identity, &crate::index::way(row.file)))
             .map(|row| (key(&row.identity, &crate::index::way(row.file)), Parse::Read(row.read))));
-        if rows.is_empty() { return }
-        if complete && rows.len() == root_rows && self.seed(opened, &encoded.iter().map(Vec::as_slice).collect::<Vec<_>>()) { return }
+        if rows.is_empty() { return Vec::new() }
+        if complete && rows.len() == root_rows {
+            if let Some(written) = self.seed(opened, &encoded.iter().map(Vec::as_slice).collect::<Vec<_>>()) { return written }
+        }
         self.add_unheld(opened, rows.iter().map(|(key, row)| {
             let (digest, way) = crate::generation::key_parts(key);
             (digest, way.to_owned(), row)
         }));
+        Vec::new()
     }
 
-    /// `true` means the missing destination was attempted, including a lost
+    /// `Some` means the missing destination was attempted, including a lost
     /// publication race: input rows must not overwrite the winner afterwards.
-    fn seed(&self, opened: &Opened, generations: &[&[u8]]) -> bool {
-        let Some((path, Held::Missing)) = self.chains.first() else { return false };
-        if !opened.keys.is_empty() { return false }
-        let mut phases = crate::timings::Phases::new("parse store", "publish encoded generations");
-        match written(path, Over::Nothing, &[], generations, &[], 0) {
-            Ok(true) => phases.note(format_args!("{} encoded bytes seeded in {} segments", generations.iter().map(|bytes| bytes.len()).sum::<usize>(), generations.len())),
-            Ok(false) => phases.note("skipped: publication unchanged"),
+    fn seed<'a>(&self, opened: &Opened, generations: &[&'a [u8]]) -> Option<Vec<WrittenSegment<'a>>> {
+        let Some((path, Held::Missing)) = self.chains.first() else { return None };
+        if !opened.keys.is_empty() { return None }
+        let phases = crate::timings::Phases::new("parse store", "publish encoded generations");
+        match written_retaining(path, Over::Nothing, &[], generations, &[], 0) {
+            Ok(Some(written)) => {
+                phases.note(format_args!("{} encoded bytes seeded in {} segments", generations.iter().map(|bytes| bytes.len()).sum::<usize>(), generations.len()));
+                return Some(written);
+            },
+            Ok(None) => phases.note("skipped: publication unchanged"),
             Err(error) => phases.note(format_args!("failed: {error}")),
         }
-        true
+        Some(Vec::new())
     }
 }
 
@@ -391,8 +397,8 @@ mod tests {
         let read = SourceRead::default();
         let a = parses_only(&[("a", &read)]);
         let b = parses_only(&[("b", &read)]);
-        assert!(first.seed(&first.open(), &[&a, &b]));
-        assert!(second.seed(&second.open(), &[&b]), "a losing seed is complete, so rows cannot overwrite the winner");
+        assert!(first.seed(&first.open(), &[&a, &b]).is_some());
+        assert!(second.seed(&second.open(), &[&b]).is_some(), "a losing seed is complete, so rows cannot overwrite the winner");
         let chain = read_chain(&path).unwrap().unwrap();
         assert!(chain.segments == vec![a, b], "a writer that observed missing never replaces the winner");
         std::fs::remove_dir_all(root).unwrap();
@@ -407,7 +413,7 @@ mod tests {
         Stores::read(std::slice::from_ref(&upstream)).append(&[("a", &read)]).unwrap();
         let stores = Stores::read(&[destination.clone(), upstream]);
         let candidate = parses_only(&[("a", &read), ("b", &read)]);
-        assert!(!stores.seed(&stores.open(), &[&candidate]), "an upstream store makes this a selected append");
+        assert!(stores.seed(&stores.open(), &[&candidate]).is_none(), "an upstream store makes this a selected append");
         stores.add_unheld(&stores.open(), [("a", String::new(), &read), ("b", String::new(), &read)].into_iter());
         let chain = read_chain(&destination).unwrap().unwrap();
         let layer = Layer::open(&chain.segments[0]).unwrap();
@@ -415,7 +421,7 @@ mod tests {
         assert_eq!(layer.stored.text(layer.parses.key.at(0)), "b");
         let stores = Stores::read(std::slice::from_ref(&destination));
         let next = parses_only(&[("c", &read)]);
-        assert!(!stores.seed(&stores.open(), &[&next]), "a published destination is appended");
+        assert!(stores.seed(&stores.open(), &[&next]).is_none(), "a published destination is appended");
         stores.add_unheld(&stores.open(), std::iter::once(("c", String::new(), &read)));
         let stores = Stores::read(std::slice::from_ref(&destination));
         assert!(stores.open().holds("b", ""), "an existing destination is appended, never seeded over");
@@ -430,7 +436,7 @@ mod tests {
         let read = SourceRead::default();
         let seed: Vec<_> = (0..SEGMENTS + 1).map(|n| parses_only(&[(&format!("base-{n}"), &read)])).collect();
         let stores = Stores::read(std::slice::from_ref(&path));
-        assert!(stores.seed(&stores.open(), &seed.iter().map(Vec::as_slice).collect::<Vec<_>>()));
+        assert!(stores.seed(&stores.open(), &seed.iter().map(Vec::as_slice).collect::<Vec<_>>()).is_some());
         for n in 0..SEGMENTS {
             let stores = Stores::read(std::slice::from_ref(&path));
             assert!(stores.append(&[(&format!("append-{n}"), &read)]).unwrap());
@@ -460,8 +466,14 @@ mod tests {
         let encoded = parses_only(&[(key(&digest, &way).as_str(), &read)]);
         provenance.saw(&oid, "a.ts", false);
         let stores = Stores::read(std::slice::from_ref(&path));
-        stores.add_encoded(&stores.open(), &[encoded], &provenance, &[]);
+        let encoded = vec![encoded];
+        let receipts = stores.add_encoded(&stores.open(), &encoded, &provenance, &[]);
+        assert!(receipts.is_empty(), "revoked provenance cannot issue a reusable file receipt");
         assert!(read_chain(&path).unwrap().is_none(), "encoding did not decide final shareability");
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "parse_store_cow_tests.rs"]
+mod cow_tests;

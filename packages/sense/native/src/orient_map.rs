@@ -127,11 +127,12 @@ struct Listed<'a> {
     emitted: Arc<crate::emitted::Listing>,
     filesystem: bool,
     read_blobs: bool,
+    marks: Option<Option<Vec<u8>>>,
 }
 
 impl<'a> From<&'a GitTree> for Listed<'a> {
     fn from(tree: &'a GitTree) -> Self {
-        Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed, emitted: tree.listing(), filesystem: tree.filesystem_root.is_some(), read_blobs: true }
+        Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed, emitted: tree.listing(), filesystem: tree.filesystem_root.is_some(), read_blobs: true, marks: None }
     }
 }
 
@@ -225,7 +226,9 @@ pub(crate) fn uncarried(root: &str, index: &str, scanned: Option<bool>, workspac
 /// `GitTree::prepare_orient_map`, on the calling thread.
 #[cfg(test)]
 pub(crate) fn carried(tree: &GitTree, root: &str, index: &str) -> napi::Result<Option<OrientMapPrepared>> {
-    prepare(root, index, Some(Listed::from(tree)), false, false, Tsconfig::Auto)
+    let mut listed = Listed::from(tree);
+    listed.marks = tree.take_marks(root, index);
+    prepare(root, index, Some(listed), false, false, Tsconfig::Auto)
 }
 
 #[napi]
@@ -246,12 +249,13 @@ impl GitTree {
         tsconfig: Option<napi::Either<String, bool>>,
         packs: Option<bool>,
     ) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
+        let marks = self.take_marks(&root, &index);
         let (paths, oids, unhashed) = (self.paths.clone(), self.oids.clone(), self.unhashed.clone());
         let emitted = self.listing();
         let filesystem = self.filesystem_root.is_some();
         let tsconfig = Tsconfig::from_js(tsconfig);
         off_thread("code map job", move || {
-            let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed, emitted, filesystem, read_blobs: packs != Some(false) };
+            let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed, emitted, filesystem, read_blobs: packs != Some(false), marks };
             prepare(&root, &index, Some(listed), false, workspaces, tsconfig)
         })
     }
@@ -262,7 +266,7 @@ impl GitTree {
 /// so a question is answered with the reason rather than with a map left from
 /// before. A kept map folded from this index and these manifests is kept as
 /// it is, so an index with nothing changed costs no fold.
-fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, workspaces: bool, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
+fn prepare(root: &str, index: &str, mut snapshot: Option<Listed>, relisted: bool, workspaces: bool, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
     let mut phases = crate::timings::Phases::new("code map", "read index and validate kept map");
     // The reason alone: the caller says what was not prepared.
     let fail = napi::Error::from_reason;
@@ -292,14 +296,11 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
     phases.note(format_args!("{} layers; carried listing {}", layers_read.len(), snapshot.is_some()));
     phases.next("read package graph");
     let mut unmarked = false;
+    let prepared = snapshot.as_mut().and_then(|snapshot| snapshot.marks.take());
     let read = std::thread::scope(|scope| {
-        let marks = scope.spawn(|| {
-            snapshot.as_ref().filter(|snapshot| !snapshot.filesystem).and_then(|_| {
-                crate::git::git(root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
-            })
-        });
+        let marks = (prepared.is_none() && !walked).then(|| scope.spawn(|| crate::git_tree::git_marks(root)));
         read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), snapshot.as_ref().map(|snapshot| Arc::clone(&snapshot.emitted)), tsconfig, snapshot.as_ref().is_some_and(|snapshot| snapshot.read_blobs), || {
-            let made = marks.join().ok().flatten();
+            let made = prepared.unwrap_or_else(|| marks.and_then(|marks| marks.join().ok().flatten()));
             unmarked = !walked && made.is_none();
             made.unwrap_or_default()
                 .split(|&byte| byte == 0)

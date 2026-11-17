@@ -24,7 +24,7 @@ use super::codec::{In, Out};
 use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::external_dependencies::requests_of;
-use crate::package_graph::{join_parses, Crossing};
+use crate::package_graph::{join_all_parses, join_parses, Crossing};
 use crate::package_owners::NO_OWNER;
 
 const MAGIC: &[u8] = b"variance-authority-dependency-sites\0";
@@ -183,8 +183,7 @@ fn open_layers(segments: &[Vec<u8>]) -> Option<Vec<Layer<'_>>> {
 }
 
 /// The requests each crossing's file writes, sorted by line, or `Err` where its parse is not among `layers`.
-fn requests(layers: &[Layer], crossings: &mut [Crossing], internal: &HashSet<&str>) -> Vec<Result<Vec<(String, String, u32)>, ()>> {
-    join_parses(layers, crossings);
+fn requests(layers: &[Layer], crossings: &[Crossing], internal: &HashSet<&str>) -> Vec<Result<Vec<(String, String, u32)>, ()>> {
     crossings.par_iter().map(|crossing| {
         let mut rows: Vec<_> = requests_of(layers, crossing, internal)?.into_iter()
             .map(|request| (request.package, request.specifier, request.line)).collect();
@@ -203,7 +202,8 @@ pub(super) fn rebuild(index: &str, chain: &[crate::index_chain::Reference], base
     let mut files: Vec<(&str, (usize, usize))> = folded.into_iter().filter(|(file, _)| is_source(file)).collect();
     files.sort_unstable_by(|a, b| crate::order::code_unit(a.0, b.0));
     let mut crossings: Vec<Crossing> = files.iter().map(|&(file, at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }).collect();
-    let read = requests(base_layers, &mut crossings, internal);
+    join_all_parses(base_layers, &mut crossings);
+    let read = requests(base_layers, &crossings, internal);
     let mut writer = Writer::default();
     writer.record(|out| {
         out.u8(HEADER);
@@ -258,7 +258,8 @@ pub(super) fn increment(index: &str, chain: &[crate::index_chain::Reference], ba
     for file in back { writer.file(TO_BASE, file); }
 
     let mut crossings: Vec<Crossing> = changed.iter().map(|&(file, at, _)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }).collect();
-    let mut read = requests(&layers, &mut crossings, internal);
+    join_parses(&layers, &mut crossings);
+    let mut read = requests(&layers, &crossings, internal);
     // A file written back to bytes the base holds has its parse there: only then is the whole chain opened.
     let missed: Vec<usize> = (0..read.len()).filter(|at| read[*at].is_err()).collect();
     if !missed.is_empty() {
@@ -268,7 +269,8 @@ pub(super) fn increment(index: &str, chain: &[crate::index_chain::Reference], ba
             let (file, (layer, row), _) = changed[at];
             Crossing { file, owner: NO_OWNER, others: Vec::new(), at: (base + layer, row), parse: None }
         }).collect();
-        for (at, rows) in missed.iter().zip(requests(&whole, &mut again, internal)) { read[*at] = rows; }
+        join_parses(&whole, &mut again);
+        for (at, rows) in missed.iter().zip(requests(&whole, &again, internal)) { read[*at] = rows; }
     }
     for ((file, _, digest), rows) in changed.iter().zip(read) {
         // A file the index holds but cannot read writes nothing the lexicon can count, as the rebuild reads it.

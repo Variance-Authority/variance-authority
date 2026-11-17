@@ -28,7 +28,7 @@ fn parse_generations_keep_whole_facts_across_cold_warm_ready_and_store_readers()
     let store_path = root.join("cache/prepared.bin");
     let options = UpdateOptions {
         root: root.to_str().unwrap().to_owned(), index: index.to_str().unwrap().to_owned(),
-        config: "split-fixture".to_owned(), largest_file: None, readers: None, packs: None,
+        config: "split-fixture".to_owned(), largest_file: None, readers: None, packs: None, prepare_map: None,
         tsconfig: None, condition_names: None, aliases: None, builtins: Vec::new(),
         code_extensions: vec![".ts".to_owned(), ".tsx".to_owned(), ".rs".to_owned()],
         readable: vec![".ts".to_owned(), ".tsx".to_owned(), ".rs".to_owned()],

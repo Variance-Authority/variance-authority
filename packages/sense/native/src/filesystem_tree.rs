@@ -33,6 +33,7 @@ pub fn source_tree(root: String, mut paths: Vec<String>, seeds: Vec<String>) -> 
         filesystem_root: Some(root), paths, oids: Arc::new(Vec::new()), at: Arc::new(at), seeds,
         regular: Arc::new(regular), unhashed: Vec::new(), listing: OnceLock::new(),
         stores: std::sync::Mutex::new(None), from_blob: crate::parse_origin::FromBlob::default(),
+        prepared_marks: std::sync::Mutex::new(None),
         store: Arc::new(acquire::TreeObjects::worktree()),
         #[cfg(unix)]
         change: None,
