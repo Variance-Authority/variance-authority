@@ -124,6 +124,19 @@ describe('a page that tells what an execution ran', () => {
     expect(story.notes.length + story.unnoted).toBe(all.notes.length + all.unnoted);
   });
 
+  it('keeps a chatty step within the room, cutting what it said before what it ran', () => {
+    const cart = page();
+    cart.tell('7f3a');
+    cart.run("add('socks')");
+    for (let at = 0; at < 200; at += 1) cart.say(`line ${at} `.padEnd(200, '.'));
+
+    const story = decodeStory(Buffer.from(cart.told('7f3a', 16 << 10), 'base64'));
+
+    expect(story.visits.length).toBeGreaterThan(0);
+    expect(texts(story).slice(0, 2)).toEqual(["handed item='socks'", 'console.log adding socks']);
+    expect(story.notes.length + story.unnoted).toBe(202);
+  });
+
   it('hands a driver that claims the page what it ran since it was last told, and keeps none of it to tell', () => {
     const cart = page();
     cart.tell('7f3a');

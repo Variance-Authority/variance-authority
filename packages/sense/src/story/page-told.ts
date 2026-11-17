@@ -80,10 +80,12 @@ globalThis[${JSON.stringify(TELLER_GLOBAL)}] = {
     const taken = tap.take(${JSON.stringify(PART)});
     if (taken.visits === 0 && taken.notes.length === 0 && taken.unnoted === 0) return undefined;
     let told = encode(taken, key);
-    // Halved until it fits: the visits first, then what was said before any.
+    // Halved until it fits, the visits or the notes said by then, whichever weighs more.
     for (let kept = taken.taped, said = taken.notes.length; room !== undefined && told.length > room && kept + said > 0; ) {
-      if (kept > 0) kept >>= 1;
-      else said >>= 1;
+      const notes = taken.notes.filter(([at]) => at <= kept).slice(0, said);
+      const words = notes.reduce((sum, [, , text]) => sum + text.length, 0);
+      if (kept > 0 && kept * 4 >= words) kept >>= 1;
+      else said = notes.length >> 1;
       told = encode(cut(taken, kept, said), key);
     }
     return told;
