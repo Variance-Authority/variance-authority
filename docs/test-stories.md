@@ -684,6 +684,36 @@ change. For the React commits behind it, use [Eyes](eyes.md), which writes each
 commit under its step with the components that rendered. A test run without a
 document has no `page` note.
 
+## What each line sent
+
+Under Playwright, a line of the spec on which the page sent a request, or got
+an answer back, says so at its end:
+
+```text
+sent POST /api/order, GET /api/price
+POST /api/order 201
+still out GET /api/price
+```
+
+What the line sent, in the order the page sent it; each answer that came back
+while the line ran, with its status, or `failed` for one that never answered;
+then what the page had asked for and not yet got when the line ended. A line on
+which no request moved says nothing, though some are still out. So the line
+that waited on a response it never received names it, and when two runs heard
+the same two answers in opposite orders, [comparing
+them](#compare-readings-of-one-test) lists that order.
+
+A request is its method and path, never its query or its body: those carry the
+application's data, often a token, and the story is a file anyone who reads the
+run can open. Fonts, images, media and open channels such as a WebSocket are
+left out, since every page has them and no line waits on them. A request is told
+on the line during which the runner heard it, which is the line that sent it or
+a later one, never an earlier one.
+
+The runner hears the requests from Playwright, so nothing in the page is
+replaced to see them. In the browser modes of Vitest and Rstest, Storybook and a
+test with no page, no line names its requests.
+
 ## What a story does not show
 
 - **What an object holds, and values never handed to a function.** A ref says
@@ -691,7 +721,8 @@ document has no `page` note.
   again, or set a breakpoint at the line the story names.
 - **Other processes.** A story covers the test's own process, or under
   Playwright, Storybook and the browser modes of Vitest and Rstest, the page. Code the test calls in another
-  process, such as a server, is not on it.
+  process, such as a server, is not on it; under Playwright, each line names
+  [the requests it sent](#what-each-line-sent) there.
 - **Some pages.** Under Playwright, a page closed or replaced before its
   statement ended loses what it ran since the statement before. The header says
   so.

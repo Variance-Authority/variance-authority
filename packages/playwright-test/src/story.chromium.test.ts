@@ -125,7 +125,10 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
     expect({ file: story.file, stopped: story.stopped }).toEqual({ file: at('tests/navigates.spec.ts'), stopped: false });
     // The second document runs the module from its top level again.
     expect(await routeOf(directory, story)).toEqual(['top level', 'choose', 'top level', 'pay']);
-    expect(await toldIn('navigates.spec.ts', story)).toEqual([
+    // When the document's response ends is the browser's to say, so its request
+    // is not read here: the case below reads requests on lines that wait for them.
+    const requests = /^(sent |still out |GET \/)/;
+    expect((await toldIn('navigates.spec.ts', story)).filter((told) => !requests.test(told))).toEqual([
       'test line opens',
       'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'test line leaves',
@@ -164,6 +167,32 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       // The cleanup's own click is no line of the spec's.
       'page +1 −0 nodes, 0 attributes, 0 text',
     ]);
+  }, 120_000);
+
+  it('notes what a line sent, what came back on it and what was still out at its end, by method and path alone', async () => {
+    const { byName } = await storiesWritten();
+    const story = byName.get('saves an order while its price is still out')!;
+
+    expect(story.stopped).toBe(false);
+    const told = await toldIn('requests.spec.ts', story);
+    expect(told).toEqual([
+      'test line opens',
+      'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
+      'test line saves',
+      'sent POST /api/order, GET /api/price, GET /api/stock',
+      'still out POST /api/order, GET /api/price, GET /api/stock',
+      'test line answers the order',
+      'POST /api/order 201',
+      'still out GET /api/price, GET /api/stock',
+      // The line that checks moved no request, so it tells nothing, not even what is still out.
+      'test line loses the stock',
+      'GET /api/stock failed',
+      'still out GET /api/price',
+      'test line answers the price',
+      'GET /api/price 200',
+    ]);
+    // The price was asked for with a token in its query, which no note carries.
+    expect(told.filter((note) => note.includes('token'))).toEqual([]);
   }, 120_000);
 
   it('records what a replaced document entered at the statement that replaced it', async () => {
