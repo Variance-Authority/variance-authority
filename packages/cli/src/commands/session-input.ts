@@ -1,26 +1,13 @@
 // compass: variance-authority.reach.crossings
 /**
  * A session's V8 coverage as somebody exported it, read into the scripts
- * `sessionSources` walks.
- *
- * Three exports carry the same per-script report: Playwright's
- * `stopJSCoverage()` writes an array of scripts, each with the text it ran;
- * CDP's `Profiler.takePreciseCoverage` writes `{ result }`; and a
- * `NODE_V8_COVERAGE` directory holds one `{ result, source-map-cache }` file per
- * process, the maps Node read beside its scripts. A script is placed as a file
- * on this machine by its URL: a `file:` URL is that file, and an `http(s):` one
- * is the file at its path under the directory the page was served from, which
- * only the person who ran it can name. A script is placed only where a file on
- * this machine answers it: a URL from another origin joined under that
- * directory names no file. Node keeps no script text, so its script is the file
- * on disk, read only when its lines are as long as the ones Node counted: a
- * loader that transformed it, or a rebuild since, leaves other text there, and
- * V8's offsets would land in the wrong functions. Its map is the one Node
- * cached, else the one its `sourceMappingURL` names, inline or beside it. A
- * script that cannot be placed, or whose map cannot be read, is named as skipped
- * rather than read as a source of its own: a bundle read as its own source
- * would land nowhere the record cuts. Node's own modules and scripts with no
- * URL are nobody's source, and are passed over without a word.
+ * `sessionSources` walks: Playwright's `stopJSCoverage()` array, CDP's
+ * `Profiler.takePreciseCoverage` `{ result }`, or a `NODE_V8_COVERAGE`
+ * directory of `{ result, source-map-cache }` files. A script that cannot be
+ * placed, read as the text that ran, or mapped is named as skipped rather than
+ * read as a source of its own: a bundle read as its own source would land
+ * nowhere the record cuts. Node's own modules and scripts with no URL are
+ * nobody's source, and are passed over without a word.
  */
 
 import { readdir, readFile, stat } from 'node:fs/promises';
@@ -100,7 +87,16 @@ function exportOf(file: string, json: unknown): Exported {
   return { result: held.result as Reported[], cache: new Map(Object.entries(held['source-map-cache'] ?? {})) };
 }
 
-/** The script `reported` names, `undefined` when it cannot be read, and `nobody` for a script no source is behind. */
+/**
+ * The script `reported` names, `undefined` when it cannot be read, and `nobody`
+ * for a script no source is behind. A `file:` URL is that file, and an
+ * `http(s):` one the file at its path under `served`, which only the person who
+ * ran it can name; a URL no file answers, as another origin's does, is not
+ * placed. Node keeps no script text, so the file is read only when its lines are
+ * as long as the ones Node counted: a loader's transform, or a rebuild since,
+ * leaves other text there, and V8's offsets would land in other functions. The
+ * map is the one Node cached, else the one `sourceMappingURL` names.
+ */
 async function scriptOf(reported: Reported, cached: ReadonlyMap<string, Cached>, served: string | undefined): Promise<SessionScript | 'nobody' | undefined> {
   if (reported.url === '' || reported.url.startsWith('node:')) return 'nobody';
   const file = fileOf(reported.url, served);
