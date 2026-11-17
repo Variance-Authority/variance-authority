@@ -449,6 +449,9 @@ function createTap(engine: Engine, limit: number, live = false): Tap {
       note[0] = turn < turns.length ? turns[turn]! : taped;
       let index = notes.length;
       while (index > 0 && notes[index - 1]![0] > note[0]) index -= 1;
+      // Nor after what a line cut after `time` said, at its position when no visit came between.
+      for (const [line, cut] of lines.entries()) if (cutAt[line]! > time && cut[3] < index) index = cut[3];
+      if (index < notes.length && notes[index]![0] < note[0]) note[0] = notes[index]![0];
       notes.splice(index, 0, note);
       for (const [line, cut] of lines.entries()) if (cut[3] > index || (cut[3] === index && cutAt[line]! > time)) cut[3] += 1;
     },

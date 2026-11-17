@@ -238,8 +238,13 @@ function readReading(root: string, { story, files, regions }: Loaded, names: Map
     clock += 1;
   };
   const hear = (said: string): void => {
-    // What the browser reports of its frames is placed and spelled by its timing.
-    if (storyFrames.fromFrames(said)) return;
+    // What the browser reports of its frames is placed and spelled by its
+    // timing, so it is not compared; it keeps its tick, which the lines and
+    // parts cut after it count.
+    if (storyFrames.fromFrames(said)) {
+      clock += 1;
+      return;
+    }
     const text = acrossRuns(said);
     read.said.add(text);
     if (!read.first.has(`s${text}`)) read.first.set(`s${text}`, clock);

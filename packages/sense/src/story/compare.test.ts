@@ -43,8 +43,8 @@ function reading(visits: number[], said: [number, string][] = [], stopped = fals
 }
 
 /** {@link reading} of a case that ran in pages: test lines and the realm parts the page story says. */
-function paged(visits: number[], lines: [number, number, number][], parts: [number, number, number, number][]): Loaded {
-  const read = reading(visits);
+function paged(visits: number[], lines: [number, number, number][], parts: [number, number, number, number][], said: [number, string][] = []): Loaded {
+  const read = reading(visits, said);
   return { ...read, story: { ...read.story, lines, parts } };
 }
 
@@ -319,5 +319,19 @@ describe('sides that are different cases', () => {
       threw(paged([4, 1], [[0, 5, 0]], [[0, 0, 1, 1], [2, 0, 2, 2]]), paged([4, 1], [[0, 5, 0]], [[0, 0, 1, 1], [2, 0, 2, 2]])),
     ]);
     expect(within.orders).toHaveLength(1);
+  });
+
+  it('place a frame\'s work under the line a note the browser reported counts toward', () => {
+    // On the threw side the browser's report came between the two frames' work,
+    // after line 6 began: price ran under line 5 and removeItem under line 6.
+    const plain = paged([4, 1], [[0, 5, 0], [1, 6, 0]], [[0, 0, 2, 2], [1, 0, 1, 1]]);
+    const reported = paged([4, 1], [[0, 5, 0], [1, 6, 1]], [[0, 0, 2, 2], [1, 0, 1, 1]], [[1, 'first paint']]);
+    const sides = (threw: Loaded) => [
+      passed(paged([1, 4], [[0, 5, 0], [1, 6, 0]], [[0, 0, 1, 1], [1, 0, 2, 2]]), paged([1, 4], [[0, 5, 0], [1, 6, 0]], [[0, 0, 1, 1], [1, 0, 2, 2]])),
+      { name: 'threw', readings: [threw, threw] },
+    ];
+
+    expect(compareLoaded(ROOT, sides(reported)).orders).toEqual(compareLoaded(ROOT, sides(plain)).orders);
+    expect(compareLoaded(ROOT, sides(reported)).orders).toHaveLength(1);
   });
 });
