@@ -8,8 +8,9 @@
  * Rstest hands its Rsbuild plugins `modifyRstestConfig`, whose callbacks it
  * awaits and then plans the project's entries again. The selection is read
  * there, once the command line is merged in, and against the files the
- * project's own `include` and `exclude` find. Files named on the command line
- * are not counted apart: `M` is the project's files, as under Jest.
+ * project's own `include` and `exclude` find. Rstest applies the files named on
+ * its command line after this callback, so `M` counts the project's files, and
+ * a run whose named files the selection all skipped passes, as under Jest.
  */
 
 import { existsSync } from 'node:fs';
@@ -19,6 +20,7 @@ import { glob, isDynamicPattern } from 'tinyglobby';
 import { kept, selectedLines, type SuiteSelection } from './suite-selection.js';
 import { askedSelection } from './selection-environment.js';
 import { projectPath } from './instrumented-modules.js';
+import { excluded } from './rstest-exclude.js';
 
 /** Where the plugins read the command line and the environment, and say why they do not select. */
 interface SelectingContext {
@@ -102,7 +104,8 @@ interface SelectingApi {
 
 /**
  * The plugin that leaves out of a project the files `selection` skips, and
- * says what it kept. A project it keeps no file of runs nothing and passes.
+ * says what it kept. A project it keeps no file of runs nothing and passes, and
+ * one that has no file to keep fails, as Rstest fails it.
  *
  * `root` is the checkout the selection names files against. A selection that
  * names cases is refused: a kept file runs whole here, and a run that asked
@@ -121,7 +124,8 @@ export function selectingPlugin(selection: () => Promise<SuiteSelection>, root: 
         for (const line of selectedLines(asked, found.map(name))) console.error(line);
         const skipped = found.filter((file) => !runs.has(file));
         config.exclude.patterns.push(...excluded(config.root, skipped));
-        if (runs.size === 0) config.passWithNoTests = true;
+        // Whatever the command line narrows to may be all skipped; a project whose `include` finds nothing fails as it would unwrapped.
+        if (found.length > 0) config.passWithNoTests = true;
       });
     },
   };
@@ -155,53 +159,4 @@ async function projectFiles(config: PlannedConfig): Promise<string[]> {
   );
   // Rstest's planning names files with forward slashes on every platform, as the glob does.
   return [...new Set([...globbed, ...literal.filter((file) => !existsSync(file)), ...inSource.flat()])].sort();
-}
-
-/** The longest pattern this plugin adds: picomatch refuses one past 65 536 characters. */
-const PATTERN_LIMIT = 60_000;
-
-/**
- * Absolute paths as `exclude` patterns that match them alone, relative to the
- * project's `root`, as the glob reads an ignore pattern: an absolute one is
- * made relative to a root it escapes differently, and stops matching under a
- * root whose name holds `@`, `+` or `,`. The files under the root share their
- * common directory and the rest of each sits in brace alternations, so
- * thousands of skipped files compile to a handful of patterns rather than one
- * per file, which a matcher would test every path against in turn. A file
- * above the root, which an `include` may reach, is a pattern of its own.
- */
-export function excluded(root: string, paths: readonly string[]): string[] {
-  const from = root.replaceAll('\\', '/');
-  const relatives = paths.map((path) => posix.relative(from, path.replaceAll('\\', '/')));
-  const above = relatives.filter((path) => path.startsWith('../'));
-  const under = relatives.filter((path) => !path.startsWith('../'));
-  return [...grouped(under), ...above.map(escaped)];
-}
-
-function grouped(paths: readonly string[]): string[] {
-  if (paths.length < 2) return paths.map(escaped);
-  const common = paths.reduce((prefix, path) => {
-    while (!path.startsWith(prefix)) prefix = prefix.slice(0, prefix.lastIndexOf('/', prefix.length - 2) + 1);
-    return prefix;
-  }, paths[0]!.slice(0, paths[0]!.lastIndexOf('/') + 1));
-  const patterns: string[] = [];
-  let group: string[] = [];
-  let length = 0;
-  const close = (): void => {
-    if (group.length > 0) patterns.push(`${escaped(common)}${group.length === 1 ? group[0]! : `{${group.join(',')}}`}`);
-    group = [];
-    length = 0;
-  };
-  for (const rest of paths.map((path) => escaped(path.slice(common.length)))) {
-    if (length + rest.length + 1 > PATTERN_LIMIT - common.length) close();
-    group.push(rest);
-    length += rest.length + 1;
-  }
-  close();
-  return patterns;
-}
-
-/** A path as a glob that matches it alone: its glob characters escaped, unlike a regular expression's. */
-function escaped(path: string): string {
-  return path.replace(/[*?[\]{}()!+@,\\]/g, '\\$&');
 }

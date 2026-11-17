@@ -25,11 +25,11 @@ afterAll(async () => {
 });
 
 /** One run of the fixture's two test files, with `env`: what it said on stderr and which test files it recorded. */
-async function run(name: string, env: Record<string, string>, config = 'rstest.selected.config.mjs') {
+async function run(name: string, env: Record<string, string>, config = 'rstest.selected.config.mjs', filters: string[] = []) {
   const coverageFile = resolve(directory, `${name}.bin`);
   // A selection the run of this test was handed is not the fixture's.
   const { VARIANCE_AUTHORITY_SINCE: _since, VARIANCE_AUTHORITY_AT_DISTANCE: _distance, VARIANCE_AUTHORITY_GRAIN: _grain, ...inherited } = process.env;
-  const { stderr } = await execute(process.execPath, [rstest, 'run', '-c', resolve(fixture, config)], {
+  const { stderr } = await execute(process.execPath, [rstest, 'run', '-c', resolve(fixture, config), ...filters], {
     cwd: fixture,
     env: { ...inherited, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: resolve(directory, name), ...env },
   });
@@ -67,6 +67,18 @@ describe('an Rstest run handed a selection', () => {
 
     expect(ran).toEqual([]);
     expect(stderr).toContain('variance-authority: selected none of 2, so none of them runs');
+  });
+
+  it('runs nothing and passes when the files named on the command line are all skipped, as under Jest', async () => {
+    const { ran } = await run('filtered', { FIXTURE_SKIP: JSON.stringify([at('test/alpha.case.ts')]) }, undefined, ['alpha']);
+
+    expect(ran).toEqual([]);
+  });
+
+  it('fails as Rstest does when its `include` finds no file, whatever the selection keeps', async () => {
+    const unfound = run('unfound', { FIXTURE_INCLUDE: 'nowhere/*.case.ts', FIXTURE_SKIP: '[]' });
+
+    await expect(unfound).rejects.toMatchObject({ stderr: expect.stringContaining('No test files') });
   });
 
   it('selects in each project of a `projects` configuration, and says so for each', async () => {
