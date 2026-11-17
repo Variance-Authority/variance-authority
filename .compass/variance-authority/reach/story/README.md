@@ -16,7 +16,8 @@ drawn at the finest level that fits a page and read a part at a time.
 
 In: every probe hit in one realm, in the order it happened, while a run asks for
 stories; which case was open at each hit, and which test line, a hook's marked;
-what each test line changed on the realm's document;
+what each test line changed on the realm's document; what a package's setup
+file tells the realm's note channel as it happens, without importing sense;
 from a page, each drain's tape, which the runner names with the case and the
 line it was drained under; and, to name what was visited, the region inventory
 the record beside it holds. Out: one **story** per case,
@@ -69,6 +70,9 @@ by guess.
   of the engine, tapes every hit and forwards it
 - `packages/sense/src/instrument/story-listen.cts` — what a realm announces and
   prints, put on its tap as notes
+- `packages/react/src/story-suspense.ts` — the watch that tells the story each
+  Suspense boundary that shows its fallback or unlocks, as it does, started on
+  the realm's page by `@variance-authority/react/story`
 - `packages/sense/src/instrument/story-frames.cts` — what a browser reports of
   its frames, placed on the tap by the time it gives
 - `packages/sense/src/test-selection/journey-story.ts` — a live head's tap,

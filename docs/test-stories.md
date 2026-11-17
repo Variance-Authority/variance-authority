@@ -697,6 +697,39 @@ change. For the React commits behind it, use [Eyes](eyes.md), which writes each
 commit under its step with the components that rendered. A test run without a
 document has no `page` note.
 
+## When a Suspense boundary falls back and unlocks
+
+With `@variance-authority/react/story` from [React](../packages/react) in the
+suite's setup files, the story tells each time a React `Suspense` boundary
+shows its fallback and each time it unlocks, at the moment it happens. Each
+note lands among the other notes of the line that was running, so the story
+reads in the order things happened:
+
+```text
+test line 13
+suspense CheckoutPage › Suspense shows its fallback
+console.log cart arrived
+suspense CheckoutPage › Suspense unlocks
+test line 15
+```
+
+A boundary has no name of its own, so it is named by the component that wrote
+it — in a production build, which keeps no writer, the one it sits inside.
+Each boundary gets its own notes, and one that falls back again is told again.
+A boundary that never showed its fallback gets no note. Neither does one taken
+off the page while it was showing it. A boundary out of sight, under a hidden
+`Activity`, is told when it comes into sight. The boundaries are read at each commit
+React makes, so a boundary whose fallback is empty is told too, and one that
+falls back and unlocks within one commit is not seen. React announces its
+commits only to a listener there before it loaded, which a setup file is.
+
+A test that times out waiting on data saw its boundary fall back and never
+unlock. When you [compare its readings](#compare-readings-of-one-test) with
+`--compare outcome` against a reading that passed, the boundary's `unlocks`
+note is listed under `only when it passed`. The notes read a document the setup
+file loaded into, as under jsdom and the browser modes of Vitest and Rstest:
+the page a Playwright spec or a Storybook story drives has none.
+
 ## What the browser painted, held and moved
 
 In a page Chromium runs, under Playwright, Storybook or the browser modes of
