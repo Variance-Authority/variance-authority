@@ -135,8 +135,8 @@ pub fn scan_batch(
     dirs: Option<Vec<String>>,
     held: Option<Buffer>,
 ) -> napi::Result<ScanBatch> {
-    let opened = held.as_deref().map(crate::parse_store::Opened::of_segment);
-    let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &crate::index::way(file))?.read();
+    let opened = crate::parse_store::Opened::answering(None, held.as_deref());
+    let kept = |identity: &str, file: &str| opened.view(identity, &crate::index::way(file))?.read();
     let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
     let over_tree = |file: &String| !matches!(language_of(file), None | Some(Language::Module | Language::Style));
     let walked: Option<HashMap<String, u32>> = (listed.is_none() && files.iter().any(over_tree))

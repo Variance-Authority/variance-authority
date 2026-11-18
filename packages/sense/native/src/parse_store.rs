@@ -72,13 +72,7 @@ impl Stores {
     }
 
     pub(crate) fn open(&self) -> Opened<'_> {
-        let mut layers = Vec::new();
-        for (_, chain) in &self.chains {
-            let Held::Read(chain) = chain else { continue };
-            layers.extend(opened(chain));
-        }
-        let keys = folded(&layers);
-        Opened { layers, keys }
+        Opened::answering(Some(self), None)
     }
 
     /// Add `rows` to the first store, as one segment; the store as one when it
@@ -159,10 +153,16 @@ impl ParseRow for Parse<'_, '_, '_> {
 }
 
 impl<'c> Opened<'c> {
-    /// The parses one segment holds, as if it were a store; one that does not
-    /// open holds nothing.
-    pub(crate) fn of_segment(bytes: &'c [u8]) -> Self {
-        let layers: Vec<Layer<'c>> = Layer::open(bytes).ok().into_iter().collect();
+    /// What a scan answers a parse from before it reads the file: `held`, a
+    /// parse-only segment of the caller's cache, ahead of the `stores`, as one
+    /// store whose last layer `held` is. A segment that does not open holds nothing.
+    pub(crate) fn answering(stores: Option<&'c Stores>, held: Option<&'c [u8]>) -> Self {
+        let mut layers = Vec::new();
+        for (_, chain) in stores.iter().flat_map(|stores| &stores.chains) {
+            let Held::Read(chain) = chain else { continue };
+            layers.extend(opened(chain));
+        }
+        layers.extend(held.and_then(|bytes| Layer::open(bytes).ok()));
         let keys = folded(&layers);
         Opened { layers, keys }
     }

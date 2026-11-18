@@ -184,13 +184,8 @@ impl GitTree {
             .map(|file| self.at.get(file).map(|index| self.oids[*index as usize]))
             .collect();
         let stores = self.stores(stores);
-        let opened = stores.as_deref().map(parse_store::Stores::open);
-        // What the caller's cache holds answers first, then the stores.
-        let held = held.as_deref().map(parse_store::Opened::of_segment);
-        let kept = |identity: &str, file: &str| {
-            let way = index::way(file);
-            held.as_ref().and_then(|held| held.view(identity, &way)).or_else(|| opened.as_ref()?.view(identity, &way))?.read()
-        };
+        let opened = parse_store::Opened::answering(stores.as_deref(), held.as_deref());
+        let kept = |identity: &str, file: &str| opened.view(identity, &index::way(file))?.read();
         batch::scan_batch_with_oids(
             batch::ScanOptions {
                 root,
@@ -221,7 +216,8 @@ impl GitTree {
         stores.open().segment(wanted).into()
     }
 
-    /// Follow every module reachable from `seeds` in one native operation.
+    /// Follow every module reachable from `seeds` in one native operation,
+    /// answering a parse `held` or the stores hold as `scan_batch` does.
     #[napi]
     #[allow(
         clippy::too_many_arguments,
@@ -238,10 +234,11 @@ impl GitTree {
         include_parses: Option<bool>,
         stores: Option<Vec<String>>,
         records: Option<crate::record::RecordOptions>,
+        held: Option<napi::bindgen_prelude::Buffer>,
     ) -> napi::Result<batch::ScanBatch> {
         let stores = self.stores(stores);
-        let opened = stores.as_deref().map(parse_store::Stores::open);
-        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
+        let opened = parse_store::Opened::answering(stores.as_deref(), held.as_deref());
+        let kept = |identity: &str, file: &str| opened.view(identity, &index::way(file))?.read();
         batch::scan_graph_with_tree(
             batch::GraphOptions {
                 root,
@@ -267,8 +264,9 @@ impl GitTree {
     #[napi(catch_unwind)]
     pub fn index_graph(&self, mut options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
         let stores = self.stores(options.stores.take());
-        let opened = stores.as_deref().map(parse_store::Stores::open);
-        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), opened.as_ref(), &self.from_blob, &self.store)
+        let held = options.held.take();
+        let opened = parse_store::Opened::answering(stores.as_deref(), held.as_deref());
+        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), Some(&opened), &self.from_blob, &self.store)
     }
 
     /// Bring the source index at `options.index` up to this tree, on this
