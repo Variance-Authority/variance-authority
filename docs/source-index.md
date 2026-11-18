@@ -199,8 +199,9 @@ file's run and cannot be flattened into one workspace-wide source tree.
 
 From your own tooling, [`@variance-authority/sense`](../packages/sense/README.md)
 has the same functions the commands use: `updateSourceIndex` is `variance index`,
-`publishedSources` is what a reader calls, and `sourcesWithin` narrows the
-published records to the directories one question is about.
+`publishedSelectionGraph` returns native relations for a selection, and
+`publishedSelectionQuestions` answers typed questions over the directories one
+question is about.
 
 ## Where it goes
 
@@ -347,36 +348,28 @@ such `extends`, the two other cases like it, and what to change.
 
 ## Reading it
 
-The index is a private cache, not an interchange format, and no command prints
-it: the layout belongs to the version that wrote it, and the reader refuses
-anything it does not recognise. To read the graph, call `readPublishedSources`,
-which returns the published records and opens nothing but the index. To build
-it, call `updateSourceIndex`, which runs [`scanRelations`](source.md) over the
-index. To fix an index, delete it.
+The index is a private cache, not an interchange format. Its layout belongs to
+the version that wrote it. `updateSourceIndex` publishes checkout changes;
+`publishedSelectionGraph` opens native relations for selection and
+`publishedSelectionQuestions` exposes typed questions over that snapshot. File
+records and parses stay with the native index.
 
-An index another release wrote is named as such rather than as damaged, and
-`variance index` rebuilds it. `select`, `review` and the other commands that
-read the graph through `publishedSources` rebuild it on your workstation and say
-so, and refuse it in CI, naming `variance index` as the step to run first. A
-whole index they read as it stands. `coverage`, `covering` and `review` name
-the checkout's texts by the index, so on your workstation they bring it up to
-the checkout first; when that update fails, they say why on stderr and count
-what ran as over a text not known.
-`readPublishedSources` rebuilds nothing: it returns the index with
-`state: 'other-version'` and the version that wrote it in `written`.
-`ask orient --files` refuses it, naming both versions and `variance index`.
+A reader rebuilds a missing, damaged or incompatible index on a workstation
+and reports the reason through `announce`. In CI it throws
+`SourceIndexUnpublished` and names the configured `step`, normally
+`variance index`. A valid index is read as published. Update it first when the
+question needs the checkout's current texts.
 
-`openSourceIndex` returns the parse cache, the record cache and a `save`
-operation together. Point reads query segments newest to oldest and stop at the
-first value or tombstone; iteration materializes them oldest to newest. `save`
-keeps only the rows the scan used or wrote, compares them with what is
-committed, and writes the smallest segment that connects the two. A save
-rewrites one working layer over the base and never the base itself, so a run
-that changed nothing writes nothing. `variance index` folds the working layer
-back into a single segment before work, once it has grown to a tenth of the
-base, and the segments it replaces are removed after the new pointer is in
-place. A write that fails leaves scanning correct
-and preserves the previous pointer when one exists.
+`publishedNames` reads content names for selected paths under the same policy;
+`readPublishedNames` reads them without rebuilding. `ask orient --files`
+refuses an incompatible version and names `variance index`.
+
+Native point reads query segments newest to oldest and stop at the first value
+or tombstone. Publication writes only changed rows, replaces one working layer
+over the base, and writes nothing for an unchanged checkout. `variance index`
+folds a working layer that grows to a tenth of the base into one segment before
+work; old segments are removed after the new pointer is published. A failed
+write preserves the previous pointer when one exists.
 
 ## The bytes
 

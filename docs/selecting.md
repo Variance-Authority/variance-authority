@@ -1006,9 +1006,8 @@ a different graph for the tracked tree. Deleting them costs one cold scan and
 nothing else.
 
 Ignored generated files found through paths Git cannot classify remain a
-[source-scan reuse limit](source.md#limits). Track such files, or set
-`digests: false` to scan without Git ignore rules and disable record reuse;
-normal directory exclusions still apply.
+[source-scan reuse limit](source.md#limits). Track such files so the source inventory names them; normal directory
+exclusions still apply.
 
 That is the scan, which reasons about the source. What the *record* costs is a
 separate arithmetic — how large the snapshot is at two hundred thousand modules,

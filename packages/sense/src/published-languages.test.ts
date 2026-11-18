@@ -45,7 +45,10 @@ it('publishes mixed language edges natively without returning per-file parses to
     expect(edges('web/style.scss')).toContain('web/_colors.scss');
     expect(edges('jvm/kit/A.java')).toContain('jvm/kit/B.kt');
     expect(edges('swift/A.swift')).toContain('swift/B.swift');
-    expect(await updateSourceIndex(root, { index: at, packs: false })).toMatchObject({ files: 11, reread: 0, parsed: 0 });
+    expect(await updateSourceIndex(root, { index: at })).toMatchObject({ files: 11, reread: 0, parsed: 0 });
+    // Working-tree reads prove the bytes again and reuse every unchanged parse.
+    expect(await updateSourceIndex(root, { index: at, packs: false })).toMatchObject({ files: 11, reread: 11, parsed: 0 });
+    expect(await updateSourceIndex(root, { index: at, packs: false })).toMatchObject({ files: 11, reread: 11, parsed: 0 });
     expect(languageReads).not.toHaveBeenCalled();
   } finally {
     languageReads.mockRestore();

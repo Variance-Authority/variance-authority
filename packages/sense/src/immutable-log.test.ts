@@ -80,8 +80,13 @@ describe('the immutable segment log', () => {
     Buffer.from(JSON.stringify(header).padEnd(length, '\0')).copy(bytes, 4);
     await writeFile(segment, bytes);
 
-    const { openIndex } = native() as unknown as { openIndex(index: string): { close(): void } };
-    expect(() => openIndex(file).close()).toThrow();
+    const { openIndex } = native() as unknown as { openIndex(index: string): { status(): { state: string }; close(): void } };
+    const opened = openIndex(file);
+    try {
+      expect(opened.status()).toMatchObject({ state: 'damaged' });
+    } finally {
+      opened.close();
+    }
   });
 
   it('treats a missing segment as the end of the chain', async () => {

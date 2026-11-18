@@ -87,7 +87,8 @@ sentence naming it and the edge is left to the recorded run.
 
 ## Implementation coordinates
 
-- `packages/sense/src/scan.ts` — `scanRelations`, the walk and the reuse ladder
+- `packages/sense/src/native-index-graph.ts` — native closure publication
+- `packages/sense/native/src/source_update.rs` — the native walk and reuse ladder
 - `packages/sense/src/read.ts` — `readModule` and `readStyle`, source text to specifiers
 - `packages/sense/native/src/declarations.rs` — `declarations`, the components a
   module declares, read off the tree its requests come from
