@@ -35,6 +35,14 @@ pub(crate) fn summed<T>(sum: &AtomicU64, work: impl FnOnce() -> T) -> T {
     done
 }
 
+/// `work`, timed as the sequential stage `name`.
+pub(crate) fn timed<T>(name: &'static str, work: impl FnOnce() -> T) -> T {
+    let stage = start(name);
+    let done = work();
+    stage.end();
+    done
+}
+
 /// A sequential stage, started now; [`Stage::end`] writes its line.
 pub(crate) struct Stage(Option<(&'static str, Instant)>);
 

@@ -452,10 +452,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
             };
             let working = carried(working, Some(listing)).map_err(fail)?;
             encoding.end();
-            let writing = crate::stages::start("write");
-            let outcome = written(&o.index, published, &references[..base], &[&working], &references[base..], 1);
-            writing.end();
-            return match outcome {
+            return match crate::stages::timed("write", || written(&o.index, published, &references[..base], &[&working], &references[base..], 1)) {
                 Ok(still) => Ok((Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version }, !still)),
                 Err(error) => Ok((Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)), rebuilt, written: version }, false)),
             };
@@ -488,9 +485,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
         let layered = usize::from(chain.is_some());
         // Another writer between the read and here: its chain is not the one this delta is against.
         let replaced: Vec<LogSegment> = references[base..].iter().chain(&stale).cloned().collect();
-        let writing = crate::stages::start("write");
-        let outcome = written(&o.index, published, &references[..base], &[&working], &replaced, layered);
-        writing.end();
+        let outcome = crate::stages::timed("write", || written(&o.index, published, &references[..base], &[&working], &replaced, layered));
         let refused = match &outcome {
             Ok(false) => Some(format!("{}: another writer published it after this update read it", o.index)),
             Ok(true) => None,
