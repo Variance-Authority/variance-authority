@@ -54,7 +54,7 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
     // One call names the root's place and `HEAD`'s tree, and the object store
     // lists the tree in-process; `ls-tree` answers where it will not, as under a
     // replace ref or on an unborn branch.
-    let head = crate::git_store::head(std::path::Path::new(root));
+    let head = crate::stages::part("head", || crate::git_store::head(std::path::Path::new(root)));
     let asked = match &head {
         Some(head) => head.prefix.clone().into_bytes(),
         None => trim(&git(root, &["rev-parse", "--show-prefix"], None)?).to_vec(),
@@ -63,7 +63,7 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
     let status = |listed: &[u8]| {
         let mut args = vec!["--no-optional-locks", "status", "--porcelain=v1", "-z"];
         args.extend(untracked_question(prefix, settings_of(listed)));
-        git(root, &args, None)
+        crate::stages::part("git status", || git(root, &args, None))
     };
     // The working tree is walked while `HEAD`'s tree is listed: the walk needs
     // only the index, and the listing is what it is compared with after.
@@ -75,7 +75,7 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
         // A reader never writes the index: its refresh would race the user's
         // own git for `index.lock`, and move the stamp a held listing stands on.
         // `git status` answers where `worktree_status` hands the question back.
-        let walk = scope.spawn(|| {
+        let walk = scope.spawn(|| crate::stages::part("worktree", || {
             let listed = configured(root);
             // A walk that panics on an odd working tree hands the question to
             // `git status`, as one that declines does.
@@ -89,17 +89,17 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
             };
             let walked = walked.ok_or_else(|| status(&listed));
             (listed, walked)
-        });
-        let listing = match head.as_ref().and_then(|head| head.blobs()) {
+        }));
+        let listing = match crate::stages::part("tree", || head.as_ref().and_then(|head| head.blobs())) {
             Some(blobs) => Some(Listing::Held(blobs)),
-            None => git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None).map(Listing::Printed),
+            None => crate::stages::part("ls-tree", || git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None)).map(Listing::Printed),
         };
         (listing, walk.join().expect("the walk does not panic"))
     });
     // The index and `HEAD`'s blobs, both held, are compared in-process; a tree
     // the store will not list is `git status`'s to compare.
     let status = match (walked, &listing) {
-        (Ok(walked), Some(Listing::Held(blobs))) => Some(Status::Known(walked.against(blobs))),
+        (Ok(walked), Some(Listing::Held(blobs))) => Some(Status::Known(crate::stages::part("compare", || walked.against(blobs)))),
         (Ok(_), _) => status(&listed).map(Status::Printed),
         (Err(printed), _) => printed.map(Status::Printed),
     };
@@ -320,7 +320,7 @@ fn hash_on_disk(root: &str, prefix: &[u8], paths: &[&[u8]]) -> Vec<(Vec<u8>, Oid
         stdin.push(b'\n');
     }
 
-    let Some(out) = git(root, &["hash-object", "--stdin-paths"], Some(stdin)) else {
+    let Some(out) = crate::stages::part("hash-object", || git(root, &["hash-object", "--stdin-paths"], Some(stdin))) else {
         return Vec::new();
     };
 

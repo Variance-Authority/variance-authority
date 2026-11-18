@@ -26,6 +26,31 @@ pub(crate) static READ: AtomicU64 = AtomicU64::new(0);
 pub(crate) static PARSE: AtomicU64 = AtomicU64::new(0);
 pub(crate) static RESOLVE: AtomicU64 = AtomicU64::new(0);
 
+/// The listing's parts, each its wall time summed. `tree` and `worktree` run
+/// at once, so the parts do not sum to the listing's line; a part that did not
+/// run prints nothing. The git commands are the answers the in-process readers
+/// handed back.
+pub(crate) static LISTING_PARTS: [(&str, AtomicU64); 10] = [
+    ("head", AtomicU64::new(0)),
+    ("held", AtomicU64::new(0)),
+    ("tree", AtomicU64::new(0)),
+    ("ls-tree", AtomicU64::new(0)),
+    ("worktree", AtomicU64::new(0)),
+    ("git status", AtomicU64::new(0)),
+    ("compare", AtomicU64::new(0)),
+    ("hash-object", AtomicU64::new(0)),
+    ("seeds", AtomicU64::new(0)),
+    ("assemble", AtomicU64::new(0)),
+];
+
+/// `work`, its time added to the listing's part `name`.
+pub(crate) fn part<T>(name: &str, work: impl FnOnce() -> T) -> T {
+    match LISTING_PARTS.iter().find(|(part, _)| *part == name) {
+        Some((_, sum)) => summed(sum, work),
+        None => work(),
+    }
+}
+
 /// `work`, its time added to `sum` when the clock is on.
 pub(crate) fn summed<T>(sum: &AtomicU64, work: impl FnOnce() -> T) -> T {
     if !on() {
@@ -69,6 +94,13 @@ impl Stage {
         }
     }
 
+    /// The listing's end: its wall time, with the time of each of its parts that ran.
+    pub(crate) fn end_listing(self) {
+        if let Some((name, started)) = self.0 {
+            eprintln!("variance stage {name}: {}{}{}", seconds(started.elapsed()), peak(), listing_parts());
+        }
+    }
+
     /// The walk's end: its wall time, with the summed thread times of what overlapped in it, which it resets.
     pub(crate) fn end_walk(self) {
         if let Some((name, started)) = self.0 {
@@ -84,6 +116,22 @@ impl Stage {
                 seconds(resolve)
             );
         }
+    }
+}
+
+/// ` (`, each listing part that ran with its time, and `)`, or nothing when none ran; it resets each part.
+fn listing_parts() -> String {
+    let parts: Vec<String> = LISTING_PARTS
+        .iter()
+        .filter_map(|(part, sum)| {
+            let time = Duration::from_nanos(sum.swap(0, Ordering::Relaxed));
+            (!time.is_zero()).then(|| format!("{part} {}", seconds(time)))
+        })
+        .collect();
+    if parts.is_empty() {
+        String::new()
+    } else {
+        format!(" ({})", parts.join(", "))
     }
 }
 

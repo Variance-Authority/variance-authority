@@ -11,15 +11,18 @@ use crate::GitTree;
 /// The tree an update of the index at `index` is made against.
 #[napi(catch_unwind)]
 pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<GitTree> {
-    crate::stages::timed("listing", || listed(root, index, dirs))
+    let stage = crate::stages::start("listing");
+    let tree = listed(root, index, dirs);
+    stage.end_listing();
+    tree
 }
 
 fn listed(root: String, index: String, dirs: Vec<String>) -> Option<GitTree> {
     #[cfg(unix)]
     {
         let (snapshot, change) = crate::held_listing::change_tree(&root, &index, &dirs)?;
-        let seeds = crate::seed::seeds_of(&root, &dirs, &snapshot);
-        let mut tree = crate::git_tree::tree_from_snapshot(snapshot, seeds);
+        let seeds = crate::stages::part("seeds", || crate::seed::seeds_of(&root, &dirs, &snapshot));
+        let mut tree = crate::stages::part("assemble", || crate::git_tree::tree_from_snapshot(snapshot, seeds));
         tree.change = change;
         Some(tree)
     }

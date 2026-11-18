@@ -2275,6 +2275,19 @@ its line adds the time each took summed over every core:
 variance stage walk: 1.644 s, peak 2.13 GB (thread time: read 2.310 s, parse 15.255 s, resolve 12.482 s)
 ```
 
+The listing's line names its parts, each with its wall time, and leaves out a
+part that did not run. `head` resolves the commit, `held` asks Watchman whether
+the last listing still stands, `tree` reads HEAD's tree, `worktree` walks the
+working tree, `compare` checks the walk against the tree, `hash-object` hashes
+the files that changed, and `seeds` and `assemble` build the file list. `tree`
+and `worktree` run at the same time, so the parts do not add up to the line.
+`ls-tree` and `git status` appear only when the in-process reader hands the
+work to git:
+
+```
+variance stage listing: 0.857 s, peak 0.42 GB (head 0.010 s, held 0.066 s, tree 0.431 s, worktree 0.683 s, compare 0.044 s, hash-object 0.012 s, seeds 0.015 s, assemble 0.007 s)
+```
+
 A stage can print more than once: a directory git does not list prints git's
 listing and then the disk's, and a writer that lost a race opens and walks
 again.
