@@ -54,18 +54,10 @@ type Realm = {
 
 /**
  * Watch the realm's document, once, and have `tap` write each change a test
- * line made to it as one line, then say what the line changed when it ends, as
- * `page +N −M nodes, A attributes, T text`. A change is `dom` and its kind —
- * `+`, `−`, `@attribute old→new`, `text old→new` — then the node as the page
- * states it: its tag, id, `role` and label or text, never a role computed from
- * its tag, and the component that owns it where React names one. A node added
- * or removed brings a line for each node inside it a search could name.
- * Where React tells the realm of each commit, what the commit changed is written
- * as it lands, with the commit's ordinal in the case. What a field holds, as a
- * value or a password, is never written.
- *
- * A hook's line and a case's settling close the watch until a test line opens.
- * Self-contained: a page's tape puts its source on the page.
+ * line made to it as a `dom` line, then what the line changed when it ends, as
+ * `page +N −M nodes, A attributes, T text`. A hook's line and a case's
+ * settling close the watch until a test line opens. Self-contained: a page's
+ * tape puts its source on the page.
  */
 function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Realm): void {
   const { document, MutationObserver: Watch } = global;
@@ -135,7 +127,9 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
     const name = typeof naming === 'function' ? (naming as (node: Seen) => unknown)(node) : undefined;
     return typeof name === 'string' ? ` in ${name}` : '';
   };
-  // Write what `changes` did, in the order they came, under `commit` where one made them.
+  // Write what `changes` did, in the order they came, under `commit` where one made them:
+  // `+`, `−`, `@attribute old→new` or `text old→new`, then the node as the page states it,
+  // never a role its tag implies, nor what a field holds.
   const write = (watching: Watching, changes: readonly Change[], commit?: number): void => {
     if (watching.quiet) return;
     const counts = watching.counts;
