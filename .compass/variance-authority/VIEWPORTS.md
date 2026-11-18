@@ -550,7 +550,8 @@ flowchart TB
   `affectedBy` seeds the breadth-first walk with the changed files and nothing
   else, returning the changed paths the graph does not hold as
   `Affected.missing`, counted apart from `Affected.files`.
-  `packages/sense/src/scan.ts` (`scanRelations`) is the only producer.
+  `packages/sense/native/src/source_update.rs` publishes the records, and
+  `packages/sense/src/published-selection.ts` opens their native graph.
 - An install that could not be read — `readLockfile` in
   `packages/sense/src/lock/` throws rather than returning an empty install, and
   `changedPackages` compares two reads instead of a path. A caller that cannot
@@ -577,7 +578,8 @@ flowchart TB
   being asked after it.
   An entry with no node is a note rather than a refusal, because a `.nvmrc` has
   nothing below it to read and a harness config that lands there means its
-  setup files are still narrowing to nothing. `packages/sense/src/scan.ts` seeds
+  setup files are still narrowing to nothing.
+  `packages/sense/src/published-selection.ts` seeds
   those paths by name and drops one that is absent or unreadable rather than
   recording it unknown, which would make a typo read in every scan report as a
   scan that had failed.

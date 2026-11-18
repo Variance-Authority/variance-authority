@@ -29,7 +29,6 @@
 import { RUNTIME_EDGES, dependenciesOf, idOf, nodeAt, type Relations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { TestCoverage } from '../test-selection/index.js';
-import type { Tainted } from './index.js';
 
 export type TaintDeviationKind = 'shadowed-but-entered' | 'reachable-but-not-entered' | 'added-but-not-entered';
 
@@ -57,8 +56,12 @@ export interface TaintDeviation {
  * a caller may have kept: an audit without it still names every disagreement,
  * and one with it names who is answerable for each.
  */
-export type AuditedTaints = Pick<Tainted, 'shadows' | 'additions'> &
-  Partial<Pick<Tainted, 'shadowedBy' | 'addedBy'>>;
+export interface AuditedTaints {
+  readonly shadows: ReadonlyMap<string, readonly string[]>;
+  readonly additions: ReadonlyMap<string, readonly string[]>;
+  readonly shadowedBy?: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
+  readonly addedBy?: ReadonlyMap<string, ReadonlyMap<string, readonly string[]>>;
+}
 
 export interface TaintAuditOptions {
   /**

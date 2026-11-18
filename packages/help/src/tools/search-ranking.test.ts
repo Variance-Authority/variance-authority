@@ -1,6 +1,6 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import type { SearchIndex } from '../search-index.js';
 import { searchNames } from './search-answer.js';
@@ -83,7 +83,7 @@ beforeAll(async () => {
     ...app('second', 'Flakiness'),
     ...app('third', 'Flakiness'),
   });
-  index = searchIndexOf(readHelp(root));
+  index = searchIndexOf((await readNativeHelp(root)));
 });
 
 const ask = (query: string) => searchNames(index, { query }, treeOf([], root), root);

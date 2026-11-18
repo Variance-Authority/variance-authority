@@ -32,16 +32,15 @@
  */
 
 import { resolve } from 'node:path';
-import { encodeSourceTree, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
+import { type Tree } from '@variance-authority/mcp/tools';
 import {
-  openSourceIndex,
-  placesOf,
-  scanRelations,
+  updateSourceIndex,
   sourceIndexPath,
   stepped,
+  type HelpTaint,
   type Progress,
 } from '@variance-authority/sense';
-import { mockTaint, taintRecords, type Taint } from '@variance-authority/sense/taint';
+import type { Taint } from '@variance-authority/sense/taint';
 import {
   readWorkspaceManifests,
   type Help,
@@ -158,22 +157,6 @@ export interface IndexedUsageOptions {
    * run and cannot be flattened into the workspace-wide source tree.
    */
   readonly taints?: readonly Taint[];
-  /**
-   * Handed the arrows the scan drew, for a caller that needs the graph as well
-   * as the names.
-   *
-   * The scan walks the whole checkout and returns the import graph whichever
-   * question asked for it; this reading wanted only the half that says which
-   * names each file takes and hands out, and threw the other half away. A
-   * caller that has to answer *which files does this path reach* would then
-   * scan the repository a second time to learn something the first scan had
-   * already worked out and dropped on the floor.
-   *
-   * So it is a door rather than a return value: the reading that wants it is
-   * not the reading this function performs, and a caller that does not want it
-   * should not be handed a graph it has to ignore.
-   */
-  readonly records?: (records: readonly FileRecord[], graphRoot: string) => void;
   /** Handed the queryable graph when a caller asks a path-shaped question: the tree this reading publishes. */
   readonly tree?: (tree: Tree) => void;
   /** Told each step as it starts and ends: the manifests, the source, the names, the publish. */
@@ -181,20 +164,9 @@ export interface IndexedUsageOptions {
 }
 
 /**
- * A workspace, read with the index doing the expensive third of the work.
- *
- * The same value [`readHelp`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/package/src/help.ts) returns and the same
- * reading behind it — the manifests say which doors exist, the source behind
- * them says what is on the other side, and the repository says what it reaches
- * for. Only the third one changes: it comes from the source index rather than
- * from a walk, so asking a second question about an unchanged checkout costs the
- * manifests and nothing else.
- *
- * The scan brings the index up to date and saves it, and the value is read off
- * the saved index and published beside it, so a read whose index could not be
- * saved throws {@link UnsavedRead}. Asynchronous because the index is a file: a
- * caller with no cache directory to write to, or one reading a tree it does not
- * own, wants `readHelp` and should keep having it.
+ * Update the native source index and publish the workspace's declarations,
+ * documentation and usage. Unchanged source is reused without reading or
+ * parsing it again. A publication that cannot be saved throws {@link UnsavedRead}.
  */
 export async function readWorkspace(root: string, options: ReadingOptions = {}): Promise<Help> {
   return readAndPublish(root, options, new Date().toISOString());
@@ -217,8 +189,30 @@ export async function refreshWorkspace(
   return readAndPublish(root, options, kept === undefined ? new Date().toISOString() : new Date(kept).toISOString());
 }
 
+/** The addition-only rows of `taints`, a file to the specifiers it is said to load; a subtractive row is refused. */
+function additionsOf(taints: readonly Taint[]): HelpTaint[] {
+  const rows = new Map<string, Set<string>>();
+  let shadows = 0;
+  for (const taint of taints) {
+    for (const [file, diff] of taint.diffs ?? []) {
+      if ((diff.minus?.length ?? 0) > 0) shadows += 1;
+      const held = rows.get(file) ?? new Set<string>();
+      rows.set(file, held);
+      for (const value of diff.plus ?? []) held.add(value);
+    }
+  }
+  if (shadows > 0) {
+    throw new Error(
+      `Help source areas cannot apply subtractive taints: ${shadows} file(s) shadow a module. ` +
+      'Pass addition-only taints for declarative module loads.',
+    );
+  }
+  return [...rows].map(([file, plus]) => ({ file, plus: [...plus] }));
+}
+
 async function readAndPublish(root: string, options: ReadingOptions, readStartedAt: string): Promise<Help> {
   const where = resolve(root);
+  const taints = options.taints === undefined ? undefined : additionsOf(options.taints);
   const { offerings, targets } = await stepped(options.progress, `reading the package manifests of ${where}`, () =>
     readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
   // What `scanScope` names: the workspace's own directory whole, not only its
@@ -230,32 +224,13 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
   const scope = scanScope(where, offerings);
   const own = options.index ?? sourceIndexPath(where);
   const at = scopeSourceIndexPath(own, scope.dirs);
-  const index = await openSourceIndex(at);
-  const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(scope.root, scope.dirs)}`, () => scanRelations({
-    root: scope.root,
-    dirs: scope.dirs,
-    cache: index.cache,
-    reuse: index.reuse,
+  const update = await updateSourceIndex(scope.root, {
+    index: at, dirs: scope.dirs,
     ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.packs === undefined ? {} : { packs: options.packs }),
-  }));
-  const given = await taintRecords(records, options.taints ?? [], { root: scope.root, cache: index.cache });
-  if (given.shadows.size > 0) {
-    throw new Error(
-      `Help source areas cannot apply subtractive taints: ${given.shadows.size} file(s) shadow a module. ` +
-      'Pass addition-only taints for declarative module loads.',
-    );
-  }
-  // What a test loads for real beside its mocks joins the published tree. The
-  // addon draws it off the saved index; only a caller's taints, which the index
-  // never holds, keep the published tree on this side, and then this side joins
-  // the mocks the same way. A mock's cut is one test's run and stays out of either.
-  const tainted = options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root, cache: index.cache });
-  options.records?.(tainted.records, scope.root);
-
-  // A tool reads lines out of the index on disk, so the value is read off the index this scan saved, or not at all.
-  const refused = await stepped(options.progress, 'saving the source index', () => index.save());
-  if (refused !== undefined) throw new UnsavedRead(refused);
+    ...(options.progress === undefined ? {} : { progress: options.progress }),
+  });
+  if (update.refused !== undefined) throw new UnsavedRead(update.refused);
   const published = await publishHelp({
     workspace: where,
     root: scope.root,
@@ -264,7 +239,9 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
     index: at,
     own,
     readStartedAt,
-    ...(options.taints === undefined ? {} : { tree: encodeSourceTree(tainted.records) }),
+    ...(update.listing === undefined ? {} : { listing: update.listing }),
+    ...(update.packs === undefined ? {} : { packs: update.packs }),
+    ...(taints === undefined ? {} : { taints }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
   if (published === undefined) throw new UnsavedRead(`no source index opens at ${at}`);

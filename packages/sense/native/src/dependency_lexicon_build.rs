@@ -7,7 +7,6 @@
 // compass: variance-authority.reach.relations
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::fs;
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
@@ -60,12 +59,15 @@ fn openings(package: &str, manifest: &serde_json::Value) -> BTreeSet<String> {
 
 /// One pair's reading: its install, issues, and each specifier with whether the install opens it, its entry
 /// id, its reading and whether that was carried.
-type Read = (String, Vec<String>, Vec<(String, bool, String, Api, bool)>);
+type Read = (String, Vec<String>, Vec<(String, bool, String, Arc<Api>, bool)>);
 
 /// The catalogue, how many of its entries were carried, and how many resolved to no entrypoint.
 pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, internal: Vec<String>, sites: Option<&State>,
-    prior: Option<&Catalogue>, tsconfig: Tsconfig) -> (Made, u32, u32) {
+    prior: Option<&Catalogue>, tsconfig: Tsconfig, listing: Option<Arc<crate::emitted::Listing>>, read_blobs: bool) -> (Made, u32, u32) {
+    let mut phases = crate::timings::Phases::new("lexicon build", "wanted requests");
     let wanted = wanted::of(&owners, sites);
+    phases.note(format_args!("owners={}, manifests={}, wanted pairs={}", owners.len(), manifests.len(), wanted.len()));
+    phases.next("prior entries and resolver");
     // The last catalogue's reading of each (owner manifest, specifier).
     let prior_owners = prior.map(Catalogue::owners).unwrap_or_default();
     let mut prior_entries = HashMap::<(&str, &str), u32>::new();
@@ -79,37 +81,46 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
     }
     let owner_rows: HashMap<&str, u32> = owners.iter().enumerate().map(|(at, owner)| (owner.manifest.as_str(), at as u32)).collect();
     let owner_of = |manifest: &str| &owners[owner_rows[manifest] as usize];
-    let resolver = Resolvers::new(tsconfig, Some(vec!["types".to_owned(), "import".to_owned(), "default".to_owned()]));
-    let parsed = DashMap::<String, Arc<OnceLock<(Api, bool)>>>::new();
+    let resolver = Resolvers::over(tsconfig, Some(vec!["types".to_owned(), "import".to_owned(), "default".to_owned()]), crate::emitted::Emitted::listed_for(root, listing, read_blobs));
+    let parsed = DashMap::<String, Arc<OnceLock<(Arc<Api>, bool)>>>::new();
+    let manifest_readings = entry::Readings::default();
     let importer_of = |manifest: &str| root.join(&owner_of(manifest).directory).join("__variance_dependency__.ts");
     let resolve = |manifest: &str, package: &str| {
         let importer = importer_of(manifest);
         resolver.resolution(&importer, package).or_else(|| resolver.declaration_resolution(&importer, package))
     };
     let pairs: Vec<_> = wanted.iter().collect();
-    let keys: Vec<String> = pairs.par_iter().map(|((manifest, package), _)| wanted::install_key(manifest, resolve(manifest, package).as_ref())).collect();
+    phases.next("pair resolution");
+    let (keys, resolved_manifests): (Vec<_>, Vec<_>) = pairs.par_iter().map(|((manifest, package), _)| {
+        let answer = resolve(manifest, package);
+        let key = wanted::install_key(manifest, answer.as_ref());
+        (key, answer.as_ref().and_then(|answer| answer.package_json().cloned()))
+    }).unzip();
+    phases.next("install homes");
     // Pairs that resolve to one install share a reading, and the one they share is read from the first of them in
     // key order, so which owner's neighbours (`@types/react` beside one, another copy beside the next) a reading
     // names does not depend on which thread got there first.
     let mut home = HashMap::<&str, &str>::new();
     for (((manifest, _), _), key) in pairs.iter().zip(&keys) { home.entry(key.as_str()).or_insert(manifest.as_str()); }
-    let read: Vec<Read> = pairs.par_iter().zip(keys.par_iter()).map(|(((manifest, package), imported), key)| {
+    phases.note(format_args!("pairs={}, installs={}", pairs.len(), home.len()));
+    phases.next("resolve and read installed APIs");
+    let read: Vec<Read> = pairs.par_iter().zip(keys.par_iter()).zip(resolved_manifests.par_iter()).map(|((((manifest, package), imported), key), manifest_json)| {
         let importer = importer_of(manifest);
         let shared = importer_of(home[key.as_str()]);
         let mut issues = Vec::new();
-        let opened = resolve(manifest, package).as_ref().and_then(|answer| answer.package_json())
-            .and_then(|package_json| fs::read(package_json.path()).ok())
-            .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-            .map(|value| openings(package, &value));
+        let opened = manifest_json.as_ref().and_then(|package_json| manifest_readings.with(package_json.path(), |value| openings(package, value)));
         let opened = opened.unwrap_or_else(|| {
             issues.push(format!("the project resolver could not locate `{package}` from {}", relative(root, &importer)));
             BTreeSet::from([package.clone()])
         });
         let offered: BTreeSet<&String> = opened.iter().chain(*imported).collect();
         let offers = offered.into_iter().map(|specifier| {
-            let held = prior_entries.get(&(manifest.as_str(), specifier.as_str())).and_then(|&entry| prior.and_then(|prior| read_api(prior.entry_blob(entry as usize))));
             let cell = parsed.entry(format!("{key}\0{specifier}")).or_insert_with(|| Arc::new(OnceLock::new())).clone();
-            let (api, reused) = cell.get_or_init(|| entry::api(root, &shared, specifier, &resolver, held.as_ref())).clone();
+            let (api, reused) = cell.get_or_init(|| {
+                let held = prior_entries.get(&(manifest.as_str(), specifier.as_str())).and_then(|&entry| prior.and_then(|prior| read_api(prior.entry_blob(entry as usize))));
+                let (api, reused) = entry::api(root, &shared, specifier, &resolver, &manifest_readings, held.as_ref());
+                (Arc::new(api), reused)
+            }).clone();
             let id = format!("{}\0{}", api.runtime.as_ref().or(api.declarations.as_ref())
                 .map_or_else(|| format!("unresolved:{manifest}"), |identity| identity.manifest.clone()),
                 api.entrypoint.as_deref().unwrap_or(specifier));
@@ -121,7 +132,12 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
     }).collect();
 
     // Specifiers that resolve to one entrypoint share an id, and the first one's reading is kept.
-    let mut entries = BTreeMap::<String, (Api, bool)>::new();
+    phases.note(format_args!("unique installed API readings={}", parsed.len()));
+    manifest_readings.note(&phases);
+    phases.next("release shared declaration facts");
+    drop(manifest_readings);
+    phases.next("catalogue rows");
+    let mut entries = BTreeMap::<String, (Arc<Api>, bool)>::new();
     let mut installs = BTreeMap::<&str, (&str, BTreeMap<String, (String, bool)>)>::new();
     for (((_, package), _), (key, _, offers)) in pairs.iter().zip(&read) {
         let install = installs.entry(key.as_str()).or_insert((package.as_str(), BTreeMap::new()));
@@ -139,8 +155,12 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
         key: (*key).to_owned(), package: (*package).to_owned(),
         offers: offers.iter().map(|(specifier, (id, opened))| (specifier.clone(), entry_rows[id.as_str()], *opened)).collect(),
     }).collect();
-    let apis: Vec<&Api> = entries.values().map(|(api, _)| api).collect();
+    let apis: Vec<&Api> = entries.values().map(|(api, _)| api.as_ref()).collect();
+    phases.note(format_args!("entries={}, installs={}", entries.len(), made_installs.len()));
+    phases.next("installed source stamps");
     let stamps = stamps::of(root, &apis, &owners, &manifests);
+    phases.note(format_args!("stamps={}", stamps.len()));
+    phases.next("entry encoding");
     let reused = entries.values().filter(|(_, reused)| *reused).count() as u32;
     let unresolved = apis.iter().filter(|api| api.entrypoint.is_none()).count() as u32;
     let issues = made_pairs.iter().map(|pair| pair.issues.len()).sum::<usize>() as u32;
@@ -150,5 +170,28 @@ pub(super) fn made(root: &Path, owners: Vec<Owner>, manifests: Vec<String>, inte
         entries: entries.iter().map(|(id, (api, _))| (id.clone(), encoded(api))).collect(),
         owners, manifests, internal, pairs: made_pairs, installs: made_installs, stamps, summary,
     };
+    phases.note(format_args!("reused={reused}, unresolved={unresolved}, issues={issues}"));
+    phases.next("release catalogue inputs");
     (made, reused, unresolved)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn manifest_openings_keep_absent_null_conditions_and_patterns_distinct() {
+        for (json, expected) in [
+            (r#"{}"#, vec!["kit"]),
+            (r#"{"exports":null}"#, vec![]),
+            (r#"{"exports":false}"#, vec![]),
+            (r#"{"exports":42}"#, vec![]),
+            (r#"{"exports":{}}"#, vec![]),
+            (r#"{"exports":""}"#, vec!["kit"]),
+            (r#"{"exports":{"import":"./index.js","types":"./index.d.ts"}}"#, vec!["kit"]),
+            (r#"{"exports":{".":null,"./a":{"types":"./a.d.ts"},"./*":"./*","./readme.md":"./readme.md","./data.json":"./data.json","./a.ts":["./a.ts",null]}}"#, vec!["kit/a", "kit/a.ts"]),
+            (r#"{"exports":{"./bool":false,"./blank":"","./array":[null,false,{"default":"./f.js"}]}}"#, vec!["kit/array", "kit/blank"]),
+        ] {
+            let manifest = serde_json::from_str(json).unwrap();
+            assert_eq!(super::openings("kit", &manifest).into_iter().collect::<Vec<_>>(), expected, "{json}");
+        }
+    }
 }

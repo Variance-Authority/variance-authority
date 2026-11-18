@@ -4,16 +4,17 @@
  * On a large repository the value is mostly its export list — every export of
  * every file — and handing that list across as objects cost more than
  * everything done with it. So the reading keeps the list, and the path graph,
- * on the addon's side: JavaScript takes the uses it joins against the
- * documented surface, compares the list by its digest, and asks the reading to
- * publish. The search is encoded by the same code for a value JavaScript
- * already holds, which hands its list across once.
+ * on the addon's side: JavaScript supplies manifest metadata and asks the
+ * reading to join declarations, usage and README mentions before publishing.
+ * The search encoder also accepts values already held by a caller.
  */
 
 // compass: variance-authority.report.agent-surface
 
 import { native, nativeRefusal } from './addon.js';
 import type { NativeAsked, NativeImporters, NativeIndexedUsage } from './native-orient.js';
+import type { NativeSourceTreeReader } from './native-source-tree.js';
+import type { SourceIndexState } from './source-index-file.js';
 import type { DeclaredNames, NameTerms } from './declared-names.js';
 import { sourceIndexPath } from './source-index.js';
 import { CODE_EXTENSIONS } from './language.js';
@@ -139,7 +140,11 @@ export interface HelpEncode {
   readonly indexDigest?: string;
   /** What the package manifests the value was joined against state, as the store keeps it. */
   readonly packagesDigest: string;
-  readonly packages: readonly StorePackage[];
+  readonly packages: readonly {
+    readonly name: string;
+    readonly entry: boolean;
+    readonly openings: readonly { readonly subpath: string; readonly source: string }[];
+  }[];
   readonly unreadable: readonly string[];
   /** The digest of the tree the caller publishes, when the reading drew none. */
   readonly graphDigest?: string;
@@ -154,15 +159,6 @@ export interface HelpEncoded {
 
 /** The chain's answer for a Help value; the export list and the imports by path stay with the addon. */
 export interface HelpReading {
-  /** The uses and unreadable files, handed over once; `exported`, `deep`, `byPath` and `unfollowed` are empty. */
-  usage(): NativeIndexedUsage;
-  /**
-   * The names each entry hands out, in the order the entries were given,
-   * handed over once. Throws with the first export whose declaration the
-   * reading cannot say: a name nothing in its file binds, or one the file it
-   * leads to does not hand out.
-   */
-  names(): PublishedName[][];
   /** The store's bytes and the tree's, once. */
   encode(options: HelpEncode): Promise<HelpEncoded>;
 }
@@ -243,7 +239,7 @@ export interface Alias {
 export interface NativeHelp {
   /** The chain at `index`, read and checked once, for the readers below to share. */
   openIndex?(index: string): OpenedIndex;
-  readHelp?(root: string, index: string, entries: HelpEntry[], published: string[], unentered: string[], declared: string[], drawn: boolean, tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
+  readHelp?(root: string, index: string, entries: HelpEntry[], published: string[], unentered: string[], declared: string[], drawn: boolean, tsconfig: string | boolean | null, code: string[], taints?: HelpTaint[] | null): Promise<HelpReading | null>;
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   importersOf?(root: string, index: OpenedIndex, asked: NativeAsked[][]): NativeImporters | null;
@@ -259,6 +255,17 @@ export interface NativeHelp {
   declaredLooseOf?(root: string, index: OpenedIndex, groups: string[][], files: string[] | null): DeclaredNames | null;
   /** ripgrep's matching lines of `files` under `root`, as columns; throws `ripgrep refused the pattern: …` for an invalid one. */
   ripgrep?(root: string, pattern: string, files: string[]): Grepped;
+}
+
+/** A caller's declarative loads of one file: the specifiers it is said to load, joined onto the drawn graph as a test's own are. */
+export interface HelpTaint {
+  readonly file: string;
+  readonly plus: string[];
+}
+
+/** The scan's namespace and configuration bytes, carried into question ownership. */
+export interface NativeHelpListing {
+  readHelp?(root: string, index: string, entries: HelpEntry[], published: string[], unentered: string[], declared: string[], drawn: boolean, tsconfig: string | boolean | null, code: string[], packs?: boolean | null, taints?: HelpTaint[] | null): Promise<HelpReading | null>;
 }
 
 /** Every matching line, a column per field, and one complaint per file that could not be read. */
@@ -289,8 +296,27 @@ export function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<Na
   return (call as (...args: never[]) => unknown).bind(scanner) as NonNullable<NativeHelp[Name]>;
 }
 
+/** One component declaration attributed by the published record and its parse. */
+export interface ComponentSource {
+  readonly name: string;
+  readonly file: string;
+  readonly line: number;
+  readonly via: 'function' | 'class' | 'const';
+}
+
+/** Scoped component declarations and the identity of every source record in that scope. */
+export interface ComponentSources {
+  readonly components: readonly ComponentSource[];
+  readonly digest: string;
+  readonly files: number;
+}
+
 /** The source index the addon read and checked once for one question; `close` lets its bytes go. */
 export interface OpenedIndex {
+  componentSources(dirs: string[], extensions?: string[], exclude?: string[]): ComponentSources;
+  recordNames(files: string[]): { readonly file: string; readonly digest: string }[];
+  status(): { readonly state: SourceIndexState; readonly written?: number };
+  sourceTree(root: string, tsconfig: string | boolean | null, code: string[], names: boolean): NativeSourceTreeReader | null;
   close(): void;
 }
 
@@ -340,7 +366,8 @@ export function onIndex<T>(index: string, read: (opened: OpenedIndex) => T): T {
  * `targets.declared` are `<package> .<subpath>` keys. Unless `drawn` is
  * `false`, for a caller that publishes a graph of its own, the reading draws
  * the graph too, carrying what each test loads for real beside its mocks,
- * resolved under the `tsconfig` the repository declares, as `mockTaint` joins them.
+ * resolved under the `tsconfig` the repository declares, as the native mock overlay joins them.
+ * A carried listing belongs to `root`; `packs: false` reads manifests from the working tree.
  */
 export function readHelp(
   root: string,
@@ -348,14 +375,25 @@ export function readHelp(
   targets: { readonly published: Iterable<string>; readonly unentered: Iterable<string>; readonly declared: Iterable<string> },
   index: string = sourceIndexPath(root),
   drawn = true,
+  scanned?: { readonly listing?: NativeHelpListing; readonly packs?: boolean; readonly taints?: readonly HelpTaint[] },
 ): Promise<HelpReading | null> {
-  return entry('readHelp')(root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root));
+  const args: [string, string, HelpEntry[], string[], string[], string[], boolean, string | boolean | null, string[]] = [root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root)];
+  const taints = scanned?.taints === undefined ? null : scanned.taints.map(({ file, plus }) => ({ file, plus: [...plus] }));
+  const carried = scanned?.listing?.readHelp?.bind(scanned.listing);
+  return carried === undefined ? entry('readHelp')(...args, taints) : carried(...args, scanned?.packs ?? null, taints);
 }
 
 /** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */
 function mocking(root: string): [string | boolean | null, string[]] {
   const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
   return [tsconfig ?? null, [...CODE_EXTENSIONS]];
+}
+
+/** The published source generation as a native path graph, retaining names only when asked. */
+export function sourceTreeFromIndex(root: string, index: string = sourceIndexPath(root), names = false): NativeSourceTreeReader {
+  const reader = onIndex(index, (opened) => opened.sourceTree(root, ...mocking(root), names));
+  if (reader === null) throw new Error(`no source index is published at ${index}; run \`variance index\``);
+  return reader;
 }
 
 /** The store of `store` and `exported`, stamped with `meta` when it is published, and the digest of `exported`. */

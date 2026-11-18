@@ -13,8 +13,7 @@ installed:
 
 ```js
 import { execFileSync } from 'node:child_process';
-import { relationsOfFiles } from '@variance-authority/core/relate';
-import { scanRelations } from '@variance-authority/sense';
+import { publishedSelectionGraph, updateSourceIndex } from '@variance-authority/sense';
 import {
   distanceByExecution,
   groupByDistance,
@@ -34,7 +33,8 @@ const commit = await recordedCommit(file);
 const diff = execFileSync('git', ['diff', commit], { cwd: root, encoding: 'utf8' });
 
 // The import graph. Without it every test that is not a precondition is unmeasured.
-const relations = relationsOfFiles(await scanRelations({ root, dirs: ['src'] }));
+await updateSourceIndex(root);
+const relations = await publishedSelectionGraph(root, { dirs: ['src'] });
 
 const { narrowing, distances } = await distanceByExecution(file, diff, {
   relations,

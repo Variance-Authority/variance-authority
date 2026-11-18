@@ -54,11 +54,11 @@ import {
   keyOf,
   type EdgeKind,
   type NodeId,
-  type Relations,
+  type MemoryRelations,
 } from './graph.js';
 
 export interface ClosureInput {
-  readonly relations: Relations;
+  readonly relations: MemoryRelations;
 
   /**
    * Content digest per file, keyed by the file's path.
@@ -221,7 +221,7 @@ interface Condensation {
  * appears only once everything it can reach has, which is the order a Merkle fold
  * needs and costs nothing extra to get.
  */
-function condense(relations: Relations, allowed: Uint8Array): Condensation {
+function condense(relations: MemoryRelations, allowed: Uint8Array): Condensation {
   const count = relations.names.length;
   const { offset, target, kind } = relations.depends;
 

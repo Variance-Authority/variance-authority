@@ -41,6 +41,13 @@ pub struct LogSegment {
     pub length: i64,
 }
 
+/// This writer's own durable file, bound to the exact immutable bytes it wrote.
+pub(crate) struct WrittenSegment<'a> {
+    bytes: &'a [u8],
+    reference: LogSegment,
+    file: File,
+}
+
 #[derive(Serialize)]
 struct Manifest<'a> {
     format: &'static str,
@@ -109,6 +116,20 @@ pub fn publish(path: &str, kept: &[LogSegment], segments: &[&[u8]], replaced: &[
 /// says, and `working` of the segments named the working layer. `false`, with
 /// nothing written, when another writer moved the chain after it was read.
 pub(crate) fn written(path: &str, over: Over, kept: &[LogSegment], segments: &[&[u8]], replaced: &[LogSegment], working: usize) -> io::Result<bool> {
+    write(path, over, kept, segments, replaced, working, &[], false).map(|written| written.is_some())
+}
+
+/// Retain only files this successful publication wrote from the borrowed bytes.
+pub(crate) fn written_retaining<'a>(path: &str, over: Over, kept: &[LogSegment], segments: &[&'a [u8]], replaced: &[LogSegment], working: usize) -> io::Result<Option<Vec<WrittenSegment<'a>>>> {
+    write(path, over, kept, segments, replaced, working, &[], true)
+}
+
+/// Reuse a completed write only for that very slice; every destination is independent.
+pub(crate) fn written_reusing(path: &str, over: Over, kept: &[LogSegment], segments: &[&[u8]], replaced: &[LogSegment], working: usize, reusable: &[WrittenSegment<'_>]) -> io::Result<bool> {
+    write(path, over, kept, segments, replaced, working, reusable, false).map(|written| written.is_some())
+}
+
+fn write<'a>(path: &str, over: Over, kept: &[LogSegment], segments: &[&'a [u8]], replaced: &[LogSegment], working: usize, reusable: &[WrittenSegment<'_>], retain: bool) -> io::Result<Option<Vec<WrittenSegment<'a>>>> {
     let directory = format!("{path}.segments");
     fs::create_dir_all(&directory)?;
     let lock = File::options().create(true).truncate(false).write(true).open(format!("{path}.lock"))?;
@@ -124,14 +145,16 @@ pub(crate) fn written(path: &str, over: Over, kept: &[LogSegment], segments: &[&
         Over::Published(bytes) => now.as_deref() == Some(bytes),
     };
     if !still {
-        return Ok(false);
+        return Ok(None);
     }
-    let added: Vec<LogSegment> = segments
-        .iter()
-        .map(|bytes| LogSegment {
+    let mut phases = crate::timings::Phases::new("log publication", "prepare segments");
+    let sources: Vec<_> = segments.iter().map(|bytes| reusable.iter().find(|source| std::ptr::eq(source.bytes, *bytes))).collect();
+    let matched: usize = sources.iter().zip(segments).filter_map(|(source, bytes)| source.is_some().then_some(bytes.len())).sum();
+    let added: Vec<LogSegment> = segments.iter().zip(&sources)
+        .map(|(bytes, source)| source.map_or_else(|| LogSegment {
             digest: crate::digest::of_sha256(Sha256::digest(bytes).as_slice()),
             length: bytes.len() as i64,
-        })
+        }, |source| source.reference.clone()))
         .collect();
     let next: Vec<LogSegment> = kept.iter().chain(&added).cloned().collect();
     let manifest = serde_json::to_vec(&Manifest {
@@ -142,16 +165,25 @@ pub(crate) fn written(path: &str, over: Over, kept: &[LogSegment], segments: &[&
         generation: now.as_deref().map_or(0, generation_of) + 1,
     })
     .map_err(io::Error::other)?;
+    phases.next("materialize segments");
+    let (mut cloned, mut fallback) = (0usize, 0usize);
+    let mut retained = Vec::new();
     let mut scratch_files = Scratch(Vec::new());
-    for (reference, bytes) in added.iter().zip(segments) {
+    for ((reference, bytes), source) in added.iter().zip(segments).zip(sources) {
         let name = file_name(&directory, &reference.digest);
         let temporary = scratch_files.name(&name);
-        durable(&temporary, bytes)?;
+        let (file, copied) = materialize_with(&temporary, bytes, source, clone_segment)?;
+        if source.is_some() {
+            if copied { cloned += bytes.len(); } else { fallback += bytes.len(); }
+        }
         fs::rename(&temporary, &name)?;
+        if retain { retained.push(WrittenSegment { bytes: *bytes, reference: reference.clone(), file }); }
     }
     if !added.is_empty() {
         synced_directory(&directory)?;
     }
+    phases.note(format_args!("{matched} matched bytes, {cloned} cloned bytes, {fallback} fallback bytes"));
+    phases.next("publish manifest");
     let temporary = scratch_files.name(path);
     let mut out = Vec::with_capacity(MAGIC.len() + 4 + manifest.len());
     out.extend_from_slice(MAGIC);
@@ -164,16 +196,51 @@ pub(crate) fn written(path: &str, over: Over, kept: &[LogSegment], segments: &[&
         // Published already: a segment left behind costs disk, never an answer.
         let _ = fs::remove_file(file_name(&directory, &reference.digest));
     }
-    Ok(true)
+    Ok(Some(retained))
 }
 
 /// `bytes` written to `path` and on the disk before it is renamed anywhere: a
 /// reader checks a segment's length and nothing more, so a crash must never
 /// leave a name pointing at bytes the disk did not keep.
-fn durable(path: &str, bytes: &[u8]) -> io::Result<()> {
-    let mut file = File::create(path)?;
+fn durable(path: &str, bytes: &[u8]) -> io::Result<File> {
+    let mut file = File::options().create(true).truncate(true).read(true).write(true).open(path)?;
     io::Write::write_all(&mut file, bytes)?;
-    file.sync_all()
+    file.sync_all()?;
+    Ok(file)
+}
+
+fn materialize_with(path: &str, bytes: &[u8], source: Option<&WrittenSegment<'_>>, clone: impl FnOnce(&File, &str) -> io::Result<()>) -> io::Result<(File, bool)> {
+    if let Some(source) = source {
+        let cloned = clone(&source.file, path).and_then(|()| {
+            let file = File::options().read(true).write(true).open(path)?;
+            file.sync_all()?;
+            Ok(file)
+        });
+        if let Ok(file) = cloned { return Ok((file, true)); }
+        match fs::remove_file(path) {
+            Ok(()) => {},
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {},
+            Err(error) => return Err(error),
+        }
+        return durable(path, source.bytes).map(|file| (file, false));
+    }
+    durable(path, bytes).map(|file| (file, false))
+}
+
+#[cfg(target_os = "macos")]
+fn clone_segment(source: &File, path: &str) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    // macOS SDK sys/clonefile.h; the installed libc does not expose this flag.
+    const CLONE_NOOWNERCOPY: u32 = 0x0002;
+    let path = std::ffi::CString::new(path).map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
+    // The descriptor is our own synced file; clone creates a different inode.
+    let result = unsafe { libc::fclonefileat(source.as_raw_fd(), libc::AT_FDCWD, path.as_ptr(), CLONE_NOOWNERCOPY) };
+    if result == 0 { Ok(()) } else { Err(io::Error::last_os_error()) }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn clone_segment(_source: &File, _path: &str) -> io::Result<()> {
+    Err(io::Error::new(io::ErrorKind::Unsupported, "file cloning is unavailable"))
 }
 
 /// The renames into `directory` on the disk before the manifest that names

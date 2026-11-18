@@ -90,6 +90,12 @@
     "packages": 6
   },
   {
+    "name": "createPlaywrightRenderer",
+    "kind": "function",
+    "at": "packages/playwright/src/renderer.ts",
+    "packages": 6
+  },
+  {
     "name": "resolveSource",
     "kind": "function",
     "at": "packages/core/src/attribute/source.ts",
@@ -114,21 +120,9 @@
     "packages": 5
   },
   {
-    "name": "Relations",
-    "kind": "interface",
-    "at": "packages/core/src/relate/graph.ts",
-    "packages": 5
-  },
-  {
     "name": "RunReport",
     "kind": "interface",
     "at": "packages/report/src/format.ts",
-    "packages": 5
-  },
-  {
-    "name": "createPlaywrightRenderer",
-    "kind": "function",
-    "at": "packages/playwright/src/renderer.ts",
     "packages": 5
   },
   {
@@ -402,6 +396,12 @@
     "packages": 2
   },
   {
+    "name": "createHttpHistoryStore",
+    "kind": "function",
+    "at": "packages/history/src/client.ts",
+    "packages": 2
+  },
+  {
     "name": "inspect",
     "kind": "function",
     "at": "packages/core/src/judge/inspect.ts",
@@ -444,12 +444,6 @@
     "packages": 1
   },
   {
-    "name": "DeclarationKind",
-    "kind": "type",
-    "at": "packages/package/src/declare.ts",
-    "packages": 1
-  },
-  {
     "name": "DifferenceMetric",
     "kind": "interface",
     "at": "packages/raster/src/difference/metric.ts",
@@ -465,12 +459,6 @@
     "name": "EMPTY_CONTEXT",
     "kind": "const",
     "at": "packages/core/src/rules/normalize/cascade.ts",
-    "packages": 1
-  },
-  {
-    "name": "FileEdge",
-    "kind": "interface",
-    "at": "packages/core/src/relate/records.ts",
     "packages": 1
   },
   {
@@ -645,12 +633,6 @@
     "name": "createBucketStore",
     "kind": "function",
     "at": "packages/tribunal/src/store.ts",
-    "packages": 1
-  },
-  {
-    "name": "createHttpHistoryStore",
-    "kind": "function",
-    "at": "packages/history/src/client.ts",
     "packages": 1
   },
   {

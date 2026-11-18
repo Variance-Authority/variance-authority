@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Review } from './review.js';
+import type { Review } from './review-types.js';
 import { formatReview, REVIEW_MARKER } from './review-text.js';
 
 const AGAINST = 'a'.repeat(40);

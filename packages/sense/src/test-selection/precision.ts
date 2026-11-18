@@ -73,10 +73,12 @@ export function selectedByRelations(
     ...(moved === undefined ? {} : { moved }),
   });
   const selected = new Map<number, ImporterReason[]>();
+  const info = affected.traversal.info;
+  const fileIds = info === undefined ? undefined : new Map([...info.values()].filter((node) => node.kind === 'file').map((node) => [node.name, node.id]));
   for (const file of affected.files) {
     const test = findTest(coverage, file);
     if (test === undefined) continue;
-    const trail = trailOf(affected.traversal, idOf(relations, 'file', file)!).map((id) => relations.names[id]!);
+    const trail = trailOf(affected.traversal, fileIds?.get(file) ?? idOf(relations, 'file', file)!).map((id) => info?.get(id)?.name ?? ('native' in relations ? '' : relations.names[id]!));
     selected.set(test, [{ kind: 'importer', trail }]);
   }
   return selected;

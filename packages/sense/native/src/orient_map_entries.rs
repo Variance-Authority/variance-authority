@@ -32,6 +32,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use rayon::prelude::*;
 
@@ -44,14 +45,21 @@ use crate::resolve::{Resolvers, Tsconfig};
 /// caller's to fall back from and to say so. `owner` is each counted file's
 /// package. `tsconfig` is the config the scan that built the index resolved
 /// under.
-pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str, usize>, owner: &[u32], tsconfig: Tsconfig) -> Vec<Vec<usize>> {
+pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str, usize>, owner: &[u32], listing: Option<Arc<crate::emitted::Listing>>, tsconfig: Tsconfig, read_blobs: bool) -> Vec<Vec<usize>> {
+    #[derive(Default)]
+    struct Counts {
+        reaches: usize, unique: usize, successes: usize, misses: usize,
+        candidates: usize, substitutions: usize, memo_hits: usize, resolver_calls: usize,
+    }
+    let mut phases = crate::timings::Phases::new("map entries", "prepare resolver and owned candidates");
     if packages.iter().all(|package| package.offers.is_empty()) {
         return vec![Vec::new(); packages.len()];
     }
     // The resolver answers with the path a symlink leads to, and a repository
     // path is cut from the root that path lies under.
     let root = std::fs::canonicalize(root).unwrap_or_else(|_| PathBuf::from(root));
-    let resolvers = Resolvers::new(tsconfig, None);
+    let filesystem = crate::emitted::Emitted::listed_for(&root, listing, read_blobs);
+    let resolvers = Resolvers::over(tsconfig, None, filesystem.clone());
     // A counted file under a directory the disk alone declines, such as a
     // tracked `build/`, is one git listed, and that is the word `resolve` takes.
     let known: HashMap<String, u32> = counted.keys().map(|&path| (path.to_owned(), 0)).collect();
@@ -59,12 +67,21 @@ pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str
     for (&path, &at) in counted {
         path_of[at] = path;
     }
-    packages
+    let mut by_owner = vec![Vec::new(); packages.len()];
+    for file in 0..path_of.len() {
+        if let Some(files) = by_owner.get_mut(owner[file] as usize) {
+            files.push(file);
+        }
+    }
+    phases.note(format_args!("{} packages, {} counted files", packages.len(), path_of.len()));
+    phases.next("resolve offered entries");
+    let totals = phases.enabled().then(|| Mutex::new(Counts::default()));
+    let entries = packages
         .par_iter()
         .enumerate()
         .map(|(at, package)| {
+            let mut measured = Counts::default();
             let from = root.join(&package.directory).join("package.json");
-            let reaches = |request: &str| resolvers.resolve(&root, &from, request, Some(&known)).and_then(|file| counted.get(file.as_str()).copied());
             let (patterns, targets): (Vec<String>, Vec<String>) = package
                 .offers
                 .iter()
@@ -73,37 +90,47 @@ pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str
                 // request without it would name an installed package.
                 .map(|target| if target.starts_with("./") || target.starts_with("../") { target.clone() } else { format!("./{target}") })
                 .partition(|target| target.contains('*'));
-            let mut entries: Vec<usize> = targets.iter().filter_map(|target| reaches(target)).filter(|&file| owner[file] as usize == at).collect();
-            let prefix = if package.directory.is_empty() { String::new() } else { format!("{}/", package.directory) };
-            for pattern in patterns.iter().filter_map(|pattern| pattern.split_once('*')).filter(|(_, tail)| !tail.contains('*')) {
-                entries.extend((0..path_of.len()).filter(|&file| owner[file] as usize == at).filter(|&file| {
-                    let Some(inside) = path_of[file].strip_prefix(&prefix) else { return false };
-                    substitutions(inside, pattern.1).any(|x| reaches(&format!("{}{x}{}", pattern.0, pattern.1)) == Some(file))
-                }));
+            let files: Vec<PathBuf> = if patterns.is_empty() { Vec::new() } else { by_owner[at].iter().map(|&file| root.join(path_of[file])).collect() };
+            let offered = resolvers.offered_requests(&from, &files, &patterns);
+            measured.candidates = files.len();
+            measured.substitutions = offered.len();
+            let mut requests = targets;
+            requests.extend(offered);
+            requests.sort_by(|a, b| crate::order::code_unit(a, b));
+            requests.dedup();
+            measured.unique = requests.len();
+            let mut entries = Vec::new();
+            for request in requests {
+                measured.reaches += 1;
+                measured.resolver_calls += 1;
+                let answer = resolvers.resolve(&root, &from, &request, Some(&known)).and_then(|file| counted.get(file.as_str()).copied());
+                if let Some(file) = answer {
+                    measured.successes += 1;
+                    if owner[file] as usize == at { entries.push(file); }
+                } else { measured.misses += 1; }
             }
             entries.sort_unstable();
             entries.dedup();
+            if let Some(totals) = &totals {
+                let mut totals = totals.lock().unwrap();
+                totals.reaches += measured.reaches;
+                totals.unique += measured.unique;
+                totals.successes += measured.successes;
+                totals.misses += measured.misses;
+                totals.candidates += measured.candidates;
+                totals.substitutions += measured.substitutions;
+                totals.resolver_calls += measured.resolver_calls;
+            }
             entries
         })
-        .collect()
-}
-
-/// `path` with its last segment's extension cut off.
-fn stem(path: &str) -> &str {
-    let name = path.rfind('/').map_or(0, |at| at + 1);
-    path[name..].rfind('.').map_or(path, |dot| &path[..name + dot])
-}
-
-/// The strings a pattern's `*` could stand for to reach the file at `inside`,
-/// its path within the package, given what follows the `*`: every trailing run
-/// of whole segments left once that tail is cut off, with and without both
-/// extensions, since a build's output names the file its source is emitted to.
-fn substitutions<'a>(inside: &'a str, tail: &'a str) -> impl Iterator<Item = &'a str> {
-    [(inside, tail), (inside, stem(tail)), (stem(inside), tail), (stem(inside), stem(tail))]
-        .into_iter()
-        .filter_map(|(path, tail)| path.strip_suffix(tail))
-        .flat_map(|rest| std::iter::once(0).chain(rest.match_indices('/').map(|(at, _)| at + 1)).map(move |start| &rest[start..]))
-        .filter(|x| !x.is_empty())
+        .collect();
+    if let Some(totals) = totals {
+        let totals = totals.into_inner().unwrap();
+        phases.note(format_args!("reaches={}, unique requests within packages={}, memo hits={}, resolver calls={}, successes={}, misses={}, owned candidate visits={}, substitution attempts={}",
+            totals.reaches, totals.unique, totals.memo_hits, totals.resolver_calls, totals.successes, totals.misses, totals.candidates, totals.substitutions));
+    }
+    if let Some(counts) = filesystem.metadata_counts() { phases.note(counts); }
+    entries
 }
 
 #[cfg(all(test, unix))]

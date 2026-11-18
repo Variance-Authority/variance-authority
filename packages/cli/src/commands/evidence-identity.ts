@@ -6,7 +6,8 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Config } from '../config.js';
 import { CLI_VERSION } from '../version.js';
 import { identityOf } from './history.js';
-import { sourceFiles } from './source-graph.js';
+import { sourceDeclarationsFor } from './source-graph.js';
+import type { SourceIndex } from '@variance-authority/core/attribute';
 import { headOf } from './suite-share.js';
 import { recipeOf, type EvidenceBuild, type EvidenceDiagnostic, type EvidenceRecipe } from './evidence-part.js';
 
@@ -14,9 +15,9 @@ import { recipeOf, type EvidenceBuild, type EvidenceDiagnostic, type EvidenceRec
  * Which bytes a collection read, and how — the two things every part of one
  * collection must agree on before a merge counts any of them.
  *
- * The build is the commit, the built Storybook file by file, and the source
- * the scan reads as it is on disk, so two jobs on one commit with different
- * edits in their checkouts are two builds. The recipe is everything in the
+ * The build is the commit, the built Storybook file by file, and the
+ * published source generation, so two jobs on one commit with different
+ * source publications are two builds. The recipe is everything in the
  * config that changes what a subject yields, with paths relative to where the
  * job ran, so the same checkout on two machines reads one recipe.
  */
@@ -28,6 +29,7 @@ export interface Identity {
   readonly build: EvidenceBuild;
   readonly recipe: EvidenceRecipe;
   readonly diagnostics: readonly EvidenceDiagnostic[];
+  readonly source?: SourceIndex;
 }
 
 /** `env` names the commit as it names a run's: the CI system's pair, read whole, before the checkout's HEAD. */
@@ -36,7 +38,7 @@ export async function evidenceIdentity(config: Config, cwd: string, env: Readonl
   const [commit, storybook, source] = await Promise.all([
     identityOf({}, env)?.commit ?? headOf(cwd),
     config.subjects.kind === 'storybook' ? directoryDigest(dirname(config.subjects.index)) : undefined,
-    sourceDigest(cwd, config.source?.dirs ?? []),
+    (config.source?.dirs.length ?? 0) === 0 ? undefined : sourceDeclarationsFor(cwd, config.source!.dirs),
   ]);
   if (commit === undefined) {
     diagnostics.push({ severity: 'warn', code: 'build', message: `${cwd} is not a git checkout; the parts name no commit` });
@@ -45,10 +47,11 @@ export async function evidenceIdentity(config: Config, cwd: string, env: Readonl
     build: {
       ...(commit === undefined ? {} : { commit }),
       ...(storybook === undefined ? {} : { storybook }),
-      ...(source === undefined ? {} : { source }),
+      ...(source === undefined ? {} : { source: source.digest }),
     },
     recipe: recipeOf(readsOf(config, cwd)),
     diagnostics,
+    ...(source === undefined ? {} : { source: source.source }),
   };
 }
 
@@ -81,11 +84,6 @@ export function readsOf(config: Config, cwd: string): CanonicalValue {
 export async function directoryDigest(root: string): Promise<string> {
   const entries = await readdir(root, { recursive: true, withFileTypes: true });
   return filesDigest(root, entries.filter((entry) => entry.isFile()).map((entry) => join(entry.parentPath, entry.name)));
-}
-
-/** The digest of the files the source scan reads, as they are on disk, edits and git-ignored files included. */
-async function sourceDigest(cwd: string, dirs: readonly string[]): Promise<string | undefined> {
-  return dirs.length === 0 ? undefined : filesDigest(cwd, sourceFiles(cwd, dirs));
 }
 
 /** Each file's path relative to `root`, in `/` form and code-unit order, beside the digest of its bytes. */

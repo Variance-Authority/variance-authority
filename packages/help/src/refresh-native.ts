@@ -6,21 +6,17 @@ import {
   sourceIndexPath,
   stepped,
   updateSourceIndex,
+  type HelpTaint,
   type Progress,
-  type PublishedName,
+  type SourceUpdate,
 } from '@variance-authority/sense';
 
 import {
-  assembleHelp,
   readWorkspaceManifests,
-  type DeclarationKind,
   type Help,
   type HelpOptions,
   type ImportTargets,
-  type Names,
   type Offering,
-  type Reached,
-  type Use,
 } from '@variance-authority/package/help';
 import {
   hexDigestOf,
@@ -33,8 +29,6 @@ import {
   workspaceTreeOpens,
 } from './snapshot.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
-import { storeOf } from './store-encode.js';
-import { useOf } from './native-use.js';
 
 // compass: variance-authority.report.agent-surface
 
@@ -44,6 +38,8 @@ export type FromIndexOptions = HelpOptions & {
   readonly index?: string;
   /** `false` reads the workspace's own index from the working tree, as `variance index --no-git` does. */
   readonly packs?: boolean;
+  /** The namespace for `root` and eligible configuration bytes the index update already read. */
+  readonly listing?: NonNullable<SourceUpdate['listing']>;
   readonly progress?: Progress;
   /** When the update of that index began reading the checkout: the read this publish rests on is the caller's. */
   readonly readStartedAt: string;
@@ -67,9 +63,10 @@ export async function publishWorkspaceFromIndex(root: string, options: FromIndex
   const scope = scanScope(where, offerings);
   const own = options.index ?? sourceIndexPath(where);
   const index = scopeSourceIndexPath(own, scope.dirs);
+  let scanned: Pick<FromIndexOptions, 'listing' | 'packs'> = options;
   // A member list reaching beside the root keeps its own index, which only the list can update.
   if (!coversWhole(scope.dirs)) {
-    await updateSourceIndex(scope.root, {
+    scanned = await updateSourceIndex(scope.root, {
       index,
       dirs: scope.dirs,
       ...(options.packs === undefined ? {} : { packs: options.packs }),
@@ -93,13 +90,15 @@ export async function publishWorkspaceFromIndex(root: string, options: FromIndex
     index,
     own,
     readStartedAt: options.readStartedAt,
+    ...(scanned.listing === undefined ? {} : { listing: scanned.listing }),
+    ...(scanned.packs === undefined ? {} : { packs: scanned.packs }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
   return help === undefined ? undefined : workspaceGeneration(help.help);
 }
 
 /** What {@link publishHelp} reads and writes. */
-export interface HelpPublication {
+export interface HelpPublication extends Pick<FromIndexOptions, 'listing' | 'packs'> {
   /** The workspace the value answers about. */
   readonly workspace: string;
   /** The repository root whose graph carries that workspace: what every recorded path is relative to. */
@@ -111,8 +110,10 @@ export interface HelpPublication {
   /** The workspace's own index, beside which the value is published. */
   readonly own: string;
   readonly readStartedAt: string;
-  /** The tree to publish in place of the one the addon draws off the index, such as one a caller's taints joined. */
+  /** The tree to publish in place of the one the addon draws off the index. */
   readonly tree?: Uint8Array;
+  /** A caller's declarative loads, which the addon joins onto the tree it draws. */
+  readonly taints?: readonly HelpTaint[];
   readonly progress?: Progress;
 }
 
@@ -129,60 +130,41 @@ export interface HelpPublication {
 export async function publishHelp(publication: HelpPublication): Promise<{ readonly help: Help; readonly tree: Uint8Array } | undefined> {
   const { workspace, root, offerings, targets, index, progress } = publication;
   // The manifest the value is read from names it, so the next index over the same manifest writes nothing; a tree handed
-  // in, such as one a caller's taints joined, holds what no manifest says.
-  const indexDigest = publication.tree === undefined ? await indexManifestDigest(index) : undefined;
+  // in, or one a caller's taints joined, holds what no manifest says.
+  const indexDigest = publication.tree === undefined && publication.taints === undefined ? await indexManifestDigest(index) : undefined;
   const sources = offerings.flatMap((offering) => offering.entrypoints.map((entry) => ({ offering, entry })));
   const entries = sources.map(({ offering, entry }) => ({ key: `${offering.name} ${entry.subpath}`, file: pathOf(root, entry.source) }));
   const reading = await stepped(progress, 'reading what each file imports and exports, from the index', () =>
-    readHelp(root, entries, targets, index, publication.tree === undefined));
+    readHelp(root, entries, targets, index, publication.tree === undefined, publication));
   if (reading === null) return undefined;
 
-  const read = reading.usage();
-  const names = new Map<string, Map<string, Use[]>>();
-  for (const use of read.names) {
-    const held = names.get(use.key) ?? new Map<string, Use[]>();
-    names.set(use.key, held);
-    const uses = held.get(use.name) ?? [];
-    held.set(use.name, uses);
-    uses.push(useOf(use));
-  }
-  const published = reading.names();
-  const namesBySource = new Map<string, Names>();
-  sources.forEach(({ entry }, at) => namesBySource.set(entry.source, namesOf(published[at]!)));
-  // The export list and the imports by path are the reading's, encoded by the addon; the value joined here carries the packages.
-  const help = await stepped(progress, 'reading the signatures and comments of the exported names', async () =>
-    assembleHelp(root, offerings, { names, deep: [], byPath: [], unfollowed: [], exported: [], unreadable: read.unreadable }, (source) =>
-      namesBySource.get(source) ?? new Map()));
-
   return stepped(progress, 'publishing the questions', async () => {
-    const graphDigest = publication.tree === undefined ? undefined : hexDigestOf(publication.tree);
-    const encoded = await reading.encode({
-      root: realpathSync(workspace),
-      graphRoot: realpathSync(root),
-      generatedAt: new Date().toISOString(),
-      readStartedAt: publication.readStartedAt,
-      ...(indexDigest === undefined ? {} : { indexDigest }),
-      packagesDigest: packagesDigest(root, offerings),
-      packages: storeOf(help).packages,
-      unreadable: help.unreadable,
-      ...(graphDigest === undefined ? {} : { graphDigest }),
+    const timing = process.env.VARIANCE_SENSE_TIMINGS === '1' ? progress : undefined;
+    const input = await stepped(timing, 'preparing the questions for encoding', () => {
+      const graphDigest = publication.tree === undefined ? undefined : hexDigestOf(publication.tree);
+      return {
+        root: realpathSync(workspace),
+        graphRoot: realpathSync(root),
+        generatedAt: new Date().toISOString(),
+        readStartedAt: publication.readStartedAt,
+        ...(indexDigest === undefined ? {} : { indexDigest }),
+        packagesDigest: packagesDigest(root, offerings),
+        packages: offerings.map((offering) => ({
+          name: offering.name,
+          entry: offering.entry,
+          openings: offering.entrypoints.map((entry) => ({ subpath: entry.subpath, source: relative(root, entry.source) })),
+        })),
+        unreadable: offerings.flatMap((offering) => offering.unreadable ?? []),
+        ...(graphDigest === undefined ? {} : { graphDigest }),
+      };
     });
-    const tree = publication.tree ?? encoded.tree;
-    if (tree === undefined || tree === null) throw new Error('the reading drew no tree, and none was handed to it');
-    return { help: await publishStore(publication.own, encoded.store, tree, encoded.graphDigest), tree };
+    const encoded = await stepped(timing, 'encoding the questions', () => reading.encode(input));
+    return stepped(timing, 'validating and writing the questions', async () => {
+      const tree = publication.tree ?? encoded.tree;
+      if (tree === undefined || tree === null) throw new Error('the reading drew no tree, and none was handed to it');
+      return { help: await publishStore(publication.own, encoded.store, tree, encoded.graphDigest), tree };
+    });
   });
-}
-
-/** One entry's names as the documented surface reads them: by name, then by kind. */
-function namesOf(published: readonly PublishedName[]): Names {
-  return new Map(published.map(({ name, kinds }) => [name, new Map(kinds.map((kind): [DeclarationKind, Reached] => [kind.kind as DeclarationKind, {
-    kind: kind.kind as DeclarationKind,
-    at: kind.at,
-    line: kind.line,
-    ...(kind.signature === undefined || kind.signature === null ? {} : { signature: kind.signature }),
-    ...(kind.doc === undefined || kind.doc === null ? {} : { doc: kind.doc }),
-    declared: kind.declared,
-  }]))]));
 }
 
 /** An entry's file as the index records it: relative to `root`, through any link on the way. */

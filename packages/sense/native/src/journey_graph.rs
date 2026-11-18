@@ -38,6 +38,23 @@ pub struct JourneyGraph {
     pub shadows: Vec<JourneyShadow>,
 }
 
+/// Source-backed generations are borrowed directly; only explicit memory fixtures use flat columns.
+pub(crate) enum Graph<'a> {
+    Native(&'a crate::selection_graph::State),
+    Memory(MemoryGraph<'a>),
+}
+
+impl<'a> Graph<'a> {
+    pub fn new(graph: &'a JourneyGraph) -> Result<Self, String> { MemoryGraph::new(graph).map(Self::Memory) }
+    pub fn native(graph: &'a crate::selection_graph::SelectionGraph) -> Self { Self::Native(&graph.state) }
+    pub fn importers(&self, file: &str) -> Option<Vec<&'a str>> {
+        match self {
+            Self::Native(state) => (*state).runtime_importers(file),
+            Self::Memory(graph) => graph.importers(file),
+        }
+    }
+}
+
 const FILE: u8 = 0;
 
 struct Adjacency<'a> {
@@ -46,7 +63,7 @@ struct Adjacency<'a> {
     kind: &'a [u8],
 }
 
-pub(crate) struct Graph<'a> {
+struct MemoryGraph<'a> {
     names: &'a [String],
     kinds: &'a [u8],
     depends: Adjacency<'a>,
@@ -56,8 +73,8 @@ pub(crate) struct Graph<'a> {
     shadows: &'a [JourneyShadow],
 }
 
-impl<'a> Graph<'a> {
-    pub fn new(graph: &'a JourneyGraph) -> Result<Graph<'a>, String> {
+impl<'a> MemoryGraph<'a> {
+    pub fn new(graph: &'a JourneyGraph) -> Result<MemoryGraph<'a>, String> {
         let nodes = graph.names.len();
         let adjacency = |offset: &'a Uint32Array, target: &'a Uint32Array, kind: &'a Uint8Array| {
             let (offset, target, kind): (&[u32], &[u32], &[u8]) = (offset, target, kind);
@@ -89,7 +106,7 @@ impl<'a> Graph<'a> {
                 .collect::<HashMap<_, _>>()
         };
         let files = of_kind(FILE);
-        Ok(Graph {
+        Ok(MemoryGraph {
             names: &graph.names,
             kinds,
             depends,

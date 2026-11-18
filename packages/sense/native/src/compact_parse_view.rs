@@ -16,6 +16,10 @@ use crate::stored::{Stored, U32s};
 use super::parses::Parses;
 use super::{flag, span};
 
+#[cfg(feature = "grammars")]
+#[path = "compact_language_read.rs"]
+mod language_read;
+
 /// One row of one layer, the newest for its key.
 pub(crate) struct ParseView<'s, 'a> {
     pub(crate) stored: &'s Stored<'a>,
@@ -27,6 +31,17 @@ impl<'s, 'a> ParseView<'s, 'a> {
     /// The row `row` of `layer`'s parses.
     pub(crate) fn of(layer: &'s super::Layer<'a>, row: usize) -> Self {
         ParseView { stored: &layer.stored, columns: &layer.parses, row }
+    }
+
+    /// The native resolver facts a store row already supplies, without a source read.
+    pub(crate) fn source_read(&self, file: &str) -> Option<crate::source_read::SourceRead> {
+        if crate::source_read::language(file).is_some() {
+            #[cfg(feature = "grammars")]
+            return language_read::read(self).map(crate::source_read::SourceRead::Language);
+            #[cfg(not(feature = "grammars"))]
+            return None;
+        }
+        self.read().map(crate::source_read::SourceRead::Module)
     }
 
     /// The row as the walk reads a parse: its requests, the names it declares
@@ -142,7 +157,7 @@ impl ParseRow for ParseView<'_, '_> {
         into.extend(self.unknown());
     }
 
-    fn write(&self, strings: &Strings, into: &mut ParseColumns) {
+    fn write<'text>(&'text self, strings: &Strings, into: &mut ParseColumns<'text>) {
         let (stored, columns, row) = (self.stored, self.columns, self.row);
         let id = |column: U32s, at: usize| strings.id(stored.text(column.at(at)));
         let span = |ends, at: usize| span(stored, ends, at);
@@ -276,6 +291,32 @@ impl ParseRow for ParseView<'_, '_> {
             Doc::Absent => Some(None),
             Doc::Words(words) => Some(Some(std::borrow::Cow::Borrowed(words))),
             Doc::Unknown => None,
+        }
+    }
+}
+
+#[cfg(all(test, feature = "grammars"))]
+mod source_read_tests {
+    #[test]
+    fn a_language_store_answers_resolution_without_reparsing() {
+        for (language, file, source) in [
+            ("rust", "src/lib.rs", "pub mod other;\npub struct Named;\nfn call() { crate::other::run(); }\n"),
+            ("python", "main.py", "from other import named\n"),
+            ("java", "Named.java", "package kit;\nimport other.Named;\npublic class Kit {}\n"),
+            ("kotlin", "Named.kt", "package kit\nimport other.Named\nclass Kit\n"),
+            ("swift", "Named.swift", "import Other\npublic struct Named {}\nactor Worker {}\n"),
+        ] {
+            let read = crate::languages::read(language, file, source).unwrap();
+            let bytes = crate::index::parses_only(&[("digest", &read)]);
+            let layer = crate::compact::Layer::open(&bytes).unwrap();
+            let cached = super::ParseView::of(&layer, 0).source_read(file).expect("the native store answers a language row");
+            let cached = cached.language().unwrap();
+            assert_eq!(serde_json::to_value(&cached.requests).unwrap(), serde_json::to_value(&read.requests).unwrap(), "{language}");
+            let names = |read: &crate::languages::shape::Read| read.symbols.iter().map(|symbol| (symbol.name.clone(), symbol.kind, symbol.line, symbol.reach)).collect::<Vec<_>>();
+            assert_eq!(names(cached), names(&read), "{language}");
+            assert_eq!(cached.harvested, read.harvested);
+            assert_eq!(cached.unknown, read.unknown);
+            assert_eq!(cached.size, read.size);
         }
     }
 }

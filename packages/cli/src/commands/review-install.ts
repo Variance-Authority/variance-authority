@@ -16,9 +16,9 @@
  * `narrowByJourneys`, which is how a selection over a journey file hears a bump.
  */
 
-import { affectedBy, beyondReach, EDGE_KINDS, RUNTIME_EDGES, nodeAt, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { affectedBy, beyondReach, EDGE_KINDS, RUNTIME_EDGES, nodeAt, trailOf, type NodeId, type Relations, type RelationRow } from '@variance-authority/core/relate';
 import { narrowByJourneys, type ExecutionIndex } from '@variance-authority/sense/test-selection';
-import type { Review } from './review.js';
+import type { Review } from './review-types.js';
 
 /** Changed packages that files here depend on, listed before the rest are counted. */
 const PACKAGES = 20;
@@ -68,14 +68,16 @@ export function packagesReached(
     const chains = new Map<NodeId, readonly string[]>();
     const chainOf = (id: NodeId): readonly string[] => {
       let chain = chains.get(id);
-      if (chain === undefined) chains.set(id, (chain = trailOf(traversal, id).map((step) => relations.names[step]!)));
+      if (chain === undefined) chains.set(id, (chain = trailOf(traversal, id).map((step) => 'native' in relations ? traversal.info!.get(step)!.name : relations.names[step]!)));
       return chain;
     };
+    const fileNodes = 'native' in relations
+      ? [...traversal.info!.values()].filter((node) => node.kind === 'file')
+      : traversal.nodes.flatMap((id) => { const node = nodeAt(relations, id); return node?.kind === 'file' ? [{ ...node, id }] : []; });
+    const rows = 'native' in relations ? new Map(relations.native.rows(fileNodes.map((node) => node.id), false).map((row) => [row.id, row])) : undefined;
     const importers = new Map<NodeId, string[]>();
-    for (const id of traversal.nodes) {
-      const node = nodeAt(relations, id);
-      if (node?.kind !== 'file') continue;
-      const through = importedPackage(relations, traversal.mask, id, chainOf);
+    for (const node of fileNodes) {
+      const through = importedPackage(relations, traversal.mask, node.id, chainOf, rows?.get(node.id));
       if (through === undefined) continue;
       const held = importers.get(through);
       if (held === undefined) importers.set(through, [node.name]);
@@ -98,10 +100,19 @@ export function packagesReached(
  */
 function importedPackage(
   relations: Relations,
-  walked: Uint8Array,
+  walked: ArrayLike<number>,
   file: NodeId,
   chainOf: (id: NodeId) => readonly string[],
+  row?: RelationRow,
 ): NodeId | undefined {
+  if ('native' in relations) {
+    let best: NodeId | undefined;
+    for (const { to, kind } of row?.edges ?? []) {
+      if (walked[to.id] !== 1 || kind === 'type' || to.kind !== 'package') continue;
+      if (best === undefined || shorter(chainOf(to.id), chainOf(best))) best = to.id;
+    }
+    return best;
+  }
   const { offset, target, kind } = relations.depends;
   let best: NodeId | undefined;
   for (let at = offset[file]!; at < offset[file + 1]!; at += 1) {

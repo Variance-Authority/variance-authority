@@ -134,7 +134,7 @@ which did not, a change behind the second hop has to widen exactly as a change
 behind an unwatched origin does.
 
 **6. The head's cost is a number in the harness.**
-`packages/sense/scripts/overhead.mjs` reports against a control band of two
+[the retired overhead instrument](https://github.com/Variance-Authority/variance-authority/blob/bd72f6b0441cc682d958068487f4a656c3499d5e/packages/sense/scripts/overhead.mjs) reports against a control band of two
 identical uninstrumented builds, and the journey-keyed factory is not an arm in
 it. A getter over async context costs one context read per probe, plus a
 re-resolve wherever two journeys interleave inside one module — a curve

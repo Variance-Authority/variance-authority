@@ -176,13 +176,6 @@
   },
   {
     "files": [
-      "packages/package/src/help.ts",
-      "packages/package/src/surface.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/playwright-test/src/acquire.ts",
       "packages/presentation/src/playwright.ts"
     ],
@@ -344,45 +337,10 @@
   },
   {
     "files": [
-      "packages/sense/src/native.ts",
-      "packages/sense/src/record.ts"
-    ],
-    "count": 2
-  },
-  {
-    "files": [
       "packages/sense/src/read.ts",
       "packages/sense/src/test-selection/source-lines.ts"
     ],
     "count": 1
-  },
-  {
-    "files": [
-      "packages/sense/src/record.ts",
-      "packages/sense/src/taint/join.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/sense/src/source-index-mocks.ts",
-      "packages/sense/src/taint/mocks.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/sense/src/source-index.ts",
-      "packages/sense/src/source-index.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/sense/src/taint/calls.ts",
-      "packages/sense/src/taint/mocks.ts"
-    ],
-    "count": 2
   },
   {
     "files": [
@@ -442,10 +400,24 @@
   },
   {
     "files": [
+      "packages/sense/src/test-selection/reading-values.ts",
+      "packages/sense/src/test-selection/reading-values.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/reading-values.ts",
+      "packages/sense/src/test-selection/reading.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
       "packages/sense/src/test-selection/reading.ts",
       "packages/sense/src/test-selection/reading.ts"
     ],
-    "count": 3
+    "count": 1
   },
   {
     "files": [

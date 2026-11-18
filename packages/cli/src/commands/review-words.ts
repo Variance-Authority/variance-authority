@@ -7,7 +7,7 @@
  * reach its own way and two of them cannot say two facts of one region.
  */
 
-import type { Reach } from './review.js';
+import type { Reach } from './review-types.js';
 
 /** Each answer in a few words, for a line that names a place: the handover's pointers. */
 export const REACH_WORD: Readonly<Record<Reach, string>> = {

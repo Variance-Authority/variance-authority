@@ -49,8 +49,8 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { RUNTIME_EDGES, affectedBy, dependenciesOf, idOf, nodeAt, relationsOfFiles } from '@variance-authority/core/relate';
-import { publishedSources } from '@variance-authority/sense';
+import { RUNTIME_EDGES } from '@variance-authority/core/relate';
+import { publishedSelectionQuestions } from '@variance-authority/sense';
 import ciInfo from 'ci-info';
 import picomatch from 'picomatch';
 
@@ -145,17 +145,15 @@ function workspaces(root) {
  * modules whose imports it could not all read.
  */
 async function graphOf(root) {
-  const read = await publishedSources(root, {
+  const read = await publishedSelectionQuestions(root, {
+    dirs: ['.'], raw: true,
     ci: ciInfo.isCI,
     step: 'variance index',
     announce: (line) => process.stderr.write(`site-reach: ${line}\n`),
   });
-  const unread = read.records
-    .filter(({ file, unknown, unresolved }) =>
-      file.startsWith('site/') && (unknown !== undefined || unresolved?.some((value) => value.startsWith('.'))),
-    )
+  const unread = read.sourceProblems(['site'])
     .map(({ file, unknown }) => `\`${file}\`${unknown === undefined ? '' : ` (${unknown})`}`);
-  return { relations: relationsOfFiles(read.records), unread };
+  return { relations: read, unread };
 }
 
 /**
@@ -178,12 +176,11 @@ export async function siteReach(root, changed, runner) {
   // reaches: the routes collector's runs a page agent in every page it
   // photographs, which it loads by path rather than by import.
   const { subjects } = JSON.parse(readFileSync(resolve(root, 'site/variance.config.json'), 'utf8'));
-  const collector = idOf(relations, 'file', `site/${subjects?.collector ?? ''}`);
-  if (collector === undefined) throw new Error('the source index holds no collector for `site/variance.config.json`');
-  const sited = dependenciesOf(relations, [collector], { through: RUNTIME_EDGES });
+  const collector = relations.lookup([{ kind: 'file', name: `site/${subjects?.collector ?? ''}` }])[0];
+  if (collector == null) throw new Error('the source index holds no collector for `site/variance.config.json`');
+  const sited = relations.walk({ seeds: [collector], reverse: false, through: [...RUNTIME_EDGES], avoid: [], moved: [], shadows: false });
   const seeds = new Set([...packages].filter(([, { dir }]) => runner.startsWith(`${dir}/`)).map(([name]) => name));
-  for (const id of sited.nodes) {
-    const node = nodeAt(relations, id);
+  for (const node of sited.nodes) {
     const name = node?.kind === 'package' ? node.name : node?.kind === 'file' ? ownerOf(node.name) : undefined;
     if (name !== undefined && packages.has(name)) seeds.add(name);
   }
@@ -205,7 +202,8 @@ export async function siteReach(root, changed, runner) {
 
   for (const file of changed) {
     if (file.startsWith('site/')) return { observe: true, because: `\`${file}\` is the site's own.` };
-    const reached = affectedBy(relations, [file], { through: RUNTIME_EDGES }).files;
+    const reached = relations.walk({ seeds: [{ kind: 'file', name: file }], reverse: true, through: [...RUNTIME_EDGES], avoid: [], moved: [], shadows: false })
+      .nodes.filter((node) => node.kind === 'file').map((node) => node.name);
     // Markdown is text a page shows, and the pages that show it whole leave the
     // photographed set by excluding themselves.
     const page = file.endsWith('.md') ? undefined : reached.filter((path) => path.startsWith('site/')).sort()[0];

@@ -29,7 +29,7 @@
  * package has an edge to it.
  */
 
-import { EDGE_KINDS, RUNTIME_EDGES, idOf, nodeAt, nodesOfKind, type NodeId, type Relations } from './graph.js';
+import { EDGE_KINDS, RUNTIME_EDGES, idOf, nodeAt, nodesOfKind, type NodeId, type Relations, type MemoryRelations } from './graph.js';
 import { within } from './before.js';
 import { dependentsOf, trailOf } from './reach.js';
 
@@ -67,6 +67,10 @@ for (const kind of RUNTIME_EDGES) if (kind !== 'depends-on') IMPORTS[EDGE_KINDS.
 
 /** Trace the install's moves to the repository files they change. */
 export function beyondReach(relations: Relations, install: InstallMoved): BeyondReach {
+  if ('native' in relations) {
+    const answer = relations.native.beyond(install.packages, install.moved);
+    return { ...answer, chains: new Map(answer.chains.map((row) => [row.file, row.trail])) };
+  }
   const files = new Set<string>();
 
   const traced: string[] = [];
@@ -104,7 +108,7 @@ export function beyondReach(relations: Relations, install: InstallMoved): Beyond
 }
 
 /** The files with a runtime import of `id`, one step against the arrows. */
-function importersOf(relations: Relations, id: NodeId): readonly NodeId[] {
+function importersOf(relations: MemoryRelations, id: NodeId): readonly NodeId[] {
   const { offset, kind, target } = relations.dependents;
   const importers: NodeId[] = [];
   for (let at = offset[id]!; at < offset[id + 1]!; at += 1) {

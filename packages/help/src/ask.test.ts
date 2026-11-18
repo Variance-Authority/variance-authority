@@ -1,14 +1,14 @@
+import { readWorkspace as readNativeHelp } from './read.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { verbOf } from '@variance-authority/mcp/tools';
 import { ask, inputFrom, toolNamed, verbs } from './ask.js';
 import { HELP_TOOLS } from './tools.js';
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), './__fixtures__/workspace');
-const READING = readHelp(WORKSPACE);
+const READING = (await readNativeHelp(WORKSPACE));
 
 describe('a verb is a tool, not a second implementation of one', () => {
   it('names every tool the server lists, with the wire prefix dropped', () => {
@@ -21,7 +21,8 @@ describe('a verb is a tool, not a second implementation of one', () => {
 
   it('answers a verb with exactly what the tool answers', () => {
     const tool = toolNamed('search');
-    expect(ask(READING, 'search', ['deep'])).toBe(tool.run(READING, { query: 'deep' }));
+    const reading = { ...READING };
+    expect(ask(reading, 'search', ['deep'])).toBe(tool.run(reading, { query: 'deep' }));
   });
 
   it('spells the inputs and the questions an answer names as this binary takes them', () => {

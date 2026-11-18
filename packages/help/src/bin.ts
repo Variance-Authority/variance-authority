@@ -229,7 +229,7 @@ if (asking(verb) && verb !== undefined) {
   const root = positional(rest)[0] ?? '.';
   const out = flag(rest, 'out') ?? `${root}/docs/api`;
   const base = flag(rest, 'base');
-  const written = writePages(root, out, base === undefined ? {} : { base });
+  const written = await writePages(root, out, base === undefined ? {} : { base });
   for (const file of written) {
     // Relative while it stays under the working directory, absolute the moment it
     // does not: a path that opens with six `../` is harder to read than the one

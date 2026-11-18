@@ -10,51 +10,35 @@
  * by `sense`, a dependency imported like any other.
  */
 
-import { readdirSync, type Dirent } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { FileRecord, Relations } from '@variance-authority/core/relate';
 import {
   publishedNames,
-  publishedSources,
-  runGraphOf,
+  publishedComponentSources,
+  publishedSelectionQuestions,
   SourceIndexUnpublished,
   sourceIndexPath,
-  sourcesWithin,
   taintFile,
   updateSourceIndex,
 } from '@variance-authority/sense';
 import { isCI } from 'ci-info';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
-import { indexOf } from './affected.js';
 import { installedDepends } from './installed.js';
 
-/**
- * The component index, from the directories the config names.
- *
- * The same walk the shipped collectors do, for the same reason: the module reader
- * in `sense` decides how a file becomes an index ([`indexOf`](./affected.ts)),
- * and this decides which files. Selection needs it *before* anything is
- * collected, so it cannot borrow the collector's.
- */
-export async function scanSourceDirs(
-  root: string,
-  dirs: readonly string[],
-): Promise<SourceIndex> {
-  const contents = new Map<string, string>();
-  for (const file of sourceFiles(root, dirs)) contents.set(relative(root, file), await readFile(file, 'utf8'));
-  return indexOf(contents);
-}
-
-/**
- * The files `scanSourceDirs` reads, as absolute paths: whatever is on disk
- * under `dirs`, git-ignored or not, so a build identity can digest exactly the
- * bytes the scan saw.
- */
-export function sourceFiles(root: string, dirs: readonly string[]): readonly string[] {
-  return dirs.flatMap((dir) => walkSource(isAbsolute(dir) ? dir : join(root, dir)));
+/** The component references and source identity read from the same published generation. */
+export async function sourceDeclarationsFor(root: string, dirs: readonly string[]): Promise<{ readonly source: SourceIndex; readonly digest: string }> {
+  try {
+    const read = await publishedComponentSources(root, dirs, {
+      ci: isCI, step: 'variance index',
+      announce: (line) => process.stderr.write(`variance: ${line}\n`),
+    });
+    return read;
+  } catch (error) {
+    if (error instanceof SourceIndexUnpublished) throw new OperatorError(error.message, { cause: error });
+    throw error;
+  }
 }
 
 /**
@@ -90,9 +74,9 @@ export async function relationsFor(
 /** The graph {@link relationsFor} reads, and the files the index read source in to build it: a node the graph holds is not one, since an import of a file nothing reads is a node too. */
 export interface SourceGraph {
   readonly relations: Relations;
-  readonly sources: ReadonlySet<string>;
+  readonly sources: (files: readonly string[]) => ReadonlySet<string>;
   /** The name the index gives the text each file it holds holds now ({@link indexNames}). */
-  readonly names: IndexNames;
+  readonly names: (files: readonly string[]) => IndexNames;
 }
 
 /** The source index's name for the text each file it holds holds now: its git blob name. A file it does not hold has none. */
@@ -164,86 +148,28 @@ export async function sourceGraphFor(
   before: readonly string[] = [],
   noGit = false,
 ): Promise<SourceGraph> {
-  const read = await publishedWithin(root, dirs, before, noGit);
-
-  // The mocks are read unasked, as every reader of the checkout's graph reads
-  // them; a table named in the config is answered here too, and what it adds
-  // is never saved.
   const tables = await Promise.all(taints.map((file) => taintFile(join(root, file))));
-
-  // Read from the lockfile at this revision, never from `package.json`: a range
-  // is a request and the lockfile is the answer to it. Empty when there is no
-  // install to read, which loses the transitive half of a package bump and
-  // never the direct half — and the diff that would have needed it refuses on
-  // the same unreadable file rather than narrowing.
   const depends = await installedDepends(root);
-
-  return {
-    relations: await runGraphOf(read.records, { root, cache: read.cache, taints: tables, depends, uses: read.uses }),
-    sources: new Set(read.records.map((record) => record.file)),
-    names: indexNames(read.all),
-  };
-}
-
-/**
- * The published records this caller's scope reaches.
- *
- * The index holds the whole checkout; the scope is the part a scan seeded from
- * `dirs` would have reached. The harness is seeded as exact paths: it lives
- * outside every directory anybody would point a component scan at, and what it
- * loads is the part of a run nothing imports and every test rests on.
- */
-async function publishedWithin(
-  root: string,
-  dirs: readonly string[],
-  before: readonly string[],
-  noGit: boolean,
-) {
-  let published;
   try {
-    published = await publishedSources(root, {
-      ci: isCI,
+    const questions = await publishedSelectionQuestions(root, {
+      dirs, before, taints: tables, depends, ci: isCI,
       step: noGit ? 'variance index --no-git' : 'variance index',
       announce: (line) => process.stderr.write(`variance: ${line}\n`),
       ...(noGit ? { packs: false } : {}),
     });
+    return {
+      relations: { native: questions },
+      sources: (files) => {
+        const held = questions.sources(files);
+        return new Set(files.filter((_, at) => held[at] === true));
+      },
+      names: (files) => {
+        const named = questions.names(files);
+        return new Map(files.flatMap((file, at) => named[at] == null ? [] : [[file, named[at]!] as const]));
+      },
+    };
   } catch (error) {
-    // A pipeline without the step is the operator's to fix, and the refusal
-    // already names the step; printed as a defect, it would send them to file
-    // a bug instead.
     if (error instanceof SourceIndexUnpublished) throw new OperatorError(error.message, { cause: error });
     throw error;
   }
-  return {
-    records: sourcesWithin(published.records, root, dirs, before),
-    all: published.records,
-    cache: published.cache,
-    uses: published.uses,
-  };
-}
-
-const SOURCE_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];
-const SOURCE_EXCLUDE = ['node_modules', '.test.', '.spec.', '.stories.', 'dist/'];
-
-function walkSource(dir: string): readonly string[] {
-  const found: string[] = [];
-
-  let entries: readonly Dirent[];
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    // A configured directory that does not exist contributes nothing rather than
-    // failing the run: the refusal that matters is an empty *index*, and the
-    // selector states that itself.
-    return found;
-  }
-
-  for (const entry of entries) {
-    const path = join(dir, entry.name);
-    if (SOURCE_EXCLUDE.some((skip) => path.includes(skip))) continue;
-    if (entry.isDirectory()) found.push(...walkSource(path));
-    else if (SOURCE_EXTENSIONS.some((extension) => entry.name.endsWith(extension))) found.push(path);
-  }
-
-  return found;
 }

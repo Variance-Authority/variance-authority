@@ -147,7 +147,7 @@ export function storybookCollector(
       );
     }
 
-    const source = options.source === undefined ? undefined : scanSource(process.cwd(), options.source);
+    const source = options.source === undefined ? undefined : await scanSource(process.cwd(), options.source);
 
     // What each story executed, if anybody asked. The index it feeds is the one
     // the Vitest seam writes: same probe recipe, same block ordinals, one index

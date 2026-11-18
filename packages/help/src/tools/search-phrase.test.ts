@@ -1,6 +1,6 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { nearOfNative } from '@variance-authority/sense';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
 import type { SearchIndex } from '../search-index.js';
@@ -57,7 +57,7 @@ beforeAll(async () => {
     'packages/event/tsconfig.json': TSCONFIG,
     'packages/event/src/index.ts': `${SINKS}\n`,
   });
-  index = searchIndexOf(readHelp(root));
+  index = searchIndexOf((await readNativeHelp(root)));
 });
 
 const ask = (query: string) => searchNames(index, { query }, treeOf([], root), root);

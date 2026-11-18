@@ -56,20 +56,16 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { digestBytes } from './digest.js';
 import { digestString, type Digest } from '@variance-authority/core/format';
-import type { FileRecord } from '@variance-authority/core/relate';
-import type { NativeIndexGraph } from './native-index-graph.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
-import { openSourceIndexFile } from './source-index-file.js';
-import type { IndexedRecord } from './source-index-format.js';
 import { isNamed, treeOf, type Tree } from './tree.js';
-import { aliasesIn, movedDirectories, type Aliases } from './witness.js';
+import { aliasesIn, type Aliases } from './witness.js';
 
 /**
  * What decides a record besides the files: how specifiers resolve, and the
  * size past which a file is declined. A declined record names the bytes it
  * declined, so a raised limit has to move the digest or it would keep them.
  */
-export type ShapeOptions = ResolveOptions & { readonly largestFile?: number };
+export type ShapeOptions = ResolveOptions & { readonly largestFile?: number; readonly packs?: boolean };
 
 /** The tree as reuse sees it: one digest for the configuration, one per directory. */
 export interface TreeShape {
@@ -77,51 +73,6 @@ export interface TreeShape {
   readonly config: Digest;
   /** Every directory in the tree, named by the entries it holds. */
   readonly directories: ReadonlyMap<string, Digest>;
-}
-
-export interface RecordCache {
-  /**
-   * Adopt a tree, discarding what the move from the last one invalidated.
-   *
-   * Called once per scan, before the first lookup. A record built under another
-   * configuration is edges that were true of a repository this is not; a record
-   * whose witnesses moved is edges that may be.
-   */
-  under(shape: TreeShape): void;
-  /** The record last built for this file from these bytes, still answerable. */
-  get(file: string, digest: Digest): FileRecord | undefined;
-  /** The same hit with resolution metadata for an indexed consumer. */
-  getIndexed(file: string, digest: Digest): IndexedRecord | undefined;
-  /**
-   * Remember a record and the directories that answered it.
-   *
-   * Every record is held, and only one with a digest is ever handed back: a
-   * record the scan could not read — a read that failed, a language with no
-   * reader — is still the scan's answer for that file, and a reader of what was
-   * saved must find it `unknown` rather than not find it. Without a digest it
-   * names no bytes, so the next scan builds it again. A file declined past the
-   * size cap names the bytes it declined when Git named them, and is kept.
-   */
-  set(record: FileRecord, witnesses: readonly string[], targets?: readonly (string | undefined)[]): void;
-  /**
-   * Remember every record a cold closure holds, as `set` would one at a time.
-   *
-   * Optional, because holding the closure is only a saving for a cache that
-   * publishes it without asking for the records back. A cache without it is
-   * handed each record through `set` instead, which is the scan it always had.
-   */
-  adopt?(graph: NativeIndexGraph): void;
-}
-
-export interface PersistentRecordCache extends RecordCache {
-  /**
-   * Write what this scan used back to disk, under the tree it adopted.
-   *
-   * Nothing is written when no tree was adopted, which is the case for a scan
-   * with no digests: it reused nothing and validated nothing, and letting it save
-   * would replace a usable cache with an empty one.
-   */
-  save(): Promise<void>;
 }
 
 /** Bumped when what a `FileRecord` holds or the config inputs change, so record keys move. */
@@ -223,7 +174,7 @@ export async function configOf(input: {
   const { root, tree, options } = input;
   // `aliasesIn` reads configuration files, so it wants the configuration files —
   // which is the same question the config digest asks, minus the manifests.
-  const aliases = await aliasesIn(root, tree.named(['jsconfig.json']));
+  const aliases = await aliasesIn(root, tree.named(['jsconfig.json']), options?.packs === false ? undefined : tree.native);
 
   // No `root`: a record names files relative to the checkout it was scanned
   // from and holds no absolute path, so a worktree adopts the primary
@@ -248,110 +199,4 @@ export async function configOf(input: {
     config: tree.configDigest(header, LAYOUT_FILES, aliases === undefined),
     aliases,
   };
-}
-
-/** A cache that keeps everything and remembers nothing between processes. */
-export function memoryRecordCache(): RecordCache {
-  let adopted: TreeShape | undefined;
-  const entries = new Map<string, IndexedRecord>();
-
-  return {
-    under(shape) {
-      prune(entries, adopted, shape);
-      adopted = shape;
-    },
-    get: (file, digest) => matching(entries.get(file), digest)?.record,
-    getIndexed: (file, digest) => matching(entries.get(file), digest),
-    set(record, witnesses, targets) {
-      entries.set(record.file, { record, witnesses, ...(targets === undefined ? {} : { targets }) });
-    },
-  };
-}
-
-/**
- * The cache at `path`, loaded if it is there and usable.
- *
- * Every failure is silent and produces an empty cache, for the same reason
- * [`openParseCache`](./cache.ts) does: the cost of every one of them is a full
- * scan, which is what would have happened without a cache at all.
- */
-export async function openRecordCache(path: string): Promise<PersistentRecordCache> {
-  const file = await openSourceIndexFile(path);
-  const generation = file.stored;
-  const entries = new Map(generation.records);
-  const held: TreeShape | undefined = generation.config === undefined
-    ? undefined
-    : { config: generation.config, directories: generation.directories };
-  let adopted: TreeShape | undefined;
-  const used = new Map<string, IndexedRecord>();
-
-  return {
-    under(shape) {
-      adopted = shape;
-      prune(entries, held, shape);
-    },
-    get(file, digest) {
-      const held = used.get(file) ?? entries.get(file);
-      const found = matching(held, digest);
-      // Reading counts as using, exactly as it does for a parse. An unchanged
-      // repository hits every entry and rewrites none of them.
-      if (found !== undefined) used.set(file, held!);
-
-      return found?.record;
-    },
-    getIndexed(file, digest) {
-      const held = used.get(file) ?? entries.get(file);
-      const found = matching(held, digest);
-      if (found !== undefined) used.set(file, found);
-      return found;
-    },
-    set(record, witnesses, targets) {
-      used.set(record.file, { record, witnesses, ...(targets === undefined ? {} : { targets }) });
-    },
-    async save() {
-      if (adopted === undefined) return;
-
-      await file.save({
-        parses: generation.parses,
-        config: adopted.config,
-        directories: adopted.directories,
-        records: used,
-      });
-    },
-  };
-}
-
-/**
- * Drop what the move from one tree to another could have changed.
- *
- * A configuration move is everything. A directory move is the records that named
- * it — which is why the witnesses are stored beside the record rather than
- * recomputed here: the specifiers that produced them are in a parse the record
- * was built from, and a run that reuses the record never opens it.
- *
- * The result says whether the adopted shape moved, so a persistent generation
- * can distinguish an unchanged scan from one that must publish new identity.
- */
-export function prune(
-  entries: Map<string, IndexedRecord>,
-  before: TreeShape | undefined,
-  after: TreeShape,
-): boolean {
-  if (before === undefined || before.config !== after.config) {
-    entries.clear();
-    return true;
-  }
-
-  const moved = movedDirectories(before.directories, after.directories);
-  if (moved.size === 0) return false;
-
-  for (const [file, held] of entries) {
-    if (held.witnesses.some((directory) => moved.has(directory))) entries.delete(file);
-  }
-  return true;
-}
-
-/** A record only answers for the bytes it was built from. */
-function matching(held: IndexedRecord | undefined, digest: Digest): IndexedRecord | undefined {
-  return held?.record.digest === digest ? held : undefined;
 }

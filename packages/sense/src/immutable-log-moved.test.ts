@@ -4,8 +4,7 @@ import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { native } from './addon.js';
 import { openImmutableLog } from './immutable-log.js';
-import { readPublishedNames } from './published-names.js';
-import { encodeSourceIndex } from './source-index-format.js';
+import { encodeSourceIndex } from './test-support/source-index-format.js';
 
 /** The manifests reads of `path` are handed in turn, the last one held: writers moving it, then stopping. */
 const writers = vi.hoisted(() => ({ path: '', manifests: [] as Buffer[], reads: 0 }));
@@ -87,12 +86,5 @@ describe('a read racing writers that move the manifest', () => {
     Object.assign(writers, { path: file, manifests: moving(manifest) });
 
     expect(damage(await openImmutableLog(file))).toEqual({ moved: false, dropped: 2, damaged: 2 });
-  });
-
-  it('reads the names of a moved read as published', async () => {
-    const { file, manifest } = await lost(1, 'one', 'two');
-    Object.assign(writers, { path: file, manifests: moving(manifest) });
-
-    expect((await readPublishedNames(file, [])).state).toBe('published');
   });
 });

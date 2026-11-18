@@ -49,7 +49,8 @@
     "@variance-authority/playwright": "workspace:^",
     "@variance-authority/react": "workspace:^",
     "@variance-authority/sense": "workspace:^",
-    "@variance-authority/storybook": "workspace:^"
+    "@variance-authority/storybook": "workspace:^",
+    "ci-info": "^4.4.0"
   },
   "devDependencies": {
     "@rsbuild/core": "~2.3.1",

@@ -62,7 +62,7 @@ A request is a specifier and a binding is a name, and neither is a JavaScript
 fact. `Read` is already the proof: the stylesheet reader produces that same shape
 out of completely different syntax and shares no AST with the module reader. A
 language is therefore a `(reader, resolver)` pair keyed by extension, and nothing
-above [`record.ts`](../../../packages/sense/src/record.ts) learns a new type.
+above [the reader at this decision](https://github.com/Variance-Authority/variance-authority/blob/bd72f6b0441cc682d958068487f4a656c3499d5e/packages/sense/src/record.ts) learns a new type.
 
 The case that would force separation — a Python file and a Swift file never
 resolve to one another — does not force it, because they do not have to. They

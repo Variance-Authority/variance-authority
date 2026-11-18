@@ -2,6 +2,7 @@
 
 use oxc_allocator::Allocator;
 use oxc_parser::Parser;
+use oxc_semantic::SemanticBuilder;
 use oxc_span::SourceType;
 
 use super::member_uses_in;
@@ -10,7 +11,8 @@ use crate::read::Lines;
 fn uses(text: &str) -> Vec<(String, u32, String, String)> {
     let allocator = Allocator::default();
     let parsed = Parser::new(&allocator, text, SourceType::ts()).parse();
-    member_uses_in(&parsed.program, &Lines::new(text))
+    let built = SemanticBuilder::new().build(&parsed.program);
+    member_uses_in(&parsed.program, built.semantic.scoping(), &Lines::new(text))
         .into_iter()
         .map(|found| (found.name, found.line, found.of, found.how))
         .collect()
@@ -78,4 +80,22 @@ fn a_class_that_implements_a_type_implements_each_instance_member_it_names() {
             one("count", 6, "Box", "implement"),
         ]
     );
+}
+
+#[test]
+fn sibling_bindings_keep_their_own_named_annotations() {
+    let found = uses("function one(props: Props) { return props.size; }\nfunction two(props: Other) { return props.size; }\nfunction three(props) { return props.size; }\n");
+    assert_eq!(found, vec![one("size", 1, "Props", "read"), one("size", 2, "Other", "read")]);
+}
+
+#[test]
+fn a_constructor_parameter_property_keeps_its_annotation() {
+    let found = uses("class C { constructor(public props: Props) { props.size; } }\n");
+    assert_eq!(found, vec![one("size", 1, "Props", "read")]);
+}
+
+#[test]
+fn a_later_local_shadows_an_outer_annotation_from_the_start_of_its_scope() {
+    let found = uses("function outer(props: Props) {\n  function inner() { props.size; const props = {}; }\n  return props.size;\n}\n");
+    assert_eq!(found, vec![one("size", 3, "Props", "read")]);
 }

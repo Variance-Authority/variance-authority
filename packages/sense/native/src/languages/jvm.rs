@@ -113,13 +113,13 @@ fn walk(node: Node, source: &str, held: &mut Gathering) {
 }
 
 /// Every top-level declaration, each with the `/** */` block above it.
-pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
+pub fn declarations(tree: &Tree, source: &str, offsets: &super::Offsets) -> Vec<SourceSymbol> {
     let children = named_children(tree.root_node());
     (0..children.len())
         .filter_map(|at| {
             let node = children[at];
             let name = declared(node, source)?;
-            let mut symbol = declaration(&children, at, name, kind_of(node.kind())?, source, |_| false);
+            let mut symbol = declaration(&children, at, name, kind_of(node.kind())?, source, offsets, |_| false);
             if file_private(node, source, &FILE_PRIVATE) {
                 symbol.reach = Some("file");
             }

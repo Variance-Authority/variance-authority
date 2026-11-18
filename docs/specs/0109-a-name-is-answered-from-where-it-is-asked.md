@@ -297,7 +297,7 @@ wrong imports, and this spec does not make one.
   configuration, which this does not read. Only `.relations.json` moves a candidate.
 - **Check a rule's `maxLayer` or `maxTier`, or a transitive rule.** The first two
   describe a package, not one import, and an import is what is being chosen. A
-  transitive rule is decided by `restrictedChains`, walking from shipped seeds over
+  transitive rule is decided by the selection graph's `restrictions`, walking from shipped seeds over
   every record: the answer to a whole walk, not to one import, so it stays the
   gate's. Where a rule file read holds one, the answer says it was not decided
   here.

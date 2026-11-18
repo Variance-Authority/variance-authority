@@ -1,9 +1,9 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { FileRecord } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { search } from './search.js';
 
 /**
@@ -21,7 +21,7 @@ import { search } from './search.js';
  */
 
 const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), '../__fixtures__/workspace');
-const READING = readHelp(WORKSPACE);
+const READING = (await readNativeHelp(WORKSPACE));
 
 const reads = (file: string, ...to: readonly string[]): FileRecord =>
   to.length === 0 ? { file } : { file, edges: to.map((target) => ({ to: target, kind: 'imports' as const })) };

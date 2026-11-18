@@ -254,7 +254,12 @@ use crate::help_store_encode::body_of;
 /// The store's bytes and the digest of `exported`: `digest` when the caller
 /// holds it, computed beside the body when not.
 pub(crate) fn encode(input: &StoreRef, exported: &[NamedExport], meta: Option<&StoreMeta>, digest: Option<&str>) -> (Vec<u8>, String) {
-    let (body, digest) = rayon::join(|| body_of(input, exported),|| digest.map_or_else(|| exported_digest(exported), str::to_owned));
+    let mut phases = crate::timings::Phases::new("question store", "search body and export digest");
+    let (body, digest) = rayon::join(|| body_of(input, exported), || {
+        let _phase = crate::timings::Phases::new("question export digest", "compute or reuse");
+        digest.map_or_else(|| exported_digest(exported), str::to_owned)
+    });
+    phases.next("binary framing");
     let meta: [Option<&str>; META] = match meta {
         Some(held) => [
             Some(&held.root), Some(&held.graph_root), Some(&held.graph_digest), Some(&held.generated_at), Some(&held.read_started_at),

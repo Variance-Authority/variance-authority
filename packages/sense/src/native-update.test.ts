@@ -1,19 +1,18 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openImmutableLog } from './immutable-log.js';
-import { decodeSourceIndex } from './source-index-format.js';
-import { openSourceIndexFile } from './source-index-file.js';
+import { decodeSourceIndex } from './test-support/source-index-format.js';
+import { openSourceIndexFile } from './test-support/source-index-file.js';
 import { updateNatively } from './native-update.js';
 import { readySourceIndex } from './ready-index.js';
 import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
-import { gitTreeOf } from './tree.js';
 
 /**
- * The addon's warm update and the JavaScript one are asked the same thing from
+ * The addon's warm update and a fresh native index are asked the same thing from
  * the same chain, and what they publish is compared record for record, each
  * parse with the declarations it harvested: `symbol` and `uses` read those
  * for a changed file off the working layer.
@@ -69,32 +68,21 @@ describe('the native warm update', () => {
     const start = await both();
     const twin = join(work, `twin-${step}`, 'index.bin');
     await mkdir(dirname(twin), { recursive: true });
-    await cp(start, twin);
-    await cp(`${start}.segments`, `${twin}.segments`, { recursive: true });
     await change();
     const native = await updateNatively(root, start);
     expect(native).toBeDefined();
-    // The addon is refused for the twin by holding the same tree without the entry.
-    const tree = (await gitTreeOf(root, ['.']))!.native!;
-    const proto = Object.getPrototypeOf(tree) as { updateIndex?: unknown };
-    const entry = proto.updateIndex;
-    proto.updateIndex = undefined;
-    try {
-      await updateSourceIndex(root, { index: twin });
-    } finally {
-      proto.updateIndex = entry;
-    }
+    await updateSourceIndex(root, { index: twin });
     expect(await held(start)).toEqual(await held(twin));
   }
 
-  it('publishes what the JavaScript update publishes after an edit', async () => {
+  it('matches a fresh native index after an edit', async () => {
     await agree(async () => {
       await write('lib/unit.ts', 'export const unit = 3;\nexport const more = 4;\n');
     });
     git('checkout', '--', 'lib/unit.ts');
   });
 
-  it('publishes what the JavaScript update publishes after a file is added and imported', async () => {
+  it('matches a fresh native index after a file is added and imported', async () => {
     await agree(async () => {
       await write('lib/added.ts', 'export const added = 5;\n');
       await write('lib/alone.ts', "import { added } from './added.js';\nexport const alone = added;\n");
@@ -105,7 +93,7 @@ describe('the native warm update', () => {
     await rm(join(root, 'lib/added.ts'));
   });
 
-  it('publishes what the JavaScript update publishes after a file is deleted', async () => {
+  it('matches a fresh native index after a file is deleted', async () => {
     await agree(async () => {
       await rm(join(root, 'lib/alone.ts'));
     });
@@ -172,14 +160,14 @@ describe('the native warm update', () => {
     Buffer.from(JSON.stringify(header).padEnd(length, '\0')).copy(bytes, 4);
     await writeFile(segment, bytes);
 
-    await updateSourceIndex(root, { index: start });
+    expect(await updateSourceIndex(root, { index: start })).toMatchObject({ was: 'damaged' });
     expect(await held(start)).toEqual(before);
   });
 
   it('rebuilds an index whose segment of the published length holds a flag that is neither 0 nor 1', async () => {
     const start = await both();
     const before = await held(start);
-    const [digest] = (await openImmutableLog(start)).digests;
+    const digest = (await openImmutableLog(start)).digests.at(-1);
     const segment = join(`${start}.segments`, `${digest!.replace(':', '-')}.bin`);
     const bytes = await readFile(segment);
     const length = bytes.readUInt32LE(0);
@@ -189,11 +177,13 @@ describe('the native warm update', () => {
     bytes[present] = 3;
     await writeFile(segment, bytes);
 
-    await updateSourceIndex(root, { index: start });
+    expect(await updateSourceIndex(root, { index: start })).toMatchObject({ was: 'damaged' });
     expect(await held(start)).toEqual(before);
   });
 
-  it('declines an index nobody published, leaving it to the JavaScript update', async () => {
-    expect(await updateNatively(root, join(work, 'never', 'index.bin'))).toBeUndefined();
+  it('starts a cold index without a parse store and updates it natively', async () => {
+    const index = join(work, 'never', 'index.bin');
+    expect(await updateNatively(root, index)).toMatchObject({ was: 'missing', files: 4, reread: 4 });
+    expect(await updateNatively(root, index)).toMatchObject({ was: 'published', files: 4, reread: 0 });
   });
 });

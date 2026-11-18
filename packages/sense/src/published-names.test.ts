@@ -1,11 +1,12 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openImmutableLog } from './immutable-log.js';
 import { publishedNames, readPublishedNames } from './published-names.js';
-import { readPublishedSources, SourceIndexUnpublished, updateSourceIndex } from './published.js';
+import { SourceIndexUnpublished, updateSourceIndex } from './published.js';
 
 /**
  * The names the published index gives a few files' texts, read off its record
@@ -46,12 +47,12 @@ describe('the names the published source index gives some files', () => {
     return join(cache, name, 'source-index.bin');
   }
 
-  async function wholeNames(at: string, files: readonly string[]): Promise<ReadonlyMap<string, string>> {
-    const { records } = await readPublishedSources(at);
-    return new Map(records.flatMap((record) => files.includes(record.file) && record.digest !== undefined ? [[record.file, record.digest] as const] : []));
+  function expectedNames(files: readonly string[]): ReadonlyMap<string, string> {
+    return new Map(files.filter((file) => existsSync(join(root, file))).map((file) =>
+      [file, `git:${execFileSync('git', ['hash-object', file], { cwd: root, encoding: 'utf8' }).trim()}`]));
   }
 
-  it('names the asked files as a whole read does, over a layer that edits one and deletes another', async () => {
+  it('names asked files by their Git identities over a layer that edits one and deletes another', async () => {
     const at = index('layered');
     await updateSourceIndex(root, { index: at });
     await write('lib/unit.ts', 'export const unit = 3;\n');
@@ -63,7 +64,7 @@ describe('the names the published source index gives some files', () => {
       const asked = ['lib/unit.ts', 'lib/alone.ts', 'app/index.ts', 'lib/nowhere.ts'];
       const read = await readPublishedNames(at, asked);
       expect(read.state).toBe('published');
-      expect(read.names).toEqual(await wholeNames(at, asked));
+      expect(read.names).toEqual(expectedNames(asked));
       expect([...read.names.keys()].sort()).toEqual(['app/index.ts', 'lib/unit.ts']);
       expect(read.names.get('lib/unit.ts')).toBe(`git:${execFileSync('git', ['hash-object', 'lib/unit.ts'], { cwd: root, encoding: 'utf8' }).trim()}`);
     } finally {
@@ -71,7 +72,7 @@ describe('the names the published source index gives some files', () => {
     }
   });
 
-  it('reads a damaged chain up to its first bad segment, as a whole read does', async () => {
+  it('returns the valid prefix and damaged status when a later segment is truncated', async () => {
     const at = index('damaged');
     await updateSourceIndex(root, { index: at });
     await write('lib/unit.ts', 'export const unit = 4;\n');
@@ -80,12 +81,14 @@ describe('the names the published source index gives some files', () => {
     } finally {
       git('checkout', '--', 'lib/unit.ts');
     }
-    const [, later] = (await openImmutableLog(at)).digests;
-    await writeFile(join(`${at}.segments`, `${later!.replace(':', '-')}.bin`), 'corrupt');
+    const { digests } = await openImmutableLog(at);
+    expect(digests.length).toBeGreaterThan(2);
+    const later = digests.at(-1)!;
+    await writeFile(join(`${at}.segments`, `${later.replace(':', '-')}.bin`), 'corrupt');
 
     const read = await readPublishedNames(at, ['lib/unit.ts']);
     expect(read.state).toBe('damaged');
-    expect(read.names).toEqual(await wholeNames(at, ['lib/unit.ts']));
+    expect(read.names).toEqual(expectedNames(['lib/unit.ts']));
   });
 
   it('refuses in CI when nothing is published, and builds the index on a workstation', async () => {
@@ -96,6 +99,6 @@ describe('the names the published source index gives some files', () => {
     const at = index('local');
     const read = await publishedNames(root, ['lib/unit.ts'], { ...options, ci: false, index: at });
     expect(read.state).toBe('published');
-    expect(read.names).toEqual(await wholeNames(at, ['lib/unit.ts']));
+    expect(read.names).toEqual(expectedNames(['lib/unit.ts']));
   });
 });

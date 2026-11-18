@@ -14,7 +14,7 @@ import { collectorPath, loadCollector, planFor } from './collector.js';
 import { historyFor, recordedJourneys, storeFor, suiteJourney, writeArtifactToDisk } from './resources.js';
 import { identityOf } from './history.js';
 import { narrowingFor } from './narrowing.js';
-import { relationsFor, scanSourceDirs } from './source-graph.js';
+import { relationsFor, sourceDeclarationsFor } from './source-graph.js';
 import { writeCliRunReport } from './run-report.js';
 import { suiteIgnore } from './select-before.js';
 import { publishedLine } from './share.js';
@@ -88,7 +88,7 @@ export async function runCommand(
         writeArtifact: writeArtifactToDisk,
         writeReport: writeCliRunReport,
         writeSuitePart,
-        scanSource: async (dirs) => scanSourceDirs(process.cwd(), dirs),
+        scanSource: async (dirs) => (await sourceDeclarationsFor(process.cwd(), dirs)).source,
         scanRelations,
         // A suite with no `source` is read over the checkout, as `variance select` reads it.
         readJourney: async (diff, relations) =>

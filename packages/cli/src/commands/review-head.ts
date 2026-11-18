@@ -14,7 +14,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { workingTreeChanges } from '@variance-authority/sense';
 import { pullRequestHead, type Env } from '../share-lines.js';
-import type { Review } from './review.js';
+import type { Review } from './review-types.js';
 
 const run = promisify(execFile);
 

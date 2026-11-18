@@ -52,7 +52,7 @@ import { readExecutionIndex, recordedExecutionFile } from './execution-input.js'
 import { mainlineBase, mainlineMissed } from './mainline-base.js';
 import type { textOver } from './coverage-over-text.js';
 import { runsOf } from './record-runs.js';
-import { indexNames, indexUpToCheckout, relationsFor } from './source-graph.js';
+import { indexUpToCheckout, relationsFor } from './source-graph.js';
 import { asOperator, nothingRecorded } from './suite-record.js';
 
 /** One suite's record and its base, or why it has neither. */
@@ -162,7 +162,7 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
   const reading = await readSource(request.root, request.from, request.packages === true);
   const names = 'missed' in reading
     ? { missed: reading.missed }
-    : notUpdated === undefined ? indexNames(reading.records) : { missed: notUpdated };
+    : notUpdated === undefined ? reading.names : { missed: notUpdated };
   if ('missed' in reading && request.from !== undefined) {
     throw new OperatorError(`\`--from ${request.from}\` is answered by the source index, and ${reading.missed}`);
   }
@@ -241,7 +241,7 @@ export async function coverage(request: ParsedCoverage, over: typeof textOver | 
   // A test file is the test, not the package's code: each package's own and uses count leave it out.
   const sources = withoutTests(now);
   const tests = new Set(now.flatMap((one) => one.index.tests.map((test) => test.file)));
-  const reach = 'missed' in reading ? undefined : harnessReach(reading.records, [...harness].sort());
+  const reach = 'missed' in reading ? undefined : harnessReach(reading.questions, [...harness].sort());
   for (const entry of harness) loaded.add(entry);
   const unloadedChange = await changeNoSuiteLoads(request.root, suites, loaded);
   return {

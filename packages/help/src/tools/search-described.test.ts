@@ -1,8 +1,8 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { treeOf } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
 import { declaredDescribedOf, describedWordsNative, sourceIndexPath } from '@variance-authority/sense';
 import { INVENTED_PACKAGES } from '../__fixtures__/invented-packages.js';
 import { inventedWorkspace } from '../__fixtures__/invented-workspace.js';
@@ -26,31 +26,31 @@ afterEach(() => {
 
 it('reaches react from "state management", answers an undescribed job empty with its scope, and reads the words at refresh', async () => {
   const root = await inventedWorkspace(INVENTED_PACKAGES, ['react']);
-  const help = readHelp(root);
+  const help = (await readNativeHelp(root));
   const said = (query: string): string => answerSearch(searchIndexOf(help), { query }, treeOf([], root), root);
 
-  const state = said('state management');
+  const state = (await said('state management'));
   expect(state).toContain('1 package describes `state management`');
   expect(state).toContain('react @1.0.0 · dependency in package.json · not imported');
   expect(state).toContain('[holds: state]');
   expect(state).not.toContain('redux');
 
-  const none = said('resize images');
+  const none = (await said('resize images'));
   expect(none).toContain('Third-party names searched: 1 package under package.json.');
   expect(none).not.toContain('describe');
 
   const manifest = join(root, 'node_modules/react/package.json');
   writeFileSync(manifest, JSON.stringify({ name: 'react', version: '1.0.0', description: 'Image resizing for components', types: 'index.d.ts' }));
-  expect(said('resize images')).not.toContain('describes');
+  expect((await said('resize images'))).not.toContain('describes');
   await refreshDependencyLexicon(root);
-  expect(said('resize images')).toContain('1 package describes `resize images`');
+  expect((await said('resize images'))).toContain('1 package describes `resize images`');
 });
 
 it('answers a description with the repository\'s own names first, and the packages that describe it after', async () => {
   const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
     'src/store.ts': '/** Keeps the state of one key. */\nexport function managedFor(key: string): string {\n  return key;\n}\n',
   });
-  const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management' }, treeOf([], root), root);
+  const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'state management' }, treeOf([], root), root);
 
   // Neither the phrase nor every word is in the name, so only the words held answer it.
   expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
@@ -67,9 +67,9 @@ it('answers from a catalogue of the version before, names the described packages
   // Version 1 holds the same columns; only the stems of what a package says were cut another way.
   bytes.write('"version":1', at);
   writeFileSync(catalogue, bytes);
-  const said = (): string => answerSearch(searchIndexOf(readHelp(root)), { query: 'state management' }, treeOf([], root), root);
+  const said = async (): Promise<string> => answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'state management' }, treeOf([], root), root);
 
-  const older = said();
+  const older = (await said());
   expect(older).toContain('Third-party names searched: 1 package under package.json.');
   expect(older).not.toContain('package describes');
   expect(older).toContain('The dependency lexicon was written at version 1, whose stems this release does not compare, so no package was asked whether it describes `state management`; `variance index` rebuilds it.');
@@ -80,7 +80,7 @@ it('answers from a catalogue of the version before, names the described packages
   expect(exact).not.toHaveProperty('describedUnread');
 
   await refreshDependencyLexicon(root);
-  expect(said()).toContain('1 package describes `state management`');
+  expect((await said())).toContain('1 package describes `state management`');
   expect(queryDependencyLexicon(root, 'state management')).toMatchObject({ describedTotal: 1 });
   expect(queryDependencyLexicon(root, 'state management')).not.toHaveProperty('describedUnread');
 });
@@ -99,7 +99,7 @@ it('answers described search from a catalogue of version 2, whose stems are this
   bytes.write('"version":2', at);
   writeFileSync(catalogue, bytes);
 
-  const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management' }, treeOf([], root), root);
+  const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'state management' }, treeOf([], root), root);
   expect(said).toContain('1 package describes `state management`');
   expect(said).not.toContain('whose stems this release does not compare');
   expect(queryDependencyLexicon(root, 'state management')).not.toHaveProperty('describedUnread');
@@ -117,7 +117,7 @@ describe('which names the described section holds, and in what order', () => {
       'src/policy.ts': 'export function evictionPolicyFor(size: number): number {\n  return size;\n}\n',
       'src/tint.ts': 'export const tint = 1;\n\n/** Picks the palette for a key. */\nfunction pickFor(key: string): string {\n  return key;\n}\n',
     });
-    return answerSearch(searchIndexOf(readHelp(root)), { query }, treeOf([], root), root);
+    return answerSearch(searchIndexOf((await readNativeHelp(root))), { query }, treeOf([], root), root);
   };
 
   it('is absent when every word is a stopword, since there was nothing to describe', async () => {
@@ -145,7 +145,7 @@ describe('which names the described section holds, and in what order', () => {
     const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], {
       'src/frogs.ts': '/**\n * Where painted frogs dance.\n */\n\n/** One. */\nexport const pond = 1;\n',
     });
-    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'painted frogs dance' }, treeOf([], root), root);
+    const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'painted frogs dance' }, treeOf([], root), root);
     expect(said).toMatch(/src\/frogs\.ts \[file\].*\[holds: dance, frogs, painted\]/u);
     expect(said).toContain('No export, top-level declaration or member of a class, an interface or a type in this repository, nor the doc of one, nor a function inside a function, writes `painted frogs dance`. The nearest follow.');
     expect(said).not.toContain('No name or doc');
@@ -158,7 +158,7 @@ describe('which names the described section holds, and in what order', () => {
       'src/states.ts': Array.from({ length: 12 }, (_, at) => `export const stateAt${at} = ${at};\n`).join(''),
       'src/palette.ts': 'export const tint = 1;\n\n/** Picks the palette for a key. */\nfunction pickFor(key: string): string {\n  return key;\n}\n',
     });
-    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'state palette' }, treeOf([], root), root);
+    const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'state palette' }, treeOf([], root), root);
     expect(said).toMatch(/src\/palette\.ts \[file\].*\[holds: palette\]/);
     expect(said).toMatch(/pickFor .*\[holds: palette\]/);
     expect(said).not.toContain('stateAt0');
@@ -173,7 +173,7 @@ describe('which names the described section holds, and in what order', () => {
         'src/caches.ts': Array.from({ length: competitors }, (_, at) => `export const cacheAt${at} = ${at};\n`).join(''),
         'src/magazine.ts': 'export const cacheEntriesMagazine = 1;\n',
       });
-      return answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entriee magazie' }, treeOf([], root), root);
+      return answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'cache entriee magazie' }, treeOf([], root), root);
     };
     const LOOSE_SECTION = /(?:name matches|names match) loosely/u;
 
@@ -201,7 +201,7 @@ describe('which names the described section holds, and in what order', () => {
       'src/caches.ts': Array.from({ length: 32 }, (_, at) => `export const cacheEntriesAt${at} = ${at};\n`).join(''),
       'src/kache.ts': 'export const kacheEntries = 1;\n',
     });
-    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entriee' }, treeOf([], root), root);
+    const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'cache entriee' }, treeOf([], root), root);
     expect(said).toMatch(/^33 more names match loosely/mu);
     expect(said).not.toContain('[holds:');
   });
@@ -213,7 +213,7 @@ describe('which names the described section holds, and in what order', () => {
       'src/caches.ts': Array.from({ length: 3 }, (_, at) => `export const cacheAt${at} = ${at};\n`).join(''),
       'src/magazine.ts': 'export const cacheMagazineEntries = 1;\n',
     });
-    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entriee magazine' }, treeOf([], root), root);
+    const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'cache entriee magazine' }, treeOf([], root), root);
     expect(said).toMatch(/^1 more name matches loosely/mu);
     expect(said).toMatch(/^cacheMagazineEntries /mu);
     expect(said).not.toContain('cacheAt0');
@@ -227,7 +227,7 @@ describe('which names the described section holds, and in what order', () => {
       'src/named.ts': Array.from({ length: 16 }, (_, at) => `export const chartPaletteAt${at} = ${at};\n`).join(''),
       'src/said.ts': Array.from({ length: 16 }, (_, at) => `/** Draws a mermaid palette. */\nexport const diagram${at} = ${at};\n`).join(''),
     });
-    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'mermaid chart palette' }, treeOf([], root), root);
+    const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'mermaid chart palette' }, treeOf([], root), root);
     expect(said).toMatch(/^diagram\d+ .*\[holds: mermaid, palette\]/mu);
     expect(said.search(/^diagram\d+ /mu)).toBeGreaterThan(said.search(/^chartPaletteAt0 /mu));
     expect(said).toMatch(/more not shown/u);
@@ -242,7 +242,7 @@ describe('which names the described section holds, and in what order', () => {
         `/** ${at === 19 ? 'Cache entries kept for each sweep.' : 'Sweeps the entries kept in a cache.'} */\nexport const keptAt${at} = ${at};\n`,
       ).join('\n'),
     });
-    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entries sweep' }, treeOf([], root), root);
+    const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'cache entries sweep' }, treeOf([], root), root);
     expect(said.split('\n').find((line) => line.startsWith('keptAt'))).toMatch(/^keptAt19 /u);
   });
 
@@ -262,7 +262,7 @@ describe('which names the described section holds, and in what order', () => {
       'packages/kit/src/index.ts': '/** Management of each session and its state. */\nexport function journalOf(key: string): string {\n  return key;\n}\n',
       'src/store.ts': '/** Keeps the state of one key. */\nexport function managedFor(key: string): string {\n  return key;\n}\n',
     });
-    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'state management' }, treeOf([], root), root);
+    const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'state management' }, treeOf([], root), root);
     // `journalOf` holds neither word in its name; its published doc holds both.
     expect(said).toMatch(/journalOf .*\[holds: management, state\]/);
     expect(said).toMatch(/managedFor .*\[holds: management, state\]/);
@@ -274,7 +274,7 @@ describe('which names the described section holds, and in what order', () => {
       'src/policy.ts': 'export function evictionPolicyFor(size: number): number {\n  return size;\n}\n',
       'src/sweep.ts': '/** The eviction policy a cache runs under. */\nexport const sweep = 1;\n',
     });
-    const said = answerSearch(searchIndexOf(readHelp(root)), { query: 'cache eviction policy' }, treeOf([], root), root);
+    const said = answerSearch(searchIndexOf((await readNativeHelp(root))), { query: 'cache eviction policy' }, treeOf([], root), root);
     expect(said).toMatch(/sweep .*\[holds: cache, eviction, policy\]/);
     expect(said).toMatch(/evictionPolicyFor .*\[holds: eviction, policy\]/);
     expect(said.indexOf('sweep')).toBeLessThan(said.indexOf('evictionPolicyFor'));

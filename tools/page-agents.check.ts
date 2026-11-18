@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { beforeReach, changedBefore, relationsOfFiles, type Relations } from '@variance-authority/core/relate';
-import { scanRelations } from '@variance-authority/sense';
+import { beforeReach, changedBefore, type Relations } from '@variance-authority/core/relate';
+import { publishedSelectionGraph, updateSourceIndex } from '@variance-authority/sense';
 import { beforeOf } from '@variance-authority/sense/test-selection';
 import { AGENTS, ROOT, inputsOf } from './page-agents.mjs';
 
@@ -28,7 +28,8 @@ describe('the page-agent bundles rest under the chromium suite', () => {
 
   beforeAll(async () => {
     bundles = await Promise.all(AGENTS.map(inputsOf));
-    relations = relationsOfFiles(await scanRelations({ root: ROOT, dirs: ['packages'] }));
+    await updateSourceIndex(ROOT);
+    relations = await publishedSelectionGraph(ROOT, { dirs: ['packages'], raw: true, ci: true });
   });
 
   it('declares the entry of every bundle the build writes', () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SuiteChange } from '@variance-authority/sense/test-selection';
 import type { Coverage } from './coverage.js';
-import type { Review } from './review.js';
+import type { Review } from './review-types.js';
 import { formatCoverage } from './coverage-text.js';
 import { formatReview, reviewPieces } from './review-text.js';
 

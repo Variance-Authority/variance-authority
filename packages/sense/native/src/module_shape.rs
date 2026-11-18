@@ -41,8 +41,13 @@ pub fn parse<'a>(allocator: &'a Allocator, file: &str, text: &'a str, bodies: bo
         return None;
     }
     let mut program = parsed.program;
-    Erase { allocator, bodies, typed: false }.visit_program(&mut program);
+    erase(allocator, &mut program, bodies);
     Some(program)
+}
+
+/// Apply the runtime shape to an already parsed program, after its syntax facts are read.
+pub(crate) fn erase<'a>(allocator: &'a Allocator, program: &mut Program<'a>, bodies: bool) {
+    Erase { allocator, bodies, typed: false }.visit_program(program);
 }
 
 /// A 1-based line for any byte offset of one text.

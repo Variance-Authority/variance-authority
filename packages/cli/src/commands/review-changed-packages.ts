@@ -21,7 +21,7 @@ import { relative, resolve } from 'node:path';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { packageName, packageOf } from '../package-home.js';
 import { functionOf, located, overwritten, uncovered } from './review-scope.js';
-import { REACHES, type Reach, type ChangedPackage, type ReviewFile } from './review.js';
+import { REACHES, type Reach, type ChangedPackage, type ReviewFile } from './review-types.js';
 import { notKnown } from './review-words.js';
 
 /** Packages given a row before the rest are folded. */

@@ -19,12 +19,13 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::LazyLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use rayon::prelude::*;
 use regex::Regex;
 
 use crate::chain_lookup::fold;
-use crate::package_graph::{join_parses, Crossing};
+use crate::package_graph::{join_all_parses, Crossing};
 use crate::package_owners::NO_OWNER;
 use crate::resolve::{Resolvers, MODULE_EXTENSIONS};
 use crate::specifier::{is_relative, kind_for, request_of};
@@ -43,6 +44,8 @@ pub(crate) struct Mocking {
     pub root: PathBuf,
     pub resolvers: Resolvers,
     pub code: HashSet<String>,
+    /// A caller's declarative loads: a file, and the specifiers it is said to load.
+    pub given: Vec<(String, Vec<String>)>,
 }
 
 impl Mocking {
@@ -51,7 +54,7 @@ impl Mocking {
         let at = std::path::Path::new(root);
         let checkout = std::fs::canonicalize(at).unwrap_or_else(|_| at.to_path_buf());
         let resolvers = Resolvers::over(tsconfig, None, crate::emitted::Emitted::listed(&checkout, None));
-        Mocking { root: checkout, resolvers, code: code.into_iter().collect() }
+        Mocking { root: checkout, resolvers, code: code.into_iter().collect(), given: Vec::new() }
     }
 }
 
@@ -62,27 +65,35 @@ static TEST_LIKE: LazyLock<Regex> = LazyLock::new(|| {
 
 
 /// What one test adds: its edges, and the reason its relative misses make it unknown.
-struct Added {
-    edges: Vec<(String, &'static str)>,
-    holes: Option<String>,
+pub(crate) struct Added {
+    pub(crate) edges: Vec<(String, &'static str)>,
+    pub(crate) holes: Option<String>,
+    pub(crate) shadows: Vec<String>,
+    pub(crate) missed: Vec<String>,
 }
 
 /// Every test's loads beside its mocks, resolved, keyed by the test.
-fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>, mocking: &Mocking) -> HashMap<&'l str, Added> {
+pub(crate) fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>, mocking: &Mocking, with_shadows: bool) -> HashMap<&'l str, Added> {
+    let mut phases = crate::timings::Phases::new("question mock additions", "select test candidates");
     let mut crossings: Vec<Crossing> = folded
         .iter()
         .filter(|(path, _)| MODULE_EXTENSIONS.iter().any(|extension| path.ends_with(extension)) && TEST_LIKE.is_match(path))
         .map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None })
         .collect();
-    join_parses(layers, &mut crossings);
+    phases.note(format_args!("{} test candidates", crossings.len()));
+    phases.next("join test parses");
+    join_all_parses(layers, &mut crossings);
+    phases.next("resolve mock additions");
     // A tracked `build/` is source only where the index holds it, as the scan's
     // own resolve decides: the indexed files under one are what it may land on.
-    let known: HashMap<String, u32> = folded
-        .keys()
-        .filter(|path| path.split('/').any(crate::path::excluded))
-        .map(|path| ((*path).to_owned(), 0))
-        .collect();
-    crossings
+    let mut known: HashMap<String, u32> = folded.keys().map(|path| ((*path).to_owned(), 0)).collect();
+    for &(layer, row) in folded.values() {
+        if let Some(edges) = layers[layer].records.edges_of(&layers[layer].stored, row) {
+            known.extend(edges.map(|(to, _)| (to.to_owned(), 0)));
+        }
+    }
+    let statistics = phases.enabled().then(|| (AtomicUsize::new(0), AtomicUsize::new(0)));
+    let added: HashMap<&str, Added> = crossings
         .par_iter()
         .filter_map(|crossing| {
             let (layer, row) = crossing.parse?;
@@ -94,18 +105,25 @@ fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>,
                     said.push(value);
                 }
             }
-            if said.is_empty() {
+            let cut: Vec<&str> = if with_shadows {
+                parses.mocks_minus.range(row).map(|at| stored.text(parses.mock_minus.at(at))).collect()
+            } else { Vec::new() };
+            if said.is_empty() && cut.is_empty() {
                 return None;
             }
+            if let Some((attempts, _)) = &statistics { attempts.fetch_add(said.len(), Ordering::Relaxed); }
             let from = mocking.root.join(crossing.file);
-            let (mut targets, mut holes) = (Vec::new(), Vec::new());
+            let (mut targets, mut holes, mut missed) = (Vec::new(), Vec::new(), Vec::new());
             for value in said {
                 match mocking.resolvers.resolve(&mocking.root, &from, value, Some(&known)) {
                     Some(to) => targets.push(to),
-                    None if request_of(value).is_some_and(is_relative) => holes.push(value),
-                    None => {}
+                    None => {
+                        missed.push(value.to_owned());
+                        if request_of(value).is_some_and(is_relative) { holes.push(value); }
+                    }
                 }
             }
+            if let Some((_, missed)) = &statistics { missed.fetch_add(holes.len(), Ordering::Relaxed); }
             targets.sort_unstable_by(|left, right| crate::order::code_unit(left, right));
             targets.dedup();
             let edges = targets.into_iter().map(|to| {
@@ -113,14 +131,63 @@ fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>,
                 (to, kind)
             }).collect();
             let holes = (!holes.is_empty()).then(|| format!("{} tainted relative specifier(s) that resolve to nothing: {}", holes.len(), holes.join(", ")));
-            Some((crossing.file, Added { edges, holes }))
+            let mut shadows: Vec<String> = cut.into_iter()
+                .filter_map(|value| mocking.resolvers.resolve(&mocking.root, &from, value, Some(&known))).collect();
+            shadows.sort_unstable_by(|left, right| crate::order::code_unit(left, right));
+            shadows.dedup();
+            Some((crossing.file, Added { edges, holes, shadows, missed }))
         })
-        .collect()
+        .collect();
+    if let Some((attempts, missed)) = statistics {
+        phases.note(format_args!("{} files with additions, {} mock resolution attempts, {} relative misses, {} added edges", added.len(), attempts.load(Ordering::Relaxed), missed.load(Ordering::Relaxed), added.values().map(|added| added.edges.len()).sum::<usize>()));
+    }
+    phases.next("temporary cleanup");
+    added
+}
+
+/// A caller's declarative loads joined onto `added`, resolved as a test's loads
+/// beside its mocks are; a file the index does not hold is passed by.
+fn join_given<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>, mocking: &Mocking, added: &mut HashMap<&'l str, Added>) {
+    if mocking.given.is_empty() {
+        return;
+    }
+    let mut known: HashMap<String, u32> = folded.keys().map(|path| ((*path).to_owned(), 0)).collect();
+    for &(layer, row) in folded.values() {
+        if let Some(edges) = layers[layer].records.edges_of(&layers[layer].stored, row) {
+            known.extend(edges.map(|(to, _)| (to.to_owned(), 0)));
+        }
+    }
+    for (file, plus) in &mocking.given {
+        let Some((&path, _)) = folded.get_key_value(file.as_str()) else { continue };
+        let row = added.entry(path).or_insert_with(|| Added { edges: Vec::new(), holes: None, shadows: Vec::new(), missed: Vec::new() });
+        let from = mocking.root.join(path);
+        for value in plus {
+            let Some(request) = request_of(value) else { continue };
+            match mocking.resolvers.resolve(&mocking.root, &from, request, Some(&known)) {
+                Some(to) => {
+                    let kind = if kind_for("imports", &to, &mocking.code) == "asset" { "asset" } else { "imports" };
+                    row.edges.push((to, kind));
+                }
+                None => {
+                    if !row.missed.contains(value) { row.missed.push(value.clone()); }
+                }
+            }
+        }
+        row.edges.sort_unstable_by(|left, right| crate::order::code_unit(&left.0, &right.0));
+        row.edges.dedup();
+        let holes: Vec<&str> = row.missed.iter().map(String::as_str).filter(|value| request_of(value).is_some_and(is_relative)).collect();
+        row.holes = (!holes.is_empty()).then(|| format!("{} tainted relative specifier(s) that resolve to nothing: {}", holes.len(), holes.join(", ")));
+    }
 }
 
 pub(crate) fn tree(layers: &[Layer], mocking: &Mocking) -> Vec<u8> {
+    let mut phases = crate::timings::Phases::new("question source tree", "fold records");
     let folded = fold(layers);
-    let added = additions(layers, &folded, mocking);
+    phases.note(format_args!("{} records, {} layers", folded.len(), layers.len()));
+    phases.next("mock additions");
+    let mut added = additions(layers, &folded, mocking, false);
+    join_given(layers, &folded, mocking, &mut added);
+    phases.next("collect and sort paths");
     let mut files: Collected = Collected::default();
     for (&path, &(layer, row)) in &folded {
         files.insert(path);
@@ -155,6 +222,8 @@ pub(crate) fn tree(layers: &[Layer], mocking: &Mocking) -> Vec<u8> {
     let mut paths: Vec<&str> = files.iter().copied().collect();
     paths.par_sort_unstable_by(|left, right| crate::order::code_unit(left, right));
 
+    phases.note(format_args!("{} paths", paths.len()));
+    phases.next("strings and path lookup");
     let unknown_of = |path: &str| -> Option<&str> {
         if let Some(reason) = reasons.get(path) {
             return Some(reason.as_str());
@@ -171,6 +240,7 @@ pub(crate) fn tree(layers: &[Layer], mocking: &Mocking) -> Vec<u8> {
     let mut strings = Strings::of(collected);
     let at: HashMap<&str, u32> = paths.iter().enumerate().map(|(index, &path)| (path, index as u32)).collect();
 
+    phases.next("edge columns");
     let mut offsets = Vec::with_capacity(paths.len() + 1);
     let (mut targets, mut kinds) = (Vec::new(), Vec::new());
     let mut unknown = vec![NONE; paths.len()];
@@ -195,15 +265,20 @@ pub(crate) fn tree(layers: &[Layer], mocking: &Mocking) -> Vec<u8> {
     }
     offsets.push(targets.len() as u32);
 
+    phases.note(format_args!("{} edges", targets.len()));
+    phases.next("binary framing");
     let [blob, off] = strings.columns();
     let ids: Vec<u32> = paths.iter().map(|path| strings.id(path)).collect();
-    encode_as(FORMAT, VERSION, vec![
+    let bytes = encode_as(FORMAT, VERSION, vec![
         blob, off,
         u32s("files.path", ids),
         u32s("files.unknown", unknown),
         u32s("edges.offset", offsets),
         u32s("edges.target", targets),
         u8s("edges.kind", kinds),
-    ])
+    ]);
+    phases.note(format_args!("{} bytes", bytes.len()));
+    phases.next("temporary cleanup");
+    bytes
 }
 

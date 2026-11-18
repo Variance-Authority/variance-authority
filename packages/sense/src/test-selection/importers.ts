@@ -1,5 +1,5 @@
 import {
-  EDGE_KINDS, NOTHING, RUNTIME_EDGES, WHOLE, carried, dependentsOf, idOf, nodeAt, trailOf, type EdgeKind, type NodeId, type Relations,
+  EDGE_KINDS, NOTHING, RUNTIME_EDGES, WHOLE, carried, dependentsOf, nodeAt, lookupNodes, describeNodes, trailOf, type EdgeKind, type NodeId, type Relations,
 } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { declaredBehind, declaredBehindFiles } from './declared.js';
@@ -153,6 +153,21 @@ export function answerByImporters(
   if (relations === undefined || changed.length + wholes.length === 0 || (declines && ignoring.size === 0 && declaredBehindFiles(relations, changed).length === 0)) {
     return { selected: new Map(), unread: changed.filter((file) => !ignoring.has(file)), governed: testsGovernedBy(coverage, [...also], arrived), wholes: new Map(), unheld: [] };
   }
+  const native = 'native' in relations ? relations.native : undefined;
+  const initialNames = [...new Set([...changed, ...wholes])];
+  const initialNodes = lookupNodes(relations, initialNames.map((name) => ({kind:'file',name})));
+  const namedIds = new Map(initialNames.map((name, at) => [name, initialNodes[at]?.id]));
+  const metadata = new Map(initialNodes.flatMap((node) => node === null ? [] : [[node.id, node] as const]));
+  const nameOf = (id: NodeId): string => {
+    const name = metadata.get(id)?.name ?? ('native' in relations ? undefined : relations.names[id]);
+    if (name === undefined) throw new Error(`the importer frontier did not carry node ${id}`);
+    return name;
+  };
+  const asset = new Map<NodeId, boolean>();
+  const note = (ids: readonly NodeId[], info?: TraversalInfo): void => {
+    for (const node of info?.values() ?? describeNodes(relations, ids)) if (node !== null) metadata.set(node.id, node);
+    if (native !== undefined) for (const row of native.rows(ids, true)) asset.set(row.id, row.edges.some((edge) => edge.kind === 'asset'));
+  };
   const knownAs = options.knownAs ?? ((file: string): readonly string[] => [file]);
   // Every test a walk reached, with what reached it — held rather than
   // selected, because whether the chain is worth reporting depends on the
@@ -191,7 +206,7 @@ export function answerByImporters(
     from: string | undefined,
     whole?: string,
   ): boolean => {
-    const node = nodeAt(relations, id);
+    const node = metadata.get(id) ?? ('native' in relations ? undefined : nodeAt(relations, id));
     if (node === undefined || node.kind !== 'file') return false;
     let answer = answers.get(id);
     if (answer === undefined) {
@@ -209,12 +224,13 @@ export function answerByImporters(
     return answer.answered;
   };
 
+  note(initialNodes.flatMap((node) => node === null ? [] : [node.id]));
   const unread: string[] = [];
   const readers: string[] = [];
   // One mark and one parent per node for every module walk, cleared behind each.
   const walk = {
-    mask: new Uint8Array(relations.names.length),
-    via: new Int32Array(relations.names.length).fill(-1),
+    mask: new Uint8Array('native' in relations ? 0 : relations.names.length),
+    via: new Int32Array('native' in relations ? 0 : relations.names.length).fill(-1),
   };
   /**
    * Reads each file that reaches `from` `through` the edges given: one that declares it
@@ -224,19 +240,20 @@ export function answerByImporters(
    */
   const declarers = (from: NodeId, through: readonly EdgeKind[], seed: readonly string[], lead: readonly string[], unheld: boolean): void => {
     const traversal = dependentsOf(relations, [from], { through });
+    note(traversal.nodes, traversal.info);
     for (const other of traversal.nodes) {
       // The file itself, and an asset something imports: a step to the module that carries it, walked through.
-      if (other === from || importedAsAsset(relations, other)) continue;
-      const trail = [...lead, ...trailOf(traversal, other).map((step) => relations.names[step]!)];
+      if (other === from || (native === undefined ? importedAsAsset(relations, other) : asset.get(other) === true)) continue;
+      const trail = [...lead, ...trailOf(traversal, other).map((step) => nameOf(step))];
       if (read(other, trail, seed, undefined) || !unheld || answers.get(other)?.governs.length !== 0) continue;
-      const name = relations.names[other]!;
+      const name = nameOf(other);
       for (const known of knownAs(name)) governing.set(known, [...(governing.get(known) ?? []), { reason: { kind: 'importer', trail }, seed, from: undefined }]);
       if (declines && !readers.includes(name)) readers.push(name);
-      else if (!declines) importersUntil(relations, other, walk, (next, rest) => read(next, [...trail, ...rest.slice(1).map((step) => relations.names[step]!)], seed, name));
+      else if (!declines) importersUntil(relations, other, walk, (next, rest) => read(next, [...trail, ...rest.slice(1).map((step) => nameOf(step))], seed, name), (nodes) => { for (const node of nodes) metadata.set(node.id, node); });
     }
   };
   for (const file of changed) {
-    const id = idOf(relations, 'file', file);
+    const id = namedIds.get(file);
     const ignored = ignoring.has(file);
     const behind = id === undefined ? [] : declaredBehind(relations, id);
     if (id === undefined || (declines && !ignored && behind.length === 0)) {
@@ -244,15 +261,16 @@ export function answerByImporters(
       continue;
     }
     const seed = knownAs(file);
-    const asset = !ignored && !declines && importedAsAsset(relations, id);
+    const asAsset = !ignored && !declines && (native === undefined ? importedAsAsset(relations,id) : asset.get(id) === true);
     // A module that declares it reads the file is a step to it as much as one that
     // imports it, and the one step an ignored file keeps: nothing else names it.
     // An asset's declarers, and those of every file carrying it, are the declared walk's below.
-    if (ignored || asset) declarers(id, ignored ? ['depends'] : ['asset'], seed, [], ignored);
+    if (ignored || asAsset) declarers(id, ignored ? ['depends'] : ['asset'], seed, [], ignored);
     else if (declines) unread.push(file);
     else if (!seed.some((name) => rowed.has(name))) {
       importersUntil(relations, id, walk, (other, trail) =>
-        read(other, trail.map((step) => relations.names[step]!), seed, file),
+        read(other, trail.map((step) => nameOf(step)), seed, file),
+        (nodes) => { for (const node of nodes) metadata.set(node.id, node); },
       );
     }
     // A declaration charges its declarer for what the declared file loads, at any
@@ -266,10 +284,11 @@ export function answerByImporters(
   // of it without probes, loaded it. No test declares it as a changed file, so
   // nothing is left to the preconditions.
   for (const file of declines ? [] : wholes) {
-    const id = idOf(relations, 'file', file);
+    const id = namedIds.get(file);
     if (id === undefined || read(id, [file], [], file, file)) continue;
     importersUntil(relations, id, walk, (other, trail) =>
-      read(other, trail.map((step) => relations.names[step]!), [], file, file),
+      read(other, trail.map((step) => nameOf(step)), [], file, file),
+      (nodes) => { for (const node of nodes) metadata.set(node.id, node); },
     );
   }
 
@@ -403,7 +422,16 @@ function importersUntil(
   seed: NodeId,
   walk: { readonly mask: Uint8Array; readonly via: Int32Array },
   answers: (id: NodeId, trail: readonly NodeId[]) => boolean,
+  note: (nodes: readonly import('@variance-authority/core/relate').RelationNode[]) => void = () => {},
 ): void {
+  if ('native' in relations) {
+    const session = relations.native.importerFrontier(seed, {whole:true,names:[]}, true, false, false);
+    for (let frontier = session.frontier(); frontier.length > 0; frontier = session.frontier()) {
+      note(frontier.flatMap((row) => [row.node, ...row.trail]));
+      session.advance(frontier.map(({node,trail}) => ({id:node.id,carry:{whole: !answers(node.id,trail.map((node) => node.id)), names:[]}})));
+    }
+    return;
+  }
   const traversal = { ...walk, nodes: [] };
   const { entered } = carried(
     relations.dependents,
@@ -419,7 +447,10 @@ function importersUntil(
 
 /** Whether anything imports this file as an asset, which is what a file no probe can sit in looks like to the scan. */
 export function importedAsAsset(relations: Relations, id: NodeId): boolean {
+  if ('native' in relations) return relations.native.rows([id], true)[0]!.edges.some((edge) => edge.kind === 'asset');
   const { offset, kind } = relations.dependents;
   for (let edge = offset[id]!; edge < offset[id + 1]!; edge += 1) if (kind[edge] === ASSET) return true;
   return false;
 }
+
+type TraversalInfo = NonNullable<import('@variance-authority/core/relate').Traversal['info']>;

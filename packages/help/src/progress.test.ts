@@ -41,10 +41,9 @@ describe('a workspace read with progress', () => {
     const steps = told.filter((line) => line.startsWith('start ')).map((line) => line.slice('start '.length));
     expect(steps).toEqual([
       expect.stringMatching(/^reading the package manifests of /),
-      expect.stringMatching(/^reading what each file imports and exports, under /),
-      'saving the source index',
+      expect.stringMatching(/^listing /),
+      expect.stringMatching(/^reading every file of /),
       'reading what each file imports and exports, from the index',
-      'reading the signatures and comments of the exported names',
       'publishing the questions',
     ]);
     // Each step ends before the next starts: they run one after another.

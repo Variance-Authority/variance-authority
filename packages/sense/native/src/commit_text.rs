@@ -48,7 +48,7 @@
 // compass: variance-authority.reach.source-index
 
 use std::collections::HashMap;
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufReader, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Mutex, PoisonError};
 
@@ -272,46 +272,9 @@ fn objects(root: &str, oids: &[&str]) -> Result<Vec<Result<Vec<u8>, String>>, St
     Ok(read)
 }
 
-/// What git said to one name.
-enum Reply {
-    /// A submodule's commit comes as a `submodule` with no body, from a git
-    /// new enough to say so. An older one answers `missing`.
-    Object { oid: String, kind: String, body: Vec<u8> },
-    /// Git holds nothing under this name. It says so alike for a path the tree
-    /// does not list, a commit the store lacks, and a blob the tree names and
-    /// the store lacks, so this alone settles none of them.
-    Missing(String),
-}
-
-/// One answer of a `cat-file --batch`, read from `from`: `<name> missing`,
-/// `<object> submodule`, or `<object> <type> <size>`, then the body and a newline.
-fn reply(from: &mut impl BufRead) -> Result<Reply, String> {
-    let cut = || "git cat-file --batch ended its answer early".to_owned();
-    let mut head = Vec::new();
-    from.read_until(b'\n', &mut head).map_err(|why| why.to_string())?;
-    if head.pop() != Some(b'\n') {
-        return Err(cut());
-    }
-    let head = String::from_utf8_lossy(&head).into_owned();
-    if let Some(name) = head.strip_suffix(" missing") {
-        return Ok(Reply::Missing(name.to_owned()));
-    }
-    let mut fields = head.split(' ');
-    let (oid, kind, size) = (fields.next(), fields.next(), fields.next());
-    let (Some(oid), Some(kind)) = (oid, kind) else {
-        return Err(format!("git answered `{head}`"));
-    };
-    let mut body = Vec::new();
-    if kind != "submodule" {
-        let Some(size) = size.and_then(|size| size.parse::<usize>().ok()) else {
-            return Err(format!("git answered `{head}`"));
-        };
-        body.resize(size + 1, 0);
-        from.read_exact(&mut body).map_err(|_| cut())?;
-        body.pop();
-    }
-    Ok(Reply::Object { oid: oid.to_owned(), kind: kind.to_owned(), body })
-}
+#[path = "commit_reply.rs"]
+mod object_reply;
+use object_reply::{header, reply, Header, Reply};
 
 /// The blob `commit`'s tree names at each of `files` that is one. A path the
 /// tree does not list, or lists as a directory or a submodule, names none. A
@@ -343,7 +306,7 @@ fn blobs(root: &str, commit: &str, files: &[String]) -> Result<HashMap<String, S
 /// The process, for whichever checkout was asked last.
 static OPEN: Mutex<Option<Open>> = Mutex::new(None);
 
-struct Open {
+pub(crate) struct Open {
     root: String,
     child: Child,
     stdin: ChildStdin,
@@ -385,9 +348,16 @@ fn blob_at(root: &str, commit: &str, file: &str) -> Option<Option<Vec<u8>>> {
 
 impl Open {
     fn start(root: &str) -> io::Result<Open> {
-        let mut child = Command::new("git")
-            .args(["cat-file", "--batch"])
-            .current_dir(root)
+        Self::spawn(root, false)
+    }
+
+    fn spawn(root: &str, packed: bool) -> io::Result<Open> {
+        let mut command = Command::new("git");
+        if packed {
+            command.args(["--no-replace-objects", "cat-file", "--batch-command", "--buffer"])
+                .env("GIT_NO_LAZY_FETCH", "1").env("GIT_OPTIONAL_LOCKS", "0");
+        } else { command.args(["cat-file", "--batch"]); }
+        let mut child = command.current_dir(root)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -431,6 +401,10 @@ impl Open {
         reply(&mut self.stdout)
     }
 }
+
+#[path = "commit_packed.rs"]
+mod packed;
+pub(crate) use packed::PackedBlob;
 
 /// The mode a tree lists a submodule under.
 const GITLINK: &[u8] = b"160000";
@@ -490,3 +464,7 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "commit_packed_tests.rs"]
+mod packed_tests;

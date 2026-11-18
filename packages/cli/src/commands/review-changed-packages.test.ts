@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { changedPackagesMarkdown, changedPackagesOf } from './review-changed-packages.js';
-import type { ChangedPackage, Reach, Review, ReviewFile, ReviewRegion } from './review.js';
+import type { ChangedPackage, Reach, Review, ReviewFile, ReviewRegion } from './review-types.js';
 import { formatReview } from './review-text.js';
 
 const region = (kind: string, name: string, startLine: number, endLine: number, reach: Reach, tests: readonly string[] = []): ReviewRegion => ({

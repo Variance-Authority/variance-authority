@@ -282,16 +282,11 @@
   {
     "idiom": "code-unit-order",
     "at": "packages/package/src/help.ts",
-    "count": 2
-  },
-  {
-    "idiom": "code-unit-order",
-    "at": "packages/package/src/members.ts",
     "count": 1
   },
   {
     "idiom": "code-unit-order",
-    "at": "packages/package/src/read-usage.ts",
+    "at": "packages/package/src/members.ts",
     "count": 1
   },
   {

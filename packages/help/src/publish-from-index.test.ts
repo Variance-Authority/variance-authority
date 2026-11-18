@@ -6,7 +6,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import * as help from '@variance-authority/package/help';
 import * as sense from '@variance-authority/sense';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as read from './read.js';
 import { publishedGeneration, publishedHead, readWorkspaceSnapshot } from './snapshot.js';
 import { publishWorkspaceFromIndex } from './refresh-native.js';
@@ -34,7 +34,7 @@ vi.mock('@variance-authority/package/help', async (original) => {
 
 vi.mock('@variance-authority/sense', async (original) => {
   const actual = await original<typeof import('@variance-authority/sense')>();
-  return { ...actual, scanRelations: vi.fn(actual.scanRelations) };
+  return { ...actual, scanRelations: vi.fn(actual.scanRelations), readHelp: vi.fn(actual.readHelp) };
 });
 
 /** Every read of the manifests since `beforeEach`, by the function that made it. */
@@ -91,6 +91,8 @@ afterAll(() => {
   for (const dir of temporary) rmSync(dir, { recursive: true, force: true });
 });
 
+afterEach(() => { vi.unstubAllEnvs(); });
+
 /** The time the published value says its read began. */
 function publishedReadStart(): unknown {
   return publishedHead(index)?.readStartedAt;
@@ -98,12 +100,28 @@ function publishedReadStart(): unknown {
 
 describe('publishing the questions from the index', () => {
   it('publishes from the index without scanning the checkout when nothing was published before', async () => {
-    const generation = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    vi.stubEnv('VARIANCE_SENSE_TIMINGS', '1');
+    const steps: string[] = [];
+    const progress = (step: string): (() => void) => {
+      steps.push(`start ${step}`);
+      return () => { steps.push(`end ${step}`); };
+    };
+    const generation = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN, progress });
 
     expect(generation).toEqual(expect.any(String));
     expect(await publishedGeneration(root, index)).toBe(generation);
     expect(manifestReads()).toEqual(ONCE);
     expect(sense.scanRelations).not.toHaveBeenCalled();
+    expect(steps.slice(steps.indexOf('start publishing the questions'))).toEqual([
+      'start publishing the questions',
+      'start preparing the questions for encoding',
+      'end preparing the questions for encoding',
+      'start encoding the questions',
+      'end encoding the questions',
+      'start validating and writing the questions',
+      'end validating and writing the questions',
+      'end publishing the questions',
+    ]);
   });
 
   it.each([
@@ -157,14 +175,34 @@ describe('publishing the questions from the index', () => {
     ]);
   });
 
-  it('reads the workspace for a question with no parse handed to JavaScript', async () => {
+  it('reads the workspace for a question without reconstructing the source graph in JavaScript', async () => {
     await read.readWorkspace(root, { index });
 
-    expect(sense.scanRelations).toHaveBeenCalled();
-    for (const [options] of vi.mocked(sense.scanRelations).mock.calls) {
-      expect(options).not.toHaveProperty('parsed');
-      expect(options).not.toHaveProperty('indexed');
-    }
+    expect(sense.scanRelations).not.toHaveBeenCalled();
+  });
+
+  it('joins documentation and usage without handing source names across the native boundary', async () => {
+    const actual = await vi.importActual<typeof import('@variance-authority/sense')>('@variance-authority/sense');
+    const usage = vi.fn();
+    const names = vi.fn();
+    vi.mocked(sense.readHelp).mockImplementationOnce(async (...args) => {
+      const reading = await actual.readHelp(...args);
+      if (reading === null) return null;
+      return new Proxy(reading, { get(target, property) {
+        if (property === 'usage') return usage;
+        if (property === 'names') return names;
+        const value: unknown = Reflect.get(target, property);
+        return typeof value === 'function' ? value.bind(target) : value;
+      } });
+    });
+
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+
+    expect(usage).not.toHaveBeenCalled();
+    expect(names).not.toHaveBeenCalled();
+    const help = await readWorkspaceSnapshot(root, { index });
+    const see = help.packages.flatMap((owner) => owner.openings).flatMap((opening) => opening.entries).find((entry) => entry.name === 'see');
+    expect(see).toMatchObject({ name: 'see', usedBy: ['b'], uses: 1 });
   });
 
   /** The entry `a` publishes as `name` in the value on disk. */
@@ -172,6 +210,41 @@ describe('publishing the questions from the index', () => {
     .flatMap((held) => held.openings)
     .flatMap((opening) => opening.entries)
     .find((entry) => entry.name === name);
+
+  it.each([undefined, false] as const)('carries question ownership and the packs=%s policy from the update', async (packs) => {
+    write('tools/nested/package.json', JSON.stringify({ name: 'nested' }));
+    write('tools/nested/use.ts', "import { see } from 'a';\nexport const used = see;\n");
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'nested'], { cwd: root });
+    const update = await updateSourceIndex(root, { index, ...(packs === undefined ? {} : { packs }) });
+    rmSync(join(root, 'tools/nested/package.json'));
+
+    await publishWorkspaceFromIndex(root, { ...update, index });
+
+    const site = (await published('see'))?.sites.find((use) => use.at === 'tools/nested/use.ts');
+    expect(site?.by).toBe(packs === false ? 'root' : 'nested');
+  });
+
+  it('carries the scoped update ownership when workspace members sit beside its root', async () => {
+    write('apps/product/package.json', JSON.stringify({ name: 'product', private: true, workspaces: ['../../packages/a', '../../packages/b'] }));
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--quiet', '-m', 'product'], { cwd: root });
+    const product = join(root, 'apps/product');
+    const productIndex = join(dirname(index), 'product.bin');
+    const update = await updateSourceIndex(product, { index: productIndex });
+
+    await publishWorkspaceFromIndex(product, {
+      ...update,
+      index: productIndex,
+      progress(step) {
+        if (step === 'reading what each file imports and exports, from the index') rmSync(join(root, 'packages/b/package.json'));
+      },
+    });
+
+    const help = await readWorkspaceSnapshot(product, { index: productIndex });
+    const see = help.packages.flatMap((held) => held.openings).flatMap((opening) => opening.entries).find((entry) => entry.name === 'see');
+    expect(see?.sites.find((use) => use.at === 'packages/b/src/index.ts')?.by).toBe('b');
+  });
 
   it.each([
     ['moved', '// one\n// two\nexport const see = 1;\n', { line: 3 }],
@@ -295,9 +368,15 @@ describe('publishing the questions from the index', () => {
   });
 
   it('publishes the time its caller began reading, when nothing was published before', async () => {
-    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    vi.stubEnv('VARIANCE_SENSE_TIMINGS', undefined);
+    const steps: string[] = [];
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN, progress: (step) => {
+      steps.push(step);
+      return () => undefined;
+    } });
 
     expect(publishedReadStart()).toBe(BEGAN);
+    expect(steps.slice(steps.indexOf('publishing the questions'))).toEqual(['publishing the questions']);
   });
 
   it('publishes the time its caller began reading, when it publishes over a value', async () => {

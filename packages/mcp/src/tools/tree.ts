@@ -1,21 +1,7 @@
-import {
-  EDGE_KINDS,
-  dependenciesOf,
-  dependentsOf,
-  idOf,
-  nodeAt,
-  nodesOfKind,
-  relationsOfFiles,
-  trailOf,
-  type EdgeKind,
-  type FileRecord,
-  type Traversal,
-  type NodeId,
-  type Relations,
-} from '@variance-authority/core/relate';
+import type { EdgeKind } from '@variance-authority/core/relate';
 import { relative } from 'node:path';
-import { costsFrom } from './hops.js';
-import { namesOf, type FileNames, type SourceNames } from './names.js';
+import type { SourceNames } from './names.js';
+import { treeFromNative } from './native-tree.js';
 
 /**
  * The source tree, as the one thing allowed to say whether a path exists.
@@ -143,53 +129,6 @@ export interface Link {
   readonly kind?: EdgeKind;
 }
 
-/**
- * The tree a pile of scanned records makes.
- *
- * Pure, and separate from the scan on purpose: the rule about paths is decided
- * here and can be tested with a handful of records, without a repository on
- * disk and without the parser.
- */
-export function treeOf(
-  records: Iterable<FileRecord>,
-  root = '.',
-  /**
-   * Directories a manifest governs, for the out-of-package hop.
-   *
-   * Supplied rather than guessed: `packages/` and `apps/` are two repositories'
-   * conventions and neither is a fact. With none given the out-of-package bucket
-   * never fires for workspace code, which is the right answer for a repository
-   * that is one package. `node_modules` is read off the path regardless.
-   */
-  packages: readonly string[] = [],
-): Tree {
-  const relations = relationsOfFiles(records);
-  return treeFromRelations(relations, root, packages);
-}
-
-/** Build the path-query surface from an already folded source graph. */
-export function treeFromRelations(
-  relations: Relations,
-  root = '.',
-  packages: readonly string[] = [],
-): Tree {
-  const files = new Set<string>();
-  for (const id of nodesOfKind(relations, 'file')) files.add(relations.names[id]!);
-
-  return {
-    root,
-    files,
-    reachedFrom: (seeds) => walk(relations, seeds, dependenciesOf),
-    reaching: (seeds) => walk(relations, seeds, dependentsOf),
-    distanceFrom: (seeds) => distances(relations, seeds, dependenciesOf),
-    distanceTo: (seeds) => distances(relations, seeds, dependentsOf),
-    unknownAmong: (among) => unknownAmong(relations, among),
-    hopsFrom: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.depends, packages),
-    hopsTo: (seeds) => costsFrom(relations, idsOf(relations, seeds), relations.dependents, packages, true),
-    chainsTo: (seeds) => chainsTo(relations, seeds),
-  };
-}
-
 /** Accept coordinates relative to a workspace nested below the graph root. */
 export function treeAtWorkspace(tree: Tree, workspace: string): Tree {
   const prefix = relative(tree.root, workspace).replaceAll('\\', '/');
@@ -216,119 +155,6 @@ export function treeAtWorkspace(tree: Tree, workspace: string): Tree {
   };
 }
 
-/** Minimum edge count to every reached file, recovered from the BFS forest. */
-function distances(
-  relations: Relations,
-  seeds: Iterable<string>,
-  direction: Direction,
-): ReadonlyMap<string, number> {
-  return depthsOf(relations, direction(relations, idsOf(relations, seeds), { through: EDGE_KINDS }));
-}
-
-function chainsTo(relations: Relations, seeds: Iterable<string>): Chains {
-  const traversal = dependentsOf(relations, idsOf(relations, seeds), { through: EDGE_KINDS });
-  return {
-    distance: depthsOf(relations, traversal),
-    chain(file) {
-      const id = idOf(relations, 'file', file);
-      if (id === undefined) return [];
-      // The trail runs seed first; a chain is read from the file that reaches.
-      const trail = [...trailOf(traversal, id)].reverse();
-      return trail.map((at, step) =>
-        step === trail.length - 1
-          ? { file: relations.names[at]! }
-          : { file: relations.names[at]!, kind: importKind(relations, at, trail[step + 1]!) },
-      );
-    },
-  };
-}
-
-/**
- * The kind of the import `from` makes of `to`. A file that imports another
- * both ways is said by the import that runs: the type one is the weaker claim.
- */
-function importKind(relations: Relations, from: NodeId, to: NodeId): EdgeKind {
-  const { offset, target, kind } = relations.depends;
-  let found: EdgeKind | undefined;
-  for (let at = offset[from]!; at < offset[from + 1]!; at += 1) {
-    if (target[at] !== to) continue;
-    const held = EDGE_KINDS[kind[at]!]!;
-    if (held !== 'type') return held;
-    found = held;
-  }
-  return found!;
-}
-
-function depthsOf(relations: Relations, traversal: Traversal): ReadonlyMap<string, number> {
-  const depths = new Int32Array(relations.names.length).fill(-1);
-  const found = new Map<string, number>();
-
-  for (const id of traversal.nodes) {
-    if (depths[id] === -1) {
-      const pending: NodeId[] = [];
-      let at: NodeId = id;
-      while (depths[at] === -1 && traversal.via[at] !== -1) {
-        pending.push(at);
-        at = traversal.via[at]!;
-      }
-
-      let depth = depths[at]!;
-      if (depth === -1) {
-        depth = 0;
-        depths[at] = depth;
-      }
-      while (pending.length > 0) {
-        const next = pending.pop()!;
-        depth += 1;
-        depths[next] = depth;
-      }
-    }
-
-    if (nodeAt(relations, id)?.kind === 'file') found.set(relations.names[id]!, depths[id]!);
-  }
-
-  return found;
-}
-
-function idsOf(relations: Relations, seeds: Iterable<string>): readonly NodeId[] {
-  const ids: NodeId[] = [];
-  for (const seed of seeds) {
-    const id = idOf(relations, 'file', seed);
-    if (id !== undefined) ids.push(id);
-  }
-  return ids;
-}
-
-/** One direction of the walk. Both directions are the same code and one call. */
-type Direction = typeof dependenciesOf;
-
-function walk(relations: Relations, seeds: Iterable<string>, direction: Direction): ReadonlySet<string> {
-  const ids = idsOf(relations, seeds);
-  const found = new Set<string>();
-  if (ids.length === 0) return found;
-
-  // One breadth-first search over the whole seed set, not one per seed: a
-  // search from many sources costs what a search from one costs.
-  const traversal = direction(relations, ids, { through: EDGE_KINDS });
-  for (const id of traversal.nodes) {
-    // A component is a name, and a name is not a place. It arrives here
-    // because the graph carries the component that declares a file as a node
-    // of its own, and it leaves here for the same reason a component never
-    // resolved a path in the first place.
-    if (nodeAt(relations, id)?.kind === 'file') found.add(relations.names[id]!);
-  }
-  return found;
-}
-
-function unknownAmong(relations: Relations, among: Iterable<string>): readonly string[] {
-  const found: string[] = [];
-  for (const file of among) {
-    const id = idOf(relations, 'file', file);
-    if (id !== undefined && relations.unknown[id] === 1) found.push(file);
-  }
-  return found.sort();
-}
-
 /** What a scan needs to be told, beyond where the repository is. */
 export interface TreeOptions {
   /** The repository root. Every coordinate comes back relative to it. */
@@ -347,10 +173,8 @@ export interface TreeOptions {
    */
   readonly index?: string;
   /**
-   * Receives every file's names, read off the parses that drew the tree, once
-   * the scan is done. Asked for only by a question that names a name: holding
-   * them costs a map the size of the tree, which a question about paths would
-   * pay for nothing.
+   * Receives a batched query over names retained in the native source index.
+   * A question about paths retains only the native path graph.
    */
   readonly names?: (names: SourceNames) => void;
 }
@@ -376,30 +200,14 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
     );
   }
 
-  const source = options.index === undefined ? undefined : await scanner.openSourceIndex(options.index);
-  const names = options.names === undefined ? undefined : new Map<string, FileNames>();
-  const records = await scanner.scanRelations({
-    root: options.root,
-    dirs: options.dirs ?? ['.'],
-    ...(source === undefined ? {} : { cache: source.cache, reuse: source.reuse }),
-    ...(names === undefined ? {} : {
-      // A parse that holds no declarations is left out of the names, which
-      // counts its file as unread rather than declaring nothing.
-      indexed: (file, parsed, targets) => {
-        if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
-      },
-    }),
+  const updated = await scanner.updateSourceIndex(options.root, {
+    ...(options.index === undefined ? {} : { index: options.index }),
+    ...(options.dirs === undefined ? {} : { dirs: options.dirs }),
   });
-  // The graph every reader of the checkout walks, with the mocks read off
-  // what the parse recorded, so it is the graph `variance covering --since` cuts by.
-  const relations = await scanner.runGraphOf(records, {
-    root: options.root,
-    ...(source === undefined ? {} : { cache: source.cache }),
-  });
-  await source?.save();
-  if (names !== undefined) options.names?.(names);
-
-  return treeFromRelations(relations, options.root);
+  if (updated.refused !== undefined) throw new Error(updated.refused);
+  const reader = scanner.sourceTreeFromIndex(options.root, updated.path, options.names !== undefined);
+  options.names?.({ query: (operands) => reader.queryNames([...operands]) });
+  return treeFromNative(reader, options.root);
 }
 
 function messageOf(error: unknown): string {

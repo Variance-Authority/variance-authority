@@ -16,7 +16,7 @@
  * holds no node for, a stylesheet or JSON, is no edge either walk could take.
  */
 import { isAbsolute } from 'node:path';
-import { EDGE_KINDS, idOf, type Adjacency, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { EDGE_KINDS, idOf, type Adjacency, type NodeId, type Relations, type MemoryRelations } from '@variance-authority/core/relate';
 import { native } from '../addon.js';
 import { isRelative } from '../specifier.js';
 import { resolvedImports, runtimeTargets } from './effects.js';
@@ -105,7 +105,7 @@ const IMPORTS = EDGE_KINDS.indexOf('imports');
  * left out, the ones it removed put back as imports, and no edge into a file
  * it created. Built once, so the walk over it is the checkout's walk.
  */
-export function undone(relations: Relations, { added, removed, created }: BaseEdges): Adjacency {
+export function undone(relations: MemoryRelations, { added, removed, created }: BaseEdges): Adjacency {
   const { offset, target, kind } = relations.depends;
   const nodes = relations.names.length;
   const next = new Uint32Array(nodes + 1);
@@ -126,4 +126,11 @@ export function undone(relations: Relations, { added, removed, created }: BaseEd
     next[id + 1] = targets.length;
   }
   return { offset: next, target: Uint32Array.from(targets), kind: Uint8Array.from(kinds) };
+}
+
+/** The native or in-memory checkout graph with the change's edges undone. */
+export function baseRelations(relations: Relations, base: BaseEdges): Relations {
+  if (!('native' in relations)) return { ...relations, depends: undone(relations, base) };
+  const rows = (input: ReadonlyMap<NodeId, Iterable<NodeId>>) => [...input].map(([id, targets]) => ({ id, targets: [...targets] }));
+  return { native: relations.native.overlay(rows(base.added), rows(base.removed), [...base.created]) };
 }

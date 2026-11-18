@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { changeGraph } from './review-graph.js';
-import type { Review, ReviewRegion } from './review.js';
+import type { Review, ReviewRegion } from './review-types.js';
 
 const region = (name: string, startLine: number, reach: ReviewRegion['reach'], tests: readonly string[] = [], edit: ReviewRegion['edit'] = 'new'): ReviewRegion => ({
   kind: name === '' ? 'module' : 'function',

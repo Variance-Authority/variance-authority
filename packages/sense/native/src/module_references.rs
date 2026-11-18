@@ -86,11 +86,16 @@ fn references_in(reading: &Reading) -> ModuleReferences {
     }
 }
 
+/// References from the runtime shape of a program another native reader already parsed.
+pub(crate) fn in_program(program: &oxc_ast::ast::Program<'_>, text: &str) -> ModuleReferences {
+    references_in(&reading_of(program, &Lines::new(text)))
+}
+
 /// Every reference one file makes to what it imports. Nothing when the text
 /// does not parse.
 #[napi(catch_unwind)]
 pub fn module_references(file: String, text: String) -> Option<ModuleReferences> {
     let allocator = oxc_allocator::Allocator::default();
     let program = crate::module_shape::parse(&allocator, &file, &text, true)?;
-    Some(references_in(&reading_of(&program, &Lines::new(&text))))
+    Some(in_program(&program, &text))
 }

@@ -84,7 +84,7 @@ pub fn directories(paths: &[String]) -> HashMap<String, String> {
 pub fn config_digest(
     header: &[String],
     paths: &[String],
-    digests: &[String],
+    mut digest_at: impl FnMut(usize) -> String,
     names: &[String],
     aliases_unknown: bool,
 ) -> String {
@@ -101,9 +101,9 @@ pub fn config_digest(
     for entry in header {
         line(&mut hasher, entry);
     }
-    for (path, spelled) in paths.iter().zip(digests) {
+    for (at, path) in paths.iter().enumerate() {
         if named(path, names) {
-            line(&mut hasher, &format!("{path} {spelled}"));
+            line(&mut hasher, &format!("{path} {}", digest_at(at)));
         }
     }
     if aliases_unknown {
@@ -114,4 +114,38 @@ pub fn config_digest(
     }
 
     digest::of_sha256(hasher.finalize().as_slice())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::config_digest;
+
+    #[test]
+    fn configuration_digests_only_ask_for_named_entries_and_keep_their_bytes() {
+        let header = ["version 11", "conditions node,import"].map(str::to_owned);
+        let paths = [
+            "package.json",
+            "packages/kit/tsconfig.build.json",
+            "src/source.ts",
+            "unmatched.txt",
+            "web/jsconfig.json",
+        ].map(str::to_owned);
+        let names = ["package.json", "jsconfig.json"].map(str::to_owned);
+        let digests = ["git:manifest", "git:typescript", "git:source", "git:text", "git:javascript"];
+        let selected = "version 11\nconditions node,import\npackage.json git:manifest\npackages/kit/tsconfig.build.json git:typescript\nweb/jsconfig.json git:javascript";
+        for aliases_unknown in [false, true] {
+            let mut asked = Vec::new();
+            let found = config_digest(&header, &paths, |at: usize| {
+                asked.push(at);
+                digests[at].to_owned()
+            }, &names, aliases_unknown);
+            assert_eq!(asked, [0, 1, 4], "unselected paths do not ask their owner for a digest");
+            let expected = if aliases_unknown {
+                format!("{selected}\naliases unknown\n{}", paths.join("\n"))
+            } else {
+                selected.to_owned()
+            };
+            assert_eq!(found, crate::digest::of_string(&expected));
+        }
+    }
 }

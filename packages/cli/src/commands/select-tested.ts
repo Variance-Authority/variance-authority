@@ -153,7 +153,11 @@ async function reachOf(
   // A clean merge follows renames: a path this side changed that HEAD lacks holds its change under another path.
   const moved = git('diff', '--name-only', '-z', '--no-renames', '--diff-filter=D', end, 'HEAD').split('\0').find((file) => own.has(file));
   if (moved !== undefined) return { whole: `the merge holds its change to ${moved} under another path` };
-  const blind = [...ownCode, ...walked].find((file) => asked.relations.unknown[idOf(asked.relations, 'file', file) ?? -1] === 1);
+  const examined = [...ownCode, ...walked];
+  const relations = asked.relations;
+  const blind = 'native' in relations
+    ? relations.native.lookup(examined.map((name) => ({ kind: 'file' as const, name }))).find((node) => node?.unknown !== undefined)?.name
+    : examined.find((file) => relations.unknown[idOf(relations, 'file', file) ?? -1] === 1);
   if (blind !== undefined) return { whole: `it reaches ${blind}, whose imports the graph could not all read` };
   const code = new Set(walked.filter((file) => asked.recorded.has(file)));
   const install = new Set<string>();
@@ -221,6 +225,14 @@ function readOf(asked: TestedRequest & { readonly at: string; readonly relations
 
 /** The nodes one runtime import away from these files, against the arrows: what loads them directly. */
 function importersOf(relations: Relations, files: readonly string[]): NonNullable<ReturnType<typeof nodeAt>>[] {
+  if ('native' in relations) {
+    const nodes = relations.native.lookup(files.map((name) => ({ kind: 'file' as const, name }))).filter((node) => node !== null);
+    const found = new Map<number, NonNullable<ReturnType<typeof nodeAt>>>();
+    for (const row of relations.native.rows(nodes.map((node) => node.id), true)) {
+      for (const edge of row.edges) if (RUNTIME_EDGES.includes(edge.kind)) found.set(edge.to.id, edge.to);
+    }
+    return [...found.values()];
+  }
   const { offset, target, kind } = relations.dependents;
   const found = new Set<number>();
   for (const id of files.map((file) => idOf(relations, 'file', file)).filter((id) => id !== undefined)) {

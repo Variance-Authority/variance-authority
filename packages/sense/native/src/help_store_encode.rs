@@ -12,6 +12,7 @@ use crate::help_search::{headed, joined, postings, terms_of, Pool, SPLIT};
 use crate::help_usage::NamedExport;
 use crate::order::code_unit;
 use crate::segment::{u32s, u8s, Column};
+use crate::timings::Phases;
 
 /// What holds one term: names, and rows by their doc or their signature, each ascending.
 #[derive(Default)]
@@ -43,6 +44,7 @@ fn maybe<'a>(pool: &mut Pool<'a>, value: Option<&'a str>) -> u32 {
 /// The store's columns but its head. A name's id is its place in code-unit
 /// order, so a question lists names in that order by id alone.
 pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column> {
+    let mut phases = Phases::new("question search body", "names");
     let split = &*SPLIT;
     let (mut strings, mut names) = (Pool::default(), Pool::default());
     let mut by_term: HashMap<String, Held> = HashMap::new();
@@ -87,11 +89,13 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
     let mut pub_uses = Vec::with_capacity(rows);
     let mut pub_more: [Vec<u32>; 6] = Default::default(); // declared, line, signature, mentionAt, mentionLine, mentionText
     let mut doc_lower = Vec::with_capacity(rows);
+    phases.next("published terms");
     let doc_terms: Vec<HashSet<String>> =
         entries.par_iter().map(|(entry, _)| entry.doc.as_deref().map(|doc| terms_of(split, doc)).unwrap_or_default()).collect();
     let signature_terms: Vec<HashSet<String>> = entries.par_iter()
         .map(|(entry, _)| headed(&entry.kind).then_some(entry.signature.as_deref()).flatten().map(|signature| terms_of(split, signature)).unwrap_or_default())
         .collect();
+    phases.next("published rows and uses");
     for (row, (entry, spec)) in entries.iter().enumerate() {
         let name = name_of!(entry.name.as_str());
         name_pub[name as usize].push(row as u32);
@@ -171,11 +175,13 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
     let count = exported.len();
     let mut exp: [Vec<u32>; 9] = Default::default(); // name, at, by, line, doc, bound, declaration, boundLine, signature
     let (mut exp_kind, mut exp_type, mut exp_doc_lower) = (Vec::with_capacity(count), Vec::with_capacity(count), Vec::with_capacity(count));
+    phases.next("export terms");
     let exp_terms: Vec<HashSet<String>> =
         exported.par_iter().map(|named| named.doc.as_deref().map(|doc| terms_of(split, doc)).unwrap_or_default()).collect();
     let exp_signature_terms: Vec<HashSet<String>> = exported.par_iter()
         .map(|named| named.declaration.as_deref().is_none_or(headed).then_some(named.signature.as_deref()).flatten().map(|signature| terms_of(split, signature)).unwrap_or_default())
         .collect();
+    phases.next("export rows");
     for (row, named) in exported.iter().enumerate() {
         let name = name_of!(named.name.as_str());
         name_exp[name as usize].push(row as u32);
@@ -199,6 +205,7 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
         }
     }
 
+    phases.next("name terms");
     let name_terms: Vec<HashSet<String>> = names.values.par_iter().map(|name| terms_of(split, name)).collect();
     for (id, held) in name_terms.into_iter().enumerate() {
         for term in held {
@@ -208,6 +215,7 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
     let mut terms: Vec<&String> = by_term.keys().collect();
     terms.par_sort_unstable_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
 
+    phases.next("postings and blobs");
     let site_files = &uses.at[..*sites_off.last().unwrap_or(&0) as usize];
     let mut files: Vec<u32> = pub_cols[4].iter().chain(site_files).chain(&exp[1]).copied().collect::<HashSet<u32>>().into_iter().collect();
     files.par_sort_unstable_by(|&a, &b| strings.values[a as usize].as_bytes().cmp(strings.values[b as usize].as_bytes()));
@@ -232,7 +240,8 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
     let [pub_declared, pub_line, pub_signature, mention_at, mention_line, mention_text] = pub_more;
     let [exp_name, exp_at, exp_by, exp_line, exp_doc, exp_bound, exp_declaration, exp_bound_line, exp_signature] = exp;
     let [deep_specifier, deep_by, deep_at, deep_line, deep_to] = deep;
-    vec![
+    phases.next("columns");
+    let columns = vec![
         u32s("strings.off", strings_off), u8s("strings.blob", strings_blob), u32s("files", files),
         u32s("names.name", name_string), u32s("names.lowerOff", lower_off), u8s("names.lower", lower_blob),
         u32s("names.pubOff", names_pub_off), u32s("names.pub", names_pub), u32s("names.expOff", names_exp_off), u32s("names.exp", names_exp),
@@ -255,5 +264,7 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
         u32s("terms.nameOff", term_name_off), u32s("terms.name", term_name), u32s("terms.pubOff", term_pub_off), u32s("terms.pub", term_pub),
         u32s("terms.expOff", term_exp_off), u32s("terms.exp", term_exp), u32s("terms.pubSigOff", term_pub_sig_off), u32s("terms.pubSig", term_pub_sig),
         u32s("terms.expSigOff", term_exp_sig_off), u32s("terms.expSig", term_exp_sig),
-    ]
+    ];
+    phases.next("temporary cleanup");
+    columns
 }

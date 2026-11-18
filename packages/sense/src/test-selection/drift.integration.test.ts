@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { Relations } from '@variance-authority/core/relate';
-import { scanRelations } from '../scan.js';
-import { runGraphOf } from '../taint/graph.js';
+import { updateSourceIndex } from '../published.js';
+import { publishedSelectionGraph } from '../published-selection.js';
 import { driftChange, type DriftSide } from './drift-change.js';
 import { driftFromWalk } from './drift.js';
 import { decodeTestCoverage } from './format.js';
@@ -23,8 +23,14 @@ const temporary: string[] = [];
 let relations: Relations;
 
 beforeAll(async () => {
-  const records = await scanRelations({ root: repository, dirs: [FIXTURE], before: [SETUP], digests: false });
-  relations = await runGraphOf(records, { root: repository });
+  const indexRoot = await mkdtemp(resolve(tmpdir(), 'variance-drift-source-'));
+  const index = resolve(indexRoot, 'index.bin');
+  try {
+    await updateSourceIndex(repository, { index, dirs: [FIXTURE] });
+    relations = await publishedSelectionGraph(repository, { index, dirs: [FIXTURE], before: [SETUP] });
+  } finally {
+    await rm(indexRoot, { recursive: true, force: true });
+  }
 });
 
 afterEach(async () => {

@@ -19,10 +19,11 @@
  */
 
 import { open, type FileHandle } from 'node:fs/promises';
-import { EDGE_KINDS, RUNTIME_EDGES, type Relations } from '@variance-authority/core/relate';
+import { EDGE_KINDS, RUNTIME_EDGES, type MemoryRelations } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native } from '../addon.js';
 import type { NativeJourneyChange, NativeJourneyGraph } from '../native-journey.js';
+import type { NativeSelectionGraph } from '../native-selection-graph.js';
 import { declaredBehindFiles } from './declared.js';
 import type { LineRange } from './diff-lines.js';
 import { declaredReach, dependsReaders, type JourneySelectionOptions } from './execution-select.js';
@@ -45,13 +46,18 @@ export async function selectJourneyFile(
   changed: ReadonlyMap<string, readonly LineRange[]>,
   options: JourneySelectionOptions = {},
 ): Promise<ExecutionNarrowing | undefined> {
-  const select = native()?.selectJourneys;
+  const scanner = native();
+  const relations = options.relations;
+  const graph = relations !== undefined && 'native' in relations ? relations.native as NativeSelectionGraph : undefined;
+  const select = graph === undefined ? scanner?.selectJourneys : scanner?.selectJourneysNative;
   if (select === undefined || (await casesVersion(file)) !== SET_EXECUTION_FORMAT) return undefined;
-  const graph = options.relations === undefined ? undefined : flatten(options.relations);
   const declines = options.unmeasured === 'nothing';
   // What the suite ignores never reaches the addon, as it never reaches `narrowByJourneys`'s loop.
   const ignored = ignoredBy(options.ignore, changed.keys());
-  const selected = select(file, nativeChange(withoutPaths(changed, ignored), options.read), graph, declines);
+  const changes = nativeChange(withoutPaths(changed, ignored), options.read);
+  const selected = graph === undefined
+    ? scanner!.selectJourneys!(file, changes, relations === undefined ? undefined : flatten(relations as MemoryRelations), declines)
+    : scanner!.selectJourneysNative!(file, changes, graph, declines);
   // An addon that cannot decline walked the graph anyway, and its answer is not this suite's.
   if (declines && selected.declined === undefined) return undefined;
   // What a module declared of an ignored file, or of a file whose run loads a changed one, is the record's,
@@ -74,7 +80,7 @@ export async function selectJourneyFile(
 }
 
 /** The file graph as the addon's walks read it. */
-export function flatten(relations: Relations): NativeJourneyGraph {
+export function flatten(relations: MemoryRelations): NativeJourneyGraph {
   return {
     names: relations.names,
     kinds: relations.kinds,

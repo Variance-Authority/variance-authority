@@ -4,14 +4,11 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import {
   decodeSourceTree,
-  treeAtWorkspace,
-  treeOf,
-  type FileRecord,
   type Tree,
 } from '@variance-authority/mcp/tools';
 import { SegmentCutShort } from '@variance-authority/core/segment';
 import type { Help } from '@variance-authority/package/help';
-import { readSourceRecords, restampHelpStore, sourceIndexPath } from '@variance-authority/sense';
+import { restampHelpStore, sourceIndexPath } from '@variance-authority/sense';
 import { openHelpStore, openSearchIndex, type SearchIndex } from './search-index.js';
 import { encodeStore } from './store-encode.js';
 import { storeHeadOf, type StoreHead } from './store-layout.js';
@@ -19,8 +16,6 @@ import { storeHeadOf, type StoreHead } from './store-layout.js';
 export interface SnapshotOptions {
   /** The source index this reading was published beside. */
   readonly index?: string;
-  /** Handed the recorded graph without consulting the checkout. */
-  readonly records?: (records: readonly FileRecord[], graphRoot: string) => void;
   /** Handed the published graph without decoding the source index. */
   readonly tree?: (tree: Tree) => void;
 }
@@ -55,6 +50,7 @@ export async function readWorkspaceSnapshot(
   root: string,
   options: SnapshotOptions = {},
 ): Promise<Help> {
+  if ((options as SnapshotOptions & { readonly records?: unknown }).records !== undefined) throw new Error('records callbacks are no longer supported by workspace snapshots; use tree');
   const where = realpathSync(resolve(root));
   const index = options.index ?? sourceIndexPath(where);
   const at = workspaceSnapshotPath(index);
@@ -80,9 +76,6 @@ export async function readWorkspaceSnapshot(
       throw new Error(`the workspace source tree beside ${at} does not belong to that generation`);
     }
     options.tree(publishedTree(tree, held.graphRoot, held.root));
-  }
-  if (options.records !== undefined) {
-    options.records(await readSourceRecords(index), held.graphRoot);
   }
   const { help } = opened;
   generated.set(help, held.generatedAt);
@@ -209,9 +202,9 @@ export async function republishWorkspaceSnapshot(help: Help, index: string): Pro
   }
 }
 
-/** The tree published from `graph`, drawn over `graphRoot` and answered for `root`: the encoded bytes, or the records they encode. */
-export function publishedTree(graph: readonly FileRecord[] | Uint8Array, graphRoot: string, root: string): Tree {
-  return graph instanceof Uint8Array ? decodeSourceTree(graph, graphRoot, root) : treeAtWorkspace(treeOf(graph, graphRoot), root);
+/** The tree published as `graph`, drawn over `graphRoot` and answered for `root`. */
+export function publishedTree(graph: Uint8Array, graphRoot: string, root: string): Tree {
+  return decodeSourceTree(graph, graphRoot, root);
 }
 
 /**

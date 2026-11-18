@@ -13,6 +13,7 @@
 // compass: variance-authority.reach.relations
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use rayon::prelude::*;
 use regex::Regex;
@@ -20,8 +21,8 @@ use regex::Regex;
 use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::orient_map_closure::{closures, Closure, Nodes};
-use crate::package_graph::{join_parses, Crossing};
-use crate::package_owners::{owner_of, owners, parent, shown, NO_OWNER};
+use crate::package_graph::{join_all_parses, Crossing};
+use crate::package_owners::{owner_of, owners_from, parent, shown, NO_OWNER};
 use crate::resolve::Tsconfig;
 
 /// One package: a manifest with a name. A second manifest declaring a name
@@ -124,9 +125,12 @@ pub(crate) fn read(
     root: &str,
     layers: &[Layer],
     listed: Option<&[String]>,
+    emitted: Option<Arc<crate::emitted::Listing>>,
     tsconfig: Tsconfig,
+    read_blobs: bool,
     made: impl FnOnce() -> HashSet<String>,
 ) -> Read {
+    let mut phases = crate::timings::Phases::new("map read", "fold records and discover manifests");
     let by_path = Regex::new(TEST_BY_PATH).expect("the pattern is fixed");
     let stories_inside = Regex::new(STORIES_INSIDE).expect("the pattern is fixed");
     let folded = fold(layers);
@@ -139,7 +143,11 @@ pub(crate) fn read(
             &beside_them[..]
         }
     };
-    let owners = owners(root, paths);
+    phases.note(format_args!("{records} records, {} listed paths", paths.len()));
+    phases.next("read package manifests");
+    let owners = owners_from(root, paths, read_blobs.then(|| emitted.as_deref()).flatten());
+    phases.note(format_args!("{} packages", owners.packages.len()));
+    phases.next("prepare package ownership");
 
     let (order, shown) = shown(&owners);
     let mut by_name: Vec<u32> = (0..owners.packages.len() as u32).collect();
@@ -165,6 +173,7 @@ pub(crate) fn read(
     let owner_of = |path: &str| -> Option<u32> { owner_of(&owners, &directories, path).map(|owner| index[owner as usize]) };
 
     // A counted file is tracked, owned, and not output.
+    phases.next("join records and parses");
     let mut crossings: Vec<Crossing> = folded
         .into_par_iter()
         .filter_map(|(path, at)| {
@@ -173,9 +182,12 @@ pub(crate) fn read(
         })
         .collect();
     crossings.par_sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
-    join_parses(layers, &mut crossings);
+    join_all_parses(layers, &mut crossings);
     let mut files: Vec<File> = crossings.par_iter().map(|crossing| requests(layers, crossing)).collect();
+    phases.next("wait for generated and vendored marks");
     let made = made();
+    phases.note(format_args!("{} owned files, {} marked files", files.len(), made.len()));
+    phases.next("classify files and resolve manifest entries");
     if !made.is_empty() {
         files.retain(|file| !made.contains(file.path));
     }
@@ -192,7 +204,7 @@ pub(crate) fn read(
         .collect();
     let offering: Vec<&crate::package_owners::Package> = by_name.iter().map(|&owner| &owners.packages[owner as usize]).collect();
     let owner_of_file: Vec<u32> = files.iter().map(|file| file.owner).collect();
-    let mut entries = crate::orient_map_entries::declared(root, &offering, &counted, &owner_of_file, tsconfig);
+    let mut entries = crate::orient_map_entries::declared(root, &offering, &counted, &owner_of_file, emitted, tsconfig, read_blobs);
     // A package whose own directory is the tests' by its path is a fixture: its
     // manifest says what it offers the test that loads it, not what ships.
     for (package, entries) in packages.iter().zip(entries.iter_mut()) {
@@ -200,6 +212,7 @@ pub(crate) fn read(
             entries.clear();
         }
     }
+    phases.next("partition source and tests");
     let undeclared: Vec<bool> = entries.iter().map(Vec::is_empty).collect();
     let outgoing: Vec<Vec<usize>> = files
         .iter()
@@ -212,6 +225,7 @@ pub(crate) fn read(
     let targets: Vec<Vec<Option<u32>>> =
         files.par_iter().map(|file| file.requests.iter().map(|request| request.to.and_then(&owner_of)).collect()).collect();
 
+    phases.next("aggregate package edges and names");
     let n = packages.len();
     let (mut source, mut tested) = (vec![0u32; n], vec![0u32; n]);
     let mut edges: HashMap<(u32, u32), u32> = HashMap::new();
@@ -258,7 +272,10 @@ pub(crate) fn read(
     }
     let mut edges: Vec<(u32, u32, u32)> = edges.into_iter().map(|((a, b), files)| (a, b, files)).collect();
     edges.sort_unstable();
+    phases.note(format_args!("{} files, {} package edges, {} runtime roots", files.len(), edges.len(), roots.len()));
+    phases.next("compute runtime closures");
     let closures = closures(&loads(&files, &counted, &roots, &named), n);
+    phases.next("finish graph and release buffers");
     let shipped = files.iter().zip(&test).filter(|(_, &test)| !test).map(|(file, _)| file.path.to_owned()).collect();
     Read { head: heads(n, uses), packages, depends, develops, edges, source, tested, unread, records, closures, shipped, catalogued, undeclared }
 }

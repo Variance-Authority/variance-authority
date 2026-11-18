@@ -11,10 +11,11 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
 use napi_derive::napi;
-use oxc_resolver::{ResolveOptions, Resolver};
+use oxc_resolver::{ResolveOptions, ResolverGeneric};
+use crate::emitted::{Emitted, Listing};
 use rayon::prelude::*;
 use regex::Regex;
 use serde_json::{Map, Value};
@@ -45,16 +46,20 @@ pub fn aliases_in(root: String, paths: Vec<String>) -> Option<AliasesRead> {
 }
 
 pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
+    read_from(root, paths, None)
+}
+
+pub(crate) fn read_from(root: &str, paths: &[String], listing: Option<Arc<Listing>>) -> Option<AliasesRead> {
     let configs: Vec<&str> = paths.iter().map(String::as_str).filter(|path| is_config(path)).collect();
     let read: Vec<Option<Map<String, Value>>> = configs
         .par_iter()
-        .map(|path| std::fs::read(join(&[root, path])).ok().and_then(|bytes| parse_config(&String::from_utf8_lossy(&bytes))))
+        .map(|path| crate::emitted::read_content(listing.as_deref(), Path::new(&join(&[root, path]))).ok().and_then(|bytes| parse_config(&String::from_utf8_lossy(&bytes))))
         .collect();
     let mut parsed: HashMap<&str, Map<String, Value>> = HashMap::with_capacity(configs.len());
     for (path, value) in configs.iter().zip(read) {
         parsed.insert(path, value?);
     }
-    let mut extended = Extended { root, parsed: &parsed, resolver: None, real: None, answers: HashMap::new() };
+    let mut extended = Extended { root, parsed: &parsed, listing, resolver: None, real: None, answers: HashMap::new() };
 
     let mut mappings = Vec::new();
     let mut bases: Vec<String> = Vec::new();
@@ -165,7 +170,8 @@ fn compiler_options<'a>(path: &'a str, extended: &mut Extended<'a>, seen: &HashS
 struct Extended<'a> {
     root: &'a str,
     parsed: &'a HashMap<&'a str, Map<String, Value>>,
-    resolver: Option<Resolver>,
+    listing: Option<Arc<Listing>>,
+    resolver: Option<ResolverGeneric<Emitted>>,
     real: Option<Option<std::path::PathBuf>>,
     answers: HashMap<(String, String), Option<&'a str>>,
 }
@@ -189,7 +195,7 @@ impl<'a> Extended<'a> {
         // The rule `oxc_resolver` follows an `extends` by, which is not the
         // one it resolves a module by.
         let resolver = self.resolver.get_or_insert_with(|| {
-            Resolver::new(ResolveOptions {
+            ResolverGeneric::new_with_file_system(Emitted::listed(Path::new(self.root), self.listing.clone()), ResolveOptions {
                 condition_names: vec!["node".to_owned(), "import".to_owned()],
                 extensions: vec![".json".to_owned()],
                 main_files: vec!["tsconfig".to_owned()],

@@ -14,17 +14,19 @@ impl Walker {
     pub(super) fn branch(&mut self, it: &IfStatement) -> String {
         let label = self.step("if");
         self.visit_expression(&it.test);
-        self.region(&it.consequent, Kind::Branch, &format!("{label}/then"));
+        self.region(&it.consequent, Kind::Branch, &self.label(format_args!("{label}/then")));
 
         match &it.alternate {
             None => {
                 let end = it.consequent.span().end;
                 let owner = self.owner;
-                let ordinal = self.open(Kind::Branch, &format!("{label}/else"), end, end, Some(owner));
-                let probe = self.probe(ordinal);
-                self.push(end, format_args!(" else{{{probe};}}"));
+                let ordinal = self.open(Kind::Branch, &self.label(format_args!("{label}/else")), end, end, Some(owner));
+                if self.emit {
+                    let probe = self.probe(ordinal);
+                    self.push(end, format_args!(" else{{{probe};}}"));
+                }
             }
-            Some(alternate) => self.region(alternate, Kind::Branch, &format!("{label}/else")),
+            Some(alternate) => self.region(alternate, Kind::Branch, &self.label(format_args!("{label}/else"))),
         }
         label
     }
@@ -40,8 +42,8 @@ impl Walker {
 
         for (index, clause) in it.cases.iter().enumerate() {
             let step = match clause.test {
-                None => format!("{label}/default"),
-                Some(_) => format!("{label}/case#{index}"),
+                None => self.label(format_args!("{label}/default")),
+                Some(_) => self.label(format_args!("{label}/case#{index}")),
             };
             written |= clause.test.is_none();
 
@@ -58,14 +60,16 @@ impl Walker {
 
         if !written {
             let at = it.span.end - 1;
-            let ordinal = self.open(Kind::Case, &format!("{label}/default"), at, at, Some(owner));
+            let ordinal = self.open(Kind::Case, &self.label(format_args!("{label}/default")), at, at, Some(owner));
             // The last case's last statement may end at the `}` with no
             // semicolon, as minified code writes it: `return 1default:` is not
             // a program. With no case there is no statement to end, and a bare
             // `;` is not a clause.
             let separator = if it.cases.is_empty() { "" } else { ";" };
-            let probe = self.probe(ordinal);
-            self.push(at, format_args!("{separator}default:{probe};"));
+            if self.emit {
+                let probe = self.probe(ordinal);
+                self.push(at, format_args!("{separator}default:{probe};"));
+            }
         }
         label
     }
@@ -74,19 +78,19 @@ impl Walker {
         let label = self.step("try");
         let owner = self.owner;
 
-        self.list(&it.block.body, &format!("{label}/try"), owner);
+        self.list(&it.block.body, &self.label(format_args!("{label}/try")), owner);
 
         if let Some(handler) = &it.handler {
             if let Some(param) = &handler.param {
                 self.visit_catch_parameter(param);
             }
-            let path = format!("{label}/catch");
+            let path = self.label(format_args!("{label}/catch"));
             let (caught, _) = self.enter((handler.body.span.start, handler.body.span.end), true, Kind::Handler, &path);
             self.list(&handler.body.body, &path, caught);
         }
 
         if let Some(finalizer) = &it.finalizer {
-            let path = format!("{label}/finally");
+            let path = self.label(format_args!("{label}/finally"));
             let (finished, _) = self.enter((finalizer.span.start, finalizer.span.end), true, Kind::Handler, &path);
             self.list(&finalizer.body, &path, finished);
         }
@@ -130,7 +134,7 @@ impl Walker {
             _ => {}
         }
 
-        self.region(body, Kind::Loop, &format!("{label}/body"));
+        self.region(body, Kind::Loop, &self.label(format_args!("{label}/body")));
         label
     }
 }

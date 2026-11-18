@@ -10,7 +10,7 @@ import { parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { AFTER, BEFORE, DISCOUNTS, block, changed, git } from './review-fixture.js';
 import { formatHandover, HANDOVER_END, HANDOVER_LINES, HANDOVER_START } from './review-handover.js';
-import type { Review, ReviewRegion } from './review.js';
+import type { Review, ReviewRegion } from './review-types.js';
 import { REVIEW_MARKER } from './review-text.js';
 
 // `ci-info` decides CI once, when it loads, so the module is cut: these questions are asked outside CI.

@@ -38,17 +38,18 @@ export interface ShadowReach {
 
 /** Every module `file` shadows in `relations`, sorted, with its distance from the file. */
 export function shadowReach(relations: Relations, file: string): readonly ShadowReach[] {
-  const shadowed = relations.shadows.get(file) ?? [];
+  const shadowed = 'native' in relations ? relations.native.shadows([file])[0] ?? [] : relations.shadows.get(file) ?? [];
   const seed = idOf(relations, 'file', file);
   if (shadowed.length === 0 || seed === undefined) return [];
   const walk = dependenciesOf(relations, [seed], { through: RUNTIME_EDGES });
-  const blind = walk.nodes.find((id) => relations.unknown[id] === 1);
-  const unread = blind === undefined ? undefined : nodeAt(relations, blind)!.name;
+  const blind = walk.nodes.find((id) => 'native' in relations ? walk.info?.get(id)?.unknown !== undefined : relations.unknown[id] === 1);
+  const unread = blind === undefined ? undefined : walk.info?.get(blind)?.name ?? nodeAt(relations, blind)!.name;
 
+  const known = 'native' in relations ? new Map(relations.native.lookup(shadowed.map((name) => ({kind:'file',name}))).flatMap((node) => node === null ? [] : [[node.name,node.id] as const])) : undefined;
   return [...shadowed].sort(codeUnitOrder).map((module) => {
-    const id = idOf(relations, 'file', module);
+    const id = known === undefined ? idOf(relations, 'file', module) : known.get(module);
     const trail = id === undefined ? [] : trailOf(walk, id);
     if (trail.length < 2) return unread === undefined ? { module } : { module, unread };
-    return { module, hops: trail.length - 1, importer: nodeAt(relations, trail.at(-2)!)!.name };
+    return { module, hops: trail.length - 1, importer: walk.info?.get(trail.at(-2)!)?.name ?? nodeAt(relations, trail.at(-2)!)!.name };
   });
 }

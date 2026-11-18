@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EdgeKind } from '@variance-authority/core/relate';
-import type { FileNames, FileRecord, SourceNames, Tree } from '@variance-authority/mcp/tools';
+import type { FileRecord, NamesOperand, SourceNames, Tree } from '@variance-authority/mcp/tools';
 import { treeOf } from '@variance-authority/mcp/tools';
 import { discover, readsNames } from './discover.js';
 
@@ -20,6 +20,11 @@ const reads = (file: string, ...to: readonly (string | readonly [string, EdgeKin
     ? { file }
     : { file, edges: to.map((edge) => (typeof edge === 'string' ? { to: edge, kind: 'imports' as const } : { to: edge[0], kind: edge[1] })) };
 
+interface FileNames {
+  readonly declared: readonly { readonly name: string; readonly line: number }[];
+  readonly imported: readonly { readonly from: string; readonly to?: string; readonly name?: string; readonly local?: string; readonly line: number }[];
+}
+
 const blank: FileNames = { declared: [], imported: [] };
 
 const context = (name: string): FileNames => ({
@@ -27,7 +32,7 @@ const context = (name: string): FileNames => ({
   imported: [{ from: 'react', name: 'createContext', line: 1 }],
 });
 
-const NAMES: SourceNames = new Map<string, FileNames>([
+const HARVEST = new Map<string, FileNames>([
   ['src/TopNav.tsx', { declared: [{ name: 'TopNav', line: 4 }], imported: [{ from: './nav/Menu', to: 'src/nav/Menu.tsx', name: 'Menu', line: 1 }] }],
   ['src/nav/Menu.tsx', { declared: [{ name: 'Menu', line: 3 }], imported: [] }],
   ['src/state/theme.ts', context('ThemeContext')],
@@ -43,6 +48,34 @@ const NAMES: SourceNames = new Map<string, FileNames>([
     (file): [string, FileNames] => [file, blank],
   ),
 ]);
+
+/** A small host stub; real source extraction and Rust matching are exercised by names-harvest. */
+function sourceNames(rows = HARVEST, unread = 0): SourceNames {
+  return {
+    query: (operands) => ({
+      unread,
+      groups: operands.map((operand: NamesOperand) => ({
+        files: [...rows].flatMap(([file, names]) => {
+          let evidence;
+          if (operand.kind === 'declares') {
+            let pattern: RegExp;
+            try { pattern = new RegExp(operand.pattern!, 'i'); }
+            catch { throw new Error('`declares` is not a regular expression'); }
+            evidence = names.declared.filter((entry) => pattern.test(entry.name));
+          } else {
+            const spec = operand.specifier!;
+            evidence = names.imported.filter((entry) =>
+              (entry.from === spec || entry.to === spec || (!spec.startsWith('.') && !spec.startsWith('/') && entry.from.startsWith(`${spec}/`))) &&
+              (operand.name === undefined || operand.name === entry.name));
+          }
+          return evidence.length === 0 ? [] : [{ file, evidence }];
+        }),
+      })),
+    }),
+  };
+}
+
+const NAMES = sourceNames();
 
 let root: string;
 let tree: Tree;
@@ -92,6 +125,23 @@ const ask = (input: Record<string, unknown>): string => discover.run(undefined, 
 const CONTEXTS = { from: 'src/TopNav.tsx', imports: 'react#createContext', declares: 'theme|user|account' };
 
 describe('discover crosses whole sets', () => {
+  it('submits positive and excluded name predicates in one native query', () => {
+    const asked: unknown[] = [];
+    const names = {
+      query: (operands: unknown) => {
+        asked.push(operands);
+        return { unread: 0, groups: Array.from({ length: 4 }, () => ({ files: [] })) };
+      },
+    } as unknown as SourceNames;
+    discover.run(undefined, { imports: 'react#createContext', declares: '^Theme', exceptImports: 'old', exceptDeclares: '^Legacy' }, { tree, names, root });
+    expect(asked).toEqual([[
+      { kind: 'imports', specifier: 'react', name: 'createContext' },
+      { kind: 'declares', pattern: '^Theme' },
+      { kind: 'imports', specifier: 'old' },
+      { kind: 'declares', pattern: '^Legacy' },
+    ]]);
+  });
+
   it('answers the files in every operand, nearest first', () => {
     const text = ask(CONTEXTS);
     expect(text).toContain('6 files reached from `src/TopNav.tsx`');
@@ -136,7 +186,7 @@ describe('discover crosses whole sets', () => {
   });
 
   it('counts the files whose names were not read, so a missing one is not a file declaring nothing', () => {
-    const names = new Map([...NAMES].filter(([file]) => file !== 'src/old/selectors.ts'));
+    const names = sourceNames(new Map([...HARVEST].filter(([file]) => file !== 'src/old/selectors.ts')), 1);
     const text = discover.run(undefined, { declares: '^selectBalance$', imports: 'react' }, { tree, names, root });
     expect(text).toContain('1 file declaring a name matching /^selectBalance$/i — the names of 1 file were not read');
     expect(text).toContain('4 files importing `react` — the names of 1 file were not read');

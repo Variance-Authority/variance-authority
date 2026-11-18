@@ -10,13 +10,9 @@
 
 // compass: variance-authority.reach.source-index
 
-import { execFileSync } from 'node:child_process';
-import { extname, join } from 'node:path';
+import { join } from 'node:path';
 import { native as addon } from './addon.js';
-import type { ParseCache, Parsed } from './cache.js';
-import { READABLE } from './language.js';
-import type { NativeBuilt, NativeGitTree } from './native.js';
-import { decodeSourceIndex } from './source-index-format.js';
+import type { NativeGitTree } from './native.js';
 import { cacheRootFor, directoriesIn, primaryCacheRoot, workDirectory } from './test-selection/cache-layers.js';
 import { repositoryRoot } from './test-selection/repository-root.js';
 
@@ -30,55 +26,15 @@ export function parseStorePath(cacheRoot: string): string {
 
 /**
  * The stores an update of `root` reads: its own cache's first, which it adds
- * to, then the primary checkout's when that cache is another one. None where
- * git rewrites the bytes of a file the store parses.
+ * to, then the primary checkout's when that cache is another one. Native
+ * acquisition proves the identity before reusing a parse of worktree bytes.
  */
-export function parseStoresFor(root: string): readonly string[] | undefined {
+export function parseStoresFor(root: string): readonly string[] {
   // The top, not `root`: only it holds the `.git` that names a worktree's primary.
   const repository = repositoryRoot(root);
-  if (rewritesParsed(repository)) return undefined;
   const own = cacheRootFor(repository);
   const primary = primaryCacheRoot(repository);
   return primary === own ? [parseStorePath(own)] : [parseStorePath(own), parseStorePath(primary)];
-}
-
-/**
- * Whether git writes a file the store would parse as other bytes than its blob:
- * a filter, `ident` or `working-tree-encoding` on it, `eol=crlf`,
- * `core.autocrlf=true`, or a `text` (or legacy `crlf`) file under `core.eol=crlf` (`native` on
- * Windows). A parse is kept under the blob's name and read off the disk, so
- * there two checkouts holding one blob can hold different modules, and one
- * would answer the other. A git that cannot answer is taken to rewrite. A
- * parse leaves its checkout only when the bytes read are the blob
- * (`native/src/parse_origin.rs`), which covers what such a checkout writes;
- * this gate still guards the reading side, where it would take a parse of the
- * blob for bytes git rewrote. The `FIXME` in `scan.ts` asks the same of one index.
- */
-function rewritesParsed(repository: string): boolean {
-  const git = (...args: string[]) => execFileSync('git', args, { cwd: repository, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-  const config = new Map<string, string>();
-  try {
-    // Git spells a boolean `true` however it was set (`yes`, `2`, a bare key) and keeps `input` and `crlf` as they are.
-    for (const line of git('config', '--type=bool-or-str', '--get-regexp', '^core\\.(autocrlf|eol)$').split('\n')) {
-      const [key, value = ''] = line.trim().toLowerCase().split(/\s+/);
-      if (key) config.set(key, value);
-    }
-  } catch {
-    // neither is set
-  }
-  const autocrlf = config.get('core.autocrlf');
-  if (autocrlf === 'true') return true;
-  const eol = config.get('core.eol') ?? 'native';
-  const crlf = autocrlf !== 'input' && (eol === 'crlf' || (eol === 'native' && process.platform === 'win32'));
-  try {
-    const rewritten = [
-      git('ls-files', '-z', '--', ':(top,attr:eol=crlf)', ...(crlf ? [':(top,attr:text)', ':(top,attr:text=auto)', ':(top,attr:crlf)'] : [])),
-      git('ls-files', '-z', '--', ':(top)', ':(top,exclude,attr:!filter !ident !working-tree-encoding)'),
-    ];
-    return rewritten.join('\0').split('\0').some((file) => READABLE.has(extname(file)));
-  } catch {
-    return true;
-  }
 }
 
 /**
@@ -120,35 +76,4 @@ async function rootChains(selection: string): Promise<string[]> {
     for (const worktree of await directoriesIn(workDirectory(base))) chains.push(join(workDirectory(base), worktree, 'source-index.bin'));
   }
   return chains;
-}
-
-/** A row the scan answered as kept whose parse the cache did not find. */
-export interface Unheld {
-  readonly file: string;
-  readonly key: string;
-  readonly fresh: NativeBuilt;
-}
-
-/**
- * Put in `cache` the parse of each row the scan of `tree` kept, and hand it on.
- *
- * The cache read the stores before the scan did, and another root may have
- * published them between the two: the parse comes from the tree's own reading,
- * the one the scan answered `kept` from, so a record is never published without it.
- */
-export function handOverKept(
-  tree: NativeGitTree,
-  stores: readonly string[] | undefined,
-  cache: ParseCache,
-  rows: readonly Unheld[],
-  handOver: (file: string, read: Parsed | undefined, key: string, targets?: readonly (string | undefined)[]) => void,
-): void {
-  if (rows.length === 0 || stores === undefined) return;
-  const digests = rows.map((row) => row.fresh.record.digest!);
-  const parses = decodeSourceIndex(tree.keptParses([...stores], rows.map((row) => row.file), digests)).parses;
-  for (const { file, key, fresh } of rows) {
-    const parse = parses.get(key);
-    if (parse !== undefined) cache.set(key, parse);
-    handOver(file, parse, key, fresh.targets);
-  }
 }

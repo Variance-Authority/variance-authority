@@ -70,7 +70,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
 /// Every top-level declaration, each with the `///` lines or `/** */` block
 /// above it. An extension adds to a type declared elsewhere and names nothing
 /// of its own.
-pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
+pub fn declarations(tree: &Tree, source: &str, offsets: &super::Offsets) -> Vec<SourceSymbol> {
     let children = named_children(tree.root_node());
     (0..children.len())
         .filter_map(|at| {
@@ -80,7 +80,7 @@ pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
                 "class_declaration" => nominal(node)?,
                 other => kind_of(other)?,
             };
-            let mut symbol = declaration(&children, at, name, kind, source, |_| false);
+            let mut symbol = declaration(&children, at, name, kind, source, offsets, |_| false);
             if file_private(node, source, &FILE_PRIVATE) {
                 symbol.reach = Some("file");
             }

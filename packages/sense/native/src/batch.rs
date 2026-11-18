@@ -14,12 +14,13 @@ use crate::git::Oid;
 use crate::parse_origin::FromBlob;
 use crate::read::Kind;
 use crate::resolve::{Resolvers, Tsconfig};
+use crate::source_languages::LanguageWorld;
 
 #[path = "batch_walk.rs"]
 mod walk;
 
 use walk::{read_kept, resolve_all};
-pub(crate) use walk::{is_module, walk_beyond, Kept, Walked};
+pub(crate) use walk::{walk_beyond, walk_consumed, Acquired, Kept, Walked};
 
 /// What a batch of files said, in columns rather than per-file objects.
 #[napi(object)]
@@ -159,9 +160,12 @@ pub(crate) fn scan_batch_with_oids(
         condition_names,
     } = options;
     let root_path = Path::new(&root);
-    let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, listing));
+    let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed_for(root_path, listing.clone(), store.allows_blobs()));
     let (read, answered) = match oids {
-        Some(oids) => read_kept(&root, store, &files, oids, largest_file, digests, readers, kept, from_blob),
+        Some(oids) => {
+            let (read, acquired) = read_kept(&root, store, &files, oids, largest_file, digests, readers, kept, None, from_blob, listing.as_deref());
+            (read, acquired.into_iter().map(|row| row.kept).collect())
+        }
         None => (
             read_all(
                 root.clone(),
@@ -174,7 +178,15 @@ pub(crate) fn scan_batch_with_oids(
             Vec::new(),
         ),
     };
-    let targets = resolve_all(root_path, &files, &read, &resolvers, known);
+    let over_tree = files.iter().zip(&read).any(|(file, (read, _, _))| crate::source_read::language(file).is_some() && read.requests().len() != 0);
+    let paths = if over_tree { known.map(|known| known.keys().cloned().collect::<Vec<_>>()).unwrap_or_else(|| files.clone()) } else { Vec::new() };
+    let mut languages = LanguageWorld::new(&paths, root_path);
+    #[cfg(feature = "grammars")]
+    {
+        let facts = files.iter().zip(&read).filter_map(|(file, (read, _, _))| read.language().map(|read| (file.clone(), read))).collect();
+        languages.prepare_rust(&facts);
+    }
+    let targets = resolve_all(root_path, &files, &read, &resolvers, known, &languages);
     let columns = columns(read, true, &answered);
     scan_columns(files, Vec::new(), columns, targets, answered)
 }
@@ -182,6 +194,7 @@ pub(crate) fn scan_batch_with_oids(
 /// Follow the complete module closure without crossing N-API per frontier.
 pub(crate) fn scan_graph_with_tree(
     options: GraphOptions,
+    paths: &[String],
     at: &HashMap<String, u32>,
     tree_oids: &[Oid],
     listing: Arc<Listing>,
@@ -190,8 +203,8 @@ pub(crate) fn scan_graph_with_tree(
     store: &TreeObjects,
 ) -> ScanBatch {
     let include_parses = options.include_parses;
-    let Walked { files, identities, read, targets, kept: answered } =
-        walk_beyond(options, at, tree_oids, listing, &|_| false, kept, from_blob, store);
+    let Walked { files, identities, read, targets, kept: answered, parsed: _ } =
+        walk_beyond(options, paths, at, tree_oids, listing, &|_| false, kept, None, from_blob, store, &crate::scan_session::State::default());
     // A kept row's parse is the store's, whole; the one the walk holds is only
     // what records need, so it is not published as a parse.
     let parse_segment = crate::index::parse_segment(&files, &identities, &read, &answered);
@@ -203,7 +216,7 @@ fn scan_columns(
     files: Vec<String>,
     parse_segment: Vec<u8>,
     columns: ReadBatch,
-    targets: Vec<Vec<String>>,
+    targets: Vec<Vec<Vec<String>>>,
     kept: Vec<bool>,
 ) -> ScanBatch {
     // One byte per row, whatever read it: a scan no store answered keeps nothing.
@@ -221,14 +234,14 @@ fn scan_columns(
         declined: columns.declined,
         declare_counts: columns.declare_counts,
         declares: columns.declares,
-        targets: targets.into_iter().flatten().collect(),
+        targets: targets.into_iter().flatten().map(|targets| targets.into_iter().next().unwrap_or_default()).collect(),
         kept: kept.into(),
     }
 }
 
 /// `kept` names the rows whose parse the store holds whole; none past its end.
 fn columns(read: Vec<Answer>, include_parses: bool, kept: &[bool]) -> ReadBatch {
-    let total = read.iter().map(|(held, _, _)| held.requests.len()).sum();
+    let total = read.iter().map(|(held, _, _)| held.requests().len()).sum();
     let mut counts = Vec::with_capacity(read.len());
     let mut unknown = Vec::with_capacity(read.len());
     let mut held_digests = Vec::with_capacity(read.len());
@@ -248,14 +261,14 @@ fn columns(read: Vec<Answer>, include_parses: bool, kept: &[bool]) -> ReadBatch 
         } else {
             String::new()
         });
-        declare_counts.push(held.declares.len() as u32);
-        declares.extend(held.declares.iter().cloned());
-        counts.push(held.requests.len() as u32);
-        unknown.push(held.unknown.unwrap_or_default());
+        declare_counts.push(held.declares().len() as u32);
+        declares.extend(held.declares().iter().cloned());
+        counts.push(held.requests().len() as u32);
+        unknown.push(held.unknown().unwrap_or_default().to_owned());
         held_digests.push(digest);
-        for request in held.requests {
-            values.push(request.value);
-            kinds.push(request.kind.code());
+        for request in held.requests() {
+            values.push(request.value.to_owned());
+            kinds.push(Kind::ALL.into_iter().find(|kind| kind.as_str() == request.kind).expect("every native request has a known kind").code());
         }
     }
 
@@ -288,7 +301,7 @@ mod tests {
 
     #[test]
     fn names_kinds_the_way_the_oracle_does() {
-        assert_eq!(kinds(), ["imports", "reexports", "dynamic", "type", "depends"]);
+        assert_eq!(kinds(), ["imports", "reexports", "dynamic", "type", "depends", "asset"]);
     }
 
     #[test]

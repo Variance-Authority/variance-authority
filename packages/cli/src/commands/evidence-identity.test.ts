@@ -73,7 +73,7 @@ describe('evidenceIdentity: the build and recipe every part of one collection mu
     expect(dirty.build.source).not.toBe(clean.build.source);
   });
 
-  it('digests every file the scan reads, git-ignored ones included, and none it skips', async () => {
+  it('digests every file the scan reads as it is on disk, and none it skips: stories and git-ignored source', async () => {
     await put('sb/index.json', '{}');
     await put('.gitignore', 'src/generated/\n');
     await put('src/Button.tsx', 'export const Button = 1;');
@@ -82,9 +82,11 @@ describe('evidenceIdentity: the build and recipe every part of one collection mu
     await committed();
     const before = (await evidenceIdentity(storybookAt('sb'), root, {})).build.source;
 
+    await put('src/generated/tokens.ts', 'export const blue = 2;');
+    expect((await evidenceIdentity(storybookAt('sb'), root, {})).build.source).toBe(before);
     await put('src/Button.stories.tsx', 'export default { title: "x" };');
     expect((await evidenceIdentity(storybookAt('sb'), root, {})).build.source).toBe(before);
-    await put('src/generated/tokens.ts', 'export const blue = 2;');
+    await put('src/Button.tsx', 'export const Button = 2;');
     expect((await evidenceIdentity(storybookAt('sb'), root, {})).build.source).not.toBe(before);
   });
 

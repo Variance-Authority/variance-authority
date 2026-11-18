@@ -11,7 +11,8 @@
  * `@variance-authority/distill` turns them into the shapes it publishes.
  */
 
-import { EDGE_KINDS, type EdgeKind, type Relations } from '@variance-authority/core/relate';
+import { EDGE_KINDS, type EdgeKind, type Relations, type MemoryRelations } from '@variance-authority/core/relate';
+import type { NativeSelectionGraph } from '../native-selection-graph.js';
 import { native, nativeRefusal } from '../addon.js';
 import type { NativeDistillCause, NativeDistillFile, NativeDistillGraph, NativeDistillRecords, NativeDistillRegion, NativeDistillScope } from '../native-distill.js';
 import { caseSectionsOf, withCaseSections } from './case-record.js';
@@ -49,7 +50,7 @@ const REEXPORTS = EDGE_KINDS.indexOf('reexports');
 const graphs = new WeakMap<Relations, NativeDistillGraph>();
 
 /** The graph as the addon reads it, flattened once however many questions ask it. */
-function graphOf(relations: Relations | undefined): NativeDistillGraph | undefined {
+function graphOf(relations: MemoryRelations | undefined): NativeDistillGraph | undefined {
   if (relations === undefined) return undefined;
   let graph = graphs.get(relations);
   if (graph === undefined) {
@@ -108,8 +109,8 @@ export function readDistillRecords(given: readonly Uint8Array[]): DistillRecords
     return found;
   };
   return {
-    scope: (within, relations) => handle.scope(within, graphOf(relations)),
-    file: (file, relations) => handle.file(file, graphOf(relations)),
+    scope: (within, relations) => relations !== undefined && 'native' in relations ? handle.scopeNative(within, relations.native as NativeSelectionGraph) : handle.scope(within, graphOf(relations)),
+    file: (file, relations) => relations !== undefined && 'native' in relations ? handle.fileNative(file, relations.native as NativeSelectionGraph) : handle.file(file, graphOf(relations)),
     cases: (file) => {
       const record = handle.holder(file);
       return record === null ? [] : testsOf(record).filter((test) => test.file === file);

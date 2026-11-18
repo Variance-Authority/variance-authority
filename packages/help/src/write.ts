@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { type Help, type Page, readHelp, writeGaps, writeIndex, writeLlms } from '@variance-authority/package/help';
+import { type Help, type Page, writeGaps, writeIndex, writeLlms } from '@variance-authority/package/help';
+import { readWorkspace } from './read.js';
 
 /**
  * The same answers, as files, for the readers that cannot call a tool.
@@ -57,9 +58,9 @@ export interface PagesOptions {
  * rendering decision somebody will eventually disagree with, and disagreeing
  * should cost a `JSON.parse` rather than a fork.
  */
-export function writePages(root: string, out: string, options: PagesOptions = {}): readonly Written[] {
+export async function writePages(root: string, out: string, options: PagesOptions = {}): Promise<readonly Written[]> {
   const where = resolve(root);
-  const help: Help = readHelp(where);
+  const help: Help = await readWorkspace(where);
   const dir = resolve(out);
   mkdirSync(dir, { recursive: true });
 

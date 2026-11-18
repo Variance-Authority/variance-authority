@@ -6,10 +6,9 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { relationsOfFiles, type Relations } from '@variance-authority/core/relate';
-import { scanRelations } from '../scan.js';
-import { taintRecords } from '../taint/index.js';
-import { mockTaint } from '../taint/mocks.js';
+import { type Relations } from '@variance-authority/core/relate';
+import { updateSourceIndex } from '../published.js';
+import { publishedSelectionGraph } from '../published-selection.js';
 import { narrowByExecution } from './index.js';
 
 /**
@@ -45,10 +44,10 @@ beforeAll(async () => {
     cwd: fixture,
     env: { ...process.env, VARIANCE_AUTHORITY_COVERAGE: coverageFile, VARIANCE_AUTHORITY_CACHE: directory },
   });
-  // As the CLI builds it: the mocks the scan read are joined as shadows.
-  const records = await scanRelations({ root: repository, dirs: [relative(repository, fixture)] });
-  const tainted = await taintRecords(records, [mockTaint()], { root: repository });
-  relations = relationsOfFiles(tainted.records, { shadows: tainted.shadows });
+  const index = resolve(directory, 'source-index.bin');
+  const dirs = [relative(repository, fixture)];
+  await updateSourceIndex(repository, { index, dirs });
+  relations = await publishedSelectionGraph(repository, { index, dirs });
 });
 
 afterAll(async () => {

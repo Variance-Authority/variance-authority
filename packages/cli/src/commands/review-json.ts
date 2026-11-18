@@ -19,7 +19,7 @@
 
 import { codeUnitOrder as order } from '@variance-authority/core/segment';
 import { OperatorError } from '../exit.js';
-import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
+import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review-types.js';
 
 /** The shape `review.json` is written in. A file without the field is the shape before it: version 1. */
 export const REVIEW_JSON_VERSION = 2;

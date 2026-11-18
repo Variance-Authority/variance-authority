@@ -1,5 +1,4 @@
-//! What `status` prints, for the repositories the in-process comparison in
-//! `worktree_status` hands back: how git is asked about untracked files, and the
+//! What `status` prints: how Git is asked about untracked files, and the
 //! porcelain it answers with, read as the paths it names gone and edited.
 
 // compass: variance-authority.reach.source-scan
@@ -17,11 +16,10 @@ pub(crate) struct UntrackedSettings {
     pub mode: &'static str,
 }
 
-/// The untracked settings and `worktree_status`'s, listed in one call; none set
+/// The untracked settings, listed in one call; none set
 /// is git's default, and so is a git that cannot answer.
 pub(crate) fn configured(root: &str) -> Vec<u8> {
-    let pattern = format!(r"^(core\.untrackedcache|feature\.manyfiles|status\.showuntrackedfiles|{})$", crate::git::worktree_status::KEYS);
-    git(root, &["config", "-z", "--get-regexp", &pattern], None).unwrap_or_default()
+    git(root, &["config", "-z", "--get-regexp", r"^(core\.untrackedcache|feature\.manyfiles|status\.showuntrackedfiles)$"], None).unwrap_or_default()
 }
 
 /// `git config -z --get-regexp` output as the settings it names, read in
@@ -115,7 +113,9 @@ pub(crate) fn porcelain(root: &str, prefix: &[u8], status: &[u8]) -> Option<(Mov
             continue;
         };
 
-        if codes.contains(&b'D') {
+        // `DU` and `UD` are a modify/delete conflict: one side deleted the path
+        // and the other's file stands in the worktree, so the disk answers.
+        if codes.contains(&b'D') && !codes.contains(&b'U') {
             moved.insert(path.to_vec(), None);
         } else if path.ends_with(b"/") {
             // A directory git did not descend: untracked, collapsed by

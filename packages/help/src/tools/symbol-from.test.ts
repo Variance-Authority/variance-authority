@@ -1,9 +1,9 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { readHelp } from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { refreshDependencyLexicon } from '../dependency-lexicon.js';
 import { symbol } from './symbol.js';
@@ -54,7 +54,7 @@ async function fixture(extra: Record<string, string> = {}): Promise<string> {
 
 it('resolves the version and signature from the owning workspace, and says where a name is when it is not usable', async () => {
   const root = await fixture();
-  const help = readHelp(root);
+  const help = (await readNativeHelp(root));
   const ask = (from?: string): string => symbol.run(help, from === undefined ? { name: 'sharedName' } : { name: 'sharedName', from }, { root });
   const alpha = ask('packages/alpha/src/x.ts');
   expect(alpha).toContain('shared-kit@1.0.0');
@@ -78,7 +78,7 @@ it('resolves the version and signature from the owning workspace, and says where
 // whose declarations were not read, and the installed answer says which.
 it('names the files whose declarations were not read beside an installed answer', async () => {
   const root = await fixture({ 'packages/gamma/src/huge.ts': `export const huge = 1;\n${'// filler line\n'.repeat(80_000)}` });
-  const help = readHelp(root);
+  const help = (await readNativeHelp(root));
   const note = 'The declarations of 1 file were not read into the source index, so a name declared there is not known: packages/gamma/src/huge.ts.';
   const listed = symbol.run(help, { name: 'sharedName' }, { root });
   expect(listed).toContain('shared-kit@2.0.0');

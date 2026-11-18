@@ -3,6 +3,7 @@ import { join, dirname } from 'node:path';
 import { native, nativeRefusal } from './addon.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
+import type { SourceUpdate } from './published.js';
 
 /** The lexicon's two files beside the source index: the catalogue, and the requests each source file writes. */
 function lexiconPaths(root: string): readonly [catalogue: string, sites: string] {
@@ -11,12 +12,16 @@ function lexiconPaths(root: string): readonly [catalogue: string, sites: string]
 }
 
 /** Publish the installed dependency API corpus and return aggregate counts. */
-export function refreshDependencyLexiconNative(root: string) {
+export function refreshDependencyLexiconNative(root: string, scanned?: Pick<SourceUpdate, 'listing' | 'packs'>) {
   const addon = native();
   if (addon === undefined) throw new Error(`the dependency lexicon requires the native scanner: ${nativeRefusal() ?? 'it is unavailable'}`);
   const [catalogue, sites] = lexiconPaths(root);
   // A package resolves where the scan that built the index resolved it.
-  return addon.refreshDependencyLexicon(root, sourceIndexPath(root), catalogue, sites, declaredTsconfig(root));
+  const tsconfig = declaredTsconfig(root);
+  const carried = scanned?.listing?.refreshDependencyLexicon?.bind(scanned.listing);
+  return carried === undefined
+    ? addon.refreshDependencyLexicon(root, sourceIndexPath(root), catalogue, sites, tsconfig)
+    : carried(root, sourceIndexPath(root), catalogue, sites, tsconfig, scanned?.packs);
 }
 
 /** Ask the native lexicon for a bounded set of names. */

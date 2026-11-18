@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import { digestString } from '../digest.js';
-import { scanRelations } from '../scan.js';
+import { scanRelations } from '../test-support/scan.js';
 import { landRun } from './commit-runs.js';
 import { changedLines, keptDigests, keptTexts, narrowByExecution, testCoverageFile, type TestCoverage } from './index.js';
 import { withRanOver } from './ran-over.js';

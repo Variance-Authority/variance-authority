@@ -42,7 +42,7 @@
  * first, which is the right place for it and the wrong reason.
  */
 
-import { RUNTIME_EDGES, dependenciesOf, nodeAt, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
+import { RUNTIME_EDGES, dependenciesOf, nodeAt, describeNodes, traversalOf, trailOf, type NodeId, type Relations, type Traversal } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { reachThroughs, type Faces, type ReachThrough } from './faces.js';
 import type { TestCoverageView } from './format-view.js';
@@ -336,7 +336,7 @@ function walk(
   if (relations === undefined) return { because: 'no import graph was supplied' };
   if (seeds.length === 0) return { because: 'nothing named a file to measure from' };
   const held = options.enumerated ?? ((): boolean => true);
-  const nodes = nodesOf(relations, options.knownAs ?? ownName);
+  const nodes = nodesOf(relations, options.knownAs ?? ownName, [test, ...seeds, ...entered, ...unrecorded]);
 
   const start = nodes(test);
   if (start.length === 0) return { because: `the graph does not hold ${test}` };
@@ -369,7 +369,7 @@ function walk(
     // what that file itself imports.
     if (blind > 0) return { because: `${blind} module(s) it covered are outside the graph` };
     for (const id of traversal.nodes) {
-      const name = nodeAt(relations, id)?.name;
+      const name = traversal.info?.get(id)?.name ?? nodeAt(relations, id)?.name;
       if (name !== undefined && !held(name)) return { because: `nothing enumerated what ${name} imports` };
     }
 
@@ -389,15 +389,16 @@ function walk(
       : { because: `it ran ${stranded} other module(s) the graph cannot connect it to` };
   }
 
-  const named: string[] = [];
-  for (const id of best) named.push(nodeAt(relations, id)?.name ?? '');
+  const metadata = traversal.info ?? new Map(describeNodes(relations, traversal.nodes).flatMap((node) => node === null ? [] : [[node.id, node] as const]));
+  const named = best.map((id) => metadata.get(id)?.name ?? '');
   // A changed file no run could enter is entered by the test that imports it.
   const imported = new Map<NodeId, string>();
   for (const file of unrecorded) for (const id of nodes(file)) imported.set(id, file);
   const enterable = imported.size === 0 ? open : open.slice();
   for (const id of imported.keys()) enterable[id] = 1;
   const enters = new Set<string>();
-  const alike = (id: NodeId): readonly NodeId[] => nodes(nodeAt(relations, id)?.name ?? '');
+  const admittedNames = new Map(describeNodes(relations, Object.keys(enterable).map(Number).filter((id) => enterable[id] === 1)).flatMap((node) => node === null ? [] : [[node.id, node.name] as const]));
+  const alike = (id: NodeId): readonly NodeId[] => nodes(admittedNames.get(id) ?? '');
   for (const id of entries(relations, start, enterable, alike)) {
     const seed = wanted.get(id) ?? imported.get(id);
     if (seed !== undefined) enters.add(seed);
@@ -419,8 +420,8 @@ function executed(
   entered: ReadonlySet<string>,
   admitted: readonly NodeId[],
   nodes: (file: string) => readonly NodeId[],
-): { readonly traversal: Traversal; readonly blind: number; readonly open: Uint8Array } {
-  const open = new Uint8Array(relations.names.length);
+): { readonly traversal: Traversal; readonly blind: number; readonly open: Uint8Array | number[] } {
+  const open = 'native' in relations ? [] as number[] : new Uint8Array(relations.names.length);
   for (const id of start) open[id] = 1;
   for (const id of admitted) open[id] = 1;
   let blind = 0;
@@ -429,6 +430,7 @@ function executed(
     if (found.length === 0) blind += 1;
     for (const id of found) open[id] = 1;
   }
+  if ('native' in relations) return { traversal: traversalOf(relations.native.walkWithin(start, Object.keys(open).map(Number).filter((id) => open[id] === 1))), blind, open };
   const avoid: NodeId[] = [];
   for (let id = 0; id < open.length; id += 1) if (open[id] !== 1) avoid.push(id);
   return { traversal: dependenciesOf(relations, start, { through: RUNTIME_EDGES, avoid }), blind, open };

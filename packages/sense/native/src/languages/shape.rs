@@ -1,10 +1,10 @@
-//! What every language reader answers, in the shape the JavaScript side holds.
+//! The language facts native resolution and source records consume.
 //!
 //! One struct per concept and one order-preserving gathering, because a reader's
 //! requests are one entry per statement in the order the file wrote them, and
 //! the source index is keyed by that alignment: a `HashMap` here would reorder
-//! them and point every target at the wrong line. [`record.ts`](../../../src/record.ts)
-//! is what consumes this.
+//! them and point every target at the wrong line. [`crate::record`] settles
+//! these aligned facts into source records.
 
 use std::collections::HashMap;
 
@@ -78,7 +78,7 @@ pub struct Export {
     pub line: u32,
     /// The line it is written on, as [`crate::span_text`] keeps it.
     #[serde(rename = "lineText", skip_serializing_if = "Option::is_none")]
-    pub line_text: Option<String>,
+    pub line_text: Option<std::sync::Arc<str>>,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]

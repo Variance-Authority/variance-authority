@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { readPublishedSources, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
+import { publishedSelectionQuestions, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { readWorkspace } from './read.js';
 
@@ -44,8 +44,8 @@ function write(root: string, files: Readonly<Record<string, string>>): void {
   }
 }
 
-async function held(index: string): Promise<readonly string[]> {
-  return (await readPublishedSources(index)).records.map((record) => record.file);
+async function held(root: string, index: string): Promise<readonly string[]> {
+  return (await publishedSelectionQuestions(root, { index, dirs: ['.'], raw: true, ci: true })).sourceFiles();
 }
 
 describe('a reading over a published source index', () => {
@@ -60,14 +60,14 @@ describe('a reading over a published source index', () => {
       'test/value.test.ts': "import { value } from '../src/index';\nvalue;\n",
     });
     const index = (await updateSourceIndex(link)).path;
-    const before = await held(index);
+    const before = await held(link, index);
 
     let scanned: readonly string[] = [];
-    await readWorkspace(link, { index, records: (records) => { scanned = records.map((record) => record.file); } });
+    await readWorkspace(link, { index, tree: (tree) => { scanned = [...tree.files]; } });
 
     expect(before).toEqual(['src/index.ts', 'test/value.test.ts']);
     expect(scanned).toEqual(before);
-    expect(await held(index)).toEqual(before);
+    expect(await held(link, index)).toEqual(before);
   });
 
   it('publishes a scan of some directories without writing it over the index of the whole', async () => {
@@ -80,11 +80,11 @@ describe('a reading over a published source index', () => {
       'tools/build.ts': "import { lib } from '../lib/index';\nlib;\n",
     });
     const index = (await updateSourceIndex(repository)).path;
-    const before = await held(index);
+    const before = await held(repository, index);
 
     await readWorkspace(join(repository, 'app'), { index: sourceIndexPath(repository) });
 
     expect(before).toContain('tools/build.ts');
-    expect(await held(index)).toEqual(before);
+    expect(await held(repository, index)).toEqual(before);
   });
 });

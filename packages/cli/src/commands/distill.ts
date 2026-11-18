@@ -27,7 +27,7 @@ import {
   RecordWithoutCoverage,
   recordedEyesOf,
 } from '@variance-authority/sense/test-selection';
-import { mayMock, shadowReach } from '@variance-authority/sense/taint';
+import { shadowReach } from '@variance-authority/sense/taint';
 import { messageOf } from '../config-values.js';
 import { checkoutFile } from '../checkout-file.js';
 import { OperatorError } from '../exit.js';
@@ -179,10 +179,13 @@ function suitesOf(root: string): readonly string[] | undefined {
   return asOperator(() => declaredSuites(root))?.map((suite) => suite.name);
 }
 
-/** Whether a test file's text may mock a module; one the checkout does not hold mocks nothing to read. */
+/**
+ * Whether a test file's text may mock a module; one the checkout does not hold mocks nothing to read.
+ * One file's text, not the source index: this decides whether the graph is worth reading at all.
+ */
 async function mocksIn(root: string, file: string): Promise<boolean> {
   const path = join(root, file);
-  return existsSync(path) && mayMock(await readFile(path, 'utf8'));
+  return existsSync(path) && /\.(?:mock|requireActual|importActual)\b/u.test(await readFile(path, 'utf8'));
 }
 
 function fileGraph(root: string): Promise<Relations> {

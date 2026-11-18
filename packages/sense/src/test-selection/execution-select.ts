@@ -86,7 +86,7 @@ export function narrowByJourneys(
   options: JourneySelectionOptions = {},
 ): ExecutionNarrowing {
   const relations = options.relations;
-  const owned = shadowedFor(relations);
+  const owned = shadowedFor(relations, index.tests.map((test) => test.file));
   const modules = new Map(index.modules.map((module) => [module.file, module]));
   const held = new Set(index.tests.map((test) => test.file));
   const entered = new Set<string>();
@@ -162,6 +162,7 @@ export function narrowByJourneys(
 /** The modules that declare they read any of these files (`/// <depends>`), by name. */
 export function dependsReaders(relations: Relations | undefined, files: readonly string[]): readonly string[] {
   if (relations === undefined) return [];
+  if ('native' in relations) return relations.native.dependsReaders(files);
   // Each file on its own: a reader the suite ignores as well still declared it reads another.
   const readers = files.flatMap((file) => {
     const id = idOf(relations, 'file', file);
@@ -192,7 +193,7 @@ export function declaredReach(
   declared: readonly string[],
 ): { readonly entered: readonly string[]; readonly unread: readonly string[] } {
   const held = new Set(index.tests.map((test) => test.file));
-  const owned = shadowedFor(relations);
+  const owned = shadowedFor(relations, index.tests.map((test) => test.file));
   const entered = new Set(ignored.filter((file) => held.has(file)));
   const unread: string[] = [];
   for (const reader of dependsReaders(relations, [...ignored, ...declared])) {

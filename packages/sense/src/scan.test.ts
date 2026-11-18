@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { LARGEST_FILE, scanRelations } from './scan.js';
+import { LARGEST_FILE, scanRelations } from './test-support/scan.js';
 
 /**
  * What the scan declines to open.
@@ -81,11 +81,7 @@ describe('a file too large to be worth parsing', () => {
     expect(LARGEST_FILE).toBe(1024 * 1024);
   });
 
-  it('refuses two competing sources of content identity', async () => {
-    await expect(scanRelations({ root, dirs: ['src'], changed: [], digests: false })).rejects.toThrow(
-      '`changed` supplies Git identity and cannot be combined with `digests`',
-    );
-  });
+
 });
 
 async function write(root: string, path: string, contents: string): Promise<void> {

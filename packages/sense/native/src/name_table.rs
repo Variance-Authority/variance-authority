@@ -81,8 +81,14 @@ impl NameColumn {
     /// one — is written as [`STAND_IN`], so it never reads as a doc; a
     /// question that holds a marker byte passes every row instead.
     pub(crate) fn push(&mut self, name: &str, doc: bool, words: Option<Option<&str>>) {
-        let lowered = name.to_lowercase();
-        self.text.extend(lowered.bytes().map(|byte| if byte == WORDS || byte == UNKNOWN { STAND_IN } else { byte }));
+        let lowered;
+        let bytes = if name.is_ascii() {
+            name.bytes()
+        } else {
+            lowered = name.to_lowercase();
+            lowered.bytes()
+        };
+        self.text.extend(bytes.map(|byte| if byte == WORDS || byte == UNKNOWN { STAND_IN } else { byte.to_ascii_lowercase() }));
         match (doc, words) {
             (false, _) | (true, Some(None)) => {}
             (true, Some(Some(words))) => {

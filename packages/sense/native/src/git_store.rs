@@ -1,52 +1,28 @@
-//! Blobs out of git's object store, read in-process: the one reader of git's
-//! bytes, for the scan and for the search.
+//! Checkout provenance and blob acquisition for Git-backed search.
 //!
-//! [`Objects`] answers the blob an id names, as this repository's object store
-//! holds it, with no replacement and nothing fetched, or nothing — and then the
-//! caller reads the file. [`Objects::open`] refuses a repository whose ids may
-//! not name the bytes checkout wrote: a replace ref (git owns the ref store, so
-//! `for-each-ref` reads packed and reftable refs too), an object format other
-//! than SHA-1, or a git call that failed. The scan's wave read asks it by the
-//! ids its listing holds (`acquire.rs`).
+//! [`Objects`] reads indexed source and configuration blobs through retained
+//! native handles or buffered Git for fragmented repositories. Native search
+//! retains its layout guard.
 //!
-//! [`Store`] is the search's: a file the index recorded as unchanged is its
-//! blob, so `ask grep` inflates it out of a pack instead of opening it. On
-//! Kibana an open costs about four times what an inflate does, because a
-//! worktree read pays for the descriptor, not the bytes. [`Store::open`] refuses
-//! too a clean, smudge or process filter other than git-lfs's, and an
-//! attributes file — git's system, global and `info` ones, every one the index
-//! holds, and every one on the way from the top of the worktree down to the root
-//! — that names `working-tree-encoding`: either can make a checkout and its blob
-//! differ at one length (`中中a\n` is eight bytes in UTF-8 and in UTF-16LE). It
-//! refuses as well more packs than a lookup should walk without a multi-pack
-//! index. An untracked attributes file below the root is not read at open, where
-//! APFS would serialise the lookups ahead of the search:
-//! [`Store::rewritten_below`] reads them beside it, and one naming
-//! `working-tree-encoding` or `ident` sends the whole search to the worktree.
-//! Every rewrite that always changes the length — `eol`, `core.autocrlf` — is
-//! caught per file, by the blob's size against the file's, whenever it
-//! happened; `ident` can keep it, so where a source names `ident` a blob holding
-//! `$Id` reads the worktree.
-//!
-//! [`Store::checked_out`] is the per-file proof, in order: an unconflicted entry,
-//! a regular file, none of skip-worktree, assume-valid or intent-to-add, an
-//! lstat that matches the entry strictly and is not racy against the index, and
-//! a size no larger than [`STORE_LARGEST`]. [`Reader::checkout_bytes`] then
-//! wants the blob's header size equal to the file's and a blob that is not a
-//! git-LFS pointer. Whatever fails, or errors, reads the worktree: fall back,
-//! never fake.
+//! [`Store::checked_out`] proves that a search may use a committed blob for
+//! a worktree file: an ordinary unconflicted entry, no checkout flags, and
+//! strict non-racy stat identity. Filters, encoding and attributes that can
+//! preserve byte length defer to the worktree; size differences and LFS
+//! pointers do too. Raw indexed source bytes use their listed identity and
+//! report missing objects without substituting another file's bytes.
 
 // compass: variance-authority.reach.source-index
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Arc;
 
 use gix_hash::ObjectId;
 use gix_index::entry::{stat, Flags, Mode, Stage, Stat};
-use gix_object::{Find as _, Kind};
-use gix_odb::Header as _;
+
+#[path = "git_objects.rs"]
+mod objects;
+pub(crate) use objects::{Objects, Reader};
 
 /// The largest file a search inflates rather than the disk opening it.
 ///
@@ -69,11 +45,6 @@ const PACK_LIMIT: usize = 50;
 /// Strict, and never relaxed from configuration: a file that matches on mtime,
 /// ctime, size and inode is the one the index recorded.
 const STRICT: stat::Options = stat::Options { trust_ctime: true, check_stat: true, use_nsec: true, use_stdev: false };
-
-/// A repository's object store, opened for one search or for a tree's scans.
-pub(crate) struct Objects {
-    store: Arc<gix_odb::Store>,
-}
 
 /// A repository's object store and index, opened for one search.
 pub(crate) struct Store {
@@ -122,92 +93,6 @@ impl Named {
     const UNREAD: Named = Named { encoding: true, ident: true };
 }
 
-/// One thread's handle on the store, with the buffer it inflates into.
-pub(crate) struct Reader {
-    objects: gix_odb::store::Handle<Arc<gix_odb::Store>>,
-    buffer: Vec<u8>,
-}
-
-impl Objects {
-    /// The object store behind the checkout `root` lies in, or `None` where an
-    /// id may not name the bytes checkout wrote.
-    pub(crate) fn open(root: &Path) -> Option<Objects> {
-        let located = git(root, &["rev-parse", "--show-object-format", "--git-path", "objects"])?;
-        let mut lines = located.lines();
-        let (format, objects) = (lines.next()?, lines.next()?);
-        Objects::at(format, &root.join(objects), replaced(root)?)
-    }
-
-    fn at(format: &str, objects: &Path, replaced: bool) -> Option<Objects> {
-        if format != "sha1" || replaced {
-            return None;
-        }
-        let store = gix_odb::Store::at_opts(objects.to_owned(), gix_hash::Kind::Sha1, &mut std::iter::empty(), Default::default()).ok()?;
-        Some(Objects { store: Arc::new(store) })
-    }
-
-    /// A handle for one thread; lookups never re-read the pack directory.
-    pub(crate) fn reader(&self) -> Reader {
-        let mut objects = self.store.to_handle_arc();
-        objects.refresh_never();
-        Reader { objects, buffer: Vec::new() }
-    }
-
-}
-
-/// Where the root lies in its checkout, and the blobs `HEAD` holds below it.
-pub(crate) struct Head {
-    /// `--show-prefix`: the root's place in the checkout, from its top.
-    pub(crate) prefix: String,
-    /// Every blob below the root, as `ls-tree -r HEAD -- .` lists it run there:
-    /// in tree order, which is byte order over the path, each path from the
-    /// root, with whether it is a symbolic link. A gitlink is a commit, not a
-    /// blob, and is left out. `None` where the store will not open, or a tree
-    /// is missing or does not decode, and `ls-tree` answers instead.
-    pub(crate) blobs: Option<Vec<(Vec<u8>, ObjectId, bool)>>,
-    /// `--show-object-format`: `sha1` or `sha256`.
-    pub(crate) format: String,
-    /// `--show-toplevel`: the top of the checkout.
-    pub(crate) top: PathBuf,
-    /// `--absolute-git-dir`: this worktree's git directory.
-    pub(crate) git_dir: PathBuf,
-    /// `--git-common-dir`: the directory every worktree shares.
-    pub(crate) common: PathBuf,
-    /// `--git-path index`: the index, `GIT_INDEX_FILE` included.
-    pub(crate) index: PathBuf,
-}
-
-/// What `HEAD` holds below `root`, asked of git in one call, or `None` where
-/// git names no tree for `HEAD`, as on an unborn branch.
-pub(crate) fn head(root: &Path) -> Option<Head> {
-    let located = git(
-        root,
-        &["rev-parse", "--show-prefix", "--show-object-format", "--git-path", "objects", "--git-common-dir", "--git-path", "index", "--absolute-git-dir", "--show-toplevel", "HEAD^{tree}"],
-    )?;
-    // A newline in a path splits one answer in two, and more than eight lines
-    // is none git can be read by.
-    let [prefix, format, objects, common, index, git_dir, top, tree] = <[&str; 8]>::try_from(located.lines().collect::<Vec<_>>()).ok()?;
-    let (common, index, git_dir, top) = (root.join(common), root.join(index), PathBuf::from(git_dir), PathBuf::from(top));
-    let blobs = replaced(root)
-        .and_then(|replaced| Objects::at(format, &root.join(objects), replaced))
-        .and_then(|objects| below(&mut objects.reader(), ObjectId::from_hex(tree.as_bytes()).ok()?, prefix));
-    Some(Head { prefix: prefix.to_owned(), blobs, format: format.to_owned(), top, git_dir, common, index })
-}
-
-/// The blobs below `prefix` in the tree `tree`; a prefix the tree does not
-/// hold has none.
-fn below(reader: &mut Reader, mut tree: ObjectId, prefix: &str) -> Option<Vec<(Vec<u8>, ObjectId, bool)>> {
-    for name in prefix.split('/').filter(|name| !name.is_empty()) {
-        let Some(next) = reader.subtree(&tree, name.as_bytes())? else {
-            return Some(Vec::new());
-        };
-        tree = next;
-    }
-    let mut blobs = Vec::new();
-    reader.blobs(&tree, &mut Vec::new(), &mut blobs)?;
-    Some(blobs)
-}
-
 impl Store {
     /// The store behind the checkout `root` lies in, or `None` wherever a blob
     /// may not be the bytes checkout wrote at the same length.
@@ -224,10 +109,7 @@ impl Store {
         let (prefix, format) = (lines.next()?, lines.next()?);
         let mut paths = lines.map(|path| root.join(path));
         let (index, objects, info) = (paths.next()?, paths.next()?, paths.next()?);
-        if !few_packs(&objects) {
-            return None;
-        }
-        let objects = Objects::at(format, &objects, replaced)?;
+        let objects = Objects::at(format, &objects, replaced, None)?;
         let index = gix_index::File::at(&index, gix_hash::Kind::Sha1, true, Default::default()).ok()?;
         let top = root.ancestors().nth(prefix.matches('/').count())?;
         // Git resolves a relative `core.attributesFile` from the top of the worktree.
@@ -318,77 +200,6 @@ impl Answers {
     }
 }
 
-impl Reader {
-    /// The size of the blob `id` names, or `None` where the store holds no blob by it.
-    pub(crate) fn size(&mut self, id: &ObjectId) -> Option<u64> {
-        let header = self.objects.try_header(id).ok()??;
-        (header.kind() == Kind::Blob).then(|| header.size())
-    }
-
-    /// The bytes of the blob `id` names, or `None` to read the worktree: the
-    /// store holds no blob by it, or holds a git-LFS pointer, which checkout
-    /// smudged into other bytes.
-    pub(crate) fn blob(&mut self, id: &ObjectId) -> Option<&[u8]> {
-        let data = self.objects.try_find(id, &mut self.buffer).ok()??;
-        (data.kind == Kind::Blob && !crate::lfs::pointer(data.data)).then_some(data.data)
-    }
-
-    /// The tree `name` names in the tree `id`, `Some(None)` where it holds no
-    /// tree by that name, or `None` where `id` is no tree the store can decode.
-    fn subtree(&mut self, id: &ObjectId, name: &[u8]) -> Option<Option<ObjectId>> {
-        let data = self.objects.try_find(id, &mut self.buffer).ok()??;
-        if data.kind != Kind::Tree {
-            return None;
-        }
-        for entry in gix_object::TreeRefIter::from_bytes(data.data, gix_hash::Kind::Sha1) {
-            let entry = entry.ok()?;
-            if entry.filename == name {
-                return Some(entry.mode.is_tree().then(|| entry.oid.to_owned()));
-            }
-        }
-        Some(None)
-    }
-
-    /// Every blob below the tree `id`, each path behind `path`, depth first in
-    /// tree order.
-    fn blobs(&mut self, id: &ObjectId, path: &mut Vec<u8>, out: &mut Vec<(Vec<u8>, ObjectId, bool)>) -> Option<()> {
-        let data = self.objects.try_find(id, &mut self.buffer).ok()??;
-        if data.kind != Kind::Tree {
-            return None;
-        }
-        // Owned before the descent: a subtree's read reuses the buffer these borrow.
-        let mut entries = Vec::new();
-        for entry in gix_object::TreeRefIter::from_bytes(data.data, gix_hash::Kind::Sha1) {
-            let entry = entry.ok()?;
-            if entry.mode.is_tree() || entry.mode.is_blob_or_symlink() {
-                entries.push((entry.filename.to_vec(), entry.oid.to_owned(), entry.mode));
-            }
-        }
-        for (name, oid, mode) in entries {
-            let at = path.len();
-            path.extend_from_slice(&name);
-            if mode.is_tree() {
-                path.push(b'/');
-                self.blobs(&oid, path, out)?;
-            } else {
-                out.push((path.clone(), oid, mode.is_link()));
-            }
-            path.truncate(at);
-        }
-        Some(())
-    }
-
-    /// The bytes `fresh` was checked out from, or `None` to read the worktree,
-    /// as for a blob holding `$Id` where `ident` may have rewritten it.
-    pub(crate) fn checkout_bytes(&mut self, fresh: &Fresh) -> Option<&[u8]> {
-        if self.size(&fresh.id)? != fresh.size {
-            return None;
-        }
-        let blob = self.blob(&fresh.id)?;
-        (!fresh.ident || memchr::memmem::find(blob, b"$Id").is_none()).then_some(blob)
-    }
-}
-
 /// A git command's standard output, when it succeeded.
 fn git(root: &Path, args: &[&str]) -> Option<String> {
     let output = Command::new("git").args(args).current_dir(root).output().ok()?;
@@ -439,7 +250,7 @@ fn named(index: &gix_index::File, top: &Path, objects: &Objects, outside: &[Path
             return named;
         }
         let Ok(relative) = std::str::from_utf8(path) else { return Named::UNREAD };
-        let committed = reader.objects.try_find(&entry.id, &mut reader.buffer).ok().flatten().map_or(Named::UNREAD, |data| names(data.data));
+        let committed = reader.raw_blob(&entry.id).map_or(Named::UNREAD, names);
         either(named, either(committed, read(&top.join(relative))))
     })
 }
@@ -465,7 +276,11 @@ fn few_packs(objects: &Path) -> bool {
         return true;
     }
     let Ok(entries) = std::fs::read_dir(&pack) else { return true };
-    entries.flatten().filter(|entry| entry.path().extension().is_some_and(|extension| extension == "pack")).count() <= PACK_LIMIT
+    let count = entries.flatten().filter(|entry| entry.path().extension().is_some_and(|extension| extension == "pack")).count();
+    if crate::timings::enabled() {
+        eprintln!("sense git objects: {count} packs, no multi-pack index, limit {PACK_LIMIT}; {}", if count <= PACK_LIMIT { "native pack lookups allowed" } else { "native pack lookups declined" });
+    }
+    count <= PACK_LIMIT
 }
 
 #[cfg(test)]

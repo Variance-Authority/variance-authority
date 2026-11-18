@@ -1,12 +1,12 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { keyFor, parseWay } from './files.js';
-import { native } from './addon.js';
-import { scanRelations } from './scan.js';
+import { scanFixtureGraph, scanRelations } from './test-support/scan.js';
+import { decodeSourceIndex } from './test-support/source-index-format.js';
 
 /**
  * One scan, one record space, one graph — over five languages at once.
@@ -110,17 +110,12 @@ describe('a Rust crate whose paths climb the module tree', () => {
     await write(root, 'src/lib.rs', 'mod lens;\nmod view;\nstruct Lens;\n');
     await write(root, 'src/lens.rs', 'use super::Lens;\n');
     await write(root, 'src/view.rs', 'fn draw(lens: crate::Lens) {}\n');
-    const addon = native();
-    if (addon === undefined) throw new Error('the native addon did not load');
-    const read = vi.spyOn(addon, 'readLanguage');
     try {
-      const records = await scanRelations({ root, dirs: ['.'] });
-      const parsed = read.mock.calls.filter(([language]) => language === 'rust').map(([, file]) => file).sort();
-
-      expect(records.find((record) => record.file === 'src/lens.rs')?.edges?.map((edge) => edge.to)).toEqual(['src/lib.rs']);
-      expect(parsed).toEqual(['src/lens.rs', 'src/lib.rs', 'src/view.rs']);
+      const { graph } = await scanFixtureGraph({ root, dirs: ['.'] });
+      const records = decodeSourceIndex(graph.encode([])).records;
+      expect(records.get('src/lens.rs')?.record.edges?.map((edge) => edge.to)).toEqual(['src/lib.rs']);
+      expect(graph.parsed).toBe(3);
     } finally {
-      read.mockRestore();
       await rm(root, { recursive: true, force: true });
     }
   });

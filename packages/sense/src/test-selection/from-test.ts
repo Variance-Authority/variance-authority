@@ -6,7 +6,7 @@
  * `coverage --at-distance` both walk from here.
  */
 
-import { EDGE_KINDS, RUNTIME_EDGES, idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { EDGE_KINDS, RUNTIME_EDGES, idOf, lookupNodes, traversalOf, trailOf, type NodeId, type Relations } from '@variance-authority/core/relate';
 import type { DistanceOptions } from './distance.js';
 
 /** A file held under its own path alone, when no `knownAs` names more. */
@@ -30,12 +30,21 @@ export function hopsFromTest(
 ): ReadonlyMap<string, number> | { readonly because: string } {
   const { relations } = options;
   if (relations === undefined) return { because: 'no import graph was supplied' };
-  const nodes = nodesOf(relations, options.knownAs ?? ownName);
+  const nodes = nodesOf(relations, options.knownAs ?? ownName, [test, ...entered]);
   const start = nodes(test);
   if (start.length === 0) return { because: `the graph does not hold ${test}` };
   const open = new Set<NodeId>(start);
   for (const file of entered) for (const id of nodes(file)) open.add(id);
   const depth = new Map<NodeId, number>(start.map((id) => [id, 0]));
+  if ('native' in relations) {
+    const walk = traversalOf(relations.native.walkWithin(start, [...open]));
+    const hops = new Map<string, number>();
+    for (const file of entered) for (const id of nodes(file)) {
+      const length = walk.mask[id] === 1 ? trailOf(walk, id).length - 1 : undefined;
+      if (length !== undefined && length < (hops.get(file) ?? Infinity)) hops.set(file, length);
+    }
+    return hops;
+  }
   const { offset, target, kind } = relations.depends;
   for (let queue = [...start], next: NodeId[] = [], hop = 1; queue.length > 0; queue = next, next = [], hop += 1) {
     for (const from of queue) {
@@ -69,7 +78,14 @@ export const RUNTIME_KINDS = EDGE_KINDS.map((one) => RUNTIME_EDGES.includes(one)
  * name a file is held under; honouring one of them would make that sentence
  * false.
  */
-export function nodesOf(relations: Relations, knownAs: (file: string) => readonly string[]): (file: string) => readonly NodeId[] {
+export function nodesOf(relations: Relations, knownAs: (file: string) => readonly string[], files: readonly string[] = []): (file: string) => readonly NodeId[] {
+  if ('native' in relations) {
+    const byFile = new Map(files.map((file) => [file, knownAs(file)]));
+    const names = [...new Set([...byFile.values()].flat())];
+    const found = lookupNodes(relations, names.map((name) => ({kind: 'file', name})));
+    const ids = new Map(names.map((name, at) => [name, found[at]?.id]));
+    return (file) => (byFile.get(file) ?? []).flatMap((name) => ids.get(name) ?? []);
+  }
   return (file) => {
     const found: NodeId[] = [];
     for (const name of knownAs(file)) {
@@ -91,9 +107,13 @@ export function nodesOf(relations: Relations, knownAs: (file: string) => readonl
 export function entries(
   relations: Relations,
   start: readonly NodeId[],
-  open: Uint8Array,
+  open: Uint8Array | readonly number[],
   alike: (id: NodeId) => readonly NodeId[],
 ): readonly NodeId[] {
+  if ('native' in relations) {
+    const ids = Object.keys(open).map(Number).filter((id) => open[id] === 1);
+    return relations.native.entries(start, ids, ids.map((id) => [id, ...alike(id)]));
+  }
   const { offset, target, kind } = relations.depends;
   const ran = (from: NodeId, republished: boolean): NodeId[] => {
     const found: NodeId[] = [];

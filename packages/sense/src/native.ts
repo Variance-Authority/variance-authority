@@ -4,51 +4,62 @@
  * It is the only module reader: [`readModule`](./read.ts) calls it for text
  * already in hand, and the batch calls here read files off the disk. A machine
  * the addon did not reach cannot read a module and says why, naming the
- * refusal, rather than reading it some other way. The graph around the reader —
- * resolution and the record — still has a JavaScript path, and the differential
- * tests hold the two to one answer.
+ * refusal, rather than reading it some other way. Source acquisition, parsing,
+ * resolution and graph assembly stay in the addon.
  *
  * Loading it is [`addon.ts`](./addon.ts), apart from everything here, because
  * the instrument loads it inside every test worker and the scanner's imports
  * are nothing a worker needs.
  */
-import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
-import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { Parsed } from './cache.js';
-import type { Digest } from '@variance-authority/core/format';
+import type { FileReferences } from './test-selection/references.js';
+import type { EdgeKind } from '@variance-authority/core/relate';
 import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
-import { keyFor, parseWay } from './files.js';
-import type { ResolveOptions } from './resolve.js';
-import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
-import type { Aliases, AliasTable } from './witness.js';
-import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
+import type { AliasTable } from './witness.js';
+import type { NativeIndexGraph, NativeIndexGraphOptions, NativeScanSession } from './native-index-graph.js';
 import type {
   NativeJourneyGraph, NativeJourneySelection, NativeJourneyChange,
   NativeJourneyProjection, NativeJourneyFold, NativeJourneyFoldResult,
   NativeJourneyModule, NativeJourneyStitch, NativeJourneyStitchResult, NativeCaseJournals,
   NativeCaseCut, NativeCaseEdit, NativeCaseLayers, NativeCaseRegion, NativeCaseRunFiles,
 } from './native-journey.js';
-import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
+import type { NativeCasesEntered, NativeDependencyLexicon, NativeDependencyLexiconListing, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeCommitTexts } from './native-commit-text.js';
 import type { NativeParseOrigins, NativeSourceIndexes } from './native-source-index.js';
 import type { NativeDistill } from './native-distill.js';
 import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
 import type { NativeRecords } from './native-record.js';
-import { witnessesOf } from './witness.js';
 import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict } from './native-module-reads.js';
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
+import type { NativeHelpListing, OpenedIndex } from './help-reading.js';
+import type { NativeSourceTreeReader } from './native-source-tree.js';
+import type { NativeSelectionGraph } from './native-selection-graph.js';
+export interface NativeSelectionGraphOptions {
+  readonly root: string;
+  readonly dirs: readonly string[];
+  readonly before: readonly string[];
+  readonly code: readonly string[];
+  readonly builtins: readonly string[];
+  readonly tsconfig?: string | false;
+  readonly raw?: boolean;
+  readonly taints: readonly { readonly file: string; readonly plus: readonly string[]; readonly minus: readonly string[] }[];
+  readonly depends: readonly { readonly from: string; readonly to: string }[];
+}
+export interface NativeSelectionGraphs {
+  selectionGraphOf(index: OpenedIndex, options: NativeSelectionGraphOptions): NativeSelectionGraph | null;
+}
+
 /** Every tracked path under a root, with the digest of the bytes on disk. */
-export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing, NativeParseOrigins {
+export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing, NativeParseOrigins, NativeDependencyLexiconListing, NativeHelpListing {
   readonly size: number;
   /** Watchman vouched for the listing the index held, and git listed nothing (`native/src/change_tree.rs`). */
   readonly vouched: boolean;
+  /** Filesystem paths outside Git have no content identity until their native read. */
+  readonly filesystem: boolean;
   seeds(): string[];
   has(path: string): boolean;
   digest(path: string): string | null;
   digestsFor(paths: string[]): string[];
-  /** The parses the `stores` a scan read hold for `files` at `digests`, as a parse-only segment. */
-  keptParses(stores: string[], files: string[], digests: string[]): Uint8Array;
   scanBatch(
     root: string,
     files: string[],
@@ -70,12 +81,13 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     stores?: string[],
   ): NativeScanBatch;
   /** A cold closure held on the native side ([`native-index-graph.ts`](./native-index-graph.ts)). */
-  indexGraph(options: NativeIndexGraphOptions): NativeIndexGraph;
-  /** A warm update of the source index on the native side; `null` when the JavaScript update has to ([`native-update.ts`](./native-update.ts)). */
+  indexGraph(options: NativeIndexGraphOptions, session?: NativeScanSession): NativeIndexGraph;
+  /** The native source-index lifecycle; `null` when its options are refused ([`native-update.ts`](./native-update.ts)). */
   updateIndex?(options: NativeUpdateOptions): NativeUpdated | null;
   paths(): string[];
   digests(): string[];
   named(names: string[]): string[];
+  aliasesIn(paths: string[]): AliasTable | null;
   directories(): Record<string, string>;
   configDigest(header: string[], names: string[], aliasesUnknown: boolean): string;
 }
@@ -122,7 +134,7 @@ export interface NativeScanBatch extends NativeReadBatch {
   readonly kept: Buffer;
 }
 
-export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts, NativeSourceIndexes {
+export interface NativeScanner extends NativeSelectionGraphs, NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts, NativeSourceIndexes {
   /**
    * `instrument()`'s walk and splice, or `null` for a source that does not
    * parse. With a `module`, the header reporting under it is in the text.
@@ -140,6 +152,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * shifts they were made from, or `null`: `native/instrument/src/cadence.rs`.
    */
   cadence(source: string, file: string, awaited?: boolean): { code: string; mappings: string; shifts: number[] } | null;
+  /** Published source-tree bytes remain native while callers query paths and traversals. */
+  openSourceTree(bytes: Uint8Array): NativeSourceTreeReader;
   gitTree(root: string): NativeGitTree | null;
   /**
    * The alias table the `tsconfig` and `jsconfig` files among `paths` declare,
@@ -148,6 +162,13 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    */
   aliasesIn(root: string, paths: string[]): AliasTable | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
+  gitTreeForChanged(root: string, dirs: string[], changed: string[]): NativeGitTree | null;
+  /** A native source tree outside Git, or for a scan that opens files from disk. */
+  filesystemTree(root: string, dirs: string[]): NativeGitTree;
+  /** The caller's exact source membership and seeds, acquired and resolved natively. */
+  sourceTree(root: string, paths: string[], seeds: string[]): NativeGitTree;
+  /** One scan's native Rust facts, reused only across its own frontiers. */
+  newScanSession(parses?: Uint8Array): NativeScanSession;
   /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */
   changeTree(root: string, index: string, dirs: string[]): NativeGitTree | null;
   /** Every readable file below the configured roots, using bounded native I/O. */
@@ -213,6 +234,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * reference runs when the file loads. A name in a type position is no reference. `null` when it does not parse.
    */
   moduleReferences?(file: string, text: string): NativeModuleReferences | null;
+  /** A targeted live distill answer; native acquisition and resolution return no source text or whole parse. */
+  fileReferences?(root: string, file: string, listed?: string[], tsconfig?: string | false): FileReferences | null;
   /**
    * Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`.
    * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)); `tsconfig`, the one the scan that built it resolved under ([`typescript.ts`](./typescript.ts)).
@@ -261,6 +284,13 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     graph?: NativeJourneyGraph,
     declines?: boolean,
   ): NativeJourneySelection;
+  /** Journey selection borrows the same Rust graph that answered source selection. */
+  selectJourneysNative?(
+    file: string,
+    changed: NativeJourneyChange[],
+    graph: NativeSelectionGraph,
+    declines?: boolean,
+  ): NativeJourneySelection;
   /** The packages `files` belong to and the names crossing their edges, read off the source index at `index`; `null` when none was published. */
   orientPackages?(root: string, index: string, files: string[], rows: number, names: number): NativeOrientation | null;
   /** Both of the above from one read of the chain and one listing of the tree; `null` when no index is published. */
@@ -269,229 +299,4 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   externalDependencies?(root: string, index: string, files: string[], rows: number, sites: number): NativeExternalOrientation | null;
   /** For each of `files`, the cases in the journey file at `file` that ran it. */
   casesEntered?(file: string, files: string[], titles: number, index?: string | null): NativeCasesEntered[];
-}
-
-export interface NativeFrontierOptions extends ResolveOptions {
-  readonly addon: NativeScanner;
-  readonly tree?: NativeGitTree;
-  /** The parse stores a tracked file is looked up in before it is opened; only a `tree` reads them. */
-  readonly stores?: readonly string[];
-  /** Without `tree`, the files the listing holds under a tracked `build/`. */
-  readonly listed?: readonly string[];
-  readonly root: string;
-  readonly files: readonly string[];
-  readonly largestFile: number;
-  readonly digests: readonly (Digest | undefined)[];
-  readonly aliases: Aliases | undefined;
-  readonly directories: ReadonlyMap<string, Digest>;
-  readonly remembering: boolean;
-}
-
-export interface NativeBuilt {
-  readonly record: FileRecord;
-  readonly witnesses: readonly string[];
-  readonly targets?: readonly (string | undefined)[];
-  readonly read?: Parsed;
-  /** The bytes were parsed by this call, rather than kept or declined. */
-  readonly parsed?: true;
-  /** The parse is the parse store's, and not in `read`: the cache keeps it from there. */
-  readonly kept?: true;
-}
-
-/**
- * Read, parse and resolve all files before returning to JavaScript.
- *
- * The JSON column is not a second format: it is the transient representation of
- * `Parsed` needed by the existing source-index encoder and callback. Records and
- * witnesses are assembled directly into their existing TypeScript shapes.
- */
-export function nativeFrontier(options: NativeFrontierOptions): readonly NativeBuilt[] {
-  const digestContents = options.digests.some((digest) => digest === undefined);
-  const conditionNames = options.conditionNames === undefined ? undefined : [...options.conditionNames];
-  const started = performance.now();
-  // A tree the addon built resolves with its own listing; only the free batch
-  // is told which `build/` files are listed.
-  const batch = options.tree === undefined
-    ? options.addon.scanBatch(
-      options.root,
-      [...options.files],
-      options.largestFile,
-      digestContents,
-      undefined,
-      options.tsconfig,
-      conditionNames,
-      options.listed === undefined ? undefined : [...options.listed],
-    )
-    : options.tree.scanBatch(
-      options.root,
-      [...options.files],
-      options.largestFile,
-      digestContents,
-      undefined,
-      options.tsconfig,
-      conditionNames,
-      options.stores === undefined ? undefined : [...options.stores],
-    );
-  if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
-    process.stderr.write(`sense native scan: ${(performance.now() - started).toFixed(1)} ms\n`);
-  }
-  const crossing = performance.now();
-  const built = builtFromBatch(options, batch);
-  if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
-    process.stderr.write(`sense native crossing: ${(performance.now() - crossing).toFixed(1)} ms\n`);
-  }
-  return built;
-}
-
-export interface NativeGraphBuilt {
-  readonly built: readonly NativeBuilt[];
-  readonly parseLayer?: { readonly bytes: Uint8Array; readonly keys: Set<string> };
-}
-
-/** Follow a cold module closure on one native side of the boundary. */
-export function nativeGraph(
-  options: NativeFrontierOptions,
-  includeParses = false,
-): NativeGraphBuilt {
-  if (options.tree === undefined) return { built: nativeFrontier(options) };
-  const batch = options.tree.scanGraph(
-    options.root,
-    [...options.files],
-    options.largestFile,
-    undefined,
-    options.tsconfig,
-    options.conditionNames === undefined ? undefined : [...options.conditionNames],
-    includeParses,
-    options.stores === undefined ? undefined : [...options.stores],
-  );
-  const digests = options.tree
-    .digestsFor(batch.files)
-    .map((digest) => digest === '' ? undefined : digest as Digest);
-  const built = builtFromBatch({ ...options, files: batch.files, digests }, batch);
-  const keys = new Set<string>();
-  for (const [index, file] of batch.files.entries()) {
-    // A kept row is not in the segment: the store holds its parse.
-    if (batch.parsed[index] !== 1 || batch.kept[index] === 1) continue;
-    const digest = digests[index] ?? asDigest(batch.digests[index]);
-    if (digest !== undefined) keys.add(keyFor(digest, parseWay(file)));
-  }
-  return {
-    built,
-    ...(batch.parseSegment.byteLength === 0
-      ? {}
-      : { parseLayer: { bytes: batch.parseSegment, keys } }),
-  };
-}
-
-function builtFromBatch(
-  options: NativeFrontierOptions,
-  batch: NativeScanBatch,
-): readonly NativeBuilt[] {
-  const kinds = options.addon.kinds();
-  const built: NativeBuilt[] = [];
-  let at = 0;
-  let declareAt = 0;
-
-  for (const [index, file] of options.files.entries()) {
-    const count = batch.counts[index] ?? 0;
-    const declareCount = batch.declareCounts[index] ?? 0;
-    const declares = batch.declares.slice(declareAt, declareAt + declareCount);
-    declareAt += declareCount;
-    const encoded = batch.parses[index] ?? '';
-    if (batch.parsed[index] !== 1) {
-      // A file its bytes declined names them; a failed read names nothing, and
-      // is tried again. `built` in `record.rs` is the same rule.
-      const declined = batch.declined[index] === 1
-        ? options.digests[index] ?? asDigest(batch.digests[index])
-        : undefined;
-      built.push({
-        record: {
-          file,
-          ...(declined === undefined ? {} : { digest: declined }),
-          ...(batch.unknown[index] === '' ? {} : { unknown: batch.unknown[index] }),
-        },
-        witnesses: [],
-      });
-      at += count;
-      continue;
-    }
-    const digest = options.digests[index] ?? asDigest(batch.digests[index]);
-
-    const read = encoded === '' ? undefined : JSON.parse(encoded) as Parsed;
-    const edges: FileEdge[] = [];
-    const packages: PackageEdge[] = [];
-    const unresolved: string[] = [];
-    const holes: string[] = [];
-    const requests: string[] = [];
-    const targets: (string | undefined)[] = [];
-    for (let step = 0; step < count; step += 1) {
-      const value = batch.values[at + step] ?? '';
-      requests.push(value);
-      const target = batch.targets[at + step] ?? '';
-      targets.push(target === '' ? undefined : target);
-      const request = requestOf(value);
-      if (request === undefined) continue;
-      const kind = kinds[batch.kinds[at + step] ?? -1];
-      if (target === '') {
-        unresolved.push(value);
-        // The package edge [`record.ts`](./record.ts) records beside it for every other language.
-        // Without it a bumped package has no importer in a graph this path
-        // built, and the install walk selects nothing for it.
-        const named = packageOf(request);
-        if (named !== undefined && kind !== undefined) packages.push({ to: named, kind });
-        if (isRelative(request)) holes.push(value);
-        continue;
-      }
-      if (kind !== undefined) edges.push({ to: target, kind: kindFor(kind, target) });
-    }
-    at += count;
-
-    const reasons = [
-      ...(batch.unknown[index] === '' ? [] : [batch.unknown[index]!]),
-      ...(holes.length === 0
-        ? []
-        : [`${holes.length} relative specifier(s) that resolve to nothing: ${holes.join(', ')}`]),
-    ];
-    const settled = dedupe(edges);
-    const record: FileRecord = {
-      file,
-      ...(digest === undefined ? {} : { digest }),
-      ...(settled.length === 0 ? {} : { edges: settled }),
-      ...(packages.length === 0 ? {} : { packages: dedupe(packages) }),
-      ...(declares.length === 0 ? {} : { declares }),
-      ...(unresolved.length === 0
-        ? {}
-        : { unresolved: [...new Set(unresolved)].sort(codeUnitOrder) }),
-      ...(reasons.length === 0 ? {} : { unknown: `${file} — ${reasons.join('; ')}` }),
-    };
-    const witnesses = options.remembering
-      ? witnessesOf({
-        file,
-        requests,
-        edges: settled.map((edge) => edge.to),
-        directories: options.directories,
-        aliases: options.aliases,
-      })
-      : [];
-    const crossed = batch.kept[index] === 1 ? { kept: true as const } : { parsed: true as const };
-    built.push({ record, ...(read === undefined ? {} : { read }), targets, witnesses, ...crossed });
-  }
-
-  return built;
-}
-
-function asDigest(value: string | undefined): Digest | undefined {
-  return value === undefined || value === '' ? undefined : value;
-}
-
-function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] {
-  const seen = new Set<string>();
-  return edges
-    .filter((edge) => {
-      const key = `${edge.kind} ${edge.to}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => codeUnitOrder(a.to, b.to) || codeUnitOrder(a.kind, b.kind));
 }

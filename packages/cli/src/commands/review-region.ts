@@ -34,7 +34,7 @@ import { codeUnitOrder as order } from '@variance-authority/core/segment';
 import { unrunOf } from './covering-frame.js';
 import { rowsCut } from './record-rows-text.js';
 import { caseOrder } from './review-json.js';
-import type { Reach, ReviewRegion } from './review.js';
+import type { Reach, ReviewRegion } from './review-types.js';
 import type { IndexNames } from './source-graph.js';
 
 /** The test files near a changed module, and those whose distance to it was not measured. */

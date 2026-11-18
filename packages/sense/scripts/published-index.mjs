@@ -16,10 +16,7 @@
  * operation a command performs:
  *
  * - `publish` — `updateSourceIndex` over the whole checkout: the `variance index` step.
- * - `read` — `publishedSources`, narrowed with `sourcesWithin` and tainted from the
- *   published parses: what every graph reader does now.
- * - `scan as reader` — open the index as a cache, scan from the root, taint and
- *   save: what every graph reader did before there was a step, each at its own scope.
+ * - `read` — the retained native selection graph, including its mock overlay.
  * - `worktree` — the first publish in a `git worktree` cut from the corpus, with
  *   the primary checkout's generation there to start from and without it.
  *
@@ -81,8 +78,6 @@ async function main() {
     rows.push({ label, runs });
     console.log(format(label, runs));
   };
-  const own = join(cache, 'scan-as-reader', 'source-index.bin');
-  const drop = (path) => () => rmSync(join(path, '..'), { recursive: true, force: true });
 
   try {
     measure('publish, nothing published', 'publish', corpus, undefined, () => {
@@ -99,8 +94,6 @@ async function main() {
     edit(corpus, hundred);
     measure(`publish, ${new Set([...one, ...hundred]).size} files edited`, 'publish', corpus);
     measure('read the publish', 'read', corpus);
-    measure('scan as reader, no cache', 'scan', corpus, own, drop(own));
-    measure('scan as reader, cache warm', 'scan', corpus, own);
     revert(corpus);
 
     git(corpus, 'worktree', 'add', '--quiet', '--detach', worktree);
@@ -129,20 +122,12 @@ async function row(mode, root, indexArg) {
   let out;
   if (mode === 'publish') {
     const update = await sense.updateSourceIndex(root, index === undefined ? {} : { index });
-    out = { was: update.was, files: update.files, reread: update.reread, seeded: update.from !== undefined };
+    out = { was: update.was, files: update.files, reread: update.reread };
   } else if (mode === 'read') {
-    const published = await sense.publishedSources(root, {
-      ci: true, step: 'variance index', announce() {}, ...(index === undefined ? {} : { index }),
+    const graph = await sense.publishedSelectionQuestions(root, {
+      dirs: ['.'], ci: true, step: 'variance index', announce() {}, ...(index === undefined ? {} : { index }),
     });
-    const records = sense.sourcesWithin(published.records, root, ['.'], []);
-    await sense.taintRecords(records, [sense.mockTaint()], { root, cache: published.cache });
-    out = { files: records.length, layers: published.generation.length };
-  } else if (mode === 'scan') {
-    const source = await sense.openSourceIndex(index);
-    const records = await sense.scanRelations({ root, dirs: ['.'], cache: source.cache, reuse: source.reuse });
-    await sense.taintRecords(records, [sense.mockTaint()], { root, cache: source.cache });
-    await source.save();
-    out = { files: records.length };
+    out = { files: graph.sourceFiles().length };
   } else {
     throw new Error(`unknown row ${mode}`);
   }

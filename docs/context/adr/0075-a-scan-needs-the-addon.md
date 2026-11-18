@@ -11,7 +11,7 @@ degraded one", and the line under *What this forecloses* that rules out
 [ADR-0074](0074-one-reader-per-tree-sitter-language.md) had already set both
 aside for the readers.
 **Relates to:**
-[`packages/sense/src/scan.ts`](../../../packages/sense/src/scan.ts),
+[the scanner at this decision](https://github.com/Variance-Authority/variance-authority/blob/bd72f6b0441cc682d958068487f4a656c3499d5e/packages/sense/src/scan.ts),
 [`packages/sense/src/files.ts`](../../../packages/sense/src/files.ts),
 [`packages/sense/src/tree.ts`](../../../packages/sense/src/tree.ts),
 [`packages/sense/native/src/seed.rs`](../../../packages/sense/native/src/seed.rs)

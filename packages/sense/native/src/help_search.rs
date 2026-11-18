@@ -51,11 +51,10 @@ pub(crate) fn terms_of(split: &Regex, text: &str) -> HashSet<String> {
         if long(token) {
             found.insert(token.to_lowercase());
         }
-        let words = words_of(token);
-        if words.len() < 2 {
-            continue;
+        let mut words = words_of(token);
+        if let (Some(first), Some(second)) = (words.next(), words.next()) {
+            found.extend([first, second].into_iter().chain(words).filter(|word| long(word)).map(str::to_lowercase));
         }
-        found.extend(words.into_iter().filter(|word| long(word)).map(str::to_lowercase));
     }
     found
 }
@@ -93,25 +92,31 @@ pub fn name_terms_of(names: Vec<String>) -> NameTerms {
 /// `wordsOf`: the words one token is written in, split where the case or a
 /// digit changes — a lowercase letter before an uppercase one, the last capital
 /// of a run before a lowercase letter, and a digit beside anything that is not one.
-fn words_of(token: &str) -> Vec<&str> {
-    let chars: Vec<(usize, char)> = token.char_indices().collect();
-    let mut words = Vec::new();
+fn words_of(token: &str) -> impl Iterator<Item = &str> {
+    let mut chars = token.char_indices().peekable();
+    let mut before = chars.next().map(|(_, held)| held);
     let mut start = 0;
-    for at in 1..chars.len() {
-        let (offset, here) = chars[at];
-        let before = chars[at - 1].1;
-        let after = chars.get(at + 1).map(|&(_, after)| after);
-        let split = (before.is_lowercase() && here.is_uppercase())
-            || (before.is_uppercase() && here.is_uppercase() && after.is_some_and(char::is_lowercase))
-            || before.is_numeric() != here.is_numeric();
-        if !split {
-            continue;
+    let mut finished = false;
+    std::iter::from_fn(move || {
+        if finished {
+            return None;
         }
-        words.push(&token[start..offset]);
-        start = offset;
-    }
-    words.push(&token[start..]);
-    words
+        while let Some((offset, here)) = chars.next() {
+            let after = chars.peek().map(|&(_, after)| after);
+            let split = before.is_some_and(|before|
+                (before.is_lowercase() && here.is_uppercase())
+                || (before.is_uppercase() && here.is_uppercase() && after.is_some_and(char::is_lowercase))
+                || before.is_numeric() != here.is_numeric());
+            before = Some(here);
+            if split {
+                let word = &token[start..offset];
+                start = offset;
+                return Some(word);
+            }
+        }
+        finished = true;
+        Some(&token[start..])
+    })
 }
 
 /// `joined`: strings as UTF-8 with a separator, and where each one starts.
@@ -158,4 +163,43 @@ pub(crate) fn set_digest(mut keys: Vec<String>) -> String {
         digest.update(b"\n");
     }
     digest.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{terms_of, words_of, SPLIT};
+    use std::collections::HashSet;
+
+    #[test]
+    fn words_keep_acronyms_case_numbers_and_unicode_boundaries() {
+        for (text, expected) in [
+            ("", vec![""]),
+            ("plain", vec!["plain"]),
+            ("camelCase", vec!["camel", "Case"]),
+            ("XMLHttpRequest99Events", vec!["XML", "Http", "Request", "99", "Events"]),
+            ("ABC", vec!["ABC"]),
+            ("AString", vec!["A", "String"]),
+            ("fooBAR42baz", vec!["foo", "BAR", "42", "baz"]),
+            ("éClair", vec!["é", "Clair"]),
+            ("𐐀Foo", vec!["𐐀", "Foo"]),
+            ("version٢Value", vec!["version", "٢", "Value"]),
+            ("１２Monkeys", vec!["１２", "Monkeys"]),
+            ("a\u{301}Value", vec!["a\u{301}Value"]),
+        ] {
+            assert_eq!(words_of(text).into_iter().collect::<Vec<_>>(), expected, "{text}");
+        }
+    }
+
+    #[test]
+    fn terms_keep_whole_tokens_split_words_and_utf16_length() {
+        let expected: HashSet<String> = [
+            "parsehttpresponse2", "parse", "http", "response", "xx", "promise", "node",
+            "éclair", "clair", "𐐨foo", "𐐨", "foo", "a𐐨",
+        ].into_iter().map(str::to_owned).collect();
+        assert_eq!(terms_of(&SPLIT, "ParseHTTPResponse2(xx): Promise<Node> | `éClair` 𐐀Foo a𐐀"), expected);
+        for (text, expected) in [("a", vec![]), ("é", vec![]), ("𐐀", vec!["𐐨"]), ("a1", vec!["a1"]), ("12", vec!["12"]), ("😀", vec!["😀"])] {
+            let expected: HashSet<String> = expected.into_iter().map(str::to_owned).collect();
+            assert_eq!(terms_of(&SPLIT, text), expected, "{text}");
+        }
+    }
 }

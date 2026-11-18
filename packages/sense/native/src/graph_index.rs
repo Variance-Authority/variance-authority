@@ -10,9 +10,8 @@
 //! keeps the rows. JavaScript names the parts only it owns, the rows it built
 //! for the files the walk did not read, and this side writes the generation.
 //!
-//! Records are still available as records, because a caller that asked for
-//! them is owed them: `records` hands the whole closure over as one document.
-//! A save never asks for them. Onto an empty chain it publishes from here, and
+//! A caller that needs records reads their binary generation. Onto an empty
+//! chain a save publishes from here, and
 //! onto a chain that already has generations it hands over what it wrote of
 //! the files the walk did not read, and takes back the delta — every record
 //! the closure holds among them — encoded here.
@@ -43,6 +42,8 @@ pub struct IndexGraphOptions {
     pub seeds: Vec<String>,
     pub largest_file: Option<u32>,
     pub readers: Option<u32>,
+    /// False keeps the native graph but reads file bytes from the working tree.
+    pub packs: Option<bool>,
     pub tsconfig: Option<napi::Either<String, bool>>,
     pub condition_names: Option<Vec<String>>,
     /// Whether records keep the directories that answered them, for reuse.
@@ -57,6 +58,12 @@ pub struct IndexGraphOptions {
     pub directories: Vec<String>,
     /// The parse stores a module's parse is looked up in before it is read.
     pub stores: Option<Vec<String>>,
+    /// Content identities already supplied by the caller, keyed by exact path.
+    pub identities: Option<HashMap<String, String>>,
+    /// False records the initial seeds and leaves their reached edges outside the closure.
+    pub follow: Option<bool>,
+    /// Existing binary parse rows, keyed by those same content identities.
+    pub prior_parses: Option<Buffer>,
 }
 
 #[napi]
@@ -72,13 +79,17 @@ pub struct IndexGraph {
 
 pub(crate) fn index_graph(
     options: IndexGraphOptions,
+    paths: &[String],
     at: &HashMap<String, u32>,
     tree_oids: &[Oid],
     listing: Arc<Listing>,
     store: Option<&Opened>,
     from_blob: &crate::parse_origin::FromBlob,
     objects: &crate::acquire::TreeObjects,
+    session: &crate::scan_session::State,
 ) -> napi::Result<IndexGraph> {
+    let worktree = crate::acquire::TreeObjects::worktree();
+    let objects = if options.packs == Some(false) { &worktree } else { objects };
     let aliases = options
         .aliases
         .as_deref()
@@ -90,8 +101,17 @@ pub(crate) fn index_graph(
     let directories: HashSet<String> = options.directories.into_iter().collect();
     // A module a store holds is answered from it, under the size and link rules
     // every walk keeps (`read_kept`), rather than read again.
-    let kept = |identity: &str, file: &str| store?.view(identity, &way(file))?.read();
-    let Walked { files, identities, read, targets, kept: answered } = walk_beyond(
+    let prior: Vec<_> = session.parses.iter().chain(options.prior_parses.iter())
+        .map(|bytes| crate::compact::Layer::open(bytes.as_ref())).collect::<Result<_, _>>().map_err(napi::Error::from_reason)?;
+    let held_parse = |identity: &str, file: &str| {
+        let identity = options.identities.as_ref().and_then(|known| known.get(file)).map_or(identity, String::as_str);
+        let way = way(file);
+        crate::chain_lookup::parse(&prior, identity, &way)
+            .map(|(at, row)| crate::compact::ParseView::of(&prior[at], row))
+            .or_else(|| store?.view(identity, &way))
+    };
+    let kept = |identity: &str, file: &str| held_parse(identity, file)?.source_read(file);
+    let Walked { files, mut identities, read, targets, kept: answered, parsed } = walk_beyond(
         GraphOptions {
             root: options.root,
             seeds: options.seeds,
@@ -101,25 +121,47 @@ pub(crate) fn index_graph(
             condition_names: options.condition_names,
             include_parses: false,
         },
+        paths,
         at,
         tree_oids,
         listing,
-        &|_| false,
+        &|_| options.follow == Some(false),
         &kept,
+        options.identities.as_ref(),
         from_blob,
         objects,
+        session,
     );
+    for (file, identity) in files.iter().zip(&mut identities) {
+        if let Some(supplied) = options.identities.as_ref().and_then(|known| known.get(file)) {
+            *identity = supplied.clone();
+        }
+    }
     // The closure publishes its own index, so a kept row's parse goes into it
     // whole, from the store, as a warm update writes one (`source_update.rs`).
     let mut rows: Vec<(String, Parse)> = (0..files.len())
         .filter(|&index| read[index].2.parsed() && !identities[index].is_empty())
-        .filter_map(|index| Parse::of(store, &identities[index], &files[index], answered[index], &read[index].0))
+        .filter_map(|index| {
+            let parse = if answered[index] {
+                Parse::Kept(held_parse(&identities[index], &files[index])?)
+            } else {
+                Parse::Read(&read[index].0)
+            };
+            Some((crate::parse_store::key(&identities[index], &way(&files[index])), parse))
+        })
         .collect();
+    let prefetched = session.prefetched.borrow();
+    let prepared = if session.preparations_handed.get() { Vec::new() }
+        else { crate::scan_session::prepared_parses(&prefetched, options.identities.as_ref()) };
+    if !prepared.is_empty() { session.preparations_handed.set(true); }
+    rows.extend(prepared.iter().filter_map(|row| {
+        let parse = if row.kept { Parse::Kept(held_parse(&row.identity, row.file)?) } else { Parse::Read(row.read) };
+        Some((crate::parse_store::key(&row.identity, &way(row.file)), parse))
+    }));
     rows.sort_unstable_by(|left, right| code_unit(&left.0, &right.0));
     rows.dedup_by(|left, right| left.0 == right.0);
     let segment = parses_only(&rows.iter().map(|(key, parse)| (key.as_str(), parse)).collect::<Vec<_>>());
     let keys = rows.into_iter().map(|(key, _)| key).collect();
-    let parsed = read.iter().zip(&answered).filter(|((_, _, outcome), kept)| outcome.parsed() && !**kept).count() as u32;
     let settling = Settling {
         builtins: &builtins,
         code: &code,
@@ -193,13 +235,6 @@ impl IndexGraph {
     #[napi(catch_unwind)]
     pub fn parse_segment(&self) -> Buffer {
         self.parse_segment.clone().into()
-    }
-
-    /// Every record, as a JSON array of `FileRecord`, sorted by file.
-    #[napi(catch_unwind)]
-    pub fn records(&self) -> napi::Result<String> {
-        let records: Vec<_> = self.records.iter().map(|held| &held.record).collect();
-        serde_json::to_string(&records).map_err(|error| napi::Error::from_reason(error.to_string()))
     }
 
     /// Publish the parse layer and the generation after it — the parts

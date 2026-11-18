@@ -1609,208 +1609,120 @@ the host identity needed to dispatch every remaining path.
 
 ## Scan the checkout for the file graph
 
-`scanRelations` walks the configured directories, follows resolvable module and
-stylesheet references, and returns one `FileRecord` per file: that file's
-resolved outgoing edges and content digest. Hand those records to
-`@variance-authority/core`, which owns the graph and the selection rules — a
-separate package, so install it too:
+`updateSourceIndex` reads the checkout and publishes its source index. The
+native index owns the file records and graph; readers ask for the part of an
+answer they need. Hand `publishedSelectionGraph` to `@variance-authority/core`,
+which owns selection rules — a separate package, so install it too:
 
 ```bash
 npm install --save-dev @variance-authority/sense @variance-authority/core
 ```
 
 ```ts
-import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
-import { scanRelations } from '@variance-authority/sense';
+import { affectedBy } from '@variance-authority/core/relate';
+import { publishedSelectionGraph, updateSourceIndex } from '@variance-authority/sense';
 
-const records = await scanRelations({ root: '.', dirs: ['src'] });
-const relations = relationsOfFiles(records);
+const root = process.cwd();
+await updateSourceIndex(root);
+const relations = await publishedSelectionGraph(root, { dirs: ['src'] });
 const selection = affectedBy(relations, ['src/tokens.css']);
 
 console.log(selection.components); // components that import the changed file, directly or through others
 ```
 
 You need a readable checkout, installed dependencies for bare specifiers, and
-any `tsconfig.json` path mappings the source uses. Resolving a bare specifier is
-the one step that needs them; the pure readers in
-`@variance-authority/sense/read` take source text plus a file id instead and
-never touch a disk.
+any `tsconfig.json` path mappings the source uses. The pure readers in
+`@variance-authority/sense/read` take source text plus a file id and never
+open the checkout.
+
+`updateSourceIndex(root, options)` accepts these publication options:
 
 | option | default | use it when |
 |---|---|---|
-| `root` | required | naming the checkout; returned paths are relative to it |
-| `dirs` | required | choosing the source directories to seed |
-| `before` | absent | naming individual files the run rests on that nothing imports — a `vitest.config.ts`, the setup it loads — so the harness and everything below it become ordinary nodes; a path that is not there, or that this cannot parse, is skipped |
-| `digests` | Git digests when available | supplying a digest map, or set `false` to read and hash files directly |
-| `packs` | `true` | set `false` to read every file's bytes from the working tree instead of Git's object store; Git still lists the files and names their blobs |
-| `changed` | absent | supplying the complete scan-root-relative file list already known to have changed; present, including empty, skips `git status` |
-| `cache` | in-memory parse cache | reusing parsed module records between calls |
-| `reuse` | off unless `digests` is available | reusing resolved `FileRecord`s; sound only with content and layout digests |
-| `stores` | absent | naming parse stores to look a tracked module up in before it is read; pass the same list to `openSourceIndex`, whose `cache` holds what a store answered |
-| `largestFile` | one megabyte | reading source files larger than that; anything over the cap is recorded `unknown` instead of parsed |
-| `indexed` | absent | receiving each cached parse with the resolved target corresponding to every request |
-
-`conditionNames` and `tsconfig` are accepted by the same call and control how
-specifiers become file edges; the generated declaration states their exact
-shapes. Without `conditionNames`, a file resolves under `source`, `import`,
-`require` and `default` plus the `customConditions` of the `tsconfig` that
-governs it, following `extends` the way TypeScript does. So a workspace whose
-packages export source under a condition of their own, such as
-`"@tanstack/custom-condition": "./src/index.ts"`, gets edges into that source
-rather than into built output the checkout does not hold. When you pass
-`conditionNames`, your list is the whole set and no `tsconfig` adds to it.
-`tsconfig: false` reads no `tsconfig` at all: no `paths` and no
-`customConditions`. A call that passes no `tsconfig` takes the one
-`typescript.tsconfig` in the root `variance.config.json` names, `"auto"` when it
-names none. `await tsconfigUse(directory)` lists every config the repository
-holds, the ones that can govern that directory, and which ask for `paths`,
-`baseUrl` or conditions.
+| `dirs` | the whole checkout | publishing an index over selected directories and what they import |
+| `index` | `sourceIndexPath(root)` | choosing a separate index path |
+| `packs` | `true` | set `false` to read bytes from the working tree; Git still lists files and names their blobs |
+| `changed` | absent | supplying the complete scan-root-relative changed paths; present, including empty, skips `git status` |
+| `progress` | absent | receiving each step's start and end |
+| `prepareMap` | `false` | preparing the code map's Git metadata while building a missing index |
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
-still joins the graph. When a workspace package's `tsconfig` names both `outDir`
-and `rootDir` and emits code, a target under `outDir` maps to the file under
-`rootDir` it is emitted from, whether or not the package was built. A target no
-repository file stands for — unmapped built output under an excluded directory
-such as `dist/`, a path outside `root` — gives no file edge, and its specifier
-stays under `unresolved`. An import of a package is recorded either way, as an
-edge to a **package node** named the way the source imports it —
-`@mui/material`, never a version and never a resolution — so a dependency bump
-can be seeded by name. Which copy a resolver handed any
-one importer is not recorded, because answering that means reproducing the
-resolver, and a selector that guessed would skip on the guess.
-[Read the install](#read-which-packages-the-install-changed) to find out
-which names to seed.
+still joins the graph. Resolution follows the checkout's TypeScript settings
+and package exports. A workspace package's emitted path maps to its source when
+its configuration names both `outDir` and `rootDir`. A target outside the
+repository or under unmapped excluded output gives no file edge. A package
+import also names a package node, so a dependency bump can be seeded by name.
+[Read the install](#read-which-packages-the-install-changed) to find those names.
 
-A file over `largestFile` is marked `unknown` rather than parsed, because a file
-that size is nearly always generated output and a single one of them can cost a
-scan hundreds of megabytes. Raise it when you mean to read one anyway.
-
-An unreadable or unresolved relative edge marks its file **unknown**:
-`record.unknown` gives the reason — a parse error, a `require()` of a variable,
-an `import()` of a computed string, a file over `largestFile`, a language with
-no reader. The graph keeps every edge the scan could read from that file and has
-none for the one it could not, so a selection answers from what the source
-states and nothing is added for the gap. The expression nobody could read is
-answered by the recorded run: a [wrapped runner](#cut-a-vitest-run-down-to-a-diff)
-sees the module load whatever named it. To list these files, filter the records:
-`records.filter((record) => record.unknown !== undefined)`.
-
-A bare specifier that resolves to nothing on disk is recorded as a package edge,
-and its file is not marked `unknown`: the name is what a bump is seeded by, and
-whether the package is installed here decides nothing about which files import
-it.
+An unreadable file, an unresolved relative request, or a source file over the
+one-megabyte cap marks its record `unknown`. The graph keeps the edges it could
+read; the recorded run answers for loads the syntax could not name. An
+unresolved bare specifier still names a package edge and does not make its file
+unknown.
 
 ### Keep repeated scans cheap
 
-The source index keeps parses and resolved records between scans. One step
-publishes it and every reader reads it, so a checkout pays for its diff once
-rather than once per reader:
+One update publishes the checkout and readers retain that native snapshot:
 
 ```ts
-import { publishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
+import { publishedSelectionQuestions, updateSourceIndex } from '@variance-authority/sense';
 import { isCI } from 'ci-info';
 
-// The step: absorb what changed since the last update, as one appended layer.
-const update = await updateSourceIndex(process.cwd());
+const root = process.cwd();
+const update = await updateSourceIndex(root);
 console.log(`${update.files} files, ${update.reread} read again`);
 
-// A reader: open what was published and take the part its question needs.
-const published = await publishedSources(process.cwd(), {
+const questions = await publishedSelectionQuestions(root, {
+  dirs: ['src'],
   ci: isCI,
   step: 'node scripts/index.mjs',
   announce: (line) => console.error(line),
 });
-const records = sourcesWithin(published.records, process.cwd(), ['src'], []);
+console.log(questions.sourceFiles());
+console.log(questions.sourceProblems(['src']));
 ```
 
-`updateSourceIndex(root)` scans the whole checkout, whoever calls it, and reads
-again only the files whose blob changed. Its result names the state it found
-(`was`), the files it holds, and how many it read again (`reread`). Pass
-`packs: false` to read bytes from the working tree, as `scanRelations` does.
-Pass `dirs` for an index that covers some directories of the checkout and what
-they import, rather than all of it. A missing index is built from nothing, in a
-worktree too: no record is copied from another checkout's index, and the parse
-store is what a second checkout reuses. An `index` you name in the checkout's
-own cache directory reads that store as the checkout's own index does. `progress` is told each step's name as it starts, the git listing
-and then the read of what changed, and returns the function to call when that
-step ends.
+Both graph readers accept `tsconfig` to select a configuration, `"auto"` for
+nearest-configuration discovery, or `false` to disable its paths and conditions.
+When omitted, the root `variance.config.json` supplies `typescript.tsconfig`,
+with `"auto"` as the default. Set `raw` to `true` to omit recorded mock declarations;
+configured `taints` still apply. The default, `false`, includes those mocks.
+Pass `ci` as `true` when your host runs in CI; the default is `false`.
 
-`readPublishedSources(path)` opens a published index and reads nothing from Git
-or the disk beyond it. `publishedSources(root, options)` is the reader with a
-policy for an index that is missing, damaged, or written in another format
-version (`state: 'other-version'`, with the version in `written`): with
-`ci: true` it throws `SourceIndexUnpublished`, whose message names `step`;
-otherwise it updates once, calls `announce` with a line that says which of the
-three it found, and reads. Pass your
-runner's own answer for `ci` — the `ci-info` package is what Jest reads. A
-whole index is returned as read, whatever the checkout did since it was
-written. When you name the checkout's texts by the index, call
-`updateSourceIndex` first, in CI too once the index is published, since one
-published at another commit names that commit's texts; if that update fails, the index does not
-describe the checkout, and a text it names is not known. To name a few files'
-texts, `publishedNames(root, files, options)` reads the same policy off the
-index's record rows of those files alone, and returns `names`, each file the
-index names a text for with its git blob name; `readPublishedNames(path, files)`
-is its reader without the policy.
-`sourcesWithin` returns the records a scan seeded from `dirs` and `before` would
-have produced, so a reader with a narrower question gets the narrower graph
-without scanning.
+`publishedSelectionGraph` returns the relations that Core walks.
+`publishedSelectionQuestions` exposes typed native questions such as file
+lookup, adjacency rows, reach, source scope, sizes and restrictions. Neither
+returns the index as JavaScript file records or parses.
 
-Everything in the index is derived from the checkout: a missing, incomplete or
-corrupt one costs a scan and cannot change what a scan finds. For a scan of your
-own, open the index as a cache and save it afterwards:
+A missing, damaged or incompatible index is rebuilt once on a workstation and
+reported through `announce`. With `ci: true`, the reader throws
+`SourceIndexUnpublished` and names `step`. A valid published index is read as it
+stands; call `updateSourceIndex` first when the question must describe the
+current checkout.
 
-```ts
-import { openSourceIndex, scanRelations, sourceIndexPath } from '@variance-authority/sense';
+`publishedComponentSources` answers which components the source under the
+given directories declares, and one digest of those files. It brings the index
+up to the checkout before it reads, in CI too, so it names the source as it is
+on disk. `extensions` names the files that hold components, `.tsx`, `.jsx`,
+`.ts` and `.js` unless you say otherwise; `exclude` names what is skipped
+anywhere in a path, for the digest as well, and defaults to tests, stories,
+`dist/` and `node_modules`.
 
-const source = await openSourceIndex(sourceIndexPath(process.cwd()));
+An update reports the prior state in `was`, the published file count, the
+records it rebuilt in `reread`, and the files it parsed in `parsed`. A worktree
+builds its own index and reuses content-keyed parses from the shared parse
+store. The store offers a tracked parse to other roots only when the bytes read
+match the blob Git named. Cache pruning reclaims parses no index names.
 
-await scanRelations({ root: '.', dirs: ['src'], cache: source.cache, reuse: source.reuse });
-await source.save();
-```
+`sourceIndexPath(root)` places the index beside the coverage snapshot under the
+cache root. See [the source index](https://variance-authority.dev/docs/source-index)
+for its on-disk layout and CI cache recipe. `publishedNames(root, files,
+options)` reads the published content names of selected files;
+`readPublishedNames(path, files)` reads them without the local/CI policy.
 
-`sourceIndexPath(root)` puts it beside the coverage snapshot under your cache
-root, cached in CI the same way. `variance index` also keeps one parse store per
-cache, keyed by a module's bytes and how they are read, so a directory or a
-worktree does not parse again what another root in the same cache has read. A
-parse of a tracked file is offered to other roots only when the bytes read are
-the blob git named for it; the cache prune reclaims the parses no index names. See [the source index](https://variance-authority.dev/docs/source-index)
-for the on-disk layout and the cache recipe. The parse section is keyed by
-content digest; the record section additionally by the repository path layout
-and resolution settings, because resolution can change while file bytes stay the
-same. `gitDigests` supplies content digests from Git when available, and
-`scanRelations` calls it unless `digests: false` or a caller-provided map is
-used.
-
-When an editor, watcher or orchestrator already has the changed files, pass them
-as `changed`. Sense still reads the committed path set, hashes those paths from
-disk and treats a missing path as deleted, but it does not run `git status` to
-rediscover the same answer. The list is authoritative: include additions and
-deletions, and include both the old and new path of a rename. An empty list
-declares the working tree unchanged.
-
-`parsed` hands you each file's parse as the scan settles it — the
-repository-relative path and what the bytes parse to, once per file, reused
-records included. A caller that needs a different reading of the same bytes
-otherwise has to walk and parse the tree a second time; handed this, that second
-reading of an unchanged tree costs a map lookup per file. The value is the
-cached parse itself rather than a copy, so treat it as read-only.
-
-`indexed` is the path-dependent companion: it receives the same parse and one
-resolved target per request, in request order. Use it when a consumer needs to
-follow named re-exports without resolving the same specifiers again.
-
-```ts
-// An excerpt of the call above: `source` is the opened index, and `exports` is
-// whatever map you are filling.
-await scanRelations({
-  root: '.',
-  dirs: ['src'],
-  cache: source.cache,
-  reuse: source.reuse,
-  parsed: (file, parse) => { exports.set(file, parse.exports); },
-});
-```
+When a watcher already knows the changed paths, pass them as `changed` to the
+update. Include additions and deletions and both paths of a rename. An empty
+list declares the working tree unchanged.
 
 ## Read which packages the install changed
 
@@ -1890,58 +1802,39 @@ parse cache and the record cache are left as they were read, so the same scan
 can be viewed under several taints, or none.
 
 ```ts
-import { scanRelations } from '@variance-authority/sense';
-import { mockTaint, taintFile, taintRecords } from '@variance-authority/sense/taint';
-import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { publishedSelectionGraph, updateSourceIndex } from '@variance-authority/sense';
+import { taintFile } from '@variance-authority/sense/taint';
+import { affectedBy } from '@variance-authority/core/relate';
 
-const records = await scanRelations({ root: '.', dirs: ['src'] });
-const tainted = await taintRecords(records, [mockTaint(), await taintFile('variance.taint.json')], { root: '.' });
-const relations = relationsOfFiles(tainted.records, { shadows: tainted.shadows });
+const root = process.cwd();
+await updateSourceIndex(root);
+const relations = await publishedSelectionGraph(root, {
+  dirs: ['src'],
+  taints: [await taintFile('variance.taint.json')],
+});
 
 affectedBy(relations, ['src/api.ts']).files; // no test that mocks `./api`
 ```
 
-The two halves land in different places. A `+` is one more import the file
-makes: an edge on its record, resolved the way the scan resolves any other, and
-reported in `tainted.additions`. A `-` is not one edge fewer. `vi.mock('./api')`
-replaces `api.ts` for the whole of that test's run — for the test, for the
-component it imports, for anything under it — so it is the module taken out of
-the graph as seen from that file, at every level. It lands in `tainted.shadows`,
-keyed by file, and a graph built with that table applies it to every walk: a
-change affects a file only when some trail from the change arrives without
-crossing one of its shadows, and what is reached only through such a file goes
-with it. `affectedBy` names the files it left out this way in `shadowed`.
+A `+` row adds an import, resolved by the native graph. A `-` row shadows a
+module for that file's whole run, including paths through its imports. A change
+affects the file only when some trail arrives without crossing its shadows.
+`affectedBy` lists files excluded this way in `shadowed`.
 
-An addition can name a file outside the directories the scan walked. That file
-comes back as a record of its own, marked `unknown` rather than given an empty
-edge list: nobody read it, so the graph has none of its edges and the recorded
-run answers for what it loads. Point the scan at its directory to have it read.
+An addition outside the published source scope creates an unknown node: the
+graph knows it was named and has no answer about its own imports. Publish its
+directory when those imports must be known.
 
-Every shadow and every addition keeps the name of whoever added it.
-`tainted.shadowedBy` is the file, the file it never reaches, and the taints that
-named it; `tainted.addedBy` is the same for additions. Two taints that shadow
-one module are both credited, so a test left out of a selection can be traced to
-a hand-written table or to the mock reader.
+The native parser records `vi.mock`, `jest.mock` and `sb.mock`. A factory that
+loads the same real module preserves existing imports; a factory loading
+`./other` shadows its original target and adds `./other`. An independent
+`requireActual` or `importActual` adds a real load. An opaque factory, a spy
+mock, or a factory using its first loader argument leaves existing imports
+unchanged. `doMock` does not shadow static imports that already ran, and a
+computed target adds no guessed path.
 
-`mockTaint` reads `vi.mock`, `jest.mock` and `sb.mock` calls from test,
-spec, story and setup files. A mock subtracts its target; a real module loaded
-by its factory adds that target. Matching additions and subtractions cancel:
-`jest.mock('./api', () => jest.requireActual('./api'))` leaves existing imports
-unchanged and adds no dependency when the file never imports `./api`.
-A factory loading `./other` instead subtracts `./api` and adds `./other`.
-
-A `requireActual` or `importActual` outside a mock factory is an independent
-real load, including inside `beforeEach`, and adds its module without shadowing
-it. A factory that refers to the loader vitest passes as its first argument,
-whatever the parameter is named, an opaque factory, and a spy mock leave
-existing imports unchanged. `doMock` does not shadow static imports that ran
-before it. Nonliteral mock targets cannot be resolved and leave existing edges
-unchanged. Pass `callers` to name other mocking objects and `files` to widen
-which files are read.
-
-`taintFile` reads a JSON table you keep beside the repository, keyed by file
-path with `-` and `+` rows, and `taintTable` builds the same taint from a table
-already in memory:
+`taintFile` reads a JSON table keyed by repository-relative file path with `-`
+and `+` rows. `taintTable` constructs the same configured table from memory:
 
 ```json
 {
@@ -1950,64 +1843,12 @@ already in memory:
 }
 ```
 
-For framework calls that name modules as string arguments, `moduleCallsTaint`
-parses only a caller-supplied candidate set. The set is required: finding a rare
-convention must not open every module merely to run a text check. Bootstrap it
-with the repository's text search, then maintain it from editor, watcher or
-changed-file events.
-
-```ts
-import { moduleCallsTaint } from '@variance-authority/sense/taint';
-
-const loaders = moduleCallsTaint({
-  name: 'application-loaders-v1',
-  files: new Set(['src/routes/orders.entrypoint.tsx']),
-  calls: { JSResourceForUserVisible: 0, importCond: [1, 2] },
-});
-```
-
-`name` is the cache and report identity; change it when the rule changes so an
-old answer cannot be reused under new semantics. `calls` maps each exact callee
-identifier to the zero-based argument position, or positions, that contain
-module specifiers. `files` is the candidate set and is never widened by Sense.
-
-Only literal strings and templates without substitutions become additions. A
-callback containing `import()` is left alone because the native module parser
-already records it. Call names and argument positions belong to the consumer;
-Sense ships no framework vocabulary.
-
-Under more than one taint the subtractions are unioned and so are the additions,
-and the two never contend: an edge one taint adds to a file another taint
-shadows is an edge into a node the file's run never covers, and the shadow
-wins, the way the mock wins at runtime.
-
-Hand `taintRecords` the `cache` the scan used, so an unchanged file is not
-opened or parsed a second time. The scan records what each file mocks in its
-parse without applying it, so the records keep every edge and `mockTaint()`
-answers from that parse without opening the file. A `mockTaint` given its own
-`callers` answers a question the scan did not, and reads the file once; that
-answer, like any other reader's, is kept under a digest over the file's bytes
-and the reader's name:
-
-```ts
-const source = await openSourceIndex(sourceIndexPath(process.cwd()));
-const records = await scanRelations({ root: '.', dirs: ['src'], cache: source.cache, reuse: source.reuse });
-const tainted = await taintRecords(records, [mockTaint()], { root: '.', cache: source.cache });
-await source.save();
-```
-
-`runGraphOf` is that whole fold in one call, the graph `variance covering
---since` and an MCP host's source tree both walk: the mocks read unasked, your
-`taints` joined after them, and the result folded with its shadows. Pass
-`depends` from the lockfile to reach a transitive bump, and `uses` to say how
-each file uses what its parse imports; an edge a taint added was never parsed,
-so it is read as used whole:
-
-```ts
-import { runGraphOf } from '@variance-authority/sense';
-
-const relations = await runGraphOf(records, { root: '.', cache: source.cache, taints: [await taintFile('variance.taint.json')] });
-```
+For a framework loader the source parser does not recognize, supply its known
+relationships through this table. Configured taints contain `name` and `diffs`;
+source-reader callbacks are not accepted. Multiple tables union additions and
+shadows, and a shadow still applies to an edge another table adds. Pass
+`depends` to `publishedSelectionGraph` for the dependency pairs read from a
+lockfile.
 
 ### Check a taint against the record
 
@@ -2020,7 +1861,7 @@ disagreement as a coordinate to look at:
 import { auditTaints } from '@variance-authority/sense/taint';
 import { readTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
 
-// `relations` and `tainted` come from the sample above.
+// `relations` is the graph above; `tainted` is your resolved shadow/addition tables.
 const coverage = await readTestCoverage(testCoverageFile(process.cwd()));
 for (const { test, module, kind } of auditTaints(coverage, relations, tainted)) {
   console.log(`${test} ${kind} ${module}`);
@@ -2033,9 +1874,8 @@ covered: the taint is wrong about that mock, or the mock did not take.
 shadows and nobody covered for it: an import the run never loaded, or a mock no
 taint lists yet. `added-but-not-entered` is an addition the record never placed
 the test in. Only an instrumented module counts as evidence, and only a complete
-observation counts as evidence of absence. Where a taint's reading disagrees
-with the record, the deviation names its `taints` — the table or reader to go
-and correct. Pass `knownAs` when the record lists a module under a built name.
+observation counts as evidence of absence. When the supplied tables include attribution, a deviation names its `taints`
+so the configured table can be corrected. Pass `knownAs` when the record lists a module under a built name.
 
 ## Read the record yourself
 
@@ -2345,18 +2185,17 @@ went here at all*.
 ## Measure test-file deviation
 
 Deviation compares what a test file can statically reach with what it covers in
-a complete instrumented run. Scan both product and test directories, then join
-those records to the snapshot:
+a complete instrumented run. When your tooling already has file records for
+both product and test directories, join those records to the snapshot:
 
 ```ts
-import { scanRelations } from '@variance-authority/sense';
 import {
   deviationOfTests,
   testCoverageFile,
 } from '@variance-authority/sense/test-selection';
 
 const root = process.cwd();
-const records = await scanRelations({ root, dirs: ['src', 'test'] });
+// `records` is your caller-supplied FileRecord array.
 const variation = await deviationOfTests(testCoverageFile(root), { root, records });
 
 console.log(variation.coverage);
@@ -2781,10 +2620,10 @@ same under every host:
 | `@variance-authority/sense/cache-root` | `cacheRootFor`, the checkout's cache directory, without loading the parser and resolver | a checkout |
 | `@variance-authority/sense/checkout-path` | `checkoutPath`, a path asked about spelled the way the recording spells it, or why it is outside the checkout, without loading the parser and resolver | a checkout |
 | `@variance-authority/sense/side-effects` | `declaresSideEffects(files)`, which of these modules their package's `sideEffects` names, the reading test selection uses | absolute paths |
-| `@variance-authority/sense` | `scanRelations`, the source index, and Git content digests | a readable checkout for the scan; persistence is optional |
+| `@variance-authority/sense` | native source publication, graph questions, and Git content digests | a readable checkout and the native addon |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/lock` | reading which packages an install changed between two revisions, and how they rest on each other | the lockfile's text at both revisions; nothing else, and no `node_modules` |
-| `@variance-authority/sense/taint` | joining a second table of imports onto scanned records, and auditing it against the record | the records, and a table or a reader that produces the diff |
+| `@variance-authority/sense/taint` | configured native import overlays, and auditing supplied tables against the record | a configured table; supplied graph and coverage for an audit |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/journal` | instrumenting your own build and recording what a driven page executed | a Vite-compatible build, and a driver that can evaluate in the page |
 | `@variance-authority/sense/journey` | carrying one execution across processes, so a service's crossings join the subject that caused them | a service running Node, its own instrumented build, and a driver that sets a cookie |

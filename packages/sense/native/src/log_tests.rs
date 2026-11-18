@@ -4,6 +4,9 @@
 use super::{publish, LogSegment};
 use sha2::{Digest, Sha256};
 
+#[path = "log_cow_tests.rs"]
+mod cow;
+
 #[test]
 fn segments_land_under_their_digest_and_the_manifest_names_them() {
     let directory = std::env::temp_dir().join(format!("va-log-{}", std::process::id()));

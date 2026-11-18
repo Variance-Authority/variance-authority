@@ -7,7 +7,7 @@ import { REVIEW_ARTIFACT, parseReviewArgs } from '../review-args.js';
 import { flagsFor, synopsisFor } from '../usage.js';
 import { reviewFromRun, runOf } from './review-from-run.js';
 import { reviewPieces } from './review-text.js';
-import type { Review } from './review.js';
+import type { Review } from './review-types.js';
 
 // A review.json past the longest string V8 holds takes gigabytes to write, so the file read here refuses, as V8
 // would, to spell itself whole: as a string, or as one string from its bytes.

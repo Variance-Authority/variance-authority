@@ -16,9 +16,10 @@ scanning.
 
 In: the parses and records one update scanned from the whole checkout, and what
 moved since the last update: Watchman's answer since the clock that update held,
-where a running server watches the checkout, else git's listing. Out: the
-published records, narrowed to a reader's seeds; to the next update, what has
-not moved, and the listing it was made against with the clock that dates it.
+where a running server watches the checkout, else git's listing. Out: typed
+answers over the published records and retained native graphs, narrowed
+to a reader's question; to the next update, what has not moved, and the listing
+it was made against with the clock that dates it.
 
 ## Depends on
 
@@ -33,8 +34,8 @@ not moved, and the listing it was made against with the clock that dates it.
 
 - [`source-scan`](../source-scan/README.md) — the parse and record caches that
   make an update cost the diff
-- [`relations`](../relations/README.md) — the published records a selection
-  folds into its graph
+- [`relations`](../relations/README.md) — the retained native graph a selection
+  asks through typed questions
 
 ## Boundary
 
@@ -47,11 +48,14 @@ the repository: the list is the scope, as the checkout is the first one's, and
 the help reading is its one owner.
 
 A missing or damaged generation, or one written in another format version, is
-refused by `publishedSources` in CI as an operator error naming the step, and
-updated once anywhere else with a line saying which of them it found.
-`readPublishedSources` and the native readers report the state and update
-nothing. Another format version is told apart from damage, because every
-release upgrade meets it. Everything held is derived
+refused by the shared `publishedThrough` policy in CI as an operator error
+naming the step, and updated once anywhere else with a line saying which of
+them it found. Native readers report the generation's state and update nothing.
+Component attribution is the one reader that updates first, in CI too: it names
+the source as it is on disk, so it brings the checkout's index up to the
+checkout, says so in a line when a file was read, and only then reads.
+Another format version is told apart from damage, because every release upgrade
+meets it. Everything held is derived
 from the checkout: parses keyed by content digest, records also by layout and
 resolution settings, never by where the checkout sits. A lost generation costs
 an update and cannot change what the update finds.
@@ -64,10 +68,11 @@ reference to it, since the owner compacts and deletes its segments.
 ## Implementation coordinates
 
 - `packages/sense/native/src/held_listing.rs`, `packages/sense/native/src/watchman.rs` — the listing an update carries, and Watchman asked whether it stands
-- `packages/sense/src/published.ts` — `updateSourceIndex`, `publishedSources`, `sourcesWithin`
-- `packages/sense/src/source-index.ts` — `openSourceIndex`, the two caches and the append
-- `packages/sense/src/immutable-log.ts` — the segment chain, and the copy a worktree starts from
-- `packages/sense/src/cache.ts`, `packages/sense/src/reuse.ts` — the parse and record caches
+- `packages/sense/src/published.ts`, `packages/sense/src/native-update.ts` — publication policy, configuration and progress
+- `packages/sense/native/src/source_update.rs` — the update and record reuse lifecycle
+- `packages/sense/native/src/log.rs`, `packages/sense/native/src/seed.rs` — the segment chain and the generation a worktree starts from
+- `packages/sense/native/src/parse_store.rs` — the shared parse store
+- `packages/sense/native/src/selection_graph.rs`, `packages/sense/src/published-selection.ts` — retained native selection graphs and their typed question surface
 - `packages/cli/src/commands/index-command.ts` — `variance index`, the publishing step
 - `packages/cli/src/commands/source-graph.ts` — `relationsFor`, where every graph reader reads
 
@@ -78,6 +83,6 @@ flowchart LR
   STEP([variance index]) -->|update| SCAN[source-scan]
   SCAN -->|parses and records| IDX[source-index]
   IDX -->|what has not moved| SCAN
-  IDX -->|published records, narrowed to a reader's seeds| REL[relations]
+  IDX -->|typed questions over the retained native graph| REL[relations]
   IDX --- DISK[[operational state outside the checkout]]
 ```

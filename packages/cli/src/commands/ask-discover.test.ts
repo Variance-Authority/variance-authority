@@ -113,7 +113,9 @@ describe('ask discover over a checkout', () => {
 
   it('reads the names only for a question with a set read off them', async () => {
     expect((await readNamedTree(root, { from: ['src/Wallet.ts'], path: '^src/store/' })).names).toBeUndefined();
-    expect((await readNamedTree(root, { declares: '^selectBalance$' })).names?.get('src/old/selectors.ts')?.declared).toEqual([{ name: 'selectBalance', line: 1 }]);
+    const named = await readNamedTree(root, { declares: '^selectBalance$' });
+    expect(named.names?.query([{ kind: 'declares', pattern: '^selectBalance$' }]).groups[0]?.files)
+      .toContainEqual({ file: 'src/old/selectors.ts', evidence: [{ name: 'selectBalance', line: 1 }] });
   });
 
   it('finds a declaration the file does not export, which is where a context is made', async () => {

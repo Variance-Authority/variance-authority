@@ -28,7 +28,7 @@ export function stoppedIn(
   const reach = new Set<number>();
   for (const [at, test] of index.tests.entries()) if (files.has(test.file)) reach.add(at);
   if (reach.size === 0) return undefined;
-  const owned = ownedIn(index, module, shadowedFor(relations));
+  const owned = ownedIn(index, module, shadowedFor(relations, index.tests.map((test) => test.file)));
   for (const block of module.blocks) for (const crossing of block.crossings) if (owned(crossing)) reach.add(crossing.test);
   const stopped = new Set<number>();
   for (const at of reach) {

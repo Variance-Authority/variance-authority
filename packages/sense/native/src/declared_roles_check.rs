@@ -61,7 +61,7 @@ pub struct DeclaredRoleCheck {
 /// list kept beside it; `None` when there is no index.
 #[napi(ts_return_type = "Promise<DeclaredRoleCheck | null>")]
 pub fn check_declared_roles(index: String) -> AsyncTask<OffThread<Option<DeclaredRoleCheck>>> {
-    off_thread(move || checking(&index))
+    off_thread("declared roles job", move || checking(&index))
 }
 
 fn checking(index: &str) -> napi::Result<Option<DeclaredRoleCheck>> {

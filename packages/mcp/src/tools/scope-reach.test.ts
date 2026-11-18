@@ -6,7 +6,7 @@ import { locate, locateSubjects } from './locate.js';
 import { orient } from './orient.js';
 import { askedFor } from './question.js';
 import { scopeLine, scopeOf } from './scope.js';
-import { treeOf } from './tree.js';
+import { treeOf } from './source-tree-format.js';
 
 /**
  * The path is the entrance, not the room.

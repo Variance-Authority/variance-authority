@@ -157,7 +157,7 @@ impl<'a> Selecting<'a> {
 fn select(
     file: &str,
     changed: &[JourneyChange],
-    graph: Option<&JourneyGraph>,
+    graph: Option<Graph<'_>>,
     declines: bool,
 ) -> Result<JourneySelection, String> {
     let journey = Journey::open(file)?;
@@ -166,7 +166,7 @@ fn select(
         journey: &journey,
         held: tests.iter().copied().collect(),
         tests,
-        graph: graph.map(Graph::new).transpose()?,
+        graph,
         entered: HashSet::new(),
         seen: vec![false; journey.tests()],
     };
@@ -208,5 +208,17 @@ pub fn select_journeys(
     graph: Option<JourneyGraph>,
     declines: Option<bool>,
 ) -> napi::Result<JourneySelection> {
-    select(&file, &changed, graph.as_ref(), declines == Some(true)).map_err(napi::Error::from_reason)
+    let graph = graph.as_ref().map(Graph::new).transpose().map_err(napi::Error::from_reason)?;
+    select(&file, &changed, graph, declines == Some(true)).map_err(napi::Error::from_reason)
+}
+
+/// Journey selection over the source generation's existing native graph handle.
+#[napi(catch_unwind)]
+pub fn select_journeys_native(
+    file: String,
+    changed: Vec<JourneyChange>,
+    graph: &crate::selection_graph::SelectionGraph,
+    declines: Option<bool>,
+) -> napi::Result<JourneySelection> {
+    select(&file, &changed, Some(Graph::native(graph)), declines == Some(true)).map_err(napi::Error::from_reason)
 }

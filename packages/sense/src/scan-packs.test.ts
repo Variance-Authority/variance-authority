@@ -5,18 +5,18 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { nativeAvailable } from './addon.js';
 import { updateSourceIndex } from './published.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * `packs: false` changes where bytes are read from, and nothing else.
  *
- * A hundred and sixty files, because that is the wave the native reader opens
- * Git's object store for; below it every read is a disk read either way, and
- * the assertion that no object store was opened would hold for any setting.
+ * Ten thousand files exercise the cold graph the addon holds, beyond the
+ * crossover where its reader opens Git's object store. Below that crossover
+ * every read is a disk read either way.
  */
 
-/** The files a scan reads before it opens the object store: `STORE_CROSSOVER` in `git_store.rs`. */
-const CROSSOVER = 3_000;
+/** Enough files to open Git's object store beyond `STORE_CROSSOVER` in `git_store.rs`. */
+const CROSSOVER = 10_000;
 
 describe.runIf(nativeAvailable())('reading from the working tree instead of the object store', () => {
   let root: string;
@@ -63,13 +63,8 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
     }
   }
 
-  /**
-   * The store is read in-process; opening it for a file's bytes asks Git where
-   * it lies and its object format. The listing walks HEAD's trees either way,
-   * as `ls-tree` did, and asks for the tree as it does.
-   */
   const opensObjects = (commands: string[][]): boolean =>
-    commands.some((argv) => argv.includes('--show-object-format') && !argv.includes('HEAD^{tree}'));
+    commands.some((argv) => argv.includes('--show-object-format'));
 
   it('reads the same records without opening the object store, and still asks Git what the files are', async () => {
     const packed = await traced('packed', () => scanRelations({ root, dirs: ['.'] }));
@@ -85,7 +80,20 @@ describe.runIf(nativeAvailable())('reading from the working tree instead of the 
     const index = join(cache, 'disk', 'source-index.bin');
     expect(await updateSourceIndex(root, { index, packs: false }))
       .toMatchObject({ was: 'missing', files: CROSSOVER, reread: CROSSOVER });
+    const native = await traced('native-disk-publication', () => updateSourceIndex(root, {
+      index: join(cache, 'native-disk', 'source-index.bin'), packs: false,
+    }));
+    expect(opensObjects(native.commands)).toBe(false);
     expect(await updateSourceIndex(root, { index, packs: false }))
-      .toMatchObject({ was: 'published', files: CROSSOVER, reread: 0 });
+      .toMatchObject({ was: 'published', files: CROSSOVER, reread: CROSSOVER, parsed: 0 });
+  });
+
+  it('lists once when the native update starts a cold index', async () => {
+    const index = join(cache, 'listed-once', 'source-index.bin');
+    const cold = await traced('cold-listing', () => updateSourceIndex(root, { index }));
+
+    expect(cold.result).toMatchObject({ was: 'missing', files: CROSSOVER, reread: CROSSOVER });
+    expect(cold.commands.filter((argv) => argv.includes('ls-files') && argv.includes('--stage'))).toHaveLength(1);
+    expect(cold.commands.some((argv) => argv.includes('HEAD^{tree}') || argv.includes('ls-tree'))).toBe(false);
   });
 });

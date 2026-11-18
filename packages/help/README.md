@@ -488,16 +488,14 @@ for (const file of writePages('.', 'docs/api', {
 `readWorkspace` is the reading the answers are computed from, for a program that
 runs more than one of them or runs them through its own interface. It
 takes the root and returns the workspace: every package, what each publishes,
-and who imports it. Seven options, all optional: `index`, the path of the source
+and who imports it. Six options, all optional: `index`, the path of the source
 index the scan keeps its parses in, when you would rather it shared one you
 already have than kept its own under the checkout; `packs`, whether the scan
 reads file bytes from Git's object store, on unless you say otherwise; `changed`, the authoritative scan-root-relative file list an editor,
 watcher or orchestrator already has, which skips Git status discovery, and is not used when no generation is there to refresh; `taints`,
 addition-only Sense taints for declarative module loads the language's imports
-do not express; and `records`, a function handed the import
-graph the scan drew on the way, for a caller that needs the arrows between files
-as well as the names, so it does not scan the checkout a second time to get them;
-`tree`, a function handed that graph as the path-query surface directly;
+do not express, where a taint that shadows a module is refused;
+`tree`, a function handed the published graph as a path-query surface;
 and `progress`, a function told each step's name as it starts, which returns
 the function to call when that step ends, for a caller that shows a slow
 reading as it happens.
@@ -507,9 +505,8 @@ checkout, and keeps that scope's records in a second index next to `index`.
 Every reading saves the index it scanned and publishes from it, so a second
 reading starts where the first stopped; an index that cannot be saved is thrown
 as an `UnsavedRead`, and nothing is published.
-Taints change which files a path question reaches and never manufacture symbol
-bindings or usage counts. A subtractive taint is refused: a mock is relative to
-one file's run and cannot be flattened into a workspace-wide source tree.
+The published graph includes modules a test loads for real beside its mocks.
+Mock substitutions belong to that test's run and stay out of the workspace graph.
 
 ```ts
 import { readWorkspace } from '@variance-authority/help';

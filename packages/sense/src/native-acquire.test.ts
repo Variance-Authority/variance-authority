@@ -5,12 +5,7 @@ import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { native, nativeAvailable } from './addon.js';
 
-/** The files a scan reads before it opens the object store: `STORE_CROSSOVER` in `git_store.rs`. */
-const CROSSOVER = 3_000;
-/** Writing and committing a crossover's worth of files takes seconds on a loaded machine. */
-const FIXTURE_TIMEOUT = 30_000;
-
-it.runIf(nativeAvailable())('reads local blobs and worktree fallbacks without fetching missing objects', () => {
+it.runIf(nativeAvailable())('reads local blobs and dirty files, and reports missing indexed objects without fetching', () => {
   const root = mkdtempSync(join(tmpdir(), 'sense-local-blobs-'));
   const git = (...args: string[]): string => execFileSync('git', args, {
     cwd: root, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
@@ -22,9 +17,8 @@ it.runIf(nativeAvailable())('reads local blobs and worktree fallbacks without fe
   }).trim();
   try {
     git('init', '--quiet');
-    // Three thousand loose objects start a detached `git maintenance`, which would pack the object deleted below.
     git('config', 'maintenance.auto', 'false');
-    for (let index = 0; index < CROSSOVER; index += 1) {
+    for (let index = 0; index < 4; index += 1) {
       writeFileSync(join(root, `${index}.ts`), `export const value = ${index};\n`);
     }
     git('add', '.');
@@ -47,22 +41,29 @@ it.runIf(nativeAvailable())('reads local blobs and worktree fallbacks without fe
     vi.stubEnv('GIT_NO_LAZY_FETCH', '0');
     const packed = tree.scanBatch(root, files, undefined, true, 1);
     const disk = addon.scanBatch(root, files, undefined, true, 1);
-    expect(packed).toEqual(disk);
+    const absent = files.indexOf('1.ts');
+    expect(absent).toBeGreaterThanOrEqual(0);
+    expect(packed.parsed[absent]).toBe(0);
+    expect(packed.unknown[absent]).toContain('could not be read from Git');
+    expect(packed.digests[absent]).toBe('');
+    expect(disk.parsed[absent]).toBe(1);
+    const available = files.filter((file) => file !== '1.ts');
+    expect(tree.scanBatch(root, available, undefined, true, 1)).toEqual(addon.scanBatch(root, available, undefined, true, 1));
     const events = readFileSync(trace, 'utf8').trim().split('\n').map((line) => JSON.parse(line));
     // The store is read in-process: opening it asks Git where it lies and its object format.
     expect(events.some((event) => event.event === 'start' && event.argv?.includes('--show-object-format'))).toBe(true);
     const commands = events.filter((event) => event.event === 'child_start').map((event) => event.argv);
     expect(commands.filter((args: string[]) => args.includes('fetch'))).toEqual([]);
-    expect(files).toHaveLength(CROSSOVER + 1);
+    expect(files).toHaveLength(5);
     expect(packed.values).toContain('./2');
     expect(packed.values).toContain('./3');
   } finally {
     vi.unstubAllEnvs();
     rmSync(root, { recursive: true, force: true });
   }
-}, FIXTURE_TIMEOUT);
+});
 
-it.runIf(nativeAvailable())('opens the store once two scans of one tree have read the crossover between them', () => {
+it.runIf(nativeAvailable())('opens one Git store for the first indexed scan and reuses it across later scans', () => {
   const root = mkdtempSync(join(tmpdir(), 'sense-tree-store-'));
   const git = (...args: string[]): void => {
     execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, stdio: 'pipe' });
@@ -70,7 +71,7 @@ it.runIf(nativeAvailable())('opens the store once two scans of one tree have rea
   try {
     git('init', '--quiet');
     git('config', 'maintenance.auto', 'false');
-    for (let index = 0; index < CROSSOVER; index += 1) {
+    for (let index = 0; index < 2; index += 1) {
       writeFileSync(join(root, `${index}.ts`), `export const value = ${index};\n`);
     }
     git('add', '.');
@@ -93,12 +94,12 @@ it.runIf(nativeAvailable())('opens the store once two scans of one tree have rea
     vi.stubEnv('GIT_TRACE2_EVENT', third);
     tree.scanBatch(root, files.slice(0, half), undefined, true, 1);
 
-    expect(files).toHaveLength(CROSSOVER);
-    expect(opened(first), 'a scan under the crossover reads from disk').toBe(false);
-    expect(opened(second), 'the scan that brings the tree to the crossover opens the store').toBe(true);
+    expect(files).toHaveLength(2);
+    expect(opened(first), 'the first indexed scan opens the store').toBe(true);
+    expect(opened(second), 'the next scan reuses the open store').toBe(false);
     expect(opened(third), 'a later scan reads from the store already open').toBe(false);
   } finally {
     vi.unstubAllEnvs();
     rmSync(root, { recursive: true, force: true });
   }
-}, FIXTURE_TIMEOUT);
+});

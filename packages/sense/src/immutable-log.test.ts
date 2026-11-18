@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { native } from './addon.js';
 import { BadLogPath, openImmutableLog } from './immutable-log.js';
-import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
+import { decodeSourceIndex, encodeSourceIndex } from './test-support/source-index-format.js';
 
 /**
  * Segments written as the addon writes them. With nothing read, a save's layers
@@ -80,8 +80,13 @@ describe('the immutable segment log', () => {
     Buffer.from(JSON.stringify(header).padEnd(length, '\0')).copy(bytes, 4);
     await writeFile(segment, bytes);
 
-    const { openIndex } = native() as unknown as { openIndex(index: string): { close(): void } };
-    expect(() => openIndex(file).close()).toThrow();
+    const { openIndex } = native() as unknown as { openIndex(index: string): { status(): { state: string }; close(): void } };
+    const opened = openIndex(file);
+    try {
+      expect(opened.status()).toMatchObject({ state: 'damaged' });
+    } finally {
+      opened.close();
+    }
   });
 
   it('treats a missing segment as the end of the chain', async () => {

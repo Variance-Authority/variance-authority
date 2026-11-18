@@ -19,7 +19,7 @@ import { changeGraph } from './review-graph.js';
 import { changedPackagesMarkdown } from './review-changed-packages.js';
 import { installLines } from './review-install.js';
 import { caseTree, countAfter, countOf, functionsMarkdown, leftOutOfCount, namedList, outermost, ranThisChange, regionKind, uncoveredFunctions, uncoveredMarkdown, unrecordedFiles } from './review-scope.js';
-import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
+import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review-types.js';
 import { LEGEND, MARK, notKnown, REACH_TEXT } from './review-words.js';
 import { describeDistance } from './share.js';
 import { jsonPieces } from '../json-pieces.js';

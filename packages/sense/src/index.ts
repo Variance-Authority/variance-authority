@@ -23,7 +23,6 @@
 
 // compass: variance-authority.reach
 
-export { scanRelations, type ScanOptions } from './scan.js';
 export { refreshDependencyLexiconNative, queryDependencyLexiconNative, dependencyStackNative, describedWordsNative, nearOfNative, phraseOfNative, wordStemsNative } from './dependency-lexicon.js';
 
 /**
@@ -43,11 +42,8 @@ export { CODE_EXTENSIONS, LANGUAGES, READABLE, languageOf, grainOf, readsMembers
 export { indexDeclarations } from './declarations.js';
 
 export {
-  memoryParseCache,
-  openParseCache,
   type Parsed,
   type ParseCache,
-  type PersistentParseCache,
   type SourceSize,
 } from './cache.js';
 export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from './harvest.js';
@@ -55,27 +51,16 @@ export type { SourceSymbol, SourceSymbolKind, SourceSymbolReach, TextSpan } from
 export {
   decidesResolution,
   treeShapeOf,
-  memoryRecordCache,
-  openRecordCache,
-  type RecordCache,
-  type PersistentRecordCache,
   type TreeShape,
 } from './reuse.js';
 
 export {
-  openSourceIndex,
-  readSourceRecords,
   sourceIndexPath,
-  type PersistentSourceIndex,
 } from './source-index.js';
 
 export {
-  publishedSources,
-  readPublishedSources,
-  sourcesWithin,
   updateSourceIndex,
   SourceIndexUnpublished,
-  type PublishedSources,
   type PublishedSourcesOptions,
   type SourceUpdate,
   type SourceUpdateOptions,
@@ -135,6 +120,7 @@ export {
   relationBetween,
   restrictedImports,
   type CapViolation,
+  type ChainViolation,
   type Decision,
   type LayerCap,
   type RelationRule,
@@ -144,7 +130,6 @@ export {
   type TierCapReport,
   type Violation,
 } from './restrictions.js';
-export { restrictedChains, type ChainViolation } from './restrictions-transitive.js';
 export {
   codeMapPage,
   declaredRoles,
@@ -255,6 +240,7 @@ export {
   type HelpEncode,
   type HelpEncoded,
   type HelpEntry,
+  type HelpTaint,
   type HelpReading,
   type MemberDeclarations,
   type MemberSite,
@@ -268,19 +254,15 @@ export {
   type StoreUse,
 } from './help-reading.js';
 
-export {
-  taintFile,
-  taintRecords,
-  taintTable,
-  type ImportDiff,
-  type Tainted,
-  type Taint,
-  type TaintOptions,
-  type TaintSubject,
-  type TaintTable,
-} from './taint/index.js';
-export { moduleCallsTaint, type ModuleCallsTaintOptions } from './taint/calls.js';
-export { mayMock, mockTaint, type MockTaintOptions } from './taint/mocks.js';
-export { runGraphOf, type RunGraphOptions } from './taint/graph.js';
+export { taintFile, taintTable, type ImportDiff, type Taint, type TaintTable } from './taint/index.js';
 export { shadowReach, type ShadowReach } from './taint/reach.js';
 export { auditTaints, type TaintAuditOptions, type TaintDeviation, type TaintDeviationKind } from './taint/audit.js';
+
+export { openSourceTree, type NativeSourceTreeReader, type NativeSourceTreeWalk, type NameEvidence, type NamesAnswer, type NamesGroup, type NamesOperand } from './native-source-tree.js';
+export { sourceTreeFromIndex } from './help-reading.js';
+
+export { publishedSelectionGraph, publishedSelectionQuestions, type PublishedSelectionOptions } from './published-selection.js';
+export type { NativeSelectionGraph } from './native-selection-graph.js';
+
+
+export { publishedComponentSources, type ComponentSourcesOptions, type PublishedComponentSources } from './published-components.js';

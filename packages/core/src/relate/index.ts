@@ -56,6 +56,7 @@ export {
   dependenciesOf,
   dependentsOf,
   trailOf,
+  traversalOf,
   type Traversal,
   type TraversalOptions,
 } from './reach.js';
@@ -80,3 +81,7 @@ export {
   type RelationsOptions,
   type Affected,
 } from './records.js';
+
+export type { RelationNode, RelationRow, RelationWalk, RelationWalkOptions, RelationQuestions } from './questions.js';
+export type { NativeRelations, MemoryRelations } from './graph.js';
+export { lookupNodes, describeNodes, relationRows } from './rows.js';

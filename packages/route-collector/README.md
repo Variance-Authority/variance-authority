@@ -97,9 +97,14 @@ so an edit to the header does not change forty routes at once. If none of the
 selectors matches, the route is a collection failure rather than an empty
 capture.
 
-`source.dirs` is what turns a component name into a `file:line`. It is optional;
-a path that matches no files is refused by name rather than producing a report
-where every component resolves to nothing.
+`source.dirs` selects directories inside your checkout from the
+[source index](https://variance-authority.dev/docs/source-index), which supplies component names and
+`file:line` locations. Paths are relative to where you run `variance`, or
+absolute inside the checkout. The collector brings the index up to the checkout
+before it reads, in CI too. Untracked Git-ignored files enter the index only when an explicit relative
+import reaches them. Without `source`, reports can name components
+without these locations. A directory list matching no published source file is
+refused.
 
 ### 4. Write the run config
 

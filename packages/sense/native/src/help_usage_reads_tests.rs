@@ -130,10 +130,54 @@ fn usage_answers_a_doc_and_a_head_from_the_text_the_index_keeps_and_reads_no_sou
     let bytes = chain(&[documented("src/kept.ts", true), documented("src/lost.ts", false)]);
     let layer = Layer::open(&bytes).unwrap();
 
-    let usage = crate::help_usage::usage(root.0.to_str().unwrap(), std::slice::from_ref(&layer), &[], &[], &[], &[]);
+    let usage = crate::help_usage::usage(root.0.to_str().unwrap(), std::slice::from_ref(&layer), &[], &[], &[], &[], None);
 
     let told: Vec<(&str, Option<&str>, Option<&str>)> =
         usage.exported.iter().map(|one| (one.at.as_str(), one.doc.as_deref(), one.signature.as_deref())).collect();
     assert_eq!(told, [("src/kept.ts", Some("Opens the door."), Some("export function open(): void")), ("src/lost.ts", None, None)]);
     assert_eq!(usage.unreadable, ["src/lost.ts"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn question_ownership_keeps_a_clean_removed_manifest_and_honours_worktree_reads() {
+    let root = crate::git_fixture::repository("question-owner-removed", &[
+        ("package.json", br#"{"name":"root"}"#),
+        ("nested/package.json", br#"{"name":"nested"}"#),
+        ("nested/kept.ts", b"export const open = 1;\n"),
+    ]);
+    let tree = crate::git_tree::git_tree(root.to_str().unwrap().to_owned()).unwrap();
+    let listing = tree.listing();
+    let manifests: Vec<String> = tree.paths.iter().filter(|path| path.rsplit('/').next() == Some("package.json")).cloned().collect();
+    let bytes = chain(&[documented("nested/kept.ts", true)]);
+    let layers = [Layer::open(&bytes).unwrap()];
+    std::fs::remove_file(root.join("nested/package.json")).unwrap();
+
+    let read = |content| crate::help_usage::usage(root.to_str().unwrap(), &layers, &[], &[], &[], &[], Some((&manifests, content)));
+    assert_eq!(read(Some(listing.as_ref())).exported[0].by, "nested");
+    assert_eq!(read(None).exported[0].by, "root");
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[cfg(unix)]
+#[test]
+fn question_ownership_reads_dirty_manifests_and_keeps_unlisted_owners_out() {
+    let root = crate::git_fixture::repository("question-owner-boundaries", &[
+        ("package.json", br#"{"name":"root"}"#),
+        ("nested/package.json", br#"{"name":"clean"}"#),
+        ("nested/inner/kept.ts", b"export const open = 1;\n"),
+    ]);
+    std::fs::write(root.join("nested/package.json"), br#"{"name":"dirty"}"#).unwrap();
+    let tree = crate::git_tree::git_tree(root.to_str().unwrap().to_owned()).unwrap();
+    let listing = tree.listing();
+    let manifests: Vec<String> = tree.paths.iter().filter(|path| path.rsplit('/').next() == Some("package.json")).cloned().collect();
+    std::fs::write(root.join("nested/inner/package.json"), br#"{"name":"unlisted"}"#).unwrap();
+    let bytes = chain(&[documented("nested/inner/kept.ts", true)]);
+    let layers = [Layer::open(&bytes).unwrap()];
+
+    let carried = crate::help_usage::usage(root.to_str().unwrap(), &layers, &[], &[], &[], &[], Some((&manifests, Some(listing.as_ref()))));
+    assert_eq!(carried.exported[0].by, "dirty");
+    let uncarried = crate::help_usage::usage(root.to_str().unwrap(), &layers, &[], &[], &[], &[], None);
+    assert_eq!(uncarried.exported[0].by, "unlisted");
+    std::fs::remove_dir_all(root).unwrap();
 }

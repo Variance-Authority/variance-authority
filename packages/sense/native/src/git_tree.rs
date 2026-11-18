@@ -19,8 +19,11 @@ use crate::{change_tree, held_listing};
 /// three are answered without the listing leaving this side.
 #[napi]
 pub struct GitTree {
+    /// A filesystem listing has paths but no content identity before acquisition.
+    pub(crate) filesystem_root: Option<String>,
+    pub(crate) root: std::path::PathBuf,
     pub(crate) paths: Vec<String>,
-    pub(crate) oids: Vec<git::Oid>,
+    pub(crate) oids: Arc<Vec<git::Oid>>,
     pub(crate) at: Arc<HashMap<String, u32>>,
     pub(crate) seeds: Vec<String>,
     /// Whether git vouches that each path is a regular file, by index.
@@ -32,13 +35,36 @@ pub struct GitTree {
     pub(crate) listing: OnceLock<Arc<emitted::Listing>>,
     /// The parse stores the last scan named, read once for every frontier of it.
     pub(crate) stores: std::sync::Mutex<Option<(Vec<String>, Arc<parse_store::Stores>)>>,
+    /// Optional Git metadata completed alongside this tree's last publication.
+    pub(crate) prepared_marks: std::sync::Mutex<Option<PreparedMarks>>,
     /// The parses this tree's reads made from the blob each is kept under.
     pub(crate) from_blob: parse_origin::FromBlob,
     /// The object store this tree's scans read from, once they have read enough.
-    pub(crate) store: acquire::TreeObjects,
+    pub(crate) store: Arc<acquire::TreeObjects>,
     /// How the tree was come by, when a change source other than git had a say.
     #[cfg(unix)]
     pub(crate) change: Option<held_listing::Change>,
+}
+
+pub(crate) struct PreparedMarks {
+    root: std::path::PathBuf,
+    index: String,
+    answer: Option<Vec<u8>>,
+}
+
+/// Git owns generated and vendored membership, for either preparation's caller.
+pub(crate) fn git_marks(root: &str) -> Option<Vec<u8>> {
+    git::git(root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
+}
+
+/// The optional I/O job is joined on return and by the scope while unwinding.
+pub(crate) fn while_marks<T>(query: impl FnOnce() -> Option<Vec<u8>> + Send, update: impl FnOnce() -> T) -> (T, Option<Vec<u8>>) {
+    std::thread::scope(|scope| {
+        let marks = std::thread::Builder::new().name("source map marks".to_owned()).spawn_scoped(scope, query).ok();
+        let updated = update();
+        let _waiting = crate::timings::Phases::new("source map marks wait", "join");
+        (updated, marks.and_then(|marks| marks.join().ok().flatten()))
+    })
 }
 
 /// Every tracked path under `root`, or nothing when this is not a checkout.
@@ -49,7 +75,7 @@ pub struct GitTree {
 #[napi(catch_unwind)]
 pub fn git_tree(root: String) -> Option<GitTree> {
     let snapshot = git::snapshot(&root)?;
-    Some(tree_from_snapshot(snapshot, Vec::new()))
+    Some(tree_from_snapshot(&root, snapshot, Vec::new()))
 }
 
 /// Build repository identity and select the Git-visible files below configured roots.
@@ -57,7 +83,15 @@ pub fn git_tree(root: String) -> Option<GitTree> {
 pub fn git_tree_for(root: String, dirs: Vec<String>) -> Option<GitTree> {
     let snapshot = git::snapshot(&root)?;
     let seeds = seed::seeds_of(&root, &dirs, &snapshot);
-    Some(tree_from_snapshot(snapshot, seeds))
+    Some(tree_from_snapshot(&root, snapshot, seeds))
+}
+
+/// Build the listing using only the caller's authoritative changed paths.
+#[napi(catch_unwind)]
+pub fn git_tree_for_changed(root: String, dirs: Vec<String>, changed: Vec<String>) -> Option<GitTree> {
+    let snapshot = git::snapshot_with(&root, Some(&changed))?;
+    let seeds = seed::seeds_of(&root, &dirs, &snapshot);
+    Some(tree_from_snapshot(&root, snapshot, seeds))
 }
 
 impl GitTree {
@@ -66,12 +100,18 @@ impl GitTree {
         &self.paths
     }
 
-    fn listing(&self) -> Arc<emitted::Listing> {
+    pub(crate) fn listing(&self) -> Arc<emitted::Listing> {
         let made = || {
             let (at, regular) = (Arc::clone(&self.at), Arc::clone(&self.regular));
-            Arc::new(emitted::Listing::of(at, regular, &self.unhashed))
+            Arc::new(emitted::Listing::of(at, regular, &self.unhashed).with_content(self.root.clone(), Arc::clone(&self.oids), Arc::clone(&self.store)))
         };
         Arc::clone(self.listing.get_or_init(made))
+    }
+
+    /// Consume even a mismatched preparation so it cannot survive another call.
+    pub(crate) fn take_marks(&self, root: &str, index: &str) -> Option<Option<Vec<u8>>> {
+        let marks = self.prepared_marks.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take()?;
+        (marks.root == std::path::Path::new(root) && marks.index == index).then_some(marks.answer)
     }
 
     /// The stores at `paths`, read the first time a scan names them: a scan
@@ -90,23 +130,26 @@ impl GitTree {
     }
 }
 
-pub(crate) fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
+pub(crate) fn tree_from_snapshot(root: &str, snapshot: git::Snapshot, seeds: Vec<String>) -> GitTree {
     let mut at = HashMap::with_capacity(snapshot.paths.len() * 2);
     for (index, path) in snapshot.paths.iter().enumerate() {
         at.insert(path.clone(), index as u32);
     }
 
     GitTree {
+        filesystem_root: None,
+        root: std::fs::canonicalize(root).unwrap_or_else(|_| root.into()),
         paths: snapshot.paths,
-        oids: snapshot.oids,
+        oids: Arc::new(snapshot.oids),
         at: Arc::new(at),
         regular: Arc::new(snapshot.regular),
         unhashed: snapshot.unhashed,
         seeds,
         listing: OnceLock::new(),
         stores: std::sync::Mutex::new(None),
+        prepared_marks: std::sync::Mutex::new(None),
         from_blob: parse_origin::FromBlob::default(),
-        store: acquire::TreeObjects::default(),
+        store: Arc::new(acquire::TreeObjects::default()),
         #[cfg(unix)]
         change: None,
     }
@@ -114,6 +157,11 @@ pub(crate) fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) ->
 
 #[napi]
 impl GitTree {
+    /// The paths came from the filesystem and have no Git content identities.
+    #[napi(getter)]
+    pub fn filesystem(&self) -> bool {
+        self.filesystem_root.is_some()
+    }
     /// Files found below the roots supplied to `gitTreeFor`.
     #[napi(catch_unwind)]
     pub fn seeds(&self) -> Vec<String> {
@@ -136,7 +184,8 @@ impl GitTree {
     pub fn digest(&self, path: String) -> Option<String> {
         self.at
             .get(&path)
-            .map(|index| git::spell(&self.oids[*index as usize]))
+            .and_then(|index| self.oids.get(*index as usize))
+            .map(git::spell)
     }
 
     /// Digests for `paths`, in the same order; empty when the tree has no path.
@@ -147,7 +196,8 @@ impl GitTree {
             .map(|path| {
                 self.at
                     .get(path)
-                    .map_or_else(String::new, |index| git::spell(&self.oids[*index as usize]))
+                    .and_then(|index| self.oids.get(*index as usize))
+                    .map_or_else(String::new, git::spell)
             })
             .collect()
     }
@@ -171,11 +221,11 @@ impl GitTree {
     ) -> batch::ScanBatch {
         let oids = files
             .iter()
-            .map(|file| self.at.get(file).map(|index| self.oids[*index as usize]))
+            .map(|file| self.at.get(file).and_then(|index| self.oids.get(*index as usize)).copied())
             .collect();
         let stores = self.stores(stores);
         let opened = stores.as_deref().map(parse_store::Stores::open);
-        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
+        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.source_read(file);
         batch::scan_batch_with_oids(
             batch::ScanOptions {
                 root,
@@ -193,16 +243,6 @@ impl GitTree {
             &self.from_blob,
             &self.store,
         )
-    }
-
-    /// The parses the stores at `stores` hold for `files` at `digests`, from the
-    /// reading the scan answered `kept` from, so a row it kept is handed over
-    /// even when another root has published the stores since.
-    #[napi]
-    pub fn kept_parses(&self, stores: Vec<String>, files: Vec<String>, digests: Vec<String>) -> napi::bindgen_prelude::Buffer {
-        let Some(stores) = self.stores(Some(stores)) else { return Vec::new().into() };
-        let wanted = digests.into_iter().zip(&files).map(|(digest, file)| (digest, index::way(file)));
-        stores.open().segment(wanted).into()
     }
 
     /// Follow every module reachable from `seeds` in one native operation.
@@ -224,7 +264,7 @@ impl GitTree {
     ) -> batch::ScanBatch {
         let stores = self.stores(stores);
         let opened = stores.as_deref().map(parse_store::Stores::open);
-        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
+        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.source_read(file);
         batch::scan_graph_with_tree(
             batch::GraphOptions {
                 root,
@@ -235,6 +275,7 @@ impl GitTree {
                 condition_names,
                 include_parses: include_parses.unwrap_or(false),
             },
+            &self.paths,
             &self.at,
             &self.oids,
             self.listing(),
@@ -247,18 +288,26 @@ impl GitTree {
     /// Walk the module closure of `seeds` and keep it here as records and a
     /// parse layer, for a cold build that publishes from this side.
     #[napi(catch_unwind)]
-    pub fn index_graph(&self, mut options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
+    pub fn index_graph(&self, mut options: graph_index::IndexGraphOptions, session: Option<&crate::scan_session::ScanSession>) -> napi::Result<graph_index::IndexGraph> {
         let stores = self.stores(options.stores.take());
         let opened = stores.as_deref().map(parse_store::Stores::open);
-        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), opened.as_ref(), &self.from_blob, &self.store)
+        let state = session.map(|session| session.hold(&options.root, options.largest_file, options.packs, &self.at)).transpose()?;
+        let fresh = crate::scan_session::State::default();
+        let state = state.as_deref().unwrap_or(&fresh);
+        graph_index::index_graph(options, &self.paths, &self.at, &self.oids, self.listing(), opened.as_ref(), &self.from_blob, &self.store, state)
     }
 
     /// Bring the source index at `options.index` up to this tree, on this
-    /// side, or `null` when the JavaScript update has to (`source_update.rs`).
+    /// side, or `null` when it could not complete (`source_update.rs`).
     #[napi(catch_unwind)]
     pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
+        self.prepared_marks.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take();
         #[cfg(unix)]
         let carry = match change_tree::carry(&self.change, &options.config, &options.index) { Ok(carry) => carry, Err(done) => return Ok(Some(done)) };
+        let prepare = (options.prepare_map == Some(true) && self.filesystem_root.is_none() && self.root == std::path::Path::new(&options.root))
+            .then(|| (options.root.clone(), options.index.clone()));
+        let worktree = acquire::TreeObjects::worktree();
+        let store = if options.packs == Some(false) { &worktree } else { self.store.as_ref() };
         let tree = source_update::Tree {
             paths: &self.paths,
             at: &self.at,
@@ -268,13 +317,25 @@ impl GitTree {
             regular: &self.regular,
             unhashed: &self.unhashed,
             from_blob: &self.from_blob,
-            store: &self.store,
+            store,
             #[cfg(unix)]
             carry,
         };
-        // A segment of the published length is read unhashed, so damaged bytes in it can panic a read:
-        // that declines, as any other unreadable chain does, and the JavaScript update rebuilds it.
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options, tree))).unwrap_or(Ok(None))
+        // A same-length damaged segment can pass framing and fail when a row
+        // is read. Rebuild against its original publication on this side.
+        let update = || match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options.clone(), tree.clone()))) {
+            Ok(updated) => updated,
+            Err(_) => source_update::rebuild(options, tree),
+        };
+        let Some((root, index)) = prepare else { return update() };
+        let (updated, answer) = while_marks(|| {
+            let _query = crate::timings::Phases::new("source map", "marks");
+            git_marks(&root)
+        }, update);
+        if updated.as_ref().ok().and_then(Option::as_ref).is_some_and(|updated| updated.published && updated.refused.is_none()) {
+            *self.prepared_marks.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(PreparedMarks { root: root.into(), index, answer });
+        }
+        updated
     }
 
     /// Every path, sorted by code unit.
@@ -290,6 +351,7 @@ impl GitTree {
     /// Every digest, in the same order as `paths`.
     #[napi(catch_unwind)]
     pub fn digests(&self) -> Vec<String> {
+        if self.filesystem_root.is_some() { return vec![String::new(); self.paths.len()] }
         self.oids.iter().map(git::spell).collect()
     }
 
@@ -304,6 +366,12 @@ impl GitTree {
             .filter(|path| tree::named(path, &names))
             .cloned()
             .collect()
+    }
+
+    /// The alias configurations read from this tree's shared content owner.
+    #[napi(catch_unwind)]
+    pub fn aliases_in(&self, paths: Vec<String>) -> Option<crate::witness_aliases::AliasesRead> {
+        crate::witness_aliases::read_from(self.root.to_str()?, &paths, Some(self.listing()))
     }
 
     /// Every directory in the tree, named by the entries it holds.
@@ -325,10 +393,13 @@ impl GitTree {
         names: Vec<String>,
         aliases_unknown: bool,
     ) -> String {
+        if let Some(root) = &self.filesystem_root {
+            return crate::filesystem_tree::config_digest(root, &self.paths, header, &names, aliases_unknown);
+        }
         tree::config_digest(
             &header,
             &self.paths,
-            &self.digests(),
+            |at| git::spell(&self.oids[at]),
             &names,
             aliases_unknown,
         )

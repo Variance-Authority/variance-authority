@@ -18,7 +18,7 @@ import { join } from 'node:path';
 import { OperatorError } from '../exit.js';
 import { jsonOfBytes } from '../json-pieces.js';
 import { gh, ghFailed, type Gh } from './gh.js';
-import type { Review } from './review.js';
+import type { Review } from './review-types.js';
 import { reviewOfJson, type ReviewJson } from './review-json.js';
 
 export interface RunRequest {

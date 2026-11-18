@@ -48,8 +48,7 @@ import {
   type ExecutionIndex,
   type RunOver,
 } from '@variance-authority/sense/test-selection';
-import type { FileSize, SourceScope } from '@variance-authority/sense';
-import { beforeReach, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
+import type { FileSize, NativeSelectionGraph, SourceScope } from '@variance-authority/sense';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 
@@ -116,7 +115,8 @@ export interface Scoped {
 export type SourceReading =
   | (Scoped & {
       /** What the index holds, for the walk from what the harness loads. */
-      readonly records: readonly FileRecord[];
+      readonly questions: NativeSelectionGraph;
+      readonly names: ReadonlyMap<string, string>;
       /** Each package, or each directory with declared entry points, when `--from` named none. */
       readonly entries?: readonly (EntryReading | MissedEntry)[];
       /** With `--packages`: the package that holds a file, among every listed package, one of nothing but tests too. */
@@ -129,7 +129,8 @@ export async function readSource(root: string, from: string | undefined, package
   const sense = await import('@variance-authority/sense');
   let published;
   try {
-    published = await sense.publishedSources(root, {
+    published = await sense.publishedSelectionQuestions(root, {
+      dirs: ['.'], raw: true,
       ci: isCI,
       step: 'variance index',
       announce: (line) => process.stderr.write(`variance: ${line}\n`),
@@ -139,20 +140,24 @@ export async function readSource(root: string, from: string | undefined, package
     if (error instanceof sense.SourceIndexUnpublished) return { missed: error.message };
     throw error;
   }
+  if (published === undefined) throw new Error('sense: native source questions could not open the published index');
+  const all = published.sourceFiles();
+  const digests = published.names(all);
+  const names = new Map(all.flatMap((file, at) => digests[at] == null ? [] : [[file, digests[at]!] as const]));
   const entrypoints = declaredEntrypoints(root);
   const scoped = (dir: string | undefined): Scoped => {
-    const scope = sense.sourceScope(published.records, dir, entrypoints);
-    const product = scope.files.filter((file) => productSource(root, file));
+    const key = dir === undefined ? undefined : dir.split('/').filter((part) => part !== '' && part !== '.').join('/');
+    const scope = published.coverage(dir, key === undefined ? undefined : entrypoints?.get(key));
     return {
       ...(dir === undefined ? {} : { scope: new Set(scope.files) }),
       ...(scope.from === undefined ? {} : { from: scope.from }),
       seeds: scope.seeds,
       ...(scope.unmatched === undefined || scope.unmatched.length === 0 ? {} : { unmatched: scope.unmatched }),
-      sizes: sense.fileSizes(published.records, published.cache, product),
+      sizes: scope.sizes.filter((size) => productSource(root, size.file)),
     };
   };
   const declared = from === undefined && entrypoints !== undefined ? [...entrypoints.keys()].sort() : [];
-  const dirs = packages ? packageDirectories(sense, root, published.records) : declared;
+  const dirs = packages ? packageDirectories(sense, root, all) : declared;
   const ownerOf = sense.packageOwner(dirs);
   const entries = dirs.map((dir): EntryReading | MissedEntry => {
     try {
@@ -169,7 +174,7 @@ export async function readSource(root: string, from: string | undefined, package
   const listed = dirs.length === 0 ? {} : { entries, ...(packages ? { ownerOf } : {}) };
   if (declared.length === 0) {
     try {
-      return { ...scoped(from), records: published.records, ...listed };
+      return { ...scoped(from), questions: published, names, ...listed };
     } catch (error) {
       throw new OperatorError(messageOf(error), { cause: error });
     }
@@ -185,8 +190,8 @@ export async function readSource(root: string, from: string | undefined, package
   return {
     scope,
     seeds: 'entrypoints',
-    sizes: sense.fileSizes(published.records, published.cache, product),
-    records: published.records,
+    sizes: published.sizes(product),
+    questions: published, names,
     ...listed,
   };
 }
@@ -195,8 +200,8 @@ export async function readSource(root: string, from: string | undefined, package
  * Every package directory the package graph puts a file the index holds in,
  * but the root's, and within the root manifest's `workspaces` when it has them.
  */
-function packageDirectories(sense: typeof import('@variance-authority/sense'), root: string, records: readonly FileRecord[]): readonly string[] {
-  const around = sense.packagesAround(root, records.map((record) => record.file), { rows: 0, names: 0 });
+function packageDirectories(sense: typeof import('@variance-authority/sense'), root: string, files: readonly string[]): readonly string[] {
+  const around = sense.packagesAround(root, files, { rows: 0, names: 0 });
   if (around.orientation === undefined) throw new OperatorError(`\`--packages\` reads the package graph, and no source index is published at ${around.index}`);
   const workspaces = workspacesOf(root);
   const dirs = new Set(around.orientation.owners.map((owner) => owner.directory ?? '')
@@ -223,10 +228,10 @@ function workspacesOf(root: string): readonly string[] | undefined {
  * harness the index holds. The walk starts outside every scope — at the
  * runner's config — and each scope counts only the part of it it holds.
  */
-export function harnessReach(records: readonly FileRecord[], harness: readonly string[]): ReadonlySet<string> | undefined {
+export function harnessReach(questions: NativeSelectionGraph, harness: readonly string[]): ReadonlySet<string> | undefined {
   if (harness.length === 0) return undefined;
-  const reached = beforeReach(relationsOfFiles(records), harness);
-  return harness.every((entry) => reached.unread.includes(entry)) ? undefined : reached.files;
+  const reached = questions.before(harness, []);
+  return harness.every((entry) => reached.unread.includes(entry)) ? undefined : new Set(reached.files);
 }
 
 /**

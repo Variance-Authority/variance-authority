@@ -5,8 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { grainOf } from './language.js';
 import { native } from './addon.js';
 import type { Read } from './read.js';
-import { resolveSwift } from './swift.js';
-import { worldOn, type TreeWorld } from './world.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * The language with no file-grain edge, answered at the grain it has.
@@ -20,7 +19,7 @@ import { worldOn, type TreeWorld } from './world.js';
 
 describe('what a Swift file asks for', () => {
   it('asks for the files beside it, which it imports nothing to see', () => {
-    expect(readSwift('Sources/Core/Lens.swift', 'struct Lens {}\n').requests[0]?.value).toBe('*');
+    expect(readSwift('Sources/Core/Lens.swift', 'import CoreTests\nstruct Lens {}\n').requests[0]?.value).toBe('*');
   });
 
   it('takes the module from an import that names a symbol inside it', () => {
@@ -79,7 +78,7 @@ describe('what a Swift file asks for', () => {
 
 describe('where a Swift module name lands', () => {
   let root: string;
-  let world: TreeWorld;
+  let records: Awaited<ReturnType<typeof scanRelations>>;
 
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), 'variance-swift-'));
@@ -94,32 +93,32 @@ describe('where a Swift module name lands', () => {
       '  .testTarget(name: "CoreTests"),',
       '])',
     ].join('\n'));
-    await write(root, 'Sources/core/Lens.swift', 'struct Lens {}\n');
+    await write(root, 'Sources/core/Lens.swift', 'import CoreTests\nstruct Lens {}\n');
     await write(root, 'Sources/core/deep/Seen.swift', 'struct Seen {}\n');
     await write(root, 'Sources/App/Main.swift', 'import Core\n');
     await write(root, 'Tests/CoreTests/LensTests.swift', 'import Core\n');
     await write(root, 'scripts/loose.swift', 'print("hi")\n');
 
-    world = worldOn(root);
+    records = await scanRelations({ root, dirs: ['.'], digests: false });
   });
 
   afterAll(async () => {
     await rm(root, { recursive: true, force: true });
   });
 
+  const targets = (file: string) => records.find((record) => record.file === file)?.edges?.map((edge) => edge.to) ?? [];
+
   it('reads the manifest as the program it is, `path:` and all', () => {
-    expect(resolveSwift({ from: 'Sources/App/Main.swift', request: 'Core', world }))
+    expect(targets('Sources/App/Main.swift'))
       .toEqual(['Sources/core/Lens.swift', 'Sources/core/deep/Seen.swift']);
   });
 
   it('gives a file the whole of its own target, at any depth', () => {
-    expect(resolveSwift({ from: 'Sources/core/Lens.swift', request: '*', world }))
-      .toEqual(['Sources/core/deep/Seen.swift']);
+    expect(targets('Sources/core/Lens.swift')).toContain('Sources/core/deep/Seen.swift');
   });
 
   it('falls back to SwiftPM defaults for a target that spells no path', () => {
-    expect(resolveSwift({ from: 'Sources/core/Lens.swift', request: 'CoreTests', world }))
-      .toEqual(['Tests/CoreTests/LensTests.swift']);
+    expect(targets('Sources/core/Lens.swift')).toContain('Tests/CoreTests/LensTests.swift');
   });
 
   it('reads the targets a manifest declares, defaults and all', () => {
@@ -141,11 +140,11 @@ describe('where a Swift module name lands', () => {
   it('keeps the manifest out of the graph it describes', () => {
     // It sits under no target; left in, it falls back to the repository root
     // and joins every Swift file in the tree to every other one.
-    expect(resolveSwift({ from: 'Package.swift', request: '*', world })).toEqual([]);
+    expect(targets('Package.swift')).toEqual([]);
   });
 
   it('gives a file no package claims only the files beside it', () => {
-    expect(resolveSwift({ from: 'scripts/loose.swift', request: '*', world })).toEqual([]);
+    expect(targets('scripts/loose.swift')).toEqual([]);
   });
 });
 

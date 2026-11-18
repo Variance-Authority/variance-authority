@@ -1,52 +1,47 @@
-//! A warm update of the source index, made on this side.
-//!
-//! `updateSourceIndex` opened the whole chain as objects (a second and a half
-//! on Kibana), asked each file's record whether it still stood, and folded what
-//! it reused back into a diff to publish. Every one of those steps is a
-//! question the chain and the tree already answer: which records the tree still
-//! vouches for, which files the walk has to open, and what differs from what is
-//! held. So the chain is read in place, the records that stand are the ones
-//! whose digest git names and whose witnessed directories did not move, the
-//! walk (`batch.rs`) opens only the files past them, and one delta is written.
-//!
-//! What stays JavaScript's is what it owns: the configuration digest, which
-//! `reuse.ts` derives from the resolver options, and the fallbacks. This
-//! declines with `None` — no chain, a legacy or damaged one, another
-//! configuration, a file no native reader opens — and the JavaScript update
-//! runs as it always did. Nothing here guesses.
-//!
-//! Nothing changed, no record is written; a listing the tree carries (spec
-//! 0107) is written with the segment it stands beside.
+//! The native source-index lifecycle: reuse a valid publication's records,
+//! read the source closure beyond them, and atomically publish its next layer.
+//! Missing indexes start here without a parse store. A damaged chain keeps its
+//! valid prefix; a changed configuration or legacy file is rebuilt against the
+//! original publication so a competing writer is never overwritten.
 
 // compass: variance-authority.reach.source-index
 
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 use std::sync::Arc;
 
 use napi_derive::napi;
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
-use crate::batch::{is_module, walk_beyond, GraphOptions, Walked};
+use crate::batch::{walk_consumed, GraphOptions};
 use crate::chain_lookup::{fold, At};
-use crate::compact::{merged, Layer};
+use crate::compact::{merged, ParseView};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Generation};
 use crate::git::Oid;
 use crate::index::way;
-use crate::index_chain::read_chain;
-use crate::log::{written, LogSegment, Over};
+use crate::log::{written, written_reusing};
 use crate::order::code_unit;
 use crate::package_graph::names_object;
-use crate::parse_store::{self, Parse, Stores};
-use crate::read::Read;
-use crate::record::{built, Indexed, Settling};
+use crate::parse_store::{self, Stores};
+use crate::source_read::SourceRead;
+use crate::record::{Indexed, Settling};
 use crate::witness::AliasTable;
 
+#[path = "source_update_state.rs"]
+mod state;
+use state::Reached;
+
+#[path = "source_update_parses.rs"]
+mod parses;
+
+#[cfg(test)]
+#[path = "source_update_tests.rs"]
+mod tests;
+
 /// What an update needs that only the caller knows.
+#[derive(Clone)]
 #[napi(object)]
 pub struct UpdateOptions {
     pub root: String,
@@ -55,6 +50,10 @@ pub struct UpdateOptions {
     pub config: String,
     pub largest_file: Option<u32>,
     pub readers: Option<u32>,
+    /// `false` opens source bytes from the checkout only.
+    pub packs: Option<bool>,
+    /// Complete Git map metadata alongside an explicitly requested full preparation.
+    pub prepare_map: Option<bool>,
     pub tsconfig: Option<napi::Either<String, bool>>,
     pub condition_names: Option<Vec<String>>,
     /// `Aliases.table` as JSON, when a configuration maps specifiers.
@@ -63,15 +62,19 @@ pub struct UpdateOptions {
     pub code_extensions: Vec<String>,
     /// `READABLE`: the extensions an edge is followed for.
     pub readable: Vec<String>,
-    /// The parse stores a file is looked up in before it is opened, the first
-    /// the one this update adds its parses to (`parse_store.rs`). With them, an
-    /// index that does not exist yet is started here.
+    /// Parse stores consulted by content identity, the first also receiving
+    /// new parses (`parse_store.rs`). Eligible Git identities allow lookup before
+    /// acquisition; other reads prove identity from their bytes first.
     pub stores: Option<Vec<String>>,
 }
 
 /// What an update did.
 #[napi(object)]
 pub struct Updated {
+    /// What the original publication could read.
+    pub was: String,
+    /// The foreign source-index version that ended its valid prefix.
+    pub written: Option<u32>,
     /// Files the index holds after the update.
     pub files: u32,
     /// Files opened to make it.
@@ -82,9 +85,12 @@ pub struct Updated {
     pub published: bool,
     /// What the file system refused, when it did: the index is then as it was.
     pub refused: Option<String>,
+    /// Whether the refusal is another writer's publication between the read and the write: the same update, run again, is against its chain.
+    pub moved: bool,
 }
 
 /// The tree an update is made against.
+#[derive(Clone)]
 pub(crate) struct Tree<'t> {
     pub paths: &'t [String],
     pub at: &'t HashMap<String, u32>,
@@ -105,128 +111,50 @@ pub(crate) struct Tree<'t> {
 /// A file the walk opened, and what the index will hold of it.
 struct Row {
     indexed: Indexed,
-    identity: String,
-    read: Read,
     parsed: bool,
-    /// Answered by a store rather than read.
-    kept: bool,
 }
 
-/// The files the index reaches from its seeds over the records it holds and
-/// the ones just built; the reached files no record answers for are `need`.
-///
-/// A walk that stops at `need` is resumed from there once they are built,
-/// rather than walked again from the seeds: the second walk would visit every
-/// file the first one did, and on a large checkout that is most of an update.
-struct Reached<'l> {
-    old: FxHashSet<&'l str>,
-    new: HashSet<String>,
-    need: Vec<String>,
-    needed: FxHashSet<String>,
-    stack: Vec<Cow<'l, str>>,
-}
-
-/// Node's `extname`.
-fn extname(path: &str) -> &str {
-    let base = path.rsplit('/').next().unwrap_or(path);
-    match base.rfind('.') {
-        Some(at) if at > 0 => &base[at..],
-        _ => "",
-    }
-}
-
-impl<'l> Reached<'l> {
-    fn from(seeds: &'l [String], capacity: usize) -> Self {
-        let stack = seeds.iter().map(|seed| Cow::Borrowed(seed.as_str())).collect();
-        Reached { old: FxHashSet::with_capacity_and_hasher(capacity, Default::default()), new: HashSet::new(), need: Vec::new(), needed: FxHashSet::default(), stack }
-    }
-
-    /// Walk until the stack is empty, leaving what no record answers for in `need`.
-    fn walk(&mut self, layers: &'l [Layer<'l>], valid: &FxHashMap<&'l str, At>, walked: &FxHashMap<String, Row>, readable: &FxHashSet<String>) {
-        while let Some(file) = self.stack.pop() {
-            if let Some(row) = walked.get(file.as_ref()) {
-                if self.new.insert(file.as_ref().to_owned()) {
-                    let edges = row.indexed.record.edges.iter().flatten().map(|edge| edge.to.as_str());
-                    self.stack.extend(edges.filter(|to| readable.contains(extname(to))).map(|to| Cow::Owned(to.to_owned())));
-                }
-            } else if let Some((&key, &(layer, at))) = valid.get_key_value(file.as_ref()) {
-                if self.old.insert(key) {
-                    let (stored, records) = (&layers[layer].stored, &layers[layer].records);
-                    if let Some(edges) = records.edges_of(stored, at) {
-                        self.stack.extend(edges.map(|(to, _)| to).filter(|to| readable.contains(extname(to))).map(Cow::Borrowed));
-                    }
-                }
-            } else if self.needed.insert(file.as_ref().to_owned()) {
-                self.need.push(file.into_owned());
-            }
-        }
-    }
-}
-
-/// The parse keys the chain holds under `digests`, as `(digest, way)`: the last
-/// layer to put or delete a key decides, as `orderedMap` folds it.
-fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, String)> {
-    let per_layer: Vec<Vec<(bool, &str, &str)>> = layers
-        .par_iter()
-        .map(|layer| {
-            let (stored, columns) = (&layer.stored, &layer.parses);
-            let mut rows = Vec::new();
-            for row in 0..columns.deleted.len() {
-                let digest = stored.text(columns.deleted.at(row));
-                if digests.contains(digest) {
-                    rows.push((false, digest, stored.text(columns.deleted_way.at(row))));
-                }
-            }
-            for row in 0..columns.key.len() {
-                let digest = stored.text(columns.key.at(row));
-                if digests.contains(digest) {
-                    rows.push((true, digest, stored.text(columns.way.at(row))));
-                }
-            }
-            rows
-        })
-        .collect();
-    let mut held = HashSet::new();
-    for rows in per_layer {
-        // Deletes come before puts within a layer, which is the order they were collected in.
-        for (put, digest, way) in rows {
-            let key = (digest.to_owned(), way.to_owned());
-            if put { held.insert(key); } else { held.remove(&key); }
-        }
-    }
-    held
-}
-
-/// The key a parse is stored under: `joinedKey` in `source-index-format.ts`.
 pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Updated>> {
+    update_with(o, tree, false)
+}
+
+/// Retry a same-length segment whose contents panicked while they were read.
+pub(crate) fn rebuild(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Updated>> {
+    update_with(o, tree, true)
+}
+
+fn update_with(o: UpdateOptions, tree: Tree, damaged: bool) -> napi::Result<Option<Updated>> {
+    let mut phases = crate::timings::Phases::new("update", "open chain and store");
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {} did not update: {error}", o.index));
-    // A chain that cannot be read is the JavaScript update's to describe, which is where its refusals are worded.
-    // No chain is started here when the caller names the stores to answer it from; anything else unreadable is JavaScript's.
-    let chain = match read_chain(&o.index) {
-        Ok(Some(chain)) => Some(chain),
-        Ok(None) if o.stores.is_some() => None,
-        _ => return Ok(None),
-    };
-    if chain.as_ref().is_some_and(|chain| chain.dropped > 0 || chain.references.is_empty() || chain.references.len() != chain.segments.len()) {
-        return Ok(None);
+    let baseline = state::Baseline::read(&o.index);
+    let mut view = baseline.view(&o.config);
+    if damaged {
+        view.layers.clear();
+        view.count = 0;
+        view.was = "damaged";
+        view.written = None;
+        view.repair = true;
     }
-    let segments: &[Vec<u8>] = chain.as_ref().map_or(&[], |chain| &chain.segments);
-    let Ok(layers) = segments.par_iter().map(|bytes| Layer::open(bytes)).collect::<Result<Vec<_>, _>>() else {
-        return Ok(None);
-    };
-    if chain.is_some() && layers.last().and_then(|layer| layer.config) != Some(o.config.as_str()) {
-        return Ok(None);
-    }
+    let segments = &baseline.segments()[..view.count];
+    let (was, prior_version, repair, records_current) = (view.was, view.written, view.repair, view.records_current);
+    let parse_layers = view.layers;
+    let layers = &parse_layers[..view.count];
     let stores = Stores::read(o.stores.as_deref().unwrap_or_default());
     let store = stores.open();
-    let kept = |identity: &str, file: &str| store.view(identity, &way(file))?.read();
+    let held_parse = |identity: &str, file: &str| {
+        let way = way(file);
+        crate::chain_lookup::parse(&parse_layers, identity, &way)
+            .map(|(at, row)| ParseView::of(&parse_layers[at], row))
+            .or_else(|| store.view(identity, &way))
+    };
+    let kept = |identity: &str, file: &str| held_parse(identity, file)?.source_read(file);
     let aliases = match o.aliases.as_deref().map(serde_json::from_str::<AliasTable>).transpose() {
         Ok(aliases) => aliases,
         Err(_) => return Ok(None),
     };
 
     let mut held_directories: HashMap<&str, &str> = HashMap::new();
-    for layer in &layers {
+    for layer in layers {
         let (stored, directories) = (&layer.stored, &layer.directories);
         for row in 0..directories.deleted.len() {
             held_directories.remove(stored.text(directories.deleted.at(row)));
@@ -243,38 +171,46 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         .collect();
     moved.extend(held_directories.keys().filter(|path| !directories.contains_key(**path)));
 
-    let folded = fold(&layers);
-    let (root, largest) = (Path::new(&o.root), u64::from(o.largest_file.unwrap_or(LARGEST_FILE)));
+    let folded = fold(layers);
     let valid: FxHashMap<&str, At> = folded
         .par_iter()
         .filter(|(file, at)| {
+            if !records_current || !tree.store.allows_blobs() { return false; }
             let (layer, row) = **at;
             let (stored, records) = (&layers[layer].stored, &layers[layer].records);
             let Some(digest) = stored.optional(records.digest.at(row)) else { return false };
             let Some(&index) = tree.at.get(**file) else { return false };
-            names_object(digest, &tree.oids[index as usize])
+            let Some(oid) = tree.oids.get(index as usize) else { return false };
+            let size_refusal = records.unknown_of(stored, row).is_some_and(|why| crate::acquire::declined_for_size(file, why));
+            let regular = tree.regular.get(index as usize) == Some(&true);
+            let valid_origin = if size_refusal {
+                let largest = u64::from(o.largest_file.unwrap_or(crate::acquire::LARGEST_FILE));
+                if regular {
+                    tree.store.objects_now(std::path::Path::new(&o.root)).is_some_and(|objects| objects.with_readers(1, |readers|
+                        readers[0].size(&gix_hash::ObjectId::from_bytes_or_panic(oid)).is_some_and(|size| size > largest)))
+                } else {
+                    std::fs::symlink_metadata(std::path::Path::new(&o.root).join(file)).is_ok_and(|entry| entry.is_file())
+                        && crate::acquire::still_too_large(std::path::Path::new(&o.root), file, largest)
+                }
+            } else { regular };
+            valid_origin && names_object(digest, oid)
                 && (moved.is_empty() || !records.witnesses_of(stored, row).any(|directory| moved.contains(directory)))
-                // Git's object is the cleaned bytes and a decline was decided on
-                // the checked-out ones, so it holds while those are still over.
-                && records
-                    .unknown_of(stored, row)
-                    .is_none_or(|unknown| !declined_for_size(file, unknown) || still_too_large(root, file, largest))
         })
         .map(|(file, at)| (*file, *at))
         .collect();
 
+    phases.next("walk and settle");
     let readable: FxHashSet<String> = o.readable.into_iter().collect();
     let mut walked: FxHashMap<String, Row> = FxHashMap::default();
     let mut reached = Reached::from(tree.seeds, valid.len());
+    let mut parsed = 0;
+    let mut parses = parses::Parses::default();
+    let session = crate::scan_session::State::default();
     let mut settled: Option<(HashSet<String>, HashSet<String>, HashSet<String>)> = None;
     loop {
-        reached.walk(&layers, &valid, &walked, &readable);
+        reached.walk(layers, &valid, &walked, &readable);
         if reached.need.is_empty() {
             break;
-        }
-        // A file the native reader does not open is the JavaScript update's to read.
-        if reached.need.iter().any(|file| !is_module(file)) {
-            return Ok(None);
         }
         let need = std::mem::take(&mut reached.need);
         let (builtins, code, dirs) = settled.get_or_insert_with(|| {
@@ -284,7 +220,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
                 directories.keys().cloned().collect(),
             )
         });
-        let Walked { files, identities, read, targets, kept: answered } = walk_beyond(
+        let settling = Settling { builtins, code, remembering: true, directories: dirs, aliases: aliases.as_ref() };
+        let consumed = walk_consumed(
             GraphOptions {
                 root: o.root.clone(),
                 seeds: need.clone(),
@@ -294,39 +231,36 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
                 condition_names: o.condition_names.clone(),
                 include_parses: false,
             },
+            tree.paths,
             tree.at,
             tree.oids,
             Arc::clone(&tree.listing),
             &|file| valid.contains_key(file) || walked.contains_key(file),
             &kept,
+            None,
             tree.from_blob,
             tree.store,
+            &session,
+            |files, read, acquired, targets| parses.consume(files, read, acquired, targets, &settling, layers, &held_parse),
         );
-        let settling = Settling { builtins, code, remembering: true, directories: dirs, aliases: aliases.as_ref() };
+        parsed += consumed.parsed;
         let before = walked.len();
-        let rows: Vec<Row> = files
-            .par_iter()
-            .zip(identities.into_par_iter())
-            .zip(read.into_par_iter())
-            .zip(targets.par_iter())
-            .zip(answered.into_par_iter())
-            .map(|((((file, identity), (read, _, outcome)), targets), kept)| {
-                let indexed = built(file, &identity, &read, outcome, targets, &settling);
-                Row { indexed, identity, read, parsed: outcome.parsed(), kept }
-            })
-            .collect();
-        walked.extend(files.into_iter().zip(rows));
-        // What was needed is walked on from; a file the walk did not build is the JavaScript update's.
+        walked.extend(consumed.rows.into_iter().flatten());
+        // A walk that makes no progress cannot publish the complete closure.
         if walked.len() == before || need.iter().any(|file| !walked.contains_key(file.as_str())) {
             return Ok(None);
         }
         reached.stack.extend(need.into_iter().map(Cow::Owned));
     }
+    let prefetched = if o.stores.as_ref().is_some_and(|stores| !stores.is_empty()) { std::mem::take(&mut *session.prefetched.borrow_mut()) } else { HashMap::new() };
+    drop(session);
+    let prepared = crate::scan_session::prepared_parses(&prefetched, None);
+    parses.trace();
 
     let files = (reached.old.len() + reached.new.len()) as u32;
     let reread = reached.new.len() as u32;
-    let parsed = reached.new.iter().filter(|file| walked[file.as_str()].parsed && !walked[file.as_str()].kept).count() as u32;
 
+    phases.next("encode and publish");
     // Records: what the walk built and the index does not already say, and what nothing reaches.
     let mut puts: Vec<(&str, &Indexed)> = Vec::new();
     let mut retired: Vec<(&str, Option<&str>)> = Vec::new();
@@ -356,22 +290,11 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         retired.push((file, stored.optional(records.digest.at(at))));
     }
 
-    // Parses: a key is kept while some reached record names it. Only the digests
-    // that moved can have lost their last user, so those are the ones looked at.
-    let fresh: Vec<(String, Parse)> = reached
-        .new
-        .iter()
-        .map(|file| (file, &walked[file.as_str()]))
-        .filter(|(_, row)| row.parsed && !row.identity.is_empty())
-        .filter_map(|(file, row)| Parse::of(Some(&store), &row.identity, file, row.kept, &row.read))
-        .collect();
     // What this update parsed of the blob it is named by that no store holds, for every root after it.
-    let parsed_here = reached.new.iter().map(|file| (file, &walked[file.as_str()]));
-    let parsed_here = parsed_here.filter(|(file, row)| row.parsed && !row.kept && !row.identity.is_empty() && tree.from_blob.shares(&row.identity, &way(file)));
-    stores.add_unheld(&store, parsed_here.map(|(file, row)| (row.identity.as_str(), way(file), &row.read)));
-    let mut interest: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
-    interest.extend(reached.new.iter().map(|file| walked[file.as_str()].identity.as_str()).filter(|digest| !digest.is_empty()));
-    let held = if interest.is_empty() { HashSet::new() } else { held_parses(&layers, &interest) };
+    let add_unheld = || stores.add_encoded(&store, &parses.segments, tree.from_blob, &prepared);
+    phases.next("prepare publication");
+    // A parse is kept while a reached record names it. Only identities that
+    // moved can have lost their last user.
     let users: HashSet<String> = if retired.is_empty() {
         HashSet::new()
     } else {
@@ -385,7 +308,11 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
                 wanted.contains(digest).then(|| parse_store::key(digest, &way(file)))
             })
             .collect();
-        users.extend(fresh.iter().map(|(key, _)| key.clone()));
+        users.extend(reached.new.iter().filter_map(|file| {
+            let row = &walked[file.as_str()];
+            if !row.parsed { return None }
+            Some(parse_store::key(row.indexed.record.digest.as_deref()?, &way(file)))
+        }));
         users
     };
     let mut deleted_parses: Vec<String> = retired
@@ -393,14 +320,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         .filter_map(|(file, digest)| Some(parse_store::key((*digest)?, &way(file))))
         .filter(|key| {
             let (digest, way) = crate::generation::key_parts(key);
-            held.contains(&(digest.to_owned(), way.to_owned())) && !users.contains(key)
-        })
-        .collect();
-    let mut parses: Vec<(String, Parse)> = fresh
-        .into_iter()
-        .filter(|(key, _)| {
-            let (digest, way) = crate::generation::key_parts(key);
-            !held.contains(&(digest.to_owned(), way.to_owned()))
+            !users.contains(key) && crate::chain_lookup::parse(layers, digest, way).is_some()
         })
         .collect();
 
@@ -412,10 +332,10 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     let mut deleted_directories: Vec<String> =
         held_directories.keys().filter(|path| !directories.contains_key(**path)).map(|path| (*path).to_owned()).collect();
 
-    let unchanged = chain.is_some()
+    let unchanged = !repair
         && puts.is_empty()
         && deleted_records.is_empty()
-        && parses.is_empty()
+        && parses.segments.is_empty()
         && deleted_parses.is_empty()
         && put_directories.is_empty()
         && deleted_directories.is_empty();
@@ -435,59 +355,84 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         let _ = &listing;
         Ok(segment)
     };
-    let (references, published, working_count): (Vec<LogSegment>, Over, usize) = match &chain {
-        Some(chain) => (chain.references.iter().map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 }).collect(), Over::Published(chain.published()), chain.working),
-        None => (Vec::new(), Over::Nothing, 0),
-    };
+    let original = baseline.references();
+    let references = &original[..view.count.min(original.len())];
+    let published = baseline.over();
+    let working_count = baseline.working(view.count);
     // The working layer and this delta become the next working layer: an update
     // rewrites what changed since the index was readied, and never the base.
     let base = references.len() - working_count;
     let beneath: Vec<&[u8]> = segments[..base].iter().map(Vec::as_slice).collect();
     if unchanged {
+        phases.next("parse stores");
+        add_unheld();
         let Some(listing) = listing else {
-            return Ok(Some(Updated { files, reread, parsed, published: false, refused: None }));
+            return Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: None, moved: false }));
         };
         // Nothing to publish, and a listing to carry: the working layer is
         // written again with it, so the next update can ask Watchman from here.
         let working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
         let working = match working.as_slice() {
-            [] => encode_generation::<Read>(&Generation { config: Some(&o.config), directories: &[], parses: &[], records: &[], deleted: Deleted::default() }),
+            [] => encode_generation::<SourceRead>(&Generation { config: Some(&o.config), directories: &[], parses: &[], records: &[], deleted: Deleted::default() }),
             [only] => only.to_vec(),
             _ => merged(&beneath, &working).map_err(fail)?,
         };
         let working = carried(working, Some(listing)).map_err(fail)?;
-        return match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
-            Ok(_) => Ok(Some(Updated { files, reread, parsed, published: false, refused: None })),
-            Err(error) => Ok(Some(Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)) })),
+        return match written(&o.index, published, &references[..base], &[&working], &original[base..], 1) {
+            Ok(true) => Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: None, moved: false })),
+            Ok(false) => Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: Some(format!("{} moved after it was read; run the index update again", o.index)), moved: true })),
+            Err(error) => Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)), moved: false })),
         };
     }
 
     puts.sort_by(|left, right| code_unit(left.0, right.0));
-    parses.sort_by(|left, right| code_unit(&left.0, &right.0));
-    parses.dedup_by(|left, right| left.0 == right.0);
     put_directories.sort_by(|left, right| code_unit(&left.0, &right.0));
     for keys in [&mut deleted_records, &mut deleted_parses, &mut deleted_directories] {
         keys.sort_by(|left, right| code_unit(left, right));
         keys.dedup();
     }
-    let parse_rows: Vec<(&str, &Parse)> = parses.iter().map(|(key, parse)| (key.as_str(), parse)).collect();
-    let delta = encode_generation(&Generation {
+    phases.next("encode generation");
+    let delta = encode_generation::<SourceRead>(&Generation {
         config: Some(&o.config),
         directories: &put_directories,
-        parses: &parse_rows,
+        parses: &[],
         records: &puts,
         deleted: Deleted { parses: &deleted_parses, records: &deleted_records, directories: &deleted_directories },
     });
+    phases.next("parse stores");
+    let reusable = add_unheld();
+    phases.next("release source facts");
+    drop(prepared);
+    drop(prefetched);
+    drop(puts);
+    walked.into_par_iter().for_each(drop);
 
-    let mut working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
-    working.push(&delta);
-    let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
-    let working = carried(working, listing).map_err(fail)?;
+    phases.next("merge generation");
+    let cold = layers.is_empty();
+    let publications;
+    let working;
+    let working_count;
+    if cold {
+        working = carried(delta, listing).map_err(fail)?;
+        let mut encoded: Vec<&[u8]> = parses.segments.iter().map(Vec::as_slice).collect();
+        encoded.push(&working);
+        publications = encoded;
+        working_count = 0;
+    } else {
+        let mut pending: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
+        pending.extend(parses.segments.iter().map(Vec::as_slice));
+        pending.push(&delta);
+        let merged = merged(&beneath, &pending).map_err(fail)?;
+        working = carried(merged, listing).map_err(fail)?;
+        publications = vec![working.as_slice()];
+        working_count = 1;
+    }
+    phases.next("write publication");
     // Another writer between the read and here: its chain is not the one this delta is against.
-    let refused = match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
-        Ok(false) => return Ok(None),
-        Ok(true) => None,
-        Err(error) => Some(format!("{}: {error}", o.index)),
+    let (refused, moved) = match written_reusing(&o.index, published, &references[..base], &publications, &original[base..], working_count, if cold { &reusable } else { &[] }) {
+        Ok(false) => (Some(format!("{} moved after it was read; run the index update again", o.index)), true),
+        Ok(true) => (None, false),
+        Err(error) => (Some(format!("{}: {error}", o.index)), false),
     };
-    Ok(Some(Updated { files, reread, parsed, published: refused.is_none(), refused }))
+    Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: refused.is_none(), refused, moved }))
 }

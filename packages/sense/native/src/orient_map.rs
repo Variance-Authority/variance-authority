@@ -13,6 +13,7 @@
 
 use napi::bindgen_prelude::AsyncTask;
 use napi_derive::napi;
+use std::sync::Arc;
 
 use crate::off_thread::{off_thread, OffThread};
 use serde::{Deserialize, Serialize};
@@ -123,11 +124,15 @@ struct Listed<'a> {
     paths: &'a [String],
     oids: &'a [crate::git::Oid],
     unhashed: &'a [String],
+    emitted: Arc<crate::emitted::Listing>,
+    filesystem: bool,
+    read_blobs: bool,
+    marks: Option<Option<Vec<u8>>>,
 }
 
-impl<'a> From<&'a crate::git::Snapshot> for Listed<'a> {
-    fn from(snapshot: &'a crate::git::Snapshot) -> Self {
-        Listed { paths: &snapshot.paths, oids: &snapshot.oids, unhashed: &snapshot.unhashed }
+impl<'a> From<&'a GitTree> for Listed<'a> {
+    fn from(tree: &'a GitTree) -> Self {
+        Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed, emitted: tree.listing(), filesystem: tree.filesystem_root.is_some(), read_blobs: true, marks: None }
     }
 }
 
@@ -135,6 +140,7 @@ impl<'a> From<&'a crate::git::Snapshot> for Listed<'a> {
 /// manifest that may name a package and every `.gitattributes`, by blob id.
 /// `None` when git gave no blob id for one of them.
 fn listing(snapshot: &Listed) -> Option<String> {
+    if snapshot.filesystem { return None; }
     let counts = |path: &str| {
         let name = path.rsplit('/').next().unwrap_or(path);
         (name == "package.json" && crate::package_owners::is_package(path)) || name == ".gitattributes"
@@ -205,7 +211,7 @@ pub fn prepare_orient_map(
     tsconfig: Option<napi::Either<String, bool>>,
 ) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
     let tsconfig = Tsconfig::from_js(tsconfig);
-    off_thread(move || uncarried(&root, &index, scanned, workspaces, tsconfig))
+    off_thread("code map job", move || uncarried(&root, &index, scanned, workspaces, tsconfig))
 }
 
 /// `prepare_orient_map`, on the calling thread.
@@ -213,14 +219,16 @@ pub(crate) fn uncarried(root: &str, index: &str, scanned: Option<bool>, workspac
     if scanned == Some(true) {
         return prepare(root, index, None, false, workspaces, tsconfig);
     }
-    let snapshot = crate::git::snapshot(root);
-    prepare(root, index, snapshot.as_ref().map(Listed::from), snapshot.is_some(), workspaces, tsconfig)
+    let tree = crate::git::snapshot(root).map(|snapshot| crate::git_tree::tree_from_snapshot(root, snapshot, Vec::new()));
+    prepare(root, index, tree.as_ref().map(Listed::from), tree.is_some(), workspaces, tsconfig)
 }
 
 /// `GitTree::prepare_orient_map`, on the calling thread.
 #[cfg(test)]
 pub(crate) fn carried(tree: &GitTree, root: &str, index: &str) -> napi::Result<Option<OrientMapPrepared>> {
-    prepare(root, index, Some(Listed { paths: &tree.paths, oids: &tree.oids, unhashed: &tree.unhashed }), false, false, Tsconfig::Auto)
+    let mut listed = Listed::from(tree);
+    listed.marks = tree.take_marks(root, index);
+    prepare(root, index, Some(listed), false, false, Tsconfig::Auto)
 }
 
 #[napi]
@@ -239,11 +247,15 @@ impl GitTree {
         index: String,
         workspaces: bool,
         tsconfig: Option<napi::Either<String, bool>>,
+        packs: Option<bool>,
     ) -> AsyncTask<OffThread<Option<OrientMapPrepared>>> {
+        let marks = self.take_marks(&root, &index);
         let (paths, oids, unhashed) = (self.paths.clone(), self.oids.clone(), self.unhashed.clone());
+        let emitted = self.listing();
+        let filesystem = self.filesystem_root.is_some();
         let tsconfig = Tsconfig::from_js(tsconfig);
-        off_thread(move || {
-            let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed };
+        off_thread("code map job", move || {
+            let listed = Listed { paths: &paths, oids: &oids, unhashed: &unhashed, emitted, filesystem, read_blobs: packs != Some(false), marks };
             prepare(&root, &index, Some(listed), false, workspaces, tsconfig)
         })
     }
@@ -254,13 +266,14 @@ impl GitTree {
 /// so a question is answered with the reason rather than with a map left from
 /// before. A kept map folded from this index and these manifests is kept as
 /// it is, so an index with nothing changed costs no fold.
-fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, workspaces: bool, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
+fn prepare(root: &str, index: &str, mut snapshot: Option<Listed>, relisted: bool, workspaces: bool, tsconfig: Tsconfig) -> napi::Result<Option<OrientMapPrepared>> {
+    let mut phases = crate::timings::Phases::new("code map", "read index and validate kept map");
     // The reason alone: the caller says what was not prepared.
     let fail = napi::Error::from_reason;
     let path = map_path(index);
     let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
     let digest = hex(&Sha256::digest(chain.published()));
-    let walked = snapshot.is_none();
+    let walked = snapshot.as_ref().is_none_or(|snapshot| snapshot.filesystem);
     let listed = snapshot.as_ref().and_then(listing);
     if listed.is_some() {
         let kept = kept_bytes(&path).map_err(fail)?.and_then(|bytes| serde_json::from_slice::<Kept>(&bytes).ok());
@@ -272,6 +285,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
     // Git owns the file list and the generated and vendored marks. Outside a
     // checkout git answers neither: the files are then the ones the index
     // holds, nothing is marked, and the result says so.
+    phases.next("open binary layers");
     let layers_read: Vec<Layer> = chain
         .segments
         .iter()
@@ -279,15 +293,14 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
         .map(|(at, bytes)| Layer::open(bytes).map_err(|error| format!("segment {at}: {error}")))
         .collect::<Result<_, _>>()
         .map_err(fail)?;
+    phases.note(format_args!("{} layers; carried listing {}", layers_read.len(), snapshot.is_some()));
+    phases.next("read package graph");
     let mut unmarked = false;
+    let prepared = snapshot.as_mut().and_then(|snapshot| snapshot.marks.take());
     let read = std::thread::scope(|scope| {
-        let marks = scope.spawn(|| {
-            snapshot.as_ref().and_then(|_| {
-                crate::git::git(root, &["ls-files", "-z", ":(attr:linguist-generated)", ":(attr:linguist-vendored)"], None)
-            })
-        });
-        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), tsconfig, || {
-            let made = marks.join().ok().flatten();
+        let marks = (prepared.is_none() && !walked).then(|| scope.spawn(|| crate::git_tree::git_marks(root)));
+        read(root, &layers_read, snapshot.as_ref().map(|snapshot| snapshot.paths), snapshot.as_ref().map(|snapshot| Arc::clone(&snapshot.emitted)), tsconfig, snapshot.as_ref().is_some_and(|snapshot| snapshot.read_blobs), || {
+            let made = prepared.unwrap_or_else(|| marks.and_then(|marks| marks.join().ok().flatten()));
             unmarked = !walked && made.is_none();
             made.unwrap_or_default()
                 .split(|&byte| byte == 0)
@@ -296,23 +309,32 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
                 .collect()
         })
     });
+    phases.next("release source bytes");
+    drop(layers_read);
+    drop(chain);
+    phases.next("fold areas and pages");
     let stored = match fold(&read, workspaces) {
         Ok((made, pages, placed)) => Stored { format: FORMAT, index: digest, listed, workspaces, unmarked, made: Some(made), unmade: None, pages, placed },
         Err(unmade) => {
             Stored { format: FORMAT, index: digest, listed, workspaces, unmarked, made: None, unmade: Some(unmade.to_owned()), pages: Vec::new(), placed: Vec::new() }
         }
     };
+    phases.next("encode map");
     let text = serde_json::to_vec(&stored).map_err(|error| fail(error.to_string()))?;
+    phases.note(format_args!("{} pages, {} packages, {} bytes", stored.pages.len(), stored.placed.len(), text.len()));
+    phases.next("publish map");
     let written = format!("{path}.{}", std::process::id());
     std::fs::write(&written, text)
         .and_then(|()| std::fs::rename(&written, &path))
         .map_err(|error| fail(format!("{path} was not written: {error}")))?;
+    phases.next("publish shipped files");
     crate::orient_map_shipped::write(index, &stored.index, &read.shipped, &read.catalogued).map_err(fail)?;
     Ok(Some(OrientMapPrepared { map: stored.made.map(Into::into), unmade: stored.unmade, walked, unmarked, relisted }))
 }
 
 /// The map's pages and what they hold, or why there is nothing to fold.
 fn fold(read: &Read, workspaces: bool) -> Result<(Made, Vec<Page>, Vec<Placed>), &'static str> {
+    let mut phases = crate::timings::Phases::new("map fold", "build package signals");
     if read.records == 0 {
         return Err("the source index holds no file records");
     }
@@ -323,15 +345,19 @@ fn fold(read: &Read, workspaces: bool) -> Result<(Made, Vec<Page>, Vec<Placed>),
     if signals.packages.is_empty() {
         return Err("the root's is the only named manifest");
     }
+    phases.next("build area tree");
     let root = tree(&signals);
     let mut importers = vec![0u32; read.packages.len()];
     for &(_, b, _) in &read.edges {
         importers[b as usize] += 1;
     }
     let mut named = Vec::new();
+    phases.next("name areas");
     names(&root, &signals, read, &importers, &mut named);
     let areas = number(&root, &named);
+    phases.next("compute dependency layers");
     let (layer, count) = layers(read);
+    phases.next("build pages");
     let pages = pages(read, &signals, &areas, &layer);
     let levels = areas.iter().map(|area| if area.id.is_empty() { 0 } else { area.id.split('.').count() as u32 }).max().unwrap_or(0);
     let mut takes: Vec<Vec<String>> = vec![Vec::new(); read.packages.len()];

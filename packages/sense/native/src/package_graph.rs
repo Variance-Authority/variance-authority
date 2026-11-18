@@ -332,12 +332,25 @@ pub(crate) fn names_object(digest: &str, oid: &Oid) -> bool {
 /// layer that puts or deletes the key decides. Only the wanted keys are looked
 /// up, so a question about three packages reads three packages' parses.
 pub(crate) fn join_parses(layers: &[Layer], crossings: &mut [Crossing]) {
+    join_parses_by(layers, crossings, &|digest, way| crate::chain_lookup::parse(layers, digest, way));
+}
+
+/// Join a whole-tree reading through one borrowed parse-key index, rather than
+/// searching every segment again for every file. Sparse readings use
+/// [`join_parses`] so a handful of files need no pass over the whole chain.
+pub(crate) fn join_all_parses(layers: &[Layer], crossings: &mut [Crossing]) {
+    if crossings.is_empty() { return }
+    let parses = crate::chain_lookup::fold_parses(layers);
+    join_parses_by(layers, crossings, &|digest, way| parses.get(&(digest, way)).copied());
+}
+
+fn join_parses_by(layers: &[Layer], crossings: &mut [Crossing], lookup: &(impl Fn(&str, &str) -> Option<At> + Sync)) {
     crossings.par_iter_mut().for_each(|crossing| {
         let (layer, row) = crossing.at;
         let (stored, records) = (&layers[layer].stored, &layers[layer].records);
         crossing.parse = stored
             .optional(records.digest.at(row))
-            .and_then(|digest| crate::chain_lookup::parse(layers, digest, &crate::index::way(crossing.file)));
+            .and_then(|digest| lookup(digest, &crate::index::way(crossing.file)));
     });
 }
 

@@ -123,6 +123,10 @@ pub(crate) fn parent(path: &str) -> &str {
 /// scan declines even where git lists it (`crate::path::excluded_when_listed`)
 /// is a copy or an output, not a package, and names nothing.
 pub(crate) fn owners<'a>(root: &str, paths: &'a [String]) -> Owners<'a> {
+    owners_from(root, paths, None)
+}
+
+pub(crate) fn owners_from<'a>(root: &str, paths: &'a [String], listing: Option<&crate::emitted::Listing>) -> Owners<'a> {
     let manifests: Vec<&str> = paths
         .iter()
         .map(String::as_str)
@@ -133,7 +137,7 @@ pub(crate) fn owners<'a>(root: &str, paths: &'a [String]) -> Owners<'a> {
     let mut named: Vec<Package> = manifests
         .par_iter()
         .filter_map(|manifest| {
-            let bytes = std::fs::read(std::path::Path::new(root).join(manifest)).ok()?;
+            let bytes = crate::emitted::read_content(listing, &std::path::Path::new(root).join(manifest)).ok()?;
             let parsed: Manifest = serde_json::from_slice(&bytes).ok()?;
             let offers = offered(&parsed);
             let serde_json::Value::String(name) = parsed.name? else { return None };

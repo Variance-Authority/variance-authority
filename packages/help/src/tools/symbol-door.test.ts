@@ -1,9 +1,9 @@
+import { readWorkspace as readNativeHelp } from '../read.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
-import { readHelp } from '@variance-authority/package/help';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { symbol } from './symbol.js';
 
@@ -46,7 +46,7 @@ it('answers a re-exported name through the door the workspace imports it by', as
   execFileSync('git', ['add', '-f', '.'], { cwd: root });
   await updateSourceIndex(root);
 
-  const answer = symbol.run(readHelp(root), { name: 'QueryObserver' }, { root });
+  const answer = symbol.run((await readNativeHelp(root)), { name: 'QueryObserver' }, { root });
   expect(answer).toContain("import { QueryObserver } from '@tanstack/query-core';");
   expect(answer).toContain('used by 2 packages: @tanstack/react-query, @tanstack/solid-query');
   expect(answer).toContain('Also published by: @tanstack/angular-query-experimental, @tanstack/react-query');
@@ -76,7 +76,7 @@ it('breaks a tie between doors by published name, whatever order their directori
   execFileSync('git', ['add', '-f', '.'], { cwd: root });
   await updateSourceIndex(root);
 
-  const answer = symbol.run(readHelp(root), { name: 'Thing' }, { root });
+  const answer = symbol.run((await readNativeHelp(root)), { name: 'Thing' }, { root });
   expect(answer).toContain("import { Thing } from '@x/alpha';");
   expect(answer).toContain('Also published by: @x/core, @x/zeta');
 });

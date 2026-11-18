@@ -12,6 +12,9 @@ use crate::graph_index::merged;
 use crate::index_chain::read_chain;
 use crate::orient_map_read::read;
 
+#[path = "orient_map_marks_tests.rs"]
+mod marks;
+
 /// No part may take more than a third of what it splits, so four families of five.
 const FAMILIES: [&str; 4] = ["ui", "server", "data", "tools"];
 const MEMBERS: usize = 5;
@@ -36,7 +39,7 @@ fn fixture(name: &str) -> (Fixture, Vec<String>) {
     let root = std::env::temp_dir().join(format!("sense-orient-map-{}-{name}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
     let mut paths = vec!["package.json".to_owned()];
-    let mut write = |path: &str, text: &str| {
+    let write = |path: &str, text: &str| {
         let file = root.join(path);
         std::fs::create_dir_all(file.parent().unwrap()).unwrap();
         std::fs::write(file, text).unwrap();
@@ -93,7 +96,7 @@ fn stored(name: &str) -> (Fixture, String, super::Stored) {
     publish(&index);
     let chain = read_chain(&index).unwrap().expect("a published chain");
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
-    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), None, crate::resolve::Tsconfig::Auto, false, HashSet::new);
     let (made, pages, placed) = fold(&read, false).ok().expect("named packages to fold");
     let digest = super::manifest_digest(&index).unwrap();
     let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, workspaces: false, unmarked: false, made: Some(made), unmade: None, pages, placed };
@@ -289,7 +292,7 @@ fn a_package_is_taken_for_what_its_importers_take_and_not_what_an_export_type_pa
     let layers = [Layer::open(&segment).unwrap()];
     let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
 
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), None, crate::resolve::Tsconfig::Auto, false, HashSet::new);
 
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["make"]);
@@ -317,8 +320,86 @@ fn a_package_held_whole_is_taken_for_the_names_read_off_it_and_not_off_its_defau
     let layers = [Layer::open(&segment).unwrap()];
     let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
 
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), None, crate::resolve::Tsconfig::Auto, false, HashSet::new);
 
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["default", "make"]);
+}
+
+#[test]
+fn a_filesystem_namespace_is_carried_without_claiming_git_identity_or_marks() {
+    let (fixture, root, index) = indexed("filesystem-carried");
+    let tree = crate::filesystem_tree::tree(root.clone(), &[".".to_owned()]);
+    let prepared = carried(&tree, &root, &index).unwrap().unwrap();
+    assert!(prepared.walked, "a filesystem namespace is not a Git listing");
+    assert!(!prepared.unmarked, "Git marks are not attempted outside Git");
+    let kept: super::Stored = serde_json::from_slice(&std::fs::read(map_path(&index)).unwrap()).unwrap();
+    assert!(kept.listed.is_none(), "unknown manifest identities cannot validate a kept map");
+    std::fs::write(fixture.0.join("packages/ui/ui0/package.json"), r#"{"name":"@t/renamed"}"#).unwrap();
+    carried(&tree, &root, &index).unwrap().unwrap();
+    let refreshed: super::Stored = serde_json::from_slice(&std::fs::read(map_path(&index)).unwrap()).unwrap();
+    assert!(refreshed.pages.iter().any(|page| page.list.iter().any(|name| name == "@t/renamed")), "current manifests are read when identities are unknown");
+}
+
+#[test]
+fn nested_pages_count_each_visible_road_once() {
+    use crate::orient_map_pages::{number, pages};
+    use crate::orient_map_read::{Named, Read};
+    use crate::orient_map_signals::Signals;
+    use crate::orient_map_tree::Node;
+
+    let mut read = Read {
+        packages: ["omitted", "a", "b", "c", "d", "e", "f"].into_iter().map(|name| Named { name: name.to_owned(), directory: name.to_owned() }).collect(),
+        depends: HashSet::new(), develops: HashSet::new(),
+        edges: vec![
+            (1, 1, 11), // A self edge never crosses an area.
+            (1, 2, 2), (2, 1, 3), // Between nested siblings.
+            (3, 1, 5), (1, 3, 7), // Between a child and its parent's ungrouped package.
+            (4, 1, 11), (1, 4, 13), // Between top-level areas.
+            (1, 0, 17), (0, 2, 19), // The omitted package has no visible destination.
+            (4, 5, 23), (5, 0, 29), (0, 5, 31), // Both endpoints lie outside the nested page.
+        ],
+        source: vec![1; 7], tested: vec![0; 7], head: vec![Vec::new(); 7],
+        unread: 0, records: 7, closures: Vec::new(), shipped: Vec::new(), catalogued: Vec::new(), undeclared: vec![false; 7],
+    };
+    let signals = Signals {
+        packages: vec![1, 2, 3, 4, 5, 6], tokens: vec![Vec::new(); 6],
+        keys: std::array::from_fn(|_| vec![Vec::new(); 6]), wedges: Vec::new(), development: HashSet::new(),
+    };
+    let leaf = |members: Vec<usize>| Node { alone: members.clone(), members, parts: Vec::new(), answered: false };
+    let root = Node {
+        members: (0..6).collect(),
+        parts: vec![
+            Node { members: vec![0, 1, 2], parts: vec![leaf(vec![0]), leaf(vec![1])], alone: vec![2], answered: false },
+            leaf(vec![3, 4]), leaf(vec![5]),
+        ],
+        alone: Vec::new(), answered: false,
+    };
+    let names = ["left", "alpha", "beta", "right", "isolated"].map(str::to_owned);
+    let areas = number(&root, &names);
+    let layer = vec![1; 7];
+    let first = pages(&read, &signals, &areas, &layer);
+    let (left, right, isolated) = (&first[0].rows[0], &first[0].rows[1], &first[0].rows[2]);
+    assert_eq!((left.incoming, left.outgoing, left.more), (30, 13, 1));
+    assert_eq!(left.front, [("b".to_owned(), 19)]);
+    assert_eq!(left.uses, [("2".to_owned(), 13)]);
+    assert_eq!((right.incoming, right.outgoing, right.more), (44, 11, 1));
+    assert_eq!(right.front, [("e".to_owned(), 31)]);
+    assert_eq!(right.uses, [("1".to_owned(), 11)]);
+    assert_eq!((isolated.incoming, isolated.outgoing, isolated.more), (0, 0, 0));
+    assert!(isolated.front.is_empty() && isolated.uses.is_empty());
+
+    let (alpha, beta) = (&first[1].rows[0], &first[1].rows[1]);
+    assert_eq!((alpha.incoming, alpha.outgoing, alpha.more), (19, 22, 0));
+    assert_eq!(alpha.front, [("a".to_owned(), 19)]);
+    assert_eq!(alpha.uses, [("2".to_owned(), 13), ("1.2".to_owned(), 2)]);
+    assert_eq!((beta.incoming, beta.outgoing, beta.more), (21, 3, 0));
+    assert_eq!(beta.front, [("b".to_owned(), 21)]);
+    assert_eq!(beta.uses, [("1.1".to_owned(), 3)]);
+    assert_eq!(first[1].list, ["c"]);
+    assert_eq!(first[5].list, ["f"]);
+
+    read.edges.reverse();
+    let reversed = pages(&read, &signals, &areas, &layer);
+    assert_eq!(serde_json::to_vec(&first).unwrap(), serde_json::to_vec(&reversed).unwrap());
 }

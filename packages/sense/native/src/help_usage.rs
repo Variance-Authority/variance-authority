@@ -14,8 +14,8 @@ use rayon::prelude::*;
 use crate::chain_lookup::fold;
 use crate::compact::Layer;
 use crate::orient_map_read::beside;
-use crate::package_graph::{join_parses, Crossing};
-use crate::package_owners::{owners, NO_OWNER};
+use crate::package_graph::{join_all_parses, Crossing};
+use crate::package_owners::{owners_from, NO_OWNER};
 use crate::segment::NONE;
 
 #[path = "help_importers.rs"]
@@ -295,16 +295,34 @@ fn collect(layers: &[Layer], crossing: &Crossing, by: &str, targets: &Targets) -
 
 /// What the files on the chain import from the workspace's packages. `opened`
 /// and `declared` are `requested` keys; `published` and `unentered` are names.
-pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: &[String], unentered: &[String], declared: &[String]) -> IndexedUsage {
+pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: &[String], unentered: &[String], declared: &[String], carried: Option<(&[String], Option<&crate::emitted::Listing>)>) -> IndexedUsage {
+    let mut phases = crate::timings::Phases::new("question usage", "fold records");
     let folded = fold(layers);
-    let paths = beside(root, folded.keys().copied());
-    let owners = owners(root, &paths);
+    phases.note(format_args!("{} records, {} layers", folded.len(), layers.len()));
+    phases.next("source and manifest paths");
+    let paths = match carried {
+        Some((manifests, _)) => {
+            let mut paths: Vec<String> = folded.keys().map(|path| (*path).to_owned()).chain(manifests.iter().cloned()).collect();
+            paths.sort_unstable_by(|left, right| crate::order::code_unit(left, right));
+            paths.dedup();
+            paths
+        }
+        None => beside(root, folded.keys().copied()),
+    };
+    phases.note(format_args!("{} source and manifest paths", paths.len()));
+    phases.next("read package owners");
+    let owners = owners_from(root, &paths, carried.and_then(|(_, content)| content));
+    phases.note(format_args!("{} named packages", owners.packages.len()));
+    phases.next("sort and join parses");
     let mut crossings: Vec<Crossing> = folded
         .into_iter()
         .map(|(path, at)| Crossing { file: path, owner: owners.files.get(path).map_or(NO_OWNER, |&(owner, _)| owner), others: Vec::new(), at, parse: None })
         .collect();
     crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
-    join_parses(layers, &mut crossings);
+    join_all_parses(layers, &mut crossings);
+    if phases.enabled() {
+        phases.note(format_args!("{} files joined to parses", crossings.iter().filter(|crossing| crossing.parse.is_some()).count()));
+    }
     let targets = Targets {
         // A published package whose entry opens nothing is still one its importers reach past.
         packages: published.iter().chain(unentered).map(String::as_str).collect(),
@@ -312,6 +330,7 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
         unentered: unentered.iter().map(String::as_str).collect(),
         declared: declared.iter().map(String::as_str).collect(),
     };
+    phases.next("collect exports and imports");
     let parts: Vec<Part> = crossings
         .par_iter()
         .map(|crossing| {
@@ -319,6 +338,7 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
             collect(layers, crossing, by, &targets)
         })
         .collect();
+    phases.next("flatten collected rows");
     let mut out = IndexedUsage { exported: Vec::new(), deep: Vec::new(), by_path: Vec::new(), unfollowed: Vec::new(), unreadable: Vec::new(), names: Vec::new() };
     let mut reasons = Vec::new();
     for part in parts {
@@ -331,6 +351,8 @@ pub(crate) fn usage(root: &str, layers: &[Layer], opened: &[String], published: 
         out.names.extend(part.names);
     }
     out.unreadable.extend(reasons);
+    phases.note(format_args!("{} exports, {} public uses, {} deep imports, {} imports by path, {} unfollowed imports, {} unreadable", out.exported.len(), out.names.len(), out.deep.len(), out.by_path.len(), out.unfollowed.len(), out.unreadable.len()));
+    phases.next("temporary cleanup");
     out
 }
 

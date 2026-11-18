@@ -11,7 +11,7 @@
 
 // compass: variance-authority.reach
 
-import { EDGE_KINDS, RUNTIME_EDGES, dependenciesOf, idOf, type NodeId, type Relations } from '@variance-authority/core/relate';
+import { EDGE_KINDS, RUNTIME_EDGES, dependenciesOf, idOf, type NodeId, type Relations, type MemoryRelations } from '@variance-authority/core/relate';
 
 const DEPENDS = EDGE_KINDS.indexOf('depends');
 
@@ -20,6 +20,10 @@ const behindOf = new WeakMap<Relations, ReadonlyMap<NodeId, readonly NodeId[]>>(
 
 /** The declared files whose runtime closure holds `id`, itself included when it is declared. */
 export function declaredBehind(relations: Relations, id: NodeId): readonly NodeId[] {
+  if ('native' in relations) {
+    const node = relations.native.nodes([id])[0];
+    return node === null || node === undefined ? [] : relations.native.declaredBehind([node.name]).map((node) => node.id);
+  }
   let behind = behindOf.get(relations);
   if (behind === undefined) {
     behind = invert(relations);
@@ -31,6 +35,7 @@ export function declaredBehind(relations: Relations, id: NodeId): readonly NodeI
 /** The names of the declared files whose runtime closure holds any of these files. */
 export function declaredBehindFiles(relations: Relations | undefined, files: Iterable<string>): readonly string[] {
   if (relations === undefined) return [];
+  if ('native' in relations) return relations.native.declaredBehind([...files]).map((node) => node.name);
   const targets = new Set<NodeId>();
   for (const file of files) {
     const id = idOf(relations, 'file', file);
@@ -39,7 +44,7 @@ export function declaredBehindFiles(relations: Relations | undefined, files: Ite
   return [...targets].sort((a, b) => a - b).map((target) => relations.names[target]!);
 }
 
-function invert(relations: Relations): ReadonlyMap<NodeId, readonly NodeId[]> {
+function invert(relations: MemoryRelations): ReadonlyMap<NodeId, readonly NodeId[]> {
   const { offset, kind } = relations.dependents;
   const behind = new Map<NodeId, NodeId[]>();
   for (let target = 0; target < relations.names.length; target += 1) {

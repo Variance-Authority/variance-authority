@@ -30,9 +30,10 @@ import {
   type NodeKind,
   type Relation,
   type Relations,
+  type MemoryRelations,
 } from './graph.js';
 import type { Uses } from './narrow.js';
-import { dependenciesOf, dependentsOf, trailOf, type Traversal, type TraversalOptions } from './reach.js';
+import { dependenciesOf, dependentsOf, trailOf, type Traversal, type TraversalOptions, traversalOf } from './reach.js';
 
 export interface FileEdge {
   /** Repository-relative, already resolved. A specifier is not an edge. */
@@ -129,7 +130,7 @@ const pkg = (name: string): Node => ({ kind: 'package', name });
  * declares it, so one walk against the arrows from a changed file reaches every
  * importer and every component in the same pass.
  */
-export function relationsOfFiles(records: Iterable<FileRecord>, options: RelationsOptions = {}): Relations {
+export function relationsOfFiles(records: Iterable<FileRecord>, options: RelationsOptions = {}): MemoryRelations {
   const relations: Relation[] = [];
   const isolated: Node[] = [];
   const unknown: (readonly [Node, string])[] = [];
@@ -243,7 +244,8 @@ export interface AffectedOptions extends Omit<TraversalOptions, 'moved'> {
   readonly moved?: ReadonlyMap<string, readonly string[]>;
 
   /**
-   * Per file, the files it takes out of its own graph: what a test mocks.
+   * For memory relations, override the files each test mocks. Native relations
+   * own this table and refuse per-call overrides.
    *
    * A row is a fact about one file's run and nothing else's, so it is kept
    * beside the records rather than in them — the records say what the text
@@ -276,10 +278,34 @@ export interface AffectedOptions extends Omit<TraversalOptions, 'moved'> {
  * `RUNTIME_EDGES`.
  */
 export function affectedBy(
+  relations: MemoryRelations,
+  changed: Iterable<string | Node>,
+  options?: AffectedOptions,
+): Affected;
+export function affectedBy(
+  relations: Relations,
+  changed: Iterable<string | Node>,
+  options?: Omit<AffectedOptions, 'shadows'> & { readonly shadows?: never },
+): Affected;
+export function affectedBy(
   relations: Relations,
   changed: Iterable<string | Node>,
   options: AffectedOptions = {},
 ): Affected {
+  if ('native' in relations) {
+    if (options.shadows !== undefined) throw new Error('native relations own their shadows; configure them when the graph is built');
+    const avoid = relations.native.nodes([...(options.avoid ?? [])]).filter((node) => node !== null);
+    const answer = relations.native.walk({
+      seeds: [...changed].map((entry) => typeof entry === 'string' ? file(entry) : entry),
+      reverse: true, avoid, shadows: true,
+      moved: [...(options.moved ?? [])].map(([file, names]) => ({ file, names })),
+      ...(options.through === undefined ? {} : { through: [...options.through] }),
+    });
+    const found: Record<NodeKind, string[]> = { file: [], component: [], package: [] };
+    for (const node of answer.nodes) found[node.kind].push(node.name);
+    return { files: found.file, components: found.component, packages: found.package,
+      missing: answer.missing, shadowed: answer.shadowed, traversal: traversalOf(answer) };
+  }
   const seeds: NodeId[] = [];
   const missing: string[] = [];
 
@@ -337,7 +363,7 @@ function movedIds(
 }
 
 function unshadowed(
-  relations: Relations,
+  relations: MemoryRelations,
   seeds: readonly NodeId[],
   options: Omit<AffectedOptions, 'moved'> & TraversalOptions,
 ): Traversal & { readonly shadowed: readonly string[] } {
@@ -388,7 +414,9 @@ function unshadowed(
 export function explain(relations: Relations, affected: Affected, node: Node): readonly string[] {
   const id = idOf(relations, node.kind, node.name);
   if (id === undefined) return [];
-  return trailOf(affected.traversal, id).map((step) => relations.names[step]!);
+  const trail = trailOf(affected.traversal, id);
+  if ('native' in relations) return relations.native.nodes(trail).flatMap((node) => node === null ? [] : [node.name]);
+  return trail.map((step) => relations.names[step]!);
 }
 
 function byCodeUnit(a: string, b: string): number {

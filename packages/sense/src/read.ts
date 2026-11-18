@@ -5,10 +5,10 @@
  * backs. The boundary between "this file says it depends on `./x`" and "`./x` is
  * that file over there" is deliberate: resolution needs a disk and a resolution
  * algorithm, and this needs neither, so every rule about what counts as an edge
- * is assertable against a string. The other readers sit beside this one —
- * [`style.ts`](./style.ts), [`python.ts`](./python.ts), [`rust.ts`](./rust.ts),
- * [`jvm.ts`](./jvm.ts), [`swift.ts`](./swift.ts) — and everything below the
- * headings here is about the module one.
+ * is assertable against a string. The other readers are native —
+ * [`source_style.rs`](../native/src/source_style.rs) and the
+ * [language readers](../native/src/languages/mod.rs) — and everything below
+ * the headings here is about the module one.
  *
  * ## A request is not a name
  *
@@ -147,9 +147,8 @@ export interface Request {
    * Python is the language that needs it: `from a.b import c` names three
    * modules that might exist — `a`, `a.b`, and `a.b.c` if `c` is a submodule
    * rather than a name `a/b/__init__.py` defines — and nothing in the statement
-   * says which. Emitting only what is written misses a tenth of the first-party
-   * edges in a real repository ([`python.ts`](./python.ts) records the count),
-   * so the rest are derived and marked.
+   * says which. The [Python reader](../native/src/languages/python.rs) derives
+   * the possible module paths and marks them.
    *
    * A guess that resolves is an ordinary edge. A guess that does not is
    * **silence**: not an unresolved specifier, not a hole, not an `unknown`.
@@ -169,7 +168,7 @@ export interface Request {
    * so the reader asks for every prefix of the path, each bound to its last
    * segment. A prefix names that item only where the module tree leaves
    * exactly one segment past the modules; any other prefix names nothing, and
-   * is silent the way a guess is ([`rust.ts`](./rust.ts)).
+   * is silent the way a guess is ([`rust_resolve.rs`](../native/src/rust_resolve.rs)).
    */
   readonly item?: boolean;
 

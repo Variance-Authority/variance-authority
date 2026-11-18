@@ -135,8 +135,7 @@ pub mod native {
     /// How many regions with source of their own a parsed program is cut into
     /// under `presence`.
     pub fn source_regions<'a>(program: &'a Program<'a>, typescript: bool) -> u32 {
-        let walker = crate::cut::walk(program, typescript, false);
-        walker.blocks.iter().filter(|block| block.end > block.start).count() as u32
+        crate::cut::walk_counting(program, typescript).source_regions
     }
 }
 
