@@ -30,12 +30,23 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
   const opening: Promise<void>[] = [];
   const asked = (request: Request): void => {
     if (!request.isNavigationRequest()) return;
+    let other: Page;
+    try {
+      other = request.frame().page();
+    } catch {
+      // A document asked for before Playwright has a frame for it is a new page's.
+      opened = true;
+      return;
+    }
+    if (other === page) return;
     opening.push(
-      (async () => {
-        const other = request.frame().page();
-        if (other !== page && (await other.opener()) === page) opened = true;
+      other.opener().then(
+        (opener) => {
+          if (opener === page) opened = true;
+        },
         // A page gone before it could be asked is announced, or not, by `popup`.
-      })().catch(() => undefined),
+        () => undefined,
+      ),
     );
   };
   const modals = page.locator(':modal');
