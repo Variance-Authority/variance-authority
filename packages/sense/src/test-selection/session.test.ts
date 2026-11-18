@@ -10,6 +10,31 @@ function states(sources: readonly SessionSource[], file: string): Record<string,
   return Object.fromEntries((source?.functions ?? []).map((each) => [each.row.name, each.state]));
 }
 
+/** Base64 VLQ mappings for `lines`, each segment `[generated column, original line, original column]` in source 0. */
+function mappings(lines: readonly (readonly (readonly [number, number, number])[])[]): string {
+  const digits = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const vlq = (value: number): string => {
+    let rest = value < 0 ? (-value << 1) | 1 : value << 1;
+    let out = '';
+    do {
+      const digit = rest & 31;
+      rest >>>= 5;
+      out += digits[rest > 0 ? digit | 32 : digit];
+    } while (rest > 0);
+    return out;
+  };
+  let line = 0;
+  let column = 0;
+  return lines.map((segments) => {
+    let generated = 0;
+    return segments.map(([at, toLine, toColumn]) => {
+      const out = vlq(at - generated) + vlq(0) + vlq(toLine - line) + vlq(toColumn - column);
+      [generated, line, column] = [at, toLine, toColumn];
+      return out;
+    }).join(',');
+  }).join(';');
+}
+
 describe('a session read into the record\'s regions', () => {
   it('names each function of a bundled source by its region, as ran, loaded but not run, or unknown', () => {
     const read = sessionSources(
@@ -43,6 +68,29 @@ describe('a session read into the record\'s regions', () => {
     const read = sessionSources([{ file: '/repo/src/math.ts', text: MATH, functions }], 'presence');
 
     expect(states(read.sources, '/repo/src/math.ts')).toEqual({ add: 'ran', never: 'unrun', twice: 'unrun' });
+  });
+
+  it('reads nothing from a segment on generated whitespace, which carries the origin of the code before it', () => {
+    const text = 'export class Box {\n  get a() { return 1; }\n  get b() { return 2; }\n}\n';
+    // esbuild opens the second getter's line with its indentation mapped to the first getter's closing brace.
+    const map = { version: 3, sources: ['box.ts'], sourcesContent: [text], names: [], mappings: mappings([
+      [[0, 0, 0]],
+      [[2, 1, 2], [12, 1, 12]],
+      [[0, 1, 22], [2, 2, 2], [12, 2, 12]],
+      [[0, 3, 0]],
+    ]) };
+    const getter = (name: string, count: number) => {
+      const start = text.indexOf(`get ${name}`);
+      return { functionName: `get ${name}`, ranges: [{ startOffset: start, endOffset: text.indexOf('}', start) + 1, count }], isBlockCoverage: false };
+    };
+    const functions = [
+      { functionName: '', ranges: [{ startOffset: 0, endOffset: text.length, count: 1 }], isBlockCoverage: true },
+      getter('a', 0),
+      getter('b', 1),
+    ];
+    const read = sessionSources([{ file: '/repo/dist/box.js', text, map, functions }], 'presence');
+
+    expect(states(read.sources, '/repo/dist/box.ts')).toEqual({ 'Box/a': 'unrun', 'Box/b': 'ran' });
   });
 
   it('reads nothing of a source the map leaves unnamed, and places the rest', () => {

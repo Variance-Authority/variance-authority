@@ -229,7 +229,8 @@ interface Observed {
  * function's state; `readSource` gives a text the map lacks, read only when it
  * was written no later than the script was built. The map is walked
  * forward: a segment takes the count of the innermost V8 range around its
- * generated offset and lands in the innermost function around its original one.
+ * generated offset and lands in the innermost function around its original one;
+ * one on generated whitespace is skipped.
  * A function ran when any of its segments ran, is unrun when all read zero, and
  * is unknown when none landed in it. A script with no map is its own source.
  */
@@ -270,7 +271,10 @@ export function sessionSources(
       return { slot: held(observed, file, text), starts: lineStarts(text) };
     });
     const generated = lineStarts(script.text);
-    const segments = decode(map.mappings).flatMap((line, at) => line.map((segment) => ({ segment, offset: (generated[at] ?? Infinity) + segment.column })));
+    // A segment on whitespace runs nothing: its origin is carried from the code before it, often another function's end.
+    const segments = decode(map.mappings)
+      .flatMap((line, at) => line.map((segment) => ({ segment, offset: (generated[at] ?? Infinity) + segment.column })))
+      .filter(({ offset }) => !/\s/.test(script.text[offset] ?? ''));
     const counts = countsAt(ranges, segments.map((each) => each.offset));
     segments.forEach(({ segment }, index) => {
       const count = counts[index];
