@@ -104,6 +104,7 @@ pub(crate) fn index_graph(
         at,
         tree_oids,
         listing,
+        None,
         &|_| false,
         &kept,
         from_blob,

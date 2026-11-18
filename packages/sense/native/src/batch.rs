@@ -19,7 +19,7 @@ use crate::resolve::{Resolvers, Tsconfig};
 mod walk;
 
 use walk::{read_kept, resolve_all};
-pub(crate) use walk::{is_module, walk_beyond, Kept, Walked};
+pub(crate) use walk::{walk_beyond, Kept, Reached, Walked};
 
 /// What a batch of files said, in columns rather than per-file objects.
 #[napi(object)]
@@ -174,7 +174,8 @@ pub(crate) fn scan_batch_with_oids(
             Vec::new(),
         ),
     };
-    let targets = resolve_all(root_path, &files, &read, &resolvers, known);
+    let world = crate::world::World::new(known, None);
+    let targets = resolve_all(root_path, &files, &read, &resolvers, &world).into_iter().map(|reached| reached.first).collect();
     let columns = columns(read, true, &answered);
     scan_columns(files, Vec::new(), columns, targets, answered)
 }
@@ -191,7 +192,8 @@ pub(crate) fn scan_graph_with_tree(
 ) -> ScanBatch {
     let include_parses = options.include_parses;
     let Walked { files, identities, read, targets, kept: answered } =
-        walk_beyond(options, at, tree_oids, listing, &|_| false, kept, from_blob, store);
+        walk_beyond(options, at, tree_oids, listing, None, &|_| false, kept, from_blob, store);
+    let targets = targets.into_iter().map(|reached| reached.first).collect();
     // A kept row's parse is the store's, whole; the one the walk holds is only
     // what records need, so it is not published as a parse.
     let parse_segment = crate::index::parse_segment(&files, &identities, &read, &answered);
@@ -288,7 +290,7 @@ mod tests {
 
     #[test]
     fn names_kinds_the_way_the_oracle_does() {
-        assert_eq!(kinds(), ["imports", "reexports", "dynamic", "type", "depends"]);
+        assert_eq!(kinds(), ["imports", "reexports", "dynamic", "type", "depends", "asset"]);
     }
 
     #[test]

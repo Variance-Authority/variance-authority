@@ -177,7 +177,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         },
         bindings: group.bindings,
         line: lines.at(group.at),
-        republishes: false,
+        republishes: false, guessed: false, item: false,
     }));
 
     let mut entries: Vec<_> = record
@@ -315,7 +315,7 @@ pub(crate) fn read_module_and_tree<'a>(file: &str, source: &'a str, allocator: &
         },
         bindings: group.bindings,
         line: group.line,
-        republishes: true,
+        republishes: true, guessed: false, item: false,
     }));
 
     let mut reasons = Vec::new();

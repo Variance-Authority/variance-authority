@@ -14,7 +14,8 @@ use rayon::{ThreadPool, ThreadPoolBuildError, ThreadPoolBuilder};
 use crate::digest;
 use crate::git::Oid;
 use crate::git_store::{Objects, Reader, STORE_CROSSOVER};
-use crate::read::{read_module, Read};
+use crate::read::Read;
+use crate::read_any::read_file;
 
 /// What became of a file's bytes. `Declined` is a refusal the bytes decide —
 /// over the size this scan opens, or not UTF-8 — so the record may name them
@@ -180,7 +181,7 @@ fn parsed(
         String::new()
     };
     (
-        read_module(file, &source, &arenas.get(), symbols),
+        read_file(file, &source, &arenas.get(), symbols),
         digest,
         Outcome::Parsed,
     )
@@ -290,7 +291,7 @@ fn parse_all(
         .map(|(file, held, digest, named)| match held {
             Opened::Settled(read, outcome) => ((read, digest, outcome), false),
             Opened::Source(source) => {
-                ((read_module(file, &source, &arenas.get(), symbols), digest, Outcome::Parsed), named)
+                ((read_file(file, &source, &arenas.get(), symbols), digest, Outcome::Parsed), named)
             }
         })
         .collect()

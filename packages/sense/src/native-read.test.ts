@@ -110,7 +110,7 @@ describe('the native scanner over this repository', () => {
   });
 
   it.runIf(available)('names its kinds the way the oracle names them', () => {
-    expect(native()!.kinds()).toEqual(['imports', 'reexports', 'dynamic', 'type', 'depends']);
+    expect(native()!.kinds()).toEqual(['imports', 'reexports', 'dynamic', 'type', 'depends', 'asset']);
   });
 
   /**

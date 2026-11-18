@@ -43,6 +43,23 @@ pub fn is_relative(request: &str) -> bool {
     request.starts_with("./") || request.starts_with("../") || request == "." || request == ".."
 }
 
+/// `isRelative` for a request written in `language`: whether it names
+/// something inside this tree by construction, so that missing it is a hole.
+/// Java, Kotlin and Swift spell a first-party import the way a platform one
+/// is spelled, so nothing they miss is.
+pub(crate) fn is_relative_in(language: crate::read_any::Language, request: &str) -> bool {
+    use crate::read_any::Language;
+    match language {
+        Language::Python => request.starts_with('.'),
+        Language::Rust => {
+            let first = request.split("::").next().unwrap_or(request);
+            request.contains('/') || request.contains('.') || matches!(first, "self" | "super" | "crate")
+        }
+        Language::Java | Language::Kotlin | Language::Swift => false,
+        Language::Module | Language::Style => is_relative(request),
+    }
+}
+
 /// `packageOf`: the package a bare request names. `builtins` is Node's own
 /// list, handed over by the caller, because which names are builtin is the
 /// runtime's answer and not one to copy into a table here.

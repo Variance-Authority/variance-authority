@@ -18,7 +18,9 @@ use serde::{Deserialize, Serialize};
 use crate::acquire::Outcome;
 use crate::order::code_unit;
 use crate::read::Read;
-use crate::specifier::{is_relative, kind_for, package_of, request_of};
+use crate::batch::Reached;
+use crate::read_any::{language_of, Language};
+use crate::specifier::{is_relative_in, kind_for, package_of, request_of};
 use crate::witness::{witnesses_of, AliasTable};
 
 /// `FileEdge` and `PackageEdge` in `core/relate`: one target and how it is reached.
@@ -72,7 +74,7 @@ pub struct Settling<'a> {
 /// by — Git's object name when the tree holds the file, the read digest when it
 /// does not, empty when neither — and `targets` is one entry per request,
 /// empty where the request resolved to nothing.
-pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, targets: &[String], settling: &Settling) -> Indexed {
+pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, reached: &Reached, settling: &Settling) -> Indexed {
     let unknown = read.unknown.as_deref().filter(|reason| !reason.is_empty());
     if !outcome.parsed() {
         // A file declined by its bytes — over the size the scan opens, or not
@@ -96,21 +98,32 @@ pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, targets:
     let mut unresolved = Vec::new();
     let mut holes = Vec::new();
     let mut held = Vec::with_capacity(read.requests.len());
-    for (request, target) in read.requests.iter().zip(targets.iter().map(String::as_str).chain(std::iter::repeat(""))) {
+    let language = language_of(file).unwrap_or(Language::Module);
+    let mut more = reached.more.iter().peekable();
+    let first = reached.first.iter().map(String::as_str).chain(std::iter::repeat(""));
+    for ((index, request), target) in read.requests.iter().enumerate().zip(first) {
         held.push((!target.is_empty()).then(|| target.to_owned()));
         let Some(bare) = request_of(&request.value) else { continue };
         let kind = request.kind.as_str();
         if target.is_empty() {
+            // A guess that lands is an edge; one that does not is silence (`record.ts`).
+            if request.guessed {
+                continue;
+            }
             unresolved.push(request.value.as_str());
             if let Some(named) = package_of(bare, settling.builtins) {
                 packages.push(Edge { to: named.to_owned(), kind: kind.to_owned() });
             }
-            if is_relative(bare) {
+            if is_relative_in(language, bare) {
                 holes.push(request.value.as_str());
             }
             continue;
         }
         edges.push(Edge { to: target.to_owned(), kind: kind_for(kind, target, settling.code).to_owned() });
+        // Every further file the request reaches is an edge too: a Swift target's, a Java package's.
+        while let Some((_, to)) = more.next_if(|(at, _)| *at as usize <= index) {
+            edges.push(Edge { to: to.clone(), kind: kind_for(kind, to, settling.code).to_owned() });
+        }
     }
 
     let mut reasons: Vec<String> = unknown.map(str::to_owned).into_iter().collect();
