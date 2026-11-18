@@ -286,10 +286,16 @@ impl GitTree {
             carry: carry.clone(),
         };
         // A segment of the published length is read unhashed, so damaged bytes in it can panic a read:
-        // the index is then rebuilt from the tree, as any other chain it cannot stand on is.
+        // the index is then rebuilt from the tree, as any other chain it cannot stand on is. The
+        // rebuild reads nothing from the chain, so a panic it repeats is no damage and is the error;
+        // the first panic's message is printed, since the rebuild alone cannot name it.
         let once = |trusted: bool| match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options.clone(), tree(), trusted))) {
             Ok(done) => done,
-            Err(_) => source_update::update(options.clone(), tree(), false),
+            Err(panic) => {
+                let message = panic.downcast_ref::<&str>().map(|text| text.to_string()).or_else(|| panic.downcast_ref::<String>().cloned()).unwrap_or_default();
+                eprintln!("variance: an update standing on the source index panicked ({message}); rebuilding it from the tree");
+                source_update::update(options.clone(), tree(), false)
+            }
         };
         // A writer that lost the race reads the chain the winner published and makes its delta
         // against that: each loss is another writer's publication, so a few attempts settle it,
