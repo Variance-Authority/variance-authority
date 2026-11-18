@@ -58,7 +58,7 @@ use rustc_hash::FxBuildHasher;
 use serde_json::Value;
 
 use crate::conditions::{normalize, Configs};
-pub(crate) use crate::listing::{Known, Listing};
+pub(crate) use crate::listing::{Entry, Known, Listing};
 
 /// What TypeScript emits, and the sources each is emitted from, in the order
 /// one is preferred when several exist. A declaration file written by hand is
@@ -190,6 +190,18 @@ impl Emitted {
         // Output none of the configs wrote is some other tool's, and the disk
         // answers for it.
         if layout.sources.iter().any(wrote) { Origin::Nowhere } else { Origin::Disk }
+    }
+
+    /// What git lists at a path spelled from the listed root, or `None` with
+    /// no listing, or one git did not answer.
+    pub(crate) fn spelled(&self, spelled: &str) -> Option<Entry> {
+        self.listed.as_ref()?.1.spelled(spelled)
+    }
+
+    /// Whether a path lies in a build's output, where what is there is read
+    /// from its source rather than from the disk.
+    pub(crate) fn emits(&self, path: &Path) -> bool {
+        self.layout(path).is_some()
     }
 
     /// The layout a path lies in: the deepest `outDir` above it.

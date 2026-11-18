@@ -37,7 +37,7 @@ impl TsconfigResolveContext {
 impl ResolverImpl {
     /// Finds the `tsconfig` to which this `path` belongs.
     ///
-    /// If the `path` is inside `node_modules`, this function always returns `None`.
+    /// The `path` is a file's. If it is inside `node_modules`, this function always returns `None`.
     ///
     /// Algorithm:
     ///
@@ -74,9 +74,11 @@ impl ResolverImpl {
         }
         let span = tracing::debug_span!("find_tsconfig", path = %cached_path);
         let _enter = span.enter();
+        // A failure is kept like an answer: the configs it came from are kept,
+        // failures included, so asking again would only walk to it again.
         cached_path
             .resolved_tsconfig
-            .get_or_try_init(|| {
+            .get_or_init(|| {
                 self.find_tsconfig_impl(cached_path).map(|option_tsconfig| {
                     option_tsconfig.map(|tsconfig| {
                         let r = TsConfig::resolve_tsconfig_solution(tsconfig, cached_path.path());
@@ -85,7 +87,7 @@ impl ResolverImpl {
                     })
                 })
             })
-            .cloned()
+            .clone()
     }
 
     /// Find tsconfig.json of a path by traversing parent directories.
@@ -109,9 +111,11 @@ impl ResolverImpl {
         cached_path: &CachedPath,
     ) -> Result<Option<Arc<TsConfig>>, ResolveError> {
         let mut ctx = Ctx::default();
-        let mut cache_value = Some(cached_path.clone());
+        // The path is a file, which holds no `tsconfig.json`: asking for one
+        // inside it would cost a lookup and a cache entry per file.
+        let mut cache_value = cached_path.parent(&self.cache);
         while let Some(cv) = cache_value {
-            if let Some(tsconfig) = cv.tsconfig.get_or_try_init(|| {
+            if let Some(tsconfig) = cv.tsconfig.get_or_init(|| {
                 let tsconfig_path = cv.path.join("tsconfig.json");
                 let tsconfig_path = self.cache.value(&tsconfig_path);
                 if self.is_file(&tsconfig_path, &mut ctx) {
@@ -129,12 +133,12 @@ impl ResolverImpl {
                 } else {
                     Ok(None)
                 }
-            })? {
+            }).clone()? {
                 // Return the nearest tsconfig that owns the file (directly via
                 // `files`/`include`/`exclude`, or via a matching reference);
                 // otherwise keep walking up to an ancestor that does.
                 if tsconfig.claims_ownership_of(cached_path.path()) {
-                    return Ok(Some(Arc::clone(tsconfig)));
+                    return Ok(Some(tsconfig));
                 }
             }
             cache_value = cv.parent(&self.cache);
@@ -162,7 +166,7 @@ impl ResolverImpl {
         self.cache
             .value(Path::new("/"))
             .tsconfig
-            .get_or_try_init(|| {
+            .get_or_init(|| {
                 let mut ctx = TsconfigResolveContext::default();
                 self.load_tsconfig(
                     true,
@@ -172,7 +176,7 @@ impl ResolverImpl {
                 )
                 .map(Some)
             })
-            .cloned()
+            .clone()
     }
 
     /// Resolve `tsconfig`.
