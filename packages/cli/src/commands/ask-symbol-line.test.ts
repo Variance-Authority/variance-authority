@@ -67,19 +67,16 @@ describe('variance ask symbol --line', () => {
     expect(answered.out).toContain('Written since the recording ran:\nsrc/late.ts:1');
   });
 
-  it('says each line is read where it stands now when the recording names no commit', async () => {
+  it('scores nothing when the recording names no commit, and names the declarations as it would without the line', async () => {
     await recorded({ commit: false });
 
     const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out.split('\n').slice(0, 5)).toEqual([
-      '`useSessionId` at src/page.ts:3, by the 1 recorded test that ran the line:',
-      '',
-      'the recording names no commit, so each line is read where it stands now.',
-      '',
-      'src/session.ts:1  1.00  1 of the 1 test that entered it ran the line',
-    ]);
+    expect(answered.out.split('\n')[0]).toBe('The recording cannot place src/page.ts:3: the recording names no commit, so nothing tells the declarations of `useSessionId` apart:');
+    expect(answered.out).not.toContain('1.00');
+    expect(answered.out).toContain('src/session.ts:1');
+    expect(answered.out).toContain('src/legacy.ts:1');
   });
 
   it('names two declarations entered by the same tests as tied', async () => {

@@ -377,8 +377,6 @@ export interface SuiteResonance {
   readonly resonance: NativeResonance;
   /** The declarations written since the recording ran, which it cannot have entered. */
   readonly since: readonly NativeJourneyEnd[];
-  /** Why the lines were read where they stand now rather than where the recording ran them. */
-  readonly unplaced?: string;
 }
 
 /**
@@ -387,8 +385,9 @@ export interface SuiteResonance {
  * entered each against the cases that ran the line. Each line is read where it
  * stood at the commit the recording ran at, one `linesThen` per file; a
  * candidate written since is set apart, and a line written since is refused.
- * A recording that names no commit reads each line where it stands now, and
- * says so in `unplaced`.
+ * A recording that names no commit, or a file whose lines cannot be placed at
+ * it, is refused rather than scored where the lines stand now: a line read in
+ * the wrong place scores another function's tests.
  */
 export function resonance(root: string, at: NativeJourneyEnd, candidates: readonly NativeJourneyEnd[]): readonly SuiteResonance[] {
   const asked = checkoutPath(root, at.file);
@@ -398,16 +397,14 @@ export function resonance(root: string, at: NativeJourneyEnd, candidates: readon
     const refuse = (notRecorded: string): SuiteResonance => ({ ...named, resonance: { notRecorded, cases: 0, resonant: [] }, since: [] });
     if ('outside' in asked) return [refuse(asked.outside)];
     const { commit, unread } = commitOf(recording);
+    if (commit == null) return [refuse(unread ?? 'the recording names no commit')];
     const asking = [{ file: asked.path, line: at.line }, ...candidates];
-    let unplaced = unread ?? undefined;
     const lines: (number | null)[] = asking.map(({ line }) => line);
-    if (commit != null) {
-      for (const file of new Set(asking.map(({ file }) => file))) {
-        const ats = asking.flatMap((end, at) => (end.file === file ? [at] : []));
-        const placed = linesThen(root, commit, file, ats.map((at) => asking[at]!.line));
-        if (placed.unplaced != null) unplaced ??= placed.unplaced;
-        else ats.forEach((at, nth) => { lines[at] = placed.lines[nth] ?? null; });
-      }
+    for (const file of new Set(asking.map(({ file }) => file))) {
+      const ats = asking.flatMap((end, at) => (end.file === file ? [at] : []));
+      const placed = linesThen(root, commit, file, ats.map((at) => asking[at]!.line));
+      if (placed.unplaced != null) return [refuse(placed.unplaced)];
+      ats.forEach((at, nth) => { lines[at] = placed.lines[nth] ?? null; });
     }
     const [line, ...then] = lines;
     if (line == null) return [refuse(`${asked.path}:${at.line} was written since the recording ran`)];
@@ -418,7 +415,7 @@ export function resonance(root: string, at: NativeJourneyEnd, candidates: readon
       return { ...row, candidate: at, line: candidates[at]!.line };
     });
     const since = candidates.filter((_, at) => then[at] == null);
-    return [{ ...named, resonance: { ...answer, resonant }, since, ...(unplaced === undefined ? {} : { unplaced }) }];
+    return [{ ...named, resonance: { ...answer, resonant }, since }];
   });
 }
 

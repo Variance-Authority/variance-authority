@@ -61,7 +61,7 @@ export const symbol: Tool<Help> = {
         type: 'string',
         description:
           'Optional. `<file>:<line>`, a line that uses the name: its declarations are ordered by how closely the tests ' +
-          'that entered each match the recorded tests that ran the line, the one the line ran first.',
+          'that entered each match the recorded tests that ran the line. Overlap of tests, not proof of which one the line called.',
       },
     },
     required: ['name'],

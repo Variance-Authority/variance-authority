@@ -257,8 +257,10 @@ not it found a member, and `ask search` says it when nothing answered, and each
 sends you to their language server's workspace symbols. The graph does not record that one
 function called another at runtime; open the named file or use a language
 server for that question. Where a recording holds the tests that ran a line,
-`ask symbol --name <name> --line <file>:<line>` names first the declaration
-those tests entered, and the others after it.
+`ask symbol --name <name> --line <file>:<line>` ranks the name's declarations
+by how closely the tests that entered each match those tests. The ranking is
+overlap of recorded tests: it does not establish which declaration the line
+called.
 
 No graph database service sits on the answer path. The producer publishes a
 compact graph beside the names and materializes both directions, so walking

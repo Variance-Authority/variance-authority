@@ -192,16 +192,18 @@ The name is matched **exactly**. `--package` takes a package name or a
 specifier, and only narrows: it answers from that package instead of from every
 specifier that publishes the name.
 
-`--line <file>:<line>` asks which of the name's declarations that line ran, and
-reads the recording rather than the code. Each declaration is scored by Ochiai:
+`--line <file>:<line>` ranks the name's declarations by the tests that ran that
+line, reading the recording rather than the code. The rank is overlap of
+recorded tests, not proof of which declaration the line called. Each declaration is scored by Ochiai:
 the tests that both ran the line and entered it, over the geometric mean of the
 two counts, so one every test enters does not outrank one only the line's tests
 enter. The highest comes first and an equal score is marked `tied`. Declarations
 none of the line's tests entered are listed under `Not run with it:`, those
 written at a line no recorded function starts under `Not in the recording:`, and
 those written since the recording ran under `Written since the recording ran:`.
-A line no recorded test ran tells them apart by nothing: the answer says so,
-then answers as without `--line`.
+A line no recorded test ran tells them apart by nothing, and a recording that
+names no commit, or whose commit the lines cannot be placed at, is not scored:
+the answer says so, then answers as without `--line`.
 
 ```
 `useSessionId` at src/page.ts:3, by the 1 recorded test that ran the line:

@@ -1,6 +1,6 @@
 /**
- * `symbol --line`: the declarations of a name, ordered by which one the line
- * ran.
+ * `symbol --line`: the declarations of a name, ordered by the tests that ran the
+ * line.
  *
  * The source index owns which declarations the name has; the recording owns
  * which tests ran the line and which entered each declaration. A declaration
@@ -69,9 +69,8 @@ function untoldLine({ suite, resonance }: SuiteResonance, at: { file: string; li
   return `${ofSuite(suite)}${why}, so nothing tells the declarations of \`${name}\` apart${end}`;
 }
 
-function formatSuite({ suite, resonance, since, unplaced }: SuiteResonance, at: { file: string; line: number }, name: string): string {
+function formatSuite({ suite, resonance, since }: SuiteResonance, at: { file: string; line: number }, name: string): string {
   const lines = [`${ofSuite(suite)}\`${name}\` at ${at.file}:${at.line}, by the ${resonance.cases} recorded ${resonance.cases === 1 ? 'test' : 'tests'} that ran the line:`];
-  if (unplaced !== undefined) lines.push('', `${unplaced}, so each line is read where it stands now.`);
   const scored = resonance.resonant.filter((row) => row.shared > 0);
   const apart = resonance.resonant.filter((row) => row.recorded && row.shared === 0).sort(byPlace);
   const unrecorded = resonance.resonant.filter((row) => !row.recorded).sort(byPlace);

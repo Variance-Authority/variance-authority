@@ -102,7 +102,7 @@ export interface ParsedAsk extends Crossing {
   readonly area?: string;
   /** `--name <name>`: an exported name, matched exactly, for `symbol` and `uses`; a test's name or a word of it, for `test-composition`. */
   readonly name?: string;
-  /** `--line <file>:<line>`: a line that uses the name, for `symbol` to order its declarations by which one the line ran. */
+  /** `--line <file>:<line>`: a line that uses the name, for `symbol` to order its declarations by the tests that ran it. */
   readonly line?: string;
   /** `--package <name>`: a workspace package, for `entrypoint` and to narrow `symbol` and `uses`. */
   readonly package?: string;
