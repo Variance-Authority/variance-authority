@@ -290,8 +290,24 @@ export function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<Na
   return (call as (...args: never[]) => unknown).bind(scanner) as NonNullable<NativeHelp[Name]>;
 }
 
+/** One component declaration attributed by the published record and its parse. */
+export interface ComponentSource {
+  readonly name: string;
+  readonly file: string;
+  readonly line: number;
+  readonly via: 'function' | 'class' | 'const';
+}
+
+/** Scoped component declarations and the identity of every source record in that scope. */
+export interface ComponentSources {
+  readonly components: readonly ComponentSource[];
+  readonly digest: string;
+  readonly files: number;
+}
+
 /** The source index the addon read and checked once for one question; `close` lets its bytes go. */
 export interface OpenedIndex {
+  componentSources(dirs: string[]): ComponentSources;
   hasMocks(files: string[]): boolean[];
   recordNames(files: string[]): { readonly file: string; readonly digest: string }[];
   status(): { readonly state: SourceIndexState; readonly written?: number };

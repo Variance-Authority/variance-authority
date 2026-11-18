@@ -111,3 +111,42 @@ fn record_names_use_the_opened_prefix_and_newest_record_decision_without_reopeni
     assert!(opened.record_names(vec!["a.ts".into()]).is_err());
     std::fs::remove_dir_all(directory).unwrap();
 }
+
+#[test]
+fn component_sources_read_latest_scoped_declarations_and_identity_from_the_opened_chain() {
+    use serde_json::json;
+    let directory = std::env::temp_dir().join(format!("va-component-sources-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    std::fs::create_dir_all(&directory).unwrap();
+    let path = directory.join("index.bin").to_string_lossy().into_owned();
+    let segment = |document| crate::graph_index::merged(&[], &serde_json::from_value::<Delta>(document).unwrap());
+    let before = segment(json!({
+        "parses": [["git:a\u{0}.ts\u{0}+", {"requests":[], "symbols":[
+            {"name":"Panel","kind":"function","line":2}, {"name":"Other","kind":"const","line":3}]}],
+            ["git:b\u{0}.ts\u{0}+", {"requests":[], "symbols":[{"name":"Panel","kind":"class","line":7}]}]],
+        "records": [["src/a.ts", {"record":{"file":"src/a.ts","digest":"git:a","declares":["Panel"]},"witnesses":[]}],
+            ["src/nested/b.ts", {"record":{"file":"src/nested/b.ts","digest":"git:b","declares":["Panel"]},"witnesses":[]}],
+            ["src/Panel.stories.ts", {"record":{"file":"src/Panel.stories.ts","digest":"git:story"},"witnesses":[]}],
+            ["src/removed.ts", {"record":{"file":"src/removed.ts","digest":"git:removed"},"witnesses":[]}],
+            ["src2/outside.ts", {"record":{"file":"src2/outside.ts"},"witnesses":[]}]]
+    }));
+    let after = segment(json!({
+        "parses": [["git:new\u{0}.ts\u{0}+", {"requests":[], "symbols":[{"name":"Panel","kind":"const","line":11}]}]],
+        "records": [["src/a.ts", {"record":{"file":"src/a.ts","digest":"git:new","declares":["Panel"]},"witnesses":[]}]],
+        "deletedRecords":["src/removed.ts"]
+    }));
+    written(&path, Over::Nothing, &[], &[&before, &after], &[], 0).unwrap();
+    let mut opened = open_index(path.clone()).unwrap();
+    std::fs::remove_file(&path).unwrap();
+    let answer = opened.component_sources(vec!["src".into()]).unwrap();
+    assert_eq!(answer.components.iter().map(|row| (row.name.as_str(), row.file.as_str(), row.line, row.via.as_str())).collect::<Vec<_>>(),
+        [("Panel", "src/a.ts", 11, "const"), ("Panel", "src/nested/b.ts", 7, "class")]);
+    assert_eq!(answer.files, 3);
+    assert!(answer.digest.starts_with("v1:"));
+    assert_ne!(opened.component_sources(vec!["src/nested".into()]).unwrap().digest, answer.digest);
+    assert_eq!(opened.component_sources(vec!["src/".into(), "src/nested".into()]).unwrap().digest, answer.digest);
+    assert!(opened.component_sources(vec![".".into()]).is_err());
+    opened.close();
+    assert!(opened.component_sources(vec!["src".into()]).is_err());
+    std::fs::remove_dir_all(directory).unwrap();
+}

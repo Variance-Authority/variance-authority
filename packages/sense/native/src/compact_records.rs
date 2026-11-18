@@ -103,6 +103,13 @@ impl<'a> Records<'a> {
         Some(offsets.range(row).map(move |at| (stored.text(to.at(at)), stored.text(kind.at(at)))))
     }
 
+    /// The component names the record at `row` declares; absence stays absent.
+    pub fn declares_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> Option<impl Iterator<Item = &'s str> + use<'s, 'a>> {
+        if !flag(self.declares_present, row) { return None; }
+        let names = self.declare_name;
+        Some(self.declares.range(row).map(move |at| stored.text(names.at(at))))
+    }
+
     /// The rows of the records here whose imports resolve to `path`,
     /// ascending: `targets.path` read backwards, from the columns the encoder
     /// writes beside it.

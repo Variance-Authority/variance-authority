@@ -23,6 +23,9 @@ use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_store::{encode, DeepRef, StoreMeta, StoreRef};
 
+#[path = "source_components.rs"]
+mod source_components;
+
 #[path = "help_assembly.rs"]
 mod assembly;
 use assembly::HelpPackage;
