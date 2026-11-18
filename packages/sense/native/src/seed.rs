@@ -100,7 +100,16 @@ struct Found {
 /// describe, with independent directory reads fanned over the filesystem width.
 #[napi(catch_unwind)]
 pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
-    let root = PathBuf::from(root);
+    walk(&PathBuf::from(root), dirs, false)
+}
+
+/// Every file of the working tree, for a scan Git does not describe: what the
+/// languages that resolve over the tree ask about, manifests included.
+pub(crate) fn disk_listing(root: &Path) -> Vec<String> {
+    walk(root, vec![String::new()], true)
+}
+
+fn walk(root: &Path, dirs: Vec<String>, every: bool) -> Vec<String> {
     let mut pending: Vec<Directory> = dirs
         .into_iter()
         .filter_map(|dir| {
@@ -109,7 +118,7 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
             } else {
                 root.join(dir)
             };
-            let prefix = repo_path(&root, &absolute)?;
+            let prefix = repo_path(root, &absolute)?;
             Some(Directory {
                 absolute,
                 prefix,
@@ -121,7 +130,7 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
     let pool = ThreadPoolBuilder::new().num_threads(READERS).build();
 
     while !pending.is_empty() {
-        let work = || pending.par_iter().map(read).collect::<Vec<_>>();
+        let work = || pending.par_iter().map(|directory| read(directory, every)).collect::<Vec<_>>();
         let found = match &pool {
             Ok(pool) => pool.install(work),
             Err(_) => work(),
@@ -137,7 +146,8 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
     files
 }
 
-/// Every readable file in one directory, unless it is a repository of its own.
+/// Every readable file in one directory, or `every` file, unless it is a
+/// repository of its own.
 ///
 /// A checkout inside a checkout — a worktree, a vendored clone — is a different
 /// repository that happens to sit at this path. Git tracks none of its files, so
@@ -148,7 +158,7 @@ pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
 ///
 /// A configured directory that is not there contributes nothing; the caller is
 /// the one that can say whether an empty result is wrong.
-fn read(directory: &Directory) -> Option<Found> {
+fn read(directory: &Directory, every: bool) -> Option<Found> {
     let entries: Vec<_> = fs::read_dir(&directory.absolute)
         .ok()?
         .filter_map(Result::ok)
@@ -177,7 +187,8 @@ fn read(directory: &Directory) -> Option<Found> {
                     seeded: false,
                 });
             }
-        } else if path
+        } else if every
+            || path
             .extension()
             .and_then(|part| part.to_str())
             .is_some_and(|extension| EXTENSIONS.contains(&extension))

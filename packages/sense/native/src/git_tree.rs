@@ -186,7 +186,7 @@ impl GitTree {
                 condition_names,
             },
             Some(oids),
-            Some(self.at.as_ref()),
+            batch::Tree { known: Some(self.at.as_ref()), world: Some(self.at.as_ref()), oids: &self.oids },
             Some(self.listing()),
             &kept,
             &self.from_blob,

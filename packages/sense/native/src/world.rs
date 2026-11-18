@@ -81,11 +81,6 @@ impl<'a> World<'a> {
         self.jvm.get_or_init(|| crate::resolve_jvm::roots(self))
     }
 
-    /// Git's listing, path to row, when the caller has one.
-    pub(crate) fn known(&self) -> Option<&'a HashMap<String, u32>> {
-        self.known
-    }
-
     /// Whether the tree holds this repository path.
     pub(crate) fn has(&self, path: &str) -> bool {
         self.known.is_some_and(|known| known.contains_key(path))

@@ -1,5 +1,5 @@
-//! The walk of the module closure: read a wave, resolve its requests, enter
-//! what they reach, until a wave reaches nothing new.
+//! The walk of the closure: read a wave, resolve its requests, enter every
+//! readable file they reach, until a wave reaches nothing new.
 
 // compass: variance-authority.reach.source-index
 
@@ -142,11 +142,11 @@ pub(crate) fn walk_beyond(
         let reading = |slice: &[String], oids| {
             read_kept(&root, store, slice, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
         };
-        let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, &world);
+        let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, &world, Some(at));
         let (opened, wave_kept, resolved) = read_resolved(&wave, SLICE, oids, reading, resolving);
         answered.extend(wave_kept);
         for target in resolved.iter().flat_map(Reached::all) {
-            if is_module(target) && !held(target) && seen.insert(target.clone()) {
+            if language_of(target).is_some() && !held(target) && seen.insert(target.clone()) {
                 queue.push(target.clone());
             }
         }
@@ -262,10 +262,17 @@ pub(super) fn read_kept(
 }
 
 /// Where every request of every parsed file lands. A module's and a
-/// stylesheet's go through `resolvers`; a language that resolves over the tree
-/// asks `world`, whose indexes are built here, before the pool, for the
-/// languages this slice holds.
-pub(super) fn resolve_all(root: &Path, files: &[String], read: &[Answer], resolvers: &Resolvers, world: &World) -> Vec<Reached> {
+/// stylesheet's go through `resolvers`, landing against `known`; a language
+/// that resolves over the tree asks `world`, whose indexes are built here,
+/// before the pool, for the languages this slice holds.
+pub(super) fn resolve_all(
+    root: &Path,
+    files: &[String],
+    read: &[Answer],
+    resolvers: &Resolvers,
+    world: &World,
+    known: Option<&HashMap<String, u32>>,
+) -> Vec<Reached> {
     let mut languages: Vec<Language> = files.iter().filter_map(|file| language_of(file)).collect();
     languages.sort_unstable_by_key(|language| *language as u8);
     languages.dedup();
@@ -273,7 +280,6 @@ pub(super) fn resolve_all(root: &Path, files: &[String], read: &[Answer], resolv
     let resolving = ThreadPoolBuilder::new()
         .num_threads(resolving_width().min(files.len().max(1)))
         .build();
-    let known = world.known();
     let work = || {
         files
             .par_iter()
@@ -303,13 +309,6 @@ pub(super) fn resolve_all(root: &Path, files: &[String], read: &[Answer], resolv
         Ok(pool) => pool.install(work),
         Err(_) => work(),
     }
-}
-
-pub(crate) fn is_module(file: &str) -> bool {
-    matches!(
-        Path::new(file).extension().and_then(|part| part.to_str()),
-        Some("ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs")
-    )
 }
 
 #[cfg(test)]

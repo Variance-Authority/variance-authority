@@ -13,7 +13,9 @@ use crate::emitted::{Emitted, Listing};
 use crate::git::Oid;
 use crate::parse_origin::FromBlob;
 use crate::read::Kind;
+use crate::read_any::{language_of, Language};
 use crate::resolve::{Resolvers, Tsconfig};
+use crate::world::World;
 
 #[path = "batch_walk.rs"]
 mod walk;
@@ -39,6 +41,8 @@ pub struct ReadBatch {
     pub declined: Buffer,
     pub declare_counts: Uint32Array,
     pub declares: Vec<String>,
+    /// One per request the reader guessed at, as [`ScanBatch::guessed`].
+    pub guessed: Buffer,
 }
 
 /// A read batch with every request resolved before it crosses N-API.
@@ -59,6 +63,14 @@ pub struct ScanBatch {
     pub declares: Vec<String>,
     /// Repository-relative target per request, or empty when unresolved.
     pub targets: Vec<String>,
+    /// One per request when the reader guessed at what it names, so a miss is
+    /// no hole: a Rust `use` that may be an item rather than a module.
+    pub guessed: Buffer,
+    /// Every further file a request reaches, beyond its target: the rest of a
+    /// Swift target's directory, or of a Java wildcard's package.
+    pub more: Vec<String>,
+    /// The request, by its index across the batch, each of `more` belongs to.
+    pub more_at: Uint32Array,
     /// One when the parse came from the cache's parse store rather than from
     /// the bytes: its row in `parses` is empty, and the store holds it whole.
     pub kept: Buffer,
@@ -103,10 +115,10 @@ pub fn read_batch(
 
 /// Read, parse, extract and resolve a frontier on one native side.
 ///
-/// `listed` is what a listing the addon does not hold says about the paths
-/// the disk alone declines: the files Git lists under a `build/`. A scan over
-/// a tree the addon built passes nothing here, because that tree resolves
-/// with the whole listing.
+/// `listed` is Git's listing, when the caller holds one the addon does not:
+/// what decides a tracked `build/`, and what every language that resolves over
+/// the tree asks about. Without it those languages ask the disk, walked once
+/// per batch that holds one of their files.
 #[napi(catch_unwind)]
 #[allow(dead_code, reason = "called through the generated N-API export")]
 #[allow(clippy::too_many_arguments, reason = "stable positional N-API contract")]
@@ -121,6 +133,9 @@ pub fn scan_batch(
     listed: Option<Vec<String>>,
 ) -> ScanBatch {
     let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
+    let over_tree = |file: &String| !matches!(language_of(file), None | Some(Language::Module | Language::Style));
+    let walked: Option<HashMap<String, u32>> = (listed.is_none() && files.iter().any(over_tree))
+        .then(|| crate::seed::disk_listing(Path::new(&root)).into_iter().zip(0..).collect());
     scan_batch_with_oids(
         ScanOptions {
             root,
@@ -132,7 +147,7 @@ pub fn scan_batch(
             condition_names,
         },
         None,
-        listed.as_ref(),
+        Tree { known: listed.as_ref(), world: listed.as_ref().or(walked.as_ref()), oids: &[] },
         None,
         &|_, _| None,
         &FromBlob::default(),
@@ -140,10 +155,18 @@ pub fn scan_batch(
     )
 }
 
+/// What a batch knows of the tree: the listing a module lands against, the one
+/// the other languages ask about, and Git's name for each listed file's content.
+pub(crate) struct Tree<'t> {
+    pub known: Option<&'t HashMap<String, u32>>,
+    pub world: Option<&'t HashMap<String, u32>>,
+    pub oids: &'t [Oid],
+}
+
 pub(crate) fn scan_batch_with_oids(
     options: ScanOptions,
     oids: Option<Vec<Option<Oid>>>,
-    known: Option<&HashMap<String, u32>>,
+    tree: Tree,
     listing: Option<Arc<Listing>>,
     kept: Kept,
     from_blob: &FromBlob,
@@ -174,8 +197,17 @@ pub(crate) fn scan_batch_with_oids(
             Vec::new(),
         ),
     };
-    let world = crate::world::World::new(known, None);
-    let targets = resolve_all(root_path, &files, &read, &resolvers, &world).into_iter().map(|reached| reached.first).collect();
+    // A language that reads its neighbours reads them as the walk does
+    // (`batch_walk.rs`): out of Git when the tree names them, off the disk otherwise.
+    let parsing = |asked: &[&str]| {
+        let asked: Vec<String> = asked.iter().map(|file| (*file).to_owned()).collect();
+        let named = asked.iter().map(|file| tree.world.and_then(|at| at.get(file)).and_then(|index| tree.oids.get(*index as usize)).copied()).collect();
+        let (read, _) = read_kept(&root, store, &asked, named, largest_file, Some(false), Some(readers.unwrap_or(6).max(1)), kept, from_blob);
+        read.into_iter().map(|(read, _, outcome)| outcome.parsed().then_some(read)).collect()
+    };
+    let texting = |path: &str| std::fs::read_to_string(root_path.join(path)).ok();
+    let world = World::new(tree.world, None).reading(&parsing, &texting);
+    let targets = resolve_all(root_path, &files, &read, &resolvers, &world, tree.known);
     let columns = columns(read, true, &answered);
     scan_columns(files, Vec::new(), columns, targets, answered)
 }
@@ -193,7 +225,6 @@ pub(crate) fn scan_graph_with_tree(
     let include_parses = options.include_parses;
     let Walked { files, identities, read, targets, kept: answered } =
         walk_beyond(options, at, tree_oids, listing, None, &|_| false, kept, from_blob, store);
-    let targets = targets.into_iter().map(|reached| reached.first).collect();
     // A kept row's parse is the store's, whole; the one the walk holds is only
     // what records need, so it is not published as a parse.
     let parse_segment = crate::index::parse_segment(&files, &identities, &read, &answered);
@@ -205,11 +236,22 @@ fn scan_columns(
     files: Vec<String>,
     parse_segment: Vec<u8>,
     columns: ReadBatch,
-    targets: Vec<Vec<String>>,
+    targets: Vec<Reached>,
     kept: Vec<bool>,
 ) -> ScanBatch {
     // One byte per row, whatever read it: a scan no store answered keeps nothing.
     let kept: Vec<u8> = (0..files.len()).map(|row| u8::from(kept.get(row).copied().unwrap_or(false))).collect();
+    let (mut first, mut more, mut more_at) = (Vec::new(), Vec::new(), Vec::new());
+    let mut base = 0u32;
+    for reached in targets {
+        let requests = reached.first.len() as u32;
+        first.extend(reached.first);
+        for (request, file) in reached.more {
+            more_at.push(base + request);
+            more.push(file);
+        }
+        base += requests;
+    }
     ScanBatch {
         files,
         parse_segment: parse_segment.into(),
@@ -223,7 +265,10 @@ fn scan_columns(
         declined: columns.declined,
         declare_counts: columns.declare_counts,
         declares: columns.declares,
-        targets: targets.into_iter().flatten().collect(),
+        targets: first,
+        guessed: columns.guessed,
+        more,
+        more_at: Uint32Array::new(more_at),
         kept: kept.into(),
     }
 }
@@ -236,6 +281,7 @@ fn columns(read: Vec<Answer>, include_parses: bool, kept: &[bool]) -> ReadBatch 
     let mut held_digests = Vec::with_capacity(read.len());
     let mut values = Vec::with_capacity(total);
     let mut kinds = Vec::with_capacity(total);
+    let mut guessed = Vec::with_capacity(total);
     let mut parses = Vec::with_capacity(read.len());
     let mut parsed_flags = Vec::with_capacity(read.len());
     let mut declined = Vec::with_capacity(read.len());
@@ -258,6 +304,7 @@ fn columns(read: Vec<Answer>, include_parses: bool, kept: &[bool]) -> ReadBatch 
         for request in held.requests {
             values.push(request.value);
             kinds.push(request.kind.code());
+            guessed.push(u8::from(request.guessed));
         }
     }
 
@@ -272,6 +319,7 @@ fn columns(read: Vec<Answer>, include_parses: bool, kept: &[bool]) -> ReadBatch 
         declined: declined.into(),
         declare_counts: Uint32Array::new(declare_counts),
         declares,
+        guessed: guessed.into(),
     }
 }
 
