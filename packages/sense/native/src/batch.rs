@@ -114,7 +114,8 @@ pub fn read_batch(
 /// `listed` is Git's listing, when the caller holds one the addon does not:
 /// what decides a tracked `build/`, and what every language that resolves over
 /// the tree asks about. Without it those languages ask the disk, walked once
-/// per batch that holds one of their files. `records` asks for each row's
+/// per batch that holds one of their files, entering a repository of its own
+/// only when it is one of `dirs`, or holds one. `records` asks for each row's
 /// record, settled against what it names.
 #[napi(catch_unwind)]
 #[allow(dead_code, reason = "called through the generated N-API export")]
@@ -129,11 +130,12 @@ pub fn scan_batch(
     condition_names: Option<Vec<String>>,
     listed: Option<Vec<String>>,
     records: Option<RecordOptions>,
+    dirs: Option<Vec<String>>,
 ) -> napi::Result<ScanBatch> {
     let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
     let over_tree = |file: &String| !matches!(language_of(file), None | Some(Language::Module | Language::Style));
     let walked: Option<HashMap<String, u32>> = (listed.is_none() && files.iter().any(over_tree))
-        .then(|| crate::seed::disk_listing(Path::new(&root), &[]).into_iter().zip(0..).collect());
+        .then(|| crate::seed::disk_listing(Path::new(&root), dirs.as_deref().unwrap_or_default()).into_iter().zip(0..).collect());
     scan_batch_with_oids(
         ScanOptions {
             root,

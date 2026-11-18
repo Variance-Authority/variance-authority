@@ -368,6 +368,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         ...(packed === undefined ? {} : { tree: packed }),
         ...(packed === undefined && tree !== undefined ? { listed: tree.paths() } : {}),
         root,
+        dirs: options.dirs,
         files: pending,
         largestFile,
         digests: pendingDigests,

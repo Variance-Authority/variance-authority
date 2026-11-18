@@ -186,7 +186,9 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * Read, parse, extract and resolve one frontier without an AST crossing N-API.
    * `listed` is Git's listing when the tree is not the addon's own: a module
    * under a tracked `build/` lands only when listed, and the other languages
-   * resolve against it. Without it they ask the disk, walked once per batch.
+   * resolve against it. Without it they ask the disk, walked once per batch,
+   * which enters a repository of its own only when it is one of `dirs`, or
+   * holds one.
    */
   scanBatch(
     root: string,
@@ -198,6 +200,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     conditionNames?: string[],
     listed?: string[],
     records?: NativeRecordOptions,
+    dirs?: string[],
   ): NativeScanBatch;
   /** The kind names, indexed by the codes a batch's `kinds` carries. */
   kinds(): EdgeKind[];
@@ -295,6 +298,8 @@ export interface NativeFrontierOptions extends ResolveOptions {
   readonly stores?: readonly string[];
   /** Without `tree`, every file the listing holds; without either, the batch walks the disk. */
   readonly listed?: readonly string[];
+  /** The directories the scan was asked for: a walk of the disk enters a repository of its own among them. */
+  readonly dirs?: readonly string[];
   readonly root: string;
   readonly files: readonly string[];
   readonly largestFile: number;
@@ -339,6 +344,7 @@ export function nativeFrontier(options: NativeFrontierOptions): readonly NativeB
       conditionNames,
       options.listed === undefined ? undefined : [...options.listed],
       recordOptions(options, options.digests),
+      options.dirs === undefined ? undefined : [...options.dirs],
     )
     : options.tree.scanBatch(
       options.root,

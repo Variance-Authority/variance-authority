@@ -156,6 +156,28 @@ describe('a Python tree, scanned', () => {
   });
 });
 
+describe('a repository of its own, asked for', () => {
+  // A walk steps over a checkout inside a checkout, but one the caller names is
+  // the subject: what its files import resolves among its files.
+  it('resolves what its Python files import among its own files', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-python-nested-'));
+    try {
+      await write(root, 'nested/.git/HEAD', 'ref: refs/heads/main\n');
+      await write(root, 'nested/pyproject.toml', '[project]\nname = "nested"\n');
+      await write(root, 'nested/src/pkg/__init__.py', '');
+      await write(root, 'nested/src/pkg/a.py', 'import pkg.b\n');
+      await write(root, 'nested/src/pkg/b.py', 'VALUE = 1\n');
+
+      const records = await scanRelations({ root, dirs: ['nested'], digests: false });
+      const a = records.find((record) => record.file === 'nested/src/pkg/a.py');
+
+      expect((a?.edges ?? []).map((edge) => edge.to)).toContain('nested/src/pkg/b.py');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
 async function write(root: string, path: string, contents: string): Promise<void> {
   const file = join(root, path);
   await mkdir(dirname(file), { recursive: true });
