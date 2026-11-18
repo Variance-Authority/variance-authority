@@ -522,13 +522,13 @@ edge lands on the build. See [Workspace packages](#workspace-packages).
 barrels and bundles from consuming a scan's memory budget. Raising
 `largestFile` accepts that cost for a file you want read anyway.
 
-**Framework dialects are not read yet.** Single-file `.vue` and `.svelte`
-components get no record, the files an Angular component names in
-`templateUrl` and `styleUrls` are not linked to it, and an alias only a
-bundler's configuration declares does not resolve. Each leaves an edge out of
-the graph without marking any file unknown, so `variance reach` leaves out a
-test that reaches a changed file only through that edge; [Extensions](#extensions) and
-[Resolution](#resolution) say what each one costs.
+**Framework file formats and bundler-only aliases are not read yet.**
+Single-file `.vue` and `.svelte` components get no record, the files an Angular
+component names in `templateUrl` and `styleUrls` are not linked to it, and an
+alias only a bundler's configuration declares does not resolve. Each leaves an
+edge out of the graph without marking any file unknown, so `variance reach`
+leaves out a test that reaches a changed file only through that edge;
+[Extensions](#extensions) and [Resolution](#resolution) say what each one costs.
 
 **Components are React's, and only where the source names them.** On another
 framework `declares` is empty; on React, a component that never has a

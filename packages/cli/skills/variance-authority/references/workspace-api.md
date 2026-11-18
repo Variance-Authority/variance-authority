@@ -118,12 +118,13 @@ JSON, Markdown or shell file nothing imports is outside the source, and an empty
 answer says nothing about it: search it with `rg` or `git grep` alongside
 `variance`, not after `variance` comes back empty.
 
-Framework dialects are not read yet. A Vue or Svelte single-file component is
-outside the source, so search it with `rg` too. The files an Angular component
-names in `templateUrl` and `styleUrls` are not linked to it, and an import
-through an alias declared only in a bundler's configuration, such as webpack's
-or Vite's `resolve.alias`, resolves to no file, where one declared as `paths` in
-a `tsconfig` does. [The source scan's
+Framework file formats and bundler-only aliases are not read yet. A Vue or
+Svelte single-file component is not parsed, so nothing it declares or imports is
+answered: search it with `rg` too. The files an Angular component names in
+`templateUrl` and `styleUrls` are not linked to it, and an import through an
+alias declared only in a bundler's configuration, such as webpack's or Vite's
+`resolve.alias`, resolves to no file, where one declared as `paths` in a
+`tsconfig` does. [The source scan's
 limits](https://variance-authority.dev/docs/source#limits) say what each leaves
 out.
 

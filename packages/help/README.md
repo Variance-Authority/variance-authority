@@ -41,12 +41,13 @@ files — what a path reaches, who imports or declares a name — start from the
 of a task before you know any name, list the third-party packages a location
 can already use, map the code the recorded tests ran around one file, and list
 the test files the latest recorded run spent longest in. It reads JavaScript and TypeScript, Python, Rust, Java, Kotlin and Swift.
-It reads no framework dialect yet: not a Vue or Svelte single-file component,
-not the files an Angular component names in `templateUrl` and `styleUrls`, and
-not an alias declared only in a bundler's configuration, where one declared as
-`paths` in a `tsconfig` resolves. [The source scan's
-limits](https://variance-authority.dev/docs/source#limits) say what each leaves
-out. The two verbs that answer for a *published* specifier read a `package.json`, so
+It does not yet read framework file formats or bundler-only aliases: not a Vue
+or Svelte single-file component, not the files an Angular component names in
+`templateUrl` and `styleUrls`, and not an alias declared only in a bundler's
+configuration, where one declared as `paths` in a `tsconfig` resolves. [The
+source scan's limits](https://variance-authority.dev/docs/source#limits) say
+what each leaves out.
+The two verbs that answer for a *published* specifier read a `package.json`, so
 in a repository with none they answer out of what the files themselves export.
 The repository itself does not have to be built and no API site is required.
 Point it at any checkout with `--root`.

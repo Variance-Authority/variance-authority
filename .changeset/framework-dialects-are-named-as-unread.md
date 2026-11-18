@@ -5,8 +5,8 @@
 ---
 
 The READMEs and the `variance-authority` skill say that the source index does
-not read framework dialects yet: Vue and Svelte single-file components are not
-indexed, the files an Angular component names in `templateUrl` and `styleUrls`
-are not linked to it, and an import alias declared only in a bundler's
-configuration does not resolve, where one declared as `paths` in a `tsconfig`
-does.
+not yet read framework file formats or bundler-only aliases: Vue and Svelte
+single-file components are not indexed, the files an Angular component names in
+`templateUrl` and `styleUrls` are not linked to it, and an import alias declared
+only in a bundler's configuration does not resolve, where one declared as
+`paths` in a `tsconfig` does.

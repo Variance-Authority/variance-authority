@@ -2775,12 +2775,12 @@ test:
 ### `reach`: what a diff reaches, for a pipe
 
 `select` answers a journal about a suite this tool recorded. `reach` answers the
-import graph about a checkout it has never run anything in, and its languages are
-JavaScript, TypeScript, Python, Rust, Java, Kotlin and Swift. It reads no
-framework dialect yet: not a Vue or Svelte single-file component, not the files
-an Angular component names in `templateUrl` and `styleUrls`, and not an alias
-declared only in a bundler's configuration, where one declared as `paths` in a
-`tsconfig` resolves; [the source scan's
+import graph about a checkout it has never run anything in, and its languages
+are JavaScript, TypeScript, Python, Rust, Java, Kotlin and Swift. It does not
+yet read framework file formats or bundler-only aliases: not a Vue or Svelte
+single-file component, not the files an Angular component names in `templateUrl`
+and `styleUrls`, and not an alias declared only in a bundler's configuration,
+where one declared as `paths` in a `tsconfig` resolves; [the source scan's
 limits](https://variance-authority.dev/docs/source#limits) say what each leaves
 out. It prints the files a diff reaches, one per line, and it is meant to be
 piped:

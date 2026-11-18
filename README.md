@@ -183,12 +183,12 @@ language the tool is written in. JavaScript and TypeScript in every dialect,
 stylesheets, Python, Rust, Java, Kotlin and Swift are read into one graph, and a
 diff that spans several of them is answered in one walk.
 
-Framework dialects are not read yet. Vue and Svelte single-file components are
-not indexed, the template and stylesheet files an Angular component names in
-`templateUrl` and `styleUrls` are not linked to it, and an import alias declared
-only in a bundler's configuration does not resolve — one declared as `paths` in
-a `tsconfig` does. [The source scan's limits](docs/source.md#limits) say what
-each one leaves out.
+Framework file formats and bundler-only aliases are not read yet. Vue and Svelte
+single-file components are not indexed, the template and stylesheet files an
+Angular component names in `templateUrl` and `styleUrls` are not linked to it,
+and an import alias declared only in a bundler's configuration does not resolve
+— one declared as `paths` in a `tsconfig` does. [The source scan's
+limits](docs/source.md#limits) say what each one leaves out.
 
 ```bash
 variance reach --since origin/main
