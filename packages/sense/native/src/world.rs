@@ -34,6 +34,7 @@ pub(crate) struct World<'a> {
     sorted: OnceLock<Vec<&'a str>>,
     python: OnceLock<Vec<String>>,
     rust: OnceLock<crate::resolve_rust::Index>,
+    swift: OnceLock<crate::resolve_swift::Index>,
 }
 
 impl<'a> World<'a> {
@@ -41,7 +42,7 @@ impl<'a> World<'a> {
     /// and `listed`, when the caller has them, are the same paths in the
     /// order a sorted walk of the tree needs.
     pub(crate) fn new(known: Option<&'a HashMap<String, u32>>, listed: Option<&'a [String]>) -> Self {
-        Self { known, listed, parsing: None, texting: None, sorted: OnceLock::new(), python: OnceLock::new(), rust: OnceLock::new() }
+        Self { known, listed, parsing: None, texting: None, sorted: OnceLock::new(), python: OnceLock::new(), rust: OnceLock::new(), swift: OnceLock::new() }
     }
 
     /// The same world, able to say what its files hold. A world over a bare
@@ -67,6 +68,11 @@ impl<'a> World<'a> {
     /// The module tree the crates' `mod` lines declare, and the crates by name.
     pub(crate) fn rust_index(&self) -> &crate::resolve_rust::Index {
         self.rust.get_or_init(|| crate::resolve_rust::Index::of(self))
+    }
+
+    /// The targets every `Package.swift` declares, by module name.
+    pub(crate) fn swift_index(&self) -> &crate::resolve_swift::Index {
+        self.swift.get_or_init(|| crate::resolve_swift::Index::of(self))
     }
 
     /// Git's listing, path to row, when the caller has one.
@@ -107,7 +113,6 @@ impl<'a> World<'a> {
     }
 
     /// Every path directly inside a directory, sorted.
-    #[allow(dead_code)]
     pub(crate) fn under(&self, directory: &str) -> impl Iterator<Item = &'a str> + '_ {
         let depth = if directory.is_empty() { 0 } else { directory.split('/').count() };
         self.below(directory).iter().copied().filter(move |path| path.split('/').count() == depth + 1)
@@ -145,6 +150,9 @@ impl<'a> World<'a> {
                 Language::Rust => {
                     self.rust_index();
                 }
+                Language::Swift => {
+                    self.swift_index();
+                }
                 _ => {}
             }
         }
@@ -159,6 +167,7 @@ impl<'a> World<'a> {
         match language {
             Language::Python => crate::resolve_python::resolve(self, from, request),
             Language::Rust => crate::resolve_rust::resolve(self, from, request, item),
+            Language::Swift => crate::resolve_swift::resolve(self, from, request),
             _ => Vec::new(),
         }
     }
