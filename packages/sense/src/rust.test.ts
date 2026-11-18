@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { native } from './addon.js';
 import type { Read } from './read.js';
-import { isRelative } from './specifier.js';
 
 /**
  * The two certainties a Rust file offers, and the one it does not.
@@ -207,13 +206,6 @@ describe('what a Rust file asks for', () => {
     const read = readRust('src/lib.rs', '#[path = "lib_tests.rs"]\n#[cfg(test)]\nmod tests;\n');
 
     expect(read.requests[0]?.value).toBe('lib_tests.rs');
-  });
-
-  it('answers for a path this repository could own, and not for a foreign crate', () => {
-    expect(isRelative('self::order', 'rust')).toBe(true);
-    expect(isRelative('crate::read::Read', 'rust')).toBe(true);
-    expect(isRelative('other/place.rs', 'rust')).toBe(true);
-    expect(isRelative('std::fmt::Display', 'rust')).toBe(false);
   });
 });
 

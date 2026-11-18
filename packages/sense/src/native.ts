@@ -18,7 +18,7 @@ import type { Digest } from '@variance-authority/core/format';
 import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import type { ResolveOptions } from './resolve.js';
-import { asDigest, builtFromBatch } from './native-built.js';
+import { builtFromBatch, recordOptions } from './native-built.js';
 import type { Aliases, AliasTable } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
 import type {
@@ -56,6 +56,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     tsconfig?: string | false,
     conditionNames?: string[],
     stores?: string[],
+    records?: NativeRecordOptions,
   ): NativeScanBatch;
   scanGraph(
     root: string,
@@ -66,6 +67,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     conditionNames?: string[],
     includeParses?: boolean,
     stores?: string[],
+    records?: NativeRecordOptions,
   ): NativeScanBatch;
   /** A cold closure held on the native side ([`native-index-graph.ts`](./native-index-graph.ts)). */
   indexGraph(options: NativeIndexGraphOptions): NativeIndexGraph;
@@ -107,7 +109,18 @@ export interface NativeReadBatch {
   /** One when the reader guessed the request, so a miss is silence rather than a hole. */
   readonly guessed: Buffer;
 }
-export interface NativeScanBatch extends NativeReadBatch {
+/** `RecordOptions` in `native/src/record.rs`: what a batch's records are settled against. */
+export interface NativeRecordOptions {
+  readonly remembering: boolean;
+  /** `Aliases.table` as JSON. */
+  readonly aliases?: string;
+  readonly builtins: string[];
+  readonly codeExtensions: string[];
+  readonly directories: string[];
+  /** The digest each asked file is named by, empty where the read's names it. */
+  readonly identities?: string[];
+}
+export interface NativeScanBatch extends Omit<NativeReadBatch, 'guessed'> {
   /** Every file represented by the columns, in their shared row order. */
   readonly files: string[];
   /** Parse-only generation in the existing source-index format. */
@@ -120,10 +133,8 @@ export interface NativeScanBatch extends NativeReadBatch {
    * store holds the parse whole ([`parse-store.ts`](./parse-store.ts)).
    */
   readonly kept: Buffer;
-  /** The further targets a request reaches past its first: a Swift target's files, a Java package's. */
-  readonly more: string[];
-  /** The batch-wide request index each of `more` belongs to, ascending. */
-  readonly moreAt: Uint32Array;
+  /** Every row's `IndexedRecord` as JSON, built by `built` in `record.rs`, when records were asked for. */
+  readonly records?: string;
 }
 
 export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts, NativeSourceIndexes {
@@ -184,6 +195,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     tsconfig?: string | false,
     conditionNames?: string[],
     listed?: string[],
+    records?: NativeRecordOptions,
   ): NativeScanBatch;
   /** The kind names, indexed by the codes a batch's `kinds` carries. */
   kinds(): EdgeKind[];
@@ -306,7 +318,7 @@ export interface NativeBuilt {
  *
  * The JSON column is not a second format: it is the transient representation of
  * `Parsed` needed by the existing source-index encoder and callback. Records and
- * witnesses are assembled directly into their existing TypeScript shapes.
+ * witnesses are built on the native side (`record.rs`) and only decoded here.
  */
 export function nativeFrontier(options: NativeFrontierOptions): readonly NativeBuilt[] {
   const digestContents = options.digests.some((digest) => digest === undefined);
@@ -324,6 +336,7 @@ export function nativeFrontier(options: NativeFrontierOptions): readonly NativeB
       options.tsconfig,
       conditionNames,
       options.listed === undefined ? undefined : [...options.listed],
+      recordOptions(options, options.digests),
     )
     : options.tree.scanBatch(
       options.root,
@@ -334,12 +347,13 @@ export function nativeFrontier(options: NativeFrontierOptions): readonly NativeB
       options.tsconfig,
       conditionNames,
       options.stores === undefined ? undefined : [...options.stores],
+      recordOptions(options, options.digests),
     );
   if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
     process.stderr.write(`sense native scan: ${(performance.now() - started).toFixed(1)} ms\n`);
   }
   const crossing = performance.now();
-  const built = builtFromBatch(options, batch);
+  const built = builtFromBatch(batch);
   if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
     process.stderr.write(`sense native crossing: ${(performance.now() - crossing).toFixed(1)} ms\n`);
   }
@@ -366,16 +380,15 @@ export function nativeGraph(
     options.conditionNames === undefined ? undefined : [...options.conditionNames],
     includeParses,
     options.stores === undefined ? undefined : [...options.stores],
+    recordOptions(options),
   );
-  const digests = options.tree
-    .digestsFor(batch.files)
-    .map((digest) => digest === '' ? undefined : digest as Digest);
-  const built = builtFromBatch({ ...options, files: batch.files, digests }, batch);
+  const built = builtFromBatch(batch);
   const keys = new Set<string>();
   for (const [index, file] of batch.files.entries()) {
-    // A kept row is not in the segment: the store holds its parse.
+    // A kept row is not in the segment: the store holds its parse. A parsed
+    // row's record is named by the walk's identity, as its parse is.
     if (batch.parsed[index] !== 1 || batch.kept[index] === 1) continue;
-    const digest = digests[index] ?? asDigest(batch.digests[index]);
+    const digest = built[index]!.record.digest;
     if (digest !== undefined) keys.add(keyFor(digest, parseWay(file)));
   }
   return {

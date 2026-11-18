@@ -14,6 +14,7 @@ use crate::git::Oid;
 use crate::parse_origin::FromBlob;
 use crate::read::Kind;
 use crate::read_any::{language_of, Language};
+use crate::record::{records_json, RecordOptions, Settled};
 use crate::resolve::{Resolvers, Tsconfig};
 use crate::world::World;
 
@@ -63,14 +64,9 @@ pub struct ScanBatch {
     pub declares: Vec<String>,
     /// Repository-relative target per request, or empty when unresolved.
     pub targets: Vec<String>,
-    /// One per request when the reader guessed at what it names, so a miss is
-    /// no hole: a Rust `use` that may be an item rather than a module.
-    pub guessed: Buffer,
-    /// Every further file a request reaches, beyond its target: the rest of a
-    /// Swift target's directory, or of a Java wildcard's package.
-    pub more: Vec<String>,
-    /// The request, by its index across the batch, each of `more` belongs to.
-    pub more_at: Uint32Array,
+    /// Every row's record as a JSON `IndexedRecord[]`, built by `built` in
+    /// `record.rs`, when the caller said what records are settled against.
+    pub records: Option<String>,
     /// One when the parse came from the cache's parse store rather than from
     /// the bytes: its row in `parses` is empty, and the store holds it whole.
     pub kept: Buffer,
@@ -118,7 +114,8 @@ pub fn read_batch(
 /// `listed` is Git's listing, when the caller holds one the addon does not:
 /// what decides a tracked `build/`, and what every language that resolves over
 /// the tree asks about. Without it those languages ask the disk, walked once
-/// per batch that holds one of their files.
+/// per batch that holds one of their files. `records` asks for each row's
+/// record, settled against what it names.
 #[napi(catch_unwind)]
 #[allow(dead_code, reason = "called through the generated N-API export")]
 #[allow(clippy::too_many_arguments, reason = "stable positional N-API contract")]
@@ -131,7 +128,8 @@ pub fn scan_batch(
     tsconfig: Option<Either<String, bool>>,
     condition_names: Option<Vec<String>>,
     listed: Option<Vec<String>>,
-) -> ScanBatch {
+    records: Option<RecordOptions>,
+) -> napi::Result<ScanBatch> {
     let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
     let over_tree = |file: &String| !matches!(language_of(file), None | Some(Language::Module | Language::Style));
     let walked: Option<HashMap<String, u32>> = (listed.is_none() && files.iter().any(over_tree))
@@ -152,6 +150,7 @@ pub fn scan_batch(
         &|_, _| None,
         &FromBlob::default(),
         &TreeObjects::default(),
+        records,
     )
 }
 
@@ -171,7 +170,8 @@ pub(crate) fn scan_batch_with_oids(
     kept: Kept,
     from_blob: &FromBlob,
     store: &TreeObjects,
-) -> ScanBatch {
+    records: Option<RecordOptions>,
+) -> napi::Result<ScanBatch> {
     let ScanOptions {
         root,
         files,
@@ -210,8 +210,18 @@ pub(crate) fn scan_batch_with_oids(
     let texting = |path: &str| std::fs::read_to_string(root_path.join(path)).ok();
     let world = World::new(tree.world, None).reading(&parsing, &texting);
     let targets = resolve_all(root_path, &files, &read, &resolvers, &world, tree.known);
+    // A digest the caller names the file by wins; the read's answers the rest.
+    let records = match records {
+        Some(asked) => {
+            let given = asked.identities.unwrap_or_default();
+            let settled = Settled::of(asked.remembering, asked.aliases.as_deref(), asked.builtins, asked.code_extensions, asked.directories)?;
+            let identity = |row: usize| given.get(row).filter(|digest| !digest.is_empty()).unwrap_or(&read[row].1).clone();
+            Some(records_json(&files, &identity, &read, &targets, &settled.settling()))
+        }
+        None => None,
+    };
     let columns = columns(read, true, &answered);
-    scan_columns(files, Vec::new(), columns, targets, answered)
+    Ok(scan_columns(files, Vec::new(), columns, targets, answered, records))
 }
 
 /// What each of `asked` says: the batch's own read for a file in it, and
@@ -238,15 +248,23 @@ pub(crate) fn scan_graph_with_tree(
     kept: Kept,
     from_blob: &FromBlob,
     store: &TreeObjects,
-) -> ScanBatch {
+    records: Option<RecordOptions>,
+) -> napi::Result<ScanBatch> {
     let include_parses = options.include_parses;
     let Walked { files, identities, read, targets, kept: answered } =
         walk_beyond(options, at, tree_oids, listing, None, &|_| false, kept, from_blob, store);
     // A kept row's parse is the store's, whole; the one the walk holds is only
     // what records need, so it is not published as a parse.
     let parse_segment = crate::index::parse_segment(&files, &identities, &read, &answered);
+    let records = match records {
+        Some(asked) => {
+            let settled = Settled::of(asked.remembering, asked.aliases.as_deref(), asked.builtins, asked.code_extensions, asked.directories)?;
+            Some(records_json(&files, &|row| identities[row].clone(), &read, &targets, &settled.settling()))
+        }
+        None => None,
+    };
     let columns = columns(read, include_parses, &answered);
-    scan_columns(files, parse_segment, columns, targets, answered)
+    Ok(scan_columns(files, parse_segment, columns, targets, answered, records))
 }
 
 fn scan_columns(
@@ -255,20 +273,11 @@ fn scan_columns(
     columns: ReadBatch,
     targets: Vec<Reached>,
     kept: Vec<bool>,
+    records: Option<String>,
 ) -> ScanBatch {
     // One byte per row, whatever read it: a scan no store answered keeps nothing.
     let kept: Vec<u8> = (0..files.len()).map(|row| u8::from(kept.get(row).copied().unwrap_or(false))).collect();
-    let (mut first, mut more, mut more_at) = (Vec::new(), Vec::new(), Vec::new());
-    let mut base = 0u32;
-    for reached in targets {
-        let requests = reached.first.len() as u32;
-        first.extend(reached.first);
-        for (request, file) in reached.more {
-            more_at.push(base + request);
-            more.push(file);
-        }
-        base += requests;
-    }
+    let first: Vec<String> = targets.into_iter().flat_map(|reached| reached.first).collect();
     ScanBatch {
         files,
         parse_segment: parse_segment.into(),
@@ -283,9 +292,7 @@ fn scan_columns(
         declare_counts: columns.declare_counts,
         declares: columns.declares,
         targets: first,
-        guessed: columns.guessed,
-        more,
-        more_at: Uint32Array::new(more_at),
+        records,
         kept: kept.into(),
     }
 }

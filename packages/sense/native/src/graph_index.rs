@@ -33,8 +33,7 @@ use crate::git::Oid;
 use crate::index::{parses_only, way};
 use crate::parse_store::{Opened, Parse};
 use crate::order::code_unit;
-use crate::record::{built, Indexed, Settling};
-use crate::witness::AliasTable;
+use crate::record::{built, Indexed, Settled};
 
 /// What a cold build needs besides the walk: what a record is settled against.
 #[napi(object)]
@@ -79,15 +78,7 @@ pub(crate) fn index_graph(
     from_blob: &crate::parse_origin::FromBlob,
     objects: &crate::acquire::TreeObjects,
 ) -> napi::Result<IndexGraph> {
-    let aliases = options
-        .aliases
-        .as_deref()
-        .map(serde_json::from_str::<AliasTable>)
-        .transpose()
-        .map_err(|error| napi::Error::from_reason(format!("the alias table did not parse: {error}")))?;
-    let builtins: HashSet<String> = options.builtins.into_iter().collect();
-    let code: HashSet<String> = options.code_extensions.into_iter().collect();
-    let directories: HashSet<String> = options.directories.into_iter().collect();
+    let settled = Settled::of(options.remembering, options.aliases.as_deref(), options.builtins, options.code_extensions, options.directories)?;
     // A module a store holds is answered from it, under the size and link rules
     // every walk keeps (`read_kept`), rather than read again.
     let kept = |identity: &str, file: &str| store?.view(identity, &way(file))?.read();
@@ -121,13 +112,7 @@ pub(crate) fn index_graph(
     let segment = parses_only(&rows.iter().map(|(key, parse)| (key.as_str(), parse)).collect::<Vec<_>>());
     let keys = rows.into_iter().map(|(key, _)| key).collect();
     let parsed = read.iter().zip(&answered).filter(|((_, _, outcome), kept)| outcome.parsed() && !**kept).count() as u32;
-    let settling = Settling {
-        builtins: &builtins,
-        code: &code,
-        remembering: options.remembering,
-        directories: &directories,
-        aliases: aliases.as_ref(),
-    };
+    let settling = settled.settling();
     let mut records: Vec<Indexed> = (0..files.len())
         .into_par_iter()
         .map(|index| {

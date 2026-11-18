@@ -17,7 +17,7 @@
 import { isBuiltin } from 'node:module';
 import { extname } from 'node:path';
 import type { EdgeKind } from '@variance-authority/core/relate';
-import { carriesCode, languageOf, type LanguageId } from './language.js';
+import { carriesCode, languageOf } from './language.js';
 
 /**
  * A specifier as a resolvable request, or nothing when it cannot be one.
@@ -48,35 +48,17 @@ function indexOr(value: string, mark: string, from = 0): number {
 }
 
 /**
- * Whether a request names a path in this repository rather than a package.
+ * Whether a module request names a path in this repository rather than a
+ * package: `./`, `../`, `.` or `..`.
  *
- * The language decides, because the syntax does. `.foo` is a bare package name
- * in JavaScript and a sibling module in Python, and getting it wrong in either
- * direction matters: a relative specifier that resolves to nothing is a hole —
- * a file this file depends on that nobody could find — and a bare one that does
- * is an ordinary third-party dependency.
+ * A miss on one is a hole — a file this file depends on that nobody could find
+ * — where a bare one that misses is an ordinary third-party dependency. Every
+ * other language's rule is `is_relative_in` in
+ * [`specifier.rs`](../native/src/specifier.rs), where its records are built.
  */
-export function isRelative(request: string, language: LanguageId = 'module'): boolean {
-  switch (language) {
-    // A leading dot is Python's relative import: `.sibling`, `..parent`.
-    case 'python': return request.startsWith('.');
-    // A spelled path (`#[path]`, a `mod` file) or a path from this crate.
-    case 'rust': {
-      if (request.includes('/') || request.includes('.')) return true;
-      const first = request.split('::')[0];
-      return first === 'self' || first === 'super' || first === 'crate';
-    }
-    // Neither has a syntax that separates this repository from the platform:
-    // `import java.util.List` and `import Foundation` are written exactly the
-    // way a first-party import is, so nothing they fail to find is a hole
-    // (`is_relative_in` in `native/src/specifier.rs` is the same rule).
-    case 'java':
-    case 'kotlin':
-    case 'swift': return false;
-    default:
-      return request.startsWith('./') || request.startsWith('../')
-        || request === '.' || request === '..';
-  }
+export function isRelative(request: string): boolean {
+  return request.startsWith('./') || request.startsWith('../')
+    || request === '.' || request === '..';
 }
 
 /**

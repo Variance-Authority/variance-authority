@@ -1,18 +1,18 @@
-//! A file's record, settled on this side: `builtFromBatch` in `native.ts`, for
-//! the rows a cold graph walk read and resolved here.
+//! A file's record, settled where its read and its targets are: the one rule
+//! every batch, walk and warm update builds a record by.
 //!
-//! The walk already holds every read and every target, and until now handed
-//! all of them to JavaScript so that it could build one object per file, keep
-//! it, and hand it back to an encoder. Building the record where its inputs
-//! already are is what keeps a cold build's JavaScript heap the size of the
-//! files the walk did not reach. The rule is JavaScript's, branch for branch,
-//! because a record built here is published into the same index a record
-//! built there is, and the two are compared byte for byte.
+//! Each read and each target is already on this side, so the record is built
+//! here and crosses whole (`records` on a batch) rather than as columns that
+//! JavaScript assembles a second time. A record built here is published into
+//! the same index a cached one is read from, and the two are compared byte for
+//! byte, so there is one assembly to keep in step with the format, not two.
 
 // compass: variance-authority.reach.source-index
 
 use std::collections::{BTreeSet, HashSet};
 
+use napi_derive::napi;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::acquire::Outcome;
@@ -68,6 +68,74 @@ pub struct Settling<'a> {
     pub remembering: bool,
     pub directories: &'a HashSet<String>,
     pub aliases: Option<&'a AliasTable>,
+}
+
+/// What JavaScript says a batch's records are settled against: `Settling`, as
+/// lists, and the digest each asked file is named by where the caller knows a
+/// better one than the read's (empty where it does not).
+#[napi(object)]
+pub struct RecordOptions {
+    pub remembering: bool,
+    /// `Aliases.table` as JSON, when a configuration maps specifiers.
+    pub aliases: Option<String>,
+    /// `builtinModules` that `isBuiltin` accepts: never a package edge.
+    pub builtins: Vec<String>,
+    /// Extensions whose target keeps its request's kind.
+    pub code_extensions: Vec<String>,
+    /// Every directory of the tree shape a witness is checked against.
+    pub directories: Vec<String>,
+    pub identities: Option<Vec<String>>,
+}
+
+/// The sets a [`Settling`] borrows, owned.
+pub struct Settled {
+    builtins: HashSet<String>,
+    code: HashSet<String>,
+    remembering: bool,
+    directories: HashSet<String>,
+    aliases: Option<AliasTable>,
+}
+
+impl Settled {
+    /// The lists as sets; an alias table that does not parse is a defect of the caller's.
+    pub fn of(remembering: bool, aliases: Option<&str>, builtins: Vec<String>, code: Vec<String>, directories: Vec<String>) -> napi::Result<Self> {
+        let aliases = aliases
+            .map(serde_json::from_str::<AliasTable>)
+            .transpose()
+            .map_err(|error| napi::Error::from_reason(format!("the alias table did not parse: {error}")))?;
+        Ok(Self {
+            builtins: builtins.into_iter().collect(),
+            code: code.into_iter().collect(),
+            remembering,
+            directories: directories.into_iter().collect(),
+            aliases,
+        })
+    }
+
+    pub fn settling(&self) -> Settling<'_> {
+        Settling {
+            builtins: &self.builtins,
+            code: &self.code,
+            remembering: self.remembering,
+            directories: &self.directories,
+            aliases: self.aliases.as_ref(),
+        }
+    }
+}
+
+/// Every row's record as a JSON `IndexedRecord[]`, in row order: what crosses
+/// N-API for JavaScript to decode, rather than columns for it to assemble.
+pub fn records_json(files: &[String], identity: &(dyn Fn(usize) -> String + Sync), read: &[crate::acquire::Answer], reached: &[Reached], settling: &Settling) -> String {
+    let empty = Reached::default();
+    let records: Vec<Indexed> = files
+        .par_iter()
+        .enumerate()
+        .map(|(row, file)| {
+            let (held, _, outcome) = &read[row];
+            built(file, &identity(row), held, *outcome, reached.get(row).unwrap_or(&empty), settling)
+        })
+        .collect();
+    serde_json::to_string(&records).unwrap_or_default()
 }
 
 /// One walked row's record. `identity` is the digest the walk named the row

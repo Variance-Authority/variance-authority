@@ -167,7 +167,8 @@ impl GitTree {
         tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
         stores: Option<Vec<String>>,
-    ) -> batch::ScanBatch {
+        records: Option<crate::record::RecordOptions>,
+    ) -> napi::Result<batch::ScanBatch> {
         let oids = files
             .iter()
             .map(|file| self.at.get(file).map(|index| self.oids[*index as usize]))
@@ -191,6 +192,7 @@ impl GitTree {
             &kept,
             &self.from_blob,
             &self.store,
+            records,
         )
     }
 
@@ -220,7 +222,8 @@ impl GitTree {
         condition_names: Option<Vec<String>>,
         include_parses: Option<bool>,
         stores: Option<Vec<String>>,
-    ) -> batch::ScanBatch {
+        records: Option<crate::record::RecordOptions>,
+    ) -> napi::Result<batch::ScanBatch> {
         let stores = self.stores(stores);
         let opened = stores.as_deref().map(parse_store::Stores::open);
         let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
@@ -240,6 +243,7 @@ impl GitTree {
             &kept,
             &self.from_blob,
             &self.store,
+            records,
         )
     }
 

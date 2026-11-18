@@ -16,7 +16,6 @@
 import { join } from 'node:path';
 import type { FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { dedupe } from '../native-built.js';
 import { resolveTo, type Resolvers } from '../resolve.js';
 import { isRelative, kindFor, packageOf, requestOf } from '../specifier.js';
 
@@ -113,4 +112,17 @@ export function applied(record: FileRecord, plus: Reached): FileRecord {
     ...(unresolved.length > 0 ? { unresolved: [...new Set(unresolved)].sort(codeUnitOrder) } : {}),
     ...(reasons.length > 0 ? { unknown: reasons.join('; ') } : {}),
   };
+}
+
+/** Each edge once by its kind and target, in code-unit order of target, then kind: `dedupe` in `record.rs`. */
+function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] {
+  const seen = new Set<string>();
+  return edges
+    .filter((edge) => {
+      const key = `${edge.kind} ${edge.to}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => codeUnitOrder(a.to, b.to) || codeUnitOrder(a.kind, b.kind));
 }
