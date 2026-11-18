@@ -18,7 +18,13 @@ pub struct FileReferences {
 pub fn file_references(root: String, file: String, listed: Option<Vec<String>>, tsconfig: Option<napi::Either<String, bool>>) -> Option<FileReferences> {
     let bytes = std::fs::read(Path::new(&root).join(&file)).ok()?;
     let text = String::from_utf8_lossy(&bytes).into_owned();
-    let found = crate::module_readers::references::module_references(file.clone(), text.clone())?;
+    let allocator = oxc_allocator::Allocator::default();
+    let syntax = crate::module_syntax::read(&file, &text, &allocator, true);
+    if !syntax.clean { return None }
+    let exports = exports_of(&syntax.exports, &syntax.harvest.symbols);
+    let mut program = syntax.program;
+    crate::module_shape::erase(&allocator, &mut program, true);
+    let found = crate::module_readers::references::in_program(&program, &text);
     let landed = crate::side_effects::resolve_sources(root, file.clone(), found.sources.clone(), listed, tsconfig);
     let imported = unique(landed.iter().filter(|path| !path.is_empty() && !Path::new(path).is_absolute()).cloned());
     let at: HashMap<_, _> = found.sources.into_iter().zip(landed).filter(|(_, path)| !path.is_empty() && !Path::new(path).is_absolute()).collect();
@@ -27,9 +33,7 @@ pub fn file_references(root: String, file: String, listed: Option<Vec<String>>, 
     })).collect();
     let passed = unique(found.passed.into_iter().filter_map(|row| at.get(&row.source).cloned()));
     let effects = unique(found.effects.into_iter().filter_map(|source| at.get(&source).cloned()));
-    let allocator = oxc_allocator::Allocator::default();
-    let read = crate::read::read_module(&file, &text, &allocator, true);
-    Some(FileReferences { references, passed, imported, effects, untraced: found.untraced, exports: exports_of(&read) })
+    Some(FileReferences { references, passed, imported, effects, untraced: found.untraced, exports })
 }
 
 fn unique(values: impl IntoIterator<Item = String>) -> Vec<String> {
@@ -37,10 +41,10 @@ fn unique(values: impl IntoIterator<Item = String>) -> Vec<String> {
     values.into_iter().filter(|value| seen.insert(value.clone())).collect()
 }
 
-fn exports_of(read: &crate::read::Read) -> Option<Vec<String>> {
-    let values: Vec<_> = read.exports.iter().filter(|entry| !entry.type_only).collect();
+fn exports_of(exports: &[crate::read_rows::Export], symbols: &[crate::harvest::SourceSymbol]) -> Option<Vec<String>> {
+    let values: Vec<_> = exports.iter().filter(|entry| !entry.type_only).collect();
     if values.is_empty() || values.iter().any(|entry| entry.exported.is_none() || entry.assigned) { return None }
-    let types: HashSet<_> = read.symbols.iter().filter(|symbol| symbol.kind == "interface" || symbol.kind == "type").map(|symbol| symbol.name.as_str()).collect();
+    let types: HashSet<_> = symbols.iter().filter(|symbol| symbol.kind == "interface" || symbol.kind == "type").map(|symbol| symbol.name.as_str()).collect();
     let names = unique(values.into_iter().filter(|entry| !entry.local.as_ref().is_some_and(|local| types.contains(local.as_str()))).filter_map(|entry| entry.exported.clone()));
     (!names.is_empty()).then_some(names)
 }
