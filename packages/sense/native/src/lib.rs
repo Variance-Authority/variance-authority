@@ -164,6 +164,7 @@ mod record_parts;
 mod record_start;
 mod resolve;
 mod resolve_export;
+mod resolve_jvm;
 mod resolve_python;
 mod resolve_rust;
 mod resolve_swift;

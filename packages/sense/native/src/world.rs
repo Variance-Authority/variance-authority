@@ -35,6 +35,7 @@ pub(crate) struct World<'a> {
     python: OnceLock<Vec<String>>,
     rust: OnceLock<crate::resolve_rust::Index>,
     swift: OnceLock<crate::resolve_swift::Index>,
+    jvm: OnceLock<Vec<String>>,
 }
 
 impl<'a> World<'a> {
@@ -42,7 +43,7 @@ impl<'a> World<'a> {
     /// and `listed`, when the caller has them, are the same paths in the
     /// order a sorted walk of the tree needs.
     pub(crate) fn new(known: Option<&'a HashMap<String, u32>>, listed: Option<&'a [String]>) -> Self {
-        Self { known, listed, parsing: None, texting: None, sorted: OnceLock::new(), python: OnceLock::new(), rust: OnceLock::new(), swift: OnceLock::new() }
+        Self { known, listed, parsing: None, texting: None, sorted: OnceLock::new(), python: OnceLock::new(), rust: OnceLock::new(), swift: OnceLock::new(), jvm: OnceLock::new() }
     }
 
     /// The same world, able to say what its files hold. A world over a bare
@@ -73,6 +74,11 @@ impl<'a> World<'a> {
     /// The targets every `Package.swift` declares, by module name.
     pub(crate) fn swift_index(&self) -> &crate::resolve_swift::Index {
         self.swift.get_or_init(|| crate::resolve_swift::Index::of(self))
+    }
+
+    /// The JVM source roots, derived from the package each directory declares.
+    pub(crate) fn jvm_roots(&self) -> &[String] {
+        self.jvm.get_or_init(|| crate::resolve_jvm::roots(self))
     }
 
     /// Git's listing, path to row, when the caller has one.
@@ -153,6 +159,9 @@ impl<'a> World<'a> {
                 Language::Swift => {
                     self.swift_index();
                 }
+                Language::Java | Language::Kotlin => {
+                    self.jvm_roots();
+                }
                 _ => {}
             }
         }
@@ -168,6 +177,7 @@ impl<'a> World<'a> {
             Language::Python => crate::resolve_python::resolve(self, from, request),
             Language::Rust => crate::resolve_rust::resolve(self, from, request, item),
             Language::Swift => crate::resolve_swift::resolve(self, from, request),
+            Language::Java | Language::Kotlin => crate::resolve_jvm::resolve(self, from, request),
             _ => Vec::new(),
         }
     }
