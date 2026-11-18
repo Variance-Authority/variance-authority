@@ -400,10 +400,24 @@
   },
   {
     "files": [
+      "packages/sense/src/test-selection/reading-values.ts",
+      "packages/sense/src/test-selection/reading-values.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
+      "packages/sense/src/test-selection/reading-values.ts",
+      "packages/sense/src/test-selection/reading.ts"
+    ],
+    "count": 1
+  },
+  {
+    "files": [
       "packages/sense/src/test-selection/reading.ts",
       "packages/sense/src/test-selection/reading.ts"
     ],
-    "count": 3
+    "count": 1
   },
   {
     "files": [
