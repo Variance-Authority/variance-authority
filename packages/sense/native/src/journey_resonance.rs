@@ -80,15 +80,17 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, name: &str, file: &str, line: u
     Ok(Resonance { not_recorded: None, cases: ran.len() as u32, resonant })
 }
 
-/// The recorded function of `file` that the declaration at `line` writes: the
-/// outermost one starting at `line` that is not handed to a call, or else the
-/// first after it whose own name is `name`.
+/// The recorded function of `file` that the declaration at `line` writes: of
+/// those starting at `line` that are not handed to a call, the outermost bearing
+/// `name`, or the outermost when none does; or else the first after the line,
+/// when it bears `name`.
 ///
 /// The instrumenter names a callback for the call, `map.arg0`, so one written
 /// on a constant's line leaves the constant unscored. The line is matched first,
 /// not the name: the index answers a name with declarations spelled otherwise —
 /// the original of a renamed import, a member asked for by its container — and
-/// one file can write two functions of one name. A function's region opens at
+/// one file can write two functions of one name. Among functions sharing the
+/// line, the name tells the declaration from its neighbour. A function's region opens at
 /// its parameters, below the declaration's line when `const name =` or a long
 /// type parameter list ends a line; the instrumenter names that function for
 /// the constant, so the first function opening below the line is taken when it
@@ -96,21 +98,23 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, name: &str, file: &str, line: u
 /// to that function and not to the declaration above it.
 fn written_at(masks: &JourneyMasks, name: &str, file: &str, line: u32) -> Result<Option<u32>, String> {
     let Some(module) = masks.journey.module_of(file)? else { return Ok(None) };
-    let (mut at_line, mut below): (Option<u32>, Option<u32>) = (None, None);
+    let (mut at_line, mut below): (Option<(u32, bool)>, Option<u32>) = (None, None);
     for at in masks.functions_in(module) {
         let bit = masks.bits[at as usize];
         if bit.start < line {
             continue;
         }
         let own = own_name(masks.journey.text(bit.name)?);
-        if bit.start == line && !handed_to_a_call(own) && at_line.is_none_or(|held: u32| bit.end > masks.bits[held as usize].end) {
-            at_line = Some(at);
+        let outer = |held: (u32, bool)| (own == name, bit.end) > (held.1, masks.bits[held.0 as usize].end);
+        if bit.start == line && !handed_to_a_call(own) && at_line.is_none_or(outer) {
+            at_line = Some((at, own == name));
         }
         let first = |held: u32| (bit.start, std::cmp::Reverse(bit.end)) < (masks.bits[held as usize].start, std::cmp::Reverse(masks.bits[held as usize].end));
         if bit.start > line && below.is_none_or(first) {
             below = Some(at);
         }
     }
+    let at_line = at_line.map(|(at, _)| at);
     let Some(below) = below.filter(|_| at_line.is_none()) else { return Ok(at_line) };
     Ok((own_name(masks.journey.text(masks.bits[below as usize].name)?) == name).then_some(below))
 }

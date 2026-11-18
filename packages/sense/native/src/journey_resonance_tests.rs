@@ -13,6 +13,8 @@ use crate::journey_record::{Block, Module};
 /// `useSessionId` on line 1 with its arrow, which case 0 enters, on line 2.
 /// `nested.ts` declares a constant `useSessionId` on line 1 and, inside
 /// `wrapper`, a function of that name on line 3, both entered by case 0.
+/// `pair.ts` writes `unused`, entered by nobody, and `useSessionId`, entered by
+/// case 0, on its one line.
 fn recorded() -> JourneyMasks {
     let tests: Vec<Test> = (0..4)
         .map(|case| Test { id: format!("t{case}"), file: format!("t{case}.test.ts"), name: format!("case {case}"), project: None, runner: None, settled: FINISHED, heard: None })
@@ -31,6 +33,7 @@ fn recorded() -> JourneyMasks {
         module("src/statuses.ts", vec![block("module", "", 1, 1), block("function", "map.arg0", 1, 1)]),
         module("src/arrow.ts", vec![block("module", "", 1, 5), block("function", "useSessionId", 2, 3), block("function", "later", 5, 5)]),
         module("src/nested.ts", vec![block("module", "", 1, 5), block("function", "wrapper", 2, 5), block("function", "wrapper/useSessionId", 3, 3)]),
+        module("src/pair.ts", vec![block("module", "", 1, 1), block("function", "unused", 1, 1), block("function", "useSessionId", 1, 1)]),
     ];
     let mut sets = SetPool::new(tests.len());
     let mut set = |members: &[u32]| sets.intern(members);
@@ -45,6 +48,7 @@ fn recorded() -> JourneyMasks {
         vec![set(&[]), set(&[0])],
         vec![set(&[]), set(&[0]), set(&[1])],
         vec![set(&[]), set(&[0]), set(&[0])],
+        vec![set(&[]), set(&[]), set(&[0])],
     ];
     let loaded: Vec<Vec<bool>> = modules.iter().map(|module| vec![false; module.blocks.len()]).collect();
     let encoded: Vec<EncodedModule<'_>> = modules
@@ -127,4 +131,11 @@ fn a_namesake_nested_in_a_later_function_is_not_the_declaration_above_it() {
     let mut recorded: Vec<(u32, bool)> = answer.resonant.iter().map(|row| (row.line, row.recorded)).collect();
     recorded.sort();
     assert_eq!(recorded, vec![(1, false), (3, true)]);
+}
+
+#[test]
+fn of_two_functions_written_on_a_declaration_s_line_the_one_bearing_the_name_scores() {
+    let mut masks = recorded();
+    let answer = resonate(&mut masks, "useSessionId", "src/page.ts", 3, &[at("src/pair.ts", 1)]).unwrap();
+    assert_eq!(rows(&answer), vec![("src/pair.ts".into(), 0, 1, 1, "1.00".into())]);
 }
