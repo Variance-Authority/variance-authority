@@ -1761,12 +1761,12 @@
     "names": {
       ".": {
         "Action": "type",
-        "ActionOptions": "interface",
+        "Declare": "type",
         "Outcomes": "type",
         "Reached": "interface",
         "Reaching": "interface",
         "Recogniser": "type",
-        "action": "function",
+        "action": "const",
         "stay": "const"
       }
     }

@@ -1,4 +1,4 @@
-// The same shop with `VA_SILENT`, and Storybook's own manager, driven through
+// A shop that says nothing, and Storybook's own manager, driven through
 // `@variance-authority/page-broker`: two apps that announce nothing.
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +25,7 @@ export default defineConfig({
       command: 'node server.mjs',
       url: `http://localhost:${shop}/checkout`,
       reuseExistingServer: false,
-      env: { VA_PORT: shop, VA_SILENT: '1' },
+      env: { VA_PORT: shop },
     },
     ...(existsSync(`${built}index.json`)
       ? [

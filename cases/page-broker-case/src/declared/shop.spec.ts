@@ -1,6 +1,5 @@
 // The shop saying nothing, reached through `@variance-authority/page-broker`:
-// the outcomes the spike's broker sensed from `aria-busy` and announced events
-// are told here from the page and its requests alone.
+// its outcomes are told from the page and its requests alone.
 import { expect, test, type Page } from '@playwright/test';
 import { action, stay } from '@variance-authority/page-broker';
 
@@ -29,7 +28,7 @@ const like = action('like', { liked: stay }, async (page) => {
 });
 
 /**
- * Opens the checkout. The silent shop keeps Continue disabled until the form
+ * Opens the checkout. The shop keeps Continue disabled until the form
  * hydrates, and Playwright's click waits for that: when an action may start is
  * not something a declared outcome answers.
  */

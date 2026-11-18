@@ -5109,9 +5109,7 @@ __metadata:
   resolution: "@variance-authority/case-page-broker@workspace:cases/page-broker-case"
   dependencies:
     "@playwright/test": "npm:^1.64.1"
-    "@variance-authority/event": "workspace:^"
     "@variance-authority/page-broker": "workspace:^"
-    "@variance-authority/playwright-test": "workspace:^"
     vitest: "npm:^5.1.0"
   languageName: unknown
   linkType: soft

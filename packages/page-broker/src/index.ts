@@ -7,4 +7,4 @@
  */
 
 export { action, stay } from './action.js';
-export type { Action, ActionOptions, Outcomes, Reached, Reaching, Recogniser } from './action.js';
+export type { Action, Declare, Outcomes, Reached, Reaching, Recogniser } from './action.js';

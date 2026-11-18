@@ -34,7 +34,9 @@ It needs nothing from the app. No attribute, event or hook written for tests is
 read: an outcome is a part of the page becoming visible, and staying is the page
 going quiet with none of them on it.
 
-It is a small addition to a Playwright suite, not a framework. Locators,
+It is a Page Object with explicit navigation results: the method that acts on
+the page also says which of its declared destinations the app took. It is a
+small addition to a Playwright suite, not a framework. Locators,
 waiting, `test` and `expect` stay Playwright's. It depends on nothing else in
 Variance Authority and no other package here needs it.
 
@@ -85,7 +87,7 @@ test('an empty form stays, with its errors', async ({ page }) => {
 });
 ```
 
-`action(name, outcomes, act, options?)` takes:
+`action(name, outcomes, act)` takes:
 
 - **`name`**, which every failure message starts with.
 - **`outcomes`**, by name. Each is a function from the page to the locator that
@@ -93,9 +95,9 @@ test('an empty form stays, with its errors', async ({ page }) => {
   the declared parts appears. At most one outcome may be `stay`.
 - **`act`**, what the test does to the page. Arguments after `page` are yours:
   `async (page, words: string) => …` is performed as `find(page, 'card')`.
-- **`options`**: `timeout`, how long the app has, after the act, to reach an
-  outcome or go quiet (5000 ms), and `quiet`, how long the page must be quiet
-  before staying is reported (500 ms).
+
+The app has 5000 ms after the act to reach an outcome or go quiet, and is
+quiet once no request has been in flight for 500 ms. Neither is yours to set.
 
 Performing the action returns a promise of `{ outcome, at }`: the name reached,
 and the locator recognised, which is absent for `stay`. `.to(name)` on that
@@ -117,6 +119,11 @@ comes first, every declared part is then looked at once.
   finished and no request has been in flight for the quiet period. A request
   that starts within it begins the wait again, so a slow answer that leads
   somewhere is not mistaken for staying.
+- **None, quiet, and the app went somewhere you did not declare**: the action
+  fails and says where — `submit: reached none of payment, signIn, and the page
+  went to /help, which no outcome declares`. Somewhere is the page navigating,
+  a hash or history change included, a new page opening, or a modal dialog
+  opening. Staying is never reported for it.
 - **None, and no `stay`**: the action fails at the timeout, naming the outcomes
   none of which was reached.
 - **None, and never quiet**: the action fails at the timeout too, naming the
@@ -136,11 +143,16 @@ Know these before you rely on it:
 - **It does not say when an action may start.** A page that takes its clicks
   before it is ready to answer them loses them with or without this package.
 - **Staying does not mean the page is unchanged.** It means none of the declared
-  parts appeared. A dialog or a page you did not declare reads as staying, so
-  declare every place the action can lead.
+  parts appeared and the app did not navigate, open a page or open a modal
+  dialog. A panel, a popover or a dialog that is not modal, opened in the page
+  and not declared, still reads as staying, so declare every place the action
+  can lead.
+- **An undeclared destination is caught only when `stay` is declared.** Without
+  it, the action fails at the timeout naming the outcomes it did not reach, not
+  where the app went: a navigation may still lead to a declared part.
 - **Work that makes no request is invisible to it.** A change that arrives on a
   timer longer than the quiet period, with no request in flight, is read as
-  staying. Raise `quiet` for an action you know is slow that way.
+  staying.
 - **A request already in flight when the action starts is not waited for.** Only
   requests that begin during the action hold staying back.
 - **An outcome must be specific to its arrival.** A recogniser that matches

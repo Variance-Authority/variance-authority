@@ -11,8 +11,9 @@ Every other block reads what a run left behind. This one is a piece of the
 adopter's own harness, offered rather than required: the test declares that
 submitting can reach the next page, open a dialog or stay, and performing the
 action names the one the app reached. It is why a test that expected another
-outcome fails naming the declared outcome the app reached, and why an outcome that is the absence
-of a change is not reported before the app had its chance to make one.
+outcome fails naming the declared outcome the app reached, why an outcome that is the absence
+of a change is not reported before the app had its chance to make one, and why
+an app that went somewhere no outcome declares fails the action.
 
 ## Boundary
 
@@ -29,12 +30,12 @@ is not its question.
 
 TypeScript on Node. Playwright's `Page` and `Locator` as types only, with
 `@playwright/test` as a peer; the page's own request events as the one sign of
-pending work.
+pending work, and its navigation and popup events as the sign of having left.
 
 ## Implementation coordinates
 
-- `packages/page-broker/src/` — the action, its outcomes, and the watch on the
-  page's requests
+- `packages/page-broker/src/` — the action and its outcomes, the quiet told
+  from the page's requests, and the watch for a destination not declared
 - `cases/page-broker-case/src/declared/` — the package over a shop that
   announces nothing and over Storybook's manager
 
@@ -55,7 +56,7 @@ second answer to disagree with.
 #### What I need from it
 
 A locator that can be asked once whether it is visible, without waiting, and
-the page's request events.
+the page's request, navigation and popup events.
 
 #### What would make me leave
 

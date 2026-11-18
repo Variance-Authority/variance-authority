@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs';
 import { chromium, type Browser, type Page } from '@playwright/test';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { by } from './action.js';
 import { action, stay } from './index.js';
+import { requests } from './quiet.js';
 
 const BROWSER_AVAILABLE = ((): boolean => {
   try {
@@ -14,7 +16,9 @@ const BROWSER_AVAILABLE = ((): boolean => {
 const ORIGIN = 'https://shop.test';
 
 /**
- * A checkout that announces nothing. `?answer=` picks where Continue ends,
+ * A checkout that announces nothing. `?answer=` picks where Continue ends —
+ * `elsewhere`, `window` and `help` are places no case declares: another
+ * document, a new page and a modal dialog —
  * `?after=` how long the server takes, `?open=` what is on the page before
  * anybody acts, `?stream` has Continue open a server-sent stream that never ends
  * and ask for a picture that never loads, and `?then=` has the page ask again
@@ -32,6 +36,9 @@ const CHECKOUT = `<!doctype html>
     for (const part of answer.split(',')) {
       if (part === 'payment') document.querySelector('[aria-label=Payment]').hidden = false;
       if (part === 'signIn') document.querySelector('dialog').show();
+      if (part === 'elsewhere') location.assign('/checkout/elsewhere');
+      if (part === 'window') window.open('about:blank');
+      if (part === 'help') document.body.appendChild(document.createElement('dialog')).showModal();
     }
   };
   show(query.get('open') ?? '');
@@ -59,7 +66,10 @@ const outcomes = {
 const click = async (on: Page): Promise<void> => {
   await on.getByRole('button', { name: 'Continue' }).click();
 };
-const QUICK = { timeout: 2000, quiet: 200 };
+// The package's own means are 5000 ms and 500 ms; these keep the cases short.
+const QUIET = 200;
+const quick = by({ timeout: 2000, quiet: requests(QUIET) });
+const brief = by({ timeout: 600, quiet: requests(100) });
 
 async function open(query: string): Promise<void> {
   await page.goto(`${ORIGIN}/checkout?${query}`);
@@ -88,7 +98,7 @@ beforeEach(async () => {
         contentType: 'text/plain',
         body: new URL(route.request().url()).searchParams.get('answer') ?? '',
       });
-    }, 2 * QUICK.quiet),
+    }, 2 * QUIET),
   );
   await page.route(`${ORIGIN}/api/billing**`, async (route) => {
     const query = new URL(route.request().url()).searchParams;
@@ -127,7 +137,7 @@ describe('declaring an action', () => {
 
 chromium_('an action over a page that announces nothing', () => {
   it('returns the outcome the app reached, by its declared name', async () => {
-    const submit = action('submit', outcomes, click, QUICK);
+    const submit = action('submit', outcomes, click);
     await open('answer=signIn&after=50');
 
     const reached = await submit(page);
@@ -137,7 +147,7 @@ chromium_('an action over a page that announces nothing', () => {
   });
 
   it('fails a test that insisted on another outcome, naming the one reached', async () => {
-    const submit = action('submit', outcomes, click, QUICK);
+    const submit = quick('submit', outcomes, click);
     await open('answer=payment');
 
     await expect(submit(page).to('signIn')).rejects.toThrow(
@@ -146,14 +156,14 @@ chromium_('an action over a page that announces nothing', () => {
   });
 
   it('hands the insisted outcome back when it is the one reached', async () => {
-    const submit = action('submit', outcomes, click, QUICK);
+    const submit = quick('submit', outcomes, click);
     await open('answer=payment');
 
     await expect(submit(page).to('payment')).resolves.toMatchObject({ outcome: 'payment' });
   });
 
   it('does not report staying while a slower declared outcome is on its way', async () => {
-    const submit = action('submit', { ...outcomes, refused: stay }, click, QUICK);
+    const submit = quick('submit', { ...outcomes, refused: stay }, click);
     // The answer takes four quiet periods to come.
     await open('answer=payment&after=800');
 
@@ -161,18 +171,18 @@ chromium_('an action over a page that announces nothing', () => {
   });
 
   it('reports staying once the page has gone quiet with nothing declared on it', async () => {
-    const submit = action('submit', { ...outcomes, refused: stay }, click, QUICK);
+    const submit = quick('submit', { ...outcomes, refused: stay }, click);
     await open('answer=nothing&after=100');
 
     const started = Date.now();
     const reached = await submit(page);
 
     expect(reached).toEqual({ outcome: 'refused', at: undefined });
-    expect(Date.now() - started).toBeGreaterThanOrEqual(100 + QUICK.quiet);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(100 + QUIET);
   });
 
   it('begins the quiet period again when the page asks once more inside it', async () => {
-    const submit = action('submit', { ...outcomes, refused: stay }, click, QUICK);
+    const submit = quick('submit', { ...outcomes, refused: stay }, click);
     // The second request starts half a quiet period after the first answer.
     await open('answer=nothing&then=100&second=signIn');
 
@@ -180,23 +190,44 @@ chromium_('an action over a page that announces nothing', () => {
   });
 
   it('reports staying for an action whose only outcome is to stay', async () => {
-    const submit = action('submit', { refused: stay }, click, QUICK);
+    const submit = quick('submit', { refused: stay }, click);
     await open('answer=nothing&after=100');
 
     await expect(submit(page)).resolves.toEqual({ outcome: 'refused', at: undefined });
   });
 
+  it.each([
+    ['elsewhere', 'the page went to /checkout/elsewhere'],
+    ['window', 'a new page opened'],
+    ['help', 'a modal dialog opened'],
+  ])('fails, and does not report staying, when the app answered with %s, which is not declared', async (answer, where) => {
+    const submit = quick('submit', { ...outcomes, refused: stay }, click);
+    await open(`answer=${answer}&after=50`);
+
+    await expect(submit(page)).rejects.toThrow(
+      `submit: reached none of payment, signIn, and ${where}, which no outcome declares`,
+    );
+  });
+
+  it('reaches a declared outcome on another document', async () => {
+    const submit = quick('submit', outcomes, click);
+    await page.route(`${ORIGIN}/checkout/elsewhere`, (route) =>
+      route.fulfill({ contentType: 'text/html', body: '<form aria-label="Payment">Card number</form>' }),
+    );
+    await open('answer=elsewhere');
+
+    await expect(submit(page)).resolves.toMatchObject({ outcome: 'payment' });
+  });
+
   it('reaches an outcome that stands after a hidden one in the page', async () => {
     // Recognisers that match their part while it is hidden, as a selector does.
-    const submit = action(
+    const submit = quick(
       'submit',
       {
         payment: (on: Page) => on.locator('[aria-label=Payment]'),
         signIn: (on: Page) => on.locator('dialog'),
       },
-      click,
-      QUICK,
-    );
+      click);
     await open('answer=signIn&after=50');
 
     await expect(submit(page)).resolves.toMatchObject({ outcome: 'signIn' });
@@ -204,7 +235,7 @@ chromium_('an action over a page that announces nothing', () => {
 
   it('does not report staying when the page asks again while the parts are looked at', async () => {
     let looks = 0;
-    const submit = action(
+    const submit = quick(
       'submit',
       {
         signIn: (on: Page) => {
@@ -223,30 +254,26 @@ chromium_('an action over a page that announces nothing', () => {
         },
         refused: stay,
       },
-      click,
-      QUICK,
-    );
+      click);
     await open('answer=nothing');
 
     await expect(submit(page)).resolves.toMatchObject({ outcome: 'signIn' });
   });
 
   it('fails with what Playwright said when the page is gone before an outcome', async () => {
-    const leave = action('leave', outcomes, (on: Page) => on.close(), QUICK);
+    const leave = quick('leave', outcomes, (on: Page) => on.close());
     await open('answer=payment');
 
     await expect(leave(page)).rejects.toThrow(/closed/);
   });
 
   it('releases the page when the act fails, and fails with what the act threw', async () => {
-    const submit = action(
+    const submit = quick(
       'submit',
       outcomes,
       async () => {
         throw new Error('no such button');
-      },
-      QUICK,
-    );
+      });
     await open('answer=payment');
 
     await expect(submit(page)).rejects.toThrow('no such button');
@@ -254,21 +281,18 @@ chromium_('an action over a page that announces nothing', () => {
   });
 
   it('does not wait for a stream the server never ends, or a picture that never loads', async () => {
-    const submit = action('submit', { ...outcomes, refused: stay }, click, QUICK);
+    const submit = quick('submit', { ...outcomes, refused: stay }, click);
     await open('answer=nothing&stream');
 
     const started = Date.now();
     const reached = await submit(page);
 
     expect(reached.outcome).toBe('refused');
-    expect(Date.now() - started).toBeLessThan(QUICK.timeout);
+    expect(Date.now() - started).toBeLessThan(2000);
   });
 
   it('fails, and does not report staying, when the page never went quiet in time', async () => {
-    const submit = action('submit', { ...outcomes, refused: stay }, click, {
-      timeout: 600,
-      quiet: 100,
-    });
+    const submit = brief('submit', { ...outcomes, refused: stay }, click);
     // The answer is still in flight when the time is up.
     await open('answer=payment&after=1500');
 
@@ -278,7 +302,7 @@ chromium_('an action over a page that announces nothing', () => {
   });
 
   it('fails an action whose only outcome is to stay when the page never went quiet in time', async () => {
-    const submit = action('submit', { refused: stay }, click, { timeout: 600, quiet: 100 });
+    const submit = brief('submit', { refused: stay }, click);
     await open('answer=nothing&after=1500');
 
     await expect(submit(page)).rejects.toThrow(
@@ -287,7 +311,7 @@ chromium_('an action over a page that announces nothing', () => {
   });
 
   it('fails at the timeout when no outcome is reached and none is to stay, naming the outcomes', async () => {
-    const submit = action('submit', outcomes, click, { timeout: 600, quiet: 100 });
+    const submit = brief('submit', outcomes, click);
     await open('answer=nothing');
 
     await expect(submit(page)).rejects.toThrow(
@@ -296,7 +320,7 @@ chromium_('an action over a page that announces nothing', () => {
   });
 
   it('fails when two declared outcomes are on the page at once', async () => {
-    const submit = action('submit', outcomes, click, QUICK);
+    const submit = quick('submit', outcomes, click);
     await open('answer=payment,signIn');
 
     await expect(submit(page)).rejects.toThrow('submit: reached payment and signIn at once');
@@ -304,15 +328,13 @@ chromium_('an action over a page that announces nothing', () => {
 
   it('refuses to act when a declared outcome is already on the page', async () => {
     let acted = false;
-    const submit = action(
+    const submit = quick(
       'submit',
       outcomes,
       async (on: Page) => {
         acted = true;
         await click(on);
-      },
-      QUICK,
-    );
+      });
     await open('open=payment&answer=payment');
 
     await expect(submit(page)).rejects.toThrow(
@@ -322,14 +344,12 @@ chromium_('an action over a page that announces nothing', () => {
   });
 
   it('passes what the test gave it on to the act', async () => {
-    const press = action(
+    const press = quick(
       'press',
       outcomes,
       async (on: Page, name: string) => {
         await on.getByRole('button', { name }).click();
-      },
-      QUICK,
-    );
+      });
     await open('answer=signIn');
 
     await expect(press(page, 'Continue').to('signIn')).resolves.toMatchObject({

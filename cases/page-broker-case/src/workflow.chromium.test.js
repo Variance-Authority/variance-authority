@@ -41,9 +41,9 @@ function freePort() {
   });
 }
 
-function playwright(results, config, env, ...flags) {
+function playwright(results, env, ...flags) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [cli, 'test', `--config=src/${config}`, ...flags], {
+    const child = spawn(process.execPath, [cli, 'test', '--config=src/declared.config.mjs', ...flags], {
       cwd: root,
       env: { ...process.env, ...env, VA_RESULTS: results },
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -60,19 +60,6 @@ function playwright(results, config, env, ...flags) {
   });
 }
 
-live('page broker spike', () => {
-  it('passes every rule its README pins in src/spec', async () => {
-    const results = await mkdtemp(join(tmpdir(), 'variance-page-broker-'));
-    try {
-      const run = await playwright(results, 'playwright.config.mjs', { VA_PORT: await freePort() });
-      expect(run, run.output).toMatchObject({ code: 0 });
-      expect(run.output).toMatch(/\d+ passed/);
-    } finally {
-      await rm(results, { recursive: true, force: true });
-    }
-  }, 300_000);
-});
-
 // The build `cases/storybook-case` makes: `yarn workspace @variance-authority/case-storybook build-storybook`.
 const STORYBOOK_BUILT = existsSync(join(root, '..', 'storybook-case', 'storybook-static', 'index.json'));
 
@@ -88,13 +75,13 @@ live('@variance-authority/page-broker over apps that announce nothing', () => {
     const results = await mkdtemp(join(tmpdir(), 'variance-page-broker-'));
     try {
       const env = { VA_PORT: await freePort(), VA_STORYBOOK_PORT: await freePort() };
-      return await playwright(results, 'declared.config.mjs', env, `--project=${project}`, ...flags);
+      return await playwright(results, env, `--project=${project}`, ...flags);
     } finally {
       await rm(results, { recursive: true, force: true });
     }
   }
 
-  it('reaches the shop\'s outcomes with its aria-busy and its events removed', async () => {
+  it('reaches the outcomes of a shop that announces nothing', async () => {
     const run = await declared('shop');
     expect(run, run.output).toMatchObject({ code: 0 });
     expect(run.output).toMatch(/5 passed/);

@@ -20,8 +20,14 @@ announces nothing.
 - **An outcome on the page before the act is refused**, since reaching it could
   not be told from standing still.
 - **A failure names the action and the declared outcome reached**: `expected X,
-  reached Y`, or the outcomes none of which was reached. An arrival at something
-  not declared is not named: with `stay` declared it reads as staying.
+  reached Y`, or the outcomes none of which was reached.
+- **An undeclared destination is never staying.** A navigation, a new page or a
+  modal dialog that no outcome declares fails the action and is named. A change
+  inside the page that is none of those is not seen.
+- **What an action does with quiet does not depend on how quiet is told.** The
+  policy in `action.ts` reads a `Quiet`; the page's requests are one way to give
+  it. Whether a timer is the right way is
+  [open](https://github.com/Variance-Authority/variance-authority/issues/1473).
 
 ## What it does not answer
 

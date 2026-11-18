@@ -1,10 +1,12 @@
 // compass: variance-authority.harness
-import type { Locator, Page, Request } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
+import { elsewhere, type Elsewhere } from './elsewhere.js';
+import { requests, type Quiet } from './quiet.js';
 
 /**
- * The outcome of an action after which none of the declared parts appeared. It
- * does not say the page is unchanged: an arrival at something not declared
- * reads as staying.
+ * The outcome of an action after which the app is where it was: none of the
+ * declared parts appeared, and the page did not navigate, open another page or
+ * open a modal dialog. It does not say the page is unchanged within itself.
  */
 export const stay: unique symbol = Symbol('stay');
 
@@ -26,29 +28,67 @@ export interface Reaching<Name extends string> extends Promise<Reached<Name>> {
   to<Insisted extends Name>(name: Insisted): Promise<Reached<Insisted>>;
 }
 
-export interface ActionOptions {
-  /** How long the app has, after the act, to reach an outcome or go quiet, in ms. Default 5000. */
-  readonly timeout?: number;
-  /**
-   * How long the page must be quiet — the act finished, no request in flight —
-   * before {@link stay} is reported, in ms. Default 500.
-   */
-  readonly quiet?: number;
-}
-
 /** An action declared once and performed on a page any number of times. */
 export type Action<Name extends string, Args extends readonly unknown[]> = (
   page: Page,
   ...args: Args
 ) => Reaching<Name>;
 
-const TIMEOUT = 5000;
-const QUIET = 500;
+/** How long the app has, and how its quiet is told. Not part of what a test declares. */
+export interface Means {
+  /** How long the app has, after the act, to reach an outcome or go quiet, in ms. */
+  readonly timeout: number;
+  readonly quiet: (page: Page) => Quiet;
+}
+
+/** How an action is declared: its name, its outcomes, and what the test does to the page. */
+export type Declare = <const Declared extends Outcomes, Args extends readonly unknown[] = []>(
+  name: string,
+  outcomes: Declared,
+  act: (page: Page, ...args: Args) => Promise<unknown>,
+) => Action<keyof Declared & string, Args>;
+
+/** {@link action} with other means than its own: a shorter time, another sign of quiet. */
+export function by(means: Means): Declare {
+  return (name, outcomes, act) => {
+    type Name = keyof typeof outcomes & string;
+    const names = Object.keys(outcomes) as Name[];
+    if (names.length === 0) throw new Error(`${name}: declares no outcome`);
+    const staying = names.filter((each) => outcomes[each] === stay);
+    if (staying.length > 1) {
+      throw new Error(`${name}: ${staying.join(' and ')} both stay, and nothing tells them apart`);
+    }
+    const declaration: Declaration<Name> = {
+      name,
+      parts: names.flatMap((each) => {
+        const recognise: Recogniser | typeof stay | undefined = outcomes[each];
+        return recognise === undefined || recognise === stay ? [] : [{ name: each, recognise }];
+      }),
+      staying: staying[0],
+    };
+
+    return (page, ...args) => {
+      const reached = perform(declaration, means, page, () => act(page, ...args));
+      const to = async <Insisted extends Name>(insisted: Insisted): Promise<Reached<Insisted>> => {
+        const { outcome, at } = await reached;
+        if (outcome !== insisted) {
+          throw new Error(`${name}: expected ${insisted}, reached ${outcome}`);
+        }
+        return { outcome: insisted, at };
+      };
+      return Object.assign(reached, { to });
+    };
+  };
+}
 
 /**
  * Declares an action by the outcomes it can end in. Performing it runs `act`
  * and returns the name of the declared part of the page that became visible,
- * or of {@link stay} when the page went quiet with none of them on it.
+ * or of {@link stay} when the page went quiet where it was with none of them
+ * on it. An app that went anywhere not declared fails the action.
+ *
+ * The app has 5000 ms after the act, and is quiet after 500 ms with no request
+ * in flight.
  *
  * @example
  * const like = action('like', { liked: stay }, (page) => page.getByRole('button').click());
@@ -56,53 +96,17 @@ const QUIET = 500;
  * const { outcome } = await submit(page); // 'payment'
  * await submit(page).to('payment'); // or: submit: expected payment, reached …
  */
-export function action<const Declared extends Outcomes, Args extends readonly unknown[] = []>(
-  name: string,
-  outcomes: Declared,
-  act: (page: Page, ...args: Args) => Promise<unknown>,
-  options: ActionOptions = {},
-): Action<keyof Declared & string, Args> {
-  type Name = keyof Declared & string;
-  const names = Object.keys(outcomes) as Name[];
-  if (names.length === 0) throw new Error(`${name}: declares no outcome`);
-  const staying = names.filter((each) => outcomes[each] === stay);
-  if (staying.length > 1) {
-    throw new Error(`${name}: ${staying.join(' and ')} both stay, and nothing tells them apart`);
-  }
-  const declaration: Declaration<Name> = {
-    name,
-    parts: names.flatMap((each) => {
-      const recognise: Recogniser | typeof stay | undefined = outcomes[each];
-      return recognise === undefined || recognise === stay ? [] : [{ name: each, recognise }];
-    }),
-    staying: staying[0],
-    timeout: options.timeout ?? TIMEOUT,
-    quiet: options.quiet ?? QUIET,
-  };
-
-  return (page, ...args) => {
-    const reached = perform(declaration, page, () => act(page, ...args));
-    const to = async <Insisted extends Name>(insisted: Insisted): Promise<Reached<Insisted>> => {
-      const { outcome, at } = await reached;
-      if (outcome !== insisted) {
-        throw new Error(`${name}: expected ${insisted}, reached ${outcome}`);
-      }
-      return { outcome: insisted, at };
-    };
-    return Object.assign(reached, { to });
-  };
-}
+export const action: Declare = by({ timeout: 5000, quiet: requests(500) });
 
 interface Declaration<Name extends string> {
   readonly name: string;
   readonly parts: readonly { readonly name: Name; readonly recognise: Recogniser }[];
   readonly staying: Name | undefined;
-  readonly timeout: number;
-  readonly quiet: number;
 }
 
 async function perform<Name extends string>(
   declared: Declaration<Name>,
+  means: Means,
   page: Page,
   act: () => Promise<unknown>,
 ): Promise<Reached<Name>> {
@@ -129,54 +133,63 @@ async function perform<Name extends string>(
     );
   }
 
+  const none = (then: string): string =>
+    parts.length === 0 ? '' : `reached none of ${parts.map((part) => part.name).join(', ')}${then}`;
   const any = parts.map((part) => part.at).reduce<Locator | undefined>(
     (joined, at) => (joined === undefined ? at : joined.or(at)),
     undefined,
   );
-  const traffic = watch(page, declared.quiet);
+  const quiet = means.quiet(page);
+  let gone: Elsewhere | undefined;
   let out: ReturnType<typeof setTimeout> | undefined;
   try {
+    gone = await elsewhere(page);
     await act();
     // The app's time starts when the act is done: a slow act does not spend it.
-    const deadline = Date.now() + declared.timeout;
+    const deadline = Date.now() + means.timeout;
     const late = new Promise<'late'>((resolve) => {
-      out = setTimeout(() => resolve('late'), declared.timeout);
+      out = setTimeout(() => resolve('late'), means.timeout);
     });
     for (;;) {
-      // Asked for again on every pass: a quiet period that ended before an
-      // arrival woke the wait says nothing of the requests begun since.
-      const quiet = declared.staying === undefined ? NEVER : traffic.quiet();
-      // Arriving is Playwright's wait; only staying, which it has no word for, is ours.
-      const arrived = any === undefined ? NEVER : arrival(any, deadline - Date.now());
-      const woke = await Promise.race([arrived, quiet, late]);
-      // The wait that lost the race ends on its own deadline, and has nobody left to tell.
-      arrived.catch(() => undefined);
+      const waits: Promise<'arrived' | 'late' | 'quiet'>[] = [late];
+      if (any !== undefined) {
+        // Arriving is Playwright's wait; only staying, which it has no word for, is ours.
+        const arrived = arrival(any, deadline - Date.now());
+        // A wait that loses the race ends on its own deadline, and has nobody left to tell.
+        arrived.catch(() => undefined);
+        waits.push(arrived);
+      }
+      // Asked for again on every pass: a quiet that ended before an arrival
+      // woke the wait says nothing of what has begun since.
+      if (declared.staying !== undefined) waits.push(quiet.settled());
+      const woke = await Promise.race(waits);
       if (woke === 'late') break;
       const reached = named(await visible());
       if (reached !== undefined) return reached;
-      // A request begun while the parts were looked at ended the quiet they were looked at in.
-      if (woke === 'quiet' && declared.staying !== undefined && traffic.still()) {
-        return { outcome: declared.staying, at: undefined };
+      if (woke !== 'quiet' || declared.staying === undefined) continue;
+      const left = await gone.left();
+      // What began while the page was looked at ended the quiet it was looked at in.
+      if (!quiet.still()) continue;
+      // Quiet somewhere else is not staying: no outcome says where the app is.
+      if (left !== undefined) {
+        throw new Error(`${declared.name}: ${none(', and ')}${left}, which no outcome declares`);
       }
+      return { outcome: declared.staying, at: undefined };
     }
-    // Time running out is never staying: with work still in flight, the answer is not in.
-    const none = `reached none of ${parts.map((part) => part.name).join(', ')}`;
+    // Time running out is never staying: with work still pending, the answer is not in.
     if (declared.staying === undefined) {
-      throw new Error(`${declared.name}: ${none} within ${declared.timeout} ms`);
+      throw new Error(`${declared.name}: ${none('')} within ${means.timeout} ms`);
     }
-    const flying = traffic.flying();
-    const held = flying.length === 0 ? '' : `: ${flying.join(', ')} still in flight`;
-    const reached = parts.length === 0 ? '' : `${none} and `;
+    const held = quiet.held();
     throw new Error(
-      `${declared.name}: ${reached}the page did not go quiet within ${declared.timeout} ms${held}`,
+      `${declared.name}: ${none(' and ')}the page did not go quiet within ${means.timeout} ms${held === undefined ? '' : `: ${held}`}`,
     );
   } finally {
     clearTimeout(out);
-    traffic.stop();
+    quiet.stop();
+    gone?.stop();
   }
 }
-
-const NEVER = new Promise<never>(() => undefined);
 
 /** Playwright's own wait for any declared part, or `late` when none came in the time left. */
 async function arrival(any: Locator, left: number): Promise<'arrived' | 'late'> {
@@ -193,72 +206,4 @@ async function arrival(any: Locator, left: number): Promise<'arrived' | 'late'> 
     if (error instanceof Error && error.name === 'TimeoutError') return 'late';
     throw error;
   }
-}
-
-interface Traffic {
-  /** Resolves once the act is done and no request has been in flight for the quiet period. */
-  quiet(): Promise<'quiet'>;
-  /** Whether no request has begun since the page last went quiet. */
-  still(): boolean;
-  /** The requests still in flight, as `GET /path`. */
-  flying(): string[];
-  stop(): void;
-}
-
-/**
- * The kinds of request that are no sign of an answer on its way: a stream the
- * server never ends, and what a page loads to draw itself. The same kinds
- * `@variance-authority/playwright` does not wait for; held here because this
- * package imports nothing from it.
- */
-const NOT_AWAITED: ReadonlySet<string> = new Set(['eventsource', 'font', 'image', 'media', 'websocket']);
-
-/**
- * Follows the page's requests, the one sign of pending work every app gives
- * without being asked, from before the act so none it starts is missed.
- */
-function watch(page: Page, period: number): Traffic {
-  const flying = new Set<Request>();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  // Absent until the act is done: the page is not quiet while the test still acts on it.
-  let settle: ((value: 'quiet') => void) | undefined;
-  // A deadline, not a look: it is armed when the last request ends and
-  // disarmed when another begins, so it fires only on a full quiet period.
-  let still = false;
-  const arm = (): void => {
-    clearTimeout(timer);
-    const settled = settle;
-    if (settled === undefined || flying.size > 0) return;
-    timer = setTimeout(() => {
-      still = true;
-      settled('quiet');
-    }, period);
-  };
-  const began = (request: Request): void => {
-    if (NOT_AWAITED.has(request.resourceType())) return;
-    flying.add(request);
-    still = false;
-    clearTimeout(timer);
-  };
-  const ended = (request: Request): void => {
-    if (flying.delete(request)) arm();
-  };
-  page.on('request', began);
-  page.on('requestfinished', ended);
-  page.on('requestfailed', ended);
-  return {
-    quiet: () =>
-      new Promise((resolve) => {
-        settle = resolve;
-        arm();
-      }),
-    still: () => still,
-    flying: () => [...flying].map((request) => `${request.method()} ${new URL(request.url()).pathname}`),
-    stop: () => {
-      clearTimeout(timer);
-      page.off('request', began);
-      page.off('requestfinished', ended);
-      page.off('requestfailed', ended);
-    },
-  };
 }
