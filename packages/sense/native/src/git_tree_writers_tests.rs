@@ -60,3 +60,25 @@ fn two_writers_that_read_one_chain_both_publish() {
     }
     let _ = std::fs::remove_dir_all(&base);
 }
+
+#[test]
+fn a_configuration_changed_alone_is_published() {
+    let base = std::env::temp_dir().join(format!("sense-configured-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&base);
+    let (root, index) = (base.join("root"), base.join("index").join("index.bin"));
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::create_dir_all(index.parent().unwrap()).unwrap();
+    let root = std::fs::canonicalize(root).unwrap();
+    std::fs::write(root.join("a.ts"), "export const a = 1;\n").unwrap();
+    let update = |config: &str| {
+        let tree = disk_tree(root.to_string_lossy().into_owned(), vec![String::new()]);
+        tree.update_index(UpdateOptions { config: config.to_owned(), ..options(&root, &index) }).unwrap()
+    };
+    update("before");
+    assert!(update("after").published, "the new configuration is published though no record differs");
+    let chain = crate::index_chain::read_chain(&index.to_string_lossy()).unwrap().unwrap();
+    let last = crate::compact::Layer::open(chain.segments.last().unwrap()).unwrap();
+    assert_eq!(last.config, Some("after"), "the next update reads the configuration it was made under");
+    assert!(!update("after").published, "and finds nothing to publish");
+    let _ = std::fs::remove_dir_all(&base);
+}

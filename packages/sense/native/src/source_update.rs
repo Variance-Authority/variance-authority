@@ -392,7 +392,9 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
         let mut deleted_directories: Vec<String> =
             held_directories.keys().filter(|path| !directories.contains_key(**path)).map(|path| (*path).to_owned()).collect();
 
-        let unchanged = chain.is_some()
+        // A configuration that changed alone is still published, or every update after it resolves again.
+        let unchanged = configured
+            && chain.is_some()
             && puts.is_empty()
             && deleted_records.is_empty()
             && parses.is_empty()
