@@ -61,6 +61,12 @@ JavaScript, TypeScript, Python, Rust, Java, Kotlin and Swift. `symbol` answers a
 declaration of the name first, in any of those languages, then each container
 that declares it as a member, with the member's `file:line`, and points to
 `uses`. A dotted name, `Tree.has`, asks for the member `has` of `Tree` alone.
+Framework dialects are not read yet: a Vue or Svelte single-file component is
+not indexed, so nothing it declares or imports is answered; the files an
+Angular component names in `templateUrl` and `styleUrls` are not linked to it;
+and an import through an alias declared only in a bundler's configuration
+resolves to no file, where one declared as `paths` in a `tsconfig` does. [The
+source scan's limits](source.md#limits) say what each leaves out.
 When the workspace also holds Python, Rust, Java, Kotlin or Swift files,
 an answer of `symbol` or `uses` that looked for members ends with a sentence
 that names those languages, whether or not it found one: a member of theirs

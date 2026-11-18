@@ -115,6 +115,11 @@ the syntax that imports it, so `import './App.vue'`, `import './icon.svg'` and
 path. Editing that path marks its importers; nothing continues from the far
 side, because there is no record there to continue from.
 
+An Angular component's own template and stylesheets get no edge at all.
+`templateUrl`, `styleUrl` and `styleUrls` are strings in a decorator, not
+requests, so the scan does not link those files to the component, and an edit
+to one does not reach the component or the tests that import it.
+
 `.json` is also tried during extensionless resolution, after every module and
 stylesheet extension: `./config` finds `src/config.json` when nothing else
 answers, and records the same `asset` edge.
@@ -194,6 +199,14 @@ disagree.
 edge to `src/components/Button.tsx`. Discovery walks up from the importing file,
 so an alias table declared once at the repository root and inherited through
 `extends` in each package needs nothing configured on the scan.
+
+An alias declared only in a bundler's configuration, such as webpack's or
+Vite's `resolve.alias`, is not read. Its specifier — `~/lib/api`,
+`helpers/format` — is spelled like a package name, so it stays under
+`unresolved` as a package request and the importing file is not marked unknown:
+an edit to the aliased file does not reach that importer, and nothing says so.
+Declare the same alias as `paths` in the `tsconfig` that governs the importer,
+and the request records an `imports` edge like the one above.
 
 Every accepted target is canonicalized to the spelling on disk. A case-only
 match is rejected on a case-insensitive filesystem, preventing a graph that
@@ -508,6 +521,13 @@ edge lands on the build. See [Workspace packages](#workspace-packages).
 **Large files become unknown.** The default one-megabyte cap prevents generated
 barrels and bundles from consuming a scan's memory budget. Raising
 `largestFile` accepts that cost for a file you want read anyway.
+
+**Framework dialects are not read yet.** Single-file `.vue` and `.svelte`
+components get no record, the files an Angular component names in
+`templateUrl` and `styleUrls` are not linked to it, and an alias only a
+bundler's configuration declares does not resolve. Each leaves an edge out of
+the graph without marking any file unknown; [Extensions](#extensions) and
+[Resolution](#resolution) say what each one costs.
 
 **Components are React's, and only where the source names them.** On another
 framework `declares` is empty; on React, a component that never has a

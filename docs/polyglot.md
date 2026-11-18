@@ -176,6 +176,14 @@ The syntax says almost everything, and the work is in resolution instead:
   since both match filenames without regard to case; that is handled where it
   happens rather than left to the case-sensitive machine CI runs on.
 
+Framework dialects are not read yet. A Vue or Svelte single-file component is
+not indexed, so what it imports is not in the graph. The template and
+stylesheet files an Angular component names in `templateUrl` and `styleUrls`
+are not linked to it. An import alias declared only in a bundler's
+configuration, such as webpack's or Vite's `resolve.alias`, does not resolve;
+the same alias declared as `paths` in a `tsconfig` does. [The source
+scan](source.md#limits) says what each one leaves out.
+
 **Stylesheets.** A second language rather than a dialect of the first, because
 the same string asked from two places is two different questions: `./colors`
 from a stylesheet may find `_colors.scss`, and from a module must not. `.scss`
