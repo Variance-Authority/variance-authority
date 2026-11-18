@@ -346,9 +346,9 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
     // What this update parsed of the blob it is named by that no store holds, for every root after it.
     let parsed_here = reached.new.iter().map(|file| (file, &walked[file.as_str()]));
     let parsed_here = parsed_here.filter(|(file, row)| row.parsed && !row.kept && !row.identity.is_empty() && tree.from_blob.shares(&row.identity, &way(file)));
-    // The store serves the next root and the index this one: neither reads the other, so they are written side by side.
+    // The store serves the next root and the index this one: neither reads the other, so they are written side by side, and write waits for both.
     let updated = std::thread::scope(|scope| {
-        scope.spawn(|| stores.add_unheld(&store, parsed_here.map(|(file, row)| (row.identity.as_str(), way(file), &row.read))));
+        let storing = scope.spawn(|| stores.add_unheld(&store, parsed_here.map(|(file, row)| (row.identity.as_str(), way(file), &row.read))));
         let mut interest: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
         interest.extend(reached.new.iter().map(|file| walked[file.as_str()].identity.as_str()).filter(|digest| !digest.is_empty()));
         let held = if interest.is_empty() { HashSet::new() } else { held_parses(&layers, &interest) };
@@ -452,7 +452,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             };
             let working = carried(working, Some(listing)).map_err(fail)?;
             encoding.end();
-            return match crate::stages::timed("write", || written(&o.index, published, &references[..base], &[&working], &references[base..], 1)) {
+            return match crate::stages::timed("write", || { let done = written(&o.index, published, &references[..base], &[&working], &references[base..], 1); storing.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)); done }) {
                 Ok(still) => Ok((Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version }, !still)),
                 Err(error) => Ok((Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)), rebuilt, written: version }, false)),
             };
@@ -485,7 +485,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
         let layered = usize::from(chain.is_some());
         // Another writer between the read and here: its chain is not the one this delta is against.
         let replaced: Vec<LogSegment> = references[base..].iter().chain(&stale).cloned().collect();
-        let outcome = crate::stages::timed("write", || written(&o.index, published, &references[..base], &[&working], &replaced, layered));
+        let outcome = crate::stages::timed("write", || { let done = written(&o.index, published, &references[..base], &[&working], &replaced, layered); storing.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)); done });
         let refused = match &outcome {
             Ok(false) => Some(format!("{}: another writer published it after this update read it", o.index)),
             Ok(true) => None,

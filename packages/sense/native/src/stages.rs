@@ -6,6 +6,8 @@
 //! those lines sum to the run's. Read, parse and resolve overlap inside the
 //! walk, on every core, so each is the thread time summed over the files, and
 //! the walk's line carries them.
+//! The sums are the process's: two walks running at once in one process would
+//! share them, and the index runs one update at a time.
 
 // compass: variance-authority.reach.source-index
 
