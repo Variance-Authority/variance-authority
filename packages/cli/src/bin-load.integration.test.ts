@@ -28,6 +28,8 @@ const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
 /** The modules a run of the built program loaded, as URLs; the run must answer with 0. */
 async function modulesLoaded(args: readonly string[], config?: object): Promise<string[]> {
   const at = realpathSync(mkdtempSync(join(tmpdir(), 'va-bin-load-')));
+  // The index is made from git's listing, so the run stands in a checkout.
+  spawnSync('git', ['init', '-q'], { cwd: at });
   if (config !== undefined) writeFileSync(join(at, 'variance.config.json'), JSON.stringify(config));
   const hook = join(at, 'hook.mjs');
   const loaded = join(at, 'loaded.txt');
