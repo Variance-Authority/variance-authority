@@ -11,7 +11,7 @@
  */
 
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { inlineSourceMapOf, sourceMappingUrlOf } from '@variance-authority/core/attribute';
@@ -144,7 +144,7 @@ function fileOf(url: string, served: string | undefined): string | undefined {
     const file = join(resolve(served), decodeURIComponent(parsedUrl.pathname));
     // A path decoded after the URL was normalised may climb out of the served directory, where no served file is.
     const under = relative(resolve(served), file);
-    return under.startsWith('..') || isAbsolute(under) ? undefined : file;
+    return under === '..' || under.startsWith(`..${sep}`) || isAbsolute(under) ? undefined : file;
   }
   return undefined;
 }

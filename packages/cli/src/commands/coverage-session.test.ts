@@ -211,7 +211,9 @@ describe('`coverage --session`', () => {
     expect(text).toContain('bare mapped to 1 source not on this machine: ../src/gone.ts');
     expect(text).toContain(`bare skipped 1 script it could not place: ${extension}`);
 
-    await utimes(join(root, 'dist/bare.js'), new Date(), new Date());
+    // Built after its sources and before the session was exported.
+    await utimes(join(root, 'dist/bare.js'), new Date(Date.now() - 1000), new Date(Date.now() - 1000));
+    await utimes(join(root, 'bare.json'), new Date(), new Date());
     const fresh = JSON.parse((await ask(session)).out).sessions;
     expect(fresh.each[0].stale).toEqual([]);
     expect(fresh.each[0].unplaced).toEqual(['../src/gone.ts']);
