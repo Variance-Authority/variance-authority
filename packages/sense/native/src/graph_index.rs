@@ -26,7 +26,7 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::batch::{walk_beyond, GraphOptions, Walked};
+use crate::batch::{neighbours, texting, walk_beyond, GraphOptions, Walked};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Delta, Generation};
 use crate::git::Oid;
@@ -34,6 +34,7 @@ use crate::index::{parses_only, way};
 use crate::parse_store::{Opened, Parse};
 use crate::order::code_unit;
 use crate::record::{built, Indexed, Settled};
+use crate::world::World;
 
 /// What a cold build needs besides the walk: what a record is settled against.
 #[napi(object)]
@@ -82,9 +83,12 @@ pub(crate) fn index_graph(
     // A module a store holds is answered from it, under the size and link rules
     // every walk keeps (`read_kept`), rather than read again.
     let kept = |identity: &str, file: &str| store?.view(identity, &way(file))?.read();
+    let parsing = neighbours(&options.root, at, tree_oids, options.largest_file, options.readers, &kept, from_blob, objects);
+    let texting = texting(&options.root);
+    let world = World::new(Some(at), None).reading(&parsing, &texting);
     let Walked { files, identities, read, targets, kept: answered } = walk_beyond(
         GraphOptions {
-            root: options.root,
+            root: options.root.clone(),
             seeds: options.seeds,
             largest_file: options.largest_file,
             readers: options.readers,
@@ -95,7 +99,7 @@ pub(crate) fn index_graph(
         at,
         tree_oids,
         listing,
-        None,
+        &world,
         &|_| false,
         &kept,
         from_blob,

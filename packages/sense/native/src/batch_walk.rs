@@ -68,13 +68,17 @@ pub(crate) type Kept<'k> = &'k (dyn Fn(&str, &str) -> Option<crate::read::Read> 
 /// seeds are read whatever they are, and the files the caller already holds a
 /// record for are the boundary of what a warm update has to open
 /// (`source_update.rs`). A file whose content `kept` answers is not opened:
-/// its parse is the kept one.
+/// its parse is the kept one. `world` is the caller's, built once per run
+/// over the same tree ([`neighbours`]), so a warm update that walks round
+/// after round builds Rust's module tree, and parses every `.rs` file for it,
+/// once rather than every round.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn walk_beyond(
     options: GraphOptions,
     at: &HashMap<String, u32>,
     tree_oids: &[Oid],
     listing: Arc<Listing>,
-    paths: Option<&[String]>,
+    world: &World,
     held: &dyn Fn(&str) -> bool,
     kept: Kept,
     from_blob: &FromBlob,
@@ -91,17 +95,6 @@ pub(crate) fn walk_beyond(
     } = options;
     let root_path = Path::new(&root);
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, Some(listing)));
-    // A language that reads its neighbours (Rust's module tree) reads them as
-    // the walk reads a wave, together, and a manifest off the disk.
-    let parsing = |asked: &[&str]| {
-        let files: Vec<String> = asked.iter().map(|file| (*file).to_owned()).collect();
-        let oids = files.iter().map(|file| at.get(file).map(|index| tree_oids[*index as usize])).collect();
-        let reading = Some(readers.unwrap_or(6).max(1));
-        let (read, _) = read_kept(&root, store, &files, oids, largest_file, Some(false), reading, kept, from_blob);
-        read.into_iter().map(|(read, _, outcome)| outcome.parsed().then_some(read)).collect()
-    };
-    let texting = |path: &str| std::fs::read_to_string(root_path.join(path)).ok();
-    let world = World::new(Some(at), paths).reading(&parsing, &texting);
     let mut files = Vec::new();
     let mut read = Vec::new();
     let mut targets = Vec::new();
@@ -142,7 +135,7 @@ pub(crate) fn walk_beyond(
         let reading = |slice: &[String], oids| {
             read_kept(&root, store, slice, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
         };
-        let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, &world, Some(at));
+        let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, world, Some(at));
         let (opened, wave_kept, resolved) = read_resolved(&wave, SLICE, oids, reading, resolving);
         answered.extend(wave_kept);
         for target in resolved.iter().flat_map(Reached::all) {
@@ -161,6 +154,35 @@ pub(crate) fn walk_beyond(
         targets.extend(resolved);
     }
     Walked { files, identities, read, targets, kept: answered }
+}
+
+/// What a language that reads its neighbours (Rust's module tree) is told
+/// they say: read together, as the walk reads a wave, out of Git when the tree
+/// names them and answered by `kept` when it holds them. The world it serves
+/// is built once per run, so they are read once per run.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn neighbours<'n>(
+    root: &'n str,
+    at: &'n HashMap<String, u32>,
+    tree_oids: &'n [Oid],
+    largest_file: Option<u32>,
+    readers: Option<u32>,
+    kept: Kept<'n>,
+    from_blob: &'n FromBlob,
+    store: &'n TreeObjects,
+) -> impl Fn(&[&str]) -> Vec<Option<crate::read::Read>> + Sync + 'n {
+    move |asked: &[&str]| {
+        let files: Vec<String> = asked.iter().map(|file| (*file).to_owned()).collect();
+        let oids = files.iter().map(|file| at.get(file).map(|index| tree_oids[*index as usize])).collect();
+        let reading = Some(readers.unwrap_or(6).max(1));
+        let (read, _) = read_kept(root, store, &files, oids, largest_file, Some(false), reading, kept, from_blob);
+        read.into_iter().map(|(read, _, outcome)| outcome.parsed().then_some(read)).collect()
+    }
+}
+
+/// A file's text off the disk under `root`: what a manifest is read as.
+pub(crate) fn texting(root: &str) -> impl Fn(&str) -> Option<String> + Sync + '_ {
+    move |path: &str| std::fs::read_to_string(Path::new(root).join(path)).ok()
 }
 
 /// Reads `wave` `slice` files at a time and resolves each slice while the next is read.
@@ -338,6 +360,49 @@ mod tests {
             assert_eq!(kept, oids.iter().map(Option::is_some).collect::<Vec<_>>(), "slice {slice}");
             assert_eq!(targets, wave.iter().map(|file| vec![format!("{file} read {file}")]).collect::<Vec<_>>(), "slice {slice}");
         }
+    }
+
+    /// A warm update walks round after round over one tree: the world it is
+    /// handed reads every `.rs` file for Rust's module tree once, not per round.
+    #[cfg(feature = "grammars")]
+    #[test]
+    fn rounds_over_one_world_read_the_module_tree_once() {
+        use std::sync::Mutex;
+        let files = [("src/lib.rs", "mod a;\nmod b;\n"), ("src/a.rs", "use crate::b;\n"), ("src/b.rs", "pub fn b() {}\n")];
+        let root = std::env::temp_dir().join(format!("sense-walk-rounds-{}", std::process::id()));
+        for (file, text) in files {
+            std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            std::fs::write(root.join(file), text).unwrap();
+        }
+        let known: HashMap<String, u32> = files.iter().map(|(file, _)| (*file).to_owned()).zip(0..).collect();
+        let asked = Mutex::new(Vec::<String>::new());
+        let parsing = |paths: &[&str]| {
+            asked.lock().unwrap().extend(paths.iter().map(|path| (*path).to_owned()));
+            let held = |path: &str| files.iter().find(|(file, _)| *file == path).map(|(_, text)| *text);
+            paths.iter().map(|path| held(path).map(|text| crate::read_any::read_file(path, text, &oxc_allocator::Allocator::default(), true))).collect()
+        };
+        let texting = |_: &str| None;
+        let world = World::new(Some(&known), None).reading(&parsing, &texting);
+        let round = |seed: &str| {
+            let options = GraphOptions {
+                root: root.to_string_lossy().into_owned(),
+                seeds: vec![seed.to_owned()],
+                largest_file: None,
+                readers: None,
+                tsconfig: crate::resolve::Tsconfig::from_js(None),
+                condition_names: None,
+                include_parses: false,
+            };
+            let listing = Arc::new(Listing::default());
+            walk_beyond(options, &HashMap::new(), &[], listing, &world, &|_| true, &|_, _| None, &FromBlob::default(), &TreeObjects::default())
+        };
+        let (first, second) = (round("src/lib.rs"), round("src/a.rs"));
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(first.targets[0].first, ["src/a.rs", "src/b.rs"]);
+        assert_eq!(second.targets[0].first, ["src/b.rs"]);
+        let mut asked = asked.into_inner().unwrap();
+        asked.sort_unstable();
+        assert_eq!(asked, ["src/a.rs", "src/b.rs", "src/lib.rs"]);
     }
 
     #[test]

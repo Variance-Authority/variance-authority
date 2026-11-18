@@ -30,7 +30,7 @@ use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
-use crate::batch::{walk_beyond, GraphOptions, Walked};
+use crate::batch::{neighbours, texting, walk_beyond, GraphOptions, Walked};
 use crate::chain_lookup::{fold, At};
 use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
@@ -45,6 +45,7 @@ use crate::parse_store::{self, Parse, Stores};
 use crate::read::Read;
 use crate::record::{built, Indexed, Settling};
 use crate::witness::AliasTable;
+use crate::world::World;
 
 #[path = "source_update_reach.rs"]
 mod reach;
@@ -232,6 +233,11 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
     let mut walked: FxHashMap<String, Row> = FxHashMap::default();
     let mut reached = Reached::from(tree.seeds, valid.len());
     let mut settled: Option<(HashSet<String>, HashSet<String>, HashSet<String>)> = None;
+    // One world for every round: what it builds over the tree (Rust's module
+    // tree, read from every `.rs` file) is the same each round.
+    let parsing = neighbours(&o.root, tree.at, tree.oids, o.largest_file, o.readers, &kept, tree.from_blob, tree.store);
+    let texting = texting(&o.root);
+    let world = World::new(Some(tree.at), Some(tree.paths)).reading(&parsing, &texting);
     loop {
         reached.walk(&layers, &valid, &walked, &readable);
         if reached.need.is_empty() {
@@ -258,7 +264,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
             tree.at,
             tree.oids,
             Arc::clone(&tree.listing),
-            Some(tree.paths),
+            &world,
             &|file| valid.contains_key(file) || walked.contains_key(file),
             &kept,
             tree.from_blob,
