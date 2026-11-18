@@ -333,8 +333,8 @@ An unreadable file still receives a record, with the edges that could be read
 and an `unknown` sentence naming what could not. The walk uses the edges; the
 edge behind the sentence is the [execution record](execution-record.md)'s to
 answer, since a module that loads under a test is recorded however it was
-named. A file above `largestFile` behaves the same way and prints
-both its size and the configured cap.
+named. A file above the one-megabyte cap behaves the same way and prints
+both its size and that cap.
 
 ### Component declarations
 
@@ -507,9 +507,8 @@ supplies that boundary at project granularity. Under an excluded directory such
 unmapped output produces no edge, and under one that is not, such as `lib/`, the
 edge lands on the build. See [Workspace packages](#workspace-packages).
 
-**Large files become unknown.** The default one-megabyte cap prevents generated
-barrels and bundles from consuming a scan's memory budget. Raising
-`largestFile` accepts that cost for a file you want read anyway.
+**Large files become unknown.** The one-megabyte cap prevents generated
+barrels and bundles from consuming the scan's memory budget.
 
 **Components are React's, and only where the source names them.** On another
 framework `declares` is empty; on React, a component that never has a

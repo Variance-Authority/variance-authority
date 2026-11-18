@@ -37,7 +37,13 @@ it.each([
 
 it('publishes no whole-index JavaScript scanner or cache API', async () => {
   const sense = await import('./index.js');
-  for (const name of ['scanRelations', 'openSourceIndex', 'readSourceRecords', 'publishedSources', 'readPublishedSources', 'openParseCache', 'openRecordCache', 'memoryRecordCache']) {
+  for (const name of ['scanRelations', 'openSourceIndex', 'readSourceRecords', 'publishedSources', 'readPublishedSources', 'openParseCache', 'openRecordCache', 'memoryRecordCache', 'memoryParseCache', 'taintRecords', 'runGraphOf', 'moduleCallsTaint', 'mockTaint', 'mayMock']) {
     expect(sense).not.toHaveProperty(name);
   }
+});
+
+
+it('publishes configured taint tables without JavaScript source readers', async () => {
+  const taint = await import('./taint/index.js');
+  expect(Object.keys(taint).sort()).toEqual(['auditTaints', 'shadowReach', 'taintFile', 'taintTable']);
 });

@@ -3,11 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parseSync } from 'oxc-parser';
-import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
+import { affectedBy } from '@variance-authority/core/relate';
 import { readModule } from '../read.js';
-import { scanRelations } from '../test-support/scan.js';
-import { taintRecords, type Node } from './index.js';
-import { mockDiff, mockTaint } from './mocks.js';
+import { updateSourceIndex } from '../published.js';
+import { publishedSelectionGraph } from '../published-selection.js';
+import { mockDiff, type Node } from '../test-support/mock-diff.js';
 
 
 describe.each([
@@ -76,6 +76,7 @@ describe.each([
 describe('a forwarding setup does not import the module it can forward', () => {
   it.each(['jest.requireActual', 'require', 'module.require'])('%s preserves only an existing import', async (loader) => {
     const root = await mkdtemp(join(tmpdir(), 'variance-mock-cancellation-'));
+    const indexRoot = await mkdtemp(join(tmpdir(), 'variance-mock-index-'));
     try {
       const setup = `jest.mock('./api', () => ${loader}('./api'));`;
       await Promise.all([
@@ -87,10 +88,9 @@ describe('a forwarding setup does not import the module it can forward', () => {
         writeFile(join(root, 'swap.test.ts'), `import './api'; jest.mock('./api', () => ${loader}('./panel'));`),
       ]);
       expect(readModule('setup.ts', setup).requests).toEqual([]);
-      const scanned = await scanRelations({ root, dirs: ['.'], digests: false });
-      const tainted = await taintRecords(scanned, [mockTaint()], { root });
-      expect(tainted.additions.has('setup.ts')).toBe(false);
-      const relations = relationsOfFiles(tainted.records, { shadows: tainted.shadows });
+      const index = join(indexRoot, 'index.bin');
+      await updateSourceIndex(root, { index });
+      const relations = await publishedSelectionGraph(root, { dirs: ['.'], index });
       const moved = affectedBy(relations, ['api.ts']).files;
       expect(moved).toContain('used.test.ts');
       expect(moved).not.toContain('unused.test.ts');
@@ -98,6 +98,7 @@ describe('a forwarding setup does not import the module it can forward', () => {
       expect(affectedBy(relations, ['panel.ts']).files).toContain('swap.test.ts');
     } finally {
       await rm(root, { recursive: true, force: true });
+      await rm(indexRoot, { recursive: true, force: true });
     }
   });
 });

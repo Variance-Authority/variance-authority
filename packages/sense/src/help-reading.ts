@@ -292,9 +292,9 @@ export function entry<Name extends keyof NativeHelp>(name: Name): NonNullable<Na
 
 /** The source index the addon read and checked once for one question; `close` lets its bytes go. */
 export interface OpenedIndex {
+  hasMocks(files: string[]): boolean[];
   recordNames(files: string[]): { readonly file: string; readonly digest: string }[];
   status(): { readonly state: SourceIndexState; readonly written?: number };
-  status(): { readonly state: import('./source-index-file.js').SourceIndexState; readonly written?: number };
   sourceTree(root: string, tsconfig: string | boolean | null, code: string[], names: boolean): NativeSourceTreeReader | null;
   close(): void;
 }
@@ -345,7 +345,7 @@ export function onIndex<T>(index: string, read: (opened: OpenedIndex) => T): T {
  * `targets.declared` are `<package> .<subpath>` keys. Unless `drawn` is
  * `false`, for a caller that publishes a graph of its own, the reading draws
  * the graph too, carrying what each test loads for real beside its mocks,
- * resolved under the `tsconfig` the repository declares, as `mockTaint` joins them.
+ * resolved under the `tsconfig` the repository declares, as the native mock overlay joins them.
  * A carried listing belongs to `root`; `packs: false` reads manifests from the working tree.
  */
 export function readHelp(

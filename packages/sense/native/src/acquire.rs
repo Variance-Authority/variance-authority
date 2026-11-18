@@ -287,18 +287,17 @@ fn too_large(file: &str, size: u64, largest: u64) -> String {
     format!(
         "{file} is {size} bytes, over the {largest} this scan opens: parsing it \
          costs about fifty times that in memory, and it is almost certainly built \
-         output. Raise `largestFile` to read it anyway."
+         output."
     )
 }
 
-/// Whether `unknown` is the reason `too_large` gives `file`. `record.ts` writes
-/// the same words for the files it declines.
+/// Whether `unknown` is the native size refusal for `file`.
 // TODO: a record carries a decline for size only in its reason's words; a field
 // for it would let a keep ask without matching them.
 pub(crate) fn declined_for_size(file: &str, unknown: &str) -> bool {
     unknown.strip_prefix(file).is_some_and(|rest| rest.starts_with(" is "))
         && unknown.contains(" this scan opens: parsing it costs about fifty times that in memory")
-        && unknown.ends_with("Raise `largestFile` to read it anyway.")
+        && unknown.contains("almost certainly built output.")
 }
 
 /// Whether `file` is still over `largest` as it is checked out, through any

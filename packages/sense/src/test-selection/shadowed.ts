@@ -46,7 +46,7 @@ const NONE: ReadonlySet<string> = new Set();
  * every file reached only through them.
  *
  * `Relations.shadows` is the table `relationsOfFiles` was handed — the CLI joins
- * `Tainted.shadows` there — so a caller holding the graph already holds the
+ * the configured shadows there — so a caller holding the graph already holds the
  * taint, and a graph built without one disowns nothing. A mocked module's own
  * imports ran under the same `requireModule` as the module did, so they carry
  * the same loading crossings and are disowned by the same rule; a file the test

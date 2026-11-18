@@ -1800,47 +1800,25 @@ const relations = await publishedSelectionGraph(root, {
 affectedBy(relations, ['src/api.ts']).files; // no test that mocks `./api`
 ```
 
-The two halves land in different places. A `+` is one more import the file
-makes: an edge on its record, resolved the way the scan resolves any other, and
-reported in `tainted.additions`. A `-` is not one edge fewer. `vi.mock('./api')`
-replaces `api.ts` for the whole of that test's run — for the test, for the
-component it imports, for anything under it — so it is the module taken out of
-the graph as seen from that file, at every level. It lands in `tainted.shadows`,
-keyed by file, and a graph built with that table applies it to every walk: a
-change affects a file only when some trail from the change arrives without
-crossing one of its shadows, and what is reached only through such a file goes
-with it. `affectedBy` names the files it left out this way in `shadowed`.
+A `+` row adds an import, resolved by the native graph. A `-` row shadows a
+module for that file's whole run, including paths through its imports. A change
+affects the file only when some trail arrives without crossing its shadows.
+`affectedBy` lists files excluded this way in `shadowed`.
 
-An addition can name a file outside the directories the scan walked. That file
-comes back as a record of its own, marked `unknown` rather than given an empty
-edge list: nobody read it, so the graph has none of its edges and the recorded
-run answers for what it loads. Point the scan at its directory to have it read.
+An addition outside the published source scope creates an unknown node: the
+graph knows it was named and has no answer about its own imports. Publish its
+directory when those imports must be known.
 
-Every shadow and every addition keeps the name of whoever added it.
-`tainted.shadowedBy` is the file, the file it never reaches, and the taints that
-named it; `tainted.addedBy` is the same for additions. Two taints that shadow
-one module are both credited, so a test left out of a selection can be traced to
-a hand-written table or to the mock reader.
+The native parser records `vi.mock`, `jest.mock` and `sb.mock`. A factory that
+loads the same real module preserves existing imports; a factory loading
+`./other` shadows its original target and adds `./other`. An independent
+`requireActual` or `importActual` adds a real load. An opaque factory, a spy
+mock, or a factory using its first loader argument leaves existing imports
+unchanged. `doMock` does not shadow static imports that already ran, and a
+computed target adds no guessed path.
 
-`mockTaint` reads `vi.mock`, `jest.mock` and `sb.mock` calls from test,
-spec, story and setup files. A mock subtracts its target; a real module loaded
-by its factory adds that target. Matching additions and subtractions cancel:
-`jest.mock('./api', () => jest.requireActual('./api'))` leaves existing imports
-unchanged and adds no dependency when the file never imports `./api`.
-A factory loading `./other` instead subtracts `./api` and adds `./other`.
-
-A `requireActual` or `importActual` outside a mock factory is an independent
-real load, including inside `beforeEach`, and adds its module without shadowing
-it. A factory that refers to the loader vitest passes as its first argument,
-whatever the parameter is named, an opaque factory, and a spy mock leave
-existing imports unchanged. `doMock` does not shadow static imports that ran
-before it. Nonliteral mock targets cannot be resolved and leave existing edges
-unchanged. Pass `callers` to name other mocking objects and `files` to widen
-which files are read.
-
-`taintFile` reads a JSON table you keep beside the repository, keyed by file
-path with `-` and `+` rows, and `taintTable` builds the same taint from a table
-already in memory:
+`taintFile` reads a JSON table keyed by repository-relative file path with `-`
+and `+` rows. `taintTable` constructs the same configured table from memory:
 
 ```json
 {
@@ -1849,55 +1827,12 @@ already in memory:
 }
 ```
 
-For framework calls that name modules as string arguments, `moduleCallsTaint`
-parses only a caller-supplied candidate set. The set is required: finding a rare
-convention must not open every module merely to run a text check. Bootstrap it
-with the repository's text search, then maintain it from editor, watcher or
-changed-file events.
-
-```ts
-import { moduleCallsTaint } from '@variance-authority/sense/taint';
-
-const loaders = moduleCallsTaint({
-  name: 'application-loaders-v1',
-  files: new Set(['src/routes/orders.entrypoint.tsx']),
-  calls: { JSResourceForUserVisible: 0, importCond: [1, 2] },
-});
-```
-
-`name` is the cache and report identity; change it when the rule changes so an
-old answer cannot be reused under new semantics. `calls` maps each exact callee
-identifier to the zero-based argument position, or positions, that contain
-module specifiers. `files` is the candidate set and is never widened by Sense.
-
-Only literal strings and templates without substitutions become additions. A
-callback containing `import()` is left alone because the native module parser
-already records it. Call names and argument positions belong to the consumer;
-Sense ships no framework vocabulary.
-
-Under more than one taint the subtractions are unioned and so are the additions,
-and the two never contend: an edge one taint adds to a file another taint
-shadows is an edge into a node the file's run never covers, and the shadow
-wins, the way the mock wins at runtime.
-
-`publishedSelectionGraph` applies recorded mock declarations in the native
-graph and joins the configured `taints` after them. Pass `depends` from the
-lockfile to include transitive package dependencies. Its graph state stays
-native across selection questions:
-
-```ts
-import { publishedSelectionGraph } from '@variance-authority/sense';
-import { taintFile } from '@variance-authority/sense/taint';
-
-const relations = await publishedSelectionGraph(process.cwd(), {
-  dirs: ['src'],
-  taints: [await taintFile('variance.taint.json')],
-});
-```
-
-A configured taint table supplies `diffs`; custom source-reader callbacks are
-not accepted by native publication. `taintRecords` remains available for a
-caller that already has its own file records.
+For a framework loader the source parser does not recognize, supply its known
+relationships through this table. Configured taints contain `name` and `diffs`;
+source-reader callbacks are not accepted. Multiple tables union additions and
+shadows, and a shadow still applies to an edge another table adds. Pass
+`depends` to `publishedSelectionGraph` for the dependency pairs read from a
+lockfile.
 
 ### Check a taint against the record
 
@@ -1910,7 +1845,7 @@ disagreement as a coordinate to look at:
 import { auditTaints } from '@variance-authority/sense/taint';
 import { readTestCoverage, testCoverageFile } from '@variance-authority/sense/test-selection';
 
-// `relations` and `tainted` come from the sample above.
+// `relations` is the graph above; `tainted` is your resolved shadow/addition tables.
 const coverage = await readTestCoverage(testCoverageFile(process.cwd()));
 for (const { test, module, kind } of auditTaints(coverage, relations, tainted)) {
   console.log(`${test} ${kind} ${module}`);
@@ -1923,9 +1858,8 @@ covered: the taint is wrong about that mock, or the mock did not take.
 shadows and nobody covered for it: an import the run never loaded, or a mock no
 taint lists yet. `added-but-not-entered` is an addition the record never placed
 the test in. Only an instrumented module counts as evidence, and only a complete
-observation counts as evidence of absence. Where a taint's reading disagrees
-with the record, the deviation names its `taints` — the table or reader to go
-and correct. Pass `knownAs` when the record lists a module under a built name.
+observation counts as evidence of absence. When the supplied tables include attribution, a deviation names its `taints`
+so the configured table can be corrected. Pass `knownAs` when the record lists a module under a built name.
 
 ## Read the record yourself
 
@@ -2673,7 +2607,7 @@ same under every host:
 | `@variance-authority/sense` | native source publication, graph questions, and Git content digests | a readable checkout and the native addon |
 | `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/lock` | reading which packages an install changed between two revisions, and how they rest on each other | the lockfile's text at both revisions; nothing else, and no `node_modules` |
-| `@variance-authority/sense/taint` | joining a second table of imports onto scanned records, and auditing it against the record | the records, and a table or a reader that produces the diff |
+| `@variance-authority/sense/taint` | configured native import overlays, and auditing supplied tables against the record | a configured table; supplied graph and coverage for an audit |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |
 | `@variance-authority/sense/journal` | instrumenting your own build and recording what a driven page executed | a Vite-compatible build, and a driver that can evaluate in the page |
 | `@variance-authority/sense/journey` | carrying one execution across processes, so a service's crossings join the subject that caused them | a service running Node, its own instrumented build, and a driver that sets a cookie |

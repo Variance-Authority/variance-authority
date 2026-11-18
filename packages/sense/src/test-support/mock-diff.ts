@@ -1,99 +1,17 @@
-/**
- * The taint every test runner implies: a mocked module is not imported.
- *
- * `vi.mock('./api')`, `jest.mock('./api')` and `sb.mock(import('./api'))` all
- * say the same thing in three spellings — the file names `./api` and the
- * runner hands it something else. The edge the scan drew from the test to
- * `api.ts` is one no execution follows, and a change to `api.ts` selects that
- * test for nothing. This reads those calls off the tree and subtracts them.
- *
- * ## A factory replaces an import; it does not request one
- *
- * A factory loading its own target cancels the replacement: `jest.mock('./api',
- * () => jest.requireActual('./api'))` preserves an existing import and adds
- * nothing when the file never imports `./api`. The same holds for vitest's
- * `importOriginal` callback, `{ spy: true }`, and an opaque factory.
- *
- * Loading a different target in the factory cuts the mocked module and adds
- * the loaded one: `jest.mock('./api', () => require('./other'))` is minus
- * `./api`, plus `./other`. Literal `require`, `module.require`, `requireActual`
- * and `importActual` follow this rule. A `requireActual` or `importActual`
- * outside the factory is an independent real load, including a `beforeEach`
- * that restores an implementation: it remains a plus and prevents a mock of
- * that target from cutting it.
- *
- * ## What is not subtracted
- *
- * A factory that is not written inside the call — an identifier, a member,
- * anything but a function literal — has a body this cannot read, and a body
- * this cannot read preserves existing imports of the original without adding
- * one; so does a factory loading the real thing by a specifier that is not a
- * string literal. `vi.doMock` and
- * `jest.doMock` replace only what is imported after they run, and the static
- * imports above them ran the real module: they are not read. `vi.unmock` and
- * `jest.unmock` restore an edge the file wrote, and the file's own row already
- * has it. A mock whose specifier is not a string literal names a module this
- * cannot see, and an edge this cannot see is kept.
- *
- * ## Which files are asked
- *
- * Test, spec and story files, setup files and anything under `.storybook/`.
- * A mock anywhere else is not applied, and the edge it would have cut stays —
- * the direction to miss in. Pass `files` to widen it.
- *
- * ## Answered from the scan
- *
- * The module reader already holds the tree, so it reads the default callers'
- * mocks while it is there and the parse carries them ({@link mockDiff}). This
- * taint answers from that parse and opens nothing. The scan keeps written
- * imports, except a factory's same-target `require`: that forwarding call is
- * part of the replacement, not an independent request. Only a caller that
- * passes this taint sees the remaining mock cuts. A taint with its own `callers` asks a
- * question the scan did not, and reads the file.
- */
-
-// compass: variance-authority.reach
-
+/** JavaScript oracle for native mock parsing tests; never shipped. */
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import type { ImportDiff, Node, Taint } from './index.js';
-
-export interface MockTaintOptions {
-  /** The objects whose `mock` is a mock. `vi`, `jest` and `sb` by default. */
-  readonly callers?: readonly string[];
-  /** Which files to read. Test, spec, story, setup and Storybook files by default. */
-  readonly files?: (file: string) => boolean;
+import type { ImportDiff } from '../taint/index.js';
+export interface Node {
+  readonly type: string;
+  readonly start: number;
+  readonly end: number;
+  readonly [key: string]: unknown;
 }
 
 const CALLERS = ['jest', 'sb', 'vi'];
 const DEFAULT_CALLERS: ReadonlySet<string> = new Set(CALLERS);
 const MOCKING = new Set(['mock']);
 const ACTUAL = new Set(['importActual', 'requireActual']);
-
-/**
- * The taint that cuts every edge a mock replaces. With no `callers` it answers
- * from what the parse recorded and opens nothing; with its own `callers` it
- * reads each file it covers.
- */
-export function mockTaint(options: MockTaintOptions = {}): Taint {
-  const callers = new Set(options.callers ?? CALLERS);
-  const scanned = options.callers === undefined;
-
-  return {
-    name: 'mocks',
-    files: options.files ?? isTestLike,
-    ...(scanned ? { parsed: (parsed) => parsed.mocks } : {}),
-    read: (subject) => mockDiff(subject.source, subject.program, callers),
-  };
-}
-
-/** Where a mock is expected to be written. */
-export function isTestLike(file: string): boolean {
-  return (
-    /\.(test|spec|stories)\.[cm]?[jt]sx?$/.test(file) ||
-    /(^|\/)(setup|setupTests|test-setup|vitest\.setup|jest\.setup)\.[cm]?[jt]sx?$/.test(file) ||
-    /(^|\/)\.storybook\//.test(file)
-  );
-}
 
 /**
  * Whether `source` may mock a module or load an original: `false` means

@@ -33,7 +33,7 @@ export async function publishedSelectionQuestions(root: string, options: Publish
   const configured = withDeclaredTsconfig(where, options);
   const taints = new Map<string, { file: string; plus: string[]; minus: string[] }>();
   for (const taint of options.taints ?? []) {
-    if (taint.read !== undefined || taint.parsed !== undefined) throw new Error(`native source selection takes configured taint tables; ${taint.name} is a source reader`);
+    if ('read' in taint || 'parsed' in taint) throw new Error(`native source selection takes configured taint tables; ${taint.name} is a source reader`);
     for (const [file, diff] of taint.diffs ?? []) {
       const held = taints.get(file) ?? { file, plus: [], minus: [] };
       held.plus.push(...(diff.plus ?? [])); held.minus.push(...(diff.minus ?? []));

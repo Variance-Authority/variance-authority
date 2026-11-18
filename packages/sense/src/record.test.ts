@@ -2,10 +2,7 @@ import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { memoryParseCache } from './cache.js';
 import { digestString } from './digest.js';
-import { keyFor, parseWay } from './files.js';
-import { declinedForSize, parsedOnce, stillTooLarge } from './record.js';
 import { native } from './addon.js';
 import { nativeIndexGraph } from './native-index-graph.js';
 import { decodeSourceIndex } from './test-support/source-index-format.js';
@@ -42,6 +39,7 @@ describe('native source records', () => {
     const declined = (await nativeRecord(subject(root, 'wide.css', digest))).record;
     expect(declined.digest).toBe(digest);
     expect(declined.unknown).toContain('over the 8 this scan opens');
+    expect(declined.unknown).not.toContain('Raise `largestFile`');
 
     // Unknown to git, the bytes were never hashed, so there is nothing to name.
     expect((await nativeRecord(subject(root, 'wide.css'))).record.digest).toBeUndefined();
@@ -60,7 +58,7 @@ describe('native source records', () => {
     for (const file of ['exact.css', 'empty.css']) {
       const record = (await nativeRecord(subject(root, file))).record;
       expect(record.unknown).toBeUndefined();
-      expect(declinedForSize(record)).toBe(false);
+      expect(record.unknown).toBeUndefined();
     }
   });
 
@@ -94,27 +92,9 @@ describe('native source records', () => {
 
     const declined = (await nativeRecord(subject(root, 'linked.css', digest))).record;
     expect(declined.digest).toBeUndefined();
-    expect(declinedForSize(declined)).toBe(true);
-    expect(await stillTooLarge(join(root, 'linked.css'), 8)).toBe(true);
+    expect(declined.unknown).toContain('over the 8 this scan opens');
 
     await writeFile(join(root, 'wide.css'), '.a{}\n', 'utf8');
-    expect(await stillTooLarge(join(root, 'linked.css'), 8)).toBe(false);
-  });
-});
-
-describe('parsedOnce', () => {
-  // A parse is kept whatever limit read it: the one it holds answers only under the limit asked now, by the bytes it measured.
-  it('answers a held parse by its measured size against the limit it is asked under, without opening the file', () => {
-    const digest = digestString('export const held = 1;\n');
-    const cache = memoryParseCache();
-    const held = { requests: [], size: { bytes: 24, lines: 1 } };
-    cache.set(keyFor(digest, parseWay('held.ts')), held);
-    let parses = 0;
-    const asked = (largestFile: number) =>
-      parsedOnce({ root: '/nowhere', file: 'held.ts', cache, digest, largestFile, counted: () => { parses += 1; } });
-
-    expect(asked(8)).toBeUndefined();
-    expect(asked(24)).toBe(held);
-    expect(parses).toBe(0);
+    expect(nativeRecord(subject(root, 'linked.css')).record.unknown).toBeUndefined();
   });
 });

@@ -13,7 +13,7 @@ against the merge base's walk, the checkout's with the change's edges undone
 **Built on:** the reading above and its fixture
 ([`drift.integration.test.ts`](../../packages/sense/src/test-selection/drift.integration.test.ts));
 the mocks a test declares, read off its tree
-([`mocks.ts`](../../packages/sense/src/taint/mocks.ts)); the precision ladder
+([the mock reader at this proposal](https://github.com/Variance-Authority/variance-authority/blob/bd72f6b0441cc682d958068487f4a656c3499d5e/packages/sense/src/taint/mocks.ts)); the precision ladder
 and its union
 ([`precision.ts`](../../packages/sense/src/test-selection/precision.ts)); the
 record a suite's mainline published

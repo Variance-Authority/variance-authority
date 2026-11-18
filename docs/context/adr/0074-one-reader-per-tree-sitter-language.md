@@ -8,7 +8,7 @@ WASM on the JavaScript side", and for Python, Rust, Java, Kotlin and Swift the
 clause in [ADR-0065](0065-source-scanning-is-one-native-side.md) that
 [ADR-0073](0073-one-module-reader.md) already set aside for modules.
 **Relates to:**
-[`packages/sense/src/record.ts`](../../../packages/sense/src/record.ts),
+[the reader at this decision](https://github.com/Variance-Authority/variance-authority/blob/bd72f6b0441cc682d958068487f4a656c3499d5e/packages/sense/src/record.ts),
 [`packages/sense/native/src/languages/mod.rs`](../../../packages/sense/native/src/languages/mod.rs),
 [`packages/sense/native/build.mjs`](../../../packages/sense/native/build.mjs)
 

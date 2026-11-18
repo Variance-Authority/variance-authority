@@ -42,7 +42,6 @@ export { CODE_EXTENSIONS, LANGUAGES, READABLE, languageOf, grainOf, readsMembers
 export { indexDeclarations } from './declarations.js';
 
 export {
-  memoryParseCache,
   type Parsed,
   type ParseCache,
   type SourceSize,
@@ -254,20 +253,7 @@ export {
   type StoreUse,
 } from './help-reading.js';
 
-export {
-  taintFile,
-  taintRecords,
-  taintTable,
-  type ImportDiff,
-  type Tainted,
-  type Taint,
-  type TaintOptions,
-  type TaintSubject,
-  type TaintTable,
-} from './taint/index.js';
-export { moduleCallsTaint, type ModuleCallsTaintOptions } from './taint/calls.js';
-export { mayMock, mockTaint, type MockTaintOptions } from './taint/mocks.js';
-export { runGraphOf, type RunGraphOptions } from './taint/graph.js';
+export { taintFile, taintTable, type ImportDiff, type Taint, type TaintTable } from './taint/index.js';
 export { shadowReach, type ShadowReach } from './taint/reach.js';
 export { auditTaints, type TaintAuditOptions, type TaintDeviation, type TaintDeviationKind } from './taint/audit.js';
 
@@ -276,3 +262,5 @@ export { sourceTreeFromIndex } from './help-reading.js';
 
 export { publishedSelectionGraph, publishedSelectionQuestions, type PublishedSelectionOptions } from './published-selection.js';
 export type { NativeSelectionGraph } from './native-selection-graph.js';
+
+export { publishedMocks } from './published-mocks.js';

@@ -348,6 +348,24 @@ impl OpenedIndex {
         }).collect())
     }
 
+    /// Only the asked files' recorded mock declarations; source text stays unopened.
+    #[napi(catch_unwind)]
+    pub fn has_mocks(&self, files: Vec<String>) -> napi::Result<Vec<bool>> {
+        self.readable()?;
+        let Some(source) = self.opened.as_ref() else { return Ok(vec![false; files.len()]) };
+        let layers = source.layers();
+        Ok(files.iter().map(|file| {
+            let held = || {
+                let (_, (layer, row)) = crate::chain_lookup::record(layers, file)?;
+                let digest = layers[layer].stored.optional(layers[layer].records.digest.at(row))?;
+                let (layer, row) = crate::chain_lookup::parse(layers, digest, &crate::index::way(file))?;
+                let parses = &layers[layer].parses;
+                Some(!parses.mocks_minus.range(row).is_empty() || !parses.mocks_plus.range(row).is_empty())
+            };
+            held().unwrap_or(false)
+        }).collect())
+    }
+
     #[napi(catch_unwind)]
     pub fn source_tree(&self, root: String, tsconfig: Option<napi::Either<String, bool>>, code: Vec<String>, names: bool) -> napi::Result<Option<crate::source_tree_read::SourceTreeReader>> {
         self.readable()?;

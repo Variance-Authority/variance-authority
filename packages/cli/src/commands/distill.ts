@@ -1,7 +1,6 @@
 // compass: variance-authority/runtime/attention
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { Relations } from '@variance-authority/core/relate';
 import { parseEyesJournal } from '@variance-authority/eyes/archive';
 import {
@@ -27,7 +26,9 @@ import {
   RecordWithoutCoverage,
   recordedEyesOf,
 } from '@variance-authority/sense/test-selection';
-import { mayMock, shadowReach } from '@variance-authority/sense/taint';
+import { publishedMocks } from '@variance-authority/sense';
+import { shadowReach } from '@variance-authority/sense/taint';
+import { isCI } from 'ci-info';
 import { messageOf } from '../config-values.js';
 import { checkoutFile } from '../checkout-file.js';
 import { OperatorError } from '../exit.js';
@@ -179,10 +180,11 @@ function suitesOf(root: string): readonly string[] | undefined {
   return asOperator(() => declaredSuites(root))?.map((suite) => suite.name);
 }
 
-/** Whether a test file's text may mock a module; one the checkout does not hold mocks nothing to read. */
+/** Whether the published parse declares mocks, without rereading source or building a graph. */
 async function mocksIn(root: string, file: string): Promise<boolean> {
-  const path = join(root, file);
-  return existsSync(path) && mayMock(await readFile(path, 'utf8'));
+  return (await publishedMocks(root, [file], {
+    ci: isCI, step: 'variance index', announce: (line) => process.stderr.write(`variance: ${line}\n`),
+  }))[0] === true;
 }
 
 function fileGraph(root: string): Promise<Relations> {

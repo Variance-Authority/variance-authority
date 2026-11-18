@@ -2,14 +2,16 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
+import { affectedBy, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { nativeAvailable } from './addon.js';
 import { realPath } from './resolve.js';
 import { scanRelations } from './test-support/scan.js';
-import { taintRecords, taintTable } from './taint/index.js';
+import { taintTable } from './taint/index.js';
 import { declaredEffects } from './test-selection/effects.js';
 import { gitDigests } from './tree.js';
+import { updateSourceIndex } from './published.js';
+import { publishedSelectionGraph } from './published-selection.js';
 
 /**
  * A `build/` directory Git tracks is source, and an import into it lands.
@@ -104,13 +106,17 @@ describe.runIf(nativeAvailable())('an import into a tracked build directory', ()
     expect(record(records, 'src/commands/build/a.ts')).toBeUndefined();
   });
 
-  it('joins a taint addition into it, on the word the records carry', async () => {
-    const records = await scanRelations({ root, dirs: ['src'] });
-    const taint = taintTable('hand', { 'src/commands/other.ts': { '+': ['./build/a'] } });
-    const tainted = await taintRecords(records, [taint], { root });
-
-    expect(tainted.additions.get('src/commands/other.ts')).toEqual(['src/commands/build/a.ts']);
-    expect(tainted.records).toHaveLength(records.length);
+  it('joins a configured addition into the tracked build directory', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sense-build-taint-'));
+    try {
+      const index = join(directory, 'index.bin');
+      await updateSourceIndex(root, { index });
+      const taints = [taintTable('hand', { 'src/commands/other.ts': { '+': ['./build/a'] } })];
+      const relations = await publishedSelectionGraph(root, { index, dirs: ['src'], taints });
+      expect(affectedBy(relations, ['src/commands/build/a.ts']).files).toContain('src/commands/other.ts');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('walks the graph from an added import of it, to what its package declares loading does', async () => {
