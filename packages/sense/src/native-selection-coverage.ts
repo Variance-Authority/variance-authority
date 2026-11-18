@@ -1,7 +1,6 @@
 // compass: variance-authority.reach.source-index
 import type { FileSize, SourceScope } from './source-scope.js';
-import type { RuleFile, Violation } from './restrictions.js';
-import type { ChainViolation } from './restrictions-transitive.js';
+import type { ChainViolation, RuleFile, Violation } from './restrictions.js';
 
 /** Source questions answered over retained native columns and adjacency. */
 export interface NativeSelectionCoverage {

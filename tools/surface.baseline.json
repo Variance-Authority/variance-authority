@@ -1580,7 +1580,6 @@
         "stringArg": "function",
         "toolByName": "function",
         "treeAtWorkspace": "function",
-        "treeFromRelations": "function",
         "treeOf": "function",
         "vantageToolByName": "function",
         "verbOf": "function"
@@ -3074,7 +3073,6 @@
         "refreshDependencyLexiconNative": "function",
         "relationBetween": "function",
         "restampHelpStore": "function",
-        "restrictedChains": "function",
         "restrictedImports": "function",
         "ripgrepNative": "function",
         "seedPaths": "function",

@@ -64,6 +64,15 @@ export function decodeSourceTree(input: Uint8Array, root: string, workspace = ro
   return treeAtWorkspace(treeFromNative(openSourceTree(input), root), workspace);
 }
 
+/**
+ * The tree a pile of records makes, walked where a published one is: encoded,
+ * and opened by the addon. A handful of records in a test, or a host's own
+ * scan, asks the walk the checkout's index is asked.
+ */
+export function treeOf(records: Iterable<FileRecord>, root = '.'): Tree {
+  return decodeSourceTree(encodeSourceTree([...records]), root);
+}
+
 function codeUnit(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }

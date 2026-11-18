@@ -4,9 +4,6 @@ import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import {
   decodeSourceTree,
-  treeAtWorkspace,
-  treeOf,
-  type FileRecord,
   type Tree,
 } from '@variance-authority/mcp/tools';
 import { SegmentCutShort } from '@variance-authority/core/segment';
@@ -205,9 +202,9 @@ export async function republishWorkspaceSnapshot(help: Help, index: string): Pro
   }
 }
 
-/** The tree published from `graph`, drawn over `graphRoot` and answered for `root`: the encoded bytes, or the records they encode. */
-export function publishedTree(graph: readonly FileRecord[] | Uint8Array, graphRoot: string, root: string): Tree {
-  return graph instanceof Uint8Array ? decodeSourceTree(graph, graphRoot, root) : treeAtWorkspace(treeOf(graph, graphRoot), root);
+/** The tree published as `graph`, drawn over `graphRoot` and answered for `root`. */
+export function publishedTree(graph: Uint8Array, graphRoot: string, root: string): Tree {
+  return decodeSourceTree(graph, graphRoot, root);
 }
 
 /**

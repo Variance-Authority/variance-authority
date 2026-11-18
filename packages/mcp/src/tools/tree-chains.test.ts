@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EdgeKind, FileRecord } from '@variance-authority/core/relate';
-import { treeAtWorkspace, treeOf } from './tree.js';
+import { treeOf } from './source-tree-format.js';
+import { treeAtWorkspace } from './tree.js';
 
 /**
  * The walk against the imports, with the evidence for each file it reached.

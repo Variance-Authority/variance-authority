@@ -120,6 +120,7 @@ export {
   relationBetween,
   restrictedImports,
   type CapViolation,
+  type ChainViolation,
   type Decision,
   type LayerCap,
   type RelationRule,
@@ -129,7 +130,6 @@ export {
   type TierCapReport,
   type Violation,
 } from './restrictions.js';
-export { restrictedChains, type ChainViolation } from './restrictions-transitive.js';
 export {
   codeMapPage,
   declaredRoles,

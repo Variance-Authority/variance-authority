@@ -3,7 +3,7 @@ import type { RenderIdentity } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { LexiconReport, RunReport, SubjectLexicon } from '@variance-authority/report';
 import { scopeLine, scopeOf } from './scope.js';
-import { treeOf } from './tree.js';
+import { treeOf } from './source-tree-format.js';
 
 /**
  * A path exists or it does not, asserted where it is load-bearing.

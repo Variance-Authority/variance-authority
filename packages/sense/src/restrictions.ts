@@ -32,7 +32,7 @@ export interface RelationRule {
    * Decides a chain rather than an import: `from` is where the chain starts
    * and `to` any file it reaches. Transitive rules are an ordered list of
    * their own, judged apart from the rules for single imports
-   * (`restrictions-transitive.ts`).
+   * (the selection graph's `restrictions`).
    */
   readonly transitive?: boolean;
   /** Why, said to whoever broke the rule. */
@@ -88,6 +88,26 @@ export interface Violation {
   readonly to: string;
   readonly message?: string;
   readonly directory: string;
+}
+
+/**
+ * One import that carries a chain from a seed into a file a transitive rule
+ * restricts. The finding is the import that arrives there, because that is the
+ * line a person changes; the selection graph walks to it, every edge kind
+ * included, and never through a restricted file.
+ */
+export interface ChainViolation {
+  /** The file the chain went through, which imports `to`. */
+  readonly from: string;
+  /** The restricted file. */
+  readonly to: string;
+  readonly message?: string;
+  /** The directory of the rule file that states the rule. */
+  readonly directory: string;
+  /** The shortest chain from a seed to `from`, seed first. */
+  readonly chain: readonly string[];
+  /** How many seeds reach `from` without passing a restricted file. */
+  readonly seeds: number;
 }
 
 /** How many folders a rule file's directory sits below the root; the root is 0. */

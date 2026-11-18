@@ -32,8 +32,7 @@ describe('what one import costs', () => {
     const one = 'src/billing/Invoice.tsx';
     const two = 'src/billing/total.ts';
     expect(COST[hopBetween(one, two, NONE)]).toBe(DOWN);
-    // The walk against the arrows still classifies (importer, imported), which
-    // is what `costsFrom` does with its `against` flag.
+    // A walk against the arrows still classifies (importer, imported).
     expect(COST[hopBetween(one, two, NONE)]).toBe(COST[hopBetween(one, two, NONE)]);
   });
 });
