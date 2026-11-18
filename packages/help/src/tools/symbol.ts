@@ -18,6 +18,7 @@ import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { type PublishedDeclaration, publishedDeclarations, publishingFiles, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
 import { exportedIn, exportedNamed } from './rows.js';
+import { symbolAtLine } from './symbol-line.js';
 
 /**
  * `docs_symbol` — what a name is and where it is declared, in full.
@@ -56,12 +57,19 @@ export const symbol: Tool<Help> = {
           'that path resolves it: its version and signature there, whether the code already imports it, and where ' +
           'else it is declared when it is not usable there.',
       },
+      line: {
+        type: 'string',
+        description:
+          'Optional. `<file>:<line>`, a line that uses the name: its declarations are ordered by how closely the tests ' +
+          'that entered each match the recorded tests that ran the line, the one the line ran first.',
+      },
     },
     required: ['name'],
     additionalProperties: false,
   },
 
   run(help, input, invocation) {
+    if (input['line'] !== undefined) return symbolAtLine(help, input, invocation, symbol);
     const spell = spellingOf(invocation);
     const name = stringArg(input, 'name');
     const from = input['package'];

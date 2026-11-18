@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './addon.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeLinesThen, NativeRanModule, NativeRanRegion, NativeTestComposition, NativeTestRan } from './native-journeys.js';
+import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeResonance, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeLinesThen, NativeRanModule, NativeRanRegion, NativeTestComposition, NativeTestRan } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
@@ -29,7 +29,7 @@ import { askCoverageFile } from './test-selection/coverage-file.js';
 import { defaultInclude, insideRoot } from './test-selection/instrumented-modules.js';
 import { declaredSuites } from './test-selection/suites.js';
 
-function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition' | 'testRan' | 'linesThen'>(name: Name) {
+function entry<Name extends 'prepareJourneys' | 'journeysKept' | 'journeysFor' | 'journeysAmong' | 'pathsThrough' | 'forksBetween' | 'journeyMap' | 'testComposition' | 'testRan' | 'linesThen' | 'resonance'>(name: Name) {
   const scanner = native();
   const call = scanner?.[name];
   if (scanner === undefined || call === undefined) {
@@ -369,6 +369,52 @@ export function testsRan(root: string, file: string, name?: string): readonly Su
  */
 export function linesThen(root: string, commit: string, file: string, lines: readonly number[]): NativeLinesThen {
   return entry('linesThen')(root, commit, file, [...lines]);
+}
+
+/** How one suite's recording tells the declarations of a name apart at a line, or why it cannot. */
+export interface SuiteResonance {
+  readonly suite?: string;
+  readonly resonance: NativeResonance;
+  /** Why the lines were read where they stand now rather than where the recording ran them. */
+  readonly unplaced?: string;
+}
+
+/**
+ * How each of `candidates`, the declarations of `name`, resonates with the
+ * line `at`, asked of every declared suite that has a recording: the cases that
+ * entered each against the cases that ran the line. Each line is read where it
+ * stood at the commit the recording ran at; a candidate written since is
+ * scored as unrecorded, and a line written since is refused.
+ */
+export function resonance(root: string, at: NativeJourneyEnd, name: string, candidates: readonly NativeJourneyEnd[]): readonly SuiteResonance[] {
+  const asked = checkoutPath(root, at.file);
+  return recordings(root).flatMap(({ suite, recording }) => {
+    if (recording === undefined) return [];
+    const named = suite === undefined ? {} : { suite };
+    const refuse = (notRecorded: string): SuiteResonance => ({ ...named, resonance: { notRecorded, cases: 0, resonant: [] } });
+    if ('outside' in asked) return [refuse(asked.outside)];
+    const { commit } = commitOf(recording);
+    let unplaced: string | undefined;
+    const then = (file: string, line: number): number | null => {
+      if (commit == null) return line;
+      const placed = linesThen(root, commit, file, [line]);
+      if (placed.unplaced == null) return placed.lines[0] ?? null;
+      unplaced ??= placed.unplaced;
+      return line;
+    };
+    const line = then(asked.path, at.line);
+    if (line === null) return [refuse(`${asked.path}:${at.line} was written since the recording ran`)];
+    const lines = candidates.map((candidate) => then(candidate.file, candidate.line));
+    const placed = candidates.flatMap((candidate, at) => (lines[at] === null ? [] : [{ at, end: { file: candidate.file, line: lines[at]! } }]));
+    const answer = entry('resonance')(recording, asked.path, line, name, placed.map(({ end }) => end));
+    const resonant = answer.resonant.map((row) => {
+      if (row.candidate == null) return row;
+      const { at } = placed[row.candidate]!;
+      return { ...row, candidate: at, line: candidates[at]!.line };
+    });
+    const since = candidates.flatMap((candidate, at) => (lines[at] === null ? [{ ...candidate, candidate: at, recorded: false, cases: 0, shared: 0, score: 0 }] : []));
+    return [{ ...named, resonance: { ...answer, resonant: [...resonant, ...since] }, ...(unplaced === undefined ? {} : { unplaced }) }];
+  });
 }
 
 /**

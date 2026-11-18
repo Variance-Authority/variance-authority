@@ -136,6 +136,7 @@ const PLACEHOLDER: Readonly<Record<string, string>> = {
   file: '<path>',
   files: '<path>[,...]',
   name: '<name>',
+  line: '<file>:<line>',
   package: '<name>',
   subpath: '<subpath>',
   query: '<words>',

@@ -102,6 +102,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
     '--files',
     '--area',
     '--name',
+    '--line',
     '--package',
     '--subpath',
     '--query',

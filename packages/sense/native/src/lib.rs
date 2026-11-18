@@ -93,6 +93,7 @@ mod journey_output;
 mod journey_paths;
 mod journey_query;
 mod journey_read;
+mod journey_resonance;
 mod journey_record;
 mod journey_select;
 mod journey_stitch;

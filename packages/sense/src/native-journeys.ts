@@ -232,6 +232,31 @@ export interface NativeJourneyEnd {
   readonly line: number;
 }
 
+/** One declaration of a name, scored against the cases that ran a line. */
+export interface NativeResonant {
+  readonly file: string;
+  readonly line: number;
+  /** Its position among the declarations asked; absent for a function the recording names alone. */
+  readonly candidate?: number | null;
+  /** Whether the recording holds a function written at its line. */
+  readonly recorded: boolean;
+  /** Cases that entered it. */
+  readonly cases: number;
+  /** Of those, cases that ran the line. */
+  readonly shared: number;
+  /** Ochiai: `shared / sqrt(line's cases * cases)`. */
+  readonly score: number;
+}
+
+/** How the declarations of a name resonate with a line, or why the recording cannot say. */
+export interface NativeResonance {
+  readonly notRecorded?: string | null;
+  /** Cases that ran the line. */
+  readonly cases: number;
+  /** Highest score first. */
+  readonly resonant: readonly NativeResonant[];
+}
+
 /** A region that separates the connecting journeys from the near misses. */
 export interface NativeJourneyFork {
   readonly block: NativeJourneyBlock;
@@ -431,4 +456,6 @@ export interface NativeJourneys {
   testRan?(recording: string, file: string, name?: string | null): NativeTestRan;
   /** Where each of `lines` of `file` stood at `commit`: `null` for a line written since. */
   linesThen?(root: string, commit: string, file: string, lines: number[]): NativeLinesThen;
+  /** How each of `candidates`, the declarations of `name`, resonates with `file:line`. */
+  resonance?(recording: string, file: string, line: number, name: string, candidates: NativeJourneyEnd[]): NativeResonance;
 }

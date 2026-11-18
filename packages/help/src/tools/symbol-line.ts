@@ -1,0 +1,75 @@
+/**
+ * `symbol --line`: the declarations of a name, ordered by which one the line
+ * ran.
+ *
+ * The source index owns which declarations the name has; the recording owns
+ * which tests ran the line and which entered each declaration. A declaration
+ * the line called is entered by the line's tests and few others, so each is
+ * scored by Ochiai — the tests it shares with the line over the geometric mean
+ * of both counts — in native code, where the recording is read. A function the
+ * recording names like them and none of them stands for is scored beside them:
+ * a mock's factory, most often, which a test put in the declaration's place.
+ *
+ * A line no test ran tells the declarations apart by nothing, so the answer
+ * says so and gives `symbol`'s answer without the line.
+ */
+
+// compass: variance-authority.report.agent-surface
+
+import { codeUnitOrder } from '@variance-authority/core/segment';
+import { resonance, type Resonant, type SuiteResonance } from '@variance-authority/sense';
+import { stringArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
+import type { Help } from '@variance-authority/package/help';
+import { ofSuite } from './grep-ran.js';
+
+const byPlace = (a: Resonant, b: Resonant): number => codeUnitOrder(a.file, b.file) || a.line - b.line;
+const tests = (count: number): string => `${count} ${count === 1 ? 'test' : 'tests'}`;
+
+/** `symbol`'s answer for `input`, its declarations ordered by the line `input.line` names. */
+export function symbolAtLine(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, symbol: Tool<Help>): string {
+  const root = invocation?.root;
+  if (root === undefined) throw new Error('`symbol --line` reads what a checkout recorded, and this host named no checkout to read');
+  const name = stringArg(input, 'name');
+  const at = lineOf(stringArg(input, 'line'));
+  const { line: _, ...rest } = input;
+  const declared = symbol.files!(help, rest, invocation).files;
+  const candidates = [...declared].flatMap(([file, lines]) => lines.map((line) => ({ file, line })));
+  const suites = resonance(root, at, name, candidates);
+  const told = suites.filter((suite) => suite.resonance.notRecorded == null && suite.resonance.cases > 0);
+  const untold = suites.filter((suite) => !told.includes(suite)).map((suite) => untoldLine(suite, at, name));
+  if (told.length === 0) {
+    const why = untold.length > 0 ? untold : [`No recording under ${root} holds a suite, so nothing tells the declarations of \`${name}\` apart:`];
+    return [...why, '', symbol.run(help, rest, invocation)].join('\n');
+  }
+  return [...told.map((suite) => formatSuite(suite, at, name)), ...(untold.length > 0 ? [untold.join('\n')] : [])].join('\n\n');
+}
+
+/** `src/page.ts:3`, split on its last colon so a path holding one is kept whole. */
+function lineOf(spelled: string): { readonly file: string; readonly line: number } {
+  const colon = spelled.lastIndexOf(':');
+  const line = Number(spelled.slice(colon + 1));
+  if (colon <= 0 || !Number.isInteger(line) || line < 1) throw new Error(`\`--line\` takes \`<file>:<line>\`, such as \`src/page.ts:3\`, not \`${spelled}\``);
+  return { file: spelled.slice(0, colon), line };
+}
+
+function untoldLine({ suite, resonance }: SuiteResonance, at: { file: string; line: number }, name: string): string {
+  const why = resonance.notRecorded == null ? `No recorded test ran ${at.file}:${at.line}` : `The recording cannot place ${at.file}:${at.line}: ${resonance.notRecorded}`;
+  return `${ofSuite(suite)}${why}, so nothing tells the declarations of \`${name}\` apart:`;
+}
+
+function formatSuite({ suite, resonance, unplaced }: SuiteResonance, at: { file: string; line: number }, name: string): string {
+  const lines = [`${ofSuite(suite)}\`${name}\` at ${at.file}:${at.line}, by the ${resonance.cases} recorded ${resonance.cases === 1 ? 'test' : 'tests'} that ran the line:`];
+  if (unplaced !== undefined) lines.push('', `${unplaced}, so each line is read where it stands now.`);
+  const scored = resonance.resonant.filter((row) => row.shared > 0);
+  const apart = resonance.resonant.filter((row) => row.recorded && row.shared === 0).sort(byPlace);
+  const unrecorded = resonance.resonant.filter((row) => !row.recorded).sort(byPlace);
+  const tied = (row: Resonant): boolean => scored.some((other) => other !== row && Math.abs(other.score - row.score) < 1e-9);
+  lines.push('', ...scored.map((row) => `${row.file}:${row.line}  ${row.score.toFixed(2)}${tied(row) ? ' tied' : ''}  ${row.shared} of the ${tests(row.cases)} that entered it ran the line${foundByName(row, name)}`));
+  if (apart.length > 0) lines.push('', 'Not run with it:', ...apart.map((row) => `${row.file}:${row.line}  none of the ${tests(row.cases)} that entered it ran the line`));
+  if (unrecorded.length > 0) lines.push('', 'Not in the recording:', ...unrecorded.map((row) => `${row.file}:${row.line}  no recorded function is written at this line`));
+  return lines.join('\n');
+}
+
+function foundByName(row: Resonant, name: string): string {
+  return row.candidate == null ? `; a function the recording names \`${name}\`, no declaration: a mock's, most often` : '';
+}
