@@ -21,7 +21,7 @@ use crate::world::World;
 #[path = "batch_walk.rs"]
 mod walk;
 
-use walk::{read_kept, resolve_all};
+use walk::{read_held, read_kept, resolve_all};
 pub(crate) use walk::{neighbours, texting, walk_beyond, Kept, Reached, Walked};
 
 /// What a batch of files said, in columns rather than per-file objects.
@@ -116,7 +116,9 @@ pub fn read_batch(
 /// the tree asks about. Without it those languages ask the disk, walked once
 /// per batch that holds one of their files, entering a repository of its own
 /// only when it is one of `dirs`, or holds one. `records` asks for each row's
-/// record, settled against what it names.
+/// record, settled against what it names. `held` is a parse-only segment of the
+/// parses the caller's cache holds: a row whose identity it holds a parse for
+/// is answered from it, without being opened.
 #[napi(catch_unwind)]
 #[allow(dead_code, reason = "called through the generated N-API export")]
 #[allow(clippy::too_many_arguments, reason = "stable positional N-API contract")]
@@ -131,7 +133,10 @@ pub fn scan_batch(
     listed: Option<Vec<String>>,
     records: Option<RecordOptions>,
     dirs: Option<Vec<String>>,
+    held: Option<Buffer>,
 ) -> napi::Result<ScanBatch> {
+    let opened = held.as_deref().map(crate::parse_store::Opened::of_segment);
+    let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &crate::index::way(file))?.read();
     let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
     let over_tree = |file: &String| !matches!(language_of(file), None | Some(Language::Module | Language::Style));
     let walked: Option<HashMap<String, u32>> = (listed.is_none() && files.iter().any(over_tree))
@@ -149,7 +154,7 @@ pub fn scan_batch(
         None,
         Tree { known: listed.as_ref(), world: listed.as_ref().or(walked.as_ref()), oids: &[] },
         None,
-        &|_, _| None,
+        &kept,
         &FromBlob::default(),
         &TreeObjects::default(),
         records,
@@ -187,17 +192,10 @@ pub(crate) fn scan_batch_with_oids(
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, listing));
     let (read, answered) = match oids {
         Some(oids) => read_kept(&root, store, &files, oids, largest_file, digests, readers, kept, from_blob),
-        None => (
-            read_all(
-                root.clone(),
-                files.clone(),
-                largest_file,
-                digests,
-                readers,
-                true,
-            ),
-            Vec::new(),
-        ),
+        None => {
+            let identities = records.as_ref().and_then(|asked| asked.identities.as_deref()).unwrap_or_default();
+            read_held(&root, &files, identities, largest_file, digests, readers, kept)
+        }
     };
     // A language that reads its neighbours takes the batch's own reads for the
     // files in it, and reads the rest as the walk does (`batch_walk.rs`): out

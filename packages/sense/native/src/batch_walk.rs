@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
 use super::GraphOptions;
-use crate::acquire::{read_git, Answer, Outcome, TreeObjects, LARGEST_FILE};
+use crate::acquire::{read_all, read_git, Answer, Outcome, TreeObjects, LARGEST_FILE};
 use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
 use crate::parse_origin::FromBlob;
@@ -242,15 +242,7 @@ pub(super) fn read_kept(
         .zip(&oids)
         .map(|(file, oid)| {
             let identity = git::spell(oid.as_ref()?);
-            let read = kept(&identity, file)?;
-            // A parse is kept whatever limit read it, so one over this scan's is read again, to be
-            // declined; a reader that measured nothing leaves the size to the file on disk, and a
-            // size neither tells is read again from Git, which declines by the blob's. No limit is
-            // the default a fresh read applies (`acquire.rs`), not none.
-            let limit = u64::from(largest_file.unwrap_or(LARGEST_FILE));
-            let bytes = read.size.as_ref().map(|size| u64::from(size.bytes));
-            let over = bytes.or_else(|| std::fs::metadata(Path::new(root).join(file)).ok().map(|entry| entry.len())).is_none_or(|bytes| bytes > limit);
-            (!over).then_some((read, identity))
+            Some((held(root, file, &identity, largest_file, kept)?, identity))
         })
         .collect();
     let (unread, unread_oids): (Vec<String>, Vec<Option<Oid>>) = files
@@ -270,9 +262,52 @@ pub(super) fn read_kept(
             from_blob.saw(oid, file, named);
         }
     }
+    around(hits, fresh)
+}
+
+/// Read `files` off the disk, answering from `kept` every one `identities`
+/// names content it holds for, rather than opening it; with each answer,
+/// whether `kept` gave it.
+pub(super) fn read_held(
+    root: &str,
+    files: &[String],
+    identities: &[String],
+    largest_file: Option<u32>,
+    digests: Option<bool>,
+    readers: Option<u32>,
+    kept: Kept,
+) -> (Vec<Answer>, Vec<bool>) {
+    let hits: Vec<Option<(crate::read::Read, String)>> = files
+        .iter()
+        .enumerate()
+        .map(|(row, file)| {
+            let identity = identities.get(row).filter(|identity| !identity.is_empty())?;
+            Some((held(root, file, identity, largest_file, kept)?, identity.clone()))
+        })
+        .collect();
+    let unread: Vec<String> = files.iter().zip(&hits).filter(|(_, hit)| hit.is_none()).map(|(file, _)| file.clone()).collect();
+    let fresh = if unread.is_empty() { Vec::new() } else { read_all(root.to_owned(), unread, largest_file, digests, readers, true) };
+    around(hits, fresh)
+}
+
+/// What `kept` holds for `file` under `identity`, when this scan would parse it.
+fn held(root: &str, file: &str, identity: &str, largest_file: Option<u32>, kept: Kept) -> Option<crate::read::Read> {
+    let read = kept(identity, file)?;
+    // A parse is kept whatever limit read it, so one over this scan's is read again, to be
+    // declined; a reader that measured nothing leaves the size to the file on disk, and a
+    // size neither tells is read again, which declines by the bytes'. No limit is the
+    // default a fresh read applies (`acquire.rs`), not none.
+    let limit = u64::from(largest_file.unwrap_or(LARGEST_FILE));
+    let bytes = read.size.as_ref().map(|size| u64::from(size.bytes));
+    let over = bytes.or_else(|| std::fs::metadata(Path::new(root).join(file)).ok().map(|entry| entry.len())).is_none_or(|bytes| bytes > limit);
+    (!over).then_some(read)
+}
+
+/// Every row in order: a hit as `kept` gave it, a miss as `fresh` read it.
+fn around(hits: Vec<Option<(crate::read::Read, String)>>, fresh: Vec<Answer>) -> (Vec<Answer>, Vec<bool>) {
     let mut fresh = fresh.into_iter();
-    let mut read = Vec::with_capacity(files.len());
-    let mut answered = Vec::with_capacity(files.len());
+    let mut read = Vec::with_capacity(hits.len());
+    let mut answered = Vec::with_capacity(hits.len());
     for hit in hits {
         answered.push(hit.is_some());
         match hit {

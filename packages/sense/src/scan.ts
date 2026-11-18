@@ -48,14 +48,14 @@ import { extname, join, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Digest } from '@variance-authority/core/format';
-import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
+import { memoryParseCache, type Parsed, type ParseCache, type ParseKey } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, unlistedShapeOf, type RecordCache } from './reuse.js';
 import { nativeFrontier, nativeGraph, type NativeBuilt } from './native.js';
 import { native, nativeRefusal } from './addon.js';
 import { adoptNativeParses } from './source-index.js';
 import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
-import type { IndexedRecord } from './source-index-format.js';
+import { encodeSourceIndex, type IndexedRecord } from './source-index-format.js';
 import { handOverKept, type Unheld } from './parse-store.js';
 import { keyFor, parseWay, seedPaths, type ParseWay } from './files.js';
 import { READABLE } from './language.js';
@@ -363,6 +363,8 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
 
     if (pending.length > 0) {
       const useGraph = !nativeGraphUsed && packed !== undefined && pending.length >= 10_000;
+      // A caller's cache the stores do not already stand for answers its parses in the batch.
+      const cached = options.cache === undefined || options.stores !== undefined || useGraph ? undefined : heldOf(options.cache, pending, pendingDigests);
       const nativeOptions = {
         addon,
         ...(packed === undefined ? {} : { tree: packed }),
@@ -376,6 +378,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         directories: shape?.shape.directories ?? new Map(),
         remembering: reuse !== undefined,
         ...(options.stores === undefined ? {} : { stores: options.stores }),
+        ...(cached === undefined ? {} : { held: cached }),
         ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
         ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
       };
@@ -419,6 +422,17 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   }
 
   return { built, ...(graph === undefined ? {} : { graph }) };
+}
+
+/** What `cache` holds for `files` at `digests`, as the parse-only segment a batch answers them from unopened. */
+function heldOf(cache: ParseCache, files: readonly string[], digests: readonly (Digest | undefined)[]): Uint8Array | undefined {
+  const parses = new Map<ParseKey, Parsed>();
+  for (const [row, file] of files.entries()) {
+    const key = digests[row] === undefined ? undefined : keyFor(digests[row], parseWay(file));
+    const parse = key === undefined ? undefined : cache.get(key);
+    if (key !== undefined && parse !== undefined) parses.set(key, parse);
+  }
+  return parses.size === 0 ? undefined : encodeSourceIndex({ parses, directories: new Map(), records: new Map() });
 }
 
 /** Whether a path is there to be opened, without opening it. */

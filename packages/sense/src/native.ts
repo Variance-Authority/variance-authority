@@ -57,6 +57,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     conditionNames?: string[],
     stores?: string[],
     records?: NativeRecordOptions,
+    held?: Uint8Array,
   ): NativeScanBatch;
   scanGraph(
     root: string,
@@ -188,7 +189,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * under a tracked `build/` lands only when listed, and the other languages
    * resolve against it. Without it they ask the disk, walked once per batch,
    * which enters a repository of its own only when it is one of `dirs`, or
-   * holds one.
+   * holds one. A file whose parse `held` holds is answered from it unopened.
    */
   scanBatch(
     root: string,
@@ -201,6 +202,7 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
     listed?: string[],
     records?: NativeRecordOptions,
     dirs?: string[],
+    held?: Uint8Array,
   ): NativeScanBatch;
   /** The kind names, indexed by the codes a batch's `kinds` carries. */
   kinds(): EdgeKind[];
@@ -300,6 +302,8 @@ export interface NativeFrontierOptions extends ResolveOptions {
   readonly listed?: readonly string[];
   /** The directories the scan was asked for: a walk of the disk enters a repository of its own among them. */
   readonly dirs?: readonly string[];
+  /** A parse-only segment of what the caller's cache holds for `files` at `digests`: those are not opened. */
+  readonly held?: Uint8Array;
   readonly root: string;
   readonly files: readonly string[];
   readonly largestFile: number;
@@ -316,7 +320,7 @@ export interface NativeBuilt {
   readonly read?: Parsed;
   /** The bytes were parsed by this call, rather than kept or declined. */
   readonly parsed?: true;
-  /** The parse is the parse store's, and not in `read`: the cache keeps it from there. */
+  /** The parse is the cache's or its store's, and not in `read`: the cache keeps it from there. */
   readonly kept?: true;
 }
 
@@ -345,6 +349,7 @@ export function nativeFrontier(options: NativeFrontierOptions): readonly NativeB
       options.listed === undefined ? undefined : [...options.listed],
       recordOptions(options, options.digests),
       options.dirs === undefined ? undefined : [...options.dirs],
+      options.held,
     )
     : options.tree.scanBatch(
       options.root,
@@ -356,6 +361,7 @@ export function nativeFrontier(options: NativeFrontierOptions): readonly NativeB
       conditionNames,
       options.stores === undefined ? undefined : [...options.stores],
       recordOptions(options, options.digests),
+      options.held,
     );
   if (process.env['VARIANCE_SENSE_TIMINGS'] === '1') {
     process.stderr.write(`sense native scan: ${(performance.now() - started).toFixed(1)} ms\n`);

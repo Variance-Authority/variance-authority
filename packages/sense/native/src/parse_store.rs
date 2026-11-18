@@ -159,6 +159,14 @@ impl ParseRow for Parse<'_, '_, '_> {
 }
 
 impl<'c> Opened<'c> {
+    /// The parses one segment holds, as if it were a store; one that does not
+    /// open holds nothing.
+    pub(crate) fn of_segment(bytes: &'c [u8]) -> Self {
+        let layers: Vec<Layer<'c>> = Layer::open(bytes).ok().into_iter().collect();
+        let keys = folded(&layers);
+        Opened { layers, keys }
+    }
+
     /// The row the stores hold under `digest` and `way`.
     pub(crate) fn view(&self, digest: &str, way: &str) -> Option<ParseView<'_, 'c>> {
         let &(layer, row) = self.keys.get(&(digest, way))?;
