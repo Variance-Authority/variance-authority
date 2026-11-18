@@ -43,7 +43,7 @@ pub(crate) fn read_style(source: &str) -> Read {
                 kind: Kind::Asset,
                 bindings: Vec::new(),
                 line: lines.at(at),
-                republishes: false,
+                republishes: false, guessed: false, item: false,
             });
         }
     }

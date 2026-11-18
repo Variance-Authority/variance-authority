@@ -297,6 +297,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             tree.at,
             tree.oids,
             Arc::clone(&tree.listing),
+            Some(tree.paths),
             &|file| valid.contains_key(file) || walked.contains_key(file),
             &kept,
             tree.from_blob,

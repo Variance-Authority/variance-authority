@@ -104,8 +104,7 @@ impl ParseRow for Read {
                 id(&request.value),
                 id(request.kind.as_str()),
                 request.line,
-                // An oxc read derives nothing: every request is written.
-                0,
+                crate::parse_columns::request_flags(request.guessed, request.item),
                 request.republishes,
                 request.bindings.iter().map(|binding| {
                     (id(&binding.imported), id(&binding.local), binding.type_only, binding.line)

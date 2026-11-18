@@ -55,6 +55,12 @@ pub struct Request {
     /// `import type`.
     #[serde(skip_serializing_if = "is_false")]
     pub(crate) republishes: bool,
+    /// A tree-sitter reader's guess, recorded only where it lands: `guessed` in `read.ts`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) guessed: bool,
+    /// A Rust path asked for as an item past its modules: `item` in `read.ts`.
+    #[serde(skip_serializing_if = "is_false")]
+    pub(crate) item: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]

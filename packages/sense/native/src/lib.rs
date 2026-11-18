@@ -164,6 +164,7 @@ mod record_parts;
 mod record_start;
 mod resolve;
 mod resolve_export;
+mod resolve_python;
 mod seed;
 mod segment;
 mod side_effects;
@@ -181,6 +182,7 @@ mod tree;
 mod watchman;
 mod witness;
 mod witness_aliases;
+mod world;
 
 pub use seed::seed_files;
 

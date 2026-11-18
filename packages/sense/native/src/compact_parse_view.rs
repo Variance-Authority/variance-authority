@@ -30,16 +30,12 @@ impl<'s, 'a> ParseView<'s, 'a> {
     }
 
     /// The row as the walk reads a parse: its requests, the names it declares
-    /// and why it is unknown — what a record is built and resolved from. `None`
-    /// for a row this reader did not write, whose requests are derived (a
-    /// nonzero flag), so it is read again rather than answered as one.
+    /// and why it is unknown — what a record is built and resolved from.
     pub(crate) fn read(&self) -> Option<Read> {
         let (stored, columns, row) = (self.stored, self.columns, self.row);
         let mut requests = Vec::new();
         for request in columns.requests.range(row) {
-            if columns.request_flags[request] != 0 {
-                return None;
-            }
+            let flags = columns.request_flags[request];
             let kind = stored.text(columns.request_kind.at(request));
             requests.push(Request {
                 value: stored.text(columns.request_value.at(request)).to_owned(),
@@ -56,6 +52,8 @@ impl<'s, 'a> ParseView<'s, 'a> {
                     .collect(),
                 line: columns.request_line.at(request),
                 republishes: flag(columns.request_republishes, request),
+                guessed: flags & 1 != 0,
+                item: flags & 2 != 0,
             });
         }
         Some(Read {
