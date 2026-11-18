@@ -109,8 +109,13 @@ zstd = "0.14"
 # it and normalises the copy once per config, so a monorepo whose base declares
 # thousands of aliases over a thousand package configs held gigabytes of the
 # same map during a cold scan. The vendored copy shares the map and its built
-# form; resolution answers are the upstream ones.
-# TODO: drop the patch once upstream shares an inherited `paths` map.
+# form. It also keeps a tsconfig that failed to load per path, as upstream
+# keeps one that loaded, so an unbootstrapped monorepo stops re-reading a
+# broken config for every file (216k reads of 1,585 configs on Kibana).
+# Resolution answers are the upstream ones; both deltas are re-applied on an
+# upgrade (`src/cache/cache_impl.rs`: `tsconfigs_failed`).
+# TODO: drop the patch once upstream shares an inherited `paths` map and
+# caches a failed load.
 [patch.crates-io]
 oxc_resolver = { path = "vendor/oxc_resolver" }
 

@@ -81,7 +81,7 @@ export async function updateNatively(
   index: string,
   progress?: Progress,
   dirs: readonly string[] = ['.'],
-  stores?: readonly string[] | Promise<readonly string[] | undefined>,
+  stores?: Promise<readonly string[] | undefined>,
   reading = 'reading the files that changed since the last index',
   packs?: boolean,
 ): Promise<NativelyUpdated> {

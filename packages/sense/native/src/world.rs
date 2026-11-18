@@ -10,7 +10,7 @@
 //! pool, one thread would wait on a `OnceLock` another thread's work-stealing
 //! may be running the initialiser of.
 
-// compass: variance-authority.reach.source-index
+// compass: variance-authority.reach.source-scan
 
 use std::collections::HashMap;
 use std::sync::OnceLock;

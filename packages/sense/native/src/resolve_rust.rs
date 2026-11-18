@@ -53,7 +53,7 @@
 //! function body hides no import, so it costs nothing. `include!` and the paths
 //! a macro expands to are invisible, which is why the answer is a floor.
 
-// compass: variance-authority.reach.source-index
+// compass: variance-authority.reach.source-scan
 
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;

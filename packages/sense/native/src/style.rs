@@ -6,7 +6,7 @@
 //! subject nobody observed. Nothing here binds a name: a stylesheet request is
 //! a whole-file dependency. `\b` is ASCII in each pattern.
 
-// compass: variance-authority.reach.source-index
+// compass: variance-authority.reach.source-scan
 
 use std::sync::LazyLock;
 

@@ -3,7 +3,7 @@
 //! stylesheet resolver first and the importer's module resolver after, and a
 //! stylesheet never falls back to a declaration.
 
-// compass: variance-authority.reach.source-index
+// compass: variance-authority.reach.source-scan
 
 use std::collections::HashMap;
 use std::path::Path;

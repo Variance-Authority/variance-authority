@@ -108,7 +108,7 @@ describe('the native warm update', () => {
   it('writes a first update as the base, leaving readying nothing to fold', async () => {
     const start = join(work, `first-${step++}`, 'index.bin');
     await mkdir(dirname(start), { recursive: true });
-    expect(await updateNatively(root, start, undefined, ['.'], [])).toBeDefined();
+    expect(await updateNatively(root, start, undefined, ['.'], Promise.resolve([]))).toBeDefined();
     expect(await chain(start)).toEqual({ segments: 1, working: 0 });
     expect(await readySourceIndex(start)).toBe(false);
   });

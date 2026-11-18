@@ -16,7 +16,7 @@
 //! often not the default, so the manifest is read with the Swift grammar, and
 //! `Sources/<name>` is the fallback for a manifest that could not be read.
 
-// compass: variance-authority.reach.source-index
+// compass: variance-authority.reach.source-scan
 
 use std::collections::HashMap;
 

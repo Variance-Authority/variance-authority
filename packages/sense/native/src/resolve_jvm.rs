@@ -27,7 +27,7 @@
 //! when the named file is not there, every Kotlin file in the package is the
 //! answer. Java has the rule, so Java stops at the file.
 
-// compass: variance-authority.reach.source-index
+// compass: variance-authority.reach.source-scan
 
 use std::collections::HashSet;
 use std::sync::LazyLock;

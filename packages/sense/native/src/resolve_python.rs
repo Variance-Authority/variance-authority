@@ -39,7 +39,7 @@
 //! A parse error, and a non-literal `importlib.import_module(x)` or
 //! `__import__(x)`. A literal one is a `dynamic` edge, as a literal `require` is.
 
-// compass: variance-authority.reach.source-index
+// compass: variance-authority.reach.source-scan
 
 use crate::order::code_unit;
 use crate::world::World;

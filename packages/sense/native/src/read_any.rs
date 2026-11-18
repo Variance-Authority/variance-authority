@@ -2,7 +2,7 @@
 //! `languageOf` in `language.ts` names the same languages, so a file is read
 //! as the same language on both sides.
 
-// compass: variance-authority.reach.source-index
+// compass: variance-authority.reach.source-scan
 
 use oxc_allocator::Allocator;
 
