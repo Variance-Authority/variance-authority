@@ -382,22 +382,24 @@ export interface SuiteResonance {
 }
 
 /**
- * How each of `candidates`, the declarations of one name, resonates with the
+ * How each of `candidates`, the declarations of `name`, resonates with the
  * line `at`, asked of every declared suite that has a recording: the cases that
  * entered each against the cases that ran the line. Each line is read where it
  * stood at the commit the recording ran at, one `linesThen` per file; a
  * candidate written since is set apart, and a line written since is refused.
+ * A recording that names no commit reads each line where it stands now, and
+ * says so in `unplaced`.
  */
-export function resonance(root: string, at: NativeJourneyEnd, candidates: readonly NativeJourneyEnd[]): readonly SuiteResonance[] {
+export function resonance(root: string, at: NativeJourneyEnd, name: string, candidates: readonly NativeJourneyEnd[]): readonly SuiteResonance[] {
   const asked = checkoutPath(root, at.file);
   return recordings(root).flatMap(({ suite, recording }) => {
     if (recording === undefined) return [];
     const named = suite === undefined ? {} : { suite };
     const refuse = (notRecorded: string): SuiteResonance => ({ ...named, resonance: { notRecorded, cases: 0, resonant: [] }, since: [] });
     if ('outside' in asked) return [refuse(asked.outside)];
-    const { commit } = commitOf(recording);
+    const { commit, unread } = commitOf(recording);
     const asking = [{ file: asked.path, line: at.line }, ...candidates];
-    let unplaced: string | undefined;
+    let unplaced = unread ?? undefined;
     const lines: (number | null)[] = asking.map(({ line }) => line);
     if (commit != null) {
       for (const file of new Set(asking.map(({ file }) => file))) {
@@ -410,7 +412,7 @@ export function resonance(root: string, at: NativeJourneyEnd, candidates: readon
     const [line, ...then] = lines;
     if (line == null) return [refuse(`${asked.path}:${at.line} was written since the recording ran`)];
     const placed = candidates.flatMap((candidate, at) => (then[at] == null ? [] : [{ at, end: { file: candidate.file, line: then[at]! } }]));
-    const answer = entry('resonance')(recording, asked.path, line, placed.map(({ end }) => end));
+    const answer = entry('resonance')(recording, asked.path, line, name, placed.map(({ end }) => end));
     const resonant = answer.resonant.map((row) => {
       const { at } = placed[row.candidate]!;
       return { ...row, candidate: at, line: candidates[at]!.line };

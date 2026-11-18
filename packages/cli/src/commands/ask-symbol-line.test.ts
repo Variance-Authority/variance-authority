@@ -67,6 +67,21 @@ describe('variance ask symbol --line', () => {
     expect(answered.out).toContain('Written since the recording ran:\nsrc/late.ts:1');
   });
 
+  it('says each line is read where it stands now when the recording names no commit', async () => {
+    await recorded({ commit: false });
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n').slice(0, 5)).toEqual([
+      '`useSessionId` at src/page.ts:3, by the 1 recorded test that ran the line:',
+      '',
+      'the recording names no commit, so each line is read where it stands now.',
+      '',
+      'src/session.ts:1  1.00  1 of the 1 test that entered it ran the line',
+    ]);
+  });
+
   it('names two declarations entered by the same tests as tied', async () => {
     await recorded();
 
@@ -107,8 +122,8 @@ describe('variance ask symbol --line', () => {
   });
 });
 
-/** Five tests, each named for what it renders, recorded at the commit the sources are written at. */
-async function recorded(): Promise<string> {
+/** Five tests, each named for what it renders, recorded at the commit the sources are written at unless `commit` is false. */
+async function recorded({ commit = true }: { readonly commit?: boolean } = {}): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-symbol-line-')));
   execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
   process.chdir(root);
@@ -171,7 +186,7 @@ async function recorded(): Promise<string> {
   await writeTestCoverage(at, {
     version: 3,
     instrumentation: 'fixture-instrumentation',
-    commit: git('rev-parse', 'HEAD'),
+    ...(commit ? { commit: git('rev-parse', 'HEAD') } : {}),
     tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
     modules: Object.entries(modules).map(([file, blocks]) => covered(file, blocks)),
   });

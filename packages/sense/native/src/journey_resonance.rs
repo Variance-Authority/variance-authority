@@ -1,7 +1,7 @@
 //! Which declaration of a name one line ran: the one whose cases are the
 //! line's cases. A line's cases are those that entered the innermost regions
 //! holding it, as `passedAt` reads "ran"; a declaration's are those that
-//! entered the function written at its line. Each is scored by Ochiai, the
+//! entered the function written at its line and named for it. Each is scored by Ochiai, the
 //! cases they share over the geometric mean of both counts, so a function every
 //! case enters does not outrank one only the line's cases enter.
 //!
@@ -14,7 +14,7 @@ use std::collections::HashSet;
 use napi_derive::napi;
 
 use crate::journey_forks::JourneyEnd;
-use crate::journey_masks::{JourneyMasks, Shape};
+use crate::journey_masks::JourneyMasks;
 
 #[napi(object)]
 pub struct Resonant {
@@ -49,14 +49,14 @@ fn refused(reason: String) -> Resonance {
 
 /// How each of `candidates`, the declarations of one name, resonates with `file:line`.
 #[napi(catch_unwind)]
-pub fn resonance(recording: String, file: String, line: u32, candidates: Vec<JourneyEnd>) -> Resonance {
-    match JourneyMasks::open(&recording).and_then(|mut masks| resonate(&mut masks, &file, line, &candidates)) {
+pub fn resonance(recording: String, file: String, line: u32, name: String, candidates: Vec<JourneyEnd>) -> Resonance {
+    match JourneyMasks::open(&recording).and_then(|mut masks| resonate(&mut masks, &file, line, &name, &candidates)) {
         Ok(answer) => answer,
         Err(error) => refused(format!("the recording did not read ({error})")),
     }
 }
 
-pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidates: &[JourneyEnd]) -> Result<Resonance, String> {
+pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, name: &str, candidates: &[JourneyEnd]) -> Result<Resonance, String> {
     let Some(module) = masks.journey.module_of(file)? else {
         return Ok(refused(format!("no recorded test loaded {file}")));
     };
@@ -71,7 +71,7 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidat
     let mut resonant = Vec::with_capacity(candidates.len());
     for (at, candidate) in candidates.iter().enumerate() {
         let mut scored = Resonant { file: candidate.file.clone(), line: candidate.line, candidate: at as u32, recorded: false, cases: 0, shared: 0, score: 0.0 };
-        if let Some(function) = written_at(masks, &candidate.file, candidate.line)? {
+        if let Some(function) = written_at(masks, &candidate.file, candidate.line, name)? {
             score(masks, function, &ran, &mut scored)?;
         }
         resonant.push(scored);
@@ -80,16 +80,25 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidat
     Ok(Resonance { not_recorded: None, cases: ran.len() as u32, resonant })
 }
 
-/// The outermost recorded function of `file` written from `line`. Matched by
-/// line, not by name as `covering --function` matches: the index gives a line,
-/// and one file can write two functions of one name.
-fn written_at(masks: &JourneyMasks, file: &str, line: u32) -> Result<Option<u32>, String> {
+/// The outermost recorded function of `file` written from `line` that takes
+/// its own name from the declaration: `name`, the last step of its path. A
+/// callback written on a constant's line is named for the call it is handed
+/// to, `map.arg0`, so the constant stays unscored. Matched by line as well as
+/// by name, not by name alone as `covering --function` matches: the index
+/// gives a line, and one file can write two functions of one name.
+fn written_at(masks: &JourneyMasks, file: &str, line: u32, name: &str) -> Result<Option<u32>, String> {
     let Some(module) = masks.journey.module_of(file)? else { return Ok(None) };
-    Ok(masks
-        .functions_in(module)
-        .into_iter()
-        .filter(|&at| masks.bits[at as usize].start == line)
-        .max_by_key(|&at| (masks.bits[at as usize].end, std::cmp::Reverse(at))))
+    let mut found = None;
+    for at in masks.functions_in(module) {
+        let bit = masks.bits[at as usize];
+        if bit.start != line || masks.journey.text(bit.name)?.rsplit('/').next() != Some(name) {
+            continue;
+        }
+        if found.is_none_or(|held: u32| bit.end > masks.bits[held as usize].end) {
+            found = Some(at);
+        }
+    }
+    Ok(found)
 }
 
 fn score(masks: &mut JourneyMasks, function: u32, ran: &HashSet<u32>, scored: &mut Resonant) -> Result<(), String> {

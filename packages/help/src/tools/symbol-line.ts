@@ -32,7 +32,7 @@ export function symbolAtLine(help: Help, input: Readonly<Record<string, unknown>
   const { line: _, ...rest } = input;
   const declared = symbol.files!(help, rest, invocation).files;
   const candidates = [...declared].flatMap(([file, lines]) => lines.map((line) => ({ file, line })));
-  const suites = resonance(root, at, candidates);
+  const suites = resonance(root, at, name, candidates);
   const told = suites.filter((suite) => suite.resonance.notRecorded == null && suite.resonance.cases > 0);
   const untold = suites.filter((suite) => !told.includes(suite)).map((suite) => untoldLine(suite, at, name, told.length === 0 ? ':' : '.'));
   if (told.length === 0) {
