@@ -274,8 +274,8 @@ impl GitTree {
     #[napi(catch_unwind)]
     pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<source_update::Updated> {
         // Open is timed from here: the carry reads the index, and a retry opens it again.
-        let opening = std::cell::Cell::new(Some(crate::stages::start("open")));
-        let open = || opening.take().unwrap_or_else(|| crate::stages::start("open"));
+        let opening = std::cell::Cell::new(Some(crate::stages::start("open", &crate::stages::NONE)));
+        let open = || opening.take().unwrap_or_else(|| crate::stages::start("open", &crate::stages::NONE));
         #[cfg(unix)]
         let carry = match change_tree::carry(&self.change, &options.config, &options.index) {
             Ok(carry) => carry,

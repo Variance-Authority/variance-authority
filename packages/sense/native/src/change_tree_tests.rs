@@ -43,3 +43,36 @@ fn a_repository_asked_for_lists_its_manifests() {
     assert_eq!(whole, expected);
     assert_eq!(inner, expected);
 }
+
+/// With the clock on, the listing of a repository the object store reads names
+/// the parts that ran in-process, and neither of git's fallbacks. The clock is
+/// read once per process, so the listing runs in a child: this test binary
+/// again, with the variable set and only this test selected.
+#[cfg(unix)]
+#[test]
+fn with_the_clock_on_the_listing_line_names_the_parts_that_ran() {
+    const CHILD: &str = "VARIANCE_AUTHORITY_TEST_LISTING_CHILD";
+    if std::env::var_os(CHILD).is_some() {
+        let root = crate::git_fixture::repository("listing-line", &[("a.ts", b"export const a = 1;\n"), ("b/c.ts", b"")]);
+        let index = root.join("index").to_string_lossy().into_owned();
+        assert!(super::change_tree(root.to_string_lossy().into_owned(), index, Vec::new()).is_some());
+        let _ = std::fs::remove_dir_all(&root);
+        return;
+    }
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["change_tree::tests::with_the_clock_on_the_listing_line_names_the_parts_that_ran", "--exact", "--nocapture", "--test-threads=1"])
+        .env("VARIANCE_AUTHORITY_INDEX_STAGES", "1")
+        .env(CHILD, "1")
+        .output()
+        .unwrap();
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(output.status.success(), "{stderr}");
+    let line = stderr.lines().find(|line| line.starts_with("variance stage listing:")).unwrap_or_else(|| panic!("no listing line in {stderr}"));
+    let named = |part: &str| line.contains(&format!("{part} 0.")) || line.contains(&format!("{part} 1."));
+    for part in ["head", "tree", "worktree", "compare", "overlay", "merge", "seeds", "assemble"] {
+        assert!(named(part), "{part} is not on {line}");
+    }
+    for fallback in ["ls-tree", "git status"] {
+        assert!(!line.contains(fallback), "{fallback} is on {line}");
+    }
+}

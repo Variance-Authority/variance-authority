@@ -170,13 +170,13 @@ fn hides(watch: &Watch, paths: &[String]) -> bool {
 /// The tree under `root` for an update of the index at `index`: the held one when
 /// Watchman vouches for it, else git's, with what makes it carried when a watch covers `root`.
 pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(Snapshot, Option<Change>)> {
-    let (held, socket) = crate::stages::part(crate::stages::Part::Held, || (held(index), watchman::socket(Path::new(&format!("{index}.watchman.json")))));
+    let (held, socket) = crate::stages::summed(crate::stages::Sum::Held, || (held(index), watchman::socket(Path::new(&format!("{index}.watchman.json")))));
     // What the update writes, and what git writes as it answers, are left out of what Watchman is asked.
     let below = |dir: &Path| dir.strip_prefix(root).ok().map(|dir| dir.to_string_lossy().into_owned()).filter(|dir| !dir.is_empty());
     let index_dir = Path::new(index).parent().and_then(below);
     if let (Some(socket), Some((snapshot, meta, manifest))) = (&socket, held) {
         let excluded: Vec<String> = index_dir.iter().cloned().chain(meta.git.iter().filter_map(|dir| below(Path::new(dir)))).collect();
-        let vouched = crate::stages::part(crate::stages::Part::Held, || {
+        let vouched = crate::stages::summed(crate::stages::Sum::Held, || {
             stands(&meta, &snapshot.paths, root, socket, dirs, |input| stamp(Path::new(input)))
                 && watchman::since(&meta.watch, &excluded).is_some_and(|since| !since.fresh && ignores_all(root, &since.files))
         });
@@ -185,7 +185,7 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
         }
     }
     // The clock and the stamps are taken before git lists, so whatever moves while it does is after them.
-    let (watch, inputs) = crate::stages::part(crate::stages::Part::Held, || {
+    let (watch, inputs) = crate::stages::summed(crate::stages::Sum::Held, || {
         std::thread::scope(|scope| {
             let inputs = scope.spawn(|| socket.as_ref().and_then(|_| inputs(root)));
             (socket.as_deref().and_then(|socket| watchman::watch(socket, root)), inputs.join().ok().flatten())

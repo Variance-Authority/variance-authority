@@ -2282,21 +2282,28 @@ order below, and leaves out a part that did not run:
 - `held` reads the listing kept from the last update, asks Watchman whether it
   still stands, and takes Watchman's clock and the stamps of git's inputs for
   the next one.
-- `tree` reads HEAD's tree, and `ls-tree` asks git for it where the in-process
-  reader cannot.
+- `tree` reads HEAD's tree into the file list, and `ls-tree` asks git for it,
+  and reads what git prints, where the in-process reader cannot.
 - `worktree` walks the working tree, and `git status` asks git for its changes
   where the walk cannot.
 - `compare` checks the walk against the tree.
-- `hash-object` hashes the files that changed.
-- `merge` puts the changes into the tree's file list.
+- `overlay` reads the changes and checks which are files, and `hash-object`,
+  part of it, hashes the files that changed.
+- `merge` puts the changes into the tree's file list and sorts it.
 - `seeds` and `assemble` build the list the update reads.
 
-`tree` and `worktree` run at the same time, so the parts add up to more than the
-line:
+`tree` and `worktree` run at the same time, and `overlay` holds `hash-object`,
+so the parts can add up to more than the line; a little work no part names,
+such as starting the walk's thread, is in the line alone:
 
 ```
-variance stage listing: 0.588 s, peak 0.42 GB (head 0.008 s, held 0.047 s, tree 0.054 s, worktree 0.440 s, compare 0.041 s, hash-object 0.009 s, merge 0.020 s, seeds 0.015 s, assemble 0.007 s)
+variance stage listing: 0.654 s, peak 0.24 GB (head 0.009 s, held 0.126 s, tree 0.089 s, worktree 0.437 s, compare 0.040 s, overlay 0.009 s, hash-object 0.009 s, merge 0.021 s, seeds 0.004 s, assemble 0.007 s)
 ```
+
+A directory git does not list prints a listing line with no parts. Each stage
+starts its sums from zero, so time spent before it is not counted, but the sums
+belong to the process: a second update running in the same process at the same
+time adds to them.
 
 A stage can print more than once: a directory git does not list prints git's
 listing and then the disk's, and a writer that lost a race opens and walks
