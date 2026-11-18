@@ -38,12 +38,13 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `unchanged` is a run that found the index where the last one left it, which keeps the map and the questions and reads no lexicon. */
-function unprepared(root: string, unchanged = false): string {
+/** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `kept` is the generation of the questions a run that found the index where the last one left it keeps, with the map, reading no lexicon. */
+function unprepared(root: string, kept?: string): string {
+  const unchanged = kept !== undefined;
   return `code map: none, because no manifest names a package${unchanged ? '; kept, because the index and the manifests are the ones it was folded from' : ''}\n` +
     `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}\n` +
     `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin')}\n` +
-    `questions: published at ${sourceIndexPath(root)}.help.bin${unchanged ? '; kept, because the index and the manifests are the ones it was published from' : ''}\n`;
+    (unchanged ? `questions: kept at ${kept}, because the index and the manifests are the ones it was published from\n` : `questions: published at ${sourceIndexPath(root)}.help.bin\n`);
 }
 
 function checkout(): string {
@@ -120,8 +121,10 @@ describe('variance index', () => {
       out: `source index built: 2 files, at ${at}\n${unprepared(root)}`,
       err: expect.stringMatching(STEPS_ONLY),
     });
+    const published = publishedHead(at)?.generatedAt;
+    expect(published).toEqual(expect.any(String));
     expect(await indexOutput({ cwd: root }))
-      .toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root, true)}`);
+      .toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root, published)}`);
 
     writeFileSync(join(root, 'src/unit.ts'), 'export const unit = 2;\n');
     expect(await indexOutput({ cwd: root }))
@@ -206,7 +209,9 @@ describe('variance index', () => {
     const at = sourceIndexPath(root);
 
     expect((await run(['index', '--no-git'])).out).toBe(`source index built: 2 files, at ${at}\n${unprepared(root)}`);
-    expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root, true)}`);
+    const published = publishedHead(at)?.generatedAt;
+    expect(published).toEqual(expect.any(String));
+    expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root, published)}`);
   });
 
   it('keeps the index it published when the code map cannot be written, and says why there is no map', async () => {
@@ -333,7 +338,8 @@ describe('variance index', () => {
 
     expect(searched.code).toBe(EXIT_CLEAN);
     expect(searched.err).toContain(`process ${gone} ended before it finished what \`variance index\` left to it, so it is made now`);
-    expect(searched.err).toContain('questions: published at');
+    // The index did not move since the run that published the questions, so they are kept.
+    expect(searched.err).toContain(`questions: kept at ${publishedHead(index)?.generatedAt}, because the index and the manifests are the ones it was published from`);
     expect(existsSync(followUpsLockPath(index))).toBe(false);
   });
 

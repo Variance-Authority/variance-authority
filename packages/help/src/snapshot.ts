@@ -150,19 +150,13 @@ export async function readAgain(held: Help | undefined, root: string, options: {
   return published !== undefined && Date.parse(published) > Date.parse(at);
 }
 
-/** The index manifest the value was refreshed from, absent when it was read another way. */
-export function workspaceIndexDigest(help: Help): string | undefined {
-  return snapshots.get(help)?.indexDigest;
-}
-
 /**
- * Whether the tree published beside `help` at `index` opens in this build. A
- * tree of another format version, or one whose bytes moved, is published
- * again rather than kept, though the index it was drawn from did not move.
+ * Whether the tree published beside the store whose head is `held`, at
+ * `index`, opens in this build. A tree of another format version, or one whose
+ * bytes moved, is published again rather than kept, though the index it was
+ * drawn from did not move. The tree is its own file: the store is not opened.
  */
-export async function workspaceTreeOpens(help: Help, index: string): Promise<boolean> {
-  const held = snapshots.get(help);
-  if (held === undefined) return false;
+export async function workspaceTreeOpens(held: StoreHead, index: string): Promise<boolean> {
   try {
     const tree = await readFile(workspaceTreePath(index, held.graphDigest));
     if (hexDigestOf(tree) !== held.graphDigest) return false;
@@ -171,11 +165,6 @@ export async function workspaceTreeOpens(help: Help, index: string): Promise<boo
   } catch {
     return false;
   }
-}
-
-/** The package manifests the value was joined against, as `packagesDigest` states them; absent on an unrecorded reading. */
-export function workspacePackagesDigest(help: Help): string | undefined {
-  return snapshots.get(help)?.packagesDigest;
 }
 
 /**

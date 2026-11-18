@@ -123,9 +123,10 @@ describe('the published tree', () => {
       rmSync(join(dirname(index), name));
     }
 
-    await publishWorkspaceFromIndex(root, { index, readStartedAt: '2026-11-14T00:00:00.000Z' });
+    const again = await publishWorkspaceFromIndex(root, { index, readStartedAt: '2026-11-14T00:00:00.000Z' });
     const tree = await publishedTree();
 
+    expect(again?.kept).toBe(false);
     expect([...tree.reachedFrom([TEST])]).toContain(MOCKED);
   });
 });

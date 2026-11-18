@@ -271,6 +271,33 @@ fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
 }
 
 #[test]
+fn in_git_an_index_published_again_folds_the_map_again_with_the_listing_and_the_workspaces_unchanged() {
+    let (_fixture, root, index) = indexed("moved");
+    git(&root, &["init", "-q"]);
+    git(&root, &["add", "-A"]);
+    let scanned = crate::git_tree(root.clone()).expect("a checkout");
+    assert!(!carried(&scanned, &root, &index).unwrap().unwrap().kept);
+    let folded = inode(&map_path(&index));
+    // The index is published again with one more segment: its manifest moves, and the listing carried does not.
+    let (references, _) = crate::index_chain::manifest_references(&index).expect("a published manifest");
+    let kept: Vec<crate::log::LogSegment> =
+        references.into_iter().map(|reference| crate::log::LogSegment { digest: reference.digest, length: reference.length as i64 }).collect();
+    let empty = r#"{"records": [], "parses": [], "deletedRecords": [], "deletedParses": []}"#.to_owned();
+    crate::log::publish(&index, &kept, &[&merged(&[], &Delta::of(vec![empty]).unwrap())], &[]).unwrap();
+    // The shipped list beside the map is made to name the new manifest, so the map's own key is what moves it.
+    let shipped = format!("{index}.shipped");
+    let mut list: serde_json::Value = serde_json::from_slice(&std::fs::read(&shipped).unwrap()).unwrap();
+    list["index"] = serde_json::Value::String(super::manifest_digest(&index).unwrap());
+    std::fs::write(&shipped, serde_json::to_vec(&list).unwrap()).unwrap();
+
+    let again = carried(&scanned, &root, &index).unwrap().unwrap();
+
+    assert!(!again.kept);
+    assert_ne!(inode(&map_path(&index)), folded, "the manifest moved, so the map was folded again");
+    assert_eq!(again.map.map(|map| (map.packages, map.areas)), Some((20, 4)));
+}
+
+#[test]
 fn a_package_is_taken_for_what_its_importers_take_and_not_what_an_export_type_passes_on() {
     let root = std::env::temp_dir().join(format!("sense-orient-map-{}-republished", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);

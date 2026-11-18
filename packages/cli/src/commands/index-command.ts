@@ -179,8 +179,9 @@ async function followUps(request: IndexRequest, update: SourceUpdate, alone: Alo
 
 /**
  * Publishing swallows a failed write, because a question it answered is still
- * answered. The step that exists to publish reads the value back instead, so a
- * cache it could not write is a line in the log rather than a later refusal.
+ * answered. The step that exists to publish reads back a value it wrote, so a
+ * cache it could not write is a line in the log rather than a later refusal; a
+ * value the publisher kept wrote nothing, and is printed as it says.
  */
 async function answerable(root: string, { path: index, readStartedAt }: SourceUpdate, noGit: boolean, progress: Progress | undefined): Promise<string> {
   // Loaded here, by the follow-ups alone: the index a command waits on reads no help.
@@ -189,20 +190,17 @@ async function answerable(root: string, { path: index, readStartedAt }: SourceUp
   try {
     // The index was written a moment ago, so the previous value is refreshed from it without
     // reading the chain into records; a changed surface reads the way a first publish does.
-    // A publish that kept the value hands back the generation published before it.
-    const before = await publishedGeneration(root, index);
-    const generation = await publishWorkspaceFromIndex(root, {
+    const published = await publishWorkspaceFromIndex(root, {
       index,
       readStartedAt,
       ...(noGit ? { packs: false } : {}),
       ...(progress === undefined ? {} : { progress }),
     });
-    const published = await publishedGeneration(root, index);
-    if (generation === undefined || published !== generation) {
+    if (published?.kept === true) return `questions: kept at ${published.generation}, because the index and the manifests are the ones it was published from`;
+    if (published === undefined || await publishedGeneration(root, index) !== published.generation) {
       return `questions: not published: the value read back from ${at} is not the one this run wrote`;
     }
-    const kept = generation === before ? '; kept, because the index and the manifests are the ones it was published from' : '';
-    return `questions: published at ${at}${kept}`;
+    return `questions: published at ${at}`;
   } catch (error) {
     return `questions: not published: ${error instanceof Error ? error.message : String(error)}`;
   }
