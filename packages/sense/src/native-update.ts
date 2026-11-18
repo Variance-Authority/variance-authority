@@ -54,6 +54,8 @@ export interface NativeUpdated {
 /** The refusal for a directory git does not list: there is no tree to index. */
 export class SourceIndexUnlisted extends Error {
   override readonly name = 'SourceIndexUnlisted';
+  /** The operator's to fix, by running in a checkout: the CLI's `varianceOperatorError` marker. */
+  readonly varianceOperatorError = true;
 }
 
 /** What the addon did, and the listing it took. */
