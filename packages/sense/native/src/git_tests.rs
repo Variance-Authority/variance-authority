@@ -239,7 +239,7 @@ fn an_empty_xdg_config_home_reads_the_excludes_under_home_as_git_does() {
         "HOME" => Some(std::ffi::OsString::from("/h")),
         _ => None,
     };
-    let read = |xdg| crate::git::worktree_status::user_excludes(&mut env(xdg));
+    let read = |xdg| crate::git::worktree_untracked::user_excludes(&mut env(xdg));
     assert_eq!(read(""), Some(std::path::PathBuf::from("/h/.config/git/ignore")));
     assert_eq!(read("/x"), Some(std::path::PathBuf::from("/x/git/ignore")));
 }

@@ -435,6 +435,8 @@ pub(crate) fn answer(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Resul
 pub(crate) mod git_porcelain;
 #[path = "worktree_status.rs"]
 pub(crate) mod worktree_status;
+#[path = "worktree_untracked.rs"]
+pub(crate) mod worktree_untracked;
 
 #[cfg(all(test, unix))]
 #[path = "git_tests.rs"]
