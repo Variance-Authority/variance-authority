@@ -183,11 +183,13 @@ export async function updateSourceIndex(
   const dirs = options.dirs ?? ['.'];
   const missing = !existsSync(path);
   // An index kept in the checkout's own cache, its own or one beside it, reads the cache's parse store before it opens a file.
-  const stores = dirname(path) === dirname(sourceIndexPath(where)) ? parseStoresFor(where) : undefined;
+  // Asked now, answered while git lists: every route below awaits it.
+  const asked = dirname(path) === dirname(sourceIndexPath(where)) ? parseStoresFor(where) : undefined;
+  asked?.catch(() => undefined);
   const everything = `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
   const natively = options.packs === false
     ? undefined
-    : await updateNatively(realPath(where), path, options.progress, dirs, stores, ...(existsSync(path) ? [] : [everything]));
+    : await updateNatively(realPath(where), path, options.progress, dirs, asked, ...(existsSync(path) ? [] : [everything]));
   if (natively !== undefined) {
     if (options.index === undefined) markCheckout(realPath(where));
     return {
@@ -203,6 +205,7 @@ export async function updateSourceIndex(
   }
   // Opened once: the open decodes the whole chain, and the state is read off
   // that same open rather than off a second one.
+  const stores = await asked;
   const source = await openSourceIndex(path, stores === undefined ? {} : { stores });
   const was = missing ? 'missing' : source.state;
   const written = source.written;

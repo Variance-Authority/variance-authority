@@ -65,7 +65,7 @@ export async function updateNatively(
   index: string,
   progress?: Progress,
   dirs: readonly string[] = ['.'],
-  stores?: readonly string[],
+  stores?: readonly string[] | Promise<readonly string[] | undefined>,
   reading = 'reading the files that changed since the last index',
 ): Promise<NativelyUpdated | undefined> {
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
@@ -76,6 +76,8 @@ export async function updateNatively(
   // it compares against the chain is the one that scan wrote.
   const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
   const { config, aliases } = await configOf({ root, tree, options: tsconfig === undefined ? {} : { tsconfig } });
+  // Asked of git while it listed: the stores are needed only now.
+  const read = await stores;
   const done = await stepped(progress, reading, () => held.updateIndex!({
     root,
     index,
@@ -86,7 +88,7 @@ export async function updateNatively(
     builtins: BUILTINS,
     codeExtensions: CODE_EXTENSIONS,
     readable: [...READABLE],
-    ...(stores === undefined ? {} : { stores: [...stores] }),
+    ...(read === undefined ? {} : { stores: [...read] }),
   }));
   if (done === null) return undefined;
   return {
