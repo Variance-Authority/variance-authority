@@ -15,6 +15,7 @@ use crate::acquire::{read_git, Answer, Outcome, TreeObjects, LARGEST_FILE};
 use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
 use crate::parse_origin::FromBlob;
+use crate::read_any::{language_of, Language};
 use crate::resolve::Resolvers;
 
 const RESOLVERS: usize = 6;
@@ -242,12 +243,16 @@ pub(super) fn resolve_all(
                     return Vec::new();
                 }
                 let from = root.join(file);
+                let style = language_of(file) == Some(Language::Style);
                 held.requests
                     .iter()
                     .map(|request| {
-                        resolvers
-                            .resolve(root, &from, &request.value, known)
-                            .unwrap_or_default()
+                        if style {
+                            resolvers.resolve_style(root, &from, &request.value, known)
+                        } else {
+                            resolvers.resolve(root, &from, &request.value, known)
+                        }
+                        .unwrap_or_default()
                     })
                     .collect()
             })

@@ -50,6 +50,9 @@ impl Tsconfig {
 pub struct Resolvers {
     modules: Arc<Resolver>,
     exact: Resolver,
+    /// The stylesheet resolver: OXC's defaults and the stylesheet extensions,
+    /// as `cloneWithOptions` in `resolve.ts` builds it.
+    styles: Resolver,
     /// The options `modules` was built with, which a condition set is cloned from:
     /// `clone_with_options` replaces options rather than merging them.
     options: ResolveOptions,
@@ -119,11 +122,16 @@ impl Resolvers {
         // with the factory's current settings. The oracle supplies only an empty
         // extension alias, so the exact resolver intentionally has no tsconfig.
         let exact = modules.clone_with_options(ResolveOptions::default());
+        let styles = modules.clone_with_options(ResolveOptions {
+            extensions: STYLE_EXTENSIONS.iter().copied().map(str::to_owned).collect(),
+            ..ResolveOptions::default()
+        });
         let modules = Arc::new(modules);
         let conditioned = HashMap::from([(options.condition_names.clone(), Arc::clone(&modules))]);
         Self {
             modules,
             exact,
+            styles,
             options,
             governs: condition_names.is_none() && tsconfig != Tsconfig::Off,
             governed: RwLock::new(HashMap::new()),
@@ -334,6 +342,9 @@ pub fn request_of(value: &str) -> Option<&str> {
         .unwrap_or(trimmed.len());
     (cut > 0).then(|| &trimmed[..cut])
 }
+
+#[path = "resolve_style.rs"]
+mod style;
 
 /// Where a found path lands.
 enum Landing {

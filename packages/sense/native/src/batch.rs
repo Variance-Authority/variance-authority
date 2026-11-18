@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn names_kinds_the_way_the_oracle_does() {
-        assert_eq!(kinds(), ["imports", "reexports", "dynamic", "type", "depends"]);
+        assert_eq!(kinds(), ["imports", "reexports", "dynamic", "type", "depends", "asset"]);
     }
 
     #[test]

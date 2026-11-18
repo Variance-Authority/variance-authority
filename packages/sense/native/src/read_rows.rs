@@ -13,10 +13,12 @@ pub enum Kind {
     Dynamic,
     Type,
     Depends,
+    /// What a stylesheet names: a file it pulls in, not a module it imports.
+    Asset,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 5] = [Kind::Imports, Kind::Reexports, Kind::Dynamic, Kind::Type, Kind::Depends];
+    pub const ALL: [Kind; 6] = [Kind::Imports, Kind::Reexports, Kind::Dynamic, Kind::Type, Kind::Depends, Kind::Asset];
     pub fn code(self) -> u8 {
         self as u8
     }
@@ -27,6 +29,7 @@ impl Kind {
             Self::Dynamic => "dynamic",
             Self::Type => "type",
             Self::Depends => "depends",
+            Self::Asset => "asset",
         }
     }
 }
