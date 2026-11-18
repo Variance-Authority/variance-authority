@@ -665,11 +665,6 @@
     "count": 2
   },
   {
-    "idiom": "timer",
-    "at": "cases/page-broker-case/src/declared/shop.spec.ts",
-    "count": 1
-  },
-  {
     "idiom": "fresh-page",
     "at": "cases/page-broker-case/src/declared/storybook.spec.ts",
     "count": 1
@@ -837,7 +832,7 @@
   {
     "idiom": "timer",
     "at": "packages/page-broker/src/action.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "fresh-page",

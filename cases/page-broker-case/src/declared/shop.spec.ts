@@ -29,13 +29,12 @@ const like = action('like', { liked: stay }, async (page) => {
 });
 
 /**
- * Opens the checkout and waits out its hydration. The silent shop gives no sign
- * of it, to a test or to a person, and a click before it loses the form: when an
- * action may start is not something a declared outcome answers.
+ * Opens the checkout. The silent shop keeps Continue disabled until the form
+ * hydrates, and Playwright's click waits for that: when an action may start is
+ * not something a declared outcome answers.
  */
 async function checkout(page: Page, user: 'guest' | 'member'): Promise<void> {
   await page.goto(`/checkout?user=${user}`);
-  await page.waitForTimeout(650);
 }
 
 async function address(page: Page): Promise<void> {

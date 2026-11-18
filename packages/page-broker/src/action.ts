@@ -1,7 +1,11 @@
 // compass: variance-authority.harness
 import type { Locator, Page, Request } from '@playwright/test';
 
-/** The outcome of an action that leaves the page as it was: nothing declared appeared. */
+/**
+ * The outcome of an action after which none of the declared parts appeared. It
+ * does not say the page is unchanged: an arrival at something not declared
+ * reads as staying.
+ */
 export const stay: unique symbol = Symbol('stay');
 
 /** How one outcome is recognised: the part of the page that is visible once the app is there. */
@@ -138,8 +142,10 @@ async function perform<Name extends string>(
     const late = new Promise<'late'>((resolve) => {
       out = setTimeout(() => resolve('late'), declared.timeout);
     });
-    const quiet = declared.staying === undefined ? NEVER : traffic.quiet();
     for (;;) {
+      // Asked for again on every pass: a quiet period that ended before an
+      // arrival woke the wait says nothing of the requests begun since.
+      const quiet = declared.staying === undefined ? NEVER : traffic.quiet();
       // Arriving is Playwright's wait; only staying, which it has no word for, is ours.
       const arrived = any === undefined ? NEVER : arrival(any, deadline - Date.now());
       const woke = await Promise.race([arrived, quiet, late]);

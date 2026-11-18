@@ -19,8 +19,9 @@ announces nothing.
   once fail; neither is picked.
 - **An outcome on the page before the act is refused**, since reaching it could
   not be told from standing still.
-- **A failure names the action and where the app went**: `expected X, reached
-  Y`, or the outcomes none of which was reached.
+- **A failure names the action and the declared outcome reached**: `expected X,
+  reached Y`, or the outcomes none of which was reached. An arrival at something
+  not declared is not named: with `stay` declared it reads as staying.
 
 ## What it does not answer
 

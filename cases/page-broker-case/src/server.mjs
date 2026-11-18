@@ -2,7 +2,8 @@
 // takes a random 50–600 ms, and the page shouts what it is doing — `aria-busy`
 // on what is working, and `vaStart`/`vaEnd` around it. With `VA_SILENT` it is
 // the same shop saying nothing: no `aria-busy`, no event, as an app nobody
-// wrote for its tests.
+// wrote for its tests. What it gives instead is what it gives a person: Continue
+// is disabled until the form can answer it.
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +31,7 @@ const checkout = shell(
   <label for="country">Country</label> <select id="country" name="country"><option value="">—</option><option>NL</option><option>DE</option></select>
   <label>Street <input name="street"></label>
   <ul aria-live="polite"></ul>
-  <button>Continue</button>
+  <button${SILENT ? ' disabled' : ''}>Continue</button>
 </form>`,
   `
 const form = document.querySelector('main form');
@@ -100,6 +101,7 @@ function payment() {
     document.querySelector('main').insertAdjacentHTML('beforeend', '<form aria-label="Payment"><label>Card <input name="card"></label></form>');
   }, 300);
 }
+form.querySelector('button').disabled = false;
 busy(form, false);
 vaEnd('checkout', 'billing', 'hydrating');
 `,

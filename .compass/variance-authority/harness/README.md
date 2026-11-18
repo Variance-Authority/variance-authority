@@ -11,7 +11,7 @@ Every other block reads what a run left behind. This one is a piece of the
 adopter's own harness, offered rather than required: the test declares that
 submitting can reach the next page, open a dialog or stay, and performing the
 action names the one the app reached. It is why a test that expected another
-outcome fails saying where the app went, and why an outcome that is the absence
+outcome fails naming the declared outcome the app reached, and why an outcome that is the absence
 of a change is not reported before the app had its chance to make one.
 
 ## Boundary

@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { action, stay } from './index.js';
 
 const BROWSER_AVAILABLE = ((): boolean => {
@@ -82,16 +82,23 @@ beforeEach(async () => {
   await page.route(`${ORIGIN}/api/stream`, () => undefined);
   await page.route(`${ORIGIN}/api/picture`, () => undefined);
   await page.route(`${ORIGIN}/api/again**`, (route) =>
-    route.fulfill({
-      contentType: 'text/plain',
-      body: new URL(route.request().url()).searchParams.get('answer') ?? '',
-    }),
+    // Slower than a quiet period: the deadline the first answer armed runs out with this in flight.
+    setTimeout(() => {
+      void route.fulfill({
+        contentType: 'text/plain',
+        body: new URL(route.request().url()).searchParams.get('answer') ?? '',
+      });
+    }, 2 * QUICK.quiet),
   );
   await page.route(`${ORIGIN}/api/billing**`, async (route) => {
     const query = new URL(route.request().url()).searchParams;
     await new Promise((done) => setTimeout(done, Number(query.get('after') ?? 0)));
     await route.fulfill({ contentType: 'text/plain', body: query.get('answer') ?? '' });
   });
+});
+
+afterEach(async () => {
+  if (browser !== undefined) await page.close();
 });
 
 afterAll(async () => {
@@ -225,7 +232,7 @@ chromium_('an action over a page that announces nothing', () => {
     );
   });
 
-  it('fails an arrival at nothing declared, naming the action and its outcomes', async () => {
+  it('fails at the timeout when no outcome is reached and none is to stay, naming the outcomes', async () => {
     const submit = action('submit', outcomes, click, { timeout: 600, quiet: 100 });
     await open('answer=nothing');
 

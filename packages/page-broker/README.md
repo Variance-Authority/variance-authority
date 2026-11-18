@@ -89,8 +89,8 @@ test('an empty form stays, with its errors', async ({ page }) => {
 
 - **`name`**, which every failure message starts with.
 - **`outcomes`**, by name. Each is a function from the page to the locator that
-  is visible once the app is there, or `stay` for an action that leaves the page
-  as it was. At most one outcome may be `stay`.
+  is visible once the app is there, or `stay` for an action after which none of
+  the declared parts appears. At most one outcome may be `stay`.
 - **`act`**, what the test does to the page. Arguments after `page` are yours:
   `async (page, words: string) => …` is performed as `find(page, 'card')`.
 - **`options`**: `timeout`, how long the app has, after the act, to reach an
@@ -135,6 +135,9 @@ Know these before you rely on it:
 
 - **It does not say when an action may start.** A page that takes its clicks
   before it is ready to answer them loses them with or without this package.
+- **Staying does not mean the page is unchanged.** It means none of the declared
+  parts appeared. A dialog or a page you did not declare reads as staying, so
+  declare every place the action can lead.
 - **Work that makes no request is invisible to it.** A change that arrives on a
   timer longer than the quiet period, with no request in flight, is read as
   staying. Raise `quiet` for an action you know is slow that way.
