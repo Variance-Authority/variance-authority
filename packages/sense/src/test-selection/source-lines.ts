@@ -367,7 +367,7 @@ function sourcesOf(map: TransformSourceMap, generated: string, file: string): Re
  * Only a `file:` URL with no host is a file this machine can open; a virtual
  * module's id and every other URL are names a reader cannot open.
  */
-function sourcePath(map: TransformSourceMap, generated: string, source: string): string | undefined {
+export function sourcePath(map: TransformSourceMap, generated: string, source: string): string | undefined {
   if (source === '' || source.startsWith('\0')) return undefined;
   const root = map.sourceRoot ?? '';
   const joined = root === '' ? source : `${root.replace(/\/$/, '')}/${source}`;

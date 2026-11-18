@@ -164,7 +164,7 @@ variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file>
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--session <name>=<path>]... [--served <dir>] [--root <path>] [--format text|markdown|json|badge]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
@@ -1670,6 +1670,44 @@ median region's by the most: the most a split could save a selection by file,
 since a split file still sends every test file that called into either part.
 None has a threshold. Under `--at-distance` the counts read only the band. `--format json` lists
 every file under `fanIn`. For one file or line, `covering` names the tests.
+
+`--session <name>=<path>` sets a run you made yourself beside the record: V8
+coverage exported from a browser or a Node process on your own machine, with
+the app built as you would ship it. Give it once per run. It reads Playwright's
+`page.coverage.stopJSCoverage()` written as JSON, CDP's
+`Profiler.takePreciseCoverage` result, or a `NODE_V8_COVERAGE` directory, and
+follows each script's source map back to the files the record holds. A page's
+scripts are named by URL, so `--served <dir>` says which directory the server
+served them from:
+
+```bash
+variance coverage --suite e2e --session flow=flow.json --session manual=manual.json --served dist
+```
+
+```text
+sessions
+          functions ran  loaded, not run  ran in another text
+  flow    29             6                0
+  manual  26             9                0
+ran by a session, by no recorded case — 5 functions
+src/main.tsx
+  reduce/filter.arg0    20     manual
+  exportTodos           34–36  manual
+  exportTodos/map.arg0  35     manual
+  Shell/anon#2          46     manual
+  Shell/anon#6          50     manual
+```
+
+A session is read function by function, in the regions the record cut, and is
+never written into the record: no session becomes a case, so `select` and
+`shards` answer as they did. A function whose text in the session differs from
+the checkout's is counted apart, since no case can be counted for it. Every
+script or source a session ran that no function is named from is named with its
+reason: a script no file on this machine answers, one whose file no longer
+holds the text Node ran, a map it could not read, a source outside the checkout
+or in `node_modules`, and a text that could not be parsed. `--format json` lists every
+function of every file a session loaded under `sessions`, with each session's
+verdict and the test files that entered it.
 
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever
