@@ -2265,6 +2265,16 @@ is the same one either way. Use it for a partial clone or an object store on a
 network filesystem. `select` and `reach` take the flag for the build they make
 on your machine when nothing is published.
 
+Set `VARIANCE_AUTHORITY_INDEX_STAGES=1` to see where an update's time and memory
+go. Each stage of the update writes one line to stderr — listing, open, walk,
+records, encode and write — with its wall time and the process's peak resident
+memory at its end. Reading, parsing and resolving overlap inside the walk, so
+its line adds the time each took summed over every core:
+
+```
+variance stage walk: 1.732 s, peak 2.19 GB (thread time: read 2.532 s, parse 15.912 s, resolve 11.988 s)
+```
+
 No `variance.config.json` is read.
 
 ### `select`: what your own runner may skip

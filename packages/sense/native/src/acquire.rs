@@ -297,6 +297,7 @@ fn parse_all(opened: Vec<(&str, Opened, String, bool)>, symbols: bool) -> Vec<Na
         .map(|(file, held, digest, named)| match held {
             Opened::Settled(read, outcome) => ((read, digest, outcome), false),
             Opened::Source(source) => {
+                // Counted as read too: on the store path a parse runs inside its blob's read, so `READ` holds it there, and the walk subtracts it once.
                 let read = crate::stages::summed(&crate::stages::READ, || crate::stages::summed(&crate::stages::PARSE, || in_arena(|arena| read_file(file, &source, arena, symbols))));
                 ((read, digest, Outcome::Parsed), named)
             }
