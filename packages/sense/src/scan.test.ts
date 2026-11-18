@@ -2,6 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { memoryParseCache } from './cache.js';
+import { digestString } from './digest.js';
 import { LARGEST_FILE, scanRelations } from './scan.js';
 
 /**
@@ -85,6 +87,49 @@ describe('a file too large to be worth parsing', () => {
     await expect(scanRelations({ root, dirs: ['src'], changed: [], digests: false })).rejects.toThrow(
       '`changed` supplies Git identity and cannot be combined with `digests`',
     );
+  });
+});
+
+/**
+ * A digest names a file's bytes before they are opened, and the parse cache
+ * names what those bytes said: a file whose parse the cache holds is answered
+ * from it, in every language, and never opened again.
+ */
+describe('a file the parse cache holds', () => {
+  it('is answered from the cache without being opened', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-cached-'));
+    try {
+      const files: Record<string, string> = {
+        'pyproject.toml': '[project]\nname = "cached"',
+        'src/a.css': "@import './b.css';",
+        'src/a.ts': "export { b } from './b';",
+        'src/b.css': '.b {}',
+        'src/b.ts': 'export const b = 1;',
+        'src/pkg/__init__.py': '',
+        'src/pkg/a.py': 'import pkg.b',
+        'src/pkg/b.py': 'VALUE = 1',
+      };
+      for (const [path, text] of Object.entries(files)) await write(root, path, text);
+      const digests = new Map(Object.entries(files).map(([path, text]) => [path, digestString(`${text}\n`)]));
+      const cache = memoryParseCache();
+      const edges = async () => {
+        const records = await scanRelations({ root, dirs: ['src'], digests, cache });
+        return Object.fromEntries(['src/a.css', 'src/a.ts', 'src/pkg/a.py'].map((file) => [
+          file,
+          records.find((record) => record.file === file)?.edges?.map((edge) => edge.to),
+        ]));
+      };
+      const first = await edges();
+
+      // Bytes that ask for nothing, under the digests of the bytes that did: a
+      // file opened again would lose its edges. Its size is still looked at.
+      for (const [file, text] of [['src/a.css', '/* none */'], ['src/a.ts', '// none'], ['src/pkg/a.py', '# none']]) await write(root, file, text);
+
+      expect(first).toEqual({ 'src/a.css': ['src/b.css'], 'src/a.ts': ['src/b.ts'], 'src/pkg/a.py': ['src/pkg/__init__.py', 'src/pkg/b.py'] });
+      expect(await edges()).toEqual(first);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

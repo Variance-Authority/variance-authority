@@ -158,7 +158,9 @@ impl GitTree {
             .collect()
     }
 
-    /// Read tracked files from Git's pack streams and every other file from disk.
+    /// Read tracked files from Git's pack streams and every other file from disk;
+    /// a file whose parse `held` (a parse-only segment of the caller's cache) or
+    /// the stores hold is answered from it instead.
     #[napi]
     #[allow(
         clippy::too_many_arguments,
@@ -175,6 +177,7 @@ impl GitTree {
         condition_names: Option<Vec<String>>,
         stores: Option<Vec<String>>,
         records: Option<crate::record::RecordOptions>,
+        held: Option<napi::bindgen_prelude::Buffer>,
     ) -> napi::Result<batch::ScanBatch> {
         let oids = files
             .iter()
@@ -182,7 +185,12 @@ impl GitTree {
             .collect();
         let stores = self.stores(stores);
         let opened = stores.as_deref().map(parse_store::Stores::open);
-        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
+        // What the caller's cache holds answers first, then the stores.
+        let held = held.as_deref().map(parse_store::Opened::of_segment);
+        let kept = |identity: &str, file: &str| {
+            let way = index::way(file);
+            held.as_ref().and_then(|held| held.view(identity, &way)).or_else(|| opened.as_ref()?.view(identity, &way))?.read()
+        };
         batch::scan_batch_with_oids(
             batch::ScanOptions {
                 root,
