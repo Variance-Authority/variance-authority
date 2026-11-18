@@ -94,16 +94,19 @@ struct Found {
 /// describe, with independent directory reads fanned over the filesystem width.
 #[napi(catch_unwind)]
 pub fn seed_files(root: String, dirs: Vec<String>) -> Vec<String> {
-    walk(&PathBuf::from(root), dirs, readable)
+    walk(&PathBuf::from(root), dirs, readable, &[])
 }
 
 /// Every file of the working tree, for a scan Git does not describe: what the
-/// languages that resolve over the tree ask about, manifests included.
-pub(crate) fn disk_listing(root: &Path) -> Vec<String> {
-    walk(root, vec![String::new()], every)
+/// languages that resolve over the tree ask about, manifests included. A
+/// repository of its own is stepped over unless it is one of `asked`, or holds
+/// one: its manifests are what resolves the files asked for.
+pub(crate) fn disk_listing(root: &Path, asked: &[String]) -> Vec<String> {
+    let asked: Vec<String> = asked.iter().filter_map(|dir| repo_path(root, &root.join(dir))).filter(|dir| !dir.is_empty()).collect();
+    walk(root, vec![String::new()], every, &asked)
 }
 
-fn walk(root: &Path, dirs: Vec<String>, keep: fn(&str) -> bool) -> Vec<String> {
+fn walk(root: &Path, dirs: Vec<String>, keep: fn(&str) -> bool, asked: &[String]) -> Vec<String> {
     let mut pending: Vec<Directory> = dirs
         .into_iter()
         .filter_map(|dir| {
@@ -124,7 +127,7 @@ fn walk(root: &Path, dirs: Vec<String>, keep: fn(&str) -> bool) -> Vec<String> {
     let pool = ThreadPoolBuilder::new().num_threads(READERS).build();
 
     while !pending.is_empty() {
-        let work = || pending.par_iter().map(|directory| read(directory, keep)).collect::<Vec<_>>();
+        let work = || pending.par_iter().map(|directory| read(directory, keep, asked)).collect::<Vec<_>>();
         let found = match &pool {
             Ok(pool) => pool.install(work),
             Err(_) => work(),
@@ -141,7 +144,7 @@ fn walk(root: &Path, dirs: Vec<String>, keep: fn(&str) -> bool) -> Vec<String> {
 }
 
 /// Every file in one directory that `keep` keeps, unless it is a
-/// repository of its own.
+/// repository of its own that holds no directory `asked` for.
 ///
 /// A checkout inside a checkout — a worktree, a vendored clone — is a different
 /// repository that happens to sit at this path. Git tracks none of its files, so
@@ -152,7 +155,7 @@ fn walk(root: &Path, dirs: Vec<String>, keep: fn(&str) -> bool) -> Vec<String> {
 ///
 /// A configured directory that is not there contributes nothing; the caller is
 /// the one that can say whether an empty result is wrong.
-fn read(directory: &Directory, keep: fn(&str) -> bool) -> Option<Found> {
+fn read(directory: &Directory, keep: fn(&str) -> bool, asked: &[String]) -> Option<Found> {
     let entries: Vec<_> = fs::read_dir(&directory.absolute)
         .ok()?
         .filter_map(Result::ok)
@@ -175,10 +178,11 @@ fn read(directory: &Directory, keep: fn(&str) -> bool) -> Option<Found> {
         let kind = entry.file_type().ok()?;
         if kind.is_dir() {
             if !crate::path::excluded(&name) {
+                let seeded = asked.iter().any(|dir| dir.strip_prefix(at.as_str()).is_some_and(|rest| rest.is_empty() || rest.starts_with('/')));
                 directories.push(Directory {
                     absolute: path,
                     prefix: at,
-                    seeded: false,
+                    seeded,
                 });
             }
         } else if keep(&name) {
@@ -213,7 +217,7 @@ mod tests {
             std::fs::create_dir_all(file.parent().unwrap()).unwrap();
             std::fs::write(file, contents).unwrap();
         }
-        let listed = disk_listing(&root);
+        let listed = disk_listing(&root, &[]);
         std::fs::remove_dir_all(&root).unwrap();
         assert_eq!(listed, ["Cargo.toml", "src/lib.rs"]);
     }

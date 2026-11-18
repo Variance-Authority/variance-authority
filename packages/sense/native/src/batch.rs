@@ -133,7 +133,7 @@ pub fn scan_batch(
     let listed: Option<HashMap<String, u32>> = listed.map(|paths| paths.into_iter().zip(0..).collect());
     let over_tree = |file: &String| !matches!(language_of(file), None | Some(Language::Module | Language::Style));
     let walked: Option<HashMap<String, u32>> = (listed.is_none() && files.iter().any(over_tree))
-        .then(|| crate::seed::disk_listing(Path::new(&root)).into_iter().zip(0..).collect());
+        .then(|| crate::seed::disk_listing(Path::new(&root), &[]).into_iter().zip(0..).collect());
     scan_batch_with_oids(
         ScanOptions {
             root,

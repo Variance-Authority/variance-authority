@@ -30,11 +30,12 @@ pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<Git
 /// file is read off the disk under a `v1:` digest, seeded from a walk of
 /// `dirs` themselves, with the walk of the whole directory, and those seeds,
 /// as what the languages that resolve over the tree ask about. A directory
-/// asked for is entered even when it is a repository of its own, which the
-/// walk of the whole directory steps over.
+/// asked for, and the repository it sits in, are entered and listed whole,
+/// manifests included, though the walk of the whole directory steps over
+/// every other repository of its own.
 #[napi(catch_unwind)]
 pub fn disk_tree(root: String, dirs: Vec<String>) -> GitTree {
-    let mut disk = crate::seed::disk_listing(std::path::Path::new(&root));
+    let mut disk = crate::seed::disk_listing(std::path::Path::new(&root), &dirs);
     let seeds = crate::seed::seed_files(root, dirs);
     if seeds.iter().any(|seed| disk.binary_search_by(|path| crate::order::code_unit(path, seed)).is_err()) {
         disk.extend(seeds.iter().cloned());
