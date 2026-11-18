@@ -169,6 +169,7 @@ mod resolve_jvm;
 mod resolve_python;
 mod resolve_rust;
 mod resolve_swift;
+mod source_roots;
 mod seed;
 mod segment;
 mod side_effects;

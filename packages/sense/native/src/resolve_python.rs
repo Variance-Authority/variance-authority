@@ -103,7 +103,7 @@ pub(crate) fn resolve(world: &World, from: &str, request: &str) -> Vec<String> {
         let named = if base.is_empty() { tail } else if tail.is_empty() { base } else { format!("{base}/{tail}") };
         return found(world, &named).into_iter().collect();
     }
-    for root in world.python_roots() {
+    for root in world.python_index().holding(tail.split('/').next().unwrap_or("")) {
         let named = if root.is_empty() { tail.clone() } else { format!("{root}/{tail}") };
         if let Some(landed) = found(world, &named) {
             return vec![landed];
