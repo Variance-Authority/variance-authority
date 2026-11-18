@@ -53,7 +53,7 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
   // What has the page watch say a line's changes, kept so a runner whose test
   // lines run outside the page can open and close them.
   let turn = () => {};
-  watchPage({ note: (text) => tap.note(text), drainWith: (given) => { tap.drainWith(given); turn = given; } }, realm);
+  watchPage({ note: (text) => tap.note(text), notePage: (text) => tap.notePage(text), drainWith: (given) => { tap.drainWith(given); turn = given; } }, realm);
   realm[NOTE] = (text) => tap.note(String(text));
   const frames = watchFrames(tap, realm);
   // The runner takes a case's tape after its hooks and before the next case:
