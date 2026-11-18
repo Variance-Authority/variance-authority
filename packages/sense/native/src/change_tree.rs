@@ -11,6 +11,10 @@ use crate::GitTree;
 /// The tree an update of the index at `index` is made against.
 #[napi(catch_unwind)]
 pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<GitTree> {
+    crate::stages::timed("listing", || listed(root, index, dirs))
+}
+
+fn listed(root: String, index: String, dirs: Vec<String>) -> Option<GitTree> {
     #[cfg(unix)]
     {
         let (snapshot, change) = crate::held_listing::change_tree(&root, &index, &dirs)?;
@@ -35,6 +39,10 @@ pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<Git
 /// every other repository of its own.
 #[napi(catch_unwind)]
 pub fn disk_tree(root: String, dirs: Vec<String>) -> GitTree {
+    crate::stages::timed("listing", || disk_listed(root, dirs))
+}
+
+fn disk_listed(root: String, dirs: Vec<String>) -> GitTree {
     let mut disk = crate::seed::disk_listing(std::path::Path::new(&root), &dirs);
     let seeds = crate::seed::seed_files(root, dirs);
     if seeds.iter().any(|seed| disk.binary_search_by(|path| crate::order::code_unit(path, seed)).is_err()) {

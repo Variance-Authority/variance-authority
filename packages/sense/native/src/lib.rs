@@ -175,6 +175,7 @@ mod side_effects;
 mod source_size;
 mod source_tree;
 mod source_update;
+mod stages;
 mod specifier;
 mod stored;
 mod style;
