@@ -161,7 +161,9 @@ fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, St
     held
 }
 
-pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Result<Updated> {
+/// The update, and whether it lost the race: another writer published between
+/// the read of the chain and this update's publication, which wrote nothing.
+pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Result<(Updated, bool)> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {} did not update: {error}", o.index));
     // A chain this update cannot stand on — unreadable, legacy, damaged, or one
     // whose read panicked (`trusted` false) — is rebuilt from the tree, as a
@@ -430,7 +432,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
         let beneath: Vec<&[u8]> = segments[..base].iter().map(Vec::as_slice).collect();
         if unchanged {
             let Some(listing) = listing else {
-                return Ok(Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version });
+                return Ok((Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version }, false));
             };
             // Nothing to publish, and a listing to carry: the working layer is
             // written again with it, so the next update can ask Watchman from here.
@@ -442,8 +444,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
             };
             let working = carried(working, Some(listing)).map_err(fail)?;
             return match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
-                Ok(_) => Ok(Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version }),
-                Err(error) => Ok(Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)), rebuilt, written: version }),
+                Ok(still) => Ok((Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version }, !still)),
+                Err(error) => Ok((Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)), rebuilt, written: version }, false)),
             };
         }
 
@@ -473,11 +475,13 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
         let layered = usize::from(chain.is_some());
         // Another writer between the read and here: its chain is not the one this delta is against.
         let replaced: Vec<LogSegment> = references[base..].iter().chain(&stale).cloned().collect();
-        let refused = match written(&o.index, published, &references[..base], &[&working], &replaced, layered) {
+        let outcome = written(&o.index, published, &references[..base], &[&working], &replaced, layered);
+        let refused = match &outcome {
             Ok(false) => Some(format!("{}: another writer published it after this update read it", o.index)),
             Ok(true) => None,
             Err(error) => Some(format!("{}: {error}", o.index)),
         };
-        Ok(Updated { files, reread, parsed, published: refused.is_none(), refused, rebuilt, written: version })
+        let lost = matches!(outcome, Ok(false));
+        Ok((Updated { files, reread, parsed, published: refused.is_none(), refused, rebuilt, written: version }, lost))
     })
 }

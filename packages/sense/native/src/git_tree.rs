@@ -44,6 +44,9 @@ pub struct GitTree {
     pub(crate) change: Option<held_listing::Change>,
 }
 
+/// How many times an update reads the chain again after another writer published over the one it read.
+const WRITER_ATTEMPTS: u32 = 4;
+
 /// Every tracked path under `root`, or nothing when this is not a checkout.
 ///
 /// `null` rather than a throw, matching `gitDigests`: whether a directory git
@@ -284,10 +287,20 @@ impl GitTree {
         };
         // A segment of the published length is read unhashed, so damaged bytes in it can panic a read:
         // the index is then rebuilt from the tree, as any other chain it cannot stand on is.
-        let first = options.clone();
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(first, tree(), true))) {
+        let once = |trusted: bool| match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options.clone(), tree(), trusted))) {
             Ok(done) => done,
-            Err(_) => source_update::update(options, tree(), false),
+            Err(_) => source_update::update(options.clone(), tree(), false),
+        };
+        // A writer that lost the race reads the chain the winner published and makes its delta
+        // against that: each loss is another writer's publication, so a few attempts settle it,
+        // and the last loss is reported as refused.
+        let mut attempts = 1;
+        loop {
+            let (updated, lost) = once(true)?;
+            if !lost || attempts == WRITER_ATTEMPTS {
+                return Ok(updated);
+            }
+            attempts += 1;
         }
     }
 
@@ -348,3 +361,7 @@ impl GitTree {
         )
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "git_tree_writers_tests.rs"]
+mod writers_tests;
