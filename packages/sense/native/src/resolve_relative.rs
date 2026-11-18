@@ -5,13 +5,17 @@
 //! each ask builds a cached path, walks it and allocates; the listing holds
 //! every candidate already, so the same order of candidates costs a hash
 //! lookup each. Whatever the listing cannot settle alone — built output, a
-//! directory with a `package.json`, a name it does not list — is the
-//! resolver's, as before.
+//! directory with a `package.json`, a request no listed candidate answers — is
+//! the resolver's, as before. A candidate git does not list is passed over: an
+//! ignored file earlier in the order than a listed one is not the answer here,
+//! where the resolver, reading the disk, would take it.
+
+// compass: variance-authority.reach.source-scan
 
 use std::path::Path;
 
-use super::{Resolvers, MODULE_EXTENSIONS};
-use crate::emitted::Known;
+use super::{Resolvers, EXTENSION_ALIASES, MODULE_EXTENSIONS, STYLE_EXTENSIONS};
+use crate::emitted::Entry;
 
 /// What the listing settled for a relative request.
 pub(super) enum Listed {
@@ -21,22 +25,11 @@ pub(super) enum Listed {
     Unsettled,
 }
 
-/// The extensions a written `.js`, `.mjs` or `.cjs` stands for, in the order
-/// the module resolver's `extension_alias` tries them.
-fn aliases(extension: &str) -> Option<&'static [&'static str]> {
-    match extension {
-        "js" => Some(&[".ts", ".tsx", ".js", ".jsx"]),
-        "mjs" => Some(&[".mts", ".mjs"]),
-        "cjs" => Some(&[".cts", ".cjs"]),
-        _ => None,
-    }
-}
-
 impl Resolvers {
     /// The file a relative `request` written in `from` names, read from the
     /// listing in the order the module resolver tries candidates: the
     /// extension a `.js` stands for, the path as written, the path with each
-    /// extension, then the directory's `index`.
+    /// extension, then the directory's `index` with each.
     pub(super) fn listed(&self, root: &Path, from: &Path, request: &str) -> Listed {
         let Some(path) = joined(root, from, request) else {
             return Listed::Unsettled;
@@ -44,39 +37,52 @@ impl Resolvers {
         if path.split('/').any(|part| part == "node_modules") || self.emitted.emits(&root.join(&path)) {
             return Listed::Unsettled;
         }
-        let file = |candidate: &str| self.emitted.spelled(candidate) == Some(Some(Known::File));
         let name = path.rsplit_once('/').map_or(path.as_str(), |(_, name)| name);
-        let extension = name.rsplit_once('.').map(|(_, extension)| extension);
-        if let Some(aliased) = extension.and_then(aliases) {
-            let stem = &path[..path.len() - extension.map_or(0, str::len) - 1];
-            if let Some(found) = aliased.iter().map(|alias| format!("{stem}{alias}")).find(|found| file(found)) {
-                return Listed::File(found);
+        let extension = name.rfind('.').map(|at| &name[at..]);
+        let aliased = extension.and_then(|extension| EXTENSION_ALIASES.iter().find(|(written, _)| *written == extension));
+        if let Some((written, aliased)) = aliased {
+            let stem = &path[..path.len() - written.len()];
+            if let Some(listed) = self.first(aliased.iter().map(|alias| format!("{stem}{alias}"))) {
+                return listed;
             }
             // A written `.js` that is there and none of its aliases is an
             // error the resolver words, and the next resolver may answer.
-            if file(&path) {
+            if self.emitted.spelled(&path) != Some(Entry::Unlisted) {
                 return Listed::Unsettled;
             }
         }
-        if file(&path) {
-            return Listed::File(path);
+        let files = std::iter::once(path.clone()).chain(extensions().map(|extension| format!("{path}{extension}")));
+        if let Some(listed) = self.first(files) {
+            return listed;
         }
-        if let Some(found) = MODULE_EXTENSIONS.iter().map(|extension| format!("{path}{extension}")).find(|found| file(found)) {
-            return Listed::File(found);
-        }
-        if self.emitted.spelled(&path) != Some(Some(Known::Directory)) {
+        if self.emitted.spelled(&path) != Some(Entry::Directory) {
             return Listed::Unsettled;
         }
         let inside = |name: &str| if path.is_empty() { name.to_owned() } else { format!("{path}/{name}") };
-        if self.emitted.spelled(&inside("package.json")) != Some(None) {
+        if self.emitted.spelled(&inside("package.json")) != Some(Entry::Unlisted) {
             return Listed::Unsettled;
         }
-        MODULE_EXTENSIONS
-            .iter()
-            .map(|extension| inside(&format!("index{extension}")))
-            .find(|found| file(found))
-            .map_or(Listed::Unsettled, Listed::File)
+        self.first(extensions().map(|extension| inside(&format!("index{extension}")))).unwrap_or(Listed::Unsettled)
     }
+
+    /// The first candidate the listing settles: a regular file is the
+    /// answer, and a symbolic link stops the walk, since only the disk says
+    /// what it names.
+    fn first(&self, candidates: impl Iterator<Item = String>) -> Option<Listed> {
+        for candidate in candidates {
+            match self.emitted.spelled(&candidate) {
+                Some(Entry::File) => return Some(Listed::File(candidate)),
+                Some(Entry::Linked) | None => return Some(Listed::Unsettled),
+                Some(Entry::Directory | Entry::Unlisted) => {}
+            }
+        }
+        None
+    }
+}
+
+/// The module resolver's extensions, in the order it tries them.
+pub(super) fn extensions() -> impl Iterator<Item = &'static str> {
+    MODULE_EXTENSIONS.iter().chain(STYLE_EXTENSIONS).copied().chain(std::iter::once(".json"))
 }
 
 /// A relative request joined onto the directory of `from`, spelled from
@@ -102,8 +108,12 @@ pub(super) fn joined(root: &Path, from: &Path, request: &str) -> Option<String> 
 
 #[cfg(test)]
 mod tests {
-    use super::joined;
+    use super::{joined, Listed};
+    use crate::emitted::{Emitted, Listing};
+    use crate::resolve::{Resolvers, Tsconfig};
+    use std::collections::HashMap;
     use std::path::Path;
+    use std::sync::Arc;
 
     #[test]
     fn a_relative_request_is_spelled_from_the_root() {
@@ -114,5 +124,71 @@ mod tests {
         assert_eq!(joined(root, from, "../../../out"), None);
         assert_eq!(joined(root, from, "./dir/"), None);
         assert_eq!(joined(root, from, "pkg"), None);
+    }
+
+    #[test]
+    fn the_listing_answers_a_relative_request_as_the_resolver_does() {
+        let root = std::env::temp_dir().join(format!("sense-listed-relative-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let paths = [
+            "src/from.ts",
+            "src/alias.ts",
+            "src/alias.js",
+            "src/plain.js",
+            "src/module.mts",
+            "src/view.tsx",
+            "src/exact.ts",
+            "src/both.ts",
+            "src/both/index.ts",
+            "src/folder/index.js",
+            "src/folder/index.ts",
+            "src/package/package.json",
+            "src/package/main.ts",
+            "src/package/index.ts",
+            "src/data.json",
+            "src/data/index.ts",
+            "src/linked.ts",
+            "src/linked.js",
+            "up/sibling.ts",
+        ];
+        for path in paths {
+            std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
+            let text = if path.ends_with("package.json") { r#"{"main":"main.ts"}"# } else { "export {};\n" };
+            std::fs::write(root.join(path), text).unwrap();
+        }
+        let root = std::fs::canonicalize(root).unwrap();
+        let from = root.join("src/from.ts");
+        let files: Arc<HashMap<String, u32>> = Arc::new(paths.iter().map(|path| (*path).to_owned()).zip(0..).collect());
+        // `src/linked.ts` is listed as a symbolic link, which only the disk reads.
+        let regular = paths.iter().map(|path| *path != "src/linked.ts").collect();
+        let listing = Listing::of(Arc::clone(&files), Arc::new(regular), &[]);
+        let listed = Resolvers::over(Tsconfig::Auto, None, Emitted::listed(&root, Some(Arc::new(listing))));
+        let disk = Resolvers::over(Tsconfig::Auto, None, Emitted::listed(&root, None));
+        let requests = [
+            ("./alias.js", Some("src/alias.ts")),
+            ("./plain.js", Some("src/plain.js")),
+            ("./module.mjs", Some("src/module.mts")),
+            ("./view", Some("src/view.tsx")),
+            ("./exact.ts", Some("src/exact.ts")),
+            ("./both", Some("src/both.ts")),
+            ("./folder", Some("src/folder/index.ts")),
+            ("./package", None),
+            ("./data", Some("src/data.json")),
+            ("./linked", None),
+            ("../up/sibling", Some("up/sibling.ts")),
+            ("./missing", None),
+        ];
+        for (request, settled) in requests {
+            let answer = match listed.listed(&root, &from, request) {
+                Listed::File(file) => Some(file),
+                Listed::Unsettled => None,
+            };
+            assert_eq!(answer.as_deref(), settled, "{request} from the listing");
+            if let Some(file) = settled {
+                let resolved = disk.resolve(&root, &from, request, Some(&files));
+                assert_eq!(resolved.as_deref(), Some(file), "{request} from the resolver");
+            }
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

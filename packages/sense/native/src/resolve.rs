@@ -31,10 +31,14 @@ pub(crate) struct Governing {
 }
 
 pub(crate) const MODULE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+/// The extensions a written `.js`, `.mjs` or `.cjs` stands for, in the order
+/// they are tried: the module resolver's `extension_alias`, and the listing's.
+pub(crate) const EXTENSION_ALIASES: &[(&str, &[&str])] =
+    &[(".js", &[".ts", ".tsx", ".js", ".jsx"]), (".mjs", &[".mts", ".mjs"]), (".cjs", &[".cts", ".cjs"])];
 /// What a declaration file ends in, which is also where its stem ends:
 /// `context.d.ts` is `context`, as a request names it.
 const DECLARATION_SUFFIXES: [&str; 3] = [".d.ts", ".d.mts", ".d.cts"];
-const STYLE_EXTENSIONS: &[&str] = &[".css", ".scss", ".sass", ".less"];
+pub(crate) const STYLE_EXTENSIONS: &[&str] = &[".css", ".scss", ".sass", ".less"];
 const DEFAULT_CONDITIONS: [&str; 4] = ["source", "import", "require", "default"];
 
 /// Which `tsconfig` governs resolution, `paths` and `customConditions` both
@@ -100,31 +104,15 @@ impl Resolvers {
     /// Resolvers that read the disk through `emitted`.
     pub fn over(tsconfig: Tsconfig, condition_names: Option<Vec<String>>, emitted: Emitted) -> Self {
         let options = ResolveOptions {
-            extensions: MODULE_EXTENSIONS
-                .iter()
-                .chain(STYLE_EXTENSIONS)
-                .copied()
-                .chain(std::iter::once(".json"))
-                .map(str::to_owned)
-                .collect(),
+            extensions: relative::extensions().map(str::to_owned).collect(),
             condition_names: condition_names
                 .clone()
                 .unwrap_or_else(|| DEFAULT_CONDITIONS.map(str::to_owned).to_vec()),
             main_fields: ["source", "module", "main"].map(str::to_owned).to_vec(),
-            extension_alias: vec![
-                (
-                    ".js".to_owned(),
-                    [".ts", ".tsx", ".js", ".jsx"].map(str::to_owned).to_vec(),
-                ),
-                (
-                    ".mjs".to_owned(),
-                    [".mts", ".mjs"].map(str::to_owned).to_vec(),
-                ),
-                (
-                    ".cjs".to_owned(),
-                    [".cts", ".cjs"].map(str::to_owned).to_vec(),
-                ),
-            ],
+            extension_alias: EXTENSION_ALIASES
+                .iter()
+                .map(|(written, aliases)| ((*written).to_owned(), aliases.iter().map(|alias| (*alias).to_owned()).collect()))
+                .collect(),
             tsconfig: match &tsconfig {
                 Tsconfig::Auto => Some(TsconfigDiscovery::Auto),
                 Tsconfig::Named(path) => Some(TsconfigDiscovery::Manual(TsconfigOptions {
@@ -419,7 +407,6 @@ pub fn request_of(value: &str) -> Option<&str> {
 mod relative;
 #[path = "resolve_style.rs"]
 mod style;
-
 
 /// Where a found path lands.
 enum Landing {

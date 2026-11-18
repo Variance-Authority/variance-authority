@@ -58,7 +58,7 @@ use rustc_hash::FxBuildHasher;
 use serde_json::Value;
 
 use crate::conditions::{normalize, Configs};
-pub(crate) use crate::listing::{Known, Listing};
+pub(crate) use crate::listing::{Entry, Known, Listing};
 
 /// What TypeScript emits, and the sources each is emitted from, in the order
 /// one is preferred when several exist. A declaration file written by hand is
@@ -194,7 +194,7 @@ impl Emitted {
 
     /// What git lists at a path spelled from the listed root, or `None` with
     /// no listing, or one git did not answer.
-    pub(crate) fn spelled(&self, spelled: &str) -> Option<Option<Known>> {
+    pub(crate) fn spelled(&self, spelled: &str) -> Option<Entry> {
         self.listed.as_ref()?.1.spelled(spelled)
     }
 

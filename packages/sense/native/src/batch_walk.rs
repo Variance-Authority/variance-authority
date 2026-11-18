@@ -343,11 +343,10 @@ pub(super) fn resolve_all(
             }))
             .collect()
     };
-    let out = match resolving {
+    match resolving {
         Ok(pool) => pool.install(work),
         Err(_) => work(),
-    };
-    out
+    }
 }
 
 #[cfg(test)]
