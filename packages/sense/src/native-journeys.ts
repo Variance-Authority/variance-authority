@@ -236,8 +236,8 @@ export interface NativeJourneyEnd {
 export interface NativeResonant {
   readonly file: string;
   readonly line: number;
-  /** Its position among the declarations asked; absent for a function the recording names alone. */
-  readonly candidate?: number | null;
+  /** Its position among the declarations asked. */
+  readonly candidate: number;
   /** Whether the recording holds a function written at its line. */
   readonly recorded: boolean;
   /** Cases that entered it. */
@@ -456,6 +456,6 @@ export interface NativeJourneys {
   testRan?(recording: string, file: string, name?: string | null): NativeTestRan;
   /** Where each of `lines` of `file` stood at `commit`: `null` for a line written since. */
   linesThen?(root: string, commit: string, file: string, lines: number[]): NativeLinesThen;
-  /** How each of `candidates`, the declarations of `name`, resonates with `file:line`. */
-  resonance?(recording: string, file: string, line: number, name: string, candidates: NativeJourneyEnd[]): NativeResonance;
+  /** How each of `candidates`, the declarations of one name, resonates with `file:line`. */
+  resonance?(recording: string, file: string, line: number, candidates: NativeJourneyEnd[]): NativeResonance;
 }

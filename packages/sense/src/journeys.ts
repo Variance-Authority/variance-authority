@@ -375,45 +375,48 @@ export function linesThen(root: string, commit: string, file: string, lines: rea
 export interface SuiteResonance {
   readonly suite?: string;
   readonly resonance: NativeResonance;
+  /** The declarations written since the recording ran, which it cannot have entered. */
+  readonly since: readonly NativeJourneyEnd[];
   /** Why the lines were read where they stand now rather than where the recording ran them. */
   readonly unplaced?: string;
 }
 
 /**
- * How each of `candidates`, the declarations of `name`, resonates with the
+ * How each of `candidates`, the declarations of one name, resonates with the
  * line `at`, asked of every declared suite that has a recording: the cases that
  * entered each against the cases that ran the line. Each line is read where it
- * stood at the commit the recording ran at; a candidate written since is
- * scored as unrecorded, and a line written since is refused.
+ * stood at the commit the recording ran at, one `linesThen` per file; a
+ * candidate written since is set apart, and a line written since is refused.
  */
-export function resonance(root: string, at: NativeJourneyEnd, name: string, candidates: readonly NativeJourneyEnd[]): readonly SuiteResonance[] {
+export function resonance(root: string, at: NativeJourneyEnd, candidates: readonly NativeJourneyEnd[]): readonly SuiteResonance[] {
   const asked = checkoutPath(root, at.file);
   return recordings(root).flatMap(({ suite, recording }) => {
     if (recording === undefined) return [];
     const named = suite === undefined ? {} : { suite };
-    const refuse = (notRecorded: string): SuiteResonance => ({ ...named, resonance: { notRecorded, cases: 0, resonant: [] } });
+    const refuse = (notRecorded: string): SuiteResonance => ({ ...named, resonance: { notRecorded, cases: 0, resonant: [] }, since: [] });
     if ('outside' in asked) return [refuse(asked.outside)];
     const { commit } = commitOf(recording);
+    const asking = [{ file: asked.path, line: at.line }, ...candidates];
     let unplaced: string | undefined;
-    const then = (file: string, line: number): number | null => {
-      if (commit == null) return line;
-      const placed = linesThen(root, commit, file, [line]);
-      if (placed.unplaced == null) return placed.lines[0] ?? null;
-      unplaced ??= placed.unplaced;
-      return line;
-    };
-    const line = then(asked.path, at.line);
-    if (line === null) return [refuse(`${asked.path}:${at.line} was written since the recording ran`)];
-    const lines = candidates.map((candidate) => then(candidate.file, candidate.line));
-    const placed = candidates.flatMap((candidate, at) => (lines[at] === null ? [] : [{ at, end: { file: candidate.file, line: lines[at]! } }]));
-    const answer = entry('resonance')(recording, asked.path, line, name, placed.map(({ end }) => end));
+    const lines: (number | null)[] = asking.map(({ line }) => line);
+    if (commit != null) {
+      for (const file of new Set(asking.map(({ file }) => file))) {
+        const ats = asking.flatMap((end, at) => (end.file === file ? [at] : []));
+        const placed = linesThen(root, commit, file, ats.map((at) => asking[at]!.line));
+        if (placed.unplaced != null) unplaced ??= placed.unplaced;
+        else ats.forEach((at, nth) => { lines[at] = placed.lines[nth] ?? null; });
+      }
+    }
+    const [line, ...then] = lines;
+    if (line == null) return [refuse(`${asked.path}:${at.line} was written since the recording ran`)];
+    const placed = candidates.flatMap((candidate, at) => (then[at] == null ? [] : [{ at, end: { file: candidate.file, line: then[at]! } }]));
+    const answer = entry('resonance')(recording, asked.path, line, placed.map(({ end }) => end));
     const resonant = answer.resonant.map((row) => {
-      if (row.candidate == null) return row;
       const { at } = placed[row.candidate]!;
       return { ...row, candidate: at, line: candidates[at]!.line };
     });
-    const since = candidates.flatMap((candidate, at) => (lines[at] === null ? [{ ...candidate, candidate: at, recorded: false, cases: 0, shared: 0, score: 0 }] : []));
-    return [{ ...named, resonance: { ...answer, resonant: [...resonant, ...since] }, ...(unplaced === undefined ? {} : { unplaced }) }];
+    const since = candidates.filter((_, at) => then[at] == null);
+    return [{ ...named, resonance: { ...answer, resonant }, since, ...(unplaced === undefined ? {} : { unplaced }) }];
   });
 }
 

@@ -196,12 +196,12 @@ specifier that publishes the name.
 reads the recording rather than the code. Each declaration is scored by Ochiai:
 the tests that both ran the line and entered it, over the geometric mean of the
 two counts, so one every test enters does not outrank one only the line's tests
-enter. The highest comes first, an equal score is marked `tied`, and a function
-the recording names like them and no declaration stands for, a mock's factory
-most often, is scored beside them. Declarations none of the line's tests entered
-are listed under `Not run with it:`, and those written at a line no recorded
-function starts under `Not in the recording:`. A line no recorded test ran tells
-them apart by nothing: the answer says so, then answers as without `--line`.
+enter. The highest comes first and an equal score is marked `tied`. Declarations
+none of the line's tests entered are listed under `Not run with it:`, those
+written at a line no recorded function starts under `Not in the recording:`, and
+those written since the recording ran under `Written since the recording ran:`.
+A line no recorded test ran tells them apart by nothing: the answer says so,
+then answers as without `--line`.
 
 ```
 `useSessionId` at src/page.ts:3, by the 1 recorded test that ran the line:

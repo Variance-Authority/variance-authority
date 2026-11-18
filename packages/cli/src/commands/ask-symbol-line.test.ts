@@ -12,9 +12,9 @@ import { EXIT_CLEAN } from '../exit.js';
  * `variance ask symbol --line`, through the command a person types: the
  * declaration a line ran is the one whose tests are the line's tests.
  *
- * `useSessionId` is declared twice and mocked once. `page` calls the one in
- * `session.ts`, `header` is rendered by a test that mocks it, and `idle` is run
- * by nobody. `format` is declared twice and both are entered by the same test;
+ * `useSessionId` is declared twice. `page` calls the one in `session.ts`,
+ * `header` is rendered by a test that enters neither, and `idle` is run by
+ * nobody. `format` is declared twice and both are entered by the same test;
  * `log` is declared twice, one entered by every test.
  */
 
@@ -53,18 +53,18 @@ describe('variance ask symbol --line', () => {
     ]);
   });
 
-  it('names the mock a test put in the declaration\'s place first', async () => {
-    await recorded();
+  it('reads each line where the recording ran it, and sets apart a declaration written since', async () => {
+    const root = await recorded();
+    writeFileSync(join(root, 'src/session.ts'), `// moved down\n\n${readFileSync(join(root, 'src/session.ts'), 'utf8')}`);
+    writeFileSync(join(root, 'src/late.ts'), "export function useSessionId(): string {\n  return 'late';\n}\n");
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'since'], { cwd: root });
 
-    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:6']);
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out.split('\n').slice(0, 3)).toEqual([
-      '`useSessionId` at src/page.ts:6, by the 1 recorded test that ran the line:',
-      '',
-      'test/header.test.ts:2  1.00  1 of the 1 test that entered it ran the line; a function the recording names `useSessionId`, no declaration: a mock\'s, most often',
-    ]);
-    expect(answered.out).toContain('Not run with it:\nsrc/legacy.ts:1  none of the 1 test that entered it ran the line\nsrc/session.ts:1  none of the 1 test that entered it ran the line');
+    expect(answered.out).toContain('src/session.ts:3  1.00  1 of the 1 test that entered it ran the line');
+    expect(answered.out).toContain('Written since the recording ran:\nsrc/late.ts:1');
   });
 
   it('names two declarations entered by the same tests as tied', async () => {
@@ -134,7 +134,6 @@ async function recorded(): Promise<string> {
     'src/log.ts': declares('log', 'loud'),
     'src/quiet.ts': declares('log', 'quiet'),
     'src/report.ts': "import { log } from './quiet';\nexport const report = (): string => log();\n",
-    'test/header.test.ts': "vi.mock('../src/session', () => ({\n  useSessionId: () => 'mocked',\n}));\n",
   };
   for (const [path, text] of Object.entries(sources)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -153,7 +152,6 @@ async function recorded(): Promise<string> {
     'src/legacy.ts': [region('function', 'useSessionId', 1, 3, [1])],
     'src/page.ts': [region('function', 'page', 2, 4, [0]), region('function', 'header', 5, 7, [2])],
     'src/idle.ts': [region('function', 'idle', 2, 4, [])],
-    'test/header.test.ts': [region('function', 'useSessionId', 2, 2, [2])],
     'src/a.ts': [region('function', 'format', 1, 3, [3])],
     'src/b.ts': [region('function', 'format', 1, 3, [3])],
     'src/use.ts': [region('function', 'used', 2, 2, [3])],

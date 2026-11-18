@@ -6,8 +6,8 @@ use crate::journey_read::Journey;
 use crate::journey_record::{Block, Module};
 
 /// `page` calls `useSessionId` in `session.ts` for case 0 and `header` is
-/// rendered by case 2, whose test mocks it; `legacy.ts` declares it again for
-/// case 1. `log` in `loud.ts` is entered by every case, in `quiet.ts` by case 3,
+/// rendered by case 2; `legacy.ts` declares it again for case 1. In `meet.ts`,
+/// `first` ends on the line `second`, a longer one, starts; each is entered by one case. `log` in `loud.ts` is entered by every case, in `quiet.ts` by case 3,
 /// which alone runs `report`. `idle` is run by nobody.
 fn recorded() -> JourneyMasks {
     let tests: Vec<Test> = (0..4)
@@ -20,7 +20,7 @@ fn recorded() -> JourneyMasks {
         declares("src/session.ts", "useSessionId"),
         declares("src/legacy.ts", "useSessionId"),
         module("src/page.ts", vec![block("module", "", 1, 9), block("function", "page", 2, 4), block("function", "header", 5, 7), block("function", "idle", 8, 9)]),
-        module("test/header.test.ts", vec![block("module", "", 1, 3), block("function", "useSessionId", 2, 2)]),
+        module("src/meet.ts", vec![block("module", "", 1, 7), block("function", "first", 1, 3), block("function", "second", 3, 7)]),
         declares("src/loud.ts", "log"),
         declares("src/quiet.ts", "log"),
         module("src/report.ts", vec![block("module", "", 1, 2), block("function", "report", 2, 2)]),
@@ -31,7 +31,7 @@ fn recorded() -> JourneyMasks {
         vec![set(&[]), set(&[0])],
         vec![set(&[]), set(&[1])],
         vec![set(&[]), set(&[0]), set(&[2]), set(&[])],
-        vec![set(&[]), set(&[2])],
+        vec![set(&[]), set(&[0]), set(&[3])],
         vec![set(&[]), set(&[0, 1, 2, 3])],
         vec![set(&[]), set(&[3])],
         vec![set(&[]), set(&[3])],
@@ -50,40 +50,39 @@ fn at(file: &str, line: u32) -> JourneyEnd {
     JourneyEnd { file: file.to_owned(), line }
 }
 
-fn rows(answer: &Resonance) -> Vec<(String, Option<u32>, u32, u32, String)> {
+fn rows(answer: &Resonance) -> Vec<(String, u32, u32, u32, String)> {
     answer.resonant.iter().map(|row| (row.file.clone(), row.candidate, row.cases, row.shared, format!("{:.2}", row.score))).collect()
 }
 
 #[test]
 fn the_declaration_the_line_called_scores_and_the_other_shares_nothing() {
     let mut masks = recorded();
-    let answer = resonate(&mut masks, "src/page.ts", 3, "useSessionId", &[at("src/session.ts", 1), at("src/legacy.ts", 1)]).unwrap();
+    let answer = resonate(&mut masks, "src/page.ts", 3, &[at("src/session.ts", 1), at("src/legacy.ts", 1)]).unwrap();
     assert_eq!(answer.cases, 1);
-    assert_eq!(rows(&answer), vec![("src/session.ts".into(), Some(0), 1, 1, "1.00".into()), ("src/legacy.ts".into(), Some(1), 1, 0, "0.00".into())]);
+    assert_eq!(rows(&answer), vec![("src/session.ts".into(), 0, 1, 1, "1.00".into()), ("src/legacy.ts".into(), 1, 1, 0, "0.00".into())]);
 }
 
 #[test]
-fn a_function_named_like_the_declarations_that_shares_the_line_s_cases_is_scored_beside_them() {
+fn a_line_two_functions_meet_on_ran_for_the_cases_of_both() {
     let mut masks = recorded();
-    let answer = resonate(&mut masks, "src/page.ts", 6, "useSessionId", &[at("src/session.ts", 1), at("src/legacy.ts", 1)]).unwrap();
-    assert_eq!(rows(&answer)[0], ("test/header.test.ts".into(), None, 1, 1, "1.00".into()));
-    assert_eq!(answer.resonant.len(), 3);
+    let answer = resonate(&mut masks, "src/meet.ts", 3, &[at("src/session.ts", 1), at("src/quiet.ts", 1)]).unwrap();
+    assert_eq!(answer.cases, 2);
 }
 
 #[test]
 fn a_function_every_case_enters_scores_below_one_only_the_line_s_cases_enter() {
     let mut masks = recorded();
-    let answer = resonate(&mut masks, "src/report.ts", 2, "log", &[at("src/loud.ts", 1), at("src/quiet.ts", 1)]).unwrap();
-    assert_eq!(rows(&answer), vec![("src/quiet.ts".into(), Some(1), 1, 1, "1.00".into()), ("src/loud.ts".into(), Some(0), 4, 1, "0.50".into())]);
+    let answer = resonate(&mut masks, "src/report.ts", 2, &[at("src/loud.ts", 1), at("src/quiet.ts", 1)]).unwrap();
+    assert_eq!(rows(&answer), vec![("src/quiet.ts".into(), 1, 1, 1, "1.00".into()), ("src/loud.ts".into(), 0, 4, 1, "0.50".into())]);
 }
 
 #[test]
 fn a_line_no_case_ran_has_no_cases_and_one_no_function_holds_is_refused() {
     let mut masks = recorded();
-    let idle = resonate(&mut masks, "src/page.ts", 9, "useSessionId", &[at("src/session.ts", 1)]).unwrap();
+    let idle = resonate(&mut masks, "src/page.ts", 9, &[at("src/session.ts", 1)]).unwrap();
     assert_eq!((idle.cases, idle.not_recorded), (0, None));
-    let outside = resonate(&mut masks, "src/page.ts", 1, "useSessionId", &[at("src/session.ts", 1)]).unwrap();
+    let outside = resonate(&mut masks, "src/page.ts", 1, &[at("src/session.ts", 1)]).unwrap();
     assert_eq!(outside.not_recorded.as_deref(), Some("no recorded function holds src/page.ts:1"));
-    let unwritten = resonate(&mut masks, "src/page.ts", 3, "useSessionId", &[at("src/absent.ts", 1)]).unwrap();
-    assert!(unwritten.resonant.iter().any(|row| row.candidate == Some(0) && !row.recorded));
+    let unwritten = resonate(&mut masks, "src/page.ts", 3, &[at("src/absent.ts", 1)]).unwrap();
+    assert!(unwritten.resonant.iter().any(|row| row.candidate == 0 && !row.recorded));
 }
