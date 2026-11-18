@@ -97,9 +97,14 @@ so an edit to the header does not change forty routes at once. If none of the
 selectors matches, the route is a collection failure rather than an empty
 capture.
 
-`source.dirs` is what turns a component name into a `file:line`. It is optional;
-a path that matches no files is refused by name rather than producing a report
-where every component resolves to nothing.
+`source.dirs` selects directories inside your checkout from the
+[source index](../../docs/source-index.md), which supplies component names and
+`file:line` locations. Run `variance index` after changing source; a missing
+index is built locally and refused in CI. Git-ignored files are outside the
+source inventory. The index owns file eligibility; `source.extensions` and
+`source.exclude` are not options. Without `source`, reports can name components
+without these locations. A directory list matching no published source file is
+refused.
 
 ### 4. Write the run config
 

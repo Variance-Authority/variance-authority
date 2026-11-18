@@ -130,7 +130,7 @@ export function routeCollector(
     const entries = Object.entries(options.routes ?? {});
     declaredOnce(options);
 
-    const source = options.source === undefined ? undefined : scanSource(process.cwd(), options.source);
+    const source = options.source === undefined ? undefined : await scanSource(process.cwd(), options.source);
     const bundle = await pageAgentBundle();
 
     // Refused here rather than per route. A run asking for portable documents

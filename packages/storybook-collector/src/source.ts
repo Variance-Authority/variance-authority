@@ -1,91 +1,28 @@
-import { readFileSync, readdirSync } from 'node:fs';
-import { isAbsolute, join, relative } from 'node:path';
-import { mergeSourceIndexes, type SourceIndex } from '@variance-authority/core/attribute';
-import { indexDeclarations } from '@variance-authority/sense';
-
+/** Component attribution from the checkout's published native source index. */
+import { resolve } from 'node:path';
+import type { SourceIndex } from '@variance-authority/core/attribute';
+import { publishedComponentSources } from '@variance-authority/sense';
+import { isCI } from 'ci-info';
 import { operatorError } from './operator.js';
 
-/**
- * Component to `file:line`, by scanning the project's own source.
- *
- * Read off each file's parse rather than by a plugin, and the reason is the
- * same one the whole project keeps arriving at: an index built from the source
- * that shipped is a fact about the repository, while an index built by a build
- * step is a fact about a build somebody has to keep configured. `resolveSource`
- * is the last hop of attribution, so getting it from the cheapest possible place
- * is what makes `file:line` free rather than a feature. The names are the ones
- * `sense` reads as declared ([`indexDeclarations`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/sense/src/declarations.ts)),
- * so a declaration a comment spells is not one.
- *
- * **Directories, not globs.** A glob syntax is a small language with its own
- * bugs, and the question here is only *which files hold components* — which a
- * directory and a set of extensions answers. Nothing is installed to ask it.
- *
- * **The same forty lines are in `@variance-authority/route-collector`, and
- * that is deliberate.** The *rule* — how a file becomes an index — is
- * `indexDeclarations` in `sense` and has exactly one owner, so one
- * `source: { dirs }` gives both collectors one index. What is duplicated is a
- * directory walk, and the alternative was a surface package importing another
- * surface package so an adopter's dependency tree could carry a collector they
- * did not ask for. ADR-0024 makes the adopter's import list the thing to protect;
- * this is the price, and it is a walk.
- */
-
 export interface SourceScan {
-  /** Directories to walk, relative to `root` or absolute. */
+  /** Published source directories, relative to `root` or absolute inside it. */
   readonly dirs: readonly string[];
-  /** Defaults to `.tsx`, `.jsx`, `.ts`, `.js`. */
-  readonly extensions?: readonly string[];
-  /** Skipped anywhere in a path. Defaults to tests, stories and `node_modules`. */
-  readonly exclude?: readonly string[];
 }
 
-const EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];
-const EXCLUDE = ['node_modules', '.test.', '.spec.', '.stories.', 'dist/', 'storybook-static'];
-
-function walk(dir: string, into: string[]): string[] {
-  let entries: { name: string; isDirectory(): boolean }[];
+/** Read component names and locations without walking or parsing source again. */
+export async function scanSource(root: string, scan: SourceScan): Promise<SourceIndex> {
   try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    // A directory that is not there contributes nothing; `scanSource` refuses
-    // only when no entry yields a file.
-    // FIXME: one missing entry among several is skipped silently; it should be
-    // named, and only `scanSource` knows which of several it was.
-    return into;
+    const found = await publishedComponentSources(root, scan.dirs, {
+      ci: isCI,
+      step: 'variance index',
+      announce: (line) => process.stderr.write(`variance: ${line}\n`),
+    });
+    if (found.files === 0) {
+      throw new Error(`no published source files under ${scan.dirs.map((dir) => resolve(root, dir)).join(', ')}; every component would resolve to no file`);
+    }
+    return found.source;
+  } catch (error) {
+    throw operatorError(error instanceof Error ? error.message : String(error), { cause: error });
   }
-
-  for (const entry of entries) {
-    const path = join(dir, entry.name);
-    if (entry.isDirectory()) walk(path, into);
-    else into.push(path);
-  }
-  return into;
-}
-
-export function scanSource(root: string, scan: SourceScan): SourceIndex {
-  const extensions = scan.extensions ?? EXTENSIONS;
-  const exclude = scan.exclude ?? EXCLUDE;
-
-  const dirs = scan.dirs.map((dir) => (isAbsolute(dir) ? dir : join(root, dir)));
-  const files = dirs
-    .flatMap((dir) => walk(dir, []))
-    .filter((file) => extensions.some((extension) => file.endsWith(extension)))
-    .filter((file) => !exclude.some((fragment) => file.includes(fragment)));
-
-  // Empty is reported rather than returned. An index with nothing in it produces
-  // a report whose every component resolves to no file — which reads exactly like
-  // a project whose components are anonymous, and is instead a mistyped path. The
-  // message names the directories as walked, so it answers "relative to what"
-  // whichever way each entry was spelled.
-  if (files.length === 0) {
-    throw operatorError(
-      `no source files under ${dirs.join(', ')} matching ` +
-        `${extensions.join(', ')}; every component would resolve to no file`,
-    );
-  }
-
-  return mergeSourceIndexes(
-    files.map((file) => indexDeclarations(relative(root, file), readFileSync(file, 'utf8'))),
-  );
 }

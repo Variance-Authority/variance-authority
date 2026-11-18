@@ -1,7 +1,10 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { updateSourceIndex } from '@variance-authority/sense';
+
+vi.mock('ci-info', () => ({ isCI: true }));
 import { scanSource } from './source.js';
 
 /**
@@ -16,6 +19,18 @@ afterEach(async () => {
 });
 
 describe('scanSource', () => {
+  it('reads the published component snapshot after source bytes change', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-source-'));
+    made.push(root);
+    await mkdir(join(root, 'src'));
+    await writeFile(join(root, 'src', 'Button.tsx'), 'export function Button() { return null; }\n');
+    await updateSourceIndex(root);
+    await writeFile(join(root, 'src', 'Button.tsx'), 'export function Changed() { return null; }\n');
+    expect(await scanSource(root, { dirs: ['src'] })).toEqual({
+      Button: [{ file: 'src/Button.tsx', line: 1, via: 'function' }],
+    });
+  });
+
   it('indexes what the code declares and nothing a comment, a template or a function body spells', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-source-'));
     made.push(root);
@@ -38,34 +53,39 @@ describe('scanSource', () => {
     );
     await writeFile(join(root, 'src', 'Button.test.tsx'), 'function Harness() { return null; }\n');
 
-    expect(scanSource(root, { dirs: ['src'] })).toEqual({
+    await updateSourceIndex(root);
+    expect(await scanSource(root, { dirs: ['src'] })).toEqual({
       Button: [{ file: join('src', 'Button.tsx'), line: 4, via: 'function' }],
       Shell: [{ file: join('src', 'Button.tsx'), line: 8, via: 'function' }],
     });
   });
 
-  it('walks an absolute directory where it is, and names its files from the root', async () => {
+  it('reads an absolute directory inside the repository, and names its files from the root', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-source-'));
     made.push(root);
     await mkdir(join(root, 'src'));
     await writeFile(join(root, 'src', 'Button.tsx'), 'export function Button() { return null; }\n');
 
-    expect(scanSource(root, { dirs: [join(root, 'src')] })).toEqual({
+    await updateSourceIndex(root);
+    expect(await scanSource(root, { dirs: [join(root, 'src')] })).toEqual({
       Button: [{ file: join('src', 'Button.tsx'), line: 1, via: 'function' }],
     });
   });
 
-  it('refuses a dirs list that matches no source file, naming the directories it walked', async () => {
+  it('refuses a dirs list that matches no source file, naming the requested directory', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-source-'));
     const outside = await mkdtemp(join(tmpdir(), 'variance-source-'));
     made.push(root, outside);
     const elsewhere = join(outside, 'absent');
 
-    expect(() => scanSource(root, { dirs: ['missing', elsewhere] })).toThrow(
-      expect.objectContaining({
-        message: expect.stringContaining(`no source files under ${join(root, 'missing')}, ${elsewhere} matching`),
-        varianceOperatorError: true,
-      }),
-    );
+    await updateSourceIndex(root);
+    await expect(scanSource(root, { dirs: ['missing'] })).rejects.toMatchObject({
+      message: expect.stringContaining(`no published source files under ${join(root, 'missing')}`),
+      varianceOperatorError: true,
+    });
+    await expect(scanSource(root, { dirs: [elsewhere] })).rejects.toMatchObject({
+      message: expect.stringContaining('outside the repository'),
+      varianceOperatorError: true,
+    });
   });
 });

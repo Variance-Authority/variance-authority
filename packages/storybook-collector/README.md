@@ -77,13 +77,16 @@ export default storybookCollector({
 });
 ```
 
-`source.dirs` is a list of directory paths — not globs — each absolute or
-resolved against the directory you run `variance` from. The scan reads `.tsx`, `.jsx`, `.ts` and
-`.js`, skips `node_modules`, `dist`, `storybook-static` and any path containing
-`.test.`, `.spec.` or `.stories.`, and indexes where each component is
-*declared*. Without it the report still names components and resolves none of
-them to a file. A `dirs` list that matches no source file at all is refused,
-naming the directories it walked.
+`source.dirs` selects directories inside your checkout from the
+[source index](../../docs/source-index.md). Paths are relative to where you run
+`variance`, or absolute inside that checkout. Component declarations and their
+locations come from the published generation. Run `variance index` after
+changing source; a missing index is built locally and refused in CI. Git-ignored
+files are outside the source inventory. The index owns file eligibility;
+`source.extensions` and `source.exclude` are not options.
+
+Without `source`, the report still names components without these source
+locations. A directory list matching no published source file is refused.
 
 ### 3. Write the run config
 
