@@ -77,8 +77,14 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
         // `git status` answers where `worktree_status` hands the question back.
         let walk = scope.spawn(|| {
             let listed = configured(root);
+            // A walk that panics on an odd working tree hands the question to
+            // `git status`, as one that declines does.
             let walked = match (compared, &head) {
-                (true, Some(head)) => crate::git::worktree_status::walk(head, &crate::git::worktree_status::config_of(&listed)),
+                (true, Some(head)) => std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    crate::git::worktree_status::walk(head, &crate::git::worktree_status::config_of(&listed))
+                }))
+                .ok()
+                .flatten(),
                 _ => None,
             };
             let walked = walked.ok_or_else(|| status(&listed));

@@ -43,9 +43,8 @@ pub struct GitTree {
 
 /// Every tracked path under `root`, or nothing when this is not a checkout.
 ///
-/// `null` rather than a throw, matching `gitDigests`: the scanner's own digest is
-/// correct and merely slower, so a tarball or a sandbox is a saving that did not
-/// apply rather than a repository that is misconfigured.
+/// `null` rather than a throw, matching `gitDigests`: whether a directory git
+/// does not list is an error is the caller's to say, and the index refuses it.
 #[napi(catch_unwind)]
 pub fn git_tree(root: String) -> Option<GitTree> {
     let snapshot = git::snapshot(&root)?;
