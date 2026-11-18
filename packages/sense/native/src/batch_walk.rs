@@ -19,7 +19,12 @@ use crate::read_any::{language_of, Language};
 use crate::resolve::Resolvers;
 use crate::world::World;
 
-const RESOLVERS: usize = 6;
+/// Threads resolving a slice: every core. Resolving waits on the filesystem
+/// as much as it computes, and on Kibana six threads left 0.5 s of a cold
+/// index on the table that ten, twelve and sixteen all took back.
+fn resolving_width() -> usize {
+    std::thread::available_parallelism().map_or(6, usize::from)
+}
 /// Files a wave reads before it resolves them while reading the next.
 const SLICE: usize = 16_384;
 
@@ -266,7 +271,7 @@ pub(super) fn resolve_all(root: &Path, files: &[String], read: &[Answer], resolv
     languages.dedup();
     world.prewarm(languages);
     let resolving = ThreadPoolBuilder::new()
-        .num_threads(RESOLVERS.min(files.len().max(1)))
+        .num_threads(resolving_width().min(files.len().max(1)))
         .build();
     let known = world.known();
     let work = || {
