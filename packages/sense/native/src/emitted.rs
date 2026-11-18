@@ -391,7 +391,9 @@ fn path_option(configs: &Configs, path: &Path, leaf: &Path, name: &str) -> Optio
 }
 
 /// The names one directory holds, and each folded to lower case, for a disk
-/// that may ignore it.
+/// that may ignore it. A name outside ASCII may be held, unless held exactly:
+/// a disk may open it through another Unicode spelling, as APFS opens a
+/// decomposed name through the composed one, and the disk is asked.
 struct Names {
     exact: HashSet<OsString, FxBuildHasher>,
     folded: HashSet<String, FxBuildHasher>,
@@ -416,7 +418,7 @@ impl Names {
     }
 
     fn may_hold(&self, name: &OsStr) -> bool {
-        self.exact.contains(name) || self.folded.contains(&name.to_string_lossy().to_lowercase())
+        self.exact.contains(name) || !name.is_ascii() || self.folded.contains(&name.to_string_lossy().to_lowercase())
     }
 }
 

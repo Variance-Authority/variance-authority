@@ -155,6 +155,26 @@ fn a_file_git_does_not_list_is_read_from_the_disk() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// APFS opens a name through any canonically equivalent spelling: a file git
+/// does not list, stored decomposed, is found through the composed one, as the
+/// disk finds it.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_name_the_disk_opens_through_another_unicode_spelling_is_found() {
+    let root = workspace("unicode");
+    write(&root, &[("packages/b/src/cafe\u{301}.ts", "export {};\n")]);
+    let composed = root.join("packages/b/src/caf\u{e9}.ts");
+    let paths = ["package.json", "packages/b/package.json", "packages/b/src/index.ts"].map(str::to_owned);
+    let files = paths.iter().cloned().zip(0..).collect();
+    let listing = Listing::of(Arc::new(files), Arc::new(vec![true; paths.len()]), &[]);
+    let resolvers = Resolvers::over(Tsconfig::Auto, None, Emitted::listed(&root, Some(Arc::new(listing))));
+    let answer = resolvers.resolve(&root, &root.join("packages/b/src/index.ts"), "./caf\u{e9}", None);
+    let disk = std::fs::metadata(&composed).is_ok();
+    let _ = std::fs::remove_dir_all(&root);
+    assert!(disk, "the disk opens the composed spelling");
+    assert!(answer.is_some(), "{answer:?}");
+}
+
 #[test]
 fn a_path_git_vouches_is_a_file_holds_nothing() {
     let root = workspace("file");
