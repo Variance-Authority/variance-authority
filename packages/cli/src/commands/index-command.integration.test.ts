@@ -121,7 +121,7 @@ describe('variance index', () => {
       out: `source index built: 2 files, at ${at}\n${unprepared(root)}`,
       err: expect.stringMatching(STEPS_ONLY),
     });
-    const published = publishedHead(at)?.generatedAt;
+    const published = publishedHead(root, at)?.generatedAt;
     expect(published).toEqual(expect.any(String));
     expect(await indexOutput({ cwd: root }))
       .toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root, published)}`);
@@ -209,7 +209,7 @@ describe('variance index', () => {
     const at = sourceIndexPath(root);
 
     expect((await run(['index', '--no-git'])).out).toBe(`source index built: 2 files, at ${at}\n${unprepared(root)}`);
-    const published = publishedHead(at)?.generatedAt;
+    const published = publishedHead(root, at)?.generatedAt;
     expect(published).toEqual(expect.any(String));
     expect((await run(['index'])).out).toBe(`source index updated: 2 files, 0 read again, at ${at}\n${unprepared(root, published)}`);
   });
@@ -304,7 +304,7 @@ describe('variance index', () => {
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
     const index = sourceIndexPath(root);
-    const held = publishedHead(index);
+    const held = publishedHead(root, index);
     expect(Date.parse(held?.readStartedAt ?? '')).toBeLessThanOrEqual(statSync(index).mtimeMs);
     // One binary file holds the questions: no JSON value and no search beside it.
     expect(readdirSync(dirname(index)).filter((name) => name.includes('.help')).map((name) => name.replace(/\.help-tree\.[0-9a-f]+\.bin$/u, '.help-tree.<digest>.bin')).sort())
@@ -339,7 +339,7 @@ describe('variance index', () => {
     expect(searched.code).toBe(EXIT_CLEAN);
     expect(searched.err).toContain(`process ${gone} ended before it finished what \`variance index\` left to it, so it is made now`);
     // The index did not move since the run that published the questions, so they are kept.
-    expect(searched.err).toContain(`questions: kept at ${publishedHead(index)?.generatedAt}, because the index and the manifests are the ones it was published from`);
+    expect(searched.err).toContain(`questions: kept at ${publishedHead(root, index)?.generatedAt}, because the index and the manifests are the ones it was published from`);
     expect(existsSync(followUpsLockPath(index))).toBe(false);
   });
 

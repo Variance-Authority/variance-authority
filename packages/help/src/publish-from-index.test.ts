@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { codeUnitOrder, SegmentCutShort } from '@variance-authority/core/segment';
@@ -94,7 +94,7 @@ afterAll(() => {
 
 /** The time the published value says its read began. */
 function publishedReadStart(): unknown {
-  return publishedHead(index)?.readStartedAt;
+  return publishedHead(root, index)?.readStartedAt;
 }
 
 describe('publishing the questions from the index', () => {
@@ -138,7 +138,7 @@ describe('publishing the questions from the index', () => {
     expect(written()).toEqual(before);
   });
 
-  /** Cut the published store to its head: all a keep check needs, with no body behind it to open. */
+  /** Cut the published store to its head: all a keep check reads, with no body behind it. */
   function cutToHead(): void {
     const at = workspaceSnapshotPath(index);
     const bytes = readFileSync(at);
@@ -155,12 +155,40 @@ describe('publishing the questions from the index', () => {
     writeFileSync(at, bytes.subarray(0, length));
   }
 
-  it('keeps the value off the store\'s head, without opening the store behind it', async () => {
-    const published = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
-    cutToHead();
+  /** Cut the last `bytes` bytes off the published store's body. */
+  function cutBody(bytes: number): void {
+    const at = workspaceSnapshotPath(index);
+    const held = readFileSync(at);
+    writeFileSync(at, held.subarray(0, held.length - bytes));
+  }
+
+  it.each([
+    ['cut to its head', cutToHead],
+    ['cut a few bytes short', () => cutBody(11)],
+  ])('publishes again over a store %s, though its head says it is current', async (_cut, cut) => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    cut();
     await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow('no readable workspace snapshot');
 
-    expect(await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN })).toEqual({ generation: published?.generation, kept: true });
+    expect(await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN })).toMatchObject({ kept: false });
+    await expect(readWorkspaceSnapshot(root, { index })).resolves.toBeDefined();
+  });
+
+  it('publishes again when a manifest moved and the index did not', async () => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    write('packages/b/package.json', JSON.stringify({ name: 'b', exports: { '.': './src/index.ts', './again': './src/index.ts' } }));
+
+    expect(await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN })).toMatchObject({ kept: false });
+  });
+
+  it('publishes again for another checkout asking at the same index', async () => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    const other = realpathSync(mkdtempSync(join(tmpdir(), 'help-publish-from-index-other-')));
+    temporary.push(other);
+    cpSync(root, other, { recursive: true });
+
+    expect(await publishWorkspaceFromIndex(other, { index, readStartedAt: BEGAN })).toMatchObject({ kept: false });
+    expect(publishedHead(other, index)?.root).toBe(other);
   });
 
   it('names the openings the manifests could not read first, then the files the index could not, then why, each in path order', async () => {

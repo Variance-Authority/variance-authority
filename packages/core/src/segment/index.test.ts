@@ -51,6 +51,16 @@ describe('a segment', () => {
     expect(() => openSegment(FORMAT, 1, bytes.subarray(0, head), 'test segment')).toThrow(/not a variance-authority test segment/);
   });
 
+  it('opened as a prefix, says the length its header declares, so a file cut short is told apart without reading its body', () => {
+    const bytes = encodeSegment(FORMAT, 1, {
+      'head': Uint32Array.of(7),
+      'body': Uint8Array.of(1, 2, 3),
+    });
+    const header = new DataView(bytes.buffer, bytes.byteOffset).getUint32(0, true);
+
+    expect(openSegment(FORMAT, 1, bytes.subarray(0, 4 + header), 'test segment', { prefix: true }).length).toBe(bytes.length);
+  });
+
   it('refuses a column read at the wrong width', () => {
     const bytes = encodeSegment(FORMAT, 1, { 'flags': Uint8Array.of(1) });
     const opened = openSegment(FORMAT, 1, bytes, 'test segment');

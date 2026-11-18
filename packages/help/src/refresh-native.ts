@@ -84,9 +84,9 @@ export async function publishWorkspaceFromIndex(root: string, options: FromIndex
   if (indexDigest === undefined) return undefined;
   // A value published from this very manifest over these manifests is what this publish would write: an index that did
   // not move costs nothing, while the tree beside it still opens.
-  const held = publishedHead(own);
+  const held = publishedHead(where, own);
   if (
-    held !== undefined && held.root === realpathSync(where) && held.indexDigest === indexDigest
+    held !== undefined && held.indexDigest === indexDigest
     && held.packagesDigest === packagesDigest(scope.root, offerings) && await workspaceTreeOpens(held, own)
   ) return { generation: held.generatedAt, kept: true };
   const help = await publishHelp({

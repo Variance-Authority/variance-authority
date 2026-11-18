@@ -76,14 +76,23 @@ export function generationOf(fields: HeadFields): StoreHead | undefined {
   };
 }
 
+/** A store's head as {@link storeHeadOf} reads it, with the length of the store it heads. */
+export interface HeadRead {
+  /** The generation the head states; absent for a store encoded in memory, which carries none. */
+  readonly head: StoreHead | undefined;
+  /** The bytes the store's header declares: a file of any other length is not the store that head belongs to. */
+  readonly length: number;
+}
+
 /**
- * The generation the store `bytes` starts with states; absent for a store
- * encoded in memory, which carries none. `bytes` may be the store's first bytes
- * alone: a read past them throws `SegmentCutShort` with the length that holds
- * the head, so a caller asking whether a store is current reads no more of it.
+ * The head the store `bytes` starts with. `bytes` may be the store's first
+ * bytes alone: a read past them throws `SegmentCutShort` with the length that
+ * holds the head, so a caller asking whether a store is current reads no more
+ * of it.
  */
-export function storeHeadOf(bytes: Uint8Array): StoreHead | undefined {
-  return generationOf(fieldsOf(openSegment(FORMAT, VERSION, bytes, WHAT, { prefix: true })));
+export function storeHeadOf(bytes: Uint8Array): HeadRead {
+  const segment = openSegment(FORMAT, VERSION, bytes, WHAT, { prefix: true });
+  return { head: generationOf(fieldsOf(segment)), length: segment.length };
 }
 
 /** The sections of one store, read in place, with the string pool every row refers to. */

@@ -1065,6 +1065,7 @@
         "CaughtUp": "interface",
         "FoundNothing": "class",
         "FromIndexOptions": "type",
+        "IndexPublication": "interface",
         "NamedTree": "interface",
         "PagesOptions": "interface",
         "ReadingOptions": "interface",
