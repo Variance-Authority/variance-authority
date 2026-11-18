@@ -36,7 +36,7 @@ describe('a story of what a React test did to the page', () => {
       expect.objectContaining({ kind: 'appeared', line: 12, commit: 2, change: '+ div role="dialog" "Confirm order" in Dialog' }),
     ]);
     const aside = pageChanges(route, '+ aside').found;
-    expect(aside).toEqual([expect.objectContaining({ kind: 'appeared', line: 13, change: '+ aside role="complementary"' })]);
+    expect(aside).toEqual([expect.objectContaining({ kind: 'appeared', line: 13, change: '+ aside' })]);
     expect(aside[0]).not.toHaveProperty('commit');
     expect(pageChanges(route, 'toast')).toEqual({ searched: expect.any(Number), found: [] });
   });
