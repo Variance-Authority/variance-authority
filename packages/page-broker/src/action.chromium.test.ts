@@ -186,6 +186,51 @@ chromium_('an action over a page that announces nothing', () => {
     await expect(submit(page)).resolves.toEqual({ outcome: 'refused', at: undefined });
   });
 
+  it('reaches an outcome that stands after a hidden one in the page', async () => {
+    // Recognisers that match their part while it is hidden, as a selector does.
+    const submit = action(
+      'submit',
+      {
+        payment: (on: Page) => on.locator('[aria-label=Payment]'),
+        signIn: (on: Page) => on.locator('dialog'),
+      },
+      click,
+      QUICK,
+    );
+    await open('answer=signIn&after=50');
+
+    await expect(submit(page)).resolves.toMatchObject({ outcome: 'signIn' });
+  });
+
+  it('does not report staying when the page asks again while the parts are looked at', async () => {
+    let looks = 0;
+    const submit = action(
+      'submit',
+      {
+        signIn: (on: Page) => {
+          const dialog = on.getByRole('dialog', { name: 'Sign in' });
+          return Object.assign(Object.create(dialog) as typeof dialog, {
+            isVisible: async () => {
+              looks += 1;
+              // The second look is the one the quiet period woke.
+              if (looks === 2) {
+                // Started, not awaited: the answer is still on its way when the look ends.
+                await on.evaluate(`void fetch('/api/again?answer=signIn').then((got) => got.text()).then(show)`);
+              }
+              return dialog.isVisible();
+            },
+          });
+        },
+        refused: stay,
+      },
+      click,
+      QUICK,
+    );
+    await open('answer=nothing');
+
+    await expect(submit(page)).resolves.toMatchObject({ outcome: 'signIn' });
+  });
+
   it('fails with what Playwright said when the page is gone before an outcome', async () => {
     const leave = action('leave', outcomes, (on: Page) => on.close(), QUICK);
     await open('answer=payment');

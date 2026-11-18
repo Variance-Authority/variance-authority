@@ -154,7 +154,8 @@ async function perform<Name extends string>(
       if (woke === 'late') break;
       const reached = named(await visible());
       if (reached !== undefined) return reached;
-      if (woke === 'quiet' && declared.staying !== undefined) {
+      // A request begun while the parts were looked at ended the quiet they were looked at in.
+      if (woke === 'quiet' && declared.staying !== undefined && traffic.still()) {
         return { outcome: declared.staying, at: undefined };
       }
     }
@@ -180,8 +181,13 @@ const NEVER = new Promise<never>(() => undefined);
 /** Playwright's own wait for any declared part, or `late` when none came in the time left. */
 async function arrival(any: Locator, left: number): Promise<'arrived' | 'late'> {
   try {
+    // Only the visible ones are waited on: a recogniser may match its part while
+    // it is hidden, and the first match would then be one that never shows.
     // To Playwright a timeout of 0 is no timeout at all.
-    await any.first().waitFor({ state: 'visible', timeout: Math.max(left, 1) });
+    await any
+      .filter({ visible: true })
+      .first()
+      .waitFor({ state: 'visible', timeout: Math.max(left, 1) });
     return 'arrived';
   } catch (error) {
     if (error instanceof Error && error.name === 'TimeoutError') return 'late';
@@ -192,6 +198,8 @@ async function arrival(any: Locator, left: number): Promise<'arrived' | 'late'> 
 interface Traffic {
   /** Resolves once the act is done and no request has been in flight for the quiet period. */
   quiet(): Promise<'quiet'>;
+  /** Whether no request has begun since the page last went quiet. */
+  still(): boolean;
   /** The requests still in flight, as `GET /path`. */
   flying(): string[];
   stop(): void;
@@ -216,13 +224,20 @@ function watch(page: Page, period: number): Traffic {
   let settle: ((value: 'quiet') => void) | undefined;
   // A deadline, not a look: it is armed when the last request ends and
   // disarmed when another begins, so it fires only on a full quiet period.
+  let still = false;
   const arm = (): void => {
     clearTimeout(timer);
-    if (settle !== undefined && flying.size === 0) timer = setTimeout(settle, period, 'quiet');
+    const settled = settle;
+    if (settled === undefined || flying.size > 0) return;
+    timer = setTimeout(() => {
+      still = true;
+      settled('quiet');
+    }, period);
   };
   const began = (request: Request): void => {
     if (NOT_AWAITED.has(request.resourceType())) return;
     flying.add(request);
+    still = false;
     clearTimeout(timer);
   };
   const ended = (request: Request): void => {
@@ -237,6 +252,7 @@ function watch(page: Page, period: number): Traffic {
         settle = resolve;
         arm();
       }),
+    still: () => still,
     flying: () => [...flying].map((request) => `${request.method()} ${new URL(request.url()).pathname}`),
     stop: () => {
       clearTimeout(timer);
