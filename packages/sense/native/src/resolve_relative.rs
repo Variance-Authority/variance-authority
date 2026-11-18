@@ -38,7 +38,8 @@ impl Resolvers {
             return Listed::Unsettled;
         }
         let name = path.rsplit_once('/').map_or(path.as_str(), |(_, name)| name);
-        let extension = name.rfind('.').map(|at| &name[at..]);
+        // A name that only starts with a dot, such as `.js`, has no extension.
+        let extension = name.rfind('.').filter(|&at| at > 0).map(|at| &name[at..]);
         let aliased = extension.and_then(|extension| EXTENSION_ALIASES.iter().find(|(written, _)| *written == extension));
         if let Some((written, aliased)) = aliased {
             let stem = &path[..path.len() - written.len()];
@@ -149,6 +150,8 @@ mod tests {
             "src/data/index.ts",
             "src/linked.ts",
             "src/linked.js",
+            "src/.ts",
+            "src/.js",
             "up/sibling.ts",
         ];
         for path in paths {
@@ -174,6 +177,7 @@ mod tests {
             ("./folder", Some("src/folder/index.ts")),
             ("./package", None),
             ("./data", Some("src/data.json")),
+            ("./.js", Some("src/.js")),
             ("./linked", None),
             ("../up/sibling", Some("up/sibling.ts")),
             ("./missing", None),
