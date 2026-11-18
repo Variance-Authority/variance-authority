@@ -1,9 +1,9 @@
 //! What a Python file asks for and what it publishes.
 //!
-//! The reading half of [`python.ts`](../../../src/python.ts), which holds the
-//! reasoning: one statement is several modules, an import executes the packages
-//! above it, and `if TYPE_CHECKING:` is `import type`. This file is the walk and
-//! nothing else — every judgement it encodes is argued there, and
+//! The reading half of [`resolve_python.rs`](../resolve_python.rs), which holds
+//! the reasoning: one statement is several modules, an import executes the
+//! packages above it, and `if TYPE_CHECKING:` is `import type`. This file is the
+//! walk and nothing else — every judgement it encodes is argued there, and
 //! `python.test.ts` holds it to that argument.
 
 use tree_sitter::Node;

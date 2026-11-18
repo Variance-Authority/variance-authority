@@ -166,7 +166,7 @@ fn a_replace_ref_even_packed_keeps_the_store_shut() {
 
     assert!(Store::open(&root).is_none());
     assert!(super::Objects::open(&root).is_none(), "the scan's reader refuses it too");
-    assert!(super::head(&root).is_some_and(|head| head.blobs.is_none()), "the listing leaves it to `ls-tree`");
+    assert!(super::head(&root).is_some_and(|head| head.blobs().is_none()), "the listing leaves it to `ls-tree`");
 }
 
 #[test]
@@ -176,7 +176,7 @@ fn a_loose_replace_ref_seen_from_a_linked_worktree_keeps_the_store_shut() {
     let _ = std::fs::remove_dir_all(&linked);
     git(&root, &["worktree", "add", "-q", "--detach", linked.to_str().unwrap()]);
     assert!(super::Objects::open(&linked).is_some());
-    assert!(super::head(&linked).is_some_and(|head| head.blobs.is_some()));
+    assert!(super::head(&linked).is_some_and(|head| head.blobs().is_some()));
 
     let a = git(&root, &["rev-parse", "HEAD:a.ts"]);
     let b = git(&root, &["rev-parse", "HEAD:b.ts"]);
@@ -184,7 +184,7 @@ fn a_loose_replace_ref_seen_from_a_linked_worktree_keeps_the_store_shut() {
 
     assert!(Store::open(&linked).is_none());
     assert!(super::Objects::open(&linked).is_none());
-    assert!(super::head(&linked).is_some_and(|head| head.blobs.is_none()));
+    assert!(super::head(&linked).is_some_and(|head| head.blobs().is_none()));
     std::fs::remove_dir_all(&linked).unwrap();
 }
 
@@ -341,7 +341,7 @@ fn the_blobs_of_head_are_listed_as_ls_tree_lists_them_from_the_root() {
     git(&root, &["commit", "--quiet", "-m", "gitlink"]);
 
     for at in [root.clone(), root.join("apps/x"), root.join("apps/x/deep")] {
-        let listed = super::head(&at).and_then(|head| head.blobs).expect("a tree HEAD holds is listed");
+        let listed = super::head(&at).and_then(|head| head.blobs()).expect("a tree HEAD holds is listed");
         let ours: Vec<(Vec<u8>, String, String)> = listed
             .into_iter()
             .map(|(path, id, link)| (path, id.to_string(), if link { "120000".to_owned() } else { String::new() }))
@@ -358,5 +358,5 @@ fn a_root_head_does_not_hold_lists_nothing() {
     write(&root, "new/b.ts", A);
 
     let at = root.join("new");
-    assert_eq!(super::head(&at).and_then(|head| head.blobs), Some(Vec::new()));
+    assert_eq!(super::head(&at).and_then(|head| head.blobs()), Some(Vec::new()));
 }

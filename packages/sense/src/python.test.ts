@@ -3,10 +3,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { native } from './addon.js';
-import { pythonRootsOf, resolvePython } from './python.js';
 import type { Read } from './read.js';
 import { scanRelations } from './scan.js';
-import { worldIn } from './world.js';
 
 /**
  * What a Python import statement says, and what it only implies.
@@ -109,47 +107,6 @@ describe('what a Python file asks for', () => {
   });
 });
 
-describe('where a Python specifier lands', () => {
-  const tree = [
-    'pyproject.toml',
-    'a/pyproject.toml',
-    'a/src/pkg/__init__.py',
-    'a/src/pkg/one.py',
-    'b/pyproject.toml',
-    'b/src/pkg/two.py',
-    'b/src/pkg/deep/three.py',
-  ];
-  const world = worldIn(tree);
-
-  it('takes a source root from every manifest, and from `src` under each', () => {
-    // Nineteen roots in a real monorepo; here, the two `src` directories a
-    // manifest sits above, plus the repository itself.
-    expect(pythonRootsOf(tree)).toEqual(['', 'a/src', 'a', 'b/src', 'b']);
-  });
-
-  it('unions the source roots, because one package can be spread across them', () => {
-    // `pkg` has no single home: `pkg.one` is under `a/src` and `pkg.two` under
-    // `b/src`, and only their union resolves both. A walk up from the importing
-    // file finds one of the two.
-    expect(resolvePython({ from: 'a/src/pkg/one.py', request: 'pkg.two', world }))
-      .toEqual(['b/src/pkg/two.py']);
-    expect(resolvePython({ from: 'b/src/pkg/two.py', request: 'pkg.one', world }))
-      .toEqual(['a/src/pkg/one.py']);
-  });
-
-  it('counts the leading dots as the number of packages to climb', () => {
-    expect(resolvePython({ from: 'b/src/pkg/deep/three.py', request: '.three', world }))
-      .toEqual(['b/src/pkg/deep/three.py']);
-    expect(resolvePython({ from: 'b/src/pkg/deep/three.py', request: '..two', world }))
-      .toEqual(['b/src/pkg/two.py']);
-  });
-
-  it('prefers the module to the package of the same name', () => {
-    expect(resolvePython({ from: 'a/src/pkg/one.py', request: 'pkg', world }))
-      .toEqual(['a/src/pkg/__init__.py']);
-  });
-});
-
 describe('a Python tree, scanned', () => {
   let root: string;
 
@@ -196,6 +153,28 @@ describe('a Python tree, scanned', () => {
     // `.py` is not a module extension, and a target that is not code is an
     // asset — which would hide every Python edge from a code-only traversal.
     expect(lens?.edges?.every((edge) => edge.kind === 'imports')).toBe(true);
+  });
+});
+
+describe('a repository of its own, asked for', () => {
+  // A walk steps over a checkout inside a checkout, but one the caller names is
+  // the subject: what its files import resolves among its files.
+  it('resolves what its Python files import among its own files', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-python-nested-'));
+    try {
+      await write(root, 'nested/.git/HEAD', 'ref: refs/heads/main\n');
+      await write(root, 'nested/pyproject.toml', '[project]\nname = "nested"\n');
+      await write(root, 'nested/src/pkg/__init__.py', '');
+      await write(root, 'nested/src/pkg/a.py', 'import pkg.b\n');
+      await write(root, 'nested/src/pkg/b.py', 'VALUE = 1\n');
+
+      const records = await scanRelations({ root, dirs: ['nested'], digests: false });
+      const a = records.find((record) => record.file === 'nested/src/pkg/a.py');
+
+      expect((a?.edges ?? []).map((edge) => edge.to)).toContain('nested/src/pkg/b.py');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

@@ -65,7 +65,6 @@ function oracle(root: string, options: ResolveOptions = {}): string | undefined 
     root,
     from: join(root, IMPORTER),
     request: '@acme/lib',
-    language: 'module',
   });
 }
 

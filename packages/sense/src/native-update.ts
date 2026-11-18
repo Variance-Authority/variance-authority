@@ -6,13 +6,15 @@
  * which records still stood. The addon answers that from the chain in place and
  * from the tree, opens only the files past them, and writes one delta
  * (`native/src/source_update.rs`). What stays this side's is the configuration
- * digest, which `reuse.ts` derives from the resolver options. The addon
- * declines with `null` — no chain, a legacy one, another configuration, a file
- * it does not read — and the caller runs the update it always had.
+ * digest, which `reuse.ts` derives from the resolver options. A chain the
+ * addon cannot stand on is rebuilt there from the tree. A directory git does
+ * not list is indexed from a walk of the disk, every file read again on every
+ * update, under the shape no listed scan reuses.
  */
 
 // compass: variance-authority.reach.source-index
 
+import { native, nativeRefusal } from './addon.js';
 import type { NativeGitTree } from './native.js';
 import { CODE_EXTENSIONS } from './language.js';
 import { BUILTINS } from './native-index-graph.js';
@@ -20,7 +22,7 @@ import { LARGEST_FILE } from './scan.js';
 import { READABLE } from './language.js';
 import { stepped, type Progress } from './progress.js';
 import type { ResolveOptions } from './resolve.js';
-import { configOf } from './reuse.js';
+import { configOf, unlistedShapeOf } from './reuse.js';
 import { changeTreeOf } from './tree.js';
 import { withDeclaredTsconfig } from './typescript.js';
 
@@ -38,6 +40,8 @@ export interface NativeUpdateOptions {
   readonly readable: string[];
   /** The parse stores read before a file is opened, the first written: `parseStoresFor`. */
   readonly stores?: string[];
+  /** `false` reads every file off the working tree. */
+  readonly packs?: boolean;
 }
 /** `Updated` in `native/src/source_update.rs`. */
 export interface NativeUpdated {
@@ -46,6 +50,8 @@ export interface NativeUpdated {
   readonly parsed: number;
   readonly published: boolean;
   readonly refused?: string;
+  readonly rebuilt?: 'damaged' | 'other-version';
+  readonly written?: number;
 }
 /** What the addon did, and the listing it took. */
 export interface NativelyUpdated {
@@ -53,30 +59,44 @@ export interface NativelyUpdated {
   readonly reread: number;
   readonly parsed: number;
   readonly refused?: string;
-  readonly listing: NativeGitTree;
+  /** Why the chain on disk was rebuilt rather than updated, when it was. */
+  readonly rebuilt?: 'damaged' | 'other-version';
+  /** The format version another release wrote it in, when `rebuilt` is `other-version`. */
+  readonly written?: number;
+  /** Git's listing, for a step after this one to carry. Absent when git does not list the directory. */
+  readonly listing?: NativeGitTree;
 }
 
 /**
- * Update the index at `index` over `dirs` of the checkout at `root` in the addon, or `undefined` when the JavaScript update has to.
+ * Update the index at `index` over `dirs` of the checkout at `root` in the addon.
  * `reading` names the read as progress says it: an index started from the stores has no last index to read the changes since.
+ * `packs: false` reads every file off the working tree rather than out of Git's object store.
  */
 export async function updateNatively(
   root: string,
   index: string,
   progress?: Progress,
   dirs: readonly string[] = ['.'],
-  stores?: readonly string[],
+  stores?: Promise<readonly string[] | undefined>,
   reading = 'reading the files that changed since the last index',
-): Promise<NativelyUpdated | undefined> {
+  packs?: boolean,
+): Promise<NativelyUpdated> {
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
-  const held = tree?.native;
-  if (held?.vouched) progress?.('Watchman reports nothing moved since the listing the index holds, so git listed nothing')?.();
-  if (tree === undefined || held?.updateIndex === undefined) return undefined;
+  const listed = tree?.native;
+  if (listed?.vouched) progress?.('Watchman reports nothing moved since the listing the index holds, so git listed nothing')?.();
+  const addon = native();
+  if (addon === undefined) throw new Error(`no source index for ${root}: the native scanner did not load (${nativeRefusal() ?? ''})`);
+  const held = listed ?? await stepped(progress, `walking ${root}, which git does not list`, () => addon.diskTree(root, [...dirs]));
   // The scan this update stands in for reads the same setting, so the digest
   // it compares against the chain is the one that scan wrote.
   const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
-  const { config, aliases } = await configOf({ root, tree, options: tsconfig === undefined ? {} : { tsconfig } });
-  const done = await stepped(progress, reading, () => held.updateIndex!({
+  const options = tsconfig === undefined ? {} : { tsconfig };
+  const { config, aliases } = tree === undefined
+    ? { config: (await unlistedShapeOf({ root, options })).config, aliases: undefined }
+    : await configOf({ root, tree, options });
+  // Asked of git while it listed: the stores are needed only now.
+  const read = await stores;
+  const done = await stepped(progress, reading, () => held.updateIndex({
     root,
     index,
     config,
@@ -86,14 +106,16 @@ export async function updateNatively(
     builtins: BUILTINS,
     codeExtensions: CODE_EXTENSIONS,
     readable: [...READABLE],
-    ...(stores === undefined ? {} : { stores: [...stores] }),
+    ...(read === undefined ? {} : { stores: [...read] }),
+    ...(packs === undefined ? {} : { packs }),
   }));
-  if (done === null) return undefined;
   return {
     files: done.files,
     reread: done.reread,
     parsed: done.parsed,
     ...(done.refused === undefined || done.refused === null ? {} : { refused: done.refused }),
-    listing: held,
+    ...(done.rebuilt === undefined || done.rebuilt === null ? {} : { rebuilt: done.rebuilt }),
+    ...(done.written === undefined || done.written === null ? {} : { written: done.written }),
+    ...(listed === undefined ? {} : { listing: listed }),
   };
 }

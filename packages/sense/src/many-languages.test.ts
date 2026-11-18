@@ -1,18 +1,17 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { keyFor, parseWay } from './files.js';
-import { native } from './addon.js';
 import { scanRelations } from './scan.js';
 
 /**
  * One scan, one record space, one graph — over five languages at once.
  *
- * A language is a reader and a resolution algorithm and nothing above
- * [`record.ts`](./record.ts) learns a new type
+ * A language is a reader and a resolution algorithm and nothing above the
+ * record learns a new type
  * ([ADR-0066](../../../docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
  * What that has to mean in practice is this: a repository holding JavaScript,
  * Python, Rust, Java and Swift produces one pile of records the fold walks
@@ -103,24 +102,22 @@ describe('a repository of five languages, scanned once', () => {
 });
 
 describe('a Rust crate whose paths climb the module tree', () => {
-  it('parses each file once, though a `super` reads the `mod` lines of the file above', async () => {
-    // The module tree is the scan's own parse, not a second reading of the crate.
+  it('lands a `super` and a `crate` path on the file whose `mod` lines declare them', async () => {
+    // That a neighbour the batch read is not read again is `held_first` in
+    // `native/src/batch.rs`, asserted there: the parse count does not cross N-API.
     const root = await mkdtemp(join(tmpdir(), 'variance-rust-once-'));
     await write(root, 'Cargo.toml', '[package]\nname = "held"\n');
     await write(root, 'src/lib.rs', 'mod lens;\nmod view;\nstruct Lens;\n');
     await write(root, 'src/lens.rs', 'use super::Lens;\n');
     await write(root, 'src/view.rs', 'fn draw(lens: crate::Lens) {}\n');
-    const addon = native();
-    if (addon === undefined) throw new Error('the native addon did not load');
-    const read = vi.spyOn(addon, 'readLanguage');
     try {
       const records = await scanRelations({ root, dirs: ['.'] });
-      const parsed = read.mock.calls.filter(([language]) => language === 'rust').map(([, file]) => file).sort();
+      const edgesTo = (file: string) => records.find((record) => record.file === file)?.edges?.map((edge) => edge.to);
 
-      expect(records.find((record) => record.file === 'src/lens.rs')?.edges?.map((edge) => edge.to)).toEqual(['src/lib.rs']);
-      expect(parsed).toEqual(['src/lens.rs', 'src/lib.rs', 'src/view.rs']);
+      expect(edgesTo('src/lens.rs')).toEqual(['src/lib.rs']);
+      expect(edgesTo('src/view.rs')).toEqual(['src/lib.rs']);
+      expect(edgesTo('src/lib.rs')).toEqual(['src/lens.rs', 'src/view.rs']);
     } finally {
-      read.mockRestore();
       await rm(root, { recursive: true, force: true });
     }
   });

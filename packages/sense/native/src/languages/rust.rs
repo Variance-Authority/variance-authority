@@ -1,10 +1,9 @@
 //! What a Rust file asks for and what it publishes.
 //!
-//! [`rust.ts`](../../../src/rust.ts) carries the argument, and `rust.test.ts`
-//! holds this reader to it: a `mod` declaration names a file and can be a hole, a
-//! `use` path names an item whose module prefix is a fact about the disk, so
-//! every `use` is guessed and a written `mod` beats it. Resolution stays in
-//! TypeScript.
+//! [`resolve_rust.rs`](../resolve_rust.rs) carries the argument, and
+//! `rust.test.ts` holds this reader to it: a `mod` declaration names a file and
+//! can be a hole, a `use` path names an item whose module prefix is a fact about
+//! the disk, so every `use` is guessed and a written `mod` beats it.
 
 use std::collections::{HashMap, HashSet};
 

@@ -5,9 +5,8 @@
  * backs. The boundary between "this file says it depends on `./x`" and "`./x` is
  * that file over there" is deliberate: resolution needs a disk and a resolution
  * algorithm, and this needs neither, so every rule about what counts as an edge
- * is assertable against a string. The other readers sit beside this one —
- * [`style.ts`](./style.ts), [`python.ts`](./python.ts), [`rust.ts`](./rust.ts),
- * [`jvm.ts`](./jvm.ts), [`swift.ts`](./swift.ts) — and everything below the
+ * is assertable against a string. The other readers sit in the native addon —
+ * `native/src/style.rs` and `native/src/languages/` — and everything below the
  * headings here is about the module one.
  *
  * ## A request is not a name
@@ -148,7 +147,7 @@ export interface Request {
    * modules that might exist — `a`, `a.b`, and `a.b.c` if `c` is a submodule
    * rather than a name `a/b/__init__.py` defines — and nothing in the statement
    * says which. Emitting only what is written misses a tenth of the first-party
-   * edges in a real repository ([`python.ts`](./python.ts) records the count),
+   * edges in a real repository (`native/src/languages/python.rs`),
    * so the rest are derived and marked.
    *
    * A guess that resolves is an ordinary edge. A guess that does not is
@@ -169,7 +168,7 @@ export interface Request {
    * so the reader asks for every prefix of the path, each bound to its last
    * segment. A prefix names that item only where the module tree leaves
    * exactly one segment past the modules; any other prefix names nothing, and
-   * is silent the way a guess is ([`rust.ts`](./rust.ts)).
+   * is silent the way a guess is (`native/src/resolve_rust.rs`).
    */
   readonly item?: boolean;
 

@@ -1,16 +1,17 @@
 //! What a Swift file asks for and what it publishes.
 //!
-//! The argument for the shape is [`swift.ts`](../../../src/swift.ts), and
+//! The argument for the shape is [`resolve_swift.rs`](../resolve_swift.rs), and
 //! `swift.test.ts` holds this reader to it: `import Core` names a **target**, so an
 //! import becomes an edge to every file in it and a file's own target becomes
 //! edges to every file beside it. Resolution — the target index and the
-//! projection onto paths — stays in TypeScript, because it reads a tree and not
-//! a file. What is here is the reader, and [`targets`], which reads the one file
-//! resolution needs parsed: `Package.swift`.
+//! projection onto paths — is there, because it reads a tree and not a file.
+//! What is here is the reader, and [`targets`], which reads the one file
+//! resolution needs parsed: `Package.swift`. A parse error is unknown only at
+//! the top level, the one place an `import` is allowed; `@_exported import` is
+//! read as an ordinary import, one hop short of its transitive reach.
 
 use std::collections::HashSet;
 
-use serde::Serialize;
 use tree_sitter::{Node, Tree};
 
 use super::shape::{Binding, Export, Kind, Read, Request};
@@ -185,7 +186,6 @@ fn declared(node: Node, source: &str) -> Option<String> {
 }
 
 /// A target a manifest declares: its name, and the directory its files sit in.
-#[derive(Serialize)]
 pub struct Target {
     pub name: String,
     pub path: String,

@@ -90,10 +90,8 @@ import type { ParseCache, Parsed } from '../cache.js';
 import type { Digest } from '@variance-authority/core/format';
 import { keyFor, parseWay } from '../files.js';
 import { MODULE_EXTENSIONS } from '../read.js';
-import { parsedOnce } from '../record.js';
 import { realPath, resolversFor, type ResolveOptions } from '../resolve.js';
 import { withDeclaredTsconfig } from '../typescript.js';
-import { worldIn } from '../world.js';
 import { rememberDiff, rememberedDiff } from './cache.js';
 import { applied, reach, targetFrom, type Said } from './join.js';
 
@@ -223,12 +221,7 @@ export async function taintRecords(
   // the scan read or resolved an edge to is one the listing held.
   // FIXME: a tracked `build/` file no record names resolves to nothing, where
   // any other file outside the scanned directories arrives `unknown`.
-  // The Rust resolver reads the `mod` lines off the world's parses, which the scan's cache holds.
-  resolvers.tree = worldIn(
-    records.flatMap((record) => [record.file, ...(record.edges ?? []).map((edge) => edge.to)]),
-    root,
-    (file) => parsedOnce({ root, file, ...(options.cache === undefined ? {} : { cache: options.cache }) }),
-  );
+  resolvers.listed = new Set(records.flatMap((record) => [record.file, ...(record.edges ?? []).map((edge) => edge.to)]));
   const readers = taints.filter((taint) => taint.read !== undefined);
   const scanned = new Set(records.map((record) => record.file));
   const unwalked = new Set<string>();

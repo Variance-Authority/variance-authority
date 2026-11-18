@@ -5,7 +5,7 @@
 //! `crate::a::Name` is another. Each is told where it starts — the crate root,
 //! the file's own module, its parent — and nothing more: which segments are
 //! modules and which is the item is the module tree's answer, and
-//! [`rust.ts`](../../../src/rust.ts) reads it from the `mod` lines.
+//! [`resolve_rust.rs`](../resolve_rust.rs) reads it from the `mod` lines.
 
 use std::collections::{HashMap, HashSet};
 
@@ -100,7 +100,7 @@ pub(super) fn qualified(node: Node, source: &str, scope: &Scope, found: &mut Vec
 /// nothing in `crate::map::JourneyMap::new()` says whether `map` is a module,
 /// or whether `new` is a function of the module or of the type. The module
 /// tree answers, by landing only the prefix that leaves one segment past the
-/// modules ([`rust.ts`](../../../src/rust.ts)).
+/// modules ([`resolve_rust.rs`](../resolve_rust.rs)).
 fn named(full: Vec<String>, line: u32, found: &mut Vec<Named>) {
     let anchor = full.iter().take_while(|segment| matches!(segment.as_str(), "crate" | "self" | "super")).count();
     for end in anchor + 1..=full.len() {

@@ -54,9 +54,9 @@ affected.missing;    // changed paths the graph does not hold
 ```
 
 `scanRelations(options)` returns `Promise<readonly FileRecord[]>`.
-`readModule(file, contents)` and `readStyle(file, contents)` are exported from
-`@variance-authority/sense/read` when you already have the source text: they
-read requests and names without resolving anything or opening the checkout.
+`readModule(file, contents)` is exported from `@variance-authority/sense/read`
+when you already have a module's source text: it reads requests and names
+without resolving anything or opening the checkout.
 
 ## Lookup map
 
@@ -66,7 +66,7 @@ read requests and names without resolving anything or opening the checkout.
 | Check whether a file extension is read | [Extensions](#extensions) |
 | Reach a workspace package's source instead of its `dist` | [Workspace packages](#workspace-packages) |
 | Resolve a `@/…` alias | [Resolution](#resolution) |
-| Read source text an editor, VFS or build already has | [`readModule` and `readStyle`](#install-and-call) |
+| Read source text an editor, VFS or build already has | [`readModule`](#install-and-call) |
 | Interpret one returned file | [`FileRecord`](#file-records) |
 | Distinguish a missing package from an incomplete edge list | [Unresolved and unknown](#unresolved-and-unknown) |
 | Ask which edge kinds a runtime walk follows | [Graph handoff](#graph-handoff) |

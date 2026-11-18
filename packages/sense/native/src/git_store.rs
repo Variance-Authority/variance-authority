@@ -155,16 +155,16 @@ impl Objects {
 
 }
 
-/// Where the root lies in its checkout, and the blobs `HEAD` holds below it.
+/// Where the root lies in its checkout, and the tree `HEAD` holds.
 pub(crate) struct Head {
+    /// The directory asked about.
+    root: PathBuf,
     /// `--show-prefix`: the root's place in the checkout, from its top.
     pub(crate) prefix: String,
-    /// Every blob below the root, as `ls-tree -r HEAD -- .` lists it run there:
-    /// in tree order, which is byte order over the path, each path from the
-    /// root, with whether it is a symbolic link. A gitlink is a commit, not a
-    /// blob, and is left out. `None` where the store will not open, or a tree
-    /// is missing or does not decode, and `ls-tree` answers instead.
-    pub(crate) blobs: Option<Vec<(Vec<u8>, ObjectId, bool)>>,
+    /// `HEAD^{tree}`, as git prints it.
+    tree: String,
+    /// `--git-path objects`: the object store, from the root.
+    objects: PathBuf,
     /// `--show-object-format`: `sha1` or `sha256`.
     pub(crate) format: String,
     /// `--show-toplevel`: the top of the checkout.
@@ -188,10 +188,23 @@ pub(crate) fn head(root: &Path) -> Option<Head> {
     // is none git can be read by.
     let [prefix, format, objects, common, index, git_dir, top, tree] = <[&str; 8]>::try_from(located.lines().collect::<Vec<_>>()).ok()?;
     let (common, index, git_dir, top) = (root.join(common), root.join(index), PathBuf::from(git_dir), PathBuf::from(top));
-    let blobs = replaced(root)
-        .and_then(|replaced| Objects::at(format, &root.join(objects), replaced))
-        .and_then(|objects| below(&mut objects.reader(), ObjectId::from_hex(tree.as_bytes()).ok()?, prefix));
-    Some(Head { prefix: prefix.to_owned(), blobs, format: format.to_owned(), top, git_dir, common, index })
+    let (root, tree, objects) = (root.to_owned(), tree.to_owned(), root.join(objects));
+    Some(Head { root, prefix: prefix.to_owned(), tree, objects, format: format.to_owned(), top, git_dir, common, index })
+}
+
+impl Head {
+    /// Every blob below the root, as `ls-tree -r HEAD -- .` lists it run there:
+    /// in tree order, which is byte order over the path, each path from the
+    /// root, with whether it is a symbolic link. A gitlink is a commit, not a
+    /// blob, and is left out. `None` where the store will not open, or a tree
+    /// is missing or does not decode, and `ls-tree` answers instead.
+    ///
+    /// Apart from where the root lies, so that the listing reads the tree while
+    /// the working tree is walked, rather than before it.
+    pub(crate) fn blobs(&self) -> Option<Vec<(Vec<u8>, ObjectId, bool)>> {
+        let objects = Objects::at(&self.format, &self.objects, replaced(&self.root)?)?;
+        below(&mut objects.reader(), ObjectId::from_hex(self.tree.as_bytes()).ok()?, &self.prefix)
+    }
 }
 
 /// The blobs below `prefix` in the tree `tree`; a prefix the tree does not

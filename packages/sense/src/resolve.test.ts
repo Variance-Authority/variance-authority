@@ -122,7 +122,6 @@ describe('two files in one directory under configs that disagree', () => {
         root: real,
         from: join(real, file),
         request: '@fixture/target',
-        style: false,
       });
 
     // A resolver with an empty memo is the only ground truth available — it

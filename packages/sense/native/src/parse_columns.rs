@@ -21,7 +21,7 @@ use crate::segment::{u32s, u8s, Collected, Column, Strings, NONE};
 use crate::source_size::Size;
 
 /// One parse row, as the encoder asks for it.
-pub trait ParseRow {
+pub trait ParseRow: Sync {
     /// Every string the row's columns will name, the key's two parts excluded.
     fn strings<'s>(&'s self, into: &mut Collected<'s>);
     /// The row's columns. `row` has already been called for it.
@@ -178,8 +178,14 @@ fn span(into: &mut [Vec<u32>; 3], texts: &mut Heap, value: Span) {
 }
 
 impl ParseColumns {
-    /// Every row, keyed and sorted by the caller, written in that order.
+    /// Every row, keyed and sorted by the caller, written in that order. Runs
+    /// of rows are written side by side and joined: the bytes are the ones one
+    /// pass in order writes.
     pub fn of<P: ParseRow>(rows: &[(&str, &P)], strings: &Strings) -> Self {
+        Self::in_runs(rows, strings, rows.len().div_ceil(rayon::current_num_threads() * 4).max(1024))
+    }
+
+    fn run<P: ParseRow>(rows: &[(&str, &P)], strings: &Strings) -> Self {
         let mut columns = Self { request_bindings: vec![0], binding_member_within: vec![0], ..Self::default() };
         for (key, row) in rows {
             let (digest, way) = key.split_once('\0').unwrap_or((key, ""));
@@ -466,3 +472,10 @@ impl ParseColumns {
 pub fn request_flags(guessed: bool, item: bool) -> u8 {
     u8::from(guessed) | (u8::from(item) << 1)
 }
+
+#[path = "parse_columns_runs.rs"]
+mod runs;
+
+#[cfg(test)]
+#[path = "parse_columns_tests.rs"]
+mod tests;

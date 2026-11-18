@@ -117,7 +117,7 @@ impl<'l> Loads<'l> {
     }
 
     fn request(&self, value: &str, kind: Kind, at: u32) -> Request {
-        Request { value: value.to_owned(), kind, bindings: Vec::new(), line: self.lines.at(at), republishes: false }
+        Request { value: value.to_owned(), kind, bindings: Vec::new(), line: self.lines.at(at), republishes: false, guessed: false, item: false }
     }
 }
 
