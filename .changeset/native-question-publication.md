@@ -13,10 +13,11 @@ Workspace questions keep source facts in the native index
 ranking and README mentions in the native reader. Authoritative `changed` paths
 use the same native Git listing and worktree acquisition as ordinary updates.
 
-The `records` and arbitrary `taints` options of workspace reads are removed.
-Use the `tree` callback to query the published graph. Test loads of real modules
-beside mocks remain in that graph. Workspace snapshots also use `tree` in place
-of `records`; old runtime callbacks receive an explicit refusal.
+The `records` option of workspace reads is removed. Use the `tree` callback to
+query the published graph. Workspace snapshots also use `tree` in place of
+`records`. `taints` keeps its contract: addition-only taints, `--taint-file`
+among them, join the tree in the native reader, and a subtractive taint is
+refused as before. Test loads of real modules beside mocks remain in that graph.
 
 Source-backed selection and name questions use batched native graph queries.
 The graph stays in Rust, including journey selection. The former JavaScript

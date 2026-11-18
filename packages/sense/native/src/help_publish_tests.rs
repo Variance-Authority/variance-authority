@@ -138,15 +138,16 @@ fn component_sources_read_latest_scoped_declarations_and_identity_from_the_opene
     written(&path, Over::Nothing, &[], &[&before, &after], &[], 0).unwrap();
     let mut opened = open_index(path.clone()).unwrap();
     std::fs::remove_file(&path).unwrap();
-    let answer = opened.component_sources(vec!["src".into()]).unwrap();
+    let answer = opened.component_sources(vec!["src".into()], None, None).unwrap();
     assert_eq!(answer.components.iter().map(|row| (row.name.as_str(), row.file.as_str(), row.line, row.via.as_str())).collect::<Vec<_>>(),
         [("Panel", "src/a.ts", 11, "const"), ("Panel", "src/nested/b.ts", 7, "class")]);
-    assert_eq!(answer.files, 3);
+    assert_eq!(answer.files, 2);
+    assert_eq!(opened.component_sources(vec!["src".into()], None, Some(Vec::new())).unwrap().files, 3);
     assert!(answer.digest.starts_with("v1:"));
-    assert_ne!(opened.component_sources(vec!["src/nested".into()]).unwrap().digest, answer.digest);
-    assert_eq!(opened.component_sources(vec!["src/".into(), "src/nested".into()]).unwrap().digest, answer.digest);
-    assert!(opened.component_sources(vec![".".into()]).is_err());
+    assert_ne!(opened.component_sources(vec!["src/nested".into()], None, None).unwrap().digest, answer.digest);
+    assert_eq!(opened.component_sources(vec!["src/".into(), "src/nested".into()], None, None).unwrap().digest, answer.digest);
+    assert!(opened.component_sources(vec![".".into()], None, None).is_err());
     opened.close();
-    assert!(opened.component_sources(vec!["src".into()]).is_err());
+    assert!(opened.component_sources(vec!["src".into()], None, None).is_err());
     std::fs::remove_dir_all(directory).unwrap();
 }

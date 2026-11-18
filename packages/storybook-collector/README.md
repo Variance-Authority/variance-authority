@@ -80,10 +80,9 @@ export default storybookCollector({
 `source.dirs` selects directories inside your checkout from the
 [source index](https://variance-authority.dev/docs/source-index). Paths are relative to where you run
 `variance`, or absolute inside that checkout. Component declarations and their
-locations come from the published generation. Run `variance index` after
-changing source; a missing index is built locally and refused in CI. Untracked Git-ignored files enter the index only when an explicit relative
-import reaches them. The index owns file eligibility;
-`source.extensions` and `source.exclude` are not options.
+locations come from the published generation. The collector brings the index
+up to the checkout before it reads, in CI too. Untracked Git-ignored files enter the index only when an explicit relative
+import reaches them.
 
 Without `source`, the report still names components without these source
 locations. A directory list matching no published source file is refused.

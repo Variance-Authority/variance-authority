@@ -318,12 +318,15 @@ fn snapshot_symlinks_and_virtual_output_sources_keep_their_owners() {
     assert!(scan.declared(&root.join("packages/b/src/fabricated")).is_empty());
     let resolvers = Resolvers::over(Tsconfig::Off, None, scan);
     let from = root.join("packages/b/src/importer.ts");
+    // Another casing is the operating system's to answer: a file on a
+    // case-insensitive volume, nothing on a case-sensitive one.
+    let cased = root.join("SHARED/target.ts").exists().then_some("shared/target.ts");
     for (request, expected) in [
         ("../dist/index.js", Some("packages/b/src/index.ts")),
         ("./fabricated/missing.js", None),
         ("../../../linked/target.ts", Some("shared/target.ts")),
         ("../../../linked/fabricated/missing.js", None),
-        ("../../../SHARED/target.ts", Some("shared/target.ts")),
+        ("../../../SHARED/target.ts", cased),
     ] {
         assert_eq!(resolvers.resolve(&root, &from, request, None).as_deref(), expected, "{request}");
     }

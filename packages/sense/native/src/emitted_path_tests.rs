@@ -6,8 +6,8 @@ use super::Emitted;
 use crate::resolve::{Resolvers, Tsconfig};
 
 #[test]
-fn listed_resolution_preserves_the_six_noncanonical_afm_requests() {
-    let root = crate::git_fixture::repository("listed-afm-request-spellings", &[
+fn listed_resolution_preserves_the_six_noncanonical_requests() {
+    let root = crate::git_fixture::repository("listed-request-spellings", &[
         ("tsconfig.json", br#"{"compilerOptions":{"baseUrl":".","paths":{
             "rest/*":["help-center/src/rest/*"],"routes/*":["help-center/src/routes/*"],
             "@atlassian/editor-plugin-ai/*":["platform/packages/editor/editor-plugin-ai/*"],

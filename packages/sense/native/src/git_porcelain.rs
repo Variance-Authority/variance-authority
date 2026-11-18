@@ -113,7 +113,9 @@ pub(crate) fn porcelain(root: &str, prefix: &[u8], status: &[u8]) -> Option<(Mov
             continue;
         };
 
-        if codes.contains(&b'D') {
+        // `DU` and `UD` are a modify/delete conflict: one side deleted the path
+        // and the other's file stands in the worktree, so the disk answers.
+        if codes.contains(&b'D') && !codes.contains(&b'U') {
             moved.insert(path.to_vec(), None);
         } else if path.ends_with(b"/") {
             // A directory git did not descend: untracked, collapsed by

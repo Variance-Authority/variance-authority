@@ -6,6 +6,7 @@ import {
   sourceIndexPath,
   stepped,
   updateSourceIndex,
+  type HelpTaint,
   type Progress,
   type SourceUpdate,
 } from '@variance-authority/sense';
@@ -109,8 +110,10 @@ export interface HelpPublication extends Pick<FromIndexOptions, 'listing' | 'pac
   /** The workspace's own index, beside which the value is published. */
   readonly own: string;
   readonly readStartedAt: string;
-  /** The tree to publish in place of the one the addon draws off the index, such as one a caller's taints joined. */
+  /** The tree to publish in place of the one the addon draws off the index. */
   readonly tree?: Uint8Array;
+  /** A caller's declarative loads, which the addon joins onto the tree it draws. */
+  readonly taints?: readonly HelpTaint[];
   readonly progress?: Progress;
 }
 
@@ -127,8 +130,8 @@ export interface HelpPublication extends Pick<FromIndexOptions, 'listing' | 'pac
 export async function publishHelp(publication: HelpPublication): Promise<{ readonly help: Help; readonly tree: Uint8Array } | undefined> {
   const { workspace, root, offerings, targets, index, progress } = publication;
   // The manifest the value is read from names it, so the next index over the same manifest writes nothing; a tree handed
-  // in, such as one a caller's taints joined, holds what no manifest says.
-  const indexDigest = publication.tree === undefined ? await indexManifestDigest(index) : undefined;
+  // in, or one a caller's taints joined, holds what no manifest says.
+  const indexDigest = publication.tree === undefined && publication.taints === undefined ? await indexManifestDigest(index) : undefined;
   const sources = offerings.flatMap((offering) => offering.entrypoints.map((entry) => ({ offering, entry })));
   const entries = sources.map(({ offering, entry }) => ({ key: `${offering.name} ${entry.subpath}`, file: pathOf(root, entry.source) }));
   const reading = await stepped(progress, 'reading what each file imports and exports, from the index', () =>

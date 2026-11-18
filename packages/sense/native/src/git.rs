@@ -178,7 +178,9 @@ fn overlay(root: &str, prefix: &[u8], status: &[u8], links: &std::collections::H
     for (path, oid) in hash_on_disk(root, prefix, &files) {
         moved.insert(path, Some(oid));
     }
-    let unhashed = dirty.into_iter().filter(|path| moved.get(path).is_some_and(Option::is_none)).collect();
+    // A named path the disk does not hold is gone, not unread: a conflict's
+    // surviving side removed by hand, or a deleted path a caller named changed.
+    let unhashed = dirty.into_iter().filter(|path| moved.get(path).is_some_and(Option::is_none) && exists(root, path)).collect();
 
     Some((moved, unhashed))
 }
@@ -210,6 +212,17 @@ fn is_file(root: &str, path: &[u8]) -> bool {
         return false;
     };
     std::fs::metadata(std::path::Path::new(root).join(path)).is_ok_and(|meta| meta.is_file())
+}
+
+/// Whether the disk holds anything at `path`, a dangling link included.
+fn exists(root: &str, path: &[u8]) -> bool {
+    #[cfg(unix)]
+    let path = std::path::Path::new(<std::ffi::OsStr as std::os::unix::ffi::OsStrExt>::from_bytes(path));
+    #[cfg(not(unix))]
+    let Ok(path) = std::str::from_utf8(path).map(std::path::Path::new) else {
+        return true;
+    };
+    std::fs::symlink_metadata(std::path::Path::new(root).join(path)).is_ok()
 }
 
 /// Blob digests for the bytes currently on disk.

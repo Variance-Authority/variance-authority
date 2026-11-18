@@ -240,6 +240,7 @@ export {
   type HelpEncode,
   type HelpEncoded,
   type HelpEntry,
+  type HelpTaint,
   type HelpReading,
   type MemberDeclarations,
   type MemberSite,
@@ -263,6 +264,5 @@ export { sourceTreeFromIndex } from './help-reading.js';
 export { publishedSelectionGraph, publishedSelectionQuestions, type PublishedSelectionOptions } from './published-selection.js';
 export type { NativeSelectionGraph } from './native-selection-graph.js';
 
-export { publishedMocks } from './published-mocks.js';
 
-export { publishedComponentSources, type PublishedComponentSources } from './published-components.js';
+export { publishedComponentSources, type ComponentSourcesOptions, type PublishedComponentSources } from './published-components.js';

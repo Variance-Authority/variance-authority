@@ -56,6 +56,13 @@ struct Held {
     tree: Option<Vec<u8>>,
 }
 
+/// A caller's declarative loads of one file: the specifiers it is said to load.
+#[napi(object)]
+pub struct HelpTaint {
+    pub file: String,
+    pub plus: Vec<String>,
+}
+
 /// Manifest metadata and publication identity; source facts stay with the reading.
 #[napi(object)]
 pub struct HelpEncode {
@@ -105,8 +112,9 @@ pub fn read_help(
     drawn: bool,
     tsconfig: Option<napi::Either<String, bool>>,
     code: Vec<String>,
+    taints: Option<Vec<HelpTaint>>,
 ) -> AsyncTask<OffThread<Option<HelpReading>>> {
-    read_help_from(root, index, entries, published, unentered, declared, drawn, tsconfig, code, None)
+    read_help_from(root, index, entries, published, unentered, declared, drawn, tsconfig, code, taints, None)
 }
 
 #[napi]
@@ -116,23 +124,28 @@ impl GitTree {
     #[allow(clippy::too_many_arguments)]
     pub fn read_help(&self, root: String, index: String, entries: Vec<HelpEntry>, published: Vec<String>,
         unentered: Vec<String>, declared: Vec<String>, drawn: bool, tsconfig: Option<napi::Either<String, bool>>,
-        code: Vec<String>, packs: Option<bool>,
+        code: Vec<String>, packs: Option<bool>, taints: Option<Vec<HelpTaint>>,
     ) -> AsyncTask<OffThread<Option<HelpReading>>> {
         let manifests = self.paths.iter().filter(|path| path.rsplit('/').next() == Some("package.json")).cloned().collect();
         let content = (packs != Some(false)).then(|| self.listing());
-        read_help_from(root, index, entries, published, unentered, declared, drawn, tsconfig, code, Some((manifests, content)))
+        read_help_from(root, index, entries, published, unentered, declared, drawn, tsconfig, code, taints, Some((manifests, content)))
     }
 }
 
 #[allow(clippy::too_many_arguments)]
 fn read_help_from(root: String, index: String, entries: Vec<HelpEntry>, published: Vec<String>,
     unentered: Vec<String>, declared: Vec<String>, drawn: bool, tsconfig: Option<napi::Either<String, bool>>,
-    code: Vec<String>, carried: Option<(Vec<String>, Option<std::sync::Arc<crate::emitted::Listing>>)>,
+    code: Vec<String>, taints: Option<Vec<HelpTaint>>,
+    carried: Option<(Vec<String>, Option<std::sync::Arc<crate::emitted::Listing>>)>,
 ) -> AsyncTask<OffThread<Option<HelpReading>>> {
     let tsconfig = crate::resolve::Tsconfig::from_js(tsconfig);
     off_thread("question read job", move || {
         let mut phases = Phases::new("question inputs", "mock resolver setup");
-        let mocking = drawn.then(|| Mocking::at(&root, tsconfig, code));
+        let mocking = drawn.then(|| {
+            let mut mocking = Mocking::at(&root, tsconfig, code);
+            mocking.given = taints.into_iter().flatten().map(|taint| (taint.file, taint.plus)).collect();
+            mocking
+        });
         phases.next("entry keys");
         let mut opened: Vec<String> = Vec::new();
         for entry in &entries {
@@ -348,24 +361,6 @@ impl OpenedIndex {
             let (_, (layer, row)) = crate::chain_lookup::record(layers, &file)?;
             let digest = layers[layer].stored.optional(layers[layer].records.digest.at(row))?.to_owned();
             Some(RecordTextName { file, digest })
-        }).collect())
-    }
-
-    /// Only the asked files' recorded mock declarations; source text stays unopened.
-    #[napi(catch_unwind)]
-    pub fn has_mocks(&self, files: Vec<String>) -> napi::Result<Vec<bool>> {
-        self.readable()?;
-        let Some(source) = self.opened.as_ref() else { return Ok(vec![false; files.len()]) };
-        let layers = source.layers();
-        Ok(files.iter().map(|file| {
-            let held = || {
-                let (_, (layer, row)) = crate::chain_lookup::record(layers, file)?;
-                let digest = layers[layer].stored.optional(layers[layer].records.digest.at(row))?;
-                let (layer, row) = crate::chain_lookup::parse(layers, digest, &crate::index::way(file))?;
-                let parses = &layers[layer].parses;
-                Some(!parses.mocks_minus.range(row).is_empty() || !parses.mocks_plus.range(row).is_empty())
-            };
-            held().unwrap_or(false)
         }).collect())
     }
 

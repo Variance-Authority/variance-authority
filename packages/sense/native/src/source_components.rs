@@ -30,18 +30,26 @@ pub struct ComponentSources {
 impl OpenedIndex {
     /// Scoped declarations and identity from the held publication, without source reads.
     #[napi(catch_unwind)]
-    pub fn component_sources(&self, dirs: Vec<String>) -> napi::Result<ComponentSources> {
+    pub fn component_sources(&self, dirs: Vec<String>, extensions: Option<Vec<String>>, exclude: Option<Vec<String>>) -> napi::Result<ComponentSources> {
         let held = self.snapshot()?.ok_or_else(|| napi::Error::from_reason("no source index is published for component attribution"))?;
-        components(held.layers(), &dirs).map_err(napi::Error::from_reason)
+        let owned = |given: Option<Vec<String>>, default: &[&str]| given.unwrap_or_else(|| default.iter().map(|&item| item.to_owned()).collect());
+        components(held.layers(), &dirs, &owned(extensions, EXTENSIONS), &owned(exclude, EXCLUDE)).map_err(napi::Error::from_reason)
     }
 }
 
-fn components(layers: &[Layer<'_>], dirs: &[String]) -> Result<ComponentSources, String> {
+/// The files that hold components, where the caller names no others.
+const EXTENSIONS: &[&str] = &[".tsx", ".jsx", ".ts", ".js"];
+/// Skipped anywhere in a path: a story or a test that declares a component's
+/// name is not where the component lives, and would make the name ambiguous.
+const EXCLUDE: &[&str] = &["node_modules", ".test.", ".spec.", ".stories.", "dist/", "storybook-static"];
+
+fn components(layers: &[Layer<'_>], dirs: &[String], extensions: &[String], exclude: &[String]) -> Result<ComponentSources, String> {
     let mut files: Vec<_> = crate::chain_lookup::fold(layers).into_iter().filter(|(file, _)| {
         dirs.iter().any(|dir| {
             let dir = dir.trim_end_matches('/');
             dir.is_empty() || dir == "." || *file == dir || file.strip_prefix(dir).is_some_and(|rest| rest.starts_with('/'))
-        })
+        }) && extensions.iter().any(|extension| file.ends_with(extension.as_str()))
+            && !exclude.iter().any(|fragment| file.contains(fragment.as_str()))
     }).collect();
     files.sort_by(|(a, _), (b, _)| crate::order::code_unit(a, b));
     let mut identity = Vec::with_capacity(files.len());
@@ -96,7 +104,7 @@ mod tests {
         let digest = |extra: Option<&[u8]>| {
             let mut layers = vec![Layer::open(&base).unwrap()];
             if let Some(extra) = extra { layers.push(Layer::open(extra).unwrap()); }
-            components(&layers, &["src".into()]).unwrap().digest
+            components(&layers, &["src".into()], &[".ts".into()], &[".stories.".into()]).unwrap().digest
         };
         let original = digest(None);
         let changed = row("src/a.ts", "git:changed");
@@ -113,5 +121,10 @@ mod tests {
         let repeated = encode_generation::<crate::read::Read>(&Generation { config: None, directories: &[], parses: &[],
             records: &[("src/b.ts", &b)], deleted: Deleted::default() });
         assert_eq!(digest(Some(&repeated)), original);
+        let story = row("src/a.stories.ts", "git:story");
+        let style = row("src/a.css", "git:style");
+        let skipped = encode_generation::<crate::read::Read>(&Generation { config: None, directories: &[], parses: &[],
+            records: &[("src/a.stories.ts", &story), ("src/a.css", &style)], deleted: Deleted::default() });
+        assert_eq!(digest(Some(&skipped)), original);
     }
 }

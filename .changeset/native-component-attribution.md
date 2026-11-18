@@ -4,8 +4,9 @@
 ---
 
 Collector component attribution reads the published native source index instead
-of walking and parsing source again. Run `variance index` after source edits;
-missing publications are built locally and refused in CI. Source directories
-must be inside the checkout, and untracked ignored files enter only through explicitly reached relative imports.
-The `SourceScan.extensions` and `SourceScan.exclude` options are removed; the
-native source index owns file eligibility. `scanSource` is now asynchronous.
+of walking and parsing source again. The collector brings the index up to the
+checkout before it reads, in CI too, so no `variance index` step is needed
+first. Source directories must be inside the checkout, and untracked ignored
+files enter only through explicitly reached relative imports.
+`SourceScan.extensions` and `SourceScan.exclude` keep their meaning and their
+defaults. `scanSource` is now asynchronous.

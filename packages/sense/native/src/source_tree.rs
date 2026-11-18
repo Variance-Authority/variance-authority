@@ -44,6 +44,8 @@ pub(crate) struct Mocking {
     pub root: PathBuf,
     pub resolvers: Resolvers,
     pub code: HashSet<String>,
+    /// A caller's declarative loads: a file, and the specifiers it is said to load.
+    pub given: Vec<(String, Vec<String>)>,
 }
 
 impl Mocking {
@@ -52,7 +54,7 @@ impl Mocking {
         let at = std::path::Path::new(root);
         let checkout = std::fs::canonicalize(at).unwrap_or_else(|_| at.to_path_buf());
         let resolvers = Resolvers::over(tsconfig, None, crate::emitted::Emitted::listed(&checkout, None));
-        Mocking { root: checkout, resolvers, code: code.into_iter().collect() }
+        Mocking { root: checkout, resolvers, code: code.into_iter().collect(), given: Vec::new() }
     }
 }
 
@@ -143,12 +145,48 @@ pub(crate) fn additions<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usiz
     added
 }
 
+/// A caller's declarative loads joined onto `added`, resolved as a test's loads
+/// beside its mocks are; a file the index does not hold is passed by.
+fn join_given<'l>(layers: &'l [Layer], folded: &HashMap<&'l str, (usize, usize)>, mocking: &Mocking, added: &mut HashMap<&'l str, Added>) {
+    if mocking.given.is_empty() {
+        return;
+    }
+    let mut known: HashMap<String, u32> = folded.keys().map(|path| ((*path).to_owned(), 0)).collect();
+    for &(layer, row) in folded.values() {
+        if let Some(edges) = layers[layer].records.edges_of(&layers[layer].stored, row) {
+            known.extend(edges.map(|(to, _)| (to.to_owned(), 0)));
+        }
+    }
+    for (file, plus) in &mocking.given {
+        let Some((&path, _)) = folded.get_key_value(file.as_str()) else { continue };
+        let row = added.entry(path).or_insert_with(|| Added { edges: Vec::new(), holes: None, shadows: Vec::new(), missed: Vec::new() });
+        let from = mocking.root.join(path);
+        for value in plus {
+            let Some(request) = request_of(value) else { continue };
+            match mocking.resolvers.resolve(&mocking.root, &from, request, Some(&known)) {
+                Some(to) => {
+                    let kind = if kind_for("imports", &to, &mocking.code) == "asset" { "asset" } else { "imports" };
+                    row.edges.push((to, kind));
+                }
+                None => {
+                    if !row.missed.contains(value) { row.missed.push(value.clone()); }
+                }
+            }
+        }
+        row.edges.sort_unstable_by(|left, right| crate::order::code_unit(&left.0, &right.0));
+        row.edges.dedup();
+        let holes: Vec<&str> = row.missed.iter().map(String::as_str).filter(|value| request_of(value).is_some_and(is_relative)).collect();
+        row.holes = (!holes.is_empty()).then(|| format!("{} tainted relative specifier(s) that resolve to nothing: {}", holes.len(), holes.join(", ")));
+    }
+}
+
 pub(crate) fn tree(layers: &[Layer], mocking: &Mocking) -> Vec<u8> {
     let mut phases = crate::timings::Phases::new("question source tree", "fold records");
     let folded = fold(layers);
     phases.note(format_args!("{} records, {} layers", folded.len(), layers.len()));
     phases.next("mock additions");
-    let added = additions(layers, &folded, mocking, false);
+    let mut added = additions(layers, &folded, mocking, false);
+    join_given(layers, &folded, mocking, &mut added);
     phases.next("collect and sort paths");
     let mut files: Collected = Collected::default();
     for (&path, &(layer, row)) in &folded {

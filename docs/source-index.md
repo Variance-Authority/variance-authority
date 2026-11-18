@@ -136,10 +136,11 @@ Component attribution in `variance run` and `variance collect`, and the source
 identity written into each collection part, read the same publication.
 `source.dirs` narrows that publication by directory. Untracked Git-ignored files
 do not seed the inventory; an explicit relative import can still reach one.
-Test and story files in the publication participate in its content identity. Run `variance index` after editing source
-and before collecting it.
+Tests, stories, `dist/` and `node_modules` stay out of both, as before. These
+two bring the index up to the checkout before they read, in CI too, so an edit
+since the last `variance index` is in the answer and no step is needed first.
 
-Each one reads the index as it was last published. Run `variance index` after
+Every other one reads the index as it was last published. Run `variance index` after
 the checkout changes and before them — in CI, as its own step after the cache
 restore. `variance select`, and a runner's selection through it, also brings
 the index up to the checkout before it measures hops, since a hop is an import

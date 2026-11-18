@@ -7,7 +7,7 @@ import { sourceDeclarationsFor } from './source-graph.js';
 
 vi.mock('ci-info', () => ({ isCI: true }));
 
-it('attributes components from the published generation without rereading checkout source', async () => {
+it('attributes components from the checkout in CI, bringing the published generation up to an edit made after it', async () => {
   const root = await mkdtemp(join(tmpdir(), 'va-component-publication-'));
   try {
     await mkdir(join(root, 'src'));
@@ -16,7 +16,7 @@ it('attributes components from the published generation without rereading checko
     await writeFile(join(root, 'src/Button.tsx'), 'export function Changed() { return null; }\n');
 
     expect((await sourceDeclarationsFor(root, [join(root, 'src')])).source).toEqual({
-      Button: [{ file: 'src/Button.tsx', line: 1, via: 'function' }],
+      Changed: [{ file: 'src/Button.tsx', line: 1, via: 'function' }],
     });
   } finally {
     await rm(root, { recursive: true, force: true });

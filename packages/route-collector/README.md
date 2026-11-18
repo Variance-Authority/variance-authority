@@ -100,10 +100,9 @@ capture.
 `source.dirs` selects directories inside your checkout from the
 [source index](https://variance-authority.dev/docs/source-index), which supplies component names and
 `file:line` locations. Paths are relative to where you run `variance`, or
-absolute inside the checkout. Run `variance index` after changing source; a missing
-index is built locally and refused in CI. Untracked Git-ignored files enter the index only when an explicit relative
-import reaches them. The index owns file eligibility; `source.extensions` and
-`source.exclude` are not options. Without `source`, reports can name components
+absolute inside the checkout. The collector brings the index up to the checkout
+before it reads, in CI too. Untracked Git-ignored files enter the index only when an explicit relative
+import reaches them. Without `source`, reports can name components
 without these locations. A directory list matching no published source file is
 refused.
 

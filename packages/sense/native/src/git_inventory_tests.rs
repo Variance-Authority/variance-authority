@@ -150,6 +150,35 @@ fn an_unmerged_delete_has_no_conflict_side_identity() {
 }
 
 #[test]
+fn a_modify_delete_conflict_keeps_the_side_standing_on_disk() {
+    let root = repository("inventory-conflict-modify-delete", &[("c.ts", b"base\n"), ("kept.ts", b"kept\n")]);
+    git(&root, &["checkout", "-q", "-b", "theirs"]);
+    write(&root, "c.ts", b"theirs\n");
+    git(&root, &["commit", "-q", "-am", "theirs"]);
+    git(&root, &["checkout", "-q", "-"]);
+    git(&root, &["rm", "-q", "c.ts"]);
+    git(&root, &["commit", "-q", "-m", "ours"]);
+    let merged = Command::new("git").args(["merge", "-q", "theirs"]).current_dir(&root).output().unwrap();
+    assert!(!merged.status.success(), "the merge conflicts");
+    assert!(git(&root, &["status", "--porcelain=v1"]).contains("DU c.ts"));
+    check(&root, &[("c.ts", b"theirs\n", false), ("kept.ts", b"kept\n", true)], &[]);
+    // Removed by hand before the conflict is settled, it is gone, not unread.
+    std::fs::remove_file(root.join("c.ts")).unwrap();
+    check(&root, &[("kept.ts", b"kept\n", true)], &[]);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
+fn a_deleted_path_named_changed_is_gone_not_unread() {
+    let root = repository("inventory-changed-deleted", &[("gone.ts", b"gone\n"), ("kept.ts", b"kept\n")]);
+    std::fs::remove_file(root.join("gone.ts")).unwrap();
+    let tree = super::snapshot_with(root.to_str().unwrap(), Some(&["gone.ts".to_owned()])).unwrap();
+    assert_eq!(tree.paths, ["kept.ts"]);
+    assert!(tree.unhashed.is_empty());
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+#[test]
 fn inventory_records_preserve_byte_paths_and_only_stage_zero_files() {
     let oid = "0123456789abcdef0123456789abcdef01234567";
     let mut bytes = format!("100644 {oid} 0\tsub/a\ttab\nline.ts\0").into_bytes();

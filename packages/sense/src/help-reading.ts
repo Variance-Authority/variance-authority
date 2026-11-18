@@ -239,7 +239,7 @@ export interface Alias {
 export interface NativeHelp {
   /** The chain at `index`, read and checked once, for the readers below to share. */
   openIndex?(index: string): OpenedIndex;
-  readHelp?(root: string, index: string, entries: HelpEntry[], published: string[], unentered: string[], declared: string[], drawn: boolean, tsconfig: string | boolean | null, code: string[]): Promise<HelpReading | null>;
+  readHelp?(root: string, index: string, entries: HelpEntry[], published: string[], unentered: string[], declared: string[], drawn: boolean, tsconfig: string | boolean | null, code: string[], taints?: HelpTaint[] | null): Promise<HelpReading | null>;
   encodeHelpStore?(store: HelpStore, exported: NamedExport[], meta: StoreMeta | null): EncodedStore;
   restampHelpStore?(bytes: Uint8Array, generatedAt: string): Uint8Array;
   importersOf?(root: string, index: OpenedIndex, asked: NativeAsked[][]): NativeImporters | null;
@@ -257,9 +257,15 @@ export interface NativeHelp {
   ripgrep?(root: string, pattern: string, files: string[]): Grepped;
 }
 
+/** A caller's declarative loads of one file: the specifiers it is said to load. */
+export interface HelpTaint {
+  readonly file: string;
+  readonly plus: string[];
+}
+
 /** The scan's namespace and configuration bytes, carried into question ownership. */
 export interface NativeHelpListing {
-  readHelp?(...args: [...Parameters<NonNullable<NativeHelp['readHelp']>>, packs?: boolean]): Promise<HelpReading | null>;
+  readHelp?(root: string, index: string, entries: HelpEntry[], published: string[], unentered: string[], declared: string[], drawn: boolean, tsconfig: string | boolean | null, code: string[], packs?: boolean | null, taints?: HelpTaint[] | null): Promise<HelpReading | null>;
 }
 
 /** Every matching line, a column per field, and one complaint per file that could not be read. */
@@ -307,8 +313,7 @@ export interface ComponentSources {
 
 /** The source index the addon read and checked once for one question; `close` lets its bytes go. */
 export interface OpenedIndex {
-  componentSources(dirs: string[]): ComponentSources;
-  hasMocks(files: string[]): boolean[];
+  componentSources(dirs: string[], extensions?: string[], exclude?: string[]): ComponentSources;
   recordNames(files: string[]): { readonly file: string; readonly digest: string }[];
   status(): { readonly state: SourceIndexState; readonly written?: number };
   sourceTree(root: string, tsconfig: string | boolean | null, code: string[], names: boolean): NativeSourceTreeReader | null;
@@ -363,6 +368,7 @@ export function onIndex<T>(index: string, read: (opened: OpenedIndex) => T): T {
  * the graph too, carrying what each test loads for real beside its mocks,
  * resolved under the `tsconfig` the repository declares, as the native mock overlay joins them.
  * A carried listing belongs to `root`; `packs: false` reads manifests from the working tree.
+ * `taints` are a caller's declarative loads, joined onto the drawn graph as a test's own are.
  */
 export function readHelp(
   root: string,
@@ -370,11 +376,12 @@ export function readHelp(
   targets: { readonly published: Iterable<string>; readonly unentered: Iterable<string>; readonly declared: Iterable<string> },
   index: string = sourceIndexPath(root),
   drawn = true,
-  scanned?: { readonly listing?: NativeHelpListing; readonly packs?: boolean },
+  scanned?: { readonly listing?: NativeHelpListing; readonly packs?: boolean; readonly taints?: readonly HelpTaint[] },
 ): Promise<HelpReading | null> {
-  const args: Parameters<NonNullable<NativeHelp['readHelp']>> = [root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root)];
+  const args: [string, string, HelpEntry[], string[], string[], string[], boolean, string | boolean | null, string[]] = [root, index, [...entries], [...targets.published], [...targets.unentered], [...targets.declared], drawn, ...mocking(root)];
+  const taints = scanned?.taints === undefined ? null : scanned.taints.map(({ file, plus }) => ({ file, plus: [...plus] }));
   const carried = scanned?.listing?.readHelp?.bind(scanned.listing);
-  return carried === undefined ? entry('readHelp')(...args) : carried(...args, scanned?.packs);
+  return carried === undefined ? entry('readHelp')(...args, taints) : carried(...args, scanned?.packs ?? null, taints);
 }
 
 /** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */
