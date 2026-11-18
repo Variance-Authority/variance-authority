@@ -12,8 +12,8 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
  * `variance ask symbol --line`, through the command a person types: the
  * declaration a line ran is the one whose tests are the line's tests.
  *
- * `useSessionId` is declared three times. `page` calls the one in `session.ts`,
- * no test enters the one in `stale.ts`, `header` is rendered by a test that
+ * `useSessionId` is declared four times. `page` calls the one in `session.ts`,
+ * no test enters the one in `stale.ts`, the one in `constant.ts` is a string, not a function, `header` is rendered by a test that
  * enters none, and `idle` is run by nobody. `format` is declared twice and both are entered by the same test;
  * `log` is declared twice, one entered by every test.
  */
@@ -37,13 +37,13 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 }
 
 describe('variance ask symbol --line', () => {
-  it('names the declaration the line called first, and those its tests never entered as not run with it, in place order', async () => {
+  it('names the declaration the line called first, those its tests never entered as not run with it, in place order, and a constant as not in the recording', async () => {
     await recorded();
 
     const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out.split('\n').slice(0, 7)).toEqual([
+    expect(answered.out.split('\n').slice(0, 10)).toEqual([
       '`useSessionId` at src/page.ts:3, by the 1 recorded test that ran the line:',
       '',
       'src/session.ts:1  1.00  1 of the 1 test that entered it ran the line',
@@ -51,6 +51,9 @@ describe('variance ask symbol --line', () => {
       'Not run with it:',
       'src/legacy.ts:1  none of the 1 test that entered it ran the line',
       'src/stale.ts:1  no recorded test entered it',
+      '',
+      'Not in the recording:',
+      'src/constant.ts:1  no recorded function is written at this line',
     ]);
   });
 
@@ -183,6 +186,7 @@ async function recorded({ commit = true, recording = true }: { readonly commit?:
     'src/session.ts': declares('useSessionId', 'real'),
     'src/legacy.ts': declares('useSessionId', 'legacy'),
     'src/stale.ts': declares('useSessionId', 'stale'),
+    'src/constant.ts': `export const useSessionId = 'constant';\n${declares('other', 'other')}`,
     'src/page.ts': [
       "import { useSessionId } from './session';",
       'export function page(): string {',
@@ -218,6 +222,7 @@ async function recorded({ commit = true, recording = true }: { readonly commit?:
     'src/session.ts': [region('function', 'useSessionId', 1, 3, [0])],
     'src/legacy.ts': [region('function', 'useSessionId', 1, 3, [1])],
     'src/stale.ts': [region('function', 'useSessionId', 1, 3, [])],
+    'src/constant.ts': [region('function', 'other', 2, 4, [])],
     'src/page.ts': [region('function', 'page', 2, 4, [0]), region('function', 'header', 5, 7, [2])],
     'src/idle.ts': [region('function', 'idle', 2, 4, [])],
     'src/a.ts': [region('function', 'format', 1, 3, [3])],
