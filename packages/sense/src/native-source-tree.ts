@@ -21,10 +21,12 @@ export interface NameEvidence {
   readonly through?: string;
 }
 
+/** Files and matching evidence for one requested name predicate, in publication order. */
 export interface NamesGroup {
   readonly files: readonly { readonly file: string; readonly evidence: readonly NameEvidence[] }[];
 }
 
+/** One result group per name predicate, plus the count of source rows the reader could not inspect. */
 export interface NamesAnswer {
   readonly unread: number;
   readonly groups: readonly NamesGroup[];
@@ -37,6 +39,7 @@ export interface NativeSourceTreeWalk {
   chain(file: string): { readonly file: string; readonly kind?: EdgeKind }[];
 }
 
+/** Questions over an opened source tree; graph columns and harvested declarations stay native. */
 export interface NativeSourceTreeReader {
   files(): string[];
   unknownAmong(files: string[]): string[];

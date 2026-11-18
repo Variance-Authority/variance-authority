@@ -2,6 +2,7 @@
 import { resolve } from 'node:path';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { native } from '../addon.js';
 import type { ParseCache, Parsed } from '../cache.js';
 import { keyFor, parseWay, seedPaths } from '../files.js';
@@ -56,7 +57,7 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   const { graph } = await scanFixtureGraph(options);
   const rows = decodeSourceIndex(graph.encode([]));
   const parsed = options.parsed === undefined && options.indexed === undefined && options.cache === undefined ? undefined : decodeSourceIndex(graph.parseSegment()).parses;
-  const records = [...rows.records.values()].sort((a, b) => a.record.file < b.record.file ? -1 : a.record.file > b.record.file ? 1 : 0);
+  const records = [...rows.records.values()].sort((a, b) => codeUnitOrder(a.record.file, b.record.file));
   for (const { record, targets } of records) {
     const read = record.digest === undefined ? undefined : parsed?.get(keyFor(record.digest, parseWay(record.file)));
     if (read !== undefined) {

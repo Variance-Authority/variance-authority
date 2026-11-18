@@ -3,10 +3,12 @@
 import type { EdgeKind, Node, NodeId, NodeKind } from './graph.js';
 import type { EdgeUse } from './narrow.js';
 
+/** A graph node with its reader-owned id and an optional reason its edges are unknown. */
 export interface RelationNode extends Node {
   readonly id: NodeId;
   readonly unknown?: string;
 }
+/** The outgoing or incoming edges requested for one graph node id. */
 export interface RelationRow {
   readonly id: NodeId;
   readonly edges: readonly { readonly to: RelationNode; readonly kind: EdgeKind }[];
@@ -30,6 +32,7 @@ export interface RelationFrontier {
   frontier(): readonly { readonly node: RelationNode; readonly carry: RelationCarry; readonly trail: readonly RelationNode[] }[];
   advance(replies: readonly { readonly id: NodeId; readonly carry: RelationCarry }[]): void;
 }
+/** Batched graph questions that keep source columns and traversal state with their native owner. */
 export interface RelationQuestions {
   importerFrontier(seed: NodeId, carry: RelationCarry, seedsHold: boolean, filesOnly: boolean, dependsWhole: boolean): RelationFrontier;
   overlay(added: readonly { readonly id: NodeId; readonly targets: readonly NodeId[] }[], removed: readonly { readonly id: NodeId; readonly targets: readonly NodeId[] }[], created: readonly NodeId[]): RelationQuestions;

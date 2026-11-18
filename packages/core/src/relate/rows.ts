@@ -3,6 +3,7 @@
 import { EDGE_KINDS, NODE_KINDS, idOf, type Node, type NodeId, type Relations } from './graph.js';
 import type { RelationNode, RelationRow } from './questions.js';
 
+/** Resolve each asked node to its id and description, keeping a null for every miss. */
 export function lookupNodes(relations: Relations, nodes: readonly Node[]): readonly (RelationNode | null)[] {
   if ('native' in relations) return relations.native.lookup(nodes);
   return nodes.map((node) => {
@@ -10,6 +11,7 @@ export function lookupNodes(relations: Relations, nodes: readonly Node[]): reado
     return id === undefined ? null : describeNodes(relations, [id])[0]!;
   });
 }
+/** Describe each asked id in order, keeping a null for an id the graph does not hold. */
 export function describeNodes(relations: Relations, ids: readonly NodeId[]): readonly (RelationNode | null)[] {
   if ('native' in relations) return relations.native.nodes(ids);
   return ids.map((id) => relations.names[id] === undefined ? null : {

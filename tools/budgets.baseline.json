@@ -1406,10 +1406,6 @@
   "packages/help/src/read.ts block": [
     6
   ],
-  "packages/help/src/read.ts docblock": [
-    12,
-    11
-  ],
   "packages/help/src/read.ts overview": [
     25
   ],
@@ -1435,7 +1431,7 @@
     48
   ],
   "packages/help/src/tools/discover.ts overview": [
-    30
+    29
   ],
   "packages/help/src/tools/entrypoint.ts docblock": [
     17
@@ -2260,9 +2256,6 @@
     14,
     13
   ],
-  "packages/route-collector/src/source.ts overview": [
-    20
-  ],
   "packages/route-collector/src/stabilization.chromium.test.ts docblock": [
     11
   ],
@@ -2329,17 +2322,11 @@
   "packages/sense/scripts/native.mjs overview": [
     24
   ],
-  "packages/sense/scripts/overhead.mjs overview": [
-    28
-  ],
   "packages/sense/scripts/probe-write.mjs overview": [
     23
   ],
   "packages/sense/scripts/published-index.mjs overview": [
-    20
-  ],
-  "packages/sense/scripts/reach-probe.mjs overview": [
-    20
+    17
   ],
   "packages/sense/scripts/read-width.mjs overview": [
     27
@@ -2369,11 +2356,8 @@
   "packages/sense/scripts/snapshot-scale.mjs overview": [
     28
   ],
-  "packages/sense/scripts/source-index.mjs block": [
-    11
-  ],
   "packages/sense/scripts/source-index.mjs overview": [
-    22
+    16
   ],
   "packages/sense/scripts/storage.mjs block": [
     9
@@ -2412,9 +2396,6 @@
   "packages/sense/src/addon.ts docblock": [
     12,
     11
-  ],
-  "packages/sense/src/cache.ts docblock": [
-    21
   ],
   "packages/sense/src/cache.ts overview": [
     25
@@ -2495,8 +2476,7 @@
   ],
   "packages/sense/src/resolve.ts docblock": [
     24,
-    17,
-    16
+    17
   ],
   "packages/sense/src/restrictions-transitive.ts overview": [
     17
@@ -2504,18 +2484,9 @@
   "packages/sense/src/reuse.ts overview": [
     41
   ],
-  "packages/sense/src/scan.ts docblock": [
-    13,
-    12,
-    11,
-    11
-  ],
   "packages/sense/src/sense.test.ts block": [
     6,
     6
-  ],
-  "packages/sense/src/source-index-file.ts block": [
-    8
   ],
   "packages/sense/src/source-scope.ts overview": [
     18
@@ -2543,15 +2514,6 @@
   ],
   "packages/sense/src/taint/audit.ts overview": [
     22
-  ],
-  "packages/sense/src/taint/cache.ts overview": [
-    27
-  ],
-  "packages/sense/src/taint/index.ts overview": [
-    66
-  ],
-  "packages/sense/src/taint/mocks.ts overview": [
-    41
   ],
   "packages/sense/src/test-selection/at-distance.ts overview": [
     42
@@ -3294,9 +3256,6 @@
     7,
     7,
     6
-  ],
-  "packages/storybook-collector/src/source.ts overview": [
-    20
   ],
   "packages/storybook/src/finish-wait.ts docblock": [
     23,

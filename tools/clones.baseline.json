@@ -176,13 +176,6 @@
   },
   {
     "files": [
-      "packages/package/src/help.ts",
-      "packages/package/src/surface.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/playwright-test/src/acquire.ts",
       "packages/presentation/src/playwright.ts"
     ],
@@ -348,27 +341,6 @@
       "packages/sense/src/test-selection/source-lines.ts"
     ],
     "count": 1
-  },
-  {
-    "files": [
-      "packages/sense/src/source-index-mocks.ts",
-      "packages/sense/src/taint/mocks.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/sense/src/source-index.ts",
-      "packages/sense/src/source-index.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/sense/src/taint/calls.ts",
-      "packages/sense/src/taint/mocks.ts"
-    ],
-    "count": 2
   },
   {
     "files": [

@@ -152,8 +152,10 @@ export interface Adjacency {
 
 /** A graph owned by its reader. Its columns cannot be read from JavaScript. */
 export interface NativeRelations { readonly native: RelationQuestions }
+/** A relation graph held as memory columns or answered through its native reader. */
 export type Relations = MemoryRelations | NativeRelations;
 
+/** Explicitly supplied graph columns, with both edge directions and sparse reasons. */
 export interface MemoryRelations {
   /** Node names by id, ordered by kind and then by code unit. */
   readonly names: readonly string[];
