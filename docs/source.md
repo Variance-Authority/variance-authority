@@ -526,7 +526,8 @@ barrels and bundles from consuming a scan's memory budget. Raising
 components get no record, the files an Angular component names in
 `templateUrl` and `styleUrls` are not linked to it, and an alias only a
 bundler's configuration declares does not resolve. Each leaves an edge out of
-the graph without marking any file unknown; [Extensions](#extensions) and
+the graph without marking any file unknown, so `variance reach` leaves out a
+test that reaches a changed file only through that edge; [Extensions](#extensions) and
 [Resolution](#resolution) say what each one costs.
 
 **Components are React's, and only where the source names them.** On another
