@@ -81,9 +81,14 @@ fn at(file: &str, line: u32) -> Declaration {
     spelled(file, line, "useSessionId")
 }
 
-/// A declaration at `file:line` that its file spells `name`.
+/// A declaration at `file:line` that its file spells `name`, its head on that line alone.
 fn spelled(file: &str, line: u32, name: &str) -> Declaration {
-    Declaration { file: file.to_owned(), line, spelled: vec![name.to_owned()] }
+    Declaration { file: file.to_owned(), line, through: Some(line), spelled: vec![name.to_owned()] }
+}
+
+/// A declaration of `useSessionId` at `file:line` whose head ends on `through`, or is not known.
+fn headed(file: &str, line: u32, through: Option<u32>) -> Declaration {
+    Declaration { through, ..at(file, line) }
 }
 
 fn rows(answer: &Resonance) -> Vec<(String, u32, u32, u32, String)> {
@@ -142,9 +147,9 @@ fn a_declaration_asked_for_by_another_name_scores_by_the_function_its_file_spell
 #[test]
 fn a_function_whose_parameters_open_below_its_declaration_scores_by_its_name() {
     let mut masks = recorded();
-    let answer = resonate(&mut masks, "src/page.ts", 3, &[at("src/arrow.ts", 1)]).unwrap();
+    let answer = resonate(&mut masks, "src/page.ts", 3, &[headed("src/arrow.ts", 1, Some(2))]).unwrap();
     assert_eq!(rows(&answer), vec![("src/arrow.ts".into(), 0, 1, 1, "1.00".into())]);
-    let renamed = resonate(&mut masks, "src/page.ts", 3, &[spelled("src/arrow.ts", 1, "loud")]).unwrap();
+    let renamed = resonate(&mut masks, "src/page.ts", 3, &[Declaration { spelled: vec!["loud".to_owned()], ..headed("src/arrow.ts", 1, Some(2)) }]).unwrap();
     assert_eq!(renamed.resonant.iter().map(|row| row.recorded).collect::<Vec<_>>(), vec![false]);
 }
 
@@ -181,7 +186,7 @@ fn a_constant_does_not_take_the_score_of_a_method_of_its_name_opening_below_it()
 #[test]
 fn a_nested_function_whose_parameters_open_below_its_declaration_scores_by_its_name() {
     let mut masks = recorded();
-    let answer = resonate(&mut masks, "src/page.ts", 3, &[at("src/inner.ts", 2)]).unwrap();
+    let answer = resonate(&mut masks, "src/page.ts", 3, &[headed("src/inner.ts", 2, Some(3))]).unwrap();
     assert_eq!(rows(&answer), vec![("src/inner.ts".into(), 0, 1, 1, "1.00".into())]);
 }
 
@@ -190,4 +195,18 @@ fn a_constant_does_not_take_the_score_of_a_method_of_its_name_on_its_line() {
     let mut masks = recorded();
     let answer = resonate(&mut masks, "src/page.ts", 3, &[at("src/classed.ts", 1)]).unwrap();
     assert_eq!(answer.resonant.iter().map(|row| (row.recorded, row.cases)).collect::<Vec<_>>(), vec![(false, 0)]);
+}
+
+#[test]
+fn a_declaration_whose_head_ends_above_a_namesake_function_does_not_take_its_score() {
+    let mut masks = recorded();
+    let answer = resonate(&mut masks, "src/page.ts", 3, &[headed("src/arrow.ts", 1, Some(1)), headed("src/arrow.ts", 1, None)]).unwrap();
+    assert_eq!(answer.resonant.iter().map(|row| (row.recorded, row.cases)).collect::<Vec<_>>(), vec![(false, 0), (false, 0)]);
+}
+
+#[test]
+fn a_method_spelled_on_its_class_scores_at_its_line() {
+    let mut masks = recorded();
+    let answer = resonate(&mut masks, "src/page.ts", 3, &[spelled("src/stored.ts", 2, "Store/useSessionId"), spelled("src/classed.ts", 1, "Store/useSessionId")]).unwrap();
+    assert_eq!(rows(&answer), vec![("src/stored.ts".into(), 0, 1, 1, "1.00".into()), ("src/classed.ts".into(), 1, 1, 1, "1.00".into())]);
 }

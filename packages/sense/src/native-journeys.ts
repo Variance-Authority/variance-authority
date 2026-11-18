@@ -234,8 +234,10 @@ export interface NativeJourneyEnd {
 
 /** A declaration of a name, and every name its file spells it. */
 export interface NativeDeclaration extends NativeJourneyEnd {
-  /** The asked name, or the names an alias or a re-export gives it in its file. */
+  /** The asked name, or the names an alias or a re-export gives it in its file; a method's under its class, `Store/useSessionId`. */
   readonly spelled: readonly string[];
+  /** The last line of its head, as the source index cuts it; absent when the index kept none. */
+  readonly through?: number;
 }
 
 /** One declaration of a name, scored against the cases that ran a line. */

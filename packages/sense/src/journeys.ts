@@ -408,7 +408,12 @@ export function resonance(root: string, at: NativeJourneyEnd, candidates: readon
     }
     const [line, ...then] = lines;
     if (line == null) return [refuse('the line was written since the recording ran')];
-    const placed = candidates.flatMap((candidate, at) => (then[at] == null ? [] : [{ at, end: { file: candidate.file, line: then[at]!, spelled: [...candidate.spelled] } }]));
+    // A head moves with the line it opens on.
+    const placed = candidates.flatMap((candidate, at) => {
+      if (then[at] == null) return [];
+      const end = { file: candidate.file, line: then[at]!, spelled: [...candidate.spelled] };
+      return [{ at, end: candidate.through === undefined ? end : { ...end, through: candidate.through - candidate.line + then[at]! } }];
+    });
     const answer = entry('resonance')(recording, asked.path, line, placed.map(({ end }) => end));
     const resonant = answer.resonant.map((row) => {
       const { at } = placed[row.candidate]!;

@@ -10,7 +10,7 @@ import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, notShown, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
-import { type Members, containerOf, membersOf, membersStop } from './members.js';
+import { type Members, containerOf, isUnnamedContainer, membersOf, membersStop } from './members.js';
 import { exportedRows } from './passed-on.js';
 import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
 import { UNCOUNTED, exportsNamed, importsApart } from './unpublished.js';
@@ -249,7 +249,8 @@ function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invoca
   // A member stands beside every other declaration, as `run` answers it.
   const members = membersOf(help, invocation?.root, name, wanted);
   at.push(...declared.filter(isNested).map((one) => [one.at, one.line, one.name] as const));
-  at.push(...members.declared.map((one) => [one.at, one.line, members.member] as const));
+  // The recording names a method under its class, as `Store/useSessionId`.
+  at.push(...members.declared.map((one) => [one.at, one.line, isUnnamedContainer(one.by) ? members.member : `${one.by}/${members.member}`] as const));
   if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined, spellingOf(invocation)));
   const files = new Map<string, number[]>();
   const spelled = new Map<string, string[]>();

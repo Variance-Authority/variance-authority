@@ -20,6 +20,8 @@ import { resonance, type JourneyEnd, type Resonant, type SuiteResonance } from '
 import { stringArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
 import { FoundNothing } from './find.js';
+import { declaredAt } from './declared.js';
+import { boundOf } from './declaration-key.js';
 import { ofSuite } from './grep-ran.js';
 import type { Declared } from './symbol.js';
 
@@ -37,7 +39,12 @@ export function symbolAtLine(help: Help, input: Readonly<Record<string, unknown>
   const { line: _, ...rest } = input;
   const declared = declaredFiles(help, rest, invocation, declaredIn);
   if (declared === undefined) return [`No file in this checkout declares \`${name}\`, so no recording tells its declarations apart:`, '', symbol.run(help, rest, invocation)].join('\n');
-  const candidates = [...declared.files].flatMap(([file, lines]) => lines.map((line) => ({ file, line, spelled: declared.spelled.get(`${file}:${line}`) ?? [] })));
+  const wanted = typeof input['package'] === 'string' && input['package'] !== '' ? input['package'] : undefined;
+  const candidates = [...declared.files].flatMap(([file, lines]) => lines.map((line) => {
+    const spelled = declared.spelled.get(`${file}:${line}`) ?? [];
+    const through = headThrough(help, root, wanted, file, line, spelled);
+    return through === undefined ? { file, line, spelled } : { file, line, spelled, through };
+  }));
   const suites = resonance(root, at, candidates);
   const told = suites.filter((suite) => suite.resonance.notRecorded == null && suite.resonance.cases > 0);
   const untold = suites.filter((suite) => !told.includes(suite)).map((suite) => untoldLine(suite, at, name, told.length === 0 ? ':' : '.'));
@@ -56,6 +63,20 @@ function declaredFiles(help: Help, input: Readonly<Record<string, unknown>>, inv
     if (error instanceof FoundNothing) return undefined;
     throw error;
   }
+}
+
+/**
+ * The last line of the head the source index cut for the declaration at
+ * `file:line`, under any name its file spells it: the line a function's
+ * parameters must open by to be the one it declares. None when the index kept
+ * no head.
+ */
+function headThrough(help: Help, root: string, wanted: string | undefined, file: string, line: number, spelled: readonly string[]): number | undefined {
+  for (const name of spelled) {
+    const held = [boundOf(root, { at: file, name }), ...declaredAt(help, root, name, wanted)].find((one) => one?.at === file && one.line === line && one.signature != null);
+    if (held?.signature != null) return line + held.signature.split('\n').length - 1;
+  }
+  return undefined;
 }
 
 /** `src/page.ts:3`, split on its last colon so a path holding one is kept whole. */

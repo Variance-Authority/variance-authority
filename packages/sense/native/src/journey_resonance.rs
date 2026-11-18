@@ -39,6 +39,8 @@ pub struct Resonant {
 pub struct Declaration {
     pub file: String,
     pub line: u32,
+    /// The last line of its head, as the source index cuts it; none when the index kept no head.
+    pub through: Option<u32>,
     pub spelled: Vec<String>,
 }
 
@@ -80,7 +82,7 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidat
     let mut resonant = Vec::with_capacity(candidates.len());
     for (at, candidate) in candidates.iter().enumerate() {
         let mut scored = Resonant { file: candidate.file.clone(), line: candidate.line, candidate: at as u32, recorded: false, cases: 0, shared: 0, score: 0.0 };
-        if let Some(function) = written_at(masks, &candidate.spelled, &candidate.file, candidate.line)? {
+        if let Some(function) = written_at(masks, &candidate.spelled, &candidate.file, candidate.line, candidate.through)? {
             score(masks, function, &ran, &mut scored)?;
         }
         resonant.push(scored);
@@ -91,19 +93,20 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidat
 
 /// The recorded function of `file` that the declaration at `line` writes: of
 /// those starting at `line` that it names, the outermost; or else the first
-/// after the line, when the declaration names it.
+/// after the line, when the declaration names it and its head reaches it.
 ///
-/// A declaration names a function by the function's own name, as the
-/// instrumenter names it for the declaration, and by where it sits: a function
-/// nested in a recorded function is named only from inside that function, and
-/// one nested in anything else, a class, never. So a constant leaves unscored
-/// the callback written on its line, named for the call (`map.arg0`) or by
-/// itself (`function onValue`), any function written beside it, and a method
-/// of its name (`Store/useSessionId`) on its line or below it. A function's
+/// A declaration names a function by the path the instrumenter gives it, a
+/// method by its class (`Store/useSessionId`), and from inside a recorded
+/// function by that path under the function's (`wrapper/useSessionId`). So a
+/// constant leaves unscored the callback written on its line, named for the
+/// call (`map.arg0`) or by itself (`function onValue`), any function written
+/// beside it, and a method of its name on its line or below it. A function's
 /// region opens at its parameters, below the declaration's line when `const
 /// name =` or a long type parameter list ends a line, so the first function
-/// opening below is taken when the declaration names it.
-fn written_at(masks: &JourneyMasks, spelled: &[String], file: &str, line: u32) -> Result<Option<u32>, String> {
+/// opening below is taken when the declaration names it and opens within its
+/// head, `through`: a block below a constant may declare a function of its
+/// name. A declaration whose head the index did not keep takes none.
+fn written_at(masks: &JourneyMasks, spelled: &[String], file: &str, line: u32, through: Option<u32>) -> Result<Option<u32>, String> {
     let Some(module) = masks.journey.module_of(file)? else { return Ok(None) };
     let mut enclosing: Vec<&str> = Vec::new();
     for at in masks.functions_in(module) {
@@ -113,8 +116,9 @@ fn written_at(masks: &JourneyMasks, spelled: &[String], file: &str, line: u32) -
         }
     }
     let named = |path: &str| {
-        let (scope, own) = path.rsplit_once('/').unwrap_or(("", path));
-        spelled.iter().any(|name| name == own) && (scope.is_empty() || enclosing.contains(&scope))
+        spelled.iter().any(|name| {
+            path == name || path.strip_suffix(name.as_str()).and_then(|scope| scope.strip_suffix('/')).is_some_and(|scope| enclosing.contains(&scope))
+        })
     };
     let (mut at_line, mut below): (Option<u32>, Option<u32>) = (None, None);
     for at in masks.functions_in(module) {
@@ -130,7 +134,7 @@ fn written_at(masks: &JourneyMasks, spelled: &[String], file: &str, line: u32) -
             below = Some(at);
         }
     }
-    let Some(below) = below.filter(|_| at_line.is_none()) else { return Ok(at_line) };
+    let Some(below) = below.filter(|&at| at_line.is_none() && through.is_some_and(|through| masks.bits[at as usize].start <= through)) else { return Ok(at_line) };
     Ok(named(masks.journey.text(masks.bits[below as usize].name)?).then_some(below))
 }
 

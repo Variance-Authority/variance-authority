@@ -15,7 +15,9 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
  * `useSessionId` is declared four times. `page` calls the one in `session.ts`,
  * no test enters the one in `stale.ts`, the one in `constant.ts` is a string, not a function, `header` is rendered by a test that
  * enters none, and `idle` is run by nobody. `format` is declared three times, once as `shout` exported under its name, and all are entered by the same test;
- * `log` is declared twice, one entered by every test.
+ * `log` is declared twice, one entered by every test. `token` is an arrow
+ * whose parameters open below its name, a method of `Store`, and a string
+ * above a block that declares an arrow of its name, each entered by `page`'s test.
  */
 
 const cwd = process.cwd();
@@ -170,6 +172,23 @@ describe('variance ask symbol --line', () => {
       'src/log.ts:1  0.45  1 of the 5 tests that entered it ran the line',
     ]);
   });
+
+  it('scores a method by its class and an arrow opening below its name, and leaves a constant above a namesake in a block unscored', async () => {
+    await recorded();
+
+    const answered = await run(['ask', 'symbol', '--name', 'token', '--line', 'src/page.ts:3']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n').slice(0, 7)).toEqual([
+      '`token` at src/page.ts:3, by the 1 recorded test that ran the line:',
+      '',
+      'src/arrow.ts:1  1.00 tied  1 of the 1 test that entered it ran the line',
+      'src/store.ts:2  1.00 tied  1 of the 1 test that entered it ran the line',
+      '',
+      'Not in the recording:',
+      'src/fixed.ts:1  no recorded function is written at this line',
+    ]);
+  });
 });
 
 /**
@@ -206,6 +225,9 @@ async function recorded({ commit = true, recording = true }: { readonly commit?:
     'src/log.ts': declares('log', 'loud'),
     'src/quiet.ts': declares('log', 'quiet'),
     'src/report.ts': "import { log } from './quiet';\nexport const report = (): string => log();\n",
+    'src/arrow.ts': "export const token =\n  (): string => 'arrow';\n",
+    'src/store.ts': "export class Store {\n  token(): string {\n    return 'method';\n  }\n}\n",
+    'src/fixed.ts': "export const token = 'fixed';\n{\n  const token = (): string => 'inner';\n  void token;\n}\n",
   };
   for (const [path, text] of Object.entries(sources)) {
     mkdirSync(dirname(join(root, path)), { recursive: true });
@@ -234,6 +256,9 @@ async function recorded({ commit = true, recording = true }: { readonly commit?:
     'src/log.ts': [region('function', 'log', 1, 3, [0, 1, 2, 3, 4])],
     'src/quiet.ts': [region('function', 'log', 1, 3, [4])],
     'src/report.ts': [region('function', 'report', 2, 2, [4])],
+    'src/arrow.ts': [region('function', 'token', 2, 2, [0])],
+    'src/store.ts': [region('function', 'Store/token', 2, 4, [0])],
+    'src/fixed.ts': [region('function', 'token', 3, 3, [0])],
   };
   const covered = (file: string, blocks: readonly ReturnType<typeof region>[]) => ({
     file,
