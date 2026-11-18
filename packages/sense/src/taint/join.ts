@@ -45,7 +45,7 @@ export function targetFrom(file: string, root: string, resolvers: Resolvers): Ta
     // has already filtered to module extensions before it gets here.
     return request === undefined
       ? undefined
-      : resolveTo({ resolvers, root, from, request, language: 'module' });
+      : resolveTo({ resolvers, root, from, request });
   };
 }
 
@@ -114,9 +114,9 @@ export function applied(record: FileRecord, plus: Reached): FileRecord {
   };
 }
 
+/** Each edge once by its kind and target, in code-unit order of target, then kind: `dedupe` in `record.rs`. */
 function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] {
   const seen = new Set<string>();
-
   return edges
     .filter((edge) => {
       const key = `${edge.kind} ${edge.to}`;

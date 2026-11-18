@@ -169,7 +169,7 @@ describe('reading a workspace through the source index', () => {
       const tool = HELP.tools.find((candidate) => candidate.name === 'docs_search')!;
       expect(tool.run(recorded, { query: 'measure' })).toContain('\nSnapshot ');
 
-      const digest = publishedHead(at)?.graphDigest;
+      const digest = publishedHead(root, at)?.graphDigest;
       expect(digest).toBeDefined();
       if (digest === undefined) throw new Error('snapshot did not name its graph');
       await writeFile(`${at}.help-tree.${digest}.bin`, new Uint8Array([0]));
@@ -234,7 +234,7 @@ describe('reading a workspace through the source index', () => {
 
       expect(republished).toEqual(first);
       expect(workspaceGeneration(republished)).not.toBe('2000-01-01T00:00:00.000Z');
-      expect(publishedHead(at)?.generatedAt).toBe(workspaceGeneration(republished));
+      expect(publishedHead(root, at)?.generatedAt).toBe(workspaceGeneration(republished));
     } finally {
       await rm(temporary, { recursive: true, force: true });
     }

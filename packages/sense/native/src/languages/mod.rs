@@ -7,7 +7,7 @@
 //! What can be absent is this module. The grammars are the `grammars` feature,
 //! on by default and dropped by `build.mjs` when they are what failed to
 //! compile; a build without them claims no language at all, and
-//! [`record.ts`](../../../src/record.ts) records every file in these five as
+//! [`read_any.rs`](../read_any.rs) records every file in these five as
 //! *unknown* rather than *edgeless* — a repository whose Python nobody parsed
 //! must not read as a repository with no Python in it.
 
@@ -56,26 +56,7 @@ pub fn declaration(children: &[Node], at: usize, name: String, kind: &'static st
 /// name and declares nothing, such as Rust's `extern crate`, which a reader
 /// then leaves out.
 pub fn kind_of(node: &str) -> Option<&'static str> {
-    Some(match node {
-        "function_item" | "function_definition" | "function_declaration" => "function",
-        "struct_item" => "struct",
-        "enum_item" | "enum_declaration" => "enum",
-        "union_item" => "union",
-        "trait_item" => "trait",
-        "type_item" | "type_alias" | "typealias_declaration" => "type",
-        "const_item" => "const",
-        "static_item" => "static",
-        "mod_item" => "module",
-        "macro_definition" => "macro",
-        "class_definition" | "class_declaration" => "class",
-        "interface_declaration" => "interface",
-        "record_declaration" => "record",
-        "annotation_type_declaration" => "annotation",
-        "object_declaration" => "object",
-        "protocol_declaration" => "protocol",
-        "property_declaration" => "property",
-        _ => return None,
-    })
+    crate::harvest::KINDS.iter().find(|(_, nodes)| nodes.contains(&node)).map(|(kind, _)| *kind)
 }
 
 /// A declaration's head: from where it starts to where its body or its value
@@ -214,5 +195,15 @@ mod tests {
         for node in admitted {
             assert!(kind_of(node).is_some(), "{node} has no kind");
         }
+    }
+
+    /// `swift.test.ts`: reads the targets a manifest declares, defaults and all.
+    #[test]
+    fn reads_the_targets_a_manifest_declares_defaults_and_all() {
+        let manifest = "let package = Package(name: \"Shadow\", targets: [\n  .target(name: \"Core\", path: \"Sources/core\"),\n  .testTarget(name: \"CoreTests\", dependencies: [\"Core\"]),\n  .executableTarget(name: \"Tool\"),\n])";
+        let targets: Vec<(String, String)> =
+            super::swift_targets(manifest).unwrap().into_iter().map(|target| (target.name, target.path)).collect();
+        let expected = [("Core", "Sources/core"), ("CoreTests", "Tests/CoreTests"), ("Tool", "Sources/Tool")];
+        assert_eq!(targets, expected.map(|(name, path)| (name.to_owned(), path.to_owned())));
     }
 }

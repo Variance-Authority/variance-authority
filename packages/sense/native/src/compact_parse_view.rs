@@ -8,6 +8,7 @@
 
 // compass: variance-authority.reach.source-index
 
+use crate::harvest::{kind_named, reach_of, SourceSymbol};
 use crate::parse_columns::{ParseColumns, ParseRow};
 use crate::read::{Binding, Kind, Read, Request};
 use crate::segment::{Collected, Strings};
@@ -29,17 +30,14 @@ impl<'s, 'a> ParseView<'s, 'a> {
         ParseView { stored: &layer.stored, columns: &layer.parses, row }
     }
 
-    /// The row as the walk reads a parse: its requests, the names it declares
-    /// and why it is unknown — what a record is built and resolved from. `None`
-    /// for a row this reader did not write, whose requests are derived (a
-    /// nonzero flag), so it is read again rather than answered as one.
+    /// The row as the walk reads a parse: its requests, the names it declares,
+    /// its top-level symbols' names and kinds, and why it is unknown — what a
+    /// record is built and resolved from.
     pub(crate) fn read(&self) -> Option<Read> {
         let (stored, columns, row) = (self.stored, self.columns, self.row);
         let mut requests = Vec::new();
         for request in columns.requests.range(row) {
-            if columns.request_flags[request] != 0 {
-                return None;
-            }
+            let flags = columns.request_flags[request];
             let kind = stored.text(columns.request_kind.at(request));
             requests.push(Request {
                 value: stored.text(columns.request_value.at(request)).to_owned(),
@@ -56,6 +54,8 @@ impl<'s, 'a> ParseView<'s, 'a> {
                     .collect(),
                 line: columns.request_line.at(request),
                 republishes: flag(columns.request_republishes, request),
+                guessed: flags & 1 != 0,
+                item: flags & 2 != 0,
             });
         }
         Some(Read {
@@ -63,8 +63,33 @@ impl<'s, 'a> ParseView<'s, 'a> {
             declares: self.declares().map(|at| stored.text(columns.declare_name.at(at)).to_owned()).collect(),
             unknown: self.unknown().map(str::to_owned),
             size: self.size(),
-            ..Read::default()
+            ..self.symbols().map_or_else(Read::default, |symbols| Read { symbols, harvested: true, ..Read::default() })
         })
+    }
+
+    /// The row's top-level symbols, without their heads and docs, which no walk
+    /// reads; none for a row never harvested, or one holding a kind no grammar
+    /// reader gives ([`crate::harvest::KINDS`]), which reads as not harvested.
+    fn symbols(&self) -> Option<Vec<SourceSymbol>> {
+        let (stored, columns) = (self.stored, self.columns);
+        if !self.harvested() {
+            return None;
+        }
+        let range = columns.symbols.range(self.row);
+        let kinds = range.clone().map(|at| kind_named(stored.text(columns.symbol_kind.at(at)))).collect::<Option<Vec<_>>>()?;
+        Some(
+            range
+                .zip(kinds)
+                .map(|(at, kind)| SourceSymbol {
+                    name: stored.text(columns.symbol_name.at(at)).to_owned(),
+                    kind,
+                    line: columns.symbol_line.at(at),
+                    signature: None,
+                    doc: None,
+                    reach: reach_of(columns.symbol_reach[at]),
+                })
+                .collect(),
+        )
     }
 }
 

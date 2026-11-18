@@ -3,7 +3,7 @@
 //! One struct per concept and one order-preserving gathering, because a reader's
 //! requests are one entry per statement in the order the file wrote them, and
 //! the source index is keyed by that alignment: a `HashMap` here would reorder
-//! them and point every target at the wrong line. [`record.ts`](../../../src/record.ts)
+//! them and point every target at the wrong line. [`read_any.rs`](../read_any.rs)
 //! is what consumes this.
 
 use std::collections::HashMap;

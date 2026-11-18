@@ -131,6 +131,51 @@ fn a_directory_git_lists_is_read_from_the_listing() {
 }
 
 #[test]
+fn a_file_git_does_not_list_is_read_from_the_disk() {
+    let root = workspace("unlisted");
+    write(&root, &[("packages/b/src/newdir/index.ts", "export {};\n")]);
+    // `tool.tsx` and `sub/index.ts` are on the disk, in a directory git lists,
+    // and git lists neither, as it lists no ignored or generated file: the
+    // disk answers for them. So it does for `newdir`, which holds only a file
+    // git has not hashed yet.
+    let paths = ["package.json", "packages/b/package.json", "packages/b/src/index.ts"].map(str::to_owned);
+    let answers = |unhashed: &[String]| {
+        let files = paths.iter().cloned().zip(0..).collect();
+        let listing = Listing::of(Arc::new(files), Arc::new(vec![true; paths.len()]), unhashed);
+        let resolvers = Resolvers::over(Tsconfig::Auto, None, Emitted::listed(&root, Some(Arc::new(listing))));
+        let from = root.join("packages/b/src/index.ts");
+        ["./tool", "./sub", "./newdir", "./index", "./gone"].map(|request| resolvers.resolve(&root, &from, request, None))
+    };
+    let on_disk = ["tool.tsx", "sub/index.ts", "newdir/index.ts", "index.ts"].map(|path| Some(format!("packages/b/src/{path}")));
+    let [tool, sub, newdir, index] = on_disk;
+    let expected = [tool, sub, newdir, index, None];
+    assert_eq!(answers(&[]), expected);
+    let unhashed = ["packages/b/src/tool.tsx".to_owned(), "packages/b/src/newdir/index.ts".to_owned()];
+    assert_eq!(answers(&unhashed), expected);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// APFS opens a name through any canonically equivalent spelling: a file git
+/// does not list, stored decomposed, is found through the composed one, as the
+/// disk finds it.
+#[cfg(target_os = "macos")]
+#[test]
+fn a_name_the_disk_opens_through_another_unicode_spelling_is_found() {
+    let root = workspace("unicode");
+    write(&root, &[("packages/b/src/cafe\u{301}.ts", "export {};\n")]);
+    let composed = root.join("packages/b/src/caf\u{e9}.ts");
+    let paths = ["package.json", "packages/b/package.json", "packages/b/src/index.ts"].map(str::to_owned);
+    let files = paths.iter().cloned().zip(0..).collect();
+    let listing = Listing::of(Arc::new(files), Arc::new(vec![true; paths.len()]), &[]);
+    let resolvers = Resolvers::over(Tsconfig::Auto, None, Emitted::listed(&root, Some(Arc::new(listing))));
+    let answer = resolvers.resolve(&root, &root.join("packages/b/src/index.ts"), "./caf\u{e9}", None);
+    let disk = std::fs::metadata(&composed).is_ok();
+    let _ = std::fs::remove_dir_all(&root);
+    assert!(disk, "the disk opens the composed spelling");
+    assert!(answer.is_some(), "{answer:?}");
+}
+
+#[test]
 fn a_path_git_vouches_is_a_file_holds_nothing() {
     let root = workspace("file");
     // A listing no checkout would produce, so the answer shows who gave it:

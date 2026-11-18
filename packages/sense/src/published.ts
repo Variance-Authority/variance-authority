@@ -27,13 +27,11 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { seedPaths } from './files.js';
 import type { NativeGitTree } from './native.js';
-import type { RecordCache } from './reuse.js';
-import { scanCount } from './scan.js';
 import { realPath } from './resolve.js';
-import { placesOf, stepped, type Progress } from './progress.js';
-import { openSourceIndex, sourceIndexPath } from './source-index.js';
+import { placesOf, type Progress } from './progress.js';
+import { sourceIndexPath } from './source-index.js';
 import { updateNatively } from './native-update.js';
-import { fillParseStore, parseStoresFor } from './parse-store.js';
+import { parseStoresFor } from './parse-store.js';
 import { markCheckout } from './test-selection/cache-layers.js';
 import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
 import { SOURCE_INDEX_VERSION } from './source-index-format.js';
@@ -178,91 +176,26 @@ export async function updateSourceIndex(
   const readStartedAt = new Date().toISOString();
   const where = resolve(root);
   const path = options.index ?? sourceIndexPath(where);
-  // The addon answers from the chain in place; only what it declines is decoded here.
-  // It reads Git's object store, so a caller that asked for the working tree is not its to answer.
+  // The addon answers from the chain in place, and rebuilds one it cannot stand on.
   const dirs = options.dirs ?? ['.'];
   const missing = !existsSync(path);
   // An index kept in the checkout's own cache, its own or one beside it, reads the cache's parse store before it opens a file.
-  const stores = dirname(path) === dirname(sourceIndexPath(where)) ? parseStoresFor(where) : undefined;
+  // Asked now, answered while git lists: every route below awaits it.
+  const asked = dirname(path) === dirname(sourceIndexPath(where)) ? parseStoresFor(where) : undefined;
+  asked?.catch(() => undefined);
   const everything = `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
-  const natively = options.packs === false
-    ? undefined
-    : await updateNatively(realPath(where), path, options.progress, dirs, stores, ...(existsSync(path) ? [] : [everything]));
-  if (natively !== undefined) {
-    if (options.index === undefined) markCheckout(realPath(where));
-    return {
-      path,
-      was: missing ? 'missing' : 'published',
-      ...(natively.refused === undefined ? {} : { refused: natively.refused }),
-      files: natively.files,
-      reread: natively.reread,
-      parsed: natively.parsed,
-      readStartedAt,
-      listing: natively.listing,
-    };
-  }
-  // Opened once: the open decodes the whole chain, and the state is read off
-  // that same open rather than off a second one.
-  const source = await openSourceIndex(path, stores === undefined ? {} : { stores });
-  const was = missing ? 'missing' : source.state;
-  const written = source.written;
-  // Counted on the record cache, not the parse cache: a cold scan attaches its
-  // native parse layer to the parse cache object itself, and a wrapper there
-  // would publish without it.
-  const reused = new Set<string>();
-  const adopt = source.reuse.adopt?.bind(source.reuse);
-  const reuse: RecordCache = {
-    under: (shape) => source.reuse.under(shape),
-    get: (file, digest) => {
-      const found = source.reuse.get(file, digest);
-      if (found !== undefined) reused.add(file);
-      return found;
-    },
-    getIndexed: (file, digest) => {
-      const found = source.reuse.getIndexed(file, digest);
-      if (found !== undefined) reused.add(file);
-      return found;
-    },
-    // A record found and then built again was not reused: the scan found it no
-    // longer holds, as a decline for size does once the file fits.
-    set: (record, witnesses, targets) => {
-      reused.delete(record.file);
-      source.reuse.set(record, witnesses, targets);
-    },
-    ...(adopt === undefined ? {} : {
-      adopt: (graph) => {
-        for (const file of reused) if (graph.has(file)) reused.delete(file);
-        adopt(graph);
-      },
-    }),
-  };
-  // Counted rather than collected: the update publishes the records through
-  // `reuse` and reports how many, and a cold closure the addon holds is never
-  // turned into objects for either.
-  const { files, parsed, listing } = await stepped(options.progress, was === 'missing'
-    ? everything
-    : `reading every file of ${placesOf(where, dirs)}, because the index could not be updated in place`, () => scanCount({
-    root: where,
-    dirs,
-    cache: source.cache,
-    reuse,
-    ...(stores === undefined ? {} : { stores }),
-    ...(options.packs === undefined ? {} : { packs: options.packs }),
-  }));
-  const refused = await source.save();
-  if (refused === undefined && stores !== undefined) fillParseStore(listing, stores, path);
-  // The checkout's own index names its checkout, so the cache can tell when it is gone.
+  const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, missing ? everything : undefined, options.packs);
   if (options.index === undefined) markCheckout(realPath(where));
   return {
     path,
-    was,
-    ...(written === undefined ? {} : { written }),
-    ...(refused === undefined ? {} : { refused }),
-    files,
-    reread: files - reused.size,
-    parsed,
+    was: missing ? 'missing' : natively.rebuilt ?? 'published',
+    ...(natively.written === undefined ? {} : { written: natively.written }),
+    ...(natively.refused === undefined ? {} : { refused: natively.refused }),
+    files: natively.files,
+    reread: natively.reread,
+    parsed: natively.parsed,
     readStartedAt,
-    ...(listing === undefined ? {} : { listing }),
+    ...(natively.listing === undefined ? {} : { listing: natively.listing }),
   };
 }
 

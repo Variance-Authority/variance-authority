@@ -1,5 +1,5 @@
-//! The walk of the module closure: read a wave, resolve its requests, enter
-//! what they reach, until a wave reaches nothing new.
+//! The walk of the closure: read a wave, resolve its requests, enter every
+//! readable file they reach, until a wave reaches nothing new.
 
 // compass: variance-authority.reach.source-index
 
@@ -11,13 +11,22 @@ use rayon::prelude::*;
 use rayon::ThreadPoolBuilder;
 
 use super::GraphOptions;
-use crate::acquire::{read_git, Answer, Outcome, TreeObjects, LARGEST_FILE};
+use crate::acquire::{read_all, read_git, Answer, Outcome, TreeObjects, LARGEST_FILE};
 use crate::emitted::{Emitted, Listing};
 use crate::git::{self, Oid};
 use crate::parse_origin::FromBlob;
+use crate::read_any::{language_of, Language};
 use crate::resolve::Resolvers;
+use crate::world::World;
 
-const RESOLVERS: usize = 6;
+use super::neighbours::Neighbours;
+
+/// Threads resolving a slice: every core. Resolving waits on the filesystem
+/// as much as it computes, and on Kibana six threads left 0.5 s of a cold
+/// index on the table that ten, twelve and sixteen all took back.
+fn resolving_width() -> usize {
+    std::thread::available_parallelism().map_or(6, usize::from)
+}
 /// Files a wave reads before it resolves them while reading the next.
 const SLICE: usize = 16_384;
 
@@ -29,13 +38,31 @@ pub(crate) struct Walked {
     /// Git's object name for a file the tree holds, the read digest otherwise.
     pub identities: Vec<String>,
     pub read: Vec<Answer>,
-    pub targets: Vec<Vec<String>>,
+    pub targets: Vec<Reached>,
     /// Whether each row was answered by a parse the caller kept, rather than read.
     pub kept: Vec<bool>,
 }
 
+/// Where one file's requests land: the target of each, in request order and
+/// empty where it lands nowhere, and every further file a request reaches,
+/// by the request's index. A Swift import is a whole target's directory, and
+/// a Java wildcard its package's: the first is the request's target and the
+/// rest are edges too.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) struct Reached {
+    pub first: Vec<String>,
+    pub more: Vec<(u32, String)>,
+}
+
+impl Reached {
+    /// Every file reached, the targets first.
+    pub(crate) fn all(&self) -> impl Iterator<Item = &String> {
+        self.first.iter().chain(self.more.iter().map(|(_, file)| file))
+    }
+}
+
 /// A parse the caller keeps for a file, by Git's name for its content and its path.
-pub(crate) type Kept<'k> = &'k dyn Fn(&str, &str) -> Option<crate::read::Read>;
+pub(crate) type Kept<'k> = &'k (dyn Fn(&str, &str) -> Option<crate::read::Read> + Sync);
 
 /// The walk itself, shared by the batch that crosses as columns, the graph
 /// that stays on this side (`graph_index.rs`) and a warm update, so none can
@@ -43,12 +70,20 @@ pub(crate) type Kept<'k> = &'k dyn Fn(&str, &str) -> Option<crate::read::Read>;
 /// seeds are read whatever they are, and the files the caller already holds a
 /// record for are the boundary of what a warm update has to open
 /// (`source_update.rs`). A file whose content `kept` answers is not opened:
-/// its parse is the kept one.
+/// its parse is the kept one. `world` is the caller's, built once per run
+/// over the same tree ([`neighbours`](super::neighbours)), so a warm update
+/// that walks round after round builds Rust's module tree, and parses every
+/// `.rs` file for it, once rather than every round. The tree is built before
+/// the wave that needs it is read, and the wave takes the files it read from
+/// `read`, so a cold walk parses each `.rs` file once.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn walk_beyond(
     options: GraphOptions,
     at: &HashMap<String, u32>,
     tree_oids: &[Oid],
     listing: Arc<Listing>,
+    world: &World,
+    read_by_world: &Neighbours,
     held: &dyn Fn(&str) -> bool,
     kept: Kept,
     from_blob: &FromBlob,
@@ -102,14 +137,17 @@ pub(crate) fn walk_beyond(
         // parse segment is encoded after the walk, so a cold index of 288k paths
         // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
         // it is read would bound it.
+        world.prewarm(wave.iter().filter_map(|file| language_of(file)));
         let reading = |slice: &[String], oids| {
-            read_kept(&root, store, slice, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
+            read_by_world.first(slice, oids, |unread, oids| {
+                read_kept(&root, store, unread, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
+            })
         };
-        let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, Some(at));
+        let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, world, Some(at));
         let (opened, wave_kept, resolved) = read_resolved(&wave, SLICE, oids, reading, resolving);
         answered.extend(wave_kept);
-        for target in resolved.iter().flatten() {
-            if is_module(target) && !held(target) && seen.insert(target.clone()) {
+        for target in resolved.iter().flat_map(Reached::all) {
+            if language_of(target).is_some() && !held(target) && seen.insert(target.clone()) {
                 queue.push(target.clone());
             }
         }
@@ -129,15 +167,16 @@ pub(crate) fn walk_beyond(
 /// Reads `wave` `slice` files at a time and resolves each slice while the next is read.
 /// Reads parse on the cores and resolves wait on the file system's path lookups, so
 /// neither waits for the other's whole wave; the rows keep the wave's order.
-fn read_resolved<'w, R>(
+fn read_resolved<'w, R, T>(
     wave: &'w [String],
     slice: usize,
     oids: Vec<Option<Oid>>,
     reading: impl Fn(&'w [String], Vec<Option<Oid>>) -> (Vec<R>, Vec<bool>),
-    resolving: impl Fn(&'w [String], &[R]) -> Vec<Vec<String>> + Sync,
-) -> (Vec<R>, Vec<bool>, Vec<Vec<String>>)
+    resolving: impl Fn(&'w [String], &[R]) -> Vec<T> + Sync,
+) -> (Vec<R>, Vec<bool>, Vec<T>)
 where
     R: Send + Sync,
+    T: Send,
 {
     let (mut read, mut answered, mut targets) =
         (Vec::with_capacity(wave.len()), Vec::with_capacity(wave.len()), Vec::with_capacity(wave.len()));
@@ -182,15 +221,7 @@ pub(super) fn read_kept(
         .zip(&oids)
         .map(|(file, oid)| {
             let identity = git::spell(oid.as_ref()?);
-            let read = kept(&identity, file)?;
-            // A parse is kept whatever limit read it, so one over this scan's is read again, to be
-            // declined; a reader that measured nothing leaves the size to the file on disk, and a
-            // size neither tells is read again from Git, which declines by the blob's. No limit is
-            // the default a fresh read applies (`acquire.rs`), not none.
-            let limit = u64::from(largest_file.unwrap_or(LARGEST_FILE));
-            let bytes = read.size.as_ref().map(|size| u64::from(size.bytes));
-            let over = bytes.or_else(|| std::fs::metadata(Path::new(root).join(file)).ok().map(|entry| entry.len())).is_none_or(|bytes| bytes > limit);
-            (!over).then_some((read, identity))
+            Some((held(root, file, &identity, largest_file, kept)?, identity))
         })
         .collect();
     let (unread, unread_oids): (Vec<String>, Vec<Option<Oid>>) = files
@@ -210,9 +241,52 @@ pub(super) fn read_kept(
             from_blob.saw(oid, file, named);
         }
     }
+    around(hits, fresh)
+}
+
+/// Read `files` off the disk, answering from `kept` every one `identities`
+/// names content it holds for, rather than opening it; with each answer,
+/// whether `kept` gave it.
+pub(super) fn read_held(
+    root: &str,
+    files: &[String],
+    identities: &[String],
+    largest_file: Option<u32>,
+    digests: Option<bool>,
+    readers: Option<u32>,
+    kept: Kept,
+) -> (Vec<Answer>, Vec<bool>) {
+    let hits: Vec<Option<(crate::read::Read, String)>> = files
+        .iter()
+        .enumerate()
+        .map(|(row, file)| {
+            let identity = identities.get(row).filter(|identity| !identity.is_empty())?;
+            Some((held(root, file, identity, largest_file, kept)?, identity.clone()))
+        })
+        .collect();
+    let unread: Vec<String> = files.iter().zip(&hits).filter(|(_, hit)| hit.is_none()).map(|(file, _)| file.clone()).collect();
+    let fresh = if unread.is_empty() { Vec::new() } else { read_all(root.to_owned(), unread, largest_file, digests, readers, true) };
+    around(hits, fresh)
+}
+
+/// What `kept` holds for `file` under `identity`, when this scan would parse it.
+fn held(root: &str, file: &str, identity: &str, largest_file: Option<u32>, kept: Kept) -> Option<crate::read::Read> {
+    let read = kept(identity, file)?;
+    // A parse is kept whatever limit read it, so one over this scan's is read again, to be
+    // declined; a reader that measured nothing leaves the size to the file on disk, and a
+    // size neither tells is read again, which declines by the bytes'. No limit is the
+    // default a fresh read applies (`acquire.rs`), not none.
+    let limit = u64::from(largest_file.unwrap_or(LARGEST_FILE));
+    let bytes = read.size.as_ref().map(|size| u64::from(size.bytes));
+    let over = bytes.or_else(|| std::fs::metadata(Path::new(root).join(file)).ok().map(|entry| entry.len())).is_none_or(|bytes| bytes > limit);
+    (!over).then_some(read)
+}
+
+/// Every row in order: a hit as `kept` gave it, a miss as `fresh` read it.
+fn around(hits: Vec<Option<(crate::read::Read, String)>>, fresh: Vec<Answer>) -> (Vec<Answer>, Vec<bool>) {
     let mut fresh = fresh.into_iter();
-    let mut read = Vec::with_capacity(files.len());
-    let mut answered = Vec::with_capacity(files.len());
+    let mut read = Vec::with_capacity(hits.len());
+    let mut answered = Vec::with_capacity(hits.len());
     for hit in hits {
         answered.push(hit.is_some());
         match hit {
@@ -223,47 +297,55 @@ pub(super) fn read_kept(
     (read, answered)
 }
 
+/// Where every request of every parsed file lands. A module's and a
+/// stylesheet's go through `resolvers`, landing against `known`; a language
+/// that resolves over the tree asks `world`, whose indexes are built here,
+/// before the pool, for the languages this slice holds.
 pub(super) fn resolve_all(
     root: &Path,
     files: &[String],
     read: &[Answer],
     resolvers: &Resolvers,
+    world: &World,
     known: Option<&HashMap<String, u32>>,
-) -> Vec<Vec<String>> {
+) -> Vec<Reached> {
+    let mut languages: Vec<Language> = files.iter().filter_map(|file| language_of(file)).collect();
+    languages.sort_unstable_by_key(|language| *language as u8);
+    languages.dedup();
+    // Preparing a language's roots and manifests is resolving, read and parsed or not.
+    crate::stages::summed(&crate::stages::RESOLVE, || world.prewarm(languages));
     let resolving = ThreadPoolBuilder::new()
-        .num_threads(RESOLVERS.min(files.len().max(1)))
+        .num_threads(resolving_width().min(files.len().max(1)))
         .build();
     let work = || {
         files
             .par_iter()
             .zip(read.par_iter())
-            .map(|(file, (held, _, outcome))| {
+            .map(|(file, (held, _, outcome))| crate::stages::summed(&crate::stages::RESOLVE, || {
+                let mut reached = Reached::default();
                 if !outcome.parsed() {
-                    return Vec::new();
+                    return reached;
                 }
                 let from = root.join(file);
-                held.requests
-                    .iter()
-                    .map(|request| {
-                        resolvers
-                            .resolve(root, &from, &request.value, known)
-                            .unwrap_or_default()
-                    })
-                    .collect()
-            })
+                let language = language_of(file).unwrap_or(Language::Module);
+                for (index, request) in held.requests.iter().enumerate() {
+                    let landed: Vec<String> = match language {
+                        Language::Style => resolvers.resolve_style(root, &from, &request.value, known).into_iter().collect(),
+                        Language::Module => resolvers.resolve(root, &from, &request.value, known).into_iter().collect(),
+                        _ => world.resolve(language, file, &request.value, request.item),
+                    };
+                    let mut landed = landed.into_iter();
+                    reached.first.push(landed.next().unwrap_or_default());
+                    reached.more.extend(landed.map(|file| (index as u32, file)));
+                }
+                reached
+            }))
             .collect()
     };
     match resolving {
         Ok(pool) => pool.install(work),
         Err(_) => work(),
     }
-}
-
-pub(crate) fn is_module(file: &str) -> bool {
-    matches!(
-        Path::new(file).extension().and_then(|part| part.to_str()),
-        Some("ts" | "tsx" | "mts" | "cts" | "js" | "jsx" | "mjs" | "cjs")
-    )
 }
 
 #[cfg(test)]
@@ -293,6 +375,49 @@ mod tests {
             assert_eq!(kept, oids.iter().map(Option::is_some).collect::<Vec<_>>(), "slice {slice}");
             assert_eq!(targets, wave.iter().map(|file| vec![format!("{file} read {file}")]).collect::<Vec<_>>(), "slice {slice}");
         }
+    }
+
+    /// A warm update walks round after round over one tree: the world it is
+    /// handed reads every `.rs` file for Rust's module tree once, not per round.
+    #[cfg(feature = "grammars")]
+    #[test]
+    fn rounds_over_one_world_read_the_module_tree_once() {
+        use std::sync::Mutex;
+        let files = [("src/lib.rs", "mod a;\nmod b;\n"), ("src/a.rs", "use crate::b;\n"), ("src/b.rs", "pub fn b() {}\n")];
+        let root = std::env::temp_dir().join(format!("sense-walk-rounds-{}", std::process::id()));
+        for (file, text) in files {
+            std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
+            std::fs::write(root.join(file), text).unwrap();
+        }
+        let known: HashMap<String, u32> = files.iter().map(|(file, _)| (*file).to_owned()).zip(0..).collect();
+        let asked = Mutex::new(Vec::<String>::new());
+        let parsing = |paths: &[&str]| {
+            asked.lock().unwrap().extend(paths.iter().map(|path| (*path).to_owned()));
+            let held = |path: &str| files.iter().find(|(file, _)| *file == path).map(|(_, text)| *text);
+            paths.iter().map(|path| held(path).map(|text| crate::read_any::read_file(path, text, &oxc_allocator::Allocator::default(), true))).collect()
+        };
+        let texting = |_: &str| None;
+        let world = World::new(Some(&known), None).reading(&parsing, &texting);
+        let round = |seed: &str| {
+            let options = GraphOptions {
+                root: root.to_string_lossy().into_owned(),
+                seeds: vec![seed.to_owned()],
+                largest_file: None,
+                readers: None,
+                tsconfig: crate::resolve::Tsconfig::from_js(None),
+                condition_names: None,
+                include_parses: false,
+            };
+            let listing = Arc::new(Listing::default());
+            walk_beyond(options, &HashMap::new(), &[], listing, &world, &Neighbours::default(), &|_| true, &|_, _| None, &FromBlob::default(), &TreeObjects::default())
+        };
+        let (first, second) = (round("src/lib.rs"), round("src/a.rs"));
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(first.targets[0].first, ["src/a.rs", "src/b.rs"]);
+        assert_eq!(second.targets[0].first, ["src/b.rs"]);
+        let mut asked = asked.into_inner().unwrap();
+        asked.sort_unstable();
+        assert_eq!(asked, ["src/a.rs", "src/b.rs", "src/lib.rs"]);
     }
 
     #[test]

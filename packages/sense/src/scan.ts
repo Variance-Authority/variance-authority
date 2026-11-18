@@ -2,10 +2,10 @@
  * A repository, walked once, as file records the graph can be built from.
  *
  * This is the half that needs a disk. [`files.ts`](./files.ts) says which paths
- * exist and what their names mean, [`read.ts`](./read.ts) turns a file's text
- * into specifiers and [`resolve.ts`](./resolve.ts) turns a specifier into a file;
- * this follows what those find, and decides how little of that work a second run
- * has to repeat.
+ * exist and what their names mean, and the native addon reads every language
+ * and resolves what it asks for, one frontier at a time
+ * ([`native.ts`](./native.ts)); this follows what those find, and decides how
+ * little of that work a second run has to repeat.
  *
  * ## What it follows, and what it stops at
  *
@@ -48,26 +48,20 @@ import { extname, join, resolve } from 'node:path';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { Digest } from '@variance-authority/core/format';
-import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
+import { memoryParseCache, type Parsed, type ParseCache, type ParseKey } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, unlistedShapeOf, type RecordCache } from './reuse.js';
-import { nativeFrontier, nativeGraph, type NativeBuilt, type NativeGitTree } from './native.js';
+import { nativeFrontier, nativeGraph, type NativeBuilt } from './native.js';
 import { native, nativeRefusal } from './addon.js';
 import { adoptNativeParses } from './source-index.js';
 import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
-import type { IndexedRecord } from './source-index-format.js';
+import { encodeSourceIndex, type IndexedRecord } from './source-index-format.js';
 import { handOverKept, type Unheld } from './parse-store.js';
-import { keyFor, languageFor, parseWay, seedPaths, type ParseWay } from './files.js';
+import { keyFor, parseWay, seedPaths, type ParseWay } from './files.js';
 import { READABLE } from './language.js';
-import { worldIn, worldOn } from './world.js';
-import { declinedForSize, parsedOnce, recordFor, stillTooLarge } from './record.js';
-import { onlyListed } from './repo-path.js';
+import { declinedForSize, stillTooLarge } from './record.js';
 import { withDeclaredTsconfig } from './typescript.js';
-import {
-  realPath,
-  resolversFor,
-  type ResolveOptions,
-} from './resolve.js';
+import { realPath, type ResolveOptions } from './resolve.js';
 
 export interface ScanOptions extends ResolveOptions {
   /** Repository root. Every path in the result is relative to it. */
@@ -100,6 +94,11 @@ export interface ScanOptions extends ResolveOptions {
    * over the repository into a walk over the diff: a digest that is already known
    * can be looked up before the file is opened, so an unchanged file costs a map
    * lookup rather than a read and a parse.
+   *
+   * A caller's own map must cover the checkout: its paths become the listing,
+   * so a file it leaves out is not seeded, and an import resolved against the
+   * listing — into a `build/` directory, or in a language other than JavaScript,
+   * TypeScript and stylesheets — does not find it.
    */
   readonly digests?: ReadonlyMap<string, Digest> | false;
 
@@ -222,43 +221,11 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   return [...built.values()].sort((a, b) => codeUnitOrder(a.file, b.file));
 }
 
-/** What {@link scanCount} counted, and the listing it took of the checkout. */
-export interface ScanCounted {
-  readonly files: number;
-  /** The modules whose bytes the scan parsed: neither a record nor a parse store answered them. */
-  readonly parsed: number;
-  /** The listing git gave the scan; absent when git could not list the checkout, or the addon did not hold it. */
-  readonly listing?: NativeGitTree;
-}
-
-/**
- * How many files {@link scanRelations} would return, for a caller that hands
- * `cache` and `reuse` their records and needs only the count back, with the
- * listing the scan took, for a step after it to carry.
- *
- * A cold closure the addon holds is counted where it is, so a build that
- * publishes the index never turns the closure into objects just to count them.
- */
-export async function scanCount(options: ScanOptions): Promise<ScanCounted> {
-  const { built, graph, listing, parsed } = await scanning(options);
-  const counted = (files: number, read: number): ScanCounted =>
-    (listing === undefined ? { files, parsed: read } : { files, parsed: read, listing });
-  if (graph === undefined) return counted(built.size, parsed);
-  let both = 0;
-  for (const file of built.keys()) if (graph.has(file)) both += 1;
-  // A closure the addon holds read every module it names.
-  return counted(built.size + graph.size - both, parsed + graph.parsed);
-}
-
 interface Scanned {
   /** Every record the scan built or reused in JavaScript. */
   readonly built: Map<string, FileRecord>;
   /** The cold closure the addon holds, whose records win where both name a file. */
   readonly graph?: NativeIndexGraph;
-  /** The listing of the checkout the scan took, when the addon holds it. */
-  readonly listing?: NativeGitTree;
-  /** The modules whose bytes the scan had parsed, but for a closure the addon holds. */
-  readonly parsed: number;
 }
 
 async function scanning(asked: ScanOptions): Promise<Scanned> {
@@ -272,7 +239,6 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   // nothing while reporting success.
   const root = realPath(resolve(asked.root));
   const options = withDeclaredTsconfig(root, asked);
-  const resolvers = resolversFor(options);
   const addon = native();
   if (addon === undefined) {
     throw new Error(`sense: scanning ${root} needs the native addon, which did not load: ${nativeRefusal()}`);
@@ -287,15 +253,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         ? await gitTreeOf(root, options.dirs, options.changed)
         : treeOf(options.digests);
 
-  // Every language but JavaScript resolves by asking about the tree rather
-  // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
-  // scan already holds the answer for every path it knows, and every parse.
   const largestFile = options.largestFile ?? LARGEST_FILE;
-  let parsed = 0; // counted where JavaScript parses, whichever of a resolver and the scan asks first
-  const counted = (file: string, contents: string): void => { parsed += 1; tree?.native?.parsedFrom(file, contents); };
-  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, counted, digest: tree?.getAll([file])[0] });
-  const world = tree === undefined ? worldOn(root, parse) : worldIn(tree.paths(), root, parse);
-  resolvers.tree = world;
 
   // No digests, no reuse: a record that names no bytes cannot be checked against the
   // bytes on disk. A directory git cannot list still keeps what it read, under a shape
@@ -308,12 +266,10 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   // index keeps whichever it read first until the blob changes. A decline for size is
   // checked against the file; one for bytes that are not UTF-8 is not.
   const packed = options.packs === false ? undefined : tree?.native;
-  // A native batch over a tree the addon does not hold resolves without Git's
-  // listing, so it is handed the part the disk cannot vouch for: the files
-  // under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)). Asked for
-  // when a batch runs, which on a scan that reuses everything is never.
-  let listed: string[] | undefined;
-  const listedPaths = (): string[] => (listed ??= world.below('').filter(onlyListed));
+  // A native batch over a tree the addon does not hold is handed the tree's
+  // listing: a module under a tracked `build/` lands only when it is listed,
+  // and every other language resolves by asking the listing what is there.
+  // Without a tree the batch walks the disk for the same answer.
   if (shape !== undefined) reuse?.under(shape.shape);
 
   // The queue is repository-relative throughout. An edge already carries the
@@ -361,7 +317,6 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   const accept = (file: string, way: ParseWay, fresh: NativeBuilt): void => {
     built.set(file, fresh.record);
     reuse?.set(fresh.record, fresh.witnesses, fresh.targets);
-    if (fresh.parsed === true) parsed += 1;
     const key = fresh.record.digest === undefined ? undefined : keyFor(fresh.record.digest, way);
     if (fresh.read !== undefined && key !== undefined) cache.set(key, fresh.read);
     // A kept parse crossed as what its record needs; the whole one is the store's.
@@ -401,39 +356,23 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         acceptRemembered(file, digest, way, remembered);
         continue;
       }
-      // The native side reads modules and nothing else, so what it is handed is
-      // named positively rather than as everything that is not a stylesheet: a
-      // language it has never heard of must go to `recordFor`, not be passed to
-      // it because it failed to be CSS.
-      if (languageFor(way) === 'module') {
-        pending.push(file);
-        pendingDigests.push(digest);
-        pendingSet.add(file);
-        continue;
-      }
-      const fresh = await recordFor({
-        absolute: join(root, file),
-        file,
-        root,
-        resolvers,
-        cache,
-        aliases: shape?.aliases,
-        directories: shape?.shape.directories ?? new Map(),
-        largestFile,
-        remembering: reuse !== undefined,
-        counted,
-        ...(digest === undefined ? {} : { digest }),
-      });
-      accept(file, way, fresh);
+      pending.push(file);
+      pendingDigests.push(digest);
+      pendingSet.add(file);
     }
 
     if (pending.length > 0) {
       const useGraph = !nativeGraphUsed && packed !== undefined && pending.length >= 10_000;
+      // A caller's cache answers its parses ahead of any stores, in the batch
+      // and the closure graph alike. The graph is handed its seeds' alone: a
+      // file it reaches beyond them has no digest here until the walk reads it.
+      const cached = options.cache === undefined ? undefined : heldOf(options.cache, pending, pendingDigests);
       const nativeOptions = {
         addon,
         ...(packed === undefined ? {} : { tree: packed }),
-        ...(packed === undefined && tree !== undefined ? { listed: listedPaths() } : {}),
+        ...(packed === undefined && tree !== undefined ? { listed: tree.paths() } : {}),
         root,
+        dirs: options.dirs,
         files: pending,
         largestFile,
         digests: pendingDigests,
@@ -441,6 +380,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         directories: shape?.shape.directories ?? new Map(),
         remembering: reuse !== undefined,
         ...(options.stores === undefined ? {} : { stores: options.stores }),
+        ...(cached === undefined ? {} : { held: cached }),
         ...(options.tsconfig === undefined ? {} : { tsconfig: options.tsconfig }),
         ...(options.conditionNames === undefined ? {} : { conditionNames: options.conditionNames }),
       };
@@ -481,14 +421,20 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         process.stderr.write(`sense accept native: ${(performance.now() - accepting).toFixed(1)} ms\n`);
       }
     }
-
-    // The JavaScript resolvers are clones sharing one cache. Native batches own
-    // their resolver cache and drop it at the call boundary.
-    resolvers.modules.clearCache();
   }
 
-  const listing = tree?.native;
-  return { built, parsed, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
+  return { built, ...(graph === undefined ? {} : { graph }) };
+}
+
+/** What `cache` holds for `files` at `digests`, as the parse-only segment a batch answers them from unopened. */
+function heldOf(cache: ParseCache, files: readonly string[], digests: readonly (Digest | undefined)[]): Uint8Array | undefined {
+  const parses = new Map<ParseKey, Parsed>();
+  for (const [row, file] of files.entries()) {
+    const key = digests[row] === undefined ? undefined : keyFor(digests[row], parseWay(file));
+    const parse = key === undefined ? undefined : cache.get(key);
+    if (key !== undefined && parse !== undefined) parses.set(key, parse);
+  }
+  return parses.size === 0 ? undefined : encodeSourceIndex({ parses, directories: new Map(), records: new Map() });
 }
 
 /** Whether a path is there to be opened, without opening it. */

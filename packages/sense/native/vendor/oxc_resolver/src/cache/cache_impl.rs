@@ -30,6 +30,9 @@ pub struct Cache {
     pub(crate) tsconfigs_raw: DashMap<PathBuf, Arc<TsConfig>, BuildHasherDefault<FxHasher>>,
     /// Cache for built/resolved tsconfigs (used for resolution).
     pub(crate) tsconfigs_built: DashMap<PathBuf, Arc<TsConfig>, BuildHasherDefault<FxHasher>>,
+    /// Root tsconfigs that failed to load, so a missing `extends` is not
+    /// read, parsed and missed again for every file the config governs.
+    pub(crate) tsconfigs_failed: DashMap<PathBuf, ResolveError, BuildHasherDefault<FxHasher>>,
     /// Built `paths` maps, shared by every built tsconfig with the same inputs.
     pub(crate) tsconfig_paths: crate::tsconfig::BuiltPathsMemo,
     #[cfg(feature = "yarn_pnp")]
@@ -41,6 +44,7 @@ impl Cache {
         self.paths.clear();
         self.tsconfigs_raw.clear();
         self.tsconfigs_built.clear();
+        self.tsconfigs_failed.clear();
         self.tsconfig_paths.clear();
     }
 
@@ -262,6 +266,22 @@ impl Cache {
         if root && let Some(tsconfig) = self.tsconfigs_built.get(path) {
             return Ok(Arc::clone(tsconfig.value()));
         }
+        if root && let Some(error) = self.tsconfigs_failed.get(path) {
+            return Err(error.value().clone());
+        }
+        let loaded = self.load_tsconfig_uncached(root, path, callback);
+        if root && let Err(error) = &loaded {
+            self.tsconfigs_failed.insert(path.to_path_buf(), error.clone());
+        }
+        loaded
+    }
+
+    fn load_tsconfig_uncached<F: FnOnce(&mut TsConfig) -> Result<(), ResolveError>>(
+        &self,
+        root: bool,
+        path: &Path,
+        callback: F,
+    ) -> Result<Arc<TsConfig>, ResolveError> {
 
         // Check raw cache (callback applied, not built) - only for root=false
         // For root=true, we need to run the callback to ensure extends are processed
@@ -364,6 +384,7 @@ impl Cache {
             paths: DashMap::with_hasher(BuildHasherDefault::default()),
             tsconfigs_raw: DashMap::with_hasher(BuildHasherDefault::default()),
             tsconfigs_built: DashMap::with_hasher(BuildHasherDefault::default()),
+            tsconfigs_failed: DashMap::with_hasher(BuildHasherDefault::default()),
             tsconfig_paths: crate::tsconfig::BuiltPathsMemo::default(),
             #[cfg(feature = "yarn_pnp")]
             yarn_pnp_manifest: OnceCell::new(),

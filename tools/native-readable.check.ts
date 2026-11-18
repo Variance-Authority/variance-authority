@@ -6,16 +6,17 @@ import { describe, expect, it } from 'vitest';
 /**
  * One answer to *which files does a scan open*, held in two languages.
  *
- * The reader tables in `language.ts`, `read.ts` and `style.ts` say which
- * extensions some reader claims; `EXTENSIONS` in `seed.rs` says which ones the
- * native seeder puts in front of them. Nothing compares the two at run time.
+ * The reader tables in `language.ts` and `read.ts` say which
+ * extensions some reader claims, and `language_of` in `read_any.rs` says which
+ * reader the native seed, read and resolve give each. Nothing compares them at
+ * run time.
  *
- * So a language added to the reader tables and not to the Rust list is never
+ * So a language added to the reader tables and not to `language_of` is never
  * seeded: the scan opens none of its files, and every one of them is missing
  * from the graph without a word. That is the shape this file exists to refuse,
  * and it is not hypothetical — it shipped.
  *
- * Both lists are read out of their source rather than imported, so this answers
+ * Both are read out of their source rather than imported, so this answers
  * on a checkout that has been neither built nor compiled.
  */
 
@@ -33,32 +34,50 @@ function listed(source: string, name: string): readonly string[] {
   return [...body.matchAll(/'([^']+)'/g)].map((found) => found[1]!);
 }
 
-const readable = new Set([
-  ...listed(read('src/read.ts'), 'MODULE_EXTENSIONS'),
-  ...listed(read('src/style.ts'), 'STYLE_EXTENSIONS'),
-  ...['PYTHON_EXTENSIONS', 'RUST_EXTENSIONS', 'JAVA_EXTENSIONS', 'KOTLIN_EXTENSIONS', 'SWIFT_EXTENSIONS']
-    .flatMap((name) => listed(read('src/language.ts'), name)),
-]);
+/** Each reader table by the `Language` variant `language_of` names it with. */
+const tables: Record<string, readonly string[]> = {
+  Module: listed(read('src/read.ts'), 'MODULE_EXTENSIONS'),
+  ...Object.fromEntries(
+    ['Style', 'Python', 'Rust', 'Java', 'Kotlin', 'Swift'].map((language) => [
+      language,
+      listed(read('src/language.ts'), `${language.toUpperCase()}_EXTENSIONS`),
+    ]),
+  ),
+};
 
-const rust = (() => {
-  const source = read('native/src/seed.rs');
-  const at = source.indexOf('const EXTENSIONS: &[&str] = &[');
-  if (at === -1) throw new Error('the native seeder does not declare EXTENSIONS where this check reads it');
-  const body = source.slice(at, source.indexOf('];', at));
-  // The Rust list spells a suffix without its dot, because that is what
-  // `Path::extension` answers with.
-  return new Set([...body.matchAll(/"([^"]+)"/g)].map((found) => `.${found[1]!}`));
+const readable = new Set(Object.values(tables).flat());
+
+/** `language_of`'s arms: each extension, by the variant it answers. */
+const native = (() => {
+  const source = read('native/src/read_any.rs');
+  const at = source.indexOf('fn language_of(');
+  if (at === -1) throw new Error('read_any.rs does not declare language_of where this check reads it');
+  const body = source.slice(at, source.indexOf('\n}\n', at));
+  const arms = [...body.matchAll(/^\s*((?:"[^"]+"\s*\|?\s*)+)=> Some\(Language::(\w+)\)/gm)];
+  return new Map(arms.flatMap((arm) => [...arm[1]!.matchAll(/"([^"]+)"/g)].map((found) => [found[1]!, arm[2]!] as const)));
 })();
 
-describe('the native seeder and the reader tables', () => {
-  for (const extension of readable) {
-    it(`seeds ${extension}, which a reader claims`, () => {
-      expect(rust.has(extension)).toBe(true);
-    });
+describe('the native seeder', () => {
+  // A second table is a second answer: the seeder asks `language_of` whether a
+  // reader claims a file, so what it seeds is what the reader reads.
+  it('seeds by `language_of`, with no table of its own', () => {
+    const source = read('native/src/seed.rs');
+    expect(source).toContain('language_of(');
+    expect(source).not.toMatch(/const \w+: &\[&str\] = &\[/);
+  });
+});
+
+describe('the native reader and the reader tables', () => {
+  for (const [language, extensions] of Object.entries(tables)) {
+    for (const extension of extensions) {
+      it(`reads ${extension} as ${language}, as its table claims`, () => {
+        expect(native.get(extension)).toBe(language);
+      });
+    }
   }
 
-  for (const extension of rust) {
-    it(`claims a reader for ${extension}, which it seeds`, () => {
+  for (const extension of native.keys()) {
+    it(`claims a reader for ${extension}, which it reads`, () => {
       expect(readable.has(extension)).toBe(true);
     });
   }

@@ -1,11 +1,6 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { resolveJvm } from './jvm.js';
+import { describe, expect, it } from 'vitest';
 import { native } from './addon.js';
 import type { Read } from './read.js';
-import { worldOn, type TreeWorld } from './world.js';
 
 /**
  * Two syntaxes over one resolution algorithm.
@@ -88,69 +83,6 @@ describe('what a JVM file asks for', () => {
     expect(read.unknown).toBeUndefined();
   });
 });
-
-describe('where a JVM import lands', () => {
-  // On disk, because a source root is derived from what a file *says* its
-  // package is — a list of paths cannot answer that, and a world that cannot
-  // read text is a world with no JVM roots in it.
-  let root: string;
-  let world: TreeWorld;
-
-  beforeAll(async () => {
-    root = await mkdtemp(join(tmpdir(), 'variance-jvm-'));
-    await write(root, 'src/main/java/a/b/Thing.java', 'package a.b;\npublic class Thing {}\n');
-    await write(root, 'src/main/java/a/b/Other.java', 'package a.b;\nclass Other {}\n');
-    await write(root, 'src/main/java/a/c/Far.java', 'package a.c;\nclass Far {}\n');
-    await write(root, 'src/test/java/a/b/ThingTest.java', 'package a.b;\nclass ThingTest {}\n');
-    await write(root, 'src/main/kotlin/a/b/helpers.kt', 'package a.b\n\nfun parse() {}\n');
-    world = worldOn(root);
-  });
-
-  afterAll(async () => {
-    await rm(root, { recursive: true, force: true });
-  });
-
-  it('derives the source root from what the file says its package is', () => {
-    // Nothing configures `src/main/java`. `a/b/Thing.java` declaring `a.b` is
-    // what says the root is `src/main/java`, and a project that does not hold
-    // to the convention is read the same way.
-    expect(resolveJvm({ from: 'src/main/java/a/c/Far.java', request: 'a.b.Thing', world }))
-      .toEqual(['src/main/java/a/b/Thing.java']);
-  });
-
-  it('unions the roots, so a test reaches the class it tests', () => {
-    expect(resolveJvm({ from: 'src/test/java/a/b/ThingTest.java', request: 'a.b.*', world }))
-      .toEqual([
-        'src/main/java/a/b/Other.java',
-        'src/main/java/a/b/Thing.java',
-        'src/main/kotlin/a/b/helpers.kt',
-      ]);
-  });
-
-  it('stops at the file when a segment left over is a name inside it', () => {
-    // `a.b.Thing.Inner` and a static `a.b.Thing.of` are the same file.
-    expect(resolveJvm({ from: 'src/main/java/a/c/Far.java', request: 'a.b.Thing.Inner', world }))
-      .toEqual(['src/main/java/a/b/Thing.java']);
-  });
-
-  it('falls back to the package when a Kotlin name is not a filename', () => {
-    // Kotlin has top-level declarations and no filename rule, so `a.b.parse`
-    // may be declared in any Kotlin file of `a/b/`.
-    expect(resolveJvm({ from: 'src/main/java/a/c/Far.java', request: 'a.b.parse', world }))
-      .toEqual(['src/main/kotlin/a/b/helpers.kt']);
-  });
-
-  it('is silent about the platform and the dependency graph', () => {
-    expect(resolveJvm({ from: 'src/main/java/a/b/Thing.java', request: 'java.util.List', world }))
-      .toEqual([]);
-  });
-});
-
-async function write(root: string, path: string, contents: string): Promise<void> {
-  const absolute = join(root, path);
-  await mkdir(dirname(absolute), { recursive: true });
-  await writeFile(absolute, contents, 'utf8');
-}
 
 describe('what a Java or Kotlin file declares', () => {
   it('records a Java class with its signature and the doc block above it', () => {

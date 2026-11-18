@@ -54,7 +54,7 @@ afterEach(async () => {
 describe('a story of a React tree that suspends', () => {
   it('tells the boundary showing its fallback on the line that rendered it, and unlocking on the line its promise settled on', async () => {
     // The render lines the same setup says around each commit are another test's subject.
-    const lines = said(await reading('waits on the cart', true)).filter((line) => !/^(handed|page|commit|rendered) /.test(line));
+    const lines = said(await reading('waits on the cart', true)).filter((line) => !/^(handed|page|dom|commit|rendered) /.test(line));
 
     expect(lines.slice(lines.indexOf('test line 13'))).toEqual([
       'test line 13',

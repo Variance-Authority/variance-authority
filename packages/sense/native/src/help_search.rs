@@ -13,13 +13,14 @@ use std::sync::LazyLock;
 use napi_derive::napi;
 use rayon::prelude::*;
 use regex::Regex;
+use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha256};
 
 use crate::help_usage::NamedExport;
 
 #[derive(Default)]
 pub(crate) struct Pool<'a> {
-    pub(crate) ids: HashMap<&'a str, u32>,
+    pub(crate) ids: FxHashMap<&'a str, u32>,
     pub(crate) values: Vec<&'a str>,
 }
 

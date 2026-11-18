@@ -101,6 +101,7 @@ export { readByInstall, shardsInstall, shardsTexts, type KeptInstall, type Shard
 // A text cut as a seam records it, so rows written by hand stand where a
 // landing that cuts the text again puts them.
 export { sourceCut } from './coverage-rows.js';
+export { sessionsAgainst, sessionSources, type NamedSession, type SessionFunction, type SessionMap, type SessionRead, type SessionScript, type SessionSource, type SessionState, type SessionsAgainst, type SessionsFile, type SessionsFunction, type SessionVerdict, type SourceRead, type V8Function, type V8Range } from './session.js';
 export { runsAsBefore, type RunsAsBefore } from './runs-as-before.js';
 export { kept, placed, selectedLines, type SuiteSelection, type SuiteTimes } from './suite-selection.js';
 export { askedSelection, landingTimes } from './selection-environment.js';
@@ -290,6 +291,7 @@ interface CoverageRegion {
   readonly loadedBy?: readonly string[];
 }
 
+/** One module of a suite's record: its text's digest and the blocks it was cut into, each with the test files that entered it. */
 export interface CoverageModule {
   readonly file: string;
   /**

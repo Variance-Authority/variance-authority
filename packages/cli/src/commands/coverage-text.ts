@@ -11,6 +11,7 @@
 
 import type { MovedRegion, RunOver, TestFileMotion } from '@variance-authority/sense/test-selection';
 import { fanInLines, fanInMarkdown } from './coverage-fan-in-text.js';
+import { sessionsLines, sessionsMarkdown } from './coverage-sessions-text.js';
 import { earnedLines, earnedMarkdown, ownershipLines, ownershipMarkdown } from './coverage-owner-text.js';
 import { coverageHead, coverageParts as parts, coverageRows, coverageSum, grouped, leading, ratio, signed, table } from './coverage-summary.js';
 import { historyCell, notKnownLines, overCell, overClause, overMarkdown, recordedClause } from './coverage-over-lines.js';
@@ -84,7 +85,7 @@ function text(answer: Coverage): string {
   lines.push(...table(tail));
   if (count.unjoined > 0) lines.push(`not joined across suites: ${grouped(count.unjoined)} region${count.unjoined === 1 ? '' : 's'}`);
   lines.push(...notKnownLines(answer));
-  lines.push(...sourceLines(answer), ...ownershipLines(answer.entries ?? [], answer.ownership ?? [], answer.atDistance !== undefined), ...earnedLines(answer.earned), ...fanInLines(answer.fanIn));
+  lines.push(...sourceLines(answer), ...ownershipLines(answer.entries ?? [], answer.ownership ?? [], answer.atDistance !== undefined), ...earnedLines(answer.earned), ...fanInLines(answer.fanIn), ...sessionsLines(answer.sessions));
 
   if (base !== undefined) {
     for (const suite of answer.suites) {
@@ -174,7 +175,7 @@ function markdown(answer: Coverage): string {
   if (answer.source !== undefined || answer.sourceMissed !== undefined) {
     lines.push('', `<details><summary>${escape(breakdownLabel(answer))}: source beyond the recordings</summary>`, ...sourceMarkdown(answer), '', '</details>');
   }
-  lines.push(...ownershipMarkdown(answer.entries ?? [], answer.ownership ?? [], answer.atDistance !== undefined), ...earnedMarkdown(answer.earned), ...fanInMarkdown(answer.fanIn));
+  lines.push(...ownershipMarkdown(answer.entries ?? [], answer.ownership ?? [], answer.atDistance !== undefined), ...earnedMarkdown(answer.earned), ...fanInMarkdown(answer.fanIn), ...sessionsMarkdown(answer.sessions));
   return `${lines.join('\n')}\n`;
 }
 

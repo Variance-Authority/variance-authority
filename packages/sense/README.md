@@ -2782,7 +2782,7 @@ same under every host:
 | `@variance-authority/sense/checkout-path` | `checkoutPath`, a path asked about spelled the way the recording spells it, or why it is outside the checkout, without loading the parser and resolver | a checkout |
 | `@variance-authority/sense/side-effects` | `declaresSideEffects(files)`, which of these modules their package's `sideEffects` names, the reading test selection uses | absolute paths |
 | `@variance-authority/sense` | `scanRelations`, the source index, and Git content digests | a readable checkout for the scan; persistence is optional |
-| `@variance-authority/sense/read` | `readModule` and `readStyle` when source text already comes from a VFS, editor, or bundler | a file id and source string |
+| `@variance-authority/sense/read` | `readModule` when a module's source text already comes from a VFS, editor, or bundler | a file id and source string |
 | `@variance-authority/sense/lock` | reading which packages an install changed between two revisions, and how they rest on each other | the lockfile's text at both revisions; nothing else, and no `node_modules` |
 | `@variance-authority/sense/taint` | joining a second table of imports onto scanned records, and auditing it against the record | the records, and a table or a reader that produces the diff |
 | `@variance-authority/sense/instrument` | transforming one module to add execution-presence probes | a module id and source string |

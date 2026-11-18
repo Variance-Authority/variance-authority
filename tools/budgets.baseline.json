@@ -2463,14 +2463,11 @@
   "packages/sense/src/journeys-share.measure.ts overview": [
     21
   ],
-  "packages/sense/src/jvm.ts overview": [
-    43
-  ],
   "packages/sense/src/language.ts docblock": [
     13
   ],
   "packages/sense/src/language.ts overview": [
-    26
+    25
   ],
   "packages/sense/src/lock/index.ts overview": [
     18
@@ -2487,27 +2484,23 @@
   "packages/sense/src/lock/yarn.ts docblock": [
     11
   ],
-  "packages/sense/src/python.ts overview": [
-    36
-  ],
   "packages/sense/src/read.ts docblock": [
     14
   ],
   "packages/sense/src/read.ts overview": [
-    55
+    54
   ],
   "packages/sense/src/resolve.test.ts block": [
     8
   ],
   "packages/sense/src/resolve.ts block": [
     9,
-    9
+    8
   ],
   "packages/sense/src/resolve.ts docblock": [
     24,
     17,
-    16,
-    13
+    16
   ],
   "packages/sense/src/resolve.ts overview": [
     18
@@ -2517,9 +2510,6 @@
   ],
   "packages/sense/src/reuse.ts overview": [
     41
-  ],
-  "packages/sense/src/rust.ts overview": [
-    61
   ],
   "packages/sense/src/scan.ts block": [
     8
@@ -2564,20 +2554,11 @@
   "packages/sense/src/story/tree.ts overview": [
     19
   ],
-  "packages/sense/src/style.ts docblock": [
-    12
-  ],
-  "packages/sense/src/swift.ts overview": [
-    40
-  ],
   "packages/sense/src/taint/audit.ts overview": [
     22
   ],
   "packages/sense/src/taint/cache.ts overview": [
     27
-  ],
-  "packages/sense/src/taint/index.ts block": [
-    6
   ],
   "packages/sense/src/taint/index.ts overview": [
     66
@@ -3168,9 +3149,6 @@
   ],
   "packages/sense/src/working-tree-changes.ts docblock": [
     14
-  ],
-  "packages/sense/src/world.ts overview": [
-    28
   ],
   "packages/server/README.md lead": [
     16

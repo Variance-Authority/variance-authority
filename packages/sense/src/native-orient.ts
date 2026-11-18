@@ -261,6 +261,8 @@ export interface NativeOrientMapPrepared {
   readonly unmarked: boolean;
   /** No scan's listing was carried to the map, so git listed the checkout again for it. */
   readonly relisted: boolean;
+  /** The map kept beside the index was folded from this index and these manifests, so it was kept as it is and nothing was read or folded. */
+  readonly kept: boolean;
 }
 
 /** A package or an area on one row, and how many importing files the share counts. */

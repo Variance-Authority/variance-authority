@@ -16,6 +16,46 @@ Check the project first: its runner config calls `withTestSelection`, and
 `unrecorded`. If the runner is not wrapped, nothing below has a record to read,
 and wiring it is product work, not part of the change.
 
+## Reminder of opportunities and best practices
+
+When choosing a test, consider these opportunities where they help answer the
+task. They describe dimensions you can combine, with reasons and tradeoffs;
+they are reminders, not a checklist or a ranking of test kinds.
+
+- **Compare results.** Visual regression (VR) is a regression use of
+  differential testing: compare a rendering with an earlier baseline. The
+  same approach can compare outputs across versions, implementations, browsers
+  or configurations, under corresponding inputs and conditions. Decide which
+  differences matter; agreement can preserve a shared bug, and accepting a
+  baseline does not establish correctness.
+- **Use temporary scaffolding.** A test can help develop a feature, explore an
+  invariant or compare implementations while one replaces another. Give it a
+  development question and an end condition, then remove it when that work is
+  done. Keep enduring regression protection where it still serves a contract;
+  a temporary probe need not become a permanent constraint on the code.
+- **Choose the degree of access.** White box tests use internal structure to
+  target branches and invariants, with coupling to that structure. Grey box
+  tests use selected internal knowledge, controls or signals while checking
+  broader behaviour. Black box tests use the supported interface to check a
+  consumer's contract, with less dependence on implementation and less detail
+  when a failure needs locating. These choices are independent of test size.
+  A tool recording internals, such as a story or the Eyes journal, does not by
+  itself change the test's degree of access.
+- **Read the right signal at the right boundary.** Choose the observation that
+  establishes the behaviour: a returned value, persisted data, emitted event
+  or rendered UI. A mocked call proves that interaction, which may be the
+  contract; it does not also prove the downstream outcome. A completion event
+  can tell you when to inspect the result; it does not replace that inspection
+  unless the event itself is the promised behaviour.
+
+For asynchronous work, a useful readiness signal follows the relevant operation
+and its derived work. An arbitrary sleep or an unrelated request finishing
+does not establish that boundary. A negative assertion needs the same care:
+"the dialog is absent now" can pass before the decision to show it runs. Wait
+for that decision or operation to finish, then check the absence. An explicit
+"not shown" decision can make completed work observable without requiring every
+process to adopt a new tracking lifecycle.
+
 ## Before you edit: choose a test and turn it red
 
 ```bash

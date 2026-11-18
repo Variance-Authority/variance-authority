@@ -344,22 +344,8 @@
   },
   {
     "files": [
-      "packages/sense/src/native.ts",
-      "packages/sense/src/record.ts"
-    ],
-    "count": 2
-  },
-  {
-    "files": [
       "packages/sense/src/read.ts",
       "packages/sense/src/test-selection/source-lines.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
-      "packages/sense/src/record.ts",
-      "packages/sense/src/taint/join.ts"
     ],
     "count": 1
   },

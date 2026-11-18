@@ -94,6 +94,13 @@ impl NameColumn {
         self.off.push(self.text.len() as u32);
     }
 
+    /// `next`'s rows after these.
+    pub(crate) fn append(&mut self, next: NameColumn) {
+        let base = self.text.len() as u32;
+        self.text.extend(next.text);
+        self.off.extend(next.off.into_iter().skip(1).map(|offset| offset + base));
+    }
+
     /// The four tables' columns, in [`Item`]'s order.
     pub(crate) fn columns(tables: [NameColumn; 4]) -> Vec<Column> {
         tables

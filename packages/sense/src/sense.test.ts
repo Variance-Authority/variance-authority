@@ -4,7 +4,6 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { readModule } from './read.js';
-import { readStyle } from './style.js';
 import { scanRelations } from './scan.js';
 
 /**
@@ -275,34 +274,6 @@ describe('reading a module', () => {
     ].join('\n'));
 
     expect(read.declares).toEqual(['Button']);
-  });
-});
-
-describe('reading a stylesheet', () => {
-  it('finds every shape a stylesheet names a file in', () => {
-    const read = readStyle(
-      'button.css',
-      [
-        "@import './tokens.css';",
-        '@use "sass:math";',
-        "@forward './mixins';",
-        '.b { background: url(./texture.png); }',
-        '.c { background: url("https://cdn.example/x.png"); }',
-        ".d { composes: base from './base.module.css'; }",
-      ].join('\n'),
-    );
-
-    expect(read.requests.map((request) => request.value)).toEqual([
-      './tokens.css',
-      'sass:math',
-      './mixins',
-      './texture.png',
-      './base.module.css',
-    ]);
-    expect(read.requests.every((request) => request.kind === 'asset')).toBe(true);
-    // A stylesheet request is a whole-file dependency. Nothing here binds a
-    // name, and `composes` names a class rather than an exported binding.
-    expect(read.requests.every((request) => request.bindings.length === 0)).toBe(true);
   });
 });
 

@@ -273,7 +273,8 @@ const HOST_TAGS: ReadonlySet<number> = new Set([
   FiberTag.HostSingleton,
 ]);
 
-function ownerNames(from: Fiber | null): readonly string[] {
+/** The names of the components above `from`, nearest first, up to the root or {@link MAX_FIBER_DEPTH}. */
+export function ownerNames(from: Fiber | null): readonly string[] {
   const names: string[] = [];
   let node = from;
   for (let depth = 0; depth < MAX_FIBER_DEPTH && node !== null; depth += 1) {

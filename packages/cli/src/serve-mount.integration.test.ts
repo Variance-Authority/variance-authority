@@ -51,6 +51,8 @@ let workspace: string;
 
 beforeAll(async () => {
   workspace = await mkdtemp(join(tmpdir(), 'variance-serve-mount-'));
+  // The index is made from git's listing, so the workspace is a checkout.
+  execFileSync('git', ['init', '--quiet'], { cwd: workspace });
   await mkdir(join(workspace, 'src'), { recursive: true });
   await writeFile(
     join(workspace, 'package.json'),
@@ -151,7 +153,6 @@ describe('the server `variance serve` starts', () => {
     await writeFile(join(workspace, 'src/mid.ts'), "export { passedOn } from './passed.js';\n");
     await writeFile(join(workspace, 'src/passed.ts'), 'export const passedOn = 1;\n');
     await writeFile(join(workspace, 'src/index.ts'), `${entry}export * from './mid.js';\n`);
-    execFileSync('git', ['init', '--quiet'], { cwd: workspace });
     indexed();
     const server = session();
     try {
@@ -167,7 +168,6 @@ describe('the server `variance serve` starts', () => {
       await writeFile(join(workspace, 'src/index.ts'), entry);
       await rm(join(workspace, 'src/mid.ts'), { force: true });
       await rm(join(workspace, 'src/passed.ts'), { force: true });
-      await rm(join(workspace, '.git'), { recursive: true, force: true });
     }
   });
 

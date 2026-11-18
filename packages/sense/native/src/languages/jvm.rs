@@ -1,9 +1,12 @@
 //! What a Java or Kotlin file asks for and what it publishes.
 //!
 //! One reader for both, because the two grammars answer the same two questions
-//! with nodes that differ only in name ([`jvm.ts`](../../../src/jvm.ts) carries
-//! the argument, and `jvm.test.ts` holds this reader to it). Resolution — a package name to the
-//! directories a source root puts it in — stays in TypeScript.
+//! with nodes that differ only in name ([`resolve_jvm.rs`](../resolve_jvm.rs)
+//! carries the argument, and `jvm.test.ts` holds this reader to it).
+//!
+//! A parse error is unknown only **where an import could have been**: the top
+//! level, where both grammars put the package and the imports. An `ERROR` node
+//! inside a function body hides no import, so it costs nothing.
 
 use std::collections::HashSet;
 

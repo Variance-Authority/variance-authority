@@ -62,7 +62,7 @@ pub struct HelpEncode {
     /// later refresh over the same manifest keeps the value by; absent when
     /// the value holds what no manifest says, such as a caller's taints.
     pub index_digest: Option<String>,
-    /// What `workspacePackagesDigest` states of the manifests the value was joined against.
+    /// What `packagesDigest` states of the manifests the value was joined against.
     pub packages_digest: String,
     pub packages: Vec<StorePackage>,
     pub unreadable: Vec<String>,
@@ -338,7 +338,11 @@ impl Held {
         let deep = [&self.deep[0], &self.deep[1], &self.deep[2]].map(|held| held.iter().map(DeepRef::from).collect());
         let input = StoreRef { packages: &o.packages, deep, unreadable: &o.unreadable };
         let (store, _) = encode(&input, &self.exported, Some(&meta), None);
-        Ok(HelpEncoded { store: store.into(), tree: self.tree.map(Buffer::from), graph_digest })
+        drop(input);
+        let Held { exported, deep, tree } = self;
+        // Freeing the reading's rows is as long as a tenth of the encode, and nothing waits on it.
+        rayon::spawn(move || drop((exported, deep)));
+        Ok(HelpEncoded { store: store.into(), tree: tree.map(Buffer::from), graph_digest })
     }
 }
 

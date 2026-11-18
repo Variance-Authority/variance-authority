@@ -26,10 +26,3 @@ export interface NativeSourceIndexes {
   takeIndexTurn(path: string, holder: string): { release(): void } | null;
 }
 
-/** What a listing of a checkout knows of the parses its reads made: which were of the blob git names the file by (`native/src/parse_origin.rs`). */
-export interface NativeParseOrigins {
-  /** Tell the listing of a parse made in JavaScript of `file`, from `contents`. */
-  parsedFrom(file: string, contents: string): void;
-  /** Add to the first of `stores` every parse the chain at `chain` holds, no store does, and this listing read only as that blob; how many went in. */
-  fillParseStore(stores: string[], chain: string): number;
-}

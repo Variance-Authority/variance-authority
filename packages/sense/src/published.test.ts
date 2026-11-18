@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
-import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -266,6 +266,30 @@ describe('the published source index', () => {
     const read = await publishedSources(root, { ...options, ci: false });
     expect(read.state).toBe('published');
     expect(read.records).toEqual(await scanRelations({ root, dirs: ['.'] }));
+  });
+
+  it('says it repaired an index whose manifest does not read, and builds it again', async () => {
+    const at = index('unreadable-manifest');
+    await updateSourceIndex(root, { index: at });
+    const manifest = await readFile(at);
+    await writeFile(at, manifest.subarray(0, manifest.length - 1));
+
+    const repaired = await updateSourceIndex(root, { index: at });
+    expect(repaired.was).toBe('damaged');
+    expect((await readPublishedSources(at)).state).toBe('published');
+  });
+
+  it('reads an index an earlier release wrote as one file, and updates it without calling it damaged', async () => {
+    const current = index('legacy-source');
+    await updateSourceIndex(root, { index: current });
+    const [base] = (await openImmutableLog(current)).segments;
+    const at = index('legacy');
+    await mkdir(dirname(at), { recursive: true });
+    await writeFile(at, base!);
+    expect((await readPublishedSources(at)).state).toBe('published');
+    const updated = await updateSourceIndex(root, { index: at });
+    expect(updated.was).toBe('published');
+    expect((await readPublishedSources(at)).state).toBe('published');
   });
 
   it('tells an index written in another format version from a damaged one, rebuilds it on a workstation, and refuses it in CI', async () => {

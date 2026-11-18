@@ -39,6 +39,7 @@ import { OperatorError } from '../exit.js';
 import { packageName, packageOf } from '../package-home.js';
 import type { ParsedStory, StoryZoom } from '../story-args.js';
 import { compareCases, compareStory, formatComparison, labelled, listed, type ComparedCase } from './story-compare.js';
+import { pageJson, pageText } from './story-page.js';
 import { explainedCase, formatExplained, type Explained } from './story-explain.js';
 import { formatOutcomes, recordedOutcomes, type RecordedOutcomes } from './story-outcomes.js';
 import { caseOf, storiesText } from './story-list.js';
@@ -129,7 +130,7 @@ interface Part {
   readonly kept?: string;
 }
 
-function partOf(lines: readonly Line[], zoom: StoryZoom | undefined, packageOf: (file: string) => string | undefined, own: string | undefined): Part {
+function partOf(lines: readonly Line[], zoom: Exclude<StoryZoom, { readonly page: string }> | undefined, packageOf: (file: string) => string | undefined, own: string | undefined): Part {
   const open = new Set(own === undefined ? [] : [own]);
   if (zoom === undefined || 'whole' in zoom) return { lines, open };
   if ('in' in zoom || 'package' in zoom) {
@@ -165,6 +166,20 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
   const own = packageOf(route.file);
   const lines = numbered(route);
   const steps = lines.filter((line) => line.step !== undefined).length;
+  // What every json answer opens with: the route but its steps, its package, and which readings it was read from.
+  const headJson = () => {
+    const { before: _before, route: _route, untaken: _untaken, ...head } = route;
+    const { reading } = answer;
+    return {
+      ...head, ...(own === undefined ? {} : { package: own }),
+      ...(reading === undefined ? {} : { readings: reading.of, label: reading.label, written: reading.written, unmatched: reading.unmatched }),
+    };
+  };
+  if (answer.zoom !== undefined && 'page' in answer.zoom) {
+    const pattern = answer.zoom.page;
+    if (format === 'json') return `${JSON.stringify({ ...headJson(), steps, page: pageJson(route, pattern) }, null, 2)}\n`;
+    return `${[...header(route, steps, answer.reading), ...pageText(route, pattern)].join('\n')}\n`;
+  }
   const part = partOf(lines, answer.zoom, packageOf, own);
   const drawn = drawings(part.lines, packageOf, part.open);
   const width = String(steps).length;
@@ -174,13 +189,10 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
   const reading = drawn[chosen]!;
   const finer = chosen + 1 < drawn.length ? { level: drawn[chosen + 1]!.level, characters: size(texts[chosen + 1]!) } : undefined;
   if (format === 'json') {
-    const { before: _before, route: _route, untaken: _untaken, ...head } = route;
     const shown = 'lines' in reading ? { ...reading, lines: reading.lines.map(lineJson) } : reading;
     const never = 'lines' in reading ? drawnUntaken(reading.lines, route.untaken) : [];
     return `${JSON.stringify({
-      ...head, ...(own === undefined ? {} : { package: own }),
-      ...(answer.reading === undefined ? {} : { readings: answer.reading.of, label: answer.reading.label, written: answer.reading.written, unmatched: answer.reading.unmatched }),
-      steps, reading: shown, ...(never.length === 0 ? {} : { untaken: never }),
+      ...headJson(), steps, reading: shown, ...(never.length === 0 ? {} : { untaken: never }),
       ...(finer === undefined ? {} : { finer }),
     }, null, 2)}\n`;
   }

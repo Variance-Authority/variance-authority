@@ -133,7 +133,7 @@ function oracle(root: string): Record<Request, string> {
   const resolvers = resolversFor({});
   const entries = Object.entries(REQUESTS).map(([name, request]) => [
     name,
-    resolveTo({ resolvers, root, from: join(root, importer(name as Request)), request, language: 'module' }) ?? '',
+    resolveTo({ resolvers, root, from: join(root, importer(name as Request)), request }) ?? '',
   ]);
   return Object.fromEntries(entries) as Record<Request, string>;
 }

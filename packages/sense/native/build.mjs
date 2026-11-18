@@ -199,9 +199,9 @@ function build(cpu, extra = []) {
  * once again with `--no-default-features`, which drops the grammars and nothing
  * else.
  *
- * What that costs is exactly those five languages: `readLanguage` claims
- * nothing, and `record.ts` records every Python, Rust, Java, Kotlin and Swift
- * file as unknown, naming the missing grammars as the reason. Nothing is
+ * What that costs is exactly those five languages: the batch records every
+ * Python, Rust, Java, Kotlin and Swift file as unknown, naming the missing
+ * grammars as the reason (`read_any.rs`). Nothing is
  * skipped silently, and every other answer is the same.
  *
  * It is said loudly, because a binary that is quietly a smaller binary is the

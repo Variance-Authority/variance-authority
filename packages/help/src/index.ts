@@ -32,7 +32,7 @@ export { readWorkspace, readWorkspaceForAnswer, refreshWorkspace } from './read.
 export { publishedGeneration, publishedHead, readAgain, readWorkspaceSnapshot, workspaceGeneration, workspaceSnapshotPath } from './snapshot.js';
 export type { AnsweringOptions, ReadingOptions } from './read.js';
 export type { SnapshotOptions } from './snapshot.js';
-export { publishWorkspaceFromIndex, type FromIndexOptions } from './refresh-native.js';
+export { publishWorkspaceFromIndex, type FromIndexOptions, type IndexPublication } from './refresh-native.js';
 export { readNamedTree, type NamedTree } from './names-read.js';
 export { countingShown, type ShownCounting } from './ask.js';
 export { readSearchForAnswer, unopenedLine, type SearchReading, type Unopened, type ValueRead } from './search-read.js';

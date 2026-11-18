@@ -36,16 +36,21 @@ pub struct GitTree {
     pub(crate) from_blob: parse_origin::FromBlob,
     /// The object store this tree's scans read from, once they have read enough.
     pub(crate) store: acquire::TreeObjects,
+    /// Every file on disk, for a directory git does not list: what the
+    /// languages that resolve over the tree ask about (`disk_tree`).
+    pub(crate) disk: Option<(Arc<HashMap<String, u32>>, Vec<String>)>,
     /// How the tree was come by, when a change source other than git had a say.
     #[cfg(unix)]
     pub(crate) change: Option<held_listing::Change>,
 }
 
+/// How many times an update reads the chain again after another writer published over the one it read.
+const WRITER_ATTEMPTS: u32 = 4;
+
 /// Every tracked path under `root`, or nothing when this is not a checkout.
 ///
-/// `null` rather than a throw, matching `gitDigests`: the scanner's own digest is
-/// correct and merely slower, so a tarball or a sandbox is a saving that did not
-/// apply rather than a repository that is misconfigured.
+/// `null` rather than a throw, matching `gitDigests`: whether a directory git
+/// does not list is an error is the caller's to say, and the index refuses it.
 #[napi(catch_unwind)]
 pub fn git_tree(root: String) -> Option<GitTree> {
     let snapshot = git::snapshot(&root)?;
@@ -107,6 +112,7 @@ pub(crate) fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) ->
         stores: std::sync::Mutex::new(None),
         from_blob: parse_origin::FromBlob::default(),
         store: acquire::TreeObjects::default(),
+        disk: None,
         #[cfg(unix)]
         change: None,
     }
@@ -152,7 +158,9 @@ impl GitTree {
             .collect()
     }
 
-    /// Read tracked files from Git's pack streams and every other file from disk.
+    /// Read tracked files from Git's pack streams and every other file from disk;
+    /// a file whose parse `held` (a parse-only segment of the caller's cache) or
+    /// the stores hold is answered from it instead.
     #[napi]
     #[allow(
         clippy::too_many_arguments,
@@ -168,14 +176,16 @@ impl GitTree {
         tsconfig: Option<napi::Either<String, bool>>,
         condition_names: Option<Vec<String>>,
         stores: Option<Vec<String>>,
-    ) -> batch::ScanBatch {
+        records: Option<crate::record::RecordOptions>,
+        held: Option<napi::bindgen_prelude::Buffer>,
+    ) -> napi::Result<batch::ScanBatch> {
         let oids = files
             .iter()
             .map(|file| self.at.get(file).map(|index| self.oids[*index as usize]))
             .collect();
         let stores = self.stores(stores);
-        let opened = stores.as_deref().map(parse_store::Stores::open);
-        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
+        let opened = parse_store::Opened::answering(stores.as_deref(), held.as_deref());
+        let kept = |identity: &str, file: &str| opened.view(identity, &index::way(file))?.read();
         batch::scan_batch_with_oids(
             batch::ScanOptions {
                 root,
@@ -187,11 +197,12 @@ impl GitTree {
                 condition_names,
             },
             Some(oids),
-            Some(self.at.as_ref()),
+            batch::Tree { known: Some(self.at.as_ref()), world: Some(self.at.as_ref()), oids: &self.oids },
             Some(self.listing()),
             &kept,
             &self.from_blob,
             &self.store,
+            records,
         )
     }
 
@@ -205,7 +216,8 @@ impl GitTree {
         stores.open().segment(wanted).into()
     }
 
-    /// Follow every module reachable from `seeds` in one native operation.
+    /// Follow every module reachable from `seeds` in one native operation,
+    /// answering a parse `held` or the stores hold as `scan_batch` does.
     #[napi]
     #[allow(
         clippy::too_many_arguments,
@@ -221,10 +233,12 @@ impl GitTree {
         condition_names: Option<Vec<String>>,
         include_parses: Option<bool>,
         stores: Option<Vec<String>>,
-    ) -> batch::ScanBatch {
+        records: Option<crate::record::RecordOptions>,
+        held: Option<napi::bindgen_prelude::Buffer>,
+    ) -> napi::Result<batch::ScanBatch> {
         let stores = self.stores(stores);
-        let opened = stores.as_deref().map(parse_store::Stores::open);
-        let kept = |identity: &str, file: &str| opened.as_ref()?.view(identity, &index::way(file))?.read();
+        let opened = parse_store::Opened::answering(stores.as_deref(), held.as_deref());
+        let kept = |identity: &str, file: &str| opened.view(identity, &index::way(file))?.read();
         batch::scan_graph_with_tree(
             batch::GraphOptions {
                 root,
@@ -241,6 +255,7 @@ impl GitTree {
             &kept,
             &self.from_blob,
             &self.store,
+            records,
         )
     }
 
@@ -249,17 +264,29 @@ impl GitTree {
     #[napi(catch_unwind)]
     pub fn index_graph(&self, mut options: graph_index::IndexGraphOptions) -> napi::Result<graph_index::IndexGraph> {
         let stores = self.stores(options.stores.take());
-        let opened = stores.as_deref().map(parse_store::Stores::open);
-        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), opened.as_ref(), &self.from_blob, &self.store)
+        let held = options.held.take();
+        let opened = parse_store::Opened::answering(stores.as_deref(), held.as_deref());
+        graph_index::index_graph(options, &self.at, &self.oids, self.listing(), Some(&opened), &self.from_blob, &self.store)
     }
 
     /// Bring the source index at `options.index` up to this tree, on this
-    /// side, or `null` when the JavaScript update has to (`source_update.rs`).
+    /// side (`source_update.rs`).
     #[napi(catch_unwind)]
-    pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
+    pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<source_update::Updated> {
+        // Open is timed from here: the carry reads the index, and a retry opens it again.
+        let opening = std::cell::Cell::new(Some(crate::stages::start("open")));
+        let open = || opening.take().unwrap_or_else(|| crate::stages::start("open"));
         #[cfg(unix)]
-        let carry = match change_tree::carry(&self.change, &options.config, &options.index) { Ok(carry) => carry, Err(done) => return Ok(Some(done)) };
-        let tree = source_update::Tree {
+        let carry = match change_tree::carry(&self.change, &options.config, &options.index) {
+            Ok(carry) => carry,
+            Err(done) => {
+                open().end();
+                return Ok(done);
+            }
+        };
+        let disk = acquire::TreeObjects::disk();
+        let store = if options.packs == Some(false) { &disk } else { &self.store };
+        let tree = || source_update::Tree {
             paths: &self.paths,
             at: &self.at,
             oids: &self.oids,
@@ -267,14 +294,35 @@ impl GitTree {
             listing: self.listing(),
             regular: &self.regular,
             unhashed: &self.unhashed,
+            world: self.disk.as_ref().map_or((&*self.at, &self.paths[..]), |(at, paths)| (&**at, &paths[..])),
             from_blob: &self.from_blob,
-            store: &self.store,
+            store,
             #[cfg(unix)]
-            carry,
+            carry: carry.clone(),
         };
         // A segment of the published length is read unhashed, so damaged bytes in it can panic a read:
-        // that declines, as any other unreadable chain does, and the JavaScript update rebuilds it.
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options, tree))).unwrap_or(Ok(None))
+        // the index is then rebuilt from the tree, as any other chain it cannot stand on is. The
+        // rebuild reads nothing from the chain, so a panic it repeats is no damage and is the error;
+        // the first panic's message is printed, since the rebuild alone cannot name it.
+        let once = |trusted: bool| match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options.clone(), tree(), trusted, open()))) {
+            Ok(done) => done,
+            Err(panic) => {
+                let message = panic.downcast_ref::<&str>().map(|text| text.to_string()).or_else(|| panic.downcast_ref::<String>().cloned()).unwrap_or_default();
+                eprintln!("variance: an update standing on the source index panicked ({message}); rebuilding it from the tree");
+                source_update::update(options.clone(), tree(), false, open())
+            }
+        };
+        // A writer that lost the race reads the chain the winner published and makes its delta
+        // against that: each loss is another writer's publication, so a few attempts settle it,
+        // and the last loss is reported as refused.
+        let mut attempts = 1;
+        loop {
+            let (updated, lost) = once(true)?;
+            if !lost || attempts == WRITER_ATTEMPTS {
+                return Ok(updated);
+            }
+            attempts += 1;
+        }
     }
 
     /// Every path, sorted by code unit.
@@ -334,3 +382,7 @@ impl GitTree {
         )
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "git_tree_writers_tests.rs"]
+mod writers_tests;
