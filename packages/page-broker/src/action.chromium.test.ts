@@ -16,7 +16,9 @@ const ORIGIN = 'https://shop.test';
 /**
  * A checkout that announces nothing. `?answer=` picks where Continue ends,
  * `?after=` how long the server takes, `?open=` what is on the page before
- * anybody acts, and `?stream` has Continue open a server-sent stream that never ends.
+ * anybody acts, `?stream` has Continue open a server-sent stream that never ends
+ * and ask for a picture that never loads, and `?then=` has the page ask again
+ * that long after the answer, for `?second=`.
  */
 const CHECKOUT = `<!doctype html>
 <main>
@@ -34,9 +36,16 @@ const CHECKOUT = `<!doctype html>
   };
   show(query.get('open') ?? '');
   document.querySelector('button').addEventListener('click', async () => {
-    if (query.has('stream')) new EventSource('/api/stream');
+    if (query.has('stream')) {
+      new EventSource('/api/stream');
+      new Image().src = '/api/picture';
+    }
     const answer = await (await fetch('/api/billing' + location.search)).text();
     show(answer);
+    if (query.has('then')) {
+      await new Promise((done) => setTimeout(done, Number(query.get('then'))));
+      show(await (await fetch('/api/again?answer=' + query.get('second'))).text());
+    }
   });
 </script>`;
 
@@ -71,6 +80,13 @@ beforeEach(async () => {
   );
   // Never answered: the stream stays in flight for as long as the page lives.
   await page.route(`${ORIGIN}/api/stream`, () => undefined);
+  await page.route(`${ORIGIN}/api/picture`, () => undefined);
+  await page.route(`${ORIGIN}/api/again**`, (route) =>
+    route.fulfill({
+      contentType: 'text/plain',
+      body: new URL(route.request().url()).searchParams.get('answer') ?? '',
+    }),
+  );
   await page.route(`${ORIGIN}/api/billing**`, async (route) => {
     const query = new URL(route.request().url()).searchParams;
     await new Promise((done) => setTimeout(done, Number(query.get('after') ?? 0)));
@@ -148,7 +164,30 @@ chromium_('an action over a page that announces nothing', () => {
     expect(Date.now() - started).toBeGreaterThanOrEqual(100 + QUICK.quiet);
   });
 
-  it('does not wait for a stream the server never ends', async () => {
+  it('begins the quiet period again when the page asks once more inside it', async () => {
+    const submit = action('submit', { ...outcomes, refused: stay }, click, QUICK);
+    // The second request starts half a quiet period after the first answer.
+    await open('answer=nothing&then=100&second=signIn');
+
+    await expect(submit(page)).resolves.toMatchObject({ outcome: 'signIn' });
+  });
+
+  it('releases the page when the act fails, and fails with what the act threw', async () => {
+    const submit = action(
+      'submit',
+      outcomes,
+      async () => {
+        throw new Error('no such button');
+      },
+      QUICK,
+    );
+    await open('answer=payment');
+
+    await expect(submit(page)).rejects.toThrow('no such button');
+    expect(page.listenerCount('request')).toBe(0);
+  });
+
+  it('does not wait for a stream the server never ends, or a picture that never loads', async () => {
     const submit = action('submit', { ...outcomes, refused: stay }, click, QUICK);
     await open('answer=nothing&stream');
 
@@ -157,6 +196,19 @@ chromium_('an action over a page that announces nothing', () => {
 
     expect(reached.outcome).toBe('refused');
     expect(Date.now() - started).toBeLessThan(QUICK.timeout);
+  });
+
+  it('fails, and does not report staying, when the page never went quiet in time', async () => {
+    const submit = action('submit', { ...outcomes, refused: stay }, click, {
+      timeout: 600,
+      quiet: 100,
+    });
+    // The answer is still in flight when the time is up.
+    await open('answer=payment&after=1500');
+
+    await expect(submit(page)).rejects.toThrow(
+      'submit: reached none of payment, signIn and the page did not go quiet within 600 ms: GET /api/billing still in flight',
+    );
   });
 
   it('fails an arrival at nothing declared, naming the action and its outcomes', async () => {
@@ -176,12 +228,22 @@ chromium_('an action over a page that announces nothing', () => {
   });
 
   it('refuses to act when a declared outcome is already on the page', async () => {
-    const submit = action('submit', outcomes, click, QUICK);
+    let acted = false;
+    const submit = action(
+      'submit',
+      outcomes,
+      async (on: Page) => {
+        acted = true;
+        await click(on);
+      },
+      QUICK,
+    );
     await open('open=payment&answer=payment');
 
     await expect(submit(page)).rejects.toThrow(
       'submit: payment is on the page before the action',
     );
+    expect(acted).toBe(false);
   });
 
   it('passes what the test gave it on to the act', async () => {

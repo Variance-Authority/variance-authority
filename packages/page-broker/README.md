@@ -93,9 +93,9 @@ test('an empty form stays, with its errors', async ({ page }) => {
   as it was. At most one outcome may be `stay`.
 - **`act`**, what the test does to the page. Arguments after `page` are yours:
   `async (page, words: string) => …` is performed as `find(page, 'card')`.
-- **`options`**: `timeout`, how long the app has to reach an outcome (5000 ms),
-  and `quiet`, how long the page must be quiet before staying is reported
-  (500 ms).
+- **`options`**: `timeout`, how long the app has, after the act, to reach an
+  outcome or go quiet (5000 ms), and `quiet`, how long the page must be quiet
+  before staying is reported (500 ms).
 
 Performing the action returns a promise of `{ outcome, at }`: the name reached,
 and the locator recognised, which is absent for `stay`. `.to(name)` on that
@@ -106,7 +106,9 @@ promise insists on one outcome and narrows the type to it.
 Before the act, every declared part of the page is looked for, and one already
 visible is refused: reaching it could not be told from standing still.
 
-After the act, the declared parts are looked for every 25 ms.
+After the act, Playwright waits for any declared part to become visible, and
+the page's requests are followed to learn when it has gone quiet. Whichever
+comes first, every declared part is then looked at once.
 
 - **One is visible**: that is the outcome.
 - **Two are visible at once**: the action fails, naming both. The order you
@@ -117,6 +119,15 @@ After the act, the declared parts are looked for every 25 ms.
   somewhere is not mistaken for staying.
 - **None, and no `stay`**: the action fails at the timeout, naming the outcomes
   none of which was reached.
+- **None, and never quiet**: the action fails at the timeout too, naming the
+  requests still in flight. Time running out is not staying: with a request
+  still in flight the answer is not in.
+
+A request for a server-sent stream, a web socket, media, a font or an image
+does not count as in flight: a stream stays open for as long as the page does,
+and the rest is what a page loads to draw itself.
+
+The timeout starts when the act has finished, so a slow act does not spend it.
 
 ## What it does not do
 
@@ -146,7 +157,12 @@ Know these before you rely on it:
   await open('card--with-actions')(page).to('story');
   ```
 
-- **A part that appears and is gone within 25 ms is missed.**
+- **A part that appears and is gone again may be missed.** The parts are looked
+  at one after another once any of them is visible, so one that has left by
+  then is not reported.
+- **An answer carried by a stream or a web socket is not waited for.** An
+  outcome that arrives over one is still recognised when it shows; only
+  staying is reported without it.
 - **It models no page.** What else is on screen, whether the part you left is
   gone, and which actions are available now are not answered.
 
