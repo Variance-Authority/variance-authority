@@ -117,7 +117,7 @@ describe('two sides of a case', () => {
   });
 
   it('are told apart by a change to the page that lands a commit later, and not by one every run shares', () => {
-    const main = 'dom + main role="main" in App at commit 1';
+    const main = 'dom + main in App at commit 1';
     const toast = (commit: number): [number, string] => [1, `dom + div role="status" "Saved" in Toast at commit ${commit}`];
     const comparison = compareLoaded(ROOT, [
       passed(reading([1, 4], [[1, main], toast(2)]), reading([1, 4], [[1, main], toast(2)])),

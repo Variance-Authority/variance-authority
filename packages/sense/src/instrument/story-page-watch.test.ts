@@ -41,15 +41,14 @@ describe('what a test line did to the page', () => {
     // gives way to line 13 as any line nothing followed does.
     const { lines, notes } = tap.read();
     expect(notes.map(([, , text]) => text)).toEqual([
-      'dom + dialog role="dialog" "Open"',
-      'dom + h2 role="heading"',
-      'dom @aria-busy p "idle" absent→"true"',
+      'dom + dialog "Open"',
+            'dom @aria-busy p "idle" absent→"true"',
       'page +1 −0 nodes, 1 attribute, 0 text',
       'dom text p "idle"→"done"',
       'dom − p "done"',
       'page +0 −1 nodes, 0 attributes, 1 text',
     ]);
-    expect(lines.map(([, , line, said]) => [line, said])).toEqual([[10, 0], [11, 4], [13, 7]]);
+    expect(lines.map(([, , line, said]) => [line, said])).toEqual([[10, 0], [11, 3], [13, 6]]);
   });
 
   it('says what a line that awaits changed once, counted since it opened', async () => {
@@ -66,7 +65,7 @@ describe('what a test line did to the page', () => {
     tap.root.c(5);
     tap.settle();
 
-    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['dom + dialog role="dialog"', 'dom + p', 'page +2 −0 nodes, 0 attributes, 0 text']);
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['dom + dialog', 'dom + p', 'page +2 −0 nodes, 0 attributes, 0 text']);
   });
 
   it('says what the last line changed when the case settles, and nothing its hooks or cleanup change', async () => {
@@ -90,7 +89,7 @@ describe('what a test line did to the page', () => {
 
     const { lines, notes } = tap.read();
     expect(notes.map(([, , text]) => text)).toEqual([
-      'dom + dialog role="dialog"',
+      'dom + dialog',
       'page +1 −0 nodes, 0 attributes, 0 text',
       'dom + p',
       'page +1 −0 nodes, 0 attributes, 0 text',
@@ -114,7 +113,7 @@ describe('what a test line did to the page', () => {
     tap.settle();
 
     const { lines, notes } = tap.read();
-    expect(notes.map(([, , text]) => text)).toEqual(['dom + dialog role="dialog"', 'page +1 −0 nodes, 0 attributes, 0 text']);
+    expect(notes.map(([, , text]) => text)).toEqual(['dom + dialog', 'page +1 −0 nodes, 0 attributes, 0 text']);
     expect(lines.map(([, , line, said]) => [line, said])).toEqual([[4, 0], [6, 2]]);
   });
 
@@ -140,16 +139,94 @@ describe('what a test line did to the page', () => {
     tap.settle();
 
     // The dialog is one line for its root and one for the button inside it, which
-    // a search finds by its role; the span, which has none, is not written.
+    // holds a text of its own; the span, which holds nothing a search could name, is not written.
     const said = tap.read().notes.map(([, , text]) => text);
     expect(said).toEqual([
       'dom + div role="dialog" "Confirm order"',
-      'dom + button role="button" "Yes"',
-      'dom − li id="c3" role="listitem" "Item C3"',
+      'dom + button "Yes"',
+      'dom − li id="c3" "Item C3"',
       'dom @value input type="password"',
       'page +1 −1 nodes, 1 attribute, 0 text',
     ]);
     expect(said.join('\n')).not.toMatch(/hunter2|typed|old/);
+  });
+
+  it('writes a node moved as taken away and put back, and one put in and taken out as both', () => {
+    const tap = openTap();
+    const { window } = new JSDOM('<main><ul><li id="a">Item A</li><li id="b">Item B</li></ul></main>');
+    const { document } = window;
+    listen(tap, { console: { ...console }, document, MutationObserver: window.MutationObserver });
+
+    tap.root.c(10);
+    document.querySelector('ul')!.insertBefore(document.getElementById('b')!, document.getElementById('a'));
+    const toast = document.createElement('div');
+    toast.setAttribute('role', 'status');
+    toast.textContent = 'Saved';
+    document.body.append(toast);
+    toast.remove();
+    tap.root.c(11);
+    tap.settle();
+
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual([
+      'dom − li id="b" "Item B"',
+      'dom + li id="b" "Item B"',
+      'dom + div role="status" "Saved"',
+      'dom − div role="status" "Saved"',
+      'page +2 −2 nodes, 0 attributes, 0 text',
+    ]);
+  });
+
+  it('never writes what a text box holds, as the text it replaced or inside what holds it', () => {
+    const tap = openTap();
+    const { window } = new JSDOM('<main><label>Note<textarea>draft</textarea></label></main>');
+    const { document } = window;
+    listen(tap, { console: { ...console }, document, MutationObserver: window.MutationObserver });
+
+    tap.root.c(10);
+    const box = document.querySelector('textarea')!;
+    box.defaultValue = 'hunter2';
+    box.defaultValue = 'hunter3';
+    document.querySelector('label')!.remove();
+    tap.root.c(11);
+    tap.settle();
+
+    const said = tap.read().notes.map(([, , text]) => text);
+    expect(said).toEqual(['dom − label "Note"', 'dom − textarea', 'page +2 −3 nodes, 0 attributes, 0 text']);
+    expect(said.join('\n')).not.toMatch(/draft|hunter/);
+  });
+
+  it('finds a row of a 2000-node page by the lines that added and removed it, and keeps the page to its own share', () => {
+    const tap = openTap();
+    const { window } = new JSDOM('<main><ul></ul></main>');
+    const { document } = window;
+    listen(tap, { console: { ...console }, document, MutationObserver: window.MutationObserver });
+    const list = document.querySelector('ul')!;
+    const rows = (count: number, from: string) =>
+      Array.from({ length: count }, (_, at) => Object.assign(document.createElement('li'), { textContent: `Item ${from}${at}` }));
+
+    tap.root.c(10);
+    list.append(...rows(2000, 'C'));
+    tap.root.c(14);
+    list.children[3]!.remove();
+    tap.root.c(15);
+    list.append(...rows(storyTap.NOTE_LIMIT, 'D'));
+    tap.note('said after the flood');
+    tap.settle();
+
+    // A note's place says which line it sits on: the last line that opened at or before it.
+    const { lines, notes, unnoted } = tap.read();
+    const lineOf = (at: number) => lines.findLast(([, , , said]) => said <= at)![2];
+    const c3 = notes.flatMap(([, , text], at) => (text.includes('"Item C3"') ? [[lineOf(at), text]] : []));
+    expect(c3).toEqual([
+      [10, 'dom + li "Item C3"'],
+      [14, 'dom − li "Item C3"'],
+    ]);
+    // The page's lines stop at their share and are counted past it; what the code said still fits.
+    const said = notes.map(([, , text]) => text);
+    expect(said.filter((text) => text.startsWith('dom ')).length).toBe(storyTap.NOTE_LIMIT);
+    expect(unnoted).toBe(2000 + 1 + storyTap.NOTE_LIMIT - storyTap.NOTE_LIMIT);
+    expect(said).toContain('said after the flood');
+    expect(Math.max(...said.map((text) => text.length))).toBeLessThanOrEqual(storyTap.NOTE_LENGTH);
   });
 
   it('starts no page watch in a realm with no document', () => {

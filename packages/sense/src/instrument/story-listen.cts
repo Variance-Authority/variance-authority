@@ -24,7 +24,7 @@ interface Seen {
   readonly nodeType: number;
   readonly nodeName: string;
   readonly nodeValue: string | null;
-  readonly textContent: string | null;
+  readonly childNodes?: ArrayLike<Seen>;
   readonly parentNode: Seen | null;
   getAttribute?(name: string): string | null;
   querySelectorAll?(selector: string): ArrayLike<Seen>;
@@ -56,9 +56,10 @@ type Realm = {
  * Watch the realm's document, once, and have `tap` write each change a test
  * line made to it as one line, then say what the line changed when it ends, as
  * `page +N −M nodes, A attributes, T text`. A change is `dom` and its kind —
- * `+`, `−`, `@attribute old→new`, `text old→new` — then the node: its tag, id,
- * role and name, and the component that owns it where React names one. A node
- * added or removed brings a line for each node inside it a search could name.
+ * `+`, `−`, `@attribute old→new`, `text old→new` — then the node as the page
+ * states it: its tag, id, `role` and label or text, never a role computed from
+ * its tag, and the component that owns it where React names one. A node added
+ * or removed brings a line for each node inside it a search could name.
  * Where React tells the realm of each commit, what the commit changed is written
  * as it lands, with the commit's ordinal in the case. What a field holds, as a
  * value or a password, is never written.
@@ -76,17 +77,6 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
   const OWNER = Symbol.for('variance-authority.story.page-owner');
   // How many characters of a name or a value a change line keeps.
   const SHOWN = 80;
-  // The role an element has without saying so, as ARIA maps the tags a test most often looks for.
-  const ROLES: Record<string, string> = {
-    article: 'article', aside: 'complementary', button: 'button', dialog: 'dialog', form: 'form', h1: 'heading', h2: 'heading',
-    h3: 'heading', h4: 'heading', h5: 'heading', h6: 'heading', img: 'img', li: 'listitem', main: 'main', nav: 'navigation',
-    ol: 'list', option: 'option', select: 'combobox', table: 'table', td: 'cell', textarea: 'textbox', th: 'columnheader',
-    tr: 'row', ul: 'list',
-  };
-  const INPUTS: Record<string, string> = {
-    button: 'button', checkbox: 'checkbox', email: 'textbox', radio: 'radio', range: 'slider', reset: 'button',
-    search: 'searchbox', submit: 'button', tel: 'textbox', text: 'textbox', url: 'textbox',
-  };
   // Fields whose text and value are what a person typed.
   const FIELDS = new Set(['input', 'select', 'textarea']);
   type Watching = {
@@ -105,40 +95,41 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
     return JSON.stringify(line.length > SHOWN ? `${line.slice(0, SHOWN - 1)}…` : line);
   };
   const tagOf = (node: Seen): string => node.nodeName.toLowerCase();
-  const roleOf = (node: Seen): string | undefined => {
-    const said = node.getAttribute?.('role');
-    if (said) return said;
-    const tag = tagOf(node);
-    if (tag === 'input') return INPUTS[node.getAttribute?.('type') ?? 'text'];
-    if (tag === 'a') return node.getAttribute?.('href') === null ? undefined : 'link';
-    return Object.hasOwn(ROLES, tag) ? ROLES[tag] : undefined;
-  };
+  // The text inside a node, leaving out what a field inside it holds.
+  const textOf = (node: Seen): string =>
+    node.nodeType === 3
+      ? node.nodeValue ?? ''
+      : FIELDS.has(tagOf(node))
+        ? ''
+        : Array.from(node.childNodes ?? [], textOf).join('');
   const nameOf = (node: Seen): string | undefined => {
     const given = node.getAttribute?.('aria-label') ?? node.getAttribute?.('alt') ?? node.getAttribute?.('title');
     if (given) return given;
     if (FIELDS.has(tagOf(node))) return undefined;
-    const text = node.textContent?.trim();
+    const text = textOf(node).trim();
     return text ? text : undefined;
   };
   // The node as a line names it: its tag, id, type, role and, where asked, its name.
-  const described = (node: Seen, named = true): string | undefined => {
+  // A text node is read under `parent`, the node a change put it in or took it from: one taken away has none of its own.
+  const described = (node: Seen, named = true, parent: Seen | null = node.parentNode): string | undefined => {
     if (node.nodeType === 3) {
       const text = node.nodeValue?.trim();
-      return text && !FIELDS.has(node.parentNode === null ? '' : tagOf(node.parentNode)) ? `text ${shown(text)}` : undefined;
+      return text && !FIELDS.has(parent === null ? '' : tagOf(parent)) ? `text ${shown(text)}` : undefined;
     }
     if (node.nodeType !== 1) return undefined;
     const tag = tagOf(node);
     const id = node.getAttribute?.('id');
     const type = tag === 'input' ? node.getAttribute?.('type') : null;
-    const role = roleOf(node);
+    const role = node.getAttribute?.('role');
     const name = named ? nameOf(node) : undefined;
     return [tag, id && `id=${shown(id)}`, type && `type=${shown(type)}`, role && `role=${shown(role)}`, name && shown(name)]
       .filter(Boolean)
       .join(' ');
   };
-  // Whether a search could name the node: a role, an id or a label.
+  // Whether a search could name the node: a role, an id or a label it says, or a text of its own.
   const findable = (node: Seen): boolean =>
-    roleOf(node) !== undefined || Boolean(node.getAttribute?.('id')) || Boolean(node.getAttribute?.('aria-label'));
+    Boolean(node.getAttribute?.('role') || node.getAttribute?.('id') || node.getAttribute?.('aria-label')) ||
+    Array.from(node.childNodes ?? []).some((inner) => inner.nodeType === 3 && Boolean(inner.nodeValue?.trim()));
   const owner = (node: Seen): string => {
     const naming = (global as { [OWNER]?: unknown })[OWNER];
     const name = typeof naming === 'function' ? (naming as (node: Seen) => unknown)(node) : undefined;
@@ -150,16 +141,18 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
     const counts = watching.counts;
     // A line, or an attribute or text to be told once, from what it was to what it is.
     const told: (string | [node: Seen, key: string])[] = [];
-    const seen = new Set<Seen>();
+    // Each node is told once per sign, so a node moved is taken away and put back, and one put in and taken out is both.
+    const seen = { '+': new Set<Seen>(), '−': new Set<Seen>() };
     const was = new Map<Seen, Map<string, string | null>>();
-    const tell = (sign: string, node: Seen): void => {
-      if (seen.has(node)) return;
-      seen.add(node);
-      const it = described(node);
+    const tell = (sign: '+' | '−', node: Seen, parent: Seen): void => {
+      const of = seen[sign];
+      if (of.has(node)) return;
+      of.add(node);
+      const it = described(node, true, parent);
       if (it !== undefined) told.push(`dom ${sign} ${it}${owner(node)}`);
       for (const inner of Array.from(node.querySelectorAll?.('*') ?? [])) {
-        if (seen.has(inner) || !findable(inner)) continue;
-        seen.add(inner);
+        if (of.has(inner) || !findable(inner)) continue;
+        of.add(inner);
         told.push(`dom ${sign} ${described(inner)!}${owner(inner)}`);
       }
     };
@@ -176,8 +169,8 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
       }
       counts[0] += change.addedNodes.length;
       counts[1] += change.removedNodes.length;
-      for (const node of Array.from(change.removedNodes)) tell('−', node);
-      for (const node of Array.from(change.addedNodes)) tell('+', node);
+      for (const node of Array.from(change.removedNodes)) tell('−', node, change.target);
+      for (const node of Array.from(change.addedNodes)) tell('+', node, change.target);
     }
     const at = commit === undefined ? '' : ` at commit ${commit}`;
     for (const line of told) {

@@ -697,22 +697,27 @@ story file:
 
 ```text
 dom + div role="dialog" "Confirm order" in Dialog at commit 2
-dom − li id="c3" role="listitem" "Item C3"
+dom − li id="c3" "Item C3"
 dom @aria-busy p "idle" absent→"true"
 dom text p "idle"→"done"
 ```
 
 `+` is a node added and `−` one removed, `@name` an attribute with its old and
 new value, and `text` a text node's old and new text under its parent. A node
-is written as its tag, its `id`, `type` and role, and its accessible name or the
-first 80 characters of its text. An added subtree is one line for its root and
-one for each node inside it that has a role, an `id` or a name, so a search
-finds a button inside a dialog. With `@variance-authority/react/story` in the
-setup files, a change React made names the component that rendered the node,
-`in Dialog`, and the commit that wrote it, `at commit 2`; a change made outside
-React, such as a direct `append`, stays on its line with no commit. What a field
-holds is never written: an `input`'s `value`, typed or set, is named and not
-shown.
+is written as the page states it: its tag, its `id`, `type` and `role`
+attributes, and its `aria-label` or the first 80 characters of its text. A role
+the tag implies is not written, so `--page 'role="dialog"'` finds a
+`div role="dialog"` and `--page '+ dialog'` finds a `<dialog>`. An added
+subtree is one line for its root and one for each node inside it that has a
+`role`, an `id`, an `aria-label` or a text of its own, so a search finds a
+button inside a dialog. A node moved is written as removed and added again.
+With `@variance-authority/react/story` in the setup files, a change names the
+component that rendered the node, `in Dialog`, and the React commit it was
+written under, `at commit 2`. A direct `append` between two commits is written
+under the next one; only what is left when the line ends has no commit. What a
+field holds is never written: an `input`'s `value`, typed or set, is named and
+not shown, and the text of a `textarea` or a `select` is left out of every line,
+its own and its parent's.
 
 `variance story` prints only the count. Ask for the changes by what they hold,
 and the answer is one row per change that matches, whatever the size of the

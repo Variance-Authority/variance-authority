@@ -12,7 +12,7 @@ const ROUTE: Route = {
   opening: { route: ['test line 10', 'dom + main "Open" in App at commit 1', 'page +1 −0 nodes, 0 attributes, 0 text'] },
   route: [
     stop('render'),
-    stop('Dialog', ['test line 11', 'dom + div role="dialog" "Confirm order" in Dialog at commit 2', 'dom + button role="button" "Yes" in Dialog at commit 2', 'page +1 −0 nodes, 0 attributes, 0 text']),
+    stop('Dialog', ['test line 11', 'dom + div role="dialog" "Confirm order" in Dialog at commit 2', 'dom + button "Yes" in Dialog at commit 2', 'page +1 −0 nodes, 0 attributes, 0 text']),
     stop('close', ['test line 12', 'dom @aria-busy main absent→"true"', 'dom − div role="dialog" "Confirm order" at commit 3', 'page +0 −1 nodes, 1 attribute, 0 text']),
   ],
   files: ['src/app.test.tsx'],

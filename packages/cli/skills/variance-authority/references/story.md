@@ -178,7 +178,7 @@ variance story --name "cart > removes the last item" --page 'Item C3'    # one r
 
 ```text
   1 of 2004 changes to the page holds `Item C3`; open a step with --around <step>
-  disappeared  step 6  line 14  − li id="c3" role="listitem" "Item C3"
+  disappeared  step 6  line 14  − li id="c3" "Item C3"
 ```
 
 Each row is appeared, disappeared or changed, with its step, test line and
