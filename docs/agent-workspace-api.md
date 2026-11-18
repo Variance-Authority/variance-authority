@@ -243,7 +243,17 @@ function's body is read in JavaScript and TypeScript and answered with the
 function that holds it. `ask symbol` answers a top-level declaration of the
 name first, in any of those languages, then each container that declares it as
 a member, with the member's `file:line`, and points to `uses`. A dotted name,
-`Tree.has`, asks for the member `has` of `Tree` alone. `ask search` finds a
+`Tree.has`, asks for the member `has` of `Tree` alone.
+
+Framework file formats and bundler-only aliases are not read yet: a Vue or
+Svelte single-file component is not indexed, so nothing it declares or imports
+is answered; the files an Angular component names in `templateUrl` and
+`styleUrls` are not linked to it; and an import through an alias declared only
+in a bundler's configuration resolves to no file, where one declared as `paths`
+in a `tsconfig` does. [The source scan's limits](source.md#limits) say what each
+leaves out.
+
+`ask search` finds a
 member by its name, by `Tree.has` or by the doc above it, and a function inside
 a function by its name; a row that only holds the words stays out of a search
 something else answered. It also reads the test cases the last run recorded, by

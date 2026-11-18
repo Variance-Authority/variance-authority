@@ -1634,7 +1634,9 @@ You need a readable checkout, installed dependencies for bare specifiers, and
 any `tsconfig.json` path mappings the source uses. Resolving a bare specifier is
 the one step that needs them; the pure readers in
 `@variance-authority/sense/read` take source text plus a file id instead and
-never touch a disk.
+never touch a disk. An alias declared only in a bundler's configuration, such
+as webpack's or Vite's `resolve.alias`, is not read, so declare it as `paths`
+in a `tsconfig` too.
 
 | option | default | use it when |
 |---|---|---|
