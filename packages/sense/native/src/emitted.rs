@@ -29,22 +29,24 @@
 //! configs that name one `outDir` are both kept, in the order they are read,
 //! and the first whose `rootDir` holds the source answers.
 //!
-//! Git owns which configs a directory holds, and which files the checkout holds
-//! at all. A scan that carries the tree answers from its listing — `HEAD` with
-//! the working tree's edits and untracked files over it — so a file git does
-//! not list, in a directory it does, is not there: an ignored file is what
-//! somebody last built, not the commit, the argument `dist/` makes above. The
-//! disk answers only where git did not: no tree, outside the root, beneath
-//! `node_modules` or `.git`, a link, a path git could not hash, a name that is
-//! not plain ASCII, or one that differs from a listed path only in case. A
-//! package directory can hold twenty thousand files, and every `package.json`
-//! the resolver looks for beside a source file was most of what resolving cost.
+//! Git owns which configs a directory holds. A scan that carries the tree reads
+//! them from its listing — `HEAD` with the working tree's edits and untracked
+//! files over it — and the disk only for a directory git did not descend: no
+//! tree, outside the root, ignored, or a repository of its own. Which files
+//! are there is the disk's: an import may land in an ignored `dist/`, a
+//! generated file or a submodule, none of which git lists. The listing answers
+//! for what it does list, and beneath a regular file, where nothing is; for the
+//! rest, each directory is read once, and a name it does not hold is not there
+//! without a look of its own. A package directory can hold twenty thousand
+//! files, and every `package.json` the resolver looks for beside a source file
+//! was most of what resolving cost.
 //!
-//! The JavaScript oracle reads output back by the same rule (`src/emitted.ts`),
-//! and the two are compared on a fixture.
+//! `src/emitted.ts` reads output back by the `outDir` rule alone, from what the
+//! resolver found on disk, and `emitted.test.ts` lands both on one fixture.
 
 // compass: variance-authority.reach.source-scan
 
+use std::collections::HashSet;
 use std::ffi::{OsStr, OsString};
 use std::io;
 use std::path::{Component, Path, PathBuf};
@@ -131,6 +133,9 @@ pub struct Emitted {
     declared: Memo<Arc<OnceLock<Arc<[Arc<Layout>]>>>>,
     /// The canonical root and what git lists under it.
     listed: Option<(PathBuf, Arc<Listing>)>,
+    /// The names each directory under the root holds, read once; `None` for
+    /// one that could not be read, whose paths are each looked at.
+    entries: Memo<Arc<OnceLock<Option<Arc<Names>>>>>,
     /// The configs a layout or a condition set is read from, each read once.
     pub(crate) configs: Configs,
 }
@@ -234,8 +239,25 @@ impl Emitted {
     fn stat(&self, path: &Path) -> io::Result<FileMetadata> {
         match self.known(path) {
             Some(known) => listed(known),
+            None if self.absent(path) => Err(not_found()),
             None => FileSystemOs::metadata(path),
         }
+    }
+
+    /// Whether the directory a path is in, read once, holds no such name.
+    /// Only a path under a listed root is answered: elsewhere, and on a disk
+    /// that may ignore case, the path is looked at.
+    fn absent(&self, path: &Path) -> bool {
+        let Some((root, _)) = &self.listed else { return false };
+        let (Some(directory), Some(name)) = (path.parent(), path.file_name()) else {
+            return false;
+        };
+        if !directory.starts_with(root) {
+            return false;
+        }
+        let known = self.entries.get(directory).map(|cell| Arc::clone(&cell));
+        let cell = known.unwrap_or_else(|| Arc::clone(&self.entries.entry(directory.to_owned()).or_default()));
+        cell.get_or_init(|| Names::of(directory)).as_ref().is_some_and(|names| !names.may_hold(name))
     }
 
     /// Whether git vouches the path is a regular file.
@@ -368,6 +390,36 @@ fn path_option(configs: &Configs, path: &Path, leaf: &Path, name: &str) -> Optio
     }))
 }
 
+/// The names one directory holds, and each folded to lower case, for a disk
+/// that may ignore it.
+struct Names {
+    exact: HashSet<OsString, FxBuildHasher>,
+    folded: HashSet<String, FxBuildHasher>,
+}
+
+impl Names {
+    /// A directory that is not there, or is a file, holds nothing.
+    fn of(directory: &Path) -> Option<Arc<Self>> {
+        let entries = match std::fs::read_dir(directory) {
+            Ok(entries) => entries,
+            Err(error) if matches!(error.kind(), io::ErrorKind::NotFound | io::ErrorKind::NotADirectory) => {
+                return Some(Arc::new(Self { exact: HashSet::default(), folded: HashSet::default() }));
+            }
+            Err(_) => return None,
+        };
+        let mut exact = HashSet::default();
+        for entry in entries {
+            exact.insert(entry.ok()?.file_name());
+        }
+        let folded = exact.iter().map(|name: &OsString| name.to_string_lossy().to_lowercase()).collect();
+        Some(Arc::new(Self { exact, folded }))
+    }
+
+    fn may_hold(&self, name: &OsStr) -> bool {
+        self.exact.contains(name) || self.folded.contains(&name.to_string_lossy().to_lowercase())
+    }
+}
+
 fn not_found() -> io::Error {
     io::Error::from(io::ErrorKind::NotFound)
 }
@@ -389,7 +441,7 @@ impl FileSystem for Emitted {
 
     fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
         match self.origin(path) {
-            Origin::Disk if self.known(path).is_some_and(|known| known != Known::File) => Err(not_found()),
+            Origin::Disk if self.known(path).map_or_else(|| self.absent(path), |known| known != Known::File) => Err(not_found()),
             Origin::Disk => std::fs::read(path),
             Origin::Source(source) => std::fs::read(source),
             Origin::Directory | Origin::Nowhere => Err(not_found()),
@@ -411,7 +463,11 @@ impl FileSystem for Emitted {
 
     fn symlink_metadata(&self, path: &Path) -> io::Result<FileMetadata> {
         match self.origin(path) {
-            Origin::Disk => self.known(path).map_or_else(|| FileSystemOs::symlink_metadata(path), listed),
+            Origin::Disk => match self.known(path) {
+                Some(known) => listed(known),
+                None if self.absent(path) => Err(not_found()),
+                None => FileSystemOs::symlink_metadata(path),
+            },
             _ => self.metadata(path),
         }
     }
@@ -419,6 +475,7 @@ impl FileSystem for Emitted {
     fn read_link(&self, path: &Path) -> Result<PathBuf, ResolveError> {
         match self.origin(path) {
             Origin::Disk => match self.known(path) {
+                None if self.absent(path) => Err(not_found().into()),
                 None => FileSystemOs::read_link(path),
                 Some(Known::Absent) => Err(not_found().into()),
                 Some(_) => Err(io::Error::from(io::ErrorKind::InvalidInput).into()),
@@ -431,6 +488,7 @@ impl FileSystem for Emitted {
         match self.origin(path) {
             // A listed path is spelled under the canonical root with no link in it.
             Origin::Disk => match self.known(path) {
+                None if self.absent(path) => Err(not_found()),
                 None => FileSystemOs::canonicalize(path),
                 Some(Known::Absent) => Err(not_found()),
                 Some(_) => Ok(path.to_owned()),

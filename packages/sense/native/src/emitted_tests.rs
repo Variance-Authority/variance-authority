@@ -105,8 +105,8 @@ fn output_answers_from_its_source_built_or_not() {
 fn a_directory_git_lists_is_read_from_the_listing() {
     let root = workspace("listed");
     // Git lists `packages/b` without its second config, and nothing under
-    // `packages/d`, which is then not there: git owns what the checkout holds.
-    // A config git could not hash leaves its directory to the disk.
+    // `packages/d`, which is then read from the disk. A config git could not
+    // hash leaves its directory to the disk as well.
     let paths = [
         "package.json",
         "packages/a/package.json",
@@ -124,31 +124,34 @@ fn a_directory_git_lists_is_read_from_the_listing() {
         let from = root.join("packages/a/src/x.ts");
         ["@s/b", "@s/b/esm", "@s/d"].map(|request| resolvers.resolve(&root, &from, request, None))
     };
-    let b = Some("packages/b/src/index.ts".to_owned());
-    assert_eq!(answers(&[]), [b.clone(), None, None]);
-    assert_eq!(answers(&["packages/b/tsconfig.esm.json".to_owned()]), [b.clone(), b, None]);
+    let (b, d) = (Some("packages/b/src/index.ts".to_owned()), Some("packages/d/src/index.ts".to_owned()));
+    assert_eq!(answers(&[]), [b.clone(), None, d.clone()]);
+    assert_eq!(answers(&["packages/b/tsconfig.esm.json".to_owned()]), [b.clone(), b, d]);
     let _ = std::fs::remove_dir_all(&root);
 }
 
 #[test]
-fn a_file_git_does_not_list_is_not_there() {
+fn a_file_git_does_not_list_is_read_from_the_disk() {
     let root = workspace("unlisted");
+    write(&root, &[("packages/b/src/newdir/index.ts", "export {};\n")]);
     // `tool.tsx` and `sub/index.ts` are on the disk, in a directory git lists,
-    // and git lists neither: an ignored file is not the commit. A path git
-    // could not hash, or one beneath it, is the disk's to answer.
+    // and git lists neither, as it lists no ignored or generated file: the
+    // disk answers for them. So it does for `newdir`, which holds only a file
+    // git has not hashed yet.
     let paths = ["package.json", "packages/b/package.json", "packages/b/src/index.ts"].map(str::to_owned);
     let answers = |unhashed: &[String]| {
         let files = paths.iter().cloned().zip(0..).collect();
         let listing = Listing::of(Arc::new(files), Arc::new(vec![true; paths.len()]), unhashed);
         let resolvers = Resolvers::over(Tsconfig::Auto, None, Emitted::listed(&root, Some(Arc::new(listing))));
         let from = root.join("packages/b/src/index.ts");
-        ["./tool", "./sub", "./index"].map(|request| resolvers.resolve(&root, &from, request, None))
+        ["./tool", "./sub", "./newdir", "./index", "./gone"].map(|request| resolvers.resolve(&root, &from, request, None))
     };
-    let index = Some("packages/b/src/index.ts".to_owned());
-    assert_eq!(answers(&[]), [None, None, index.clone()]);
-    let (tool, sub) = (Some("packages/b/src/tool.tsx".to_owned()), Some("packages/b/src/sub/index.ts".to_owned()));
-    let unhashed = ["packages/b/src/tool.tsx".to_owned(), "packages/b/src/sub/".to_owned()];
-    assert_eq!(answers(&unhashed), [tool, sub, index]);
+    let on_disk = ["tool.tsx", "sub/index.ts", "newdir/index.ts", "index.ts"].map(|path| Some(format!("packages/b/src/{path}")));
+    let [tool, sub, newdir, index] = on_disk;
+    let expected = [tool, sub, newdir, index, None];
+    assert_eq!(answers(&[]), expected);
+    let unhashed = ["packages/b/src/tool.tsx".to_owned(), "packages/b/src/newdir/index.ts".to_owned()];
+    assert_eq!(answers(&unhashed), expected);
     let _ = std::fs::remove_dir_all(&root);
 }
 
