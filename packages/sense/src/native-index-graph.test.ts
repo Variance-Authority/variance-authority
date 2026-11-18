@@ -10,7 +10,7 @@ import type { NativeGitTree } from './native.js';
 import { nativeAvailable } from './addon.js';
 import { nativeIndexGraph } from './native-index-graph.js';
 import { parseStorePath } from './parse-store.js';
-import { updateSourceIndex } from './test-support/published.js';
+import { updateSourceIndex } from './published.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { shapeOf } from './reuse.js';
 import { LARGEST_FILE, scanCount } from './test-support/scan.js';

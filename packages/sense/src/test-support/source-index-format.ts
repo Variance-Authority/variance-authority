@@ -39,7 +39,6 @@ import { packageOf } from '../specifier.js';
 const FORMAT = 'variance-authority-source-index';
 /** The format version this reader reads and the addon writes (`VERSION` in `native/src/segment.rs`). */
 import { SOURCE_INDEX_VERSION } from '../source-index-format.js';
-export { SOURCE_INDEX_VERSION } from '../source-index-format.js';
 const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
@@ -48,7 +47,7 @@ const ROWS = 4096;
 /** A record, and the directories whose contents could still change its edges. */
 export interface IndexedRecord {
   readonly record: FileRecord;
-  /** Repo-relative directories, sorted ([`witness.ts`](./witness.ts)). */
+  /** Repo-relative directories, sorted ([`witness.ts`](../witness.ts)). */
   readonly witnesses: readonly string[];
   /** Resolved target for each request in the matching parse, preserving order. */
   readonly targets?: readonly (string | undefined)[];

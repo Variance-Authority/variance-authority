@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { nativeAvailable } from './addon.js';
-import { updateSourceIndex } from './test-support/published.js';
+import { updateSourceIndex } from './published.js';
 import { scanRelations } from './test-support/scan.js';
 
 /**

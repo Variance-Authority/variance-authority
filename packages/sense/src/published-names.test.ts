@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openImmutableLog } from './immutable-log.js';
 import { publishedNames, readPublishedNames } from './published-names.js';
-import { SourceIndexUnpublished, updateSourceIndex } from './test-support/published.js';
+import { SourceIndexUnpublished, updateSourceIndex } from './published.js';
 
 /**
  * The names the published index gives a few files' texts, read off its record

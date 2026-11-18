@@ -6,13 +6,14 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 import { native } from './addon.js';
 import { openImmutableLog } from './immutable-log.js';
 import { fillParseStore, parseStorePath, pruneParseStore } from './parse-store.js';
-import { updateSourceIndex } from './test-support/published.js';
+import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
 import { nativeIndexGraph } from './native-index-graph.js';
 import { shapeOf } from './reuse.js';
 import { LARGEST_FILE, scanFixtureGraph, scanRelations } from './test-support/scan.js';
 import { openSourceIndexFile } from './test-support/source-index-file.js';
-import { decodeSourceIndex, encodeSourceIndex, SOURCE_INDEX_VERSION } from './test-support/source-index-format.js';
+import { decodeSourceIndex, encodeSourceIndex } from './test-support/source-index-format.js';
+import { SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { sourceIndexPath } from './source-index.js';
 import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
 import { gitTreeOf } from './tree.js';

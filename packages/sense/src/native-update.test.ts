@@ -8,7 +8,7 @@ import { decodeSourceIndex } from './test-support/source-index-format.js';
 import { openSourceIndexFile } from './test-support/source-index-file.js';
 import { updateNatively } from './native-update.js';
 import { readySourceIndex } from './ready-index.js';
-import { updateSourceIndex } from './test-support/published.js';
+import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
 
 /**

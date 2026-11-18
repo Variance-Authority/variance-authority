@@ -197,4 +197,3 @@ export interface Review {
 
 /** The runs at this commit as a review reports them: where and when they ran, how many, and what their landings say together. */
 export interface ReviewRuns extends Pick<CommitRuns, 'commit' | 'over' | 'latest' | 'runs'>, WhatLanded {}
-

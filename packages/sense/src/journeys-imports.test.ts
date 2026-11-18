@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { journeysAround, prepareJourneys } from './journeys.js';
 import type { NativeJourneysAnswer as JourneysAnswer } from './native-journeys.js';
-import { updateSourceIndex } from './test-support/published.js';
+import { updateSourceIndex } from './published.js';
 import { withCaseSections } from './test-selection/case-record.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';
 import { encodeSetExecutionIndex } from './test-selection/execution-set-format.js';

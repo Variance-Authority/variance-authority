@@ -1,5 +1,4 @@
 import type { NamesAnswer, NamesOperand } from '@variance-authority/sense';
-export type { NameEvidence, NamesAnswer, NamesGroup, NamesOperand } from '@variance-authority/sense';
 
 /** All predicates in one discovery question share one native source generation and pass. */
 export interface SourceNames {

@@ -1,15 +1,15 @@
 /** Test-only decoded observations of native source publication. */
 import type { FileRecord } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import { resolve } from 'node:path';
 import { seedPaths } from '../files.js';
 import { publishedThrough, type PublishedSourcesOptions } from '../published.js';
 import { usesOf } from '../uses.js';
 import { openSourceIndexFile } from './source-index-file.js';
-export { updateSourceIndex, SourceIndexUnpublished, type SourceUpdate, type SourceUpdateOptions } from '../published.js';
 export async function readPublishedSources(path: string) {
   const file = await openSourceIndexFile(path);
   const cache = { get: (key: string) => file.stored.parses.get(key), set() {} };
-  return { ...file, path, records: [...file.stored.records.values()].map((row) => row.record).sort((a,b) => a.file < b.file ? -1 : a.file > b.file ? 1 : 0), cache,
+  return { ...file, path, records: [...file.stored.records.values()].map((row) => row.record).sort((a, b) => codeUnitOrder(a.file, b.file)), cache,
     uses: usesOf(file.stored.records, cache) };
 }
 export async function publishedSources(root: string, options: PublishedSourcesOptions) { return publishedThrough(root, options, readPublishedSources); }

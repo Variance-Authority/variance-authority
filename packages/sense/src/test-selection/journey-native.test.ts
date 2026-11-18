@@ -12,7 +12,7 @@ import { decodeExecutionIndex } from './execution-format.js';
 import { narrowByJourneys, type JourneyRead } from './execution-select.js';
 import { encodeSetExecutionIndex } from './execution-set-format.js';
 import { projectJourneyFile, selectJourneyFile } from './journey-native.js';
-import { updateSourceIndex } from '../test-support/published.js';
+import { updateSourceIndex } from '../published.js';
 import { publishedSelectionGraph } from '../published-selection.js';
 
 /**

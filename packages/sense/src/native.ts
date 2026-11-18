@@ -31,10 +31,24 @@ import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js
 import type { NativeRecords } from './native-record.js';
 import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict } from './native-module-reads.js';
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
-import type { NativeHelpListing } from './help-reading.js';
+import type { NativeHelpListing, OpenedIndex } from './help-reading.js';
 import type { NativeSourceTreeReader } from './native-source-tree.js';
 import type { NativeSelectionGraph } from './native-selection-graph.js';
-import type { NativeSelectionGraphs } from './native-selection-graph.js';
+export interface NativeSelectionGraphOptions {
+  readonly root: string;
+  readonly dirs: readonly string[];
+  readonly before: readonly string[];
+  readonly code: readonly string[];
+  readonly builtins: readonly string[];
+  readonly tsconfig?: string | false;
+  readonly raw?: boolean;
+  readonly taints: readonly { readonly file: string; readonly plus: readonly string[]; readonly minus: readonly string[] }[];
+  readonly depends: readonly { readonly from: string; readonly to: string }[];
+}
+export interface NativeSelectionGraphs {
+  selectionGraphOf(index: OpenedIndex, options: NativeSelectionGraphOptions): NativeSelectionGraph | null;
+}
+
 /** Every tracked path under a root, with the digest of the bytes on disk. */
 export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing, NativeParseOrigins, NativeDependencyLexiconListing, NativeHelpListing {
   readonly size: number;

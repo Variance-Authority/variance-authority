@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { updateNatively } from './native-update.js';
-import { updateSourceIndex } from './test-support/published.js';
+import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
 
 const SERVER = fileURLToPath(new URL('../test/fixtures/watchman-server.mjs', import.meta.url));

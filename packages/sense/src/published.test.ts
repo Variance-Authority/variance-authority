@@ -6,16 +6,11 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { native } from './addon.js';
 import { openImmutableLog } from './immutable-log.js';
-import {
-  publishedSources,
-  readPublishedSources,
-  sourcesWithin,
-  updateSourceIndex,
-  SourceIndexUnpublished,
-} from './test-support/published.js';
+import { publishedSources, readPublishedSources, sourcesWithin } from './test-support/published.js';
+import { updateSourceIndex, SourceIndexUnpublished } from './published.js';
 import { scanRelations } from './test-support/scan.js';
 import { sourceIndexPath } from './source-index.js';
-import { SOURCE_INDEX_VERSION } from './test-support/source-index-format.js';
+import { SOURCE_INDEX_VERSION } from './source-index-format.js';
 
 /**
  * One step publishes the index; a reader reads it and scans nothing.

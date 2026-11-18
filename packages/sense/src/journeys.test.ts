@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { forksBetween, journeysAmong, journeysAround, journeyMap, journeysPath, pathsThrough, prepareJourneys, testCompositions } from './journeys.js';
-import { updateSourceIndex } from './test-support/published.js';
+import { updateSourceIndex } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { withCaseSections } from './test-selection/case-record.js';
 import { CrossingSets } from './test-selection/crossing-sets.js';

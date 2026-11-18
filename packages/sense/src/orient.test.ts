@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dependenciesAround, packagesAround, recordedCases } from './orient.js';
-import { updateSourceIndex } from './test-support/published.js';
+import { updateSourceIndex } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { CaseLinesBuilder, lineValue } from './test-selection/case-lines.js';
 import { withCaseSections } from './test-selection/case-record.js';
