@@ -105,28 +105,24 @@ pub(crate) fn read_git(
     let largest = u64::from(largest_file.unwrap_or(LARGEST_FILE));
     let wanted = digests.unwrap_or(false);
     let root = Path::new(&root);
-    let opening = opening_pool(readers, files.len());
-    let arenas = AllocatorPool::new(opening.as_ref().map_or(1, ThreadPool::current_num_threads));
-    let work = || -> Vec<Named> {
-        files
-            .par_iter()
-            .zip(&oids)
-            .map_init(
-                || objects.reader(),
-                |reader, (file, oid)| match oid {
-                    Some(oid) => read_blob(root, file, oid, reader, largest, wanted, &arenas, symbols),
-                    None => open_and_parse(root, file, None, largest, wanted, &arenas, symbols),
-                },
-            )
-            .collect()
-    };
-    // A blob a wave cannot take from the store opens its file, at the disk reader's width.
-    match opening {
-        Ok(pool) => pool.install(work),
-        Err(_) => work(),
-    }
-    .into_iter()
-    .unzip()
+    // A blob is decoded and parsed in memory, so the store path runs on every
+    // core rather than at the disk reader's width: on Kibana (115,177 files)
+    // the whole index took 6.4 s at six threads and 5.7 s at ten or more. The
+    // few files the store does not hold open off the disk among them.
+    let arenas = AllocatorPool::new(rayon::current_num_threads());
+    files
+        .par_iter()
+        .zip(&oids)
+        .map_init(
+            || objects.reader(),
+            |reader, (file, oid)| match oid {
+                Some(oid) => read_blob(root, file, oid, reader, largest, wanted, &arenas, symbols),
+                None => open_and_parse(root, file, None, largest, wanted, &arenas, symbols),
+            },
+        )
+        .collect::<Vec<Named>>()
+        .into_iter()
+        .unzip()
 }
 
 #[allow(clippy::too_many_arguments, reason = "one read's whole request")]
