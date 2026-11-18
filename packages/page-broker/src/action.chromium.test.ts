@@ -172,6 +172,20 @@ chromium_('an action over a page that announces nothing', () => {
     await expect(submit(page)).resolves.toMatchObject({ outcome: 'signIn' });
   });
 
+  it('reports staying for an action whose only outcome is to stay', async () => {
+    const submit = action('submit', { refused: stay }, click, QUICK);
+    await open('answer=nothing&after=100');
+
+    await expect(submit(page)).resolves.toEqual({ outcome: 'refused', at: undefined });
+  });
+
+  it('fails with what Playwright said when the page is gone before an outcome', async () => {
+    const leave = action('leave', outcomes, (on: Page) => on.close(), QUICK);
+    await open('answer=payment');
+
+    await expect(leave(page)).rejects.toThrow(/closed/);
+  });
+
   it('releases the page when the act fails, and fails with what the act threw', async () => {
     const submit = action(
       'submit',

@@ -130,15 +130,19 @@ async function perform<Name extends string>(
     undefined,
   );
   const traffic = watch(page, declared.quiet);
+  let out: ReturnType<typeof setTimeout> | undefined;
   try {
     await act();
     // The app's time starts when the act is done: a slow act does not spend it.
     const deadline = Date.now() + declared.timeout;
+    const late = new Promise<'late'>((resolve) => {
+      out = setTimeout(() => resolve('late'), declared.timeout);
+    });
     const quiet = declared.staying === undefined ? NEVER : traffic.quiet();
     for (;;) {
       // Arriving is Playwright's wait; only staying, which it has no word for, is ours.
-      const arrived = arrival(any, deadline - Date.now());
-      const woke = await Promise.race([arrived, quiet]);
+      const arrived = any === undefined ? NEVER : arrival(any, deadline - Date.now());
+      const woke = await Promise.race([arrived, quiet, late]);
       // The wait that lost the race ends on its own deadline, and has nobody left to tell.
       arrived.catch(() => undefined);
       if (woke === 'late') break;
@@ -159,6 +163,7 @@ async function perform<Name extends string>(
       `${declared.name}: ${none} and the page did not go quiet within ${declared.timeout} ms${held}`,
     );
   } finally {
+    clearTimeout(out);
     traffic.stop();
   }
 }
@@ -166,11 +171,10 @@ async function perform<Name extends string>(
 const NEVER = new Promise<never>(() => undefined);
 
 /** Playwright's own wait for any declared part, or `late` when none came in the time left. */
-async function arrival(any: Locator | undefined, left: number): Promise<'arrived' | 'late'> {
-  if (any === undefined) return new Promise((late) => setTimeout(() => late('late'), Math.max(left, 0)));
-  if (left <= 0) return 'late';
+async function arrival(any: Locator, left: number): Promise<'arrived' | 'late'> {
   try {
-    await any.first().waitFor({ state: 'visible', timeout: left });
+    // To Playwright a timeout of 0 is no timeout at all.
+    await any.first().waitFor({ state: 'visible', timeout: Math.max(left, 1) });
     return 'arrived';
   } catch (error) {
     if (error instanceof Error && error.name === 'TimeoutError') return 'late';
@@ -200,17 +204,14 @@ const NOT_AWAITED: ReadonlySet<string> = new Set(['eventsource', 'font', 'image'
  */
 function watch(page: Page, period: number): Traffic {
   const flying = new Set<Request>();
-  let acted = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  let settle: (value: 'quiet') => void = () => undefined;
-  const settled = new Promise<'quiet'>((resolve) => {
-    settle = resolve;
-  });
+  // Absent until the act is done: the page is not quiet while the test still acts on it.
+  let settle: ((value: 'quiet') => void) | undefined;
   // A deadline, not a look: it is armed when the last request ends and
   // disarmed when another begins, so it fires only on a full quiet period.
   const arm = (): void => {
     clearTimeout(timer);
-    if (acted && flying.size === 0) timer = setTimeout(() => settle('quiet'), period);
+    if (settle !== undefined && flying.size === 0) timer = setTimeout(settle, period, 'quiet');
   };
   const began = (request: Request): void => {
     if (NOT_AWAITED.has(request.resourceType())) return;
@@ -224,11 +225,11 @@ function watch(page: Page, period: number): Traffic {
   page.on('requestfinished', ended);
   page.on('requestfailed', ended);
   return {
-    quiet: () => {
-      acted = true;
-      arm();
-      return settled;
-    },
+    quiet: () =>
+      new Promise((resolve) => {
+        settle = resolve;
+        arm();
+      }),
     flying: () => [...flying].map((request) => `${request.method()} ${new URL(request.url()).pathname}`),
     stop: () => {
       clearTimeout(timer);
