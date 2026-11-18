@@ -146,6 +146,22 @@ describe('a session read from what V8 wrote', () => {
     }
   });
 
+  it('reads a script\'s map from the file: URL its comment names, and names one whose URL is no file here', async () => {
+    const script = async (name: string, mapUrl: string) => {
+      const source = BUNDLE.replace('sourceMappingURL=main.js.map', `sourceMappingURL=${mapUrl}`);
+      await writeFile(join(root, `dist/${name}.js`), source);
+      return { url: `file://${join(root, `dist/${name}.js`)}`, scriptId: name, source, functions };
+    };
+    const local = await script('file-map', `file://${join(root, 'dist/main.js.map')}`);
+    const remote = await script('remote-map', 'file://remote/main.js.map');
+    const at = join(root, 'file-map.json');
+    await writeFile(at, JSON.stringify({ result: [local, remote] }));
+    const session = await readSession(at, undefined);
+
+    expect(session.skipped).toEqual([remote.url]);
+    expect(math(session.scripts)).toEqual(EXPECTED);
+  });
+
   it('names a served script whose file is another build than the one that ran, rather than read it through that build\'s map', async () => {
     const at = join(root, 'rebuilt.json');
     const url = 'http://localhost:5173/main.js';
