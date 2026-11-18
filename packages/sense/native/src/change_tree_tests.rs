@@ -68,7 +68,8 @@ fn with_the_clock_on_the_listing_line_names_the_parts_that_ran() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "{stderr}");
     let line = stderr.lines().find(|line| line.starts_with("variance stage listing:")).unwrap_or_else(|| panic!("no listing line in {stderr}"));
-    let named = |part: &str| line.contains(&format!("{part} 0.")) || line.contains(&format!("{part} 1."));
+    let parts = line.split_once('(').map_or("", |(_, parts)| parts.trim_end_matches(')'));
+    let named = |part: &str| parts.split(", ").any(|entry| entry.strip_prefix(part).and_then(|rest| rest.strip_prefix(' ')).and_then(|rest| rest.strip_suffix(" s")).is_some_and(|seconds| seconds.parse::<f64>().is_ok()));
     for part in ["head", "tree", "worktree", "compare", "overlay", "merge", "seeds", "assemble"] {
         assert!(named(part), "{part} is not on {line}");
     }
