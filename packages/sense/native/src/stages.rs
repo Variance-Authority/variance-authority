@@ -87,3 +87,7 @@ fn peak() -> String {
     }
     "unknown".to_string()
 }
+
+#[cfg(test)]
+#[path = "stages_tests.rs"]
+mod tests;
