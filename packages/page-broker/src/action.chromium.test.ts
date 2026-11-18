@@ -232,6 +232,15 @@ chromium_('an action over a page that announces nothing', () => {
     );
   });
 
+  it('fails an action whose only outcome is to stay when the page never went quiet in time', async () => {
+    const submit = action('submit', { refused: stay }, click, { timeout: 600, quiet: 100 });
+    await open('answer=nothing&after=1500');
+
+    await expect(submit(page)).rejects.toThrow(
+      'submit: the page did not go quiet within 600 ms: GET /api/billing still in flight',
+    );
+  });
+
   it('fails at the timeout when no outcome is reached and none is to stay, naming the outcomes', async () => {
     const submit = action('submit', outcomes, click, { timeout: 600, quiet: 100 });
     await open('answer=nothing');

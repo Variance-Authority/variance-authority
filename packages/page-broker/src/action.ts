@@ -165,8 +165,9 @@ async function perform<Name extends string>(
     }
     const flying = traffic.flying();
     const held = flying.length === 0 ? '' : `: ${flying.join(', ')} still in flight`;
+    const reached = parts.length === 0 ? '' : `${none} and `;
     throw new Error(
-      `${declared.name}: ${none} and the page did not go quiet within ${declared.timeout} ms${held}`,
+      `${declared.name}: ${reached}the page did not go quiet within ${declared.timeout} ms${held}`,
     );
   } finally {
     clearTimeout(out);
