@@ -69,6 +69,7 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
     includeParses?: boolean,
     stores?: string[],
     records?: NativeRecordOptions,
+    held?: Uint8Array,
   ): NativeScanBatch;
   /** A cold closure held on the native side ([`native-index-graph.ts`](./native-index-graph.ts)). */
   indexGraph(options: NativeIndexGraphOptions): NativeIndexGraph;
@@ -395,6 +396,7 @@ export function nativeGraph(
     includeParses,
     options.stores === undefined ? undefined : [...options.stores],
     recordOptions(options),
+    options.held,
   );
   const built = builtFromBatch(batch);
   const keys = new Set<string>();

@@ -57,6 +57,8 @@ pub struct IndexGraphOptions {
     pub directories: Vec<String>,
     /// The parse stores a module's parse is looked up in before it is read.
     pub stores: Option<Vec<String>>,
+    /// A parse-only segment of the caller's cache for the seeds, looked up ahead of the stores.
+    pub held: Option<napi::bindgen_prelude::Buffer>,
 }
 
 #[napi]
@@ -80,8 +82,8 @@ pub(crate) fn index_graph(
     objects: &crate::acquire::TreeObjects,
 ) -> napi::Result<IndexGraph> {
     let settled = Settled::of(options.remembering, options.aliases.as_deref(), options.builtins, options.code_extensions, options.directories)?;
-    // A module a store holds is answered from it, under the size and link rules
-    // every walk keeps (`read_kept`), rather than read again.
+    // A module the caller's cache or a store holds is answered from it, under
+    // the size and link rules every walk keeps (`read_kept`), rather than read again.
     let kept = |identity: &str, file: &str| store?.view(identity, &way(file))?.read();
     let parsing = neighbours(&options.root, at, tree_oids, options.largest_file, options.readers, &kept, from_blob, objects);
     let texting = texting(&options.root);
