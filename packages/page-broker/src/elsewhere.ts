@@ -27,27 +27,14 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
   // Playwright announces a new page once its document has begun to answer, and
   // the request for that document is none of this page's: a slow one would
   // leave the page quiet with the app already on its way out.
-  const opening: Promise<void>[] = [];
   const asked = (request: Request): void => {
     if (!request.isNavigationRequest()) return;
-    let other: Page;
     try {
-      other = request.frame().page();
+      request.frame();
     } catch {
       // A document asked for before Playwright has a frame for it is a new page's.
       opened = true;
-      return;
     }
-    if (other === page) return;
-    opening.push(
-      other.opener().then(
-        (opener) => {
-          if (opener === page) opened = true;
-        },
-        // A page gone before it could be asked is announced, or not, by `popup`.
-        () => undefined,
-      ),
-    );
   };
   const modals = page.locator(':modal');
   const before = await modals.count();
@@ -56,7 +43,6 @@ export async function elsewhere(page: Page): Promise<Elsewhere> {
   page.context().on('request', asked);
   return {
     left: async () => {
-      await Promise.all(opening);
       if (went !== undefined) return `the page went to ${went}`;
       if (opened) return 'a new page opened';
       return (await modals.count()) > before ? 'a modal dialog opened' : undefined;
