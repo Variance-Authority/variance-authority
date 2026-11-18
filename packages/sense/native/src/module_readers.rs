@@ -41,7 +41,7 @@ mod walker;
 use walker::reading_of;
 
 #[path = "module_references.rs"]
-mod references;
+pub(crate) mod references;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Where {

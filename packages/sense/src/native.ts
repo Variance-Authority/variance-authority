@@ -11,6 +11,7 @@
  * the instrument loads it inside every test worker and the scanner's imports
  * are nothing a worker needs.
  */
+import type { FileReferences } from './test-selection/references.js';
 import type { EdgeKind } from '@variance-authority/core/relate';
 import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import type { AliasTable } from './witness.js';
@@ -219,6 +220,8 @@ export interface NativeScanner extends NativeSelectionGraphs, NativeOrientMaps, 
    * reference runs when the file loads. A name in a type position is no reference. `null` when it does not parse.
    */
   moduleReferences?(file: string, text: string): NativeModuleReferences | null;
+  /** A targeted live distill answer; native acquisition and resolution return no source text or whole parse. */
+  fileReferences?(root: string, file: string, listed?: string[], tsconfig?: string | false): FileReferences | null;
   /**
    * Where each source `file` imports from lands: a repository path, an absolute path outside it, or `''`.
    * `listed` names the files the caller's graph holds under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)); `tsconfig`, the one the scan that built it resolved under ([`typescript.ts`](./typescript.ts)).

@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { native, nativeAvailable } from '../addon.js';
 import { importReferences } from './references.js';
 
@@ -132,16 +132,25 @@ describe.runIf(nativeAvailable())('the references of what a file imports', () =>
         await mkdir(dirname(join(root, file)), { recursive: true });
         await writeFile(join(root, file), body);
       }
-      expect(importReferences(root, undefined, 'src/index.ts')).toEqual({
-        references: [{ file: 'src/a.ts', name: 'a', line: 5, load: false }],
-        passed: ['src/b.ts'],
-        imported: ['src/a.ts', 'src/b.ts', 'src/c.ts'],
-        effects: ['src/c.ts'],
-        untraced: false,
-      });
-      // An `export *` leaves the set to the other file.
-      expect(importReferences(root, undefined, 'src/index.ts')).not.toHaveProperty('exports');
-      expect(importReferences(root, undefined, 'src/missing.ts')).toBeUndefined();
+      const bridges = [
+        vi.spyOn(native()!, 'moduleReferences').mockImplementation(() => { throw new Error('source text crossed JavaScript'); }),
+        vi.spyOn(native()!, 'readSource').mockImplementation(() => { throw new Error('whole parse crossed JavaScript'); }),
+        vi.spyOn(native()!, 'resolveSources').mockImplementation(() => { throw new Error('references returned to native resolution'); }),
+      ];
+      try {
+        expect(importReferences(root, undefined, 'src/index.ts')).toEqual({
+          references: [{ file: 'src/a.ts', name: 'a', line: 5, load: false }],
+          passed: ['src/b.ts'],
+          imported: ['src/a.ts', 'src/b.ts', 'src/c.ts'],
+          effects: ['src/c.ts'],
+          untraced: false,
+        });
+        // An `export *` leaves the set to the other file.
+        expect(importReferences(root, undefined, 'src/index.ts')).not.toHaveProperty('exports');
+        expect(importReferences(root, undefined, 'src/missing.ts')).toBeUndefined();
+      } finally {
+        for (const bridge of bridges) bridge.mockRestore();
+      }
     } finally {
       await rm(root, { recursive: true, force: true });
     }

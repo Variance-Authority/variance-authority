@@ -124,6 +124,7 @@ mod members;
 mod mocks;
 mod module_moved;
 mod module_readers;
+mod file_references;
 mod module_shape;
 mod module_syntax;
 mod module_verdict;
