@@ -35,10 +35,11 @@ use std::sync::LazyLock;
 use regex::Regex;
 
 use crate::order::code_unit;
+use crate::source_roots::SourceRoots;
 use crate::world::World;
 
 /// Extensions a JVM import can land on. A Kotlin file may import a Java class and back.
-pub(crate) const JVM_FILES: [&str; 2] = [".java", ".kt"];
+const JVM_FILES: [&str; 2] = [".java", ".kt"];
 
 /// The suffix that makes a request name a package directory rather than a file.
 const WHOLE_PACKAGE: &str = ".*";
@@ -49,7 +50,7 @@ static PACKAGE: LazyLock<Regex> =
 
 /// Every source root in the tree, shortest first, so the outermost root is
 /// tried before a directory that is only a root because nothing in it said otherwise.
-pub(crate) fn roots(world: &World) -> Vec<String> {
+fn roots(world: &World) -> Vec<String> {
     let mut directories: Vec<&str> = Vec::new();
     let mut seen = HashSet::new();
     for path in world.below("") {
@@ -76,6 +77,11 @@ pub(crate) fn roots(world: &World) -> Vec<String> {
     roots.sort_by(|left, right| left.len().cmp(&right.len()).then_with(|| code_unit(left, right)));
     roots.dedup();
     roots
+}
+
+/// The source roots, with the top-level packages each holds.
+pub(crate) fn index(world: &World) -> SourceRoots {
+    SourceRoots::of(roots(world), world.below("").iter().copied(), &JVM_FILES)
 }
 
 /// Every file a JVM import could mean: a whole package, the file the longest

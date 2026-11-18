@@ -79,9 +79,7 @@ impl<'a> World<'a> {
 
     /// The JVM source roots, with the top-level packages each holds.
     pub(crate) fn jvm_index(&self) -> &crate::source_roots::SourceRoots {
-        self.jvm.get_or_init(|| {
-            crate::source_roots::SourceRoots::of(crate::resolve_jvm::roots(self), self.below("").iter().copied(), &crate::resolve_jvm::JVM_FILES)
-        })
+        self.jvm.get_or_init(|| crate::resolve_jvm::index(self))
     }
 
     /// Whether the tree holds this repository path.
@@ -140,10 +138,7 @@ impl<'a> World<'a> {
 
     /// The source roots, with the top-level modules each holds.
     pub(crate) fn python_index(&self) -> &crate::source_roots::SourceRoots {
-        self.python.get_or_init(|| {
-            let sorted = self.below("");
-            crate::source_roots::SourceRoots::of(crate::resolve_python::roots_in(sorted, sorted), sorted.iter().copied(), &[".py", ".pyi"])
-        })
+        self.python.get_or_init(|| crate::resolve_python::index(self))
     }
 
     /// Builds the indexes `languages` resolve through, here rather than in

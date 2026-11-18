@@ -10,6 +10,7 @@ use std::collections::HashMap;
 
 pub(crate) struct SourceRoots {
     pub(crate) order: Vec<String>,
+    all: Vec<u32>,
     holding: HashMap<String, Vec<u32>>,
 }
 
@@ -37,17 +38,15 @@ impl SourceRoots {
             roots.sort_unstable();
             roots.dedup();
         }
-        drop(at);
-        Self { order, holding }
+        let all = (0..order.len() as u32).collect();
+        Self { order, all, holding }
     }
 
     /// The roots that can hold a name starting with `top`, in root order. An
     /// empty `top` names the roots themselves, which every root can.
-    pub(crate) fn holding<'s>(&'s self, top: &str) -> Box<dyn Iterator<Item = &'s str> + 's> {
-        if top.is_empty() {
-            return Box::new(self.order.iter().map(String::as_str));
-        }
-        Box::new(self.holding.get(top).into_iter().flatten().map(|&root| self.order[root as usize].as_str()))
+    pub(crate) fn holding<'s>(&'s self, top: &str) -> impl Iterator<Item = &'s str> + Clone + 's {
+        let roots = if top.is_empty() { &self.all } else { self.holding.get(top).map_or(&[][..], Vec::as_slice) };
+        roots.iter().map(|&root| self.order[root as usize].as_str())
     }
 }
 
