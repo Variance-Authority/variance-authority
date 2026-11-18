@@ -18,7 +18,8 @@ const ORIGIN = 'https://shop.test';
 /**
  * A checkout that announces nothing. `?answer=` picks where Continue ends —
  * `elsewhere`, `window` and `help` are places no case declares: another
- * document, a new page and a modal dialog —
+ * document, a new page and a modal dialog, and `frame` is a frame inside the
+ * page going to one —
  * `?after=` how long the server takes, `?open=` what is on the page before
  * anybody acts, `?stream` has Continue open a server-sent stream that never ends
  * and ask for a picture that never loads, and `?then=` has the page ask again
@@ -38,6 +39,7 @@ const CHECKOUT = `<!doctype html>
       if (part === 'signIn') document.querySelector('dialog').show();
       if (part === 'elsewhere') location.assign('/checkout/elsewhere');
       if (part === 'window') window.open('about:blank');
+      if (part === 'frame') document.body.appendChild(document.createElement('iframe')).src = '/checkout/frame';
       if (part === 'help') document.body.appendChild(document.createElement('dialog')).showModal();
     }
   };
@@ -207,6 +209,37 @@ chromium_('an action over a page that announces nothing', () => {
     await expect(submit(page)).rejects.toThrow(
       `submit: reached none of payment, signIn, and ${where}, which no outcome declares`,
     );
+  });
+
+  it('reports staying when only a frame inside the page went somewhere', async () => {
+    const submit = quick('submit', { ...outcomes, refused: stay }, click);
+    await open('answer=frame&after=50');
+
+    await expect(submit(page)).resolves.toEqual({ outcome: 'refused', at: undefined });
+    expect(page.frames().map((frame) => new URL(frame.url()).pathname)).toContain('/checkout/frame');
+  });
+
+  it('looks again when the part it woke for is not there at the look', async () => {
+    let looks = 0;
+    const submit = quick(
+      'submit',
+      {
+        signIn: (on: Page) => {
+          const dialog = on.getByRole('dialog', { name: 'Sign in' });
+          return Object.assign(Object.create(dialog) as typeof dialog, {
+            isVisible: async () => {
+              looks += 1;
+              // The first look is before the act; the second is the one the arrival woke.
+              return looks === 2 ? false : dialog.isVisible();
+            },
+          });
+        },
+      },
+      click);
+    await open('answer=signIn');
+
+    await expect(submit(page)).resolves.toMatchObject({ outcome: 'signIn' });
+    expect(looks).toBe(3);
   });
 
   it('reaches a declared outcome on another document', async () => {
