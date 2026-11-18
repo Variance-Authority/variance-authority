@@ -60,7 +60,7 @@ fn rows(answer: &Resonance) -> Vec<(String, u32, u32, u32, String)> {
 #[test]
 fn the_declaration_the_line_called_scores_and_the_other_shares_nothing() {
     let mut masks = recorded();
-    let answer = resonate(&mut masks, "src/page.ts", 3, "useSessionId", &[at("src/session.ts", 1), at("src/legacy.ts", 1)]).unwrap();
+    let answer = resonate(&mut masks, "src/page.ts", 3, &[at("src/session.ts", 1), at("src/legacy.ts", 1)]).unwrap();
     assert_eq!(answer.cases, 1);
     assert_eq!(rows(&answer), vec![("src/session.ts".into(), 0, 1, 1, "1.00".into()), ("src/legacy.ts".into(), 1, 1, 0, "0.00".into())]);
 }
@@ -68,31 +68,38 @@ fn the_declaration_the_line_called_scores_and_the_other_shares_nothing() {
 #[test]
 fn a_line_two_functions_meet_on_ran_for_the_cases_of_both() {
     let mut masks = recorded();
-    let answer = resonate(&mut masks, "src/meet.ts", 3, "useSessionId", &[at("src/session.ts", 1), at("src/quiet.ts", 1)]).unwrap();
+    let answer = resonate(&mut masks, "src/meet.ts", 3, &[at("src/session.ts", 1), at("src/quiet.ts", 1)]).unwrap();
     assert_eq!(answer.cases, 2);
 }
 
 #[test]
 fn a_function_every_case_enters_scores_below_one_only_the_line_s_cases_enter() {
     let mut masks = recorded();
-    let answer = resonate(&mut masks, "src/report.ts", 2, "log", &[at("src/loud.ts", 1), at("src/quiet.ts", 1)]).unwrap();
+    let answer = resonate(&mut masks, "src/report.ts", 2, &[at("src/loud.ts", 1), at("src/quiet.ts", 1)]).unwrap();
     assert_eq!(rows(&answer), vec![("src/quiet.ts".into(), 1, 1, 1, "1.00".into()), ("src/loud.ts".into(), 0, 4, 1, "0.50".into())]);
 }
 
 #[test]
 fn a_line_no_case_ran_has_no_cases_and_one_no_function_holds_is_refused() {
     let mut masks = recorded();
-    let idle = resonate(&mut masks, "src/page.ts", 9, "useSessionId", &[at("src/session.ts", 1)]).unwrap();
+    let idle = resonate(&mut masks, "src/page.ts", 9, &[at("src/session.ts", 1)]).unwrap();
     assert_eq!((idle.cases, idle.not_recorded), (0, None));
-    let outside = resonate(&mut masks, "src/page.ts", 1, "useSessionId", &[at("src/session.ts", 1)]).unwrap();
+    let outside = resonate(&mut masks, "src/page.ts", 1, &[at("src/session.ts", 1)]).unwrap();
     assert_eq!(outside.not_recorded.as_deref(), Some("no recorded function holds src/page.ts:1"));
-    let unwritten = resonate(&mut masks, "src/page.ts", 3, "useSessionId", &[at("src/absent.ts", 1)]).unwrap();
+    let unwritten = resonate(&mut masks, "src/page.ts", 3, &[at("src/absent.ts", 1)]).unwrap();
     assert!(unwritten.resonant.iter().any(|row| row.candidate == 0 && !row.recorded));
 }
 
 #[test]
 fn a_constant_does_not_take_the_score_of_a_callback_written_on_its_line() {
     let mut masks = recorded();
-    let answer = resonate(&mut masks, "src/page.ts", 3, "statuses", &[at("src/statuses.ts", 1)]).unwrap();
+    let answer = resonate(&mut masks, "src/page.ts", 3, &[at("src/statuses.ts", 1)]).unwrap();
     assert_eq!(answer.resonant.iter().map(|row| (row.recorded, row.cases)).collect::<Vec<_>>(), vec![(false, 0)]);
+}
+
+#[test]
+fn a_declaration_asked_for_by_another_name_scores_by_the_function_at_its_line() {
+    let mut masks = recorded();
+    let answer = resonate(&mut masks, "src/page.ts", 3, &[at("src/session.ts", 1), at("src/legacy.ts", 1)]).unwrap();
+    assert_eq!(rows(&answer), vec![("src/session.ts".into(), 0, 1, 1, "1.00".into()), ("src/legacy.ts".into(), 1, 1, 0, "0.00".into())]);
 }

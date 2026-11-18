@@ -457,5 +457,5 @@ export interface NativeJourneys {
   /** Where each of `lines` of `file` stood at `commit`: `null` for a line written since. */
   linesThen?(root: string, commit: string, file: string, lines: number[]): NativeLinesThen;
   /** How each of `candidates`, the declarations of one name, resonates with `file:line`. */
-  resonance?(recording: string, file: string, line: number, name: string, candidates: NativeJourneyEnd[]): NativeResonance;
+  resonance?(recording: string, file: string, line: number, candidates: NativeJourneyEnd[]): NativeResonance;
 }

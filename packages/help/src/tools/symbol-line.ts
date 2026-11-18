@@ -8,8 +8,9 @@
  * scored by Ochiai — the tests it shares with the line over the geometric mean
  * of both counts — in native code, where the recording is read.
  *
- * A line no test ran tells the declarations apart by nothing, so the answer
- * says so and gives `symbol`'s answer without the line.
+ * A line no test ran, or a name no file of the checkout declares, tells the
+ * declarations apart by nothing, so the answer says so and gives `symbol`'s
+ * answer without the line.
  */
 
 // compass: variance-authority.report.agent-surface
@@ -18,6 +19,7 @@ import { codeUnitOrder } from '@variance-authority/core/segment';
 import { resonance, type JourneyEnd, type Resonant, type SuiteResonance } from '@variance-authority/sense';
 import { stringArg, type Tool, type ToolInvocation } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
+import { FoundNothing } from './find.js';
 import { ofSuite } from './grep-ran.js';
 
 const byPlace = (a: JourneyEnd, b: JourneyEnd): number => codeUnitOrder(a.file, b.file) || a.line - b.line;
@@ -30,9 +32,10 @@ export function symbolAtLine(help: Help, input: Readonly<Record<string, unknown>
   const name = stringArg(input, 'name');
   const at = lineOf(stringArg(input, 'line'));
   const { line: _, ...rest } = input;
-  const declared = symbol.files!(help, rest, invocation).files;
+  const declared = declaredFiles(help, rest, invocation, symbol);
+  if (declared === undefined) return [`No file in this checkout declares \`${name}\`, so no recording tells its declarations apart:`, '', symbol.run(help, rest, invocation)].join('\n');
   const candidates = [...declared].flatMap(([file, lines]) => lines.map((line) => ({ file, line })));
-  const suites = resonance(root, at, name, candidates);
+  const suites = resonance(root, at, candidates);
   const told = suites.filter((suite) => suite.resonance.notRecorded == null && suite.resonance.cases > 0);
   const untold = suites.filter((suite) => !told.includes(suite)).map((suite) => untoldLine(suite, at, name, told.length === 0 ? ':' : '.'));
   if (told.length === 0) {
@@ -40,6 +43,16 @@ export function symbolAtLine(help: Help, input: Readonly<Record<string, unknown>
     return [...why, '', symbol.run(help, rest, invocation)].join('\n');
   }
   return [...told.map((suite) => formatSuite(suite, at, name)), ...(untold.length > 0 ? [untold.join('\n')] : [])].join('\n\n');
+}
+
+/** The files of this checkout that declare the name, or none when only an installed dependency may. */
+function declaredFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, symbol: Tool<Help>): ReadonlyMap<string, readonly number[]> | undefined {
+  try {
+    return symbol.files!(help, input, invocation).files;
+  } catch (error) {
+    if (error instanceof FoundNothing) return undefined;
+    throw error;
+  }
 }
 
 /** `src/page.ts:3`, split on its last colon so a path holding one is kept whole. */

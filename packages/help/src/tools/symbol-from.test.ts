@@ -74,6 +74,15 @@ it('resolves the version and signature from the owning workspace, and says where
   expect(ask()).toContain('shared-kit@2.0.0');
 });
 
+// Only a dependency declares the name, so no recorded function can be one of
+// its declarations, and a line answers as `symbol` does without it.
+it('answers a name only a dependency declares at a line as it does without one', async () => {
+  const root = await fixture();
+  const answer = symbol.run(readHelp(root), { name: 'sharedName', line: 'packages/beta/src/x.ts:2' }, { root });
+  expect(answer).toContain('shared-kit@2.0.0');
+  expect(answer).toContain('b: number');
+});
+
 // The workspace answers nothing for the name, so it may be declared in a file
 // whose declarations were not read, and the installed answer says which.
 it('names the files whose declarations were not read beside an installed answer', async () => {
