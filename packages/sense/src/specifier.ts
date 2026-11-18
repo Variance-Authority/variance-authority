@@ -18,9 +18,6 @@ import { isBuiltin } from 'node:module';
 import { extname } from 'node:path';
 import type { EdgeKind } from '@variance-authority/core/relate';
 import { carriesCode, languageOf, type LanguageId } from './language.js';
-import { isPythonRelative } from './python.js';
-import { isRustRelative } from './rust.js';
-import { isSwiftRelative } from './swift.js';
 
 /**
  * A specifier as a resolvable request, or nothing when it cannot be one.
@@ -61,15 +58,21 @@ function indexOr(value: string, mark: string, from = 0): number {
  */
 export function isRelative(request: string, language: LanguageId = 'module'): boolean {
   switch (language) {
-    case 'python': return isPythonRelative(request);
-    case 'rust': return isRustRelative(request);
+    // A leading dot is Python's relative import: `.sibling`, `..parent`.
+    case 'python': return request.startsWith('.');
+    // A spelled path (`#[path]`, a `mod` file) or a path from this crate.
+    case 'rust': {
+      if (request.includes('/') || request.includes('.')) return true;
+      const first = request.split('::')[0];
+      return first === 'self' || first === 'super' || first === 'crate';
+    }
     // Neither has a syntax that separates this repository from the platform:
     // `import java.util.List` and `import Foundation` are written exactly the
     // way a first-party import is, so nothing they fail to find is a hole
-    // ([`jvm.ts`](./jvm.ts), [`swift.ts`](./swift.ts)).
+    // (`is_relative_in` in `native/src/specifier.rs` is the same rule).
     case 'java':
     case 'kotlin':
-    case 'swift': return isSwiftRelative();
+    case 'swift': return false;
     default:
       return request.startsWith('./') || request.startsWith('../')
         || request === '.' || request === '..';

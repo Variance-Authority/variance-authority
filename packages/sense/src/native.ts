@@ -12,14 +12,13 @@
  * the instrument loads it inside every test worker and the scanner's imports
  * are nothing a worker needs.
  */
-import type { EdgeKind, FileEdge, FileRecord, PackageEdge } from '@variance-authority/core/relate';
-import { codeUnitOrder } from '@variance-authority/core/segment';
+import type { EdgeKind, FileRecord } from '@variance-authority/core/relate';
 import type { Parsed } from './cache.js';
 import type { Digest } from '@variance-authority/core/format';
 import type { NativeInstrumented, NativePlaced } from './instrument/spliced.js';
 import { keyFor, parseWay } from './files.js';
 import type { ResolveOptions } from './resolve.js';
-import { isRelative, kindFor, packageOf, requestOf } from './specifier.js';
+import { asDigest, builtFromBatch } from './native-built.js';
 import type { Aliases, AliasTable } from './witness.js';
 import type { NativeIndexGraph, NativeIndexGraphOptions } from './native-index-graph.js';
 import type {
@@ -35,7 +34,6 @@ import type { NativeDistill } from './native-distill.js';
 import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
 import type { NativeRecords } from './native-record.js';
-import { witnessesOf } from './witness.js';
 import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict } from './native-module-reads.js';
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
@@ -106,6 +104,8 @@ export interface NativeReadBatch {
   readonly declined: Buffer;
   readonly declareCounts: Uint32Array;
   readonly declares: string[];
+  /** One when the reader guessed the request, so a miss is silence rather than a hole. */
+  readonly guessed: Buffer;
 }
 export interface NativeScanBatch extends NativeReadBatch {
   /** Every file represented by the columns, in their shared row order. */
@@ -120,6 +120,10 @@ export interface NativeScanBatch extends NativeReadBatch {
    * store holds the parse whole ([`parse-store.ts`](./parse-store.ts)).
    */
   readonly kept: Buffer;
+  /** The further targets a request reaches past its first: a Swift target's files, a Java package's. */
+  readonly more: string[];
+  /** The batch-wide request index each of `more` belongs to, ascending. */
+  readonly moreAt: Uint32Array;
 }
 
 export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon, NativeJourneys, NativeRecords, NativeDistill, NativeSaid, NativeCommitTexts, NativeSourceIndexes {
@@ -381,117 +385,4 @@ export function nativeGraph(
       ? {}
       : { parseLayer: { bytes: batch.parseSegment, keys } }),
   };
-}
-
-function builtFromBatch(
-  options: NativeFrontierOptions,
-  batch: NativeScanBatch,
-): readonly NativeBuilt[] {
-  const kinds = options.addon.kinds();
-  const built: NativeBuilt[] = [];
-  let at = 0;
-  let declareAt = 0;
-
-  for (const [index, file] of options.files.entries()) {
-    const count = batch.counts[index] ?? 0;
-    const declareCount = batch.declareCounts[index] ?? 0;
-    const declares = batch.declares.slice(declareAt, declareAt + declareCount);
-    declareAt += declareCount;
-    const encoded = batch.parses[index] ?? '';
-    if (batch.parsed[index] !== 1) {
-      // A file its bytes declined names them; a failed read names nothing, and
-      // is tried again. `built` in `record.rs` is the same rule.
-      const declined = batch.declined[index] === 1
-        ? options.digests[index] ?? asDigest(batch.digests[index])
-        : undefined;
-      built.push({
-        record: {
-          file,
-          ...(declined === undefined ? {} : { digest: declined }),
-          ...(batch.unknown[index] === '' ? {} : { unknown: batch.unknown[index] }),
-        },
-        witnesses: [],
-      });
-      at += count;
-      continue;
-    }
-    const digest = options.digests[index] ?? asDigest(batch.digests[index]);
-
-    const read = encoded === '' ? undefined : JSON.parse(encoded) as Parsed;
-    const edges: FileEdge[] = [];
-    const packages: PackageEdge[] = [];
-    const unresolved: string[] = [];
-    const holes: string[] = [];
-    const requests: string[] = [];
-    const targets: (string | undefined)[] = [];
-    for (let step = 0; step < count; step += 1) {
-      const value = batch.values[at + step] ?? '';
-      requests.push(value);
-      const target = batch.targets[at + step] ?? '';
-      targets.push(target === '' ? undefined : target);
-      const request = requestOf(value);
-      if (request === undefined) continue;
-      const kind = kinds[batch.kinds[at + step] ?? -1];
-      if (target === '') {
-        unresolved.push(value);
-        // The package edge [`record.ts`](./record.ts) records beside it for every other language.
-        // Without it a bumped package has no importer in a graph this path
-        // built, and the install walk selects nothing for it.
-        const named = packageOf(request);
-        if (named !== undefined && kind !== undefined) packages.push({ to: named, kind });
-        if (isRelative(request)) holes.push(value);
-        continue;
-      }
-      if (kind !== undefined) edges.push({ to: target, kind: kindFor(kind, target) });
-    }
-    at += count;
-
-    const reasons = [
-      ...(batch.unknown[index] === '' ? [] : [batch.unknown[index]!]),
-      ...(holes.length === 0
-        ? []
-        : [`${holes.length} relative specifier(s) that resolve to nothing: ${holes.join(', ')}`]),
-    ];
-    const settled = dedupe(edges);
-    const record: FileRecord = {
-      file,
-      ...(digest === undefined ? {} : { digest }),
-      ...(settled.length === 0 ? {} : { edges: settled }),
-      ...(packages.length === 0 ? {} : { packages: dedupe(packages) }),
-      ...(declares.length === 0 ? {} : { declares }),
-      ...(unresolved.length === 0
-        ? {}
-        : { unresolved: [...new Set(unresolved)].sort(codeUnitOrder) }),
-      ...(reasons.length === 0 ? {} : { unknown: `${file} — ${reasons.join('; ')}` }),
-    };
-    const witnesses = options.remembering
-      ? witnessesOf({
-        file,
-        requests,
-        edges: settled.map((edge) => edge.to),
-        directories: options.directories,
-        aliases: options.aliases,
-      })
-      : [];
-    const crossed = batch.kept[index] === 1 ? { kept: true as const } : { parsed: true as const };
-    built.push({ record, ...(read === undefined ? {} : { read }), targets, witnesses, ...crossed });
-  }
-
-  return built;
-}
-
-function asDigest(value: string | undefined): Digest | undefined {
-  return value === undefined || value === '' ? undefined : value;
-}
-
-function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] {
-  const seen = new Set<string>();
-  return edges
-    .filter((edge) => {
-      const key = `${edge.kind} ${edge.to}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a, b) => codeUnitOrder(a.to, b.to) || codeUnitOrder(a.kind, b.kind));
 }
