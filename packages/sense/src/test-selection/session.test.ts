@@ -208,6 +208,36 @@ describe('sessions set beside the record', () => {
     ]);
   });
 
+  it('tells apart two functions whose kind, name, path and text agree, by their order in the file', () => {
+    const text = 'register({ render() { return 1; } });\nregister({ render() { return 1; } });\n';
+    const cut = sourceCut(text, 'src/render.ts', 'presence')!;
+    const own = cut.rows.filter((row) => row.kind === 'function');
+    const source = (states: readonly ('ran' | 'unrun')[], from = text) => {
+      const its = sourceCut(from, 'src/render.ts', 'presence')!;
+      const rows = its.rows.filter((row) => row.kind === 'function');
+      return { file: 'src/render.ts', text: from, sourceDigest: its.sourceDigest, functions: rows.map((row, index) => ({ row, state: states[index]! })) };
+    };
+    const record = {
+      file: 'src/render.ts',
+      sourceDigest: cut.sourceDigest,
+      instrumented: true,
+      blocks: cut.rows.map((row) => ({ ...row, testFiles: row === own[0] ? ['src/render.test.ts'] : [] })),
+    };
+    const three = `${text}register({ render() { return 1; } });\n`;
+    const answer = sessionsAgainst(
+      [{ name: 'checkout', sources: [source(['ran', 'unrun'])] }, { name: 'older', sources: [source(['unrun', 'unrun', 'ran'], three)] }],
+      [[record]],
+      () => text,
+      'presence',
+    );
+
+    expect(own.length).toBe(2);
+    expect(answer.files[0]!.functions.map(({ row, sessions, testFiles }) => ({ line: row.startLine, sessions, testFiles }))).toEqual([
+      { line: 1, sessions: ['ran', 'unknown'], testFiles: ['src/render.test.ts'] },
+      { line: 2, sessions: ['unrun', 'unknown'], testFiles: [] },
+    ]);
+  });
+
   it('says no case can be counted for a function a record holds in another text', () => {
     const session = named('checkout', sessionSources([bundle], 'presence'));
     const answer = sessionsAgainst([session], [[recorded(MATH.replace('a + b', 'a - b'))]], (file) => disk.get(file), 'presence');

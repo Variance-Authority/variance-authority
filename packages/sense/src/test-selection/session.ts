@@ -133,7 +133,9 @@ export interface SessionsAgainst {
  * checkout's text: `readFile` gives a file's text on disk, which is what a
  * function is named in; a file the checkout lacks is named in the text the
  * first session that loaded it ran. A function is the same function in a
- * session or a record when its kind, name, path and digest agree; a function whose
+ * session or a record when its kind, name, path and digest agree, and those
+ * that share all four are paired by their order in the file, or read as unknown
+ * when the two texts hold another number of them; a function whose
  * digest no region of its kind, name and path shares reads as another text,
  * never as ran or unrun. `suites` are
  * the records' modules, one list per suite, cut under `mode`.
@@ -164,34 +166,36 @@ export function sessionsAgainst(
       uncut.push(file);
       continue;
     }
-    const verdicts = perSession.map((ran) => {
-      const states = new Map<string, SessionState>();
-      for (const { row, state } of ran.flatMap((source) => source.functions)) {
-        const key = keyOf(row);
-        if (RANK[state] > RANK[states.get(key) ?? 'unknown'] || !states.has(key)) states.set(key, state);
-      }
-      return states;
-    });
-    const records = (recorded.get(file) ?? []).flatMap((module) => module.blocks);
+    const keyed = perSession.map((ran) => ran.map((source) => byKey(source.functions, (each) => each.row)));
+    const modules = (recorded.get(file) ?? []).map((module) => ({ module, keyed: byKey(module.blocks, (block) => block) }));
     // A file a record loaded unprobed holds no regions, which says nothing of what its cases ran.
     const unprobed = (recorded.get(file) ?? []).some((module) => !module.instrumented);
-    const functions = cut.rows.filter((row) => row.kind === 'function').map((row): SessionsFunction => {
-      const sessionsSay = verdicts.map((states, index): SessionVerdict => {
+    const checkout = cut.rows.filter((row) => row.kind === 'function');
+    const own = byKey(checkout, (row) => row);
+    const functions = checkout.map((row): SessionsFunction => {
+      const key = keyOf(row);
+      const place = own.get(key)!.indexOf(row);
+      const of = own.get(key)!.length;
+      const sessionsSay = keyed.map((sources, index): SessionVerdict => {
         if (perSession[index]!.length === 0) return 'not loaded';
-        return states.get(keyOf(row)) ?? 'other text';
+        let said: SessionState | undefined;
+        for (const found of sources.map((source) => counterpart(source, key, place, of))) {
+          const state = found === undefined ? undefined : found === null ? 'unknown' : found.state;
+          if (state !== undefined && (said === undefined || RANK[state] > RANK[said])) said = state;
+        }
+        return said ?? 'other text';
       });
-      // Siblings may share a kind, name and path, and their own text tells them apart.
-      const same = records.filter((block) => sameRegion(block, row) && block.digest === row.digest);
-      const entered = [...new Set(same.flatMap((block) => block.testFiles))].sort();
-      // No case entered it, and a suite that holds it only in another text, or loaded its file unprobed, may have.
-      const elsewhere = (recorded.get(file) ?? []).some((module) => {
+      // Siblings may share a kind, name and path, and their own text, or else their order, tells them apart.
+      const same = modules.map(({ keyed: blocks }) => counterpart(blocks, key, place, of));
+      const entered = [...new Set(same.flatMap((block) => block?.testFiles ?? []))].sort();
+      // No case entered it, and a suite that holds it only in another text, holds another number of its twins, or loaded its file unprobed, may have.
+      const elsewhere = same.includes(null) || modules.some(({ module }) => {
         const its = module.blocks.filter((block) => sameRegion(block, row));
         return its.length > 0 && its.every((block) => block.digest !== row.digest);
       });
       const testFiles = entered.length > 0 ? entered : unprobed || elsewhere ? undefined : entered;
       return { row, name: row.name, sessions: sessionsSay, ...(testFiles === undefined ? {} : { testFiles }) };
     });
-    const checkout = cut.rows.filter((row) => row.kind === 'function');
     const gone = new Map<string, { name: string; sessions: string[] }>();
     perSession.forEach((ran, index) => {
       for (const { row } of ran.flatMap((source) => source.functions).filter((each) => each.state === 'ran' && !checkout.some((own) => sameRegion(own, each.row)))) {
@@ -212,6 +216,27 @@ const RANK: Readonly<Record<SessionState, number>> = { unknown: 0, unrun: 1, ran
 /** A function's identity in its file: what it is, where it sits, and its own text. */
 function keyOf(row: CoverageBlock): string {
   return `${row.kind}\0${row.name}\0${row.path}\0${row.digest}`;
+}
+
+/** `items` grouped by their row's key, each group in the order the cut gives. */
+function byKey<T>(items: readonly T[], rowOf: (item: T) => CoverageBlock): ReadonlyMap<string, readonly T[]> {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const row = rowOf(item);
+    if (row.kind !== 'function') continue;
+    groups.set(keyOf(row), [...(groups.get(keyOf(row)) ?? []), item]);
+  }
+  return groups;
+}
+
+/**
+ * The item at `place` of the `of` that share `key`: `undefined` when none
+ * does, and `null` when another number does, so that none of them can be named.
+ */
+function counterpart<T>(groups: ReadonlyMap<string, readonly T[]>, key: string, place: number, of: number): T | null | undefined {
+  const its = groups.get(key);
+  if (its === undefined) return undefined;
+  return its.length === of ? its[place]! : null;
 }
 
 function sameRegion(a: CoverageBlock, b: CoverageBlock): boolean {
@@ -271,10 +296,10 @@ export function sessionSources(
       return { slot: held(observed, file, text), starts: lineStarts(text) };
     });
     const generated = lineStarts(script.text);
-    // A segment on whitespace runs nothing: its origin is carried from the code before it, often another function's end.
+    // A segment on whitespace runs nothing: its origin is carried from the code before it, often another function's end. One past the script's last line is no offset.
     const segments = decode(map.mappings)
       .flatMap((line, at) => line.map((segment) => ({ segment, offset: (generated[at] ?? Infinity) + segment.column })))
-      .filter(({ offset }) => !/\s/.test(script.text[offset] ?? ''));
+      .filter(({ offset }) => Number.isFinite(offset) && !/\s/.test(script.text[offset] ?? ''));
     const counts = countsAt(ranges, segments.map((each) => each.offset));
     segments.forEach(({ segment }, index) => {
       const count = counts[index];

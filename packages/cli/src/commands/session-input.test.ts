@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -70,6 +70,32 @@ describe('a session read from what V8 wrote', () => {
       'source-map-cache': { [url]: { lineLengths: lineLengths(ran), data: BUNDLE_MAP, url: 'main.js.map' } },
     }));
     const session = await readSession(node, undefined);
+
+    expect(session.scripts).toEqual([]);
+    expect(session.skipped).toEqual([url]);
+  });
+
+  it('names a Node script with no map whose file was written after the export, rather than read today\'s text as the one that ran', async () => {
+    const node = join(root, 'node-edited');
+    await mkdir(node);
+    const script = join(root, 'dist/plain.mjs');
+    const url = `file://${script}`;
+    await writeFile(script, 'export function a() {}\nexport function b() {}\n');
+    await writeFile(join(node, 'coverage-1-1-0.json'), JSON.stringify({ result: [{ url, scriptId: '1', functions: [] }] }));
+    // The functions were swapped on disk after the run; no map was cached, so no line lengths can tell.
+    const later = new Date(Date.now() + 60_000);
+    await utimes(script, later, later);
+    const session = await readSession(node, undefined);
+
+    expect(session.scripts).toEqual([]);
+    expect(session.skipped).toEqual([url]);
+  });
+
+  it('names a served script whose decoded path leaves the served directory, and reads none of it', async () => {
+    const at = join(root, 'escape.json');
+    const url = 'http://localhost:5173/%2e%2e%2fsrc%2fmath.ts';
+    await writeFile(at, JSON.stringify([{ url, scriptId: '1', source: MATH, functions: [] }]));
+    const session = await readSession(at, join(root, 'dist'));
 
     expect(session.scripts).toEqual([]);
     expect(session.skipped).toEqual([url]);
@@ -189,6 +215,11 @@ describe('a session read from what V8 wrote', () => {
     await expect(readSession(join(root, 'absent.json'), undefined)).rejects.toThrow(new OperatorError(`no session at ${join(root, 'absent.json')}`));
     await expect(readSession(join(root, 'torn.json'), undefined)).rejects.toThrow(`${join(root, 'torn.json')} is not a V8 coverage export:`);
     await expect(readSession(join(root, 'other.json'), undefined)).rejects.toThrow(`${join(root, 'other.json')} is not a V8 coverage export: neither Playwright's array nor CDP's or Node's { result }`);
+    for (const [name, entry] of [['no-functions', { url: 'file:///x.js' }], ['no-url', { functions: [] }], ['no-ranges', { url: 'file:///x.js', functions: [{}] }]] as const) {
+      const at = join(root, `${name}.json`);
+      await writeFile(at, JSON.stringify([entry]));
+      await expect(readSession(at, undefined)).rejects.toThrow(new OperatorError(`${at} is not a V8 coverage export: a script without a url and functions with ranges`));
+    }
   });
 
   it('names each script whose URL or map cannot be read, and reads none of it', async () => {

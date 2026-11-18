@@ -11,7 +11,7 @@
  */
 
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { inlineSourceMapOf, sourceMappingUrlOf } from '@variance-authority/core/attribute';
@@ -33,10 +33,11 @@ interface Cached {
   readonly url?: string | null;
 }
 
-/** One file of an export: its scripts, and what Node cached by script URL. */
+/** One file of an export: its scripts, what Node cached by script URL, and when the file was written. */
 interface Exported {
   readonly result: readonly Reported[];
   readonly cache: ReadonlyMap<string, Cached>;
+  readonly writtenAt: number;
 }
 
 export interface SessionInput {
@@ -55,7 +56,7 @@ export async function readSession(path: string, served: string | undefined): Pro
   const skipped: string[] = [];
   for (const exported of await exportsAt(path)) {
     for (const reported of exported.result) {
-      const script = await scriptOf(reported, exported.cache, served);
+      const script = await scriptOf(reported, exported, served);
       if (script === 'nobody') continue;
       if (script === undefined) skipped.push(reported.url);
       else scripts.push(script);
@@ -67,9 +68,9 @@ export async function readSession(path: string, served: string | undefined): Pro
 async function exportsAt(path: string): Promise<readonly Exported[]> {
   const found = await stat(path).catch(() => undefined);
   if (found === undefined) throw new OperatorError(`no session at ${path}`);
-  if (!found.isDirectory()) return [exportOf(path, await parsed(path))];
+  if (!found.isDirectory()) return [exportOf(path, await parsed(path), found.mtimeMs)];
   const files = (await readdir(path)).filter((file) => file.endsWith('.json')).sort();
-  return Promise.all(files.map(async (file) => exportOf(join(path, file), await parsed(join(path, file)))));
+  return Promise.all(files.map(async (file) => exportOf(join(path, file), await parsed(join(path, file)), (await stat(join(path, file))).mtimeMs)));
 }
 
 async function parsed(file: string): Promise<unknown> {
@@ -80,13 +81,20 @@ async function parsed(file: string): Promise<unknown> {
   }
 }
 
-function exportOf(file: string, json: unknown): Exported {
-  if (Array.isArray(json)) return { result: json as Reported[], cache: new Map() };
+function exportOf(file: string, json: unknown, writtenAt: number): Exported {
   const held = json as { result?: unknown; 'source-map-cache'?: Record<string, Cached> } | null;
-  if (held === null || typeof held !== 'object' || !Array.isArray(held.result)) {
+  const result: unknown = Array.isArray(json) ? json : held?.result;
+  if (!Array.isArray(result)) {
     throw new OperatorError(`${file} is not a V8 coverage export: neither Playwright's array nor CDP's or Node's { result }`);
   }
-  return { result: held.result as Reported[], cache: new Map(Object.entries(held['source-map-cache'] ?? {})) };
+  if (!result.every(isReported)) throw new OperatorError(`${file} is not a V8 coverage export: a script without a url and functions with ranges`);
+  return { result, cache: new Map(Object.entries((Array.isArray(json) ? undefined : held?.['source-map-cache']) ?? {})), writtenAt };
+}
+
+function isReported(each: unknown): each is Reported {
+  const held = each as { url?: unknown; functions?: unknown } | null;
+  return held !== null && typeof held === 'object' && typeof held.url === 'string' && Array.isArray(held.functions)
+    && held.functions.every((fn: { ranges?: unknown } | null) => fn !== null && typeof fn === 'object' && Array.isArray(fn.ranges));
 }
 
 /**
@@ -94,15 +102,16 @@ function exportOf(file: string, json: unknown): Exported {
  * for a script no source is behind. The file's last write stands for when it
  * was built, and its map's sources resolve against the file the map was read from.
  */
-async function scriptOf(reported: Reported, cached: ReadonlyMap<string, Cached>, served: string | undefined): Promise<SessionScript | 'nobody' | undefined> {
+async function scriptOf(reported: Reported, exported: Exported, served: string | undefined): Promise<SessionScript | 'nobody' | undefined> {
   if (reported.url === '' || reported.url.startsWith('node:')) return 'nobody';
   const file = fileOf(reported.url, served);
   if (file === undefined) return undefined;
   const disk = await readFile(file, 'utf8').catch(() => undefined);
   if (disk === undefined) return undefined;
   const builtAt = (await stat(file)).mtimeMs;
-  const entry = cached.get(reported.url);
-  // Node keeps no script text: a file whose lines are not the ones Node counted holds another build, or a loader's output.
+  const entry = exported.cache.get(reported.url);
+  // Node keeps no script text: a file written after the export, or whose lines are not the ones Node counted, holds another build, or a loader's output.
+  if (reported.source === undefined && builtAt > exported.writtenAt) return undefined;
   if (reported.source === undefined && entry?.lineLengths !== undefined && !isDeepStrictEqual(lineLengths(disk), entry.lineLengths)) return undefined;
   const text = reported.source ?? disk;
   // Node's cached map first, else the one `sourceMappingURL` names.
@@ -132,7 +141,10 @@ function fileOf(url: string, served: string | undefined): string | undefined {
   }
   if (parsedUrl.protocol === 'file:') return fileURLToPath(parsedUrl);
   if ((parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') && served !== undefined) {
-    return join(resolve(served), decodeURIComponent(parsedUrl.pathname));
+    const file = join(resolve(served), decodeURIComponent(parsedUrl.pathname));
+    // A path decoded after the URL was normalised may climb out of the served directory, where no served file is.
+    const under = relative(resolve(served), file);
+    return under.startsWith('..') || isAbsolute(under) ? undefined : file;
   }
   return undefined;
 }
