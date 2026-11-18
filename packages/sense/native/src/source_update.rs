@@ -31,7 +31,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
 use crate::batch::{neighbours, texting, walk_beyond, GraphOptions, Neighbours, Walked};
-use crate::chain_lookup::{fold, At};
+use crate::chain_lookup::{fold, held_parses, At};
 use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Generation};
@@ -125,40 +125,6 @@ struct Row {
     parsed: bool,
     /// Answered by a store rather than read.
     kept: bool,
-}
-
-/// The parse keys the chain holds under `digests`, as `(digest, way)`: the last
-/// layer to put or delete a key decides, as `orderedMap` folds it.
-fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, String)> {
-    let per_layer: Vec<Vec<(bool, &str, &str)>> = layers
-        .par_iter()
-        .map(|layer| {
-            let (stored, columns) = (&layer.stored, &layer.parses);
-            let mut rows = Vec::new();
-            for row in 0..columns.deleted.len() {
-                let digest = stored.text(columns.deleted.at(row));
-                if digests.contains(digest) {
-                    rows.push((false, digest, stored.text(columns.deleted_way.at(row))));
-                }
-            }
-            for row in 0..columns.key.len() {
-                let digest = stored.text(columns.key.at(row));
-                if digests.contains(digest) {
-                    rows.push((true, digest, stored.text(columns.way.at(row))));
-                }
-            }
-            rows
-        })
-        .collect();
-    let mut held = HashSet::new();
-    for rows in per_layer {
-        // Deletes come before puts within a layer, which is the order they were collected in.
-        for (put, digest, way) in rows {
-            let key = (digest.to_owned(), way.to_owned());
-            if put { held.insert(key); } else { held.remove(&key); }
-        }
-    }
-    held
 }
 
 /// The update, and whether it lost the race: another writer published between
