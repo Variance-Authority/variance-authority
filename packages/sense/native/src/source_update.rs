@@ -393,9 +393,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             held_directories.keys().filter(|path| !directories.contains_key(**path)).map(|path| (*path).to_owned()).collect();
 
         // A configuration that changed alone is still published, or every update after it resolves again.
-        let unchanged = configured
-            && chain.is_some()
-            && puts.is_empty()
+        let unchanged = configured && puts.is_empty()
             && deleted_records.is_empty()
             && parses.is_empty()
             && deleted_parses.is_empty()
