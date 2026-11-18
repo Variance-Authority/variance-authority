@@ -1700,6 +1700,14 @@ reported through `announce`. With `ci: true`, the reader throws
 stands; call `updateSourceIndex` first when the question must describe the
 current checkout.
 
+`publishedComponentSources` answers which components the source under the
+given directories declares, and one digest of those files. It brings the index
+up to the checkout before it reads, in CI too, so it names the source as it is
+on disk. `extensions` names the files that hold components, `.tsx`, `.jsx`,
+`.ts` and `.js` unless you say otherwise; `exclude` names what is skipped
+anywhere in a path, for the digest as well, and defaults to tests, stories,
+`dist/` and `node_modules`.
+
 An update reports the prior state in `was`, the published file count, the
 records it rebuilt in `reread`, and the files it parsed in `parsed`. A worktree
 builds its own index and reuses content-keyed parses from the shared parse

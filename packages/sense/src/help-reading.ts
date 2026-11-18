@@ -257,7 +257,7 @@ export interface NativeHelp {
   ripgrep?(root: string, pattern: string, files: string[]): Grepped;
 }
 
-/** A caller's declarative loads of one file: the specifiers it is said to load. */
+/** A caller's declarative loads of one file: the specifiers it is said to load, joined onto the drawn graph as a test's own are. */
 export interface HelpTaint {
   readonly file: string;
   readonly plus: string[];
@@ -368,7 +368,6 @@ export function onIndex<T>(index: string, read: (opened: OpenedIndex) => T): T {
  * the graph too, carrying what each test loads for real beside its mocks,
  * resolved under the `tsconfig` the repository declares, as the native mock overlay joins them.
  * A carried listing belongs to `root`; `packs: false` reads manifests from the working tree.
- * `taints` are a caller's declarative loads, joined onto the drawn graph as a test's own are.
  */
 export function readHelp(
   root: string,
