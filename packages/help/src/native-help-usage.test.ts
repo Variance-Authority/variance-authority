@@ -1,9 +1,14 @@
+import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { readWorkspace } from './read.js';
 
-const WORKSPACE = join(dirname(fileURLToPath(import.meta.url)), '../../package/src/__fixtures__/workspace');
+const FIXTURE = join(dirname(fileURLToPath(import.meta.url)), '../../package/src/__fixtures__/workspace');
+const WORKSPACE = await mkdtemp(join(tmpdir(), 'va-native-help-usage-'));
+afterAll(() => rm(WORKSPACE, { recursive: true, force: true }));
+await cp(FIXTURE, WORKSPACE, { recursive: true });
 
 const usage = await readWorkspace(WORKSPACE);
 const usesOf = (specifier: string, name: string) => {

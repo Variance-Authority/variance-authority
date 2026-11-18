@@ -87,20 +87,20 @@ sentence naming it and the edge is left to the recorded run.
 
 ## Implementation coordinates
 
-- `packages/sense/src/native-index-graph.ts` — native closure publication
+- `packages/sense/src/native-update.ts` — configuration and progress for native publication
 - `packages/sense/native/src/source_update.rs` — the native walk and reuse ladder
-- `packages/sense/src/read.ts` — `readModule` and `readStyle`, source text to specifiers
+- `packages/sense/native/src/language_parse.rs`, `packages/sense/native/src/module_syntax.rs`, `packages/sense/native/src/source_style.rs` — source text to language facts and specifiers
 - `packages/sense/native/src/declarations.rs` — `declarations`, the components a
   module declares, read off the tree its requests come from
 - `packages/sense/native/src/top_level.rs` — `top_level`, the one walk of a
   module's top-level statements; the declared components, the symbols and the
   declared roles are filters over it
-- `packages/sense/src/resolve.ts` — specifier to file, export conditions,
+- `packages/sense/native/src/resolve.rs` — specifier to file, export conditions,
   `tsconfig` paths, and the case-folding checks that are invisible on a
   case-sensitive machine
 - `packages/sense/native/src/emitted.rs` — `Emitted`, the file system the
   resolver reads through, where built output is the source it is built from
-- `packages/sense/src/tree.ts` — `gitDigests`, content digests without opening a file
+- `packages/sense/native/src/git.rs`, `packages/sense/native/src/git_tree.rs`, `packages/sense/native/src/git_objects.rs` — Git inventory, content identities and object bytes
 - `packages/core/src/relate/records.ts` — the `FileRecord` shape the scan produces
 
 ## Diagram

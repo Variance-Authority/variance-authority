@@ -2,7 +2,10 @@
 
 2026-11-18. Apple M4 Pro, 14 CPUs, 48 GiB RAM, macOS 26.7, Node
 v24.22.1. AFM revision `c40e3ffb00cdef1b7db876ba429fba061265d789`,
-release native addon from `codex/cold-index-milestone`. The checkout held
+release native addon from `e2d12776c944fe89f5340e9b7d920efaedfcfdfc`
+on `codex/cold-index-milestone`. This measured build precedes the final
+parent-component guard, which restores OXC ownership for unresolved paths
+containing `..`. The checkout held
 477,177 indexed source files.
 Application caches were fresh for each cold arm; operating-system caches were
 not purged. The two arms ran sequentially, Git first, with local test/build
@@ -17,20 +20,20 @@ search, map, lexicon or test-selection publication was included.
 
 | Route | Inventory | Configuration | Native update | Complete call | Reread | Parsed | Maximum RSS |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| Git, cold | 4.647 s | 8.001 s | 33.679 s | 46.331 s | 477,177 | 477,092 | 10,949.8 MiB |
-| Filesystem, cold | 3.537 s | 0.675 s | 37.941 s | 42.156 s | 477,177 | 477,092 | 6,294.0 MiB |
-| Git, unchanged | 3.305 s | 8.478 s | 1.799 s | 13.585 s | 13 | 0 | 3,749.6 MiB |
-| Filesystem, unchanged | 3.222 s | 0.696 s | 38.855 s | 42.777 s | 477,177 | 0 | 6,066.7 MiB |
+| Git, cold | 4.296 s | 8.308 s | 33.021 s | 45.629 s | 477,177 | 477,092 | 10,805.4 MiB |
+| Filesystem, cold | 3.493 s | 0.613 s | 41.718 s | 45.828 s | 477,177 | 477,092 | 6,324.5 MiB |
+| Git, unchanged | 3.307 s | 8.743 s | 1.647 s | 13.699 s | 13 | 0 | 3,775.3 MiB |
+| Filesystem, unchanged | 3.306 s | 0.738 s | 36.365 s | 40.414 s | 477,177 | 0 | 6,074.6 MiB |
 
 The Git source-update phase was faster than the filesystem phase. Reading
-41,088 indexed configurations through Git cost more than the source phase
-saved, so the complete Git call was slower. Unchanged Git source reuse worked;
+41,088 indexed configurations through Git cost most of the source phase
+saving, leaving the complete cold calls close in this pair. Unchanged Git source reuse worked;
 configuration acquisition still dominated its elapsed time. `packs: false`
 proved worktree content again and reused its parses. It did not promise to
 skip those reads.
 
 The Git and filesystem cold runs had macOS peak memory footprints of
-6,091,380,824 and 5,775,386,664 bytes respectively. Footprint and maximum RSS
+6,149,791,008 and 5,806,991,016 bytes respectively. Footprint and maximum RSS
 are different measurements; the latter includes resident mapped pages.
 
 ## Acquisition and parser stages
@@ -43,13 +46,18 @@ parses. Scheduling/settling also includes cached-fact lookup between batches.
 
 | Cold route | Acquisition/hash span sum | Parser-stage span sum | Overlap span sum |
 | --- | ---: | ---: | ---: |
-| Git | 15.646 s | 17.933 s | 12.323 s |
-| Filesystem | 21.967 s | 18.616 s | 14.258 s |
+| Git | 14.883 s | 16.380 s | 11.253 s |
+| Filesystem | 24.702 s | 21.336 s | 17.013 s |
 
 No local Git index repair or Git configuration change was made. The under-10 s
 base-index goal was not reached. The next structural targets are configuration
 identity/proof before acquiring configuration contents, and source-walk work
 outside acquisition/parsing; deferred search work cannot improve this base call.
+
+The first recovered pair measured 46.331 s Git / 42.156 s disk cold and
+13.585 s / 42.777 s unchanged, with the same file and parse counts. Its raw
+traces remain in `measure-1/`. Neither pair reproduces 26 s, and the difference
+between the pairs is not a controlled speedup measurement.
 
 ## Reproduce
 
@@ -74,5 +82,5 @@ JS
 ```
 
 Raw traces from this run are retained in the task worktree under
-`node_modules/.cache/native-milestone/measure-1/` as `git-cold.log`,
+`node_modules/.cache/native-milestone/measure-2/` as `git-cold.log`,
 `disk-cold.log`, `git-warm.log` and `disk-warm.log`.
