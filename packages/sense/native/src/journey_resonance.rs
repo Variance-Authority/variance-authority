@@ -91,16 +91,16 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidat
 
 /// The recorded function of `file` that the declaration at `line` writes: of
 /// those starting at `line` and bearing one of the names it is `spelled`, the
-/// outermost; or else the first after the line, when it bears one.
+/// outermost; or else the first after the line, when its whole path is one.
 ///
 /// A function counts by its own name, as the instrumenter names it for the
 /// declaration, so a constant leaves unscored the callback written on its line,
 /// named for the call (`map.arg0`) or by itself (`function onValue`), and any
 /// function written beside it. A function's region opens at its parameters,
 /// below the declaration's line when `const name =` or a long type parameter
-/// list ends a line, so the first function opening below is taken when it bears
-/// the name. A namesake further down, nested in another function, belongs to
-/// that function and not to the declaration above it.
+/// list ends a line, so the first function opening below is taken when its
+/// whole path is the name: a namesake nested in a function or a class
+/// (`Store/useSessionId`) belongs to that and not to the declaration above it.
 fn written_at(masks: &JourneyMasks, spelled: &[String], file: &str, line: u32) -> Result<Option<u32>, String> {
     let Some(module) = masks.journey.module_of(file)? else { return Ok(None) };
     let (mut at_line, mut below): (Option<u32>, Option<u32>) = (None, None);
@@ -119,8 +119,8 @@ fn written_at(masks: &JourneyMasks, spelled: &[String], file: &str, line: u32) -
         }
     }
     let Some(below) = below.filter(|_| at_line.is_none()) else { return Ok(at_line) };
-    let own = own_name(masks.journey.text(masks.bits[below as usize].name)?);
-    Ok(spelled.iter().any(|name| name == own).then_some(below))
+    let path = masks.journey.text(masks.bits[below as usize].name)?;
+    Ok(spelled.iter().any(|name| name == path).then_some(below))
 }
 
 /// A region's own name: the last step of its path.
