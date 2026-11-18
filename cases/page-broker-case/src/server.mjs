@@ -1,12 +1,16 @@
 // A shop that races its tests on purpose: the form hydrates late, every answer
 // takes a random 50–600 ms, and the page shouts what it is doing — `aria-busy`
-// on what is working, and `vaStart`/`vaEnd` around it.
+// on what is working, and `vaStart`/`vaEnd` around it. With `VA_SILENT` it is
+// the same shop saying nothing: no `aria-busy`, no event, as an app nobody
+// wrote for its tests.
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const announcing = readFileSync(fileURLToPath(import.meta.resolve('@variance-authority/event')), 'utf8');
 const later = (body) => setTimeout(body, 50 + Math.floor(Math.random() * 550));
+const SILENT = process.env.VA_SILENT === '1';
+const BUSY = SILENT ? '' : ' aria-busy="true"';
 let likes = 41;
 
 const shell = (title, body, script) => `<!doctype html>
@@ -14,14 +18,15 @@ const shell = (title, body, script) => `<!doctype html>
 <header role="banner"><form role="search" action="/results"><input type="search" name="q" aria-label="Search"></form></header>
 <main>${body}</main>
 <script type="module">
-import { vae, vaStart, vaEnd } from '/event.js';
+${SILENT ? 'const vae = () => {}, vaStart = vae, vaEnd = vae;' : "import { vae, vaStart, vaEnd } from '/event.js';"}
+const busy = (element, on) => ${SILENT ? 'undefined' : "element.setAttribute('aria-busy', String(on))"};
 const later = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 ${script}
 </script>`;
 
 const checkout = shell(
   'checkout',
-  `<form aria-label="Billing details" aria-busy="true">
+  `<form aria-label="Billing details"${BUSY}>
   <label for="country">Country</label> <select id="country" name="country"><option value="">—</option><option>NL</option><option>DE</option></select>
   <label>Street <input name="street"></label>
   <ul aria-live="polite"></ul>
@@ -35,7 +40,7 @@ vaStart('checkout', 'billing', 'hydrating');
 await later(150 + Math.random() * 450);
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
-  form.setAttribute('aria-busy', 'true');
+  busy(form, true);
   form.querySelector('ul').replaceChildren();
   vaStart('checkout', 'billing', 'submitting');
   const answer = await (await fetch('/api/billing', {
@@ -44,7 +49,7 @@ form.addEventListener('submit', async (event) => {
   })).json();
   vae('checkout', 'billing', answer.next);
   vaEnd('checkout', 'billing', 'submitting');
-  form.setAttribute('aria-busy', 'false');
+  busy(form, false);
   if (answer.next === 'invalid') {
     form.querySelector('ul').replaceChildren(...answer.errors.map((text) => {
       const item = document.createElement('li');
@@ -70,7 +75,7 @@ function signIn() {
     if (event.target.value === 'cancel') return location.search.includes('stuck') ? undefined : dialog.remove();
     // Help opens over the sign-in, which opened over the form: a cover on a cover.
     if (event.target.value === 'help') return help();
-    dialog.setAttribute('aria-busy', 'true');
+    busy(dialog, true);
     await fetch('/api/sign-in', { method: 'POST' });
     dialog.remove();
     payment();
@@ -87,7 +92,7 @@ function help() {
 function payment() {
   // The billing form fades out over 300 ms: a departed region that still answers,
   // so it says it is busy until it is gone.
-  form.setAttribute('aria-busy', 'true');
+  busy(form, true);
   form.style.transition = 'opacity 300ms';
   form.style.opacity = '0';
   setTimeout(() => {
@@ -95,7 +100,7 @@ function payment() {
     document.querySelector('main').insertAdjacentHTML('beforeend', '<form aria-label="Payment"><label>Card <input name="card"></label></form>');
   }, 300);
 }
-form.setAttribute('aria-busy', 'false');
+busy(form, false);
 vaEnd('checkout', 'billing', 'hydrating');
 `,
 );
@@ -109,11 +114,11 @@ const button = document.querySelector('article button');
 const count = document.querySelector('[data-testid=likes]');
 count.textContent = (await (await fetch('/api/likes')).json()).likes;
 button.addEventListener('click', async () => {
-  button.setAttribute('aria-busy', 'true');
+  busy(button, true);
   vaStart('product', 'like', 'liking');
   const { likes } = await (await fetch('/api/like', { method: 'POST' })).json();
   count.textContent = likes;
-  button.setAttribute('aria-busy', 'false');
+  busy(button, false);
   vaEnd('product', 'like', 'liking');
 });
 `,
@@ -121,7 +126,7 @@ button.addEventListener('click', async () => {
 
 const results = shell(
   'results',
-  `<section aria-label="Results" aria-busy="true"><ul></ul></section>`,
+  `<section aria-label="Results"${BUSY}><ul></ul></section>`,
   `
 const section = document.querySelector('section');
 const q = new URLSearchParams(location.search).get('q');
@@ -131,7 +136,7 @@ section.querySelector('ul').replaceChildren(...items.map((text) => {
   item.textContent = text;
   return item;
 }));
-section.setAttribute('aria-busy', 'false');
+busy(section, false);
 `,
 );
 

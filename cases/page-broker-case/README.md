@@ -1,6 +1,14 @@
 # A page broker, alive against a shop
 
-A spike, not a package. It asks whether a test can stand on a small model of
+Two things live here.
+
+`src/declared/` runs [`@variance-authority/page-broker`](../../packages/page-broker),
+the part of the spike that was published, over two apps that announce nothing:
+this shop started with `VA_SILENT`, which removes its `aria-busy` and its
+events, and the manager of the Storybook `cases/storybook-case` builds, served
+as files and unchanged. `src/declared.config.mjs` is their Playwright config.
+
+The rest is the spike the package came from, and is not a package. It asks whether a test can stand on a small model of
 the app — fragments, the actions they offer, and where each action leads —
 instead of on selectors and waits.
 
@@ -77,8 +85,12 @@ for the wrong reason.
 
 ## Run it
 
-CI runs the suite once, from `src/workflow.chromium.test.js` in the chromium slice. By hand, from the repository root, after `yarn install && yarn build`:
+CI runs both from `src/workflow.chromium.test.js` in the chromium slice: the spike once, the shop in `src/declared/` once, and Storybook's manager thirty times. By hand, from the repository root, after `yarn install && yarn build`:
 
 ```bash
 cd cases/page-broker-case && node ../../node_modules/@playwright/test/cli.js test --config=src/playwright.config.mjs
+```
+
+```bash
+cd cases/page-broker-case && node ../../node_modules/@playwright/test/cli.js test --config=src/declared.config.mjs
 ```

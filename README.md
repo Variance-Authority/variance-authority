@@ -166,6 +166,7 @@ take the one you need.
 | What do you need to know? | Start here |
 | --- | --- |
 | How is information grouped, aligned, repeated, and emphasized in one live interface? | [`@variance-authority/presentation`](packages/presentation) measures the rendered boxes — spacing, alignment, prominence, repetition — and hands back numbers you assert on. It has no baseline and gives no design score. |
+| Where did an action in a browser test end: the next page, a dialog, or nowhere? | [`@variance-authority/page-broker`](packages/page-broker) lets a Playwright test declare the outcomes an action can reach, and names the one the app reached. It stands on Playwright alone. |
 | At which step of a test did two runs stop agreeing? | [`@variance-authority/scenario`](packages/scenario) records the Arrange–Act–Assert steps a run actually took as a state machine, then compares two of them. |
 | Which components and tests could — or did — a source change reach? | [`@variance-authority/sense`](packages/sense) joins what the source imports with what a recorded run actually executed, and selects tests from it. It reads [more than JavaScript](docs/polyglot.md). |
 | What public API does a workspace expose, and who consumes it? | [`@variance-authority/package`](packages/package) reads every entrypoint a manifest opens and what it exports; [`@variance-authority/help`](packages/help) answers questions about those names, their import sites and the module relations around them over MCP. |

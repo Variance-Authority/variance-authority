@@ -48,6 +48,9 @@
       "path": "./packages/scenario"
     },
     {
+      "path": "./packages/page-broker"
+    },
+    {
       "path": "./packages/presentation"
     },
     {

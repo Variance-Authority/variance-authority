@@ -1,0 +1,44 @@
+{
+  "name": "@variance-authority/page-broker",
+  "version": "0.32.1",
+  "description": "Declare where a Playwright action can end, and learn which outcome the app reached.",
+  "keywords": [
+    "variance-authority",
+    "playwright",
+    "e2e",
+    "page-object",
+    "flaky-tests"
+  ],
+  "license": "MIT",
+  "author": "Machine Garden",
+  "homepage": "https://variance-authority.dev/reference/packages/page-broker",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Variance-Authority/variance-authority.git",
+    "directory": "packages/page-broker"
+  },
+  "bugs": "https://github.com/Variance-Authority/variance-authority/issues",
+  "engines": {
+    "node": ">=22"
+  },
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/*.d.ts.map",
+    "mark.svg"
+  ],
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.55 <2"
+  }
+}
