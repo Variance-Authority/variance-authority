@@ -90,27 +90,39 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidat
 }
 
 /// The recorded function of `file` that the declaration at `line` writes: of
-/// those starting at `line` and bearing one of the names it is `spelled`, the
-/// outermost; or else the first after the line, when its whole path is one.
+/// those starting at `line` that it names, the outermost; or else the first
+/// after the line, when the declaration names it.
 ///
-/// A function counts by its own name, as the instrumenter names it for the
-/// declaration, so a constant leaves unscored the callback written on its line,
-/// named for the call (`map.arg0`) or by itself (`function onValue`), and any
-/// function written beside it. A function's region opens at its parameters,
-/// below the declaration's line when `const name =` or a long type parameter
-/// list ends a line, so the first function opening below is taken when its
-/// whole path is the name: a namesake nested in a function or a class
-/// (`Store/useSessionId`) belongs to that and not to the declaration above it.
+/// A declaration names a function by the function's own name, as the
+/// instrumenter names it for the declaration, and by where it sits: a function
+/// nested in a recorded function is named only from inside that function, and
+/// one nested in anything else, a class, never. So a constant leaves unscored
+/// the callback written on its line, named for the call (`map.arg0`) or by
+/// itself (`function onValue`), any function written beside it, and a method
+/// of its name (`Store/useSessionId`) on its line or below it. A function's
+/// region opens at its parameters, below the declaration's line when `const
+/// name =` or a long type parameter list ends a line, so the first function
+/// opening below is taken when the declaration names it.
 fn written_at(masks: &JourneyMasks, spelled: &[String], file: &str, line: u32) -> Result<Option<u32>, String> {
     let Some(module) = masks.journey.module_of(file)? else { return Ok(None) };
+    let mut enclosing: Vec<&str> = Vec::new();
+    for at in masks.functions_in(module) {
+        let bit = masks.bits[at as usize];
+        if bit.start <= line && line <= bit.end {
+            enclosing.push(masks.journey.text(bit.name)?);
+        }
+    }
+    let named = |path: &str| {
+        let (scope, own) = path.rsplit_once('/').unwrap_or(("", path));
+        spelled.iter().any(|name| name == own) && (scope.is_empty() || enclosing.contains(&scope))
+    };
     let (mut at_line, mut below): (Option<u32>, Option<u32>) = (None, None);
     for at in masks.functions_in(module) {
         let bit = masks.bits[at as usize];
         if bit.start < line {
             continue;
         }
-        let own = own_name(masks.journey.text(bit.name)?);
-        if bit.start == line && spelled.iter().any(|name| name == own) && at_line.is_none_or(|held| bit.end > masks.bits[held as usize].end) {
+        if bit.start == line && named(masks.journey.text(bit.name)?) && at_line.is_none_or(|held| bit.end > masks.bits[held as usize].end) {
             at_line = Some(at);
         }
         let first = |held: u32| (bit.start, std::cmp::Reverse(bit.end)) < (masks.bits[held as usize].start, std::cmp::Reverse(masks.bits[held as usize].end));
@@ -119,13 +131,7 @@ fn written_at(masks: &JourneyMasks, spelled: &[String], file: &str, line: u32) -
         }
     }
     let Some(below) = below.filter(|_| at_line.is_none()) else { return Ok(at_line) };
-    let path = masks.journey.text(masks.bits[below as usize].name)?;
-    Ok(spelled.iter().any(|name| name == path).then_some(below))
-}
-
-/// A region's own name: the last step of its path.
-fn own_name(path: &str) -> &str {
-    path.rsplit('/').next().unwrap_or(path)
+    Ok(named(masks.journey.text(masks.bits[below as usize].name)?).then_some(below))
 }
 
 fn score(masks: &mut JourneyMasks, function: u32, ran: &HashSet<u32>, scored: &mut Resonant) -> Result<(), String> {

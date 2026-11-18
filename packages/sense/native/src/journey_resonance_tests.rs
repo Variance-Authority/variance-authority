@@ -18,6 +18,9 @@ use crate::journey_record::{Block, Module};
 /// a callback named `onValue`, and `helper.ts` one whose line holds `helper`;
 /// case 0 enters both. `stored.ts` declares a constant above a class whose
 /// method of the same name opens on the next line, entered by case 0.
+/// `inner.ts` declares, inside `wrapper`, a constant on line 2 whose arrow
+/// opens on line 3, and `classed.ts` a constant whose line holds a class with a
+/// method of its name; case 0 enters both.
 fn recorded() -> JourneyMasks {
     let tests: Vec<Test> = (0..4)
         .map(|case| Test { id: format!("t{case}"), file: format!("t{case}.test.ts"), name: format!("case {case}"), project: None, runner: None, settled: FINISHED, heard: None })
@@ -40,6 +43,8 @@ fn recorded() -> JourneyMasks {
         module("src/subscribed.ts", vec![block("module", "", 1, 1), block("function", "onValue", 1, 1)]),
         module("src/helper.ts", vec![block("module", "", 1, 1), block("function", "helper", 1, 1)]),
         module("src/stored.ts", vec![block("module", "", 1, 2), block("function", "Store/useSessionId", 2, 2)]),
+        module("src/inner.ts", vec![block("module", "", 1, 4), block("function", "wrapper", 1, 4), block("function", "wrapper/useSessionId", 3, 3)]),
+        module("src/classed.ts", vec![block("module", "", 1, 1), block("function", "Store/useSessionId", 1, 1)]),
     ];
     let mut sets = SetPool::new(tests.len());
     let mut set = |members: &[u32]| sets.intern(members);
@@ -57,6 +62,8 @@ fn recorded() -> JourneyMasks {
         vec![set(&[]), set(&[]), set(&[0])],
         vec![set(&[]), set(&[0])],
         vec![set(&[]), set(&[0])],
+        vec![set(&[]), set(&[0])],
+        vec![set(&[]), set(&[]), set(&[0])],
         vec![set(&[]), set(&[0])],
     ];
     let loaded: Vec<Vec<bool>> = modules.iter().map(|module| vec![false; module.blocks.len()]).collect();
@@ -168,5 +175,19 @@ fn a_constant_does_not_take_the_score_of_a_named_callback_or_a_function_beside_i
 fn a_constant_does_not_take_the_score_of_a_method_of_its_name_opening_below_it() {
     let mut masks = recorded();
     let answer = resonate(&mut masks, "src/page.ts", 3, &[at("src/stored.ts", 1)]).unwrap();
+    assert_eq!(answer.resonant.iter().map(|row| (row.recorded, row.cases)).collect::<Vec<_>>(), vec![(false, 0)]);
+}
+
+#[test]
+fn a_nested_function_whose_parameters_open_below_its_declaration_scores_by_its_name() {
+    let mut masks = recorded();
+    let answer = resonate(&mut masks, "src/page.ts", 3, &[at("src/inner.ts", 2)]).unwrap();
+    assert_eq!(rows(&answer), vec![("src/inner.ts".into(), 0, 1, 1, "1.00".into())]);
+}
+
+#[test]
+fn a_constant_does_not_take_the_score_of_a_method_of_its_name_on_its_line() {
+    let mut masks = recorded();
+    let answer = resonate(&mut masks, "src/page.ts", 3, &[at("src/classed.ts", 1)]).unwrap();
     assert_eq!(answer.resonant.iter().map(|row| (row.recorded, row.cases)).collect::<Vec<_>>(), vec![(false, 0)]);
 }
