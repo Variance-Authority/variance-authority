@@ -301,6 +301,11 @@
   },
   {
     "idiom": "timer",
+    "at": "packages/page-broker/src/quiet.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
     "at": "packages/playwright-test/src/documents.ts",
     "count": 1
   },
