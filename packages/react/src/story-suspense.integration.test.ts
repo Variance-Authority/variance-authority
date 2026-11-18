@@ -53,7 +53,7 @@ afterEach(async () => {
 
 describe('a story of a React tree that suspends', () => {
   it('tells the boundary showing its fallback on the line that rendered it, and unlocking on the line its promise settled on', async () => {
-    const lines = said(await reading('waits on the cart', true)).filter((line) => !line.startsWith('handed ') && !line.startsWith('page '));
+    const lines = said(await reading('waits on the cart', true)).filter((line) => !line.startsWith('handed ') && !line.startsWith('page ') && !line.startsWith('dom '));
 
     expect(lines.slice(lines.indexOf('test line 13'))).toEqual([
       'test line 13',
