@@ -368,126 +368,129 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     // What this update parsed of the blob it is named by that no store holds, for every root after it.
     let parsed_here = reached.new.iter().map(|file| (file, &walked[file.as_str()]));
     let parsed_here = parsed_here.filter(|(file, row)| row.parsed && !row.kept && !row.identity.is_empty() && tree.from_blob.shares(&row.identity, &way(file)));
-    stores.add_unheld(&store, parsed_here.map(|(file, row)| (row.identity.as_str(), way(file), &row.read)));
-    let mut interest: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
-    interest.extend(reached.new.iter().map(|file| walked[file.as_str()].identity.as_str()).filter(|digest| !digest.is_empty()));
-    let held = if interest.is_empty() { HashSet::new() } else { held_parses(&layers, &interest) };
-    let users: HashSet<String> = if retired.is_empty() {
-        HashSet::new()
-    } else {
-        let wanted: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
-        let mut users: HashSet<String> = valid
-            .par_iter()
-            .filter(|(file, _)| reached.old.contains(**file))
-            .filter_map(|(file, &(layer, at))| {
-                let (stored, records) = (&layers[layer].stored, &layers[layer].records);
-                let digest = stored.optional(records.digest.at(at))?;
-                wanted.contains(digest).then(|| parse_store::key(digest, &way(file)))
+    // The store serves the next root and the index this one: neither reads the other, so they are written side by side.
+    std::thread::scope(|scope| {
+        scope.spawn(|| stores.add_unheld(&store, parsed_here.map(|(file, row)| (row.identity.as_str(), way(file), &row.read))));
+        let mut interest: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
+        interest.extend(reached.new.iter().map(|file| walked[file.as_str()].identity.as_str()).filter(|digest| !digest.is_empty()));
+        let held = if interest.is_empty() { HashSet::new() } else { held_parses(&layers, &interest) };
+        let users: HashSet<String> = if retired.is_empty() {
+            HashSet::new()
+        } else {
+            let wanted: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
+            let mut users: HashSet<String> = valid
+                .par_iter()
+                .filter(|(file, _)| reached.old.contains(**file))
+                .filter_map(|(file, &(layer, at))| {
+                    let (stored, records) = (&layers[layer].stored, &layers[layer].records);
+                    let digest = stored.optional(records.digest.at(at))?;
+                    wanted.contains(digest).then(|| parse_store::key(digest, &way(file)))
+                })
+                .collect();
+            users.extend(fresh.iter().map(|(key, _)| key.clone()));
+            users
+        };
+        let mut deleted_parses: Vec<String> = retired
+            .iter()
+            .filter_map(|(file, digest)| Some(parse_store::key((*digest)?, &way(file))))
+            .filter(|key| {
+                let (digest, way) = crate::generation::key_parts(key);
+                held.contains(&(digest.to_owned(), way.to_owned())) && !users.contains(key)
             })
             .collect();
-        users.extend(fresh.iter().map(|(key, _)| key.clone()));
-        users
-    };
-    let mut deleted_parses: Vec<String> = retired
-        .iter()
-        .filter_map(|(file, digest)| Some(parse_store::key((*digest)?, &way(file))))
-        .filter(|key| {
-            let (digest, way) = crate::generation::key_parts(key);
-            held.contains(&(digest.to_owned(), way.to_owned())) && !users.contains(key)
-        })
-        .collect();
-    let mut parses: Vec<(String, Parse)> = fresh
-        .into_iter()
-        .filter(|(key, _)| {
-            let (digest, way) = crate::generation::key_parts(key);
-            !held.contains(&(digest.to_owned(), way.to_owned()))
-        })
-        .collect();
+        let mut parses: Vec<(String, Parse)> = fresh
+            .into_iter()
+            .filter(|(key, _)| {
+                let (digest, way) = crate::generation::key_parts(key);
+                !held.contains(&(digest.to_owned(), way.to_owned()))
+            })
+            .collect();
 
-    let mut put_directories: Vec<(String, String)> = directories
-        .iter()
-        .filter(|(path, digest)| held_directories.get(path.as_str()) != Some(&digest.as_str()))
-        .map(|(path, digest)| (path.clone(), digest.clone()))
-        .collect();
-    let mut deleted_directories: Vec<String> =
-        held_directories.keys().filter(|path| !directories.contains_key(**path)).map(|path| (*path).to_owned()).collect();
+        let mut put_directories: Vec<(String, String)> = directories
+            .iter()
+            .filter(|(path, digest)| held_directories.get(path.as_str()) != Some(&digest.as_str()))
+            .map(|(path, digest)| (path.clone(), digest.clone()))
+            .collect();
+        let mut deleted_directories: Vec<String> =
+            held_directories.keys().filter(|path| !directories.contains_key(**path)).map(|path| (*path).to_owned()).collect();
 
-    let unchanged = chain.is_some()
-        && puts.is_empty()
-        && deleted_records.is_empty()
-        && parses.is_empty()
-        && deleted_parses.is_empty()
-        && put_directories.is_empty()
-        && deleted_directories.is_empty();
-    #[cfg(unix)]
-    let listing = tree.carry.map(|mut meta| {
-        meta.config = Some(o.config.clone());
-        meta.files = files;
-        crate::held_listing::columns(tree.paths, tree.oids, tree.regular, tree.unhashed, &meta)
-    });
-    #[cfg(not(unix))]
-    let listing: Option<Vec<crate::segment::Column>> = None;
-    let carried = |segment: Vec<u8>, listing: Option<Vec<crate::segment::Column>>| -> Result<Vec<u8>, String> {
+        let unchanged = chain.is_some()
+            && puts.is_empty()
+            && deleted_records.is_empty()
+            && parses.is_empty()
+            && deleted_parses.is_empty()
+            && put_directories.is_empty()
+            && deleted_directories.is_empty();
         #[cfg(unix)]
-        if let Some(listing) = listing {
-            return crate::held_listing::carried(&segment, listing);
+        let listing = tree.carry.map(|mut meta| {
+            meta.config = Some(o.config.clone());
+            meta.files = files;
+            crate::held_listing::columns(tree.paths, tree.oids, tree.regular, tree.unhashed, &meta)
+        });
+        #[cfg(not(unix))]
+        let listing: Option<Vec<crate::segment::Column>> = None;
+        let carried = |segment: Vec<u8>, listing: Option<Vec<crate::segment::Column>>| -> Result<Vec<u8>, String> {
+            #[cfg(unix)]
+            if let Some(listing) = listing {
+                return crate::held_listing::carried(&segment, listing);
+            }
+            let _ = &listing;
+            Ok(segment)
+        };
+        let (references, published, working_count): (Vec<LogSegment>, Over, usize) = match &chain {
+            Some(chain) => (chain.references.iter().map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 }).collect(), Over::Published(chain.published()), chain.working),
+            None => (Vec::new(), Over::Nothing, 0),
+        };
+        // The working layer and this delta become the next working layer: an update
+        // rewrites what changed since the index was readied, and never the base.
+        let base = references.len() - working_count;
+        let beneath: Vec<&[u8]> = segments[..base].iter().map(Vec::as_slice).collect();
+        if unchanged {
+            let Some(listing) = listing else {
+                return Ok(Some(Updated { files, reread, parsed, published: false, refused: None }));
+            };
+            // Nothing to publish, and a listing to carry: the working layer is
+            // written again with it, so the next update can ask Watchman from here.
+            let working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
+            let working = match working.as_slice() {
+                [] => encode_generation::<Read>(&Generation { config: Some(&o.config), directories: &[], parses: &[], records: &[], deleted: Deleted::default() }),
+                [only] => only.to_vec(),
+                _ => merged(&beneath, &working).map_err(fail)?,
+            };
+            let working = carried(working, Some(listing)).map_err(fail)?;
+            return match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
+                Ok(_) => Ok(Some(Updated { files, reread, parsed, published: false, refused: None })),
+                Err(error) => Ok(Some(Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)) })),
+            };
         }
-        let _ = &listing;
-        Ok(segment)
-    };
-    let (references, published, working_count): (Vec<LogSegment>, Over, usize) = match &chain {
-        Some(chain) => (chain.references.iter().map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 }).collect(), Over::Published(chain.published()), chain.working),
-        None => (Vec::new(), Over::Nothing, 0),
-    };
-    // The working layer and this delta become the next working layer: an update
-    // rewrites what changed since the index was readied, and never the base.
-    let base = references.len() - working_count;
-    let beneath: Vec<&[u8]> = segments[..base].iter().map(Vec::as_slice).collect();
-    if unchanged {
-        let Some(listing) = listing else {
-            return Ok(Some(Updated { files, reread, parsed, published: false, refused: None }));
-        };
-        // Nothing to publish, and a listing to carry: the working layer is
-        // written again with it, so the next update can ask Watchman from here.
-        let working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
-        let working = match working.as_slice() {
-            [] => encode_generation::<Read>(&Generation { config: Some(&o.config), directories: &[], parses: &[], records: &[], deleted: Deleted::default() }),
-            [only] => only.to_vec(),
-            _ => merged(&beneath, &working).map_err(fail)?,
-        };
-        let working = carried(working, Some(listing)).map_err(fail)?;
-        return match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
-            Ok(_) => Ok(Some(Updated { files, reread, parsed, published: false, refused: None })),
-            Err(error) => Ok(Some(Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)) })),
-        };
-    }
 
-    puts.sort_by(|left, right| code_unit(left.0, right.0));
-    parses.sort_by(|left, right| code_unit(&left.0, &right.0));
-    parses.dedup_by(|left, right| left.0 == right.0);
-    put_directories.sort_by(|left, right| code_unit(&left.0, &right.0));
-    for keys in [&mut deleted_records, &mut deleted_parses, &mut deleted_directories] {
-        keys.sort_by(|left, right| code_unit(left, right));
-        keys.dedup();
-    }
-    let parse_rows: Vec<(&str, &Parse)> = parses.iter().map(|(key, parse)| (key.as_str(), parse)).collect();
-    let delta = encode_generation(&Generation {
-        config: Some(&o.config),
-        directories: &put_directories,
-        parses: &parse_rows,
-        records: &puts,
-        deleted: Deleted { parses: &deleted_parses, records: &deleted_records, directories: &deleted_directories },
-    });
+        puts.sort_by(|left, right| code_unit(left.0, right.0));
+        parses.sort_by(|left, right| code_unit(&left.0, &right.0));
+        parses.dedup_by(|left, right| left.0 == right.0);
+        put_directories.sort_by(|left, right| code_unit(&left.0, &right.0));
+        for keys in [&mut deleted_records, &mut deleted_parses, &mut deleted_directories] {
+            keys.sort_by(|left, right| code_unit(left, right));
+            keys.dedup();
+        }
+        let parse_rows: Vec<(&str, &Parse)> = parses.iter().map(|(key, parse)| (key.as_str(), parse)).collect();
+        let delta = encode_generation(&Generation {
+            config: Some(&o.config),
+            directories: &put_directories,
+            parses: &parse_rows,
+            records: &puts,
+            deleted: Deleted { parses: &deleted_parses, records: &deleted_records, directories: &deleted_directories },
+        });
 
-    let mut working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
-    working.push(&delta);
-    let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
-    let working = carried(working, listing).map_err(fail)?;
-    // Another writer between the read and here: its chain is not the one this delta is against.
-    let refused = match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
-        Ok(false) => return Ok(None),
-        Ok(true) => None,
-        Err(error) => Some(format!("{}: {error}", o.index)),
-    };
-    Ok(Some(Updated { files, reread, parsed, published: refused.is_none(), refused }))
+        let mut working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
+        working.push(&delta);
+        let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
+        let working = carried(working, listing).map_err(fail)?;
+        // Another writer between the read and here: its chain is not the one this delta is against.
+        let refused = match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
+            Ok(false) => return Ok(None),
+            Ok(true) => None,
+            Err(error) => Some(format!("{}: {error}", o.index)),
+        };
+        Ok(Some(Updated { files, reread, parsed, published: refused.is_none(), refused }))
+    })
 }
