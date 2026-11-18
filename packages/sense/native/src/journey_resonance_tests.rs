@@ -11,6 +11,8 @@ use crate::journey_record::{Block, Module};
 /// which alone runs `report`. `idle` is run by nobody. `statuses.ts` declares
 /// a constant whose line holds a callback case 0 runs. `arrow.ts` declares
 /// `useSessionId` on line 1 with its arrow, which case 0 enters, on line 2.
+/// `nested.ts` declares a constant `useSessionId` on line 1 and, inside
+/// `wrapper`, a function of that name on line 3, both entered by case 0.
 fn recorded() -> JourneyMasks {
     let tests: Vec<Test> = (0..4)
         .map(|case| Test { id: format!("t{case}"), file: format!("t{case}.test.ts"), name: format!("case {case}"), project: None, runner: None, settled: FINISHED, heard: None })
@@ -28,6 +30,7 @@ fn recorded() -> JourneyMasks {
         module("src/report.ts", vec![block("module", "", 1, 2), block("function", "report", 2, 2)]),
         module("src/statuses.ts", vec![block("module", "", 1, 1), block("function", "map.arg0", 1, 1)]),
         module("src/arrow.ts", vec![block("module", "", 1, 5), block("function", "useSessionId", 2, 3), block("function", "later", 5, 5)]),
+        module("src/nested.ts", vec![block("module", "", 1, 5), block("function", "wrapper", 2, 5), block("function", "wrapper/useSessionId", 3, 3)]),
     ];
     let mut sets = SetPool::new(tests.len());
     let mut set = |members: &[u32]| sets.intern(members);
@@ -41,6 +44,7 @@ fn recorded() -> JourneyMasks {
         vec![set(&[]), set(&[3])],
         vec![set(&[]), set(&[0])],
         vec![set(&[]), set(&[0]), set(&[1])],
+        vec![set(&[]), set(&[0]), set(&[0])],
     ];
     let loaded: Vec<Vec<bool>> = modules.iter().map(|module| vec![false; module.blocks.len()]).collect();
     let encoded: Vec<EncodedModule<'_>> = modules
@@ -114,4 +118,13 @@ fn a_function_whose_parameters_open_below_its_declaration_scores_by_its_name() {
     assert_eq!(rows(&answer), vec![("src/arrow.ts".into(), 0, 1, 1, "1.00".into())]);
     let renamed = resonate(&mut masks, "loud", "src/page.ts", 3, &[at("src/arrow.ts", 1)]).unwrap();
     assert_eq!(renamed.resonant.iter().map(|row| row.recorded).collect::<Vec<_>>(), vec![false]);
+}
+
+#[test]
+fn a_namesake_nested_in_a_later_function_is_not_the_declaration_above_it() {
+    let mut masks = recorded();
+    let answer = resonate(&mut masks, "useSessionId", "src/page.ts", 3, &[at("src/nested.ts", 1), at("src/nested.ts", 3)]).unwrap();
+    let mut recorded: Vec<(u32, bool)> = answer.resonant.iter().map(|row| (row.line, row.recorded)).collect();
+    recorded.sort();
+    assert_eq!(recorded, vec![(1, false), (3, true)]);
 }

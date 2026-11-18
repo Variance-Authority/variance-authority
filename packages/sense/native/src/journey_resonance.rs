@@ -91,10 +91,12 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, name: &str, file: &str, line: u
 /// one file can write two functions of one name. A function's region opens at
 /// its parameters, below the declaration's line when `const name =` or a long
 /// type parameter list ends a line; the instrumenter names that function for
-/// the constant, so the name finds it.
+/// the constant, so the first function opening below the line is taken when it
+/// bears the name. A namesake further down, nested in another function, belongs
+/// to that function and not to the declaration above it.
 fn written_at(masks: &JourneyMasks, name: &str, file: &str, line: u32) -> Result<Option<u32>, String> {
     let Some(module) = masks.journey.module_of(file)? else { return Ok(None) };
-    let (mut at_line, mut below) = (None, None);
+    let (mut at_line, mut below): (Option<u32>, Option<u32>) = (None, None);
     for at in masks.functions_in(module) {
         let bit = masks.bits[at as usize];
         if bit.start < line {
@@ -104,11 +106,13 @@ fn written_at(masks: &JourneyMasks, name: &str, file: &str, line: u32) -> Result
         if bit.start == line && !handed_to_a_call(own) && at_line.is_none_or(|held: u32| bit.end > masks.bits[held as usize].end) {
             at_line = Some(at);
         }
-        if bit.start > line && own == name && below.is_none_or(|held: u32| bit.start < masks.bits[held as usize].start) {
+        let first = |held: u32| (bit.start, std::cmp::Reverse(bit.end)) < (masks.bits[held as usize].start, std::cmp::Reverse(masks.bits[held as usize].end));
+        if bit.start > line && below.is_none_or(first) {
             below = Some(at);
         }
     }
-    Ok(at_line.or(below))
+    let Some(below) = below.filter(|_| at_line.is_none()) else { return Ok(at_line) };
+    Ok((own_name(masks.journey.text(masks.bits[below as usize].name)?) == name).then_some(below))
 }
 
 /// A region's own name: the last step of its path.
