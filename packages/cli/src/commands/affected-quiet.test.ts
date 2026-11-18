@@ -1,6 +1,7 @@
+import { indexOf } from './affected-index.fixture.js';
 import { relationsOfFiles, type EdgeUse } from '@variance-authority/core/relate';
 import { describe, expect, it } from 'vitest';
-import { affectedSubjects, indexOf } from './affected.js';
+import { affectedSubjects } from './affected.js';
 import { affectedFiles, refused } from './reach.js';
 
 /**

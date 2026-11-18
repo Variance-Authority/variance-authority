@@ -264,3 +264,5 @@ export { publishedSelectionGraph, publishedSelectionQuestions, type PublishedSel
 export type { NativeSelectionGraph } from './native-selection-graph.js';
 
 export { publishedMocks } from './published-mocks.js';
+
+export { publishedComponentSources, type PublishedComponentSources } from './published-components.js';

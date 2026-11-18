@@ -10,13 +10,12 @@
  * by `sense`, a dependency imported like any other.
  */
 
-import { readdirSync, type Dirent } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import type { SourceIndex } from '@variance-authority/core/attribute';
 import type { FileRecord, Relations } from '@variance-authority/core/relate';
 import {
   publishedNames,
+  publishedComponentSources,
   publishedSelectionQuestions,
   SourceIndexUnpublished,
   sourceIndexPath,
@@ -26,33 +25,20 @@ import {
 import { isCI } from 'ci-info';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
-import { indexOf } from './affected.js';
 import { installedDepends } from './installed.js';
 
-/**
- * The component index, from the directories the config names.
- *
- * The same walk the shipped collectors do, for the same reason: the module reader
- * in `sense` decides how a file becomes an index ([`indexOf`](./affected.ts)),
- * and this decides which files. Selection needs it *before* anything is
- * collected, so it cannot borrow the collector's.
- */
-export async function scanSourceDirs(
-  root: string,
-  dirs: readonly string[],
-): Promise<SourceIndex> {
-  const contents = new Map<string, string>();
-  for (const file of sourceFiles(root, dirs)) contents.set(relative(root, file), await readFile(file, 'utf8'));
-  return indexOf(contents);
-}
-
-/**
- * The files `scanSourceDirs` reads, as absolute paths: whatever is on disk
- * under `dirs`, git-ignored or not, so a build identity can digest exactly the
- * bytes the scan saw.
- */
-export function sourceFiles(root: string, dirs: readonly string[]): readonly string[] {
-  return dirs.flatMap((dir) => walkSource(isAbsolute(dir) ? dir : join(root, dir)));
+/** The component references and source identity read from the same published generation. */
+export async function sourceDeclarationsFor(root: string, dirs: readonly string[]): Promise<{ readonly source: SourceIndex; readonly digest: string }> {
+  try {
+    const read = await publishedComponentSources(root, dirs, {
+      ci: isCI, step: 'variance index',
+      announce: (line) => process.stderr.write(`variance: ${line}\n`),
+    });
+    return read;
+  } catch (error) {
+    if (error instanceof SourceIndexUnpublished) throw new OperatorError(error.message, { cause: error });
+    throw error;
+  }
 }
 
 /**
@@ -186,30 +172,4 @@ export async function sourceGraphFor(
     if (error instanceof SourceIndexUnpublished) throw new OperatorError(error.message, { cause: error });
     throw error;
   }
-}
-
-const SOURCE_EXTENSIONS = ['.tsx', '.jsx', '.ts', '.js'];
-const SOURCE_EXCLUDE = ['node_modules', '.test.', '.spec.', '.stories.', 'dist/'];
-
-function walkSource(dir: string): readonly string[] {
-  const found: string[] = [];
-
-  let entries: readonly Dirent[];
-  try {
-    entries = readdirSync(dir, { withFileTypes: true });
-  } catch {
-    // A configured directory that does not exist contributes nothing rather than
-    // failing the run: the refusal that matters is an empty *index*, and the
-    // selector states that itself.
-    return found;
-  }
-
-  for (const entry of entries) {
-    const path = join(dir, entry.name);
-    if (SOURCE_EXCLUDE.some((skip) => path.includes(skip))) continue;
-    if (entry.isDirectory()) found.push(...walkSource(path));
-    else if (SOURCE_EXTENSIONS.some((extension) => entry.name.endsWith(extension))) found.push(path);
-  }
-
-  return found;
 }

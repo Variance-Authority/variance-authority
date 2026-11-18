@@ -132,6 +132,13 @@ variance run --since <ref>
 variance run --against <ref>
 ```
 
+Component attribution in `variance run` and `variance collect`, and the source
+identity written into each collection part, read the same publication.
+`source.dirs` narrows that inventory by directory. In a Git checkout,
+Git-ignored files are excluded; test and story files in the inventory
+participate in its content identity. Run `variance index` after editing source
+and before collecting it.
+
 Each one reads the index as it was last published. Run `variance index` after
 the checkout changes and before them — in CI, as its own step after the cache
 restore. `variance select`, and a runner's selection through it, also brings
@@ -359,6 +366,12 @@ and reports the reason through `announce`. In CI it throws
 `SourceIndexUnpublished` and names the configured `step`, normally
 `variance index`. A valid index is read as published. Update it first when the
 question needs the checkout's current texts.
+
+`publishedComponentSources(root, dirs, options)` returns the component references,
+file count and content identity within `dirs`, from one native snapshot. Component
+names retain every matching file, so attribution reports ambiguous names.
+Directories may be repository-relative or absolute inside `root`; a directory
+outside it is refused. A file without a content identity is refused too.
 
 `publishedNames` reads content names for selected paths under the same policy;
 `readPublishedNames` reads them without rebuilding. `ask orient --files`

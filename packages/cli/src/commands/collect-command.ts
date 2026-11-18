@@ -12,7 +12,6 @@ import { evidenceIdentity } from './evidence-identity.js';
 import { readEvidencePart, type EvidenceDiagnostic } from './evidence-part.js';
 import { encodeSuitePart } from './suite-part.js';
 import { withLiveIgnores } from './ignores.js';
-import { scanSourceDirs } from './source-graph.js';
 
 /**
  * The two halves of `variance collect`, as the binary runs them.
@@ -46,8 +45,6 @@ export async function runCollect(parsed: Collecting, config: Config, streams: St
     new Date().toISOString(),
   );
   const [plan, identity] = await Promise.all([planFor(effective), evidenceIdentity(effective, deps.cwd, deps.env)]);
-  const dirs = effective.source?.dirs ?? [];
-  const source = dirs.length === 0 ? undefined : await scanSourceDirs(deps.cwd, dirs);
   const collector = await deps.load(collectorPath(effective.subjects), { config: effective, ...(plan === undefined ? {} : { plan }) });
 
   const collected = await collectEvidence({
@@ -55,7 +52,7 @@ export async function runCollect(parsed: Collecting, config: Config, streams: St
     config: effective,
     ...(parsed.shard === undefined ? {} : { shard: parsed.shard }),
     ...(parsed.subjects === undefined ? {} : { scope: parsed.subjects }),
-    ...(source === undefined ? {} : { source }),
+    ...(identity.source === undefined ? {} : { source: identity.source }),
     build: identity.build,
     recipe: identity.recipe,
   });

@@ -1,9 +1,7 @@
 import {
-  mergeSourceIndexes,
   type SourceIndex,
 } from '@variance-authority/core/attribute';
 import { type BeforeReach, type Relations, within } from '@variance-authority/core/relate';
-import { indexDeclarations } from '@variance-authority/sense';
 import { ignoredBy } from '@variance-authority/sense/test-selection';
 import type { InstallDiff } from './installed.js';
 import { affectedComponents, ignoredSaid, refused, type MovedExports } from './reach.js';
@@ -480,17 +478,4 @@ function declaringFiles(source: SourceIndex): ReadonlySet<string> {
     for (const ref of refs) files.add(ref.file);
   }
   return files;
-}
-
-/**
- * Build the component index from files the caller has already read.
- *
- * Takes contents rather than paths for the same reason `affectedSubjects` takes
- * values: the walk belongs to whoever owns the disk, and the rule — how a file
- * becomes an index — has one owner, the module reader in `sense`.
- */
-export function indexOf(files: ReadonlyMap<string, string>): SourceIndex {
-  return mergeSourceIndexes(
-    [...files.entries()].map(([file, contents]) => indexDeclarations(file, contents)),
-  );
 }

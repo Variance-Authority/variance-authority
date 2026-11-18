@@ -58,7 +58,7 @@ export interface EvidenceBuild {
   readonly commit?: string;
   /** The digest of every file of the built Storybook. Absent for a subject list. */
   readonly storybook?: string;
-  /** The digest of `source.dirs` as they are on disk, edits included. Absent with no dirs. */
+  /** The identity of the published source generation within `source.dirs`. Absent with no dirs. */
   readonly source?: string;
 }
 

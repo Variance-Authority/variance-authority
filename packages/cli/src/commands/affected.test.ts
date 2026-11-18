@@ -1,6 +1,7 @@
+import { indexOf } from './affected-index.fixture.js';
 import { describe, expect, it } from 'vitest';
 import { relationsOfFiles } from '@variance-authority/core/relate';
-import { affectedSubjects, indexOf } from './affected.js';
+import { affectedSubjects } from './affected.js';
 
 /**
  * What an edit could not possibly have changed.

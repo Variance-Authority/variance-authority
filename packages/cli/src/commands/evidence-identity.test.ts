@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { updateSourceIndex } from '@variance-authority/sense';
 import type { Viewport } from '@variance-authority/core/format';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { directoryDigest, evidenceIdentity, readsOf } from './evidence-identity.js';
@@ -68,12 +69,14 @@ describe('evidenceIdentity: the build and recipe every part of one collection mu
     expect((await evidenceIdentity(storybookAt('sb'), root, {})).build).toEqual(clean.build);
 
     await put('src/Button.tsx', 'export const Button = 2;');
+    expect((await evidenceIdentity(storybookAt('sb'), root, {})).build.source).toBe(clean.build.source);
+    await updateSourceIndex(root);
     const dirty = await evidenceIdentity(storybookAt('sb'), root, {});
     expect(dirty.build.commit).toBe(clean.build.commit);
     expect(dirty.build.source).not.toBe(clean.build.source);
   });
 
-  it('digests every file the scan reads, git-ignored ones included, and none it skips', async () => {
+  it('identifies the native publication, including stories and excluding ignored source', async () => {
     await put('sb/index.json', '{}');
     await put('.gitignore', 'src/generated/\n');
     await put('src/Button.tsx', 'export const Button = 1;');
@@ -82,9 +85,12 @@ describe('evidenceIdentity: the build and recipe every part of one collection mu
     await committed();
     const before = (await evidenceIdentity(storybookAt('sb'), root, {})).build.source;
 
+    await put('src/generated/tokens.ts', 'export const blue = 2;');
+    await updateSourceIndex(root);
+    expect((await evidenceIdentity(storybookAt('sb'), root, {})).build.source).toBe(before);
     await put('src/Button.stories.tsx', 'export default { title: "x" };');
     expect((await evidenceIdentity(storybookAt('sb'), root, {})).build.source).toBe(before);
-    await put('src/generated/tokens.ts', 'export const blue = 2;');
+    await updateSourceIndex(root);
     expect((await evidenceIdentity(storybookAt('sb'), root, {})).build.source).not.toBe(before);
   });
 

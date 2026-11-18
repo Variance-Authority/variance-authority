@@ -1,5 +1,5 @@
+import { indexOf } from './affected-index.fixture.js';
 import { describe, expect, it } from 'vitest';
-import { indexOf } from './affected.js';
 
 /**
  * The component index `variance run` and `variance collect` build from the
