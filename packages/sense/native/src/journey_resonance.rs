@@ -47,16 +47,16 @@ fn refused(reason: String) -> Resonance {
     Resonance { not_recorded: Some(reason), cases: 0, resonant: Vec::new() }
 }
 
-/// How each of `candidates`, the declarations of one name, resonates with `file:line`.
+/// How each of `candidates`, the declarations of `name`, resonates with `file:line`.
 #[napi(catch_unwind)]
-pub fn resonance(recording: String, file: String, line: u32, candidates: Vec<JourneyEnd>) -> Resonance {
-    match JourneyMasks::open(&recording).and_then(|mut masks| resonate(&mut masks, &file, line, &candidates)) {
+pub fn resonance(recording: String, name: String, file: String, line: u32, candidates: Vec<JourneyEnd>) -> Resonance {
+    match JourneyMasks::open(&recording).and_then(|mut masks| resonate(&mut masks, &name, &file, line, &candidates)) {
         Ok(answer) => answer,
         Err(error) => refused(format!("the recording did not read ({error})")),
     }
 }
 
-pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidates: &[JourneyEnd]) -> Result<Resonance, String> {
+pub(crate) fn resonate(masks: &mut JourneyMasks, name: &str, file: &str, line: u32, candidates: &[JourneyEnd]) -> Result<Resonance, String> {
     let Some(module) = masks.journey.module_of(file)? else {
         return Ok(refused(format!("no recorded test loaded {file}")));
     };
@@ -71,7 +71,7 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidat
     let mut resonant = Vec::with_capacity(candidates.len());
     for (at, candidate) in candidates.iter().enumerate() {
         let mut scored = Resonant { file: candidate.file.clone(), line: candidate.line, candidate: at as u32, recorded: false, cases: 0, shared: 0, score: 0.0 };
-        if let Some(function) = written_at(masks, &candidate.file, candidate.line)? {
+        if let Some(function) = written_at(masks, name, &candidate.file, candidate.line)? {
             score(masks, function, &ran, &mut scored)?;
         }
         resonant.push(scored);
@@ -80,31 +80,44 @@ pub(crate) fn resonate(masks: &mut JourneyMasks, file: &str, line: u32, candidat
     Ok(Resonance { not_recorded: None, cases: ran.len() as u32, resonant })
 }
 
-/// The outermost recorded function of `file` written from `line` that is not
-/// handed to a call. The instrumenter names such a callback for the call,
-/// `map.arg0`, so one written on a constant's line leaves the constant
-/// unscored. Matched by line, not by the asked name: the index answers a name
-/// with declarations spelled otherwise — the original of a renamed import, a
-/// member asked for by its container — and one file can write two functions of
-/// one name.
-fn written_at(masks: &JourneyMasks, file: &str, line: u32) -> Result<Option<u32>, String> {
+/// The recorded function of `file` that the declaration at `line` writes: the
+/// outermost one starting at `line` that is not handed to a call, or else the
+/// first after it whose own name is `name`.
+///
+/// The instrumenter names a callback for the call, `map.arg0`, so one written
+/// on a constant's line leaves the constant unscored. The line is matched first,
+/// not the name: the index answers a name with declarations spelled otherwise —
+/// the original of a renamed import, a member asked for by its container — and
+/// one file can write two functions of one name. A function's region opens at
+/// its parameters, below the declaration's line when `const name =` or a long
+/// type parameter list ends a line; the instrumenter names that function for
+/// the constant, so the name finds it.
+fn written_at(masks: &JourneyMasks, name: &str, file: &str, line: u32) -> Result<Option<u32>, String> {
     let Some(module) = masks.journey.module_of(file)? else { return Ok(None) };
-    let mut found = None;
+    let (mut at_line, mut below) = (None, None);
     for at in masks.functions_in(module) {
         let bit = masks.bits[at as usize];
-        if bit.start != line || handed_to_a_call(masks.journey.text(bit.name)?) {
+        if bit.start < line {
             continue;
         }
-        if found.is_none_or(|held: u32| bit.end > masks.bits[held as usize].end) {
-            found = Some(at);
+        let own = own_name(masks.journey.text(bit.name)?);
+        if bit.start == line && !handed_to_a_call(own) && at_line.is_none_or(|held: u32| bit.end > masks.bits[held as usize].end) {
+            at_line = Some(at);
+        }
+        if bit.start > line && own == name && below.is_none_or(|held: u32| bit.start < masks.bits[held as usize].start) {
+            below = Some(at);
         }
     }
-    Ok(found)
+    Ok(at_line.or(below))
 }
 
-/// Whether a region's own name, the last step of its path, is the `{callee}.arg{index}` a callback is named for.
-fn handed_to_a_call(path: &str) -> bool {
-    let own = path.rsplit('/').next().unwrap_or(path);
+/// A region's own name: the last step of its path.
+fn own_name(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}
+
+/// Whether `own` is the `{callee}.arg{index}` a callback is named for.
+fn handed_to_a_call(own: &str) -> bool {
     own.rsplit_once(".arg").is_some_and(|(_, index)| !index.is_empty() && index.bytes().all(|b| b.is_ascii_digit()))
 }
 

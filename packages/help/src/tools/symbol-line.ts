@@ -35,7 +35,7 @@ export function symbolAtLine(help: Help, input: Readonly<Record<string, unknown>
   const declared = declaredFiles(help, rest, invocation, symbol);
   if (declared === undefined) return [`No file in this checkout declares \`${name}\`, so no recording tells its declarations apart:`, '', symbol.run(help, rest, invocation)].join('\n');
   const candidates = [...declared].flatMap(([file, lines]) => lines.map((line) => ({ file, line })));
-  const suites = resonance(root, at, candidates);
+  const suites = resonance(root, at, name, candidates);
   const told = suites.filter((suite) => suite.resonance.notRecorded == null && suite.resonance.cases > 0);
   const untold = suites.filter((suite) => !told.includes(suite)).map((suite) => untoldLine(suite, at, name, told.length === 0 ? ':' : '.'));
   if (told.length === 0) {
