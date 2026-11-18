@@ -122,8 +122,8 @@ comes first, every declared part is then looked at once.
 - **None, quiet, and the app went somewhere you did not declare**: the action
   fails and says where — `submit: reached none of payment, signIn, and the page
   went to /help, which no outcome declares`. Somewhere is the page navigating,
-  a hash or history change included, a new page opening, or a modal dialog
-  opening. Staying is never reported for it.
+  a hash or history change included, a new page opening, even one whose document has not
+  answered yet, or a modal dialog opening. Staying is never reported for it.
 - **None, and no `stay`**: the action fails at the timeout, naming the outcomes
   none of which was reached.
 - **None, and never quiet**: the action fails at the timeout too, naming the

@@ -39,6 +39,8 @@ const CHECKOUT = `<!doctype html>
       if (part === 'signIn') document.querySelector('dialog').show();
       if (part === 'elsewhere') location.assign('/checkout/elsewhere');
       if (part === 'window') window.open('about:blank');
+      if (part === 'slowWindow') window.open('/slow');
+      if (part === 'framed') document.body.appendChild(document.createElement('iframe')).srcdoc = '<form aria-label="Payment">Card number</form>';
       if (part === 'frame') document.body.appendChild(document.createElement('iframe')).src = '/checkout/frame';
       if (part === 'help') document.body.appendChild(document.createElement('dialog')).showModal();
     }
@@ -240,6 +242,31 @@ chromium_('an action over a page that announces nothing', () => {
 
     await expect(submit(page)).resolves.toMatchObject({ outcome: 'signIn' });
     expect(looks).toBe(3);
+  });
+
+  it('fails, and does not report staying, when the page it opened has not answered yet', async () => {
+    const submit = quick('submit', { ...outcomes, refused: stay }, click);
+    // The new page's document takes three quiet periods to begin.
+    await page.context().route(`${ORIGIN}/slow`, (route) =>
+      // The case is over, and its context gone, before this answers.
+      setTimeout(() => void route.fulfill({ contentType: 'text/html', body: 'slow' }).catch(() => undefined), 3 * QUIET),
+    );
+    await open('answer=slowWindow');
+
+    await expect(submit(page)).rejects.toThrow(
+      'submit: reached none of payment, signIn, and a new page opened, which no outcome declares',
+    );
+  });
+
+  it('reaches an outcome inside a frame, declared beside one in the page', async () => {
+    const submit = quick(
+      'submit',
+      { ...outcomes, payment: (on: Page) => on.frameLocator('iframe').getByRole('form', { name: 'Payment' }) },
+      click,
+    );
+    await open('answer=framed');
+
+    await expect(submit(page)).resolves.toMatchObject({ outcome: 'payment' });
   });
 
   it('reaches a declared outcome on another document', async () => {
