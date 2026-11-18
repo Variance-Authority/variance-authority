@@ -25,7 +25,6 @@ use std::time::{Duration, SystemTime};
 
 use napi_derive::napi;
 
-use crate::GitTree;
 use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha256};
@@ -257,39 +256,6 @@ fn named(path: &str) -> Option<HashSet<(String, String)>> {
         Ok(None) => Some(HashSet::new()),
         Err(_) => None,
     }
-}
-
-#[napi]
-impl GitTree {
-    /// Add to the first of `stores` every parse the chain at `chain` holds, no
-    /// store does, and this tree read only as the blob it is kept under; how
-    /// many went in.
-    #[napi(catch_unwind)]
-    pub fn fill_parse_store(&self, stores: Vec<String>, chain: String) -> napi::Result<u32> {
-        fill(&stores, &chain, &self.from_blob)
-    }
-}
-
-/// Add to the first of `stores` every parse the chain at `chain` holds, no
-/// store does and `from_blob` shares; how many went in.
-fn fill(stores: &[String], chain: &str, from_blob: &crate::parse_origin::FromBlob) -> napi::Result<u32> {
-    let fail = |error: String| napi::Error::from_reason(format!("the parse store at {} was not filled: {error}", stores.first().map_or("", String::as_str)));
-    let Some(root) = read_chain(chain).map_err(fail)? else { return Ok(0) };
-    let layers = opened(&root);
-    let held = Stores::read(stores);
-    let store = held.open();
-    let mut rows: Vec<(String, ParseView)> = folded(&layers)
-        .into_iter()
-        .filter(|((digest, way), _)| !store.holds(digest, way) && from_blob.shares(digest, way))
-        .map(|((digest, way), (layer, row))| (key(digest, way), ParseView::of(&layers[layer], row)))
-        .collect();
-    if rows.is_empty() {
-        return Ok(0);
-    }
-    rows.sort_by(|left, right| code_unit(&left.0, &right.0));
-    let rows: Vec<(&str, &ParseView)> = rows.iter().map(|(key, view)| (key.as_str(), view)).collect();
-    let wrote = held.append(&rows).map_err(|error| fail(error.to_string()))?;
-    Ok(if wrote { rows.len() as u32 } else { 0 })
 }
 
 /// Drop from the store at `store` every key no chain in `chains` names, unless

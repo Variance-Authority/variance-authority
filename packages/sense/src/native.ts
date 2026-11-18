@@ -30,7 +30,7 @@ import type {
 } from './native-journey.js';
 import type { NativeCasesEntered, NativeDependencyLexicon, NativeExternalOrientation, NativeOrientation, NativeOrientMapListing, NativeOrientMaps } from './native-orient.js';
 import type { NativeCommitTexts } from './native-commit-text.js';
-import type { NativeParseOrigins, NativeSourceIndexes } from './native-source-index.js';
+import type { NativeSourceIndexes } from './native-source-index.js';
 import type { NativeDistill } from './native-distill.js';
 import type { NativeSaid } from './native-said.js';
 import type { NativeJourneys, NativeJourneysListing } from './native-journeys.js';
@@ -39,7 +39,7 @@ import { witnessesOf } from './witness.js';
 import type { NativeModuleReaders, NativeModuleReferences, NativeModuleVerdict } from './native-module-reads.js';
 import type { NativeUpdateOptions, NativeUpdated } from './native-update.js';
 /** Every tracked path under a root, with the digest of the bytes on disk. */
-export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing, NativeParseOrigins {
+export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysListing {
   readonly size: number;
   /** Watchman vouched for the listing the index held, and git listed nothing (`native/src/change_tree.rs`). */
   readonly vouched: boolean;
@@ -71,8 +71,8 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
   ): NativeScanBatch;
   /** A cold closure held on the native side ([`native-index-graph.ts`](./native-index-graph.ts)). */
   indexGraph(options: NativeIndexGraphOptions): NativeIndexGraph;
-  /** A warm update of the source index on the native side; `null` when the JavaScript update has to ([`native-update.ts`](./native-update.ts)). */
-  updateIndex?(options: NativeUpdateOptions): NativeUpdated | null;
+  /** An update of the source index on the native side ([`native-update.ts`](./native-update.ts)). */
+  updateIndex(options: NativeUpdateOptions): NativeUpdated;
   paths(): string[];
   digests(): string[];
   named(names: string[]): string[];

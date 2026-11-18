@@ -254,12 +254,14 @@ impl GitTree {
     }
 
     /// Bring the source index at `options.index` up to this tree, on this
-    /// side, or `null` when the JavaScript update has to (`source_update.rs`).
+    /// side (`source_update.rs`).
     #[napi(catch_unwind)]
-    pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<Option<source_update::Updated>> {
+    pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<source_update::Updated> {
         #[cfg(unix)]
-        let carry = match change_tree::carry(&self.change, &options.config, &options.index) { Ok(carry) => carry, Err(done) => return Ok(Some(done)) };
-        let tree = source_update::Tree {
+        let carry = match change_tree::carry(&self.change, &options.config, &options.index) { Ok(carry) => carry, Err(done) => return Ok(done) };
+        let disk = acquire::TreeObjects::disk();
+        let store = if options.packs == Some(false) { &disk } else { &self.store };
+        let tree = || source_update::Tree {
             paths: &self.paths,
             at: &self.at,
             oids: &self.oids,
@@ -268,13 +270,17 @@ impl GitTree {
             regular: &self.regular,
             unhashed: &self.unhashed,
             from_blob: &self.from_blob,
-            store: &self.store,
+            store,
             #[cfg(unix)]
-            carry,
+            carry: carry.clone(),
         };
         // A segment of the published length is read unhashed, so damaged bytes in it can panic a read:
-        // that declines, as any other unreadable chain does, and the JavaScript update rebuilds it.
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options, tree))).unwrap_or(Ok(None))
+        // the index is then rebuilt from the tree, as any other chain it cannot stand on is.
+        let first = options.clone();
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(first, tree(), false))) {
+            Ok(done) => done,
+            Err(_) => source_update::update(options, tree(), true),
+        }
     }
 
     /// Every path, sorted by code unit.

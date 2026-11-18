@@ -64,6 +64,11 @@ pub(crate) const LARGEST_FILE: u32 = 1024 * 1024;
 pub(crate) struct TreeObjects(Mutex<(usize, Option<Option<Arc<Objects>>>)>);
 
 impl TreeObjects {
+    /// A store that never opens: every read comes off the disk.
+    pub(crate) fn disk() -> Self {
+        TreeObjects(Mutex::new((0, Some(None))))
+    }
+
     /// The store a read of `files` under `root` comes from, or `None` for the
     /// disk; a store that cannot open is not asked again.
     pub(crate) fn objects(&self, root: &Path, files: usize) -> Option<Arc<Objects>> {

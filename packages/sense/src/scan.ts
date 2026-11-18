@@ -51,7 +51,7 @@ import type { Digest } from '@variance-authority/core/format';
 import { memoryParseCache, type Parsed, type ParseCache } from './cache.js';
 import { gitTreeOf, treeOf } from './tree.js';
 import { shapeOf, unlistedShapeOf, type RecordCache } from './reuse.js';
-import { nativeFrontier, nativeGraph, type NativeBuilt, type NativeGitTree } from './native.js';
+import { nativeFrontier, nativeGraph, type NativeBuilt } from './native.js';
 import { native, nativeRefusal } from './addon.js';
 import { adoptNativeParses } from './source-index.js';
 import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
@@ -222,43 +222,11 @@ export async function scanRelations(options: ScanOptions): Promise<readonly File
   return [...built.values()].sort((a, b) => codeUnitOrder(a.file, b.file));
 }
 
-/** What {@link scanCount} counted, and the listing it took of the checkout. */
-export interface ScanCounted {
-  readonly files: number;
-  /** The modules whose bytes the scan parsed: neither a record nor a parse store answered them. */
-  readonly parsed: number;
-  /** The listing git gave the scan; absent when git could not list the checkout, or the addon did not hold it. */
-  readonly listing?: NativeGitTree;
-}
-
-/**
- * How many files {@link scanRelations} would return, for a caller that hands
- * `cache` and `reuse` their records and needs only the count back, with the
- * listing the scan took, for a step after it to carry.
- *
- * A cold closure the addon holds is counted where it is, so a build that
- * publishes the index never turns the closure into objects just to count them.
- */
-export async function scanCount(options: ScanOptions): Promise<ScanCounted> {
-  const { built, graph, listing, parsed } = await scanning(options);
-  const counted = (files: number, read: number): ScanCounted =>
-    (listing === undefined ? { files, parsed: read } : { files, parsed: read, listing });
-  if (graph === undefined) return counted(built.size, parsed);
-  let both = 0;
-  for (const file of built.keys()) if (graph.has(file)) both += 1;
-  // A closure the addon holds read every module it names.
-  return counted(built.size + graph.size - both, parsed + graph.parsed);
-}
-
 interface Scanned {
   /** Every record the scan built or reused in JavaScript. */
   readonly built: Map<string, FileRecord>;
   /** The cold closure the addon holds, whose records win where both name a file. */
   readonly graph?: NativeIndexGraph;
-  /** The listing of the checkout the scan took, when the addon holds it. */
-  readonly listing?: NativeGitTree;
-  /** The modules whose bytes the scan had parsed, but for a closure the addon holds. */
-  readonly parsed: number;
 }
 
 async function scanning(asked: ScanOptions): Promise<Scanned> {
@@ -291,9 +259,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
   // scan already holds the answer for every path it knows, and every parse.
   const largestFile = options.largestFile ?? LARGEST_FILE;
-  let parsed = 0; // counted where JavaScript parses, whichever of a resolver and the scan asks first
-  const counted = (file: string, contents: string): void => { parsed += 1; tree?.native?.parsedFrom(file, contents); };
-  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, counted, digest: tree?.getAll([file])[0] });
+  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, digest: tree?.getAll([file])[0] });
   const world = tree === undefined ? worldOn(root, parse) : worldIn(tree.paths(), root, parse);
   resolvers.tree = world;
 
@@ -361,7 +327,6 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   const accept = (file: string, way: ParseWay, fresh: NativeBuilt): void => {
     built.set(file, fresh.record);
     reuse?.set(fresh.record, fresh.witnesses, fresh.targets);
-    if (fresh.parsed === true) parsed += 1;
     const key = fresh.record.digest === undefined ? undefined : keyFor(fresh.record.digest, way);
     if (fresh.read !== undefined && key !== undefined) cache.set(key, fresh.read);
     // A kept parse crossed as what its record needs; the whole one is the store's.
@@ -421,7 +386,6 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         directories: shape?.shape.directories ?? new Map(),
         largestFile,
         remembering: reuse !== undefined,
-        counted,
         ...(digest === undefined ? {} : { digest }),
       });
       accept(file, way, fresh);
@@ -487,8 +451,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
     resolvers.modules.clearCache();
   }
 
-  const listing = tree?.native;
-  return { built, parsed, ...(graph === undefined ? {} : { graph }), ...(listing === undefined ? {} : { listing }) };
+  return { built, ...(graph === undefined ? {} : { graph }) };
 }
 
 /** Whether a path is there to be opened, without opening it. */

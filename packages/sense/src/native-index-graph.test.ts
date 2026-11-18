@@ -10,12 +10,10 @@ import { keyFor, parseWay } from './files.js';
 import { nativeGraph, type NativeGitTree } from './native.js';
 import { native, nativeAvailable } from './addon.js';
 import { graphRecords, nativeIndexGraph } from './native-index-graph.js';
-import { parseStorePath } from './parse-store.js';
 import { updateSourceIndex } from './published.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { shapeOf } from './reuse.js';
-import { memoryParseCache } from './cache.js';
-import { LARGEST_FILE, scanCount } from './scan.js';
+import { LARGEST_FILE } from './scan.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import { type IndexedRecord, type StoredSourceIndex, decodeSourceIndex } from './source-index-format.js';
 import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
@@ -151,7 +149,7 @@ describe('a cold closure held by the addon', () => {
     expect([...parses.values()].filter((each) => each.harvested !== true)).toEqual([]);
   });
 
-  // `scanCount` reports what the closure parsed: a module it declined for its
+  // A closure reports what it parsed: a module it declined for its
   // size holds a record but was never parsed.
   it.runIf(available)('counts the modules it parsed, not the ones it declined', async () => {
     const seeds = ['packages/sense/src/source-index.ts'];
@@ -185,23 +183,28 @@ describe('a cold closure held by the addon', () => {
     return directory;
   }
 
-  it.runIf(available)('counts, through a scan, every module the closure holds and only the ones it parsed', async () => {
-    const counted = await scanCount({ root: await many(), dirs: ['src'], cache: memoryParseCache() });
-    expect(counted).toMatchObject({ files: closureSize + 1, parsed: closureSize });
-  }, 120_000);
-
-  it.runIf(available)('parses none of a closure it holds whose modules a store kept from another root', async () => {
+  async function withCache<T>(body: () => Promise<T>): Promise<T> {
     const before = process.env[CACHE_VARIABLE];
-    const cache = await mkdtemp(join(tmpdir(), 'variance-scan-store-'));
-    process.env[CACHE_VARIABLE] = cache;
+    process.env[CACHE_VARIABLE] = await mkdtemp(join(tmpdir(), 'variance-scan-store-'));
     try {
-      await updateSourceIndex(await many());
-      const counted = await scanCount({ root: await many(), dirs: ['src'], cache: memoryParseCache(), stores: [parseStorePath(cache)] });
-      expect(counted).toMatchObject({ files: closureSize + 1, parsed: 0 });
+      return await body();
     } finally {
       if (before === undefined) delete process.env[CACHE_VARIABLE];
       else process.env[CACHE_VARIABLE] = before;
     }
+  }
+
+  it.runIf(available)('counts, through an update, every module the closure holds and only the ones it parsed', async () => {
+    const updated = await withCache(async () => updateSourceIndex(await many()));
+    expect(updated).toMatchObject({ files: closureSize + 1, parsed: closureSize });
+  }, 120_000);
+
+  it.runIf(available)('parses none of a closure it holds whose modules a store kept from another root', async () => {
+    const updated = await withCache(async () => {
+      await updateSourceIndex(await many());
+      return updateSourceIndex(await many());
+    });
+    expect(updated).toMatchObject({ files: closureSize + 1, parsed: 0 });
   }, 240_000);
 
   it('throws a closure the addon failed to build to the scan that asked for it', () => {

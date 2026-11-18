@@ -10,10 +10,10 @@
 //! walk (`batch.rs`) opens only the files past them, and one delta is written.
 //!
 //! What stays JavaScript's is what it owns: the configuration digest, which
-//! `reuse.ts` derives from the resolver options, and the fallbacks. This
-//! declines with `None` — no chain, a legacy or damaged one, another
-//! configuration, a file no native reader opens — and the JavaScript update
-//! runs as it always did. Nothing here guesses.
+//! `reuse.ts` derives from the resolver options. Every index is made here: a
+//! chain this cannot stand on — none, a legacy or damaged one, another
+//! configuration — is rebuilt from the tree, and what it cannot do at all is
+//! an error rather than somebody else's turn.
 //!
 //! Nothing changed, no record is written; a listing the tree carries (spec
 //! 0107) is written with the segment it stands beside.
@@ -37,7 +37,7 @@ use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Generation};
 use crate::git::Oid;
 use crate::index::way;
-use crate::index_chain::read_chain;
+use crate::index_chain::{read_chain, Chain};
 use crate::log::{written, LogSegment, Over};
 use crate::order::code_unit;
 use crate::package_graph::names_object;
@@ -48,6 +48,7 @@ use crate::witness::AliasTable;
 
 /// What an update needs that only the caller knows.
 #[napi(object)]
+#[derive(Clone)]
 pub struct UpdateOptions {
     pub root: String,
     pub index: String,
@@ -67,6 +68,8 @@ pub struct UpdateOptions {
     /// the one this update adds its parses to (`parse_store.rs`). With them, an
     /// index that does not exist yet is started here.
     pub stores: Option<Vec<String>>,
+    /// `false` reads every file off the working tree, never out of Git's object store.
+    pub packs: Option<bool>,
 }
 
 /// What an update did.
@@ -82,6 +85,10 @@ pub struct Updated {
     pub published: bool,
     /// What the file system refused, when it did: the index is then as it was.
     pub refused: Option<String>,
+    /// Why a chain on disk was rebuilt rather than updated: `damaged`, or `other-version` when another release wrote it.
+    pub rebuilt: Option<String>,
+    /// The format version that release wrote, when `rebuilt` is `other-version`.
+    pub written: Option<u32>,
 }
 
 /// The tree an update is made against.
@@ -198,32 +205,33 @@ fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, St
 }
 
 /// The key a parse is stored under: `joinedKey` in `source-index-format.ts`.
-pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Updated>> {
+pub(crate) fn update(o: UpdateOptions, tree: Tree, cold: bool) -> napi::Result<Updated> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {} did not update: {error}", o.index));
-    // A chain that cannot be read is the JavaScript update's to describe, which is where its refusals are worded.
-    // No chain is started here when the caller names the stores to answer it from; anything else unreadable is JavaScript's.
-    let chain = match read_chain(&o.index) {
-        Ok(Some(chain)) => Some(chain),
-        Ok(None) if o.stores.is_some() => None,
-        _ => return Ok(None),
+    // A chain this update cannot stand on — unreadable, legacy, damaged — is
+    // rebuilt from the tree, as a missing one is. One made under another
+    // configuration is stood on with none of its records trusted: every file is
+    // resolved again and only what differs is written, so its base, and what is
+    // built on that base, stays.
+    let read = if cold { None } else { read_chain(&o.index).ok().flatten() };
+    let fits = |chain: &&Chain| chain.dropped == 0 && !chain.references.is_empty() && chain.references.len() == chain.segments.len();
+    let opened = read.as_ref().filter(fits).and_then(|chain| chain.segments.par_iter().map(|bytes| Layer::open(bytes)).collect::<Result<Vec<_>, _>>().ok());
+    let configured = opened.as_ref().is_some_and(|layers| layers.last().and_then(|layer| layer.config) == Some(o.config.as_str()));
+    // A chain left behind for a segment that does not read is told apart from one
+    // that only predates the manifest, and one another release wrote from both.
+    let (rebuilt, version) = match (&read, &opened) {
+        (Some(chain), None) if chain.dropped > 0 || chain.segments.iter().any(|bytes| Layer::open(bytes).is_err()) => {
+            let version = chain.segments.iter().find_map(|bytes| crate::stored::written(bytes));
+            (Some(if version.is_some() { "other-version" } else { "damaged" }.to_string()), version)
+        }
+        _ => (None, None),
     };
-    if chain.as_ref().is_some_and(|chain| chain.dropped > 0 || chain.references.is_empty() || chain.references.len() != chain.segments.len()) {
-        return Ok(None);
-    }
-    let segments: &[Vec<u8>] = chain.as_ref().map_or(&[], |chain| &chain.segments);
-    let Ok(layers) = segments.par_iter().map(|bytes| Layer::open(bytes)).collect::<Result<Vec<_>, _>>() else {
-        return Ok(None);
-    };
-    if chain.is_some() && layers.last().and_then(|layer| layer.config) != Some(o.config.as_str()) {
-        return Ok(None);
-    }
+    let chain = if opened.is_some() { read.as_ref() } else { None };
+    let layers = opened.unwrap_or_default();
+    let segments: &[Vec<u8>] = chain.map_or(&[], |chain| &chain.segments);
     let stores = Stores::read(o.stores.as_deref().unwrap_or_default());
     let store = stores.open();
     let kept = |identity: &str, file: &str| store.view(identity, &way(file))?.read();
-    let aliases = match o.aliases.as_deref().map(serde_json::from_str::<AliasTable>).transpose() {
-        Ok(aliases) => aliases,
-        Err(_) => return Ok(None),
-    };
+    let aliases = o.aliases.as_deref().map(serde_json::from_str::<AliasTable>).transpose().map_err(|error| fail(format!("its aliases: {error}")))?;
 
     let mut held_directories: HashMap<&str, &str> = HashMap::new();
     for layer in &layers {
@@ -247,6 +255,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
     let (root, largest) = (Path::new(&o.root), u64::from(o.largest_file.unwrap_or(LARGEST_FILE)));
     let valid: FxHashMap<&str, At> = folded
         .par_iter()
+        .filter(|_| configured)
         .filter(|(file, at)| {
             let (layer, row) = **at;
             let (stored, records) = (&layers[layer].stored, &layers[layer].records);
@@ -313,9 +322,9 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             })
             .collect();
         walked.extend(files.into_iter().zip(rows));
-        // What was needed is walked on from; a file the walk did not build is the JavaScript update's.
-        if walked.len() == before || need.iter().any(|file| !walked.contains_key(file.as_str())) {
-            return Ok(None);
+        // What was needed is walked on from: a file the walk did not build would be walked for again, forever.
+        if let Some(file) = need.iter().find(|file| !walked.contains_key(file.as_str())).or(need.first().filter(|_| walked.len() == before)) {
+            return Err(fail(format!("{file} was reached and not read")));
         }
         reached.stack.extend(need.into_iter().map(Cow::Owned));
     }
@@ -434,9 +443,15 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             let _ = &listing;
             Ok(segment)
         };
-        let (references, published, working_count): (Vec<LogSegment>, Over, usize) = match &chain {
-            Some(chain) => (chain.references.iter().map(|reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 }).collect(), Over::Published(chain.published()), chain.working),
-            None => (Vec::new(), Over::Nothing, 0),
+        let segment = |reference: &crate::index_chain::Reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 };
+        let (references, published, working_count): (Vec<LogSegment>, Over, usize) = match chain {
+            Some(chain) => (chain.references.iter().map(segment).collect(), Over::Published(chain.published()), chain.working),
+            None => (Vec::new(), Over::Anything, 0),
+        };
+        // A chain rebuilt rather than updated leaves nothing of its own behind.
+        let stale: Vec<LogSegment> = match (chain, &read) {
+            (None, Some(read)) => read.references.iter().map(segment).collect(),
+            _ => Vec::new(),
         };
         // The working layer and this delta become the next working layer: an update
         // rewrites what changed since the index was readied, and never the base.
@@ -444,7 +459,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         let beneath: Vec<&[u8]> = segments[..base].iter().map(Vec::as_slice).collect();
         if unchanged {
             let Some(listing) = listing else {
-                return Ok(Some(Updated { files, reread, parsed, published: false, refused: None }));
+                return Ok(Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version });
             };
             // Nothing to publish, and a listing to carry: the working layer is
             // written again with it, so the next update can ask Watchman from here.
@@ -456,8 +471,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
             };
             let working = carried(working, Some(listing)).map_err(fail)?;
             return match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
-                Ok(_) => Ok(Some(Updated { files, reread, parsed, published: false, refused: None })),
-                Err(error) => Ok(Some(Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)) })),
+                Ok(_) => Ok(Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version }),
+                Err(error) => Ok(Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)), rebuilt, written: version }),
             };
         }
 
@@ -486,11 +501,12 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         // is the base, and readying finds nothing to fold.
         let layered = usize::from(chain.is_some());
         // Another writer between the read and here: its chain is not the one this delta is against.
-        let refused = match written(&o.index, published, &references[..base], &[&working], &references[base..], layered) {
-            Ok(false) => return Ok(None),
+        let replaced: Vec<LogSegment> = references[base..].iter().chain(&stale).cloned().collect();
+        let refused = match written(&o.index, published, &references[..base], &[&working], &replaced, layered) {
+            Ok(false) => Some(format!("{}: another writer published it after this update read it", o.index)),
             Ok(true) => None,
             Err(error) => Some(format!("{}: {error}", o.index)),
         };
-        Ok(Some(Updated { files, reread, parsed, published: refused.is_none(), refused }))
+        Ok(Updated { files, reread, parsed, published: refused.is_none(), refused, rebuilt, written: version })
     })
 }

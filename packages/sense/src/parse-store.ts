@@ -85,22 +85,6 @@ async function rewritesParsed(repository: string): Promise<boolean> {
 }
 
 /**
- * Add to the first of `stores` what the published chain at `chain` holds, no
- * store does, and `listing` read only as the blob git names it by. A parse of
- * other bytes — a file edited under `--assume-unchanged`, or after the
- * listing — stays in its own index, and so does a module read under
- * `packs: false`, whose bytes the listing never saw. A store that cannot be
- * written costs a later root its reparse and nothing else, so it is not an error here.
- */
-export function fillParseStore(listing: NativeGitTree | undefined, stores: readonly string[], chain: string): number {
-  try {
-    return listing?.fillParseStore([...stores], chain) ?? 0;
-  } catch {
-    return 0;
-  }
-}
-
-/**
  * Drop from the cache's parse store every parse no root chain in the cache
  * names, past `graceMs` since it was added; how many went.
  */
