@@ -59,6 +59,20 @@ describe('a session read from what V8 wrote', () => {
     }
   });
 
+  it('reads a map Node cached from inside its script as no file, its sources resolved beside the script', async () => {
+    const node = join(root, 'node-inline');
+    await mkdir(node);
+    const url = `file://${join(root, 'dist/main.js')}`;
+    await writeFile(join(node, 'coverage-1-1-0.json'), JSON.stringify({
+      result: [{ url, scriptId: '1', functions }],
+      'source-map-cache': { [url]: { lineLengths: lineLengths(BUNDLE), data: BUNDLE_MAP, url: null } },
+    }));
+    const session = await readSession(node, undefined);
+
+    expect(session.scripts.map((script) => script.mapFile)).toEqual([undefined]);
+    expect(math(session.scripts)).toEqual(EXPECTED);
+  });
+
   it('names a Node script whose file no longer holds the text it ran, and reads none of it', async () => {
     const node = join(root, 'node-rebuilt');
     await mkdir(node);

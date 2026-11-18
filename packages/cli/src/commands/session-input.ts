@@ -173,7 +173,7 @@ async function mapOf(text: string, place: (url: string) => string | undefined): 
 
 /** The file a map URL names: a served script's resolves against the URL it was served from, then sits under `served`; any other's beside `file`. */
 function mapPlaceOf(url: string, scriptUrl: string, file: string, served: string | undefined): string | undefined {
-  if (!/^https?:/.test(scriptUrl) || url.startsWith('data:')) return mapFileOf(url, file);
+  if (!/^https?:/.test(scriptUrl)) return mapFileOf(url, file);
   try {
     return fileOf(new URL(url, scriptUrl).href, served);
   } catch {
