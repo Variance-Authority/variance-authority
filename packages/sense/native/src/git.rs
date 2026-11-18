@@ -45,10 +45,7 @@ pub struct Snapshot {
 /// outside a repository would be useless in exactly the tarball and sandbox
 /// cases it should handle quietly.
 pub fn snapshot(root: &str) -> Option<Snapshot> {
-    let listing = crate::stages::start("listing");
-    let snapshot = snapshot_of(root, true);
-    listing.end();
-    snapshot
+    snapshot_of(root, true)
 }
 
 /// `snapshot`, with the working tree compared in-process only when `compared`

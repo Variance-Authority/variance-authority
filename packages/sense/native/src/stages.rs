@@ -50,10 +50,20 @@ pub(crate) fn start(name: &'static str) -> Stage {
     Stage(on().then(|| (name, Instant::now())))
 }
 
+/// The walk, started now with its sums zeroed, so a run that stopped short leaves nothing in them.
+pub(crate) fn start_walk(name: &'static str) -> Stage {
+    if on() {
+        for sum in [&READ, &PARSE, &RESOLVE] {
+            sum.store(0, Ordering::Relaxed);
+        }
+    }
+    start(name)
+}
+
 impl Stage {
     pub(crate) fn end(self) {
         if let Some((name, started)) = self.0 {
-            eprintln!("variance stage {name}: {}, peak {}", seconds(started.elapsed()), peak());
+            eprintln!("variance stage {name}: {}{}", seconds(started.elapsed()), peak());
         }
     }
 
@@ -64,7 +74,7 @@ impl Stage {
             let (parse, read_and_parse, resolve) = (take(&PARSE), take(&READ), take(&RESOLVE));
             let read = read_and_parse.saturating_sub(parse);
             eprintln!(
-                "variance stage {name}: {}, peak {} (thread time: read {}, parse {}, resolve {})",
+                "variance stage {name}: {}{} (thread time: read {}, parse {}, resolve {})",
                 seconds(started.elapsed()),
                 peak(),
                 seconds(read),
@@ -79,7 +89,7 @@ fn seconds(time: Duration) -> String {
     format!("{:.3} s", time.as_secs_f64())
 }
 
-/// The process's peak resident memory so far, where the platform gives it.
+/// `, peak` and the process's peak resident memory so far, or nothing where the platform does not give it.
 fn peak() -> String {
     #[cfg(unix)]
     {
@@ -90,10 +100,10 @@ fn peak() -> String {
             let maximum = unsafe { usage.assume_init() }.ru_maxrss as u64;
             // macOS counts bytes, Linux kibibytes.
             let bytes = if cfg!(target_os = "macos") { maximum } else { maximum * 1024 };
-            return format!("{:.2} GB", bytes as f64 / 1e9);
+            return format!(", peak {:.2} GB", bytes as f64 / 1e9);
         }
     }
-    "unknown".to_string()
+    String::new()
 }
 
 #[cfg(test)]

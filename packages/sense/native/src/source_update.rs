@@ -245,7 +245,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
     let texting = texting(&o.root);
     let world = World::new(Some(tree.world.0), Some(tree.world.1)).reading(&parsing, &texting);
     opening.end();
-    let walking = crate::stages::start("walk");
+    let walking = crate::stages::start_walk("walk");
     loop {
         reached.walk(&layers, &valid, &walked, &readable);
         if reached.need.is_empty() {
