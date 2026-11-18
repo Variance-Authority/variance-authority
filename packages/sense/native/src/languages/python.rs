@@ -13,7 +13,7 @@ use super::{children_for_field, head, kind_of, line_of, named_children, span_of,
 use crate::harvest::{SourceSymbol, TextSpan};
 
 /// Everything a Python file's bytes say, without touching a disk.
-pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
+pub fn read(source: &str, tree: &tree_sitter::Tree) -> Read {
     let mut at = Gathering::default();
     if tree.root_node().has_error() {
         at.reasons
@@ -46,7 +46,7 @@ pub fn read(file: &str, source: &str, tree: &tree_sitter::Tree) -> Read {
         unknown: if at.reasons.is_empty() {
             None
         } else {
-            Some(format!("{file} — {}", at.reasons.join("; ")))
+            Some(at.reasons.join("; "))
         },
         ..Read::default()
     }

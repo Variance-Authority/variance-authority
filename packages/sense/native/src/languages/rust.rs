@@ -21,7 +21,7 @@ struct Gathering {
     broken: bool,
 }
 
-pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
+pub fn read(source: &str, tree: &Tree) -> Read {
     let root = tree.root_node();
     let mut held = Gathering {
         requests: Vec::new(),
@@ -40,7 +40,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
             Some(held.exports)
         },
         unknown: held.broken.then(|| {
-            format!("{file} did not parse cleanly as Rust, so what it imports may be incomplete.")
+            "did not parse cleanly as Rust, so what it imports may be incomplete.".to_owned()
         }),
         ..Read::default()
     }

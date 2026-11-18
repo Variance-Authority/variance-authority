@@ -20,8 +20,8 @@ pub fn read_source(file: String, source: String) -> String {
 /// reader here claims that language, and the caller records the file as unknown.
 #[cfg(feature = "grammars")]
 #[napi(catch_unwind)]
-pub fn read_language(language: String, file: String, source: String) -> Option<String> {
-    let read = crate::languages::read(&language, &file, &source)?;
+pub fn read_language(language: String, source: String) -> Option<String> {
+    let read = crate::languages::read(&language, &source)?;
     serde_json::to_string(&read).ok()
 }
 
@@ -33,6 +33,6 @@ pub fn read_language(language: String, file: String, source: String) -> Option<S
 /// and is what it was.
 #[cfg(not(feature = "grammars"))]
 #[napi(catch_unwind)]
-pub fn read_language(_language: String, _file: String, _source: String) -> Option<String> {
+pub fn read_language(_language: String, _source: String) -> Option<String> {
     None
 }

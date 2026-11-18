@@ -21,7 +21,7 @@ use crate::harvest::SourceSymbol;
 /// The request a file makes for its own target: the files it sees without asking.
 const OWN_TARGET: &str = "*";
 
-pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
+pub fn read(source: &str, tree: &Tree) -> Read {
     let root = tree.root_node();
     let mut requests: Vec<Request> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
@@ -62,7 +62,7 @@ pub fn read(file: &str, source: &str, tree: &Tree) -> Read {
         requests,
         exports: if exports.is_empty() { None } else { Some(exports) },
         unknown: broken.then(|| {
-            format!("{file} did not parse cleanly as Swift, so what it imports may be incomplete.")
+            "did not parse cleanly as Swift, so what it imports may be incomplete.".to_owned()
         }),
         ..Read::default()
     }
