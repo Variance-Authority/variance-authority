@@ -6,7 +6,7 @@ import { encodeExecutionIndex, landCases, testCoverageFile, withCaseSections, wr
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
-import { EXIT_CLEAN } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
 
 /**
  * `variance ask symbol --line`, through the command a person types: the
@@ -80,6 +80,54 @@ describe('variance ask symbol --line', () => {
     expect(answered.out).toContain('src/legacy.ts:1');
   });
 
+  it('refuses a line it cannot place at the recording\'s commit', async () => {
+    await recorded({ commit: 'f'.repeat(40) });
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n')[0]).toBe('The recording cannot place src/page.ts:3: git could not diff it against commit ffffffffffff, so nothing tells the declarations of `useSessionId` apart:');
+  });
+
+  it('says a line written since the recording ran tells nothing apart', async () => {
+    const root = await recorded();
+    writeFileSync(join(root, 'src/fresh.ts'), "import { useSessionId } from './session';\nexport const fresh = (): string => useSessionId();\n");
+    execFileSync('git', ['add', '.'], { cwd: root });
+    execFileSync('git', ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'since'], { cwd: root });
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/fresh.ts:2']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n')[0]).toBe('The recording cannot place src/fresh.ts:2: the line was written since the recording ran, so nothing tells the declarations of `useSessionId` apart:');
+  });
+
+  it('refuses a line outside the checkout', async () => {
+    const root = await recorded();
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', '../elsewhere.ts:1']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n')[0]).toBe(`The recording cannot place ../elsewhere.ts:1: ../elsewhere.ts is outside the checkout at ${root}, and the recording holds only paths inside it, so nothing tells the declarations of \`useSessionId\` apart:`);
+  });
+
+  it('says no recording holds a suite when nothing was recorded', async () => {
+    const root = await recorded({ recording: false });
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
+
+    expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
+    expect(answered.out.split('\n')[0]).toBe(`No recording under ${root} holds a suite, so nothing tells the declarations of \`useSessionId\` apart:`);
+  });
+
+  it('refuses a line spelled without its number', async () => {
+    await recorded();
+
+    const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts']);
+
+    expect(answered.code).toBe(EXIT_OPERATOR);
+    expect(answered.err.split('\n')[0]).toBe('`--line` takes `<file>:<line>`, such as `src/page.ts:3`, not `src/page.ts`');
+  });
+
   it('names two declarations entered by the same tests as tied', async () => {
     await recorded();
 
@@ -120,8 +168,12 @@ describe('variance ask symbol --line', () => {
   });
 });
 
-/** Five tests, each named for what it renders, recorded at the commit the sources are written at unless `commit` is false. */
-async function recorded({ commit = true }: { readonly commit?: boolean } = {}): Promise<string> {
+/**
+ * Five tests, each named for what it renders, recorded at the commit the
+ * sources are written at, at `commit` when it names one, at none when it is
+ * false, and not recorded at all when `recording` is false.
+ */
+async function recorded({ commit = true, recording = true }: { readonly commit?: boolean | string; readonly recording?: boolean } = {}): Promise<string> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'va-symbol-line-')));
   execFileSync('git', ['init', '--quiet', '--initial-branch', 'main'], { cwd: root, stdio: 'pipe' });
   process.chdir(root);
@@ -156,6 +208,7 @@ async function recorded({ commit = true }: { readonly commit?: boolean } = {}): 
   const git = (...args: string[]): string => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
   git('add', '.');
   git('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'recorded');
+  if (!recording) return root;
   const at = testCoverageFile(root);
   const files = ['test/page.test.ts', 'test/legacy.test.ts', 'test/header.test.ts', 'test/use.test.ts', 'test/report.test.ts'];
   const region = (kind: string, name: string, startLine: number, endLine: number, entered: readonly number[]) => ({
@@ -186,7 +239,7 @@ async function recorded({ commit = true }: { readonly commit?: boolean } = {}): 
   await writeTestCoverage(at, {
     version: 3,
     instrumentation: 'fixture-instrumentation',
-    ...(commit ? { commit: git('rev-parse', 'HEAD') } : {}),
+    ...(commit === false ? {} : { commit: commit === true ? git('rev-parse', 'HEAD') : commit }),
     tests: files.map((file) => ({ file, complete: true, preconditions: [] })),
     modules: Object.entries(modules).map(([file, blocks]) => covered(file, blocks)),
   });

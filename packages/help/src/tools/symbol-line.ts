@@ -65,7 +65,7 @@ function lineOf(spelled: string): { readonly file: string; readonly line: number
 
 /** Why a suite tells the declarations apart by nothing, ending in `end`: a colon when `symbol`'s answer follows. */
 function untoldLine({ suite, resonance }: SuiteResonance, at: { file: string; line: number }, name: string, end: string): string {
-  const why = resonance.notRecorded == null ? `No recorded test ran ${at.file}:${at.line}` : `The recording cannot place ${at.file}:${at.line}: ${resonance.notRecorded}`;
+  const why = resonance.notRecorded == null ? `No recorded test ran ${at.file}:${at.line}` : `The recording cannot place ${at.file}:${at.line}: ${resonance.notRecorded.replace(/\.$/, '')}`;
   return `${ofSuite(suite)}${why}, so nothing tells the declarations of \`${name}\` apart${end}`;
 }
 

@@ -83,6 +83,12 @@ it('answers a name only a dependency declares at a line as it does without one',
   expect(answer).toContain('b: number');
 });
 
+it('refuses a line when the host names no checkout to read its recording from', async () => {
+  const root = await fixture();
+  expect(() => symbol.run(readHelp(root), { name: 'sharedName', line: 'packages/beta/src/x.ts:2' }, undefined))
+    .toThrow('`symbol --line` reads what a checkout recorded, and this host named no checkout to read');
+});
+
 // The workspace answers nothing for the name, so it may be declared in a file
 // whose declarations were not read, and the installed answer says which.
 it('names the files whose declarations were not read beside an installed answer', async () => {

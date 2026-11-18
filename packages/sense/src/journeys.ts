@@ -407,7 +407,7 @@ export function resonance(root: string, at: NativeJourneyEnd, name: string, cand
       ats.forEach((at, nth) => { lines[at] = placed.lines[nth] ?? null; });
     }
     const [line, ...then] = lines;
-    if (line == null) return [refuse(`${asked.path}:${at.line} was written since the recording ran`)];
+    if (line == null) return [refuse('the line was written since the recording ran')];
     const placed = candidates.flatMap((candidate, at) => (then[at] == null ? [] : [{ at, end: { file: candidate.file, line: then[at]! } }]));
     const answer = entry('resonance')(recording, name, asked.path, line, placed.map(({ end }) => end));
     const resonant = answer.resonant.map((row) => {
