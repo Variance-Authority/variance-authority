@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { relationsOfFiles } from '@variance-authority/core/relate';
 import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { installLines, packagesReached } from './review-install.js';
-import type { Review } from './review.js';
+import type { Review } from './review-types.js';
 
 /**
  * `glob.ts` imports `micromatch`, which rests on `picomatch`; `walk.ts` imports

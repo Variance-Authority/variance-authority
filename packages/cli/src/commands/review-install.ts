@@ -18,7 +18,7 @@
 
 import { affectedBy, beyondReach, EDGE_KINDS, RUNTIME_EDGES, nodeAt, trailOf, type NodeId, type Relations, type RelationRow } from '@variance-authority/core/relate';
 import { narrowByJourneys, type ExecutionIndex } from '@variance-authority/sense/test-selection';
-import type { Review } from './review.js';
+import type { Review } from './review-types.js';
 
 /** Changed packages that files here depend on, listed before the rest are counted. */
 const PACKAGES = 20;

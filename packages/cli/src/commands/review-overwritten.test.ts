@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ChangedPackage, Review, ReviewFile, ReviewRegion } from './review.js';
+import type { ChangedPackage, Review, ReviewFile, ReviewRegion } from './review-types.js';
 import { formatReview } from './review-text.js';
 
 const TEST = 'packages/a/test/total.test.ts';

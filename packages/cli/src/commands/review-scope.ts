@@ -13,7 +13,7 @@
 import { heardSplit, valued } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { outermostOf } from './covering-frame.js';
-import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review.js';
+import type { Review, ReviewCase, ReviewFile, ReviewRegion } from './review-types.js';
 import { notKnown } from './review-words.js';
 
 /** Functions named in the first line before the rest are counted. */

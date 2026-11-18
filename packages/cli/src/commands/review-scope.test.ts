@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { functionsMarkdown, namedList, uncoveredFunctions, uncoveredMarkdown, uncoveredVerdict } from './review-scope.js';
-import type { Review, ReviewRegion } from './review.js';
+import type { Review, ReviewRegion } from './review-types.js';
 
 const region = (kind: string, name: string, startLine: number, endLine: number, reach: ReviewRegion['reach'], tests: readonly string[] = []): ReviewRegion => ({
   kind,

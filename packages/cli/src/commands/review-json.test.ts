@@ -6,7 +6,7 @@ import '../bin.fixture.js';
 import { main } from '../bin.js';
 import { REVIEW_JSON_VERSION, reviewJson, reviewOfJson } from './review-json.js';
 import { reviewPieces } from './review-text.js';
-import type { Review, ReviewCase, ReviewFile } from './review.js';
+import type { Review, ReviewCase, ReviewFile } from './review-types.js';
 
 // The review is cut at what the command prints: what it read is pinned by the
 // tests of `review`, and this one asks only how the answer reaches the reader.

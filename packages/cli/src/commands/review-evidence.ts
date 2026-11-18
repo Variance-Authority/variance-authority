@@ -2,7 +2,8 @@
 import { readCommitRuns } from '@variance-authority/sense/test-selection';
 import type { ParsedReview } from '../review-args.js';
 import { coverage } from './coverage.js';
-import { review, type Review } from './review.js';
+import { review } from './review.js';
+import { type Review } from './review-types.js';
 import { eachSuite } from './review-suites.js';
 import { namedSuite, ownRecord } from './suite-record.js';
 

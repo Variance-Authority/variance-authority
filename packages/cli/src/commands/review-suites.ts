@@ -5,7 +5,7 @@ import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
 import { readExecutionFor, recordedExecutionFile } from './execution-input.js';
 import { ranAsTree, recordedRegions, type RecordedRegions, type Removed } from './review-region.js';
-import type { Reach, ReviewRegion } from './review.js';
+import type { Reach, ReviewRegion } from './review-types.js';
 import type { IndexNames } from './source-graph.js';
 
 /** A suite that cannot be read remains visible beside the suites that can. */

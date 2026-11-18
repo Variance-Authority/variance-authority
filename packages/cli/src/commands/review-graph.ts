@@ -19,7 +19,7 @@
  */
 
 import { codeUnitOrder } from '@variance-authority/core/segment';
-import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review.js';
+import { REACHES, type Reach, type Review, type ReviewFile, type ReviewRegion } from './review-types.js';
 import { MARK, notKnown } from './review-words.js';
 
 /** Past this many functions the worst are drawn and the rest are counted. */

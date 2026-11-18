@@ -2,7 +2,8 @@
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import { declaredSuites, heardSplit } from '@variance-authority/sense/test-selection';
 import type { ParsedReview } from '../review-args.js';
-import { review, type Reach, type Review, type ReviewRegion } from './review.js';
+import { review } from './review.js';
+import { type Reach, type Review, type ReviewRegion } from './review-types.js';
 import { functionOf, TOP_LEVEL, unproven, unrecordedSources } from './review-scope.js';
 import { eachSuite, nearestOfEach, NEAREST, type MissedSuite } from './review-suites.js';
 import { FRESH_MARK, MARK, notKnown, REACH_WORD } from './review-words.js';

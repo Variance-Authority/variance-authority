@@ -8,7 +8,7 @@ import type { ExecutionIndex } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
 import { readExecutionIndex, replacedCases } from './execution-input.js';
 import type { MainlineRecord } from './mainline-base.js';
-import type { ReviewFile } from './review.js';
+import type { ReviewFile } from './review-types.js';
 
 /**
  * The case index the change is compared with: the one `--against` names or
