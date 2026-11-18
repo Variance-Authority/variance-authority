@@ -8,7 +8,9 @@ import { describe, expect, it } from 'vitest';
  *
  * The reader tables in `language.ts` and `read.ts` say which
  * extensions some reader claims; `EXTENSIONS` in `seed.rs` says which ones the
- * native seeder puts in front of them. Nothing compares the two at run time.
+ * native seeder puts in front of them, and `language_of` in `read_any.rs`
+ * says which reader the native read and resolve give each. Nothing compares
+ * them at run time.
  *
  * So a language added to the reader tables and not to the Rust list is never
  * seeded: the scan opens none of its files, and every one of them is missing
@@ -33,11 +35,28 @@ function listed(source: string, name: string): readonly string[] {
   return [...body.matchAll(/'([^']+)'/g)].map((found) => found[1]!);
 }
 
-const readable = new Set([
-  ...listed(read('src/read.ts'), 'MODULE_EXTENSIONS'),
-  ...['STYLE_EXTENSIONS', 'PYTHON_EXTENSIONS', 'RUST_EXTENSIONS', 'JAVA_EXTENSIONS', 'KOTLIN_EXTENSIONS', 'SWIFT_EXTENSIONS']
-    .flatMap((name) => listed(read('src/language.ts'), name)),
-]);
+/** Each reader table by the `Language` variant `language_of` names it with. */
+const tables: Record<string, readonly string[]> = {
+  Module: listed(read('src/read.ts'), 'MODULE_EXTENSIONS'),
+  ...Object.fromEntries(
+    ['Style', 'Python', 'Rust', 'Java', 'Kotlin', 'Swift'].map((language) => [
+      language,
+      listed(read('src/language.ts'), `${language.toUpperCase()}_EXTENSIONS`),
+    ]),
+  ),
+};
+
+const readable = new Set(Object.values(tables).flat());
+
+/** `language_of`'s arms: each extension, by the variant it answers. */
+const native = (() => {
+  const source = read('native/src/read_any.rs');
+  const at = source.indexOf('fn language_of(');
+  if (at === -1) throw new Error('read_any.rs does not declare language_of where this check reads it');
+  const body = source.slice(at, source.indexOf('\n}\n', at));
+  const arms = [...body.matchAll(/^\s*((?:"[^"]+"\s*\|?\s*)+)=> Some\(Language::(\w+)\)/gm)];
+  return new Map(arms.flatMap((arm) => [...arm[1]!.matchAll(/"([^"]+)"/g)].map((found) => [found[1]!, arm[2]!] as const)));
+})();
 
 const rust = (() => {
   const source = read('native/src/seed.rs');
@@ -58,6 +77,22 @@ describe('the native seeder and the reader tables', () => {
 
   for (const extension of rust) {
     it(`claims a reader for ${extension}, which it seeds`, () => {
+      expect(readable.has(extension)).toBe(true);
+    });
+  }
+});
+
+describe('the native reader and the reader tables', () => {
+  for (const [language, extensions] of Object.entries(tables)) {
+    for (const extension of extensions) {
+      it(`reads ${extension} as ${language}, as its table claims`, () => {
+        expect(native.get(extension)).toBe(language);
+      });
+    }
+  }
+
+  for (const extension of native.keys()) {
+    it(`claims a reader for ${extension}, which it reads`, () => {
       expect(readable.has(extension)).toBe(true);
     });
   }
