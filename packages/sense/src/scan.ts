@@ -94,6 +94,11 @@ export interface ScanOptions extends ResolveOptions {
    * over the repository into a walk over the diff: a digest that is already known
    * can be looked up before the file is opened, so an unchanged file costs a map
    * lookup rather than a read and a parse.
+   *
+   * A caller's own map must cover the checkout: its paths become the listing,
+   * so a file it leaves out is not seeded, and an import resolved against the
+   * listing — into a `build/` directory, or in a language other than JavaScript,
+   * TypeScript and stylesheets — does not find it.
    */
   readonly digests?: ReadonlyMap<string, Digest> | false;
 
