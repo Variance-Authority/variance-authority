@@ -30,7 +30,7 @@ use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
-use crate::batch::{is_module, walk_beyond, GraphOptions, Walked};
+use crate::batch::{walk_beyond, GraphOptions, Walked};
 use crate::chain_lookup::{fold, At};
 use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
@@ -271,10 +271,6 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         reached.walk(&layers, &valid, &walked, &readable);
         if reached.need.is_empty() {
             break;
-        }
-        // A file the native reader does not open is the JavaScript update's to read.
-        if reached.need.iter().any(|file| !is_module(file)) {
-            return Ok(None);
         }
         let need = std::mem::take(&mut reached.need);
         let (builtins, code, dirs) = settled.get_or_insert_with(|| {

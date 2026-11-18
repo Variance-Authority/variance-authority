@@ -84,8 +84,7 @@ describe('the native warm update', () => {
     } finally {
       proto.updateIndex = entry;
     }
-    expect(await held(start)).toEqual(await held(twin));
-  }
+    expect(await held(start)).toEqual(await held(twin));  }
 
   it('publishes what the JavaScript update publishes after an edit', async () => {
     await agree(async () => {
@@ -191,6 +190,38 @@ describe('the native warm update', () => {
 
     await updateSourceIndex(root, { index: start });
     expect(await held(start)).toEqual(before);
+  });
+
+  it('publishes what the JavaScript update publishes after edits in every language it resolves', async () => {
+    const mixed: Record<string, string> = {
+      'styles/base.css': '.base { color: red; }\n',
+      'styles/main.css': "@import './base.css';\n.main { color: blue; }\n",
+      'py/pkg/__init__.py': '',
+      'py/pkg/other.py': 'VALUE = 1\n',
+      'py/pkg/mod.py': 'from pkg.other import VALUE\n',
+      'crates/core/Cargo.toml': '[package]\nname = "core"\nversion = "0.0.0"\n',
+      'crates/core/src/lib.rs': 'mod util;\npub fn run() { util::help(); }\n',
+      'crates/core/src/util.rs': 'pub fn help() {}\n',
+      'Package.swift': 'let package = Package(name: "Kit", targets: [.target(name: "Core"), .target(name: "App")])\n',
+      'Sources/Core/Core.swift': 'public struct Core {}\n',
+      'Sources/App/main.swift': 'import Core\nlet core = Core()\n',
+      'jvm/src/main/java/a/b/Thing.java': 'package a.b;\npublic class Thing {}\n',
+      'jvm/src/main/kotlin/a/b/helpers.kt': 'package a.b\n\nfun parse() {}\n',
+      'jvm/src/main/java/a/c/Far.java': 'package a.c;\nimport a.b.Thing;\nclass Far {}\n',
+      'jvm/src/main/kotlin/a/c/near.kt': 'package a.c\n\nimport a.b.parse\n\nfun near() = parse()\n',
+    };
+    for (const [file, text] of Object.entries(mixed)) await write(file, text);
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'mixed');
+    await agree(async () => {
+      await write('styles/main.css', "@import './base.css';\n.main { color: green; }\n");
+      await write('py/pkg/mod.py', 'from pkg.other import VALUE\nfrom . import other\n');
+      await write('crates/core/src/lib.rs', 'mod util;\npub fn run() { util::help(); util::help(); }\n');
+      await write('Sources/App/main.swift', 'import Core\nlet core = Core()\nlet again = Core()\n');
+      await write('jvm/src/main/java/a/c/Far.java', 'package a.c;\nimport a.b.*;\nclass Far {}\n');
+      await write('jvm/src/main/kotlin/a/c/near.kt', 'package a.c\n\nimport a.b.parse\nimport a.b.Thing\n\nfun near() = parse()\n');
+    });
+    git('checkout', '--', '.');
   });
 
   it('declines an index nobody published, leaving it to the JavaScript update', async () => {

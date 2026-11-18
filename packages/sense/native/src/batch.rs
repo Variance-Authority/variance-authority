@@ -19,7 +19,7 @@ use crate::resolve::{Resolvers, Tsconfig};
 mod walk;
 
 use walk::{read_kept, resolve_all};
-pub(crate) use walk::{is_module, walk_beyond, Kept, Reached, Walked};
+pub(crate) use walk::{walk_beyond, Kept, Reached, Walked};
 
 /// What a batch of files said, in columns rather than per-file objects.
 #[napi(object)]
