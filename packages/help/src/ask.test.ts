@@ -21,7 +21,8 @@ describe('a verb is a tool, not a second implementation of one', () => {
 
   it('answers a verb with exactly what the tool answers', () => {
     const tool = toolNamed('search');
-    expect(ask(READING, 'search', ['deep'])).toBe(tool.run(READING, { query: 'deep' }));
+    const reading = { ...READING };
+    expect(ask(reading, 'search', ['deep'])).toBe(tool.run(reading, { query: 'deep' }));
   });
 
   it('spells the inputs and the questions an answer names as this binary takes them', () => {

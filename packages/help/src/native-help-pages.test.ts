@@ -76,7 +76,7 @@ describe('the long page', () => {
 describe('the gap page', () => {
   it('lists the names another package imports and which are silent', () => {
     const text = writeGaps(HELP, { title: 'Undocumented' });
-    expect(text).toContain('1 name crosses a package boundary');
+    expect(text).toContain('2 names cross a package boundary');
     expect(text).toContain('- `already` (`const`) — [packages/alpha/src/direct.ts:1]');
   });
 

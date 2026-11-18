@@ -87,7 +87,7 @@ const odd = (name: string): Named => ({
 /** A doc writes a name in a code span, and the span's backticks are not part of a word. */
 const SPANNED: Named = { ...odd('declaredRoles'), doc: 'The roles docs declare with `@testOnly` and `@production`.' };
 
-const HELP: Help = (async () => {
+const HELP: Help = await (async () => {
   const read = (await readNativeHelp(WORKSPACE));
   const extra = ['größe', 'Größenordnung', 'naïveCache', 'x', 'a_b', 'emoji😀Name', 'measureAll', 'mesure', 'ÅngströmUnit', 'parseHTTPResponse2', 'v8Flags', 'ΣύνολοΤιμών'];
   return { ...read, exported: [...read.exported, ...extra.map(odd), SPANNED] };

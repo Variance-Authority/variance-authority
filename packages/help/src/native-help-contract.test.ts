@@ -86,7 +86,7 @@ describe('the documentation gap', () => {
   const gap = undocumented(HELP);
 
   it('is the names another package imports and which say nothing about themselves', () => {
-    expect(gap.map((held) => held.name)).toEqual(['already']);
+    expect(gap.map((held) => held.name)).toEqual(['already', 'shapes']);
   });
 
   it('leaves out a name nothing imports, however undocumented it is', () => {

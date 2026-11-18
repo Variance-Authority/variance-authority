@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { relationsOfFiles, type Relations } from '@variance-authority/core/relate';
+import { affectedBy, relationsOfFiles, type Relations } from '@variance-authority/core/relate';
 import { publishedSelectionGraph } from '../published-selection.js';
 import { updateSourceIndex } from '../published.js';
 import { distanceFromView } from './distance.js';
@@ -47,4 +47,9 @@ it('measures executed paths and entry modules without rebuilding native graph co
   const view = openTestCoverage(encodeTestCoverage(layerCoverage));
   const selected = narrowByExecutionFromView(view, baseDiff);
   expect(distanceFromView(view, selected, {relations:native})).toEqual(distanceFromView(view, selected, {relations:memory}));
+});
+
+it('refuses a per-call shadow table because the native graph owns its configured mocks', () => {
+  expect(() => Reflect.apply(affectedBy, undefined, [native, [newFile], {shadows:new Map()}]))
+    .toThrow('native relations own their shadows; configure them when the graph is built');
 });

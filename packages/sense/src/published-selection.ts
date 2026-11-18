@@ -12,7 +12,7 @@ import { realPath, type ResolveOptions } from './resolve.js';
 import type { Taint } from './taint/index.js';
 import { withDeclaredTsconfig } from './typescript.js';
 
-export interface PublishedSelectionOptions extends ResolveOptions {
+export interface PublishedSelectionOptions extends Pick<ResolveOptions, 'tsconfig'> {
   readonly dirs: readonly string[];
   readonly before?: readonly string[];
   readonly taints?: readonly Taint[];

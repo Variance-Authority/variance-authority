@@ -284,13 +284,13 @@ describe('digests read out of git', () => {
 });
 
 describe('the change tree without the addon', () => {
-  // Cut at the addon: no held listing and no Watchman, so the tree is git's as the JavaScript reads it.
+  // Inventory has one native owner, including when the checkout is available to Git.
   afterEach(() => {
     vi.doUnmock('./addon.js');
     vi.resetModules();
   });
 
-  it("answers git's tree", async () => {
+  it('provides no JavaScript listing when the native owner is unavailable', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-tree-'));
     try {
       await write(root, 'src/Button.tsx', 'export function Button() { return null }\n');
@@ -303,8 +303,7 @@ describe('the change tree without the addon', () => {
       const { changeTreeOf } = await import('./tree.js');
 
       const tree = await changeTreeOf(root, join(root, 'index.bin'), ['src']);
-      expect(tree?.get('src/Button.tsx')).toBe(await onDisk(root, 'src/Button.tsx'));
-      expect(tree?.get('docs/readme.md')).toBe(await onDisk(root, 'docs/readme.md'));
+      expect(tree).toBeUndefined();
     } finally {
       await rm(root, { recursive: true, force: true });
     }

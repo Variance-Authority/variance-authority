@@ -244,7 +244,8 @@ export interface AffectedOptions extends Omit<TraversalOptions, 'moved'> {
   readonly moved?: ReadonlyMap<string, readonly string[]>;
 
   /**
-   * Per file, the files it takes out of its own graph: what a test mocks.
+   * For memory relations, override the files each test mocks. Native relations
+   * own this table and refuse per-call overrides.
    *
    * A row is a fact about one file's run and nothing else's, so it is kept
    * beside the records rather than in them — the records say what the text
@@ -277,11 +278,22 @@ export interface AffectedOptions extends Omit<TraversalOptions, 'moved'> {
  * `RUNTIME_EDGES`.
  */
 export function affectedBy(
+  relations: MemoryRelations,
+  changed: Iterable<string | Node>,
+  options?: AffectedOptions,
+): Affected;
+export function affectedBy(
+  relations: Relations,
+  changed: Iterable<string | Node>,
+  options?: Omit<AffectedOptions, 'shadows'> & { readonly shadows?: never },
+): Affected;
+export function affectedBy(
   relations: Relations,
   changed: Iterable<string | Node>,
   options: AffectedOptions = {},
 ): Affected {
   if ('native' in relations) {
+    if (options.shadows !== undefined) throw new Error('native relations own their shadows; configure them when the graph is built');
     const avoid = relations.native.nodes([...(options.avoid ?? [])]).filter((node) => node !== null);
     const answer = relations.native.walk({
       seeds: [...changed].map((entry) => typeof entry === 'string' ? file(entry) : entry),
