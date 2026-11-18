@@ -414,11 +414,10 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             // written again with it, so the next update can ask Watchman from here.
             let working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
             let working = match working.as_slice() {
-                [] => encode_generation::<Read>(&Generation { config: Some(&o.config), directories: &[], parses: &[], records: &[], deleted: Deleted::default() }),
-                [only] => only.to_vec(),
-                _ => merged(&beneath, &working).map_err(fail)?,
+                [] => encode_generation_carrying::<Read>(&Generation { config: Some(&o.config), directories: &[], parses: &[], records: &[], deleted: Deleted::default() }, listing),
+                [only] => carried(only.to_vec(), Some(listing)).map_err(fail)?,
+                _ => carried(merged(&beneath, &working).map_err(fail)?, Some(listing)).map_err(fail)?,
             };
-            let working = carried(working, Some(listing)).map_err(fail)?;
             encoding.end();
             return match crate::stages::timed("write", || { let done = written(&o.index, published, &references[..base], &[&working], &references[base..], 1); storing.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)); done }) {
                 Ok(still) => Ok((Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version }, !still)),
