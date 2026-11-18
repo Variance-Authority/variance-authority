@@ -197,19 +197,36 @@ pub(crate) fn scan_batch_with_oids(
             Vec::new(),
         ),
     };
-    // A language that reads its neighbours reads them as the walk does
-    // (`batch_walk.rs`): out of Git when the tree names them, off the disk otherwise.
-    let parsing = |asked: &[&str]| {
-        let asked: Vec<String> = asked.iter().map(|file| (*file).to_owned()).collect();
-        let named = asked.iter().map(|file| tree.world.and_then(|at| at.get(file)).and_then(|index| tree.oids.get(*index as usize)).copied()).collect();
-        let (read, _) = read_kept(&root, store, &asked, named, largest_file, Some(false), Some(readers.unwrap_or(6).max(1)), kept, from_blob);
-        read.into_iter().map(|(read, _, outcome)| outcome.parsed().then_some(read)).collect()
+    // A language that reads its neighbours takes the batch's own reads for the
+    // files in it, and reads the rest as the walk does (`batch_walk.rs`): out
+    // of Git when the tree names them, off the disk otherwise.
+    let held: HashMap<&str, usize> = files.iter().enumerate().map(|(index, file)| (file.as_str(), index)).collect();
+    let reading = |missing: &[String]| {
+        let named = missing.iter().map(|file| tree.world.and_then(|at| at.get(file)).and_then(|index| tree.oids.get(*index as usize)).copied()).collect();
+        let (fresh, _) = read_kept(&root, store, missing, named, largest_file, Some(false), Some(readers.unwrap_or(6).max(1)), kept, from_blob);
+        fresh
     };
+    let parsing = |asked: &[&str]| held_first(asked, &held, &read, &reading);
     let texting = |path: &str| std::fs::read_to_string(root_path.join(path)).ok();
     let world = World::new(tree.world, None).reading(&parsing, &texting);
     let targets = resolve_all(root_path, &files, &read, &resolvers, &world, tree.known);
     let columns = columns(read, true, &answered);
     scan_columns(files, Vec::new(), columns, targets, answered)
+}
+
+/// What each of `asked` says: the batch's own read for a file in it, and
+/// `reading`'s, asked once for all the rest, for one that is not — so a file
+/// the batch holds is parsed once, however many neighbours read it.
+fn held_first(asked: &[&str], held: &HashMap<&str, usize>, read: &[Answer], reading: &dyn Fn(&[String]) -> Vec<Answer>) -> Vec<Option<crate::read::Read>> {
+    let missing: Vec<String> = asked.iter().filter(|file| !held.contains_key(**file)).map(|file| (*file).to_owned()).collect();
+    let mut fresh = if missing.is_empty() { Vec::new() } else { reading(&missing) }.into_iter();
+    asked
+        .iter()
+        .map(|file| match held.get(*file) {
+            Some(index) => read[*index].2.parsed().then(|| read[*index].0.clone()),
+            None => fresh.next().and_then(|(read, _, outcome)| outcome.parsed().then_some(read)),
+        })
+        .collect()
 }
 
 /// Follow the complete module closure without crossing N-API per frontier.
@@ -339,6 +356,27 @@ mod tests {
     #[test]
     fn names_kinds_the_way_the_oracle_does() {
         assert_eq!(kinds(), ["imports", "reexports", "dynamic", "type", "depends", "asset"]);
+    }
+
+    #[test]
+    fn a_neighbour_the_batch_read_is_not_read_again() {
+        // A Rust `super` reads the `mod` lines of the file above; when that
+        // file is in the batch, its own read answers.
+        let lib = crate::read::Read::default();
+        let read: Vec<Answer> = vec![(lib, String::new(), Outcome::Parsed)];
+        let held = HashMap::from([("src/lib.rs", 0)]);
+        let asked = std::cell::RefCell::new(Vec::new());
+        let reading = |missing: &[String]| {
+            asked.borrow_mut().extend(missing.iter().cloned());
+            missing.iter().map(|_| (crate::read::Read::default(), String::new(), Outcome::Parsed)).collect()
+        };
+        let answered = held_first(&["src/lib.rs", "src/other.rs"], &held, &read, &reading);
+        assert_eq!(answered.iter().filter(|read| read.is_some()).count(), 2);
+        assert_eq!(*asked.borrow(), ["src/other.rs"]);
+        // Every file held: nothing is read.
+        asked.borrow_mut().clear();
+        held_first(&["src/lib.rs"], &held, &read, &reading);
+        assert!(asked.borrow().is_empty());
     }
 
     #[test]

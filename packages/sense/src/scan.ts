@@ -2,10 +2,10 @@
  * A repository, walked once, as file records the graph can be built from.
  *
  * This is the half that needs a disk. [`files.ts`](./files.ts) says which paths
- * exist and what their names mean, [`read.ts`](./read.ts) turns a file's text
- * into specifiers and [`resolve.ts`](./resolve.ts) turns a specifier into a file;
- * this follows what those find, and decides how little of that work a second run
- * has to repeat.
+ * exist and what their names mean, and the native addon reads every language
+ * and resolves what it asks for, one frontier at a time
+ * ([`native.ts`](./native.ts)); this follows what those find, and decides how
+ * little of that work a second run has to repeat.
  *
  * ## What it follows, and what it stops at
  *
@@ -57,17 +57,11 @@ import { adoptNativeParses } from './source-index.js';
 import { graphRecords, nativeIndexGraph, type NativeIndexGraph } from './native-index-graph.js';
 import type { IndexedRecord } from './source-index-format.js';
 import { handOverKept, type Unheld } from './parse-store.js';
-import { keyFor, languageFor, parseWay, seedPaths, type ParseWay } from './files.js';
+import { keyFor, parseWay, seedPaths, type ParseWay } from './files.js';
 import { READABLE } from './language.js';
-import { worldIn, worldOn } from './world.js';
-import { declinedForSize, parsedOnce, recordFor, stillTooLarge } from './record.js';
-import { onlyListed } from './repo-path.js';
+import { declinedForSize, stillTooLarge } from './record.js';
 import { withDeclaredTsconfig } from './typescript.js';
-import {
-  realPath,
-  resolversFor,
-  type ResolveOptions,
-} from './resolve.js';
+import { realPath, type ResolveOptions } from './resolve.js';
 
 export interface ScanOptions extends ResolveOptions {
   /** Repository root. Every path in the result is relative to it. */
@@ -240,7 +234,6 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   // nothing while reporting success.
   const root = realPath(resolve(asked.root));
   const options = withDeclaredTsconfig(root, asked);
-  const resolvers = resolversFor(options);
   const addon = native();
   if (addon === undefined) {
     throw new Error(`sense: scanning ${root} needs the native addon, which did not load: ${nativeRefusal()}`);
@@ -255,13 +248,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         ? await gitTreeOf(root, options.dirs, options.changed)
         : treeOf(options.digests);
 
-  // Every language but JavaScript resolves by asking about the tree rather
-  // than walking a `node_modules` chain ([`world.ts`](./world.ts)), and the
-  // scan already holds the answer for every path it knows, and every parse.
   const largestFile = options.largestFile ?? LARGEST_FILE;
-  const parse = (file: string) => parsedOnce({ root, file, cache, largestFile, digest: tree?.getAll([file])[0] });
-  const world = tree === undefined ? worldOn(root, parse) : worldIn(tree.paths(), root, parse);
-  resolvers.tree = world;
 
   // No digests, no reuse: a record that names no bytes cannot be checked against the
   // bytes on disk. A directory git cannot list still keeps what it read, under a shape
@@ -274,12 +261,10 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
   // index keeps whichever it read first until the blob changes. A decline for size is
   // checked against the file; one for bytes that are not UTF-8 is not.
   const packed = options.packs === false ? undefined : tree?.native;
-  // A native batch over a tree the addon does not hold resolves without Git's
-  // listing, so it is handed the part the disk cannot vouch for: the files
-  // under a tracked `build/` ([`repo-path.ts`](./repo-path.ts)). Asked for
-  // when a batch runs, which on a scan that reuses everything is never.
-  let listed: string[] | undefined;
-  const listedPaths = (): string[] => (listed ??= world.below('').filter(onlyListed));
+  // A native batch over a tree the addon does not hold is handed the tree's
+  // listing: a module under a tracked `build/` lands only when it is listed,
+  // and every other language resolves by asking the listing what is there.
+  // Without a tree the batch walks the disk for the same answer.
   if (shape !== undefined) reuse?.under(shape.shape);
 
   // The queue is repository-relative throughout. An edge already carries the
@@ -366,29 +351,9 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         acceptRemembered(file, digest, way, remembered);
         continue;
       }
-      // The native side reads modules and nothing else, so what it is handed is
-      // named positively rather than as everything that is not a stylesheet: a
-      // language it has never heard of must go to `recordFor`, not be passed to
-      // it because it failed to be CSS.
-      if (languageFor(way) === 'module') {
-        pending.push(file);
-        pendingDigests.push(digest);
-        pendingSet.add(file);
-        continue;
-      }
-      const fresh = await recordFor({
-        absolute: join(root, file),
-        file,
-        root,
-        resolvers,
-        cache,
-        aliases: shape?.aliases,
-        directories: shape?.shape.directories ?? new Map(),
-        largestFile,
-        remembering: reuse !== undefined,
-        ...(digest === undefined ? {} : { digest }),
-      });
-      accept(file, way, fresh);
+      pending.push(file);
+      pendingDigests.push(digest);
+      pendingSet.add(file);
     }
 
     if (pending.length > 0) {
@@ -396,7 +361,7 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
       const nativeOptions = {
         addon,
         ...(packed === undefined ? {} : { tree: packed }),
-        ...(packed === undefined && tree !== undefined ? { listed: listedPaths() } : {}),
+        ...(packed === undefined && tree !== undefined ? { listed: tree.paths() } : {}),
         root,
         files: pending,
         largestFile,
@@ -445,10 +410,6 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         process.stderr.write(`sense accept native: ${(performance.now() - accepting).toFixed(1)} ms\n`);
       }
     }
-
-    // The JavaScript resolvers are clones sharing one cache. Native batches own
-    // their resolver cache and drop it at the call boundary.
-    resolvers.modules.clearCache();
   }
 
   return { built, ...(graph === undefined ? {} : { graph }) };

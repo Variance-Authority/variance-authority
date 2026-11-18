@@ -171,8 +171,9 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   ): NativeReadBatch;
   /**
    * Read, parse, extract and resolve one frontier without an AST crossing N-API.
-   * `listed` names the files under a tracked `build/` when the tree is not the
-   * addon's own ([`repo-path.ts`](./repo-path.ts)).
+   * `listed` is Git's listing when the tree is not the addon's own: a module
+   * under a tracked `build/` lands only when listed, and the other languages
+   * resolve against it. Without it they ask the disk, walked once per batch.
    */
   scanBatch(
     root: string,
@@ -280,7 +281,7 @@ export interface NativeFrontierOptions extends ResolveOptions {
   readonly tree?: NativeGitTree;
   /** The parse stores a tracked file is looked up in before it is opened; only a `tree` reads them. */
   readonly stores?: readonly string[];
-  /** Without `tree`, the files the listing holds under a tracked `build/`. */
+  /** Without `tree`, every file the listing holds; without either, the batch walks the disk. */
   readonly listed?: readonly string[];
   readonly root: string;
   readonly files: readonly string[];
