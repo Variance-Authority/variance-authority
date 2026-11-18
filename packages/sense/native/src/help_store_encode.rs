@@ -3,7 +3,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use rayon::prelude::*;
 
@@ -13,14 +13,27 @@ use crate::help_usage::NamedExport;
 use crate::order::code_unit;
 use crate::segment::{u32s, u8s, Column};
 
-/// What holds one term: names, and rows by their doc or their signature, each ascending.
-#[derive(Default)]
-struct Held {
-    names: Vec<u32>,
-    published: Vec<u32>,
-    exported: Vec<u32>,
-    published_signature: Vec<u32>,
-    exported_signature: Vec<u32>,
+/// Each term one row holds, as (term, row) pairs in term byte order and then
+/// row order, so a term's rows lie side by side and ascend.
+fn pairs(held: Vec<HashSet<String>>) -> Vec<(String, u32)> {
+    let mut pairs: Vec<(String, u32)> =
+        held.into_par_iter().enumerate().flat_map_iter(|(row, terms)| terms.into_iter().map(move |term| (term, row as u32))).collect();
+    pairs.par_sort_unstable();
+    pairs
+}
+
+/// `postings` over `terms` from `pairs`, both in term byte order.
+fn posted(terms: &[&str], pairs: &[(String, u32)]) -> (Vec<u32>, Vec<u32>) {
+    let (mut off, mut rows, mut at) = (Vec::with_capacity(terms.len() + 1), Vec::with_capacity(pairs.len()), 0);
+    for term in terms {
+        off.push(rows.len() as u32);
+        while pairs.get(at).is_some_and(|(held, _)| held == term) {
+            rows.push(pairs[at].1);
+            at += 1;
+        }
+    }
+    off.push(rows.len() as u32);
+    (off, rows)
 }
 
 /// The use table's columns.
@@ -45,7 +58,6 @@ fn maybe<'a>(pool: &mut Pool<'a>, value: Option<&'a str>) -> u32 {
 pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column> {
     let split = &*SPLIT;
     let (mut strings, mut names) = (Pool::default(), Pool::default());
-    let mut by_term: HashMap<String, Held> = HashMap::new();
 
     // Every entry, in `everyEntry` order, with its opening's specifier.
     let entries: Vec<(&StoreEntry, &str)> = input.packages.iter()
@@ -86,7 +98,7 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
     let (mut used_by_off, mut used_by) = (vec![0u32], Vec::new());
     let mut pub_uses = Vec::with_capacity(rows);
     let mut pub_more: [Vec<u32>; 6] = Default::default(); // declared, line, signature, mentionAt, mentionLine, mentionText
-    let mut doc_lower = Vec::with_capacity(rows);
+    let doc_lower: Vec<String> = entries.par_iter().map(|(entry, _)| entry.doc.as_deref().unwrap_or("").to_lowercase()).collect();
     let doc_terms: Vec<HashSet<String>> =
         entries.par_iter().map(|(entry, _)| entry.doc.as_deref().map(|doc| terms_of(split, doc)).unwrap_or_default()).collect();
     let signature_terms: Vec<HashSet<String>> = entries.par_iter()
@@ -109,13 +121,6 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
         pub_more[3].push(maybe(&mut strings, entry.mention.as_ref().map(|held| held.at.as_str())));
         pub_more[4].push(entry.mention.as_ref().map_or(0, |held| held.line));
         pub_more[5].push(maybe(&mut strings, entry.mention.as_ref().map(|held| held.text.as_str())));
-        doc_lower.push(entry.doc.as_deref().unwrap_or("").to_lowercase());
-        for term in &doc_terms[row] {
-            by_term.entry(term.clone()).or_default().published.push(row as u32);
-        }
-        for term in &signature_terms[row] {
-            by_term.entry(term.clone()).or_default().published_signature.push(row as u32);
-        }
     }
     let mut sites_off = vec![0u32];
     for (entry, _) in &entries {
@@ -170,7 +175,8 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
 
     let count = exported.len();
     let mut exp: [Vec<u32>; 9] = Default::default(); // name, at, by, line, doc, bound, declaration, boundLine, signature
-    let (mut exp_kind, mut exp_type, mut exp_doc_lower) = (Vec::with_capacity(count), Vec::with_capacity(count), Vec::with_capacity(count));
+    let (mut exp_kind, mut exp_type) = (Vec::with_capacity(count), Vec::with_capacity(count));
+    let exp_doc_lower: Vec<String> = exported.par_iter().map(|named| named.doc.as_deref().unwrap_or("").to_lowercase()).collect();
     let exp_terms: Vec<HashSet<String>> =
         exported.par_iter().map(|named| named.doc.as_deref().map(|doc| terms_of(split, doc)).unwrap_or_default()).collect();
     let exp_signature_terms: Vec<HashSet<String>> = exported.par_iter()
@@ -190,23 +196,17 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
         exp[8].push(maybe(&mut strings, named.signature.as_deref()));
         exp_kind.push(USE_KINDS.iter().position(|kind| *kind == named.kind).map_or(u8::MAX, |at| at as u8));
         exp_type.push(u8::from(named.r#type));
-        exp_doc_lower.push(named.doc.as_deref().unwrap_or("").to_lowercase());
-        for term in &exp_terms[row] {
-            by_term.entry(term.clone()).or_default().exported.push(row as u32);
-        }
-        for term in &exp_signature_terms[row] {
-            by_term.entry(term.clone()).or_default().exported_signature.push(row as u32);
-        }
     }
 
     let name_terms: Vec<HashSet<String>> = names.values.par_iter().map(|name| terms_of(split, name)).collect();
-    for (id, held) in name_terms.into_iter().enumerate() {
-        for term in held {
-            by_term.entry(term).or_default().names.push(id as u32);
-        }
-    }
-    let mut terms: Vec<&String> = by_term.keys().collect();
-    terms.par_sort_unstable_by(|a, b| a.as_bytes().cmp(b.as_bytes()));
+    // Names, then rows by doc, by export doc, by signature and by export signature.
+    let held: Vec<Vec<(String, u32)>> = [name_terms, doc_terms, exp_terms, signature_terms, exp_signature_terms].into_par_iter().map(pairs).collect();
+    // Each kind's pairs are sorted, so its distinct terms are one per run of them.
+    let mut terms: Vec<&str> = held.iter()
+        .flat_map(|pairs| pairs.chunk_by(|(a, _), (b, _)| a == b).map(|run| run[0].0.as_str()))
+        .collect();
+    terms.par_sort_unstable();
+    terms.dedup();
 
     let site_files = &uses.at[..*sites_off.last().unwrap_or(&0) as usize];
     let mut files: Vec<u32> = pub_cols[4].iter().chain(site_files).chain(&exp[1]).copied().collect::<HashSet<u32>>().into_iter().collect();
@@ -221,12 +221,9 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
     let lists = |lists: &[Vec<u32>]| postings(&lists.iter().map(Vec::as_slice).collect::<Vec<_>>());
     let (names_pub_off, names_pub) = lists(&name_pub);
     let (names_exp_off, names_exp) = lists(&name_exp);
-    let held = |field: fn(&Held) -> &[u32]| postings(&terms.iter().map(|term| field(&by_term[*term])).collect::<Vec<_>>());
-    let (term_name_off, term_name) = held(|held| &held.names);
-    let (term_pub_off, term_pub) = held(|held| &held.published);
-    let (term_exp_off, term_exp) = held(|held| &held.exported);
-    let (term_pub_sig_off, term_pub_sig) = held(|held| &held.published_signature);
-    let (term_exp_sig_off, term_exp_sig) = held(|held| &held.exported_signature);
+    let posted: Vec<(Vec<u32>, Vec<u32>)> = held.par_iter().map(|pairs| posted(&terms, pairs)).collect();
+    let [(term_name_off, term_name), (term_pub_off, term_pub), (term_exp_off, term_exp), (term_pub_sig_off, term_pub_sig), (term_exp_sig_off, term_exp_sig)]: [_; 5] =
+        posted.try_into().unwrap_or_else(|_| unreachable!("five kinds"));
 
     let [pub_name, pub_spec, pub_kind, pub_doc, pub_at] = pub_cols;
     let [pub_declared, pub_line, pub_signature, mention_at, mention_line, mention_text] = pub_more;
