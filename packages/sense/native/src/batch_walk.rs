@@ -306,7 +306,7 @@ pub(super) fn resolve_all(
         files
             .par_iter()
             .zip(read.par_iter())
-            .map(|(file, (held, _, outcome))| {
+            .map(|(file, (held, _, outcome))| crate::stages::summed(&crate::stages::RESOLVE, || {
                 let mut reached = Reached::default();
                 if !outcome.parsed() {
                     return reached;
@@ -324,7 +324,7 @@ pub(super) fn resolve_all(
                     reached.more.extend(landed.map(|file| (index as u32, file)));
                 }
                 reached
-            })
+            }))
             .collect()
     };
     match resolving {

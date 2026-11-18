@@ -165,6 +165,7 @@ fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, St
 /// the read of the chain and this update's publication, which wrote nothing.
 pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Result<(Updated, bool)> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {} did not update: {error}", o.index));
+    let opening = crate::stages::start("open");
     // A chain this update cannot stand on — unreadable, legacy, damaged, or one
     // whose read panicked (`trusted` false) — is rebuilt from the tree, as a
     // missing one is. One made under another configuration is stood on with none
@@ -243,6 +244,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
     let parsing = neighbours(&o.root, tree.at, tree.oids, o.largest_file, o.readers, &kept, tree.from_blob, tree.store);
     let texting = texting(&o.root);
     let world = World::new(Some(tree.world.0), Some(tree.world.1)).reading(&parsing, &texting);
+    opening.end();
+    let walking = crate::stages::start("walk");
     loop {
         reached.walk(&layers, &valid, &walked, &readable);
         if reached.need.is_empty() {
@@ -296,6 +299,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
         reached.stack.extend(need.into_iter().map(Cow::Owned));
     }
 
+    walking.end_walk();
+    let recording = crate::stages::start("records");
     let files = (reached.old.len() + reached.new.len()) as u32;
     let reread = reached.new.len() as u32;
     let parsed = reached.new.iter().filter(|file| walked[file.as_str()].parsed && !walked[file.as_str()].kept).count() as u32;
@@ -430,8 +435,11 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
         // rewrites what changed since the index was readied, and never the base.
         let base = references.len() - working_count;
         let beneath: Vec<&[u8]> = segments[..base].iter().map(Vec::as_slice).collect();
+        recording.end();
+        let encoding = crate::stages::start("encode");
         if unchanged {
             let Some(listing) = listing else {
+                encoding.end();
                 return Ok((Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version }, false));
             };
             // Nothing to publish, and a listing to carry: the working layer is
@@ -443,7 +451,11 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
                 _ => merged(&beneath, &working).map_err(fail)?,
             };
             let working = carried(working, Some(listing)).map_err(fail)?;
-            return match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
+            encoding.end();
+            let writing = crate::stages::start("write");
+            let outcome = written(&o.index, published, &references[..base], &[&working], &references[base..], 1);
+            writing.end();
+            return match outcome {
                 Ok(still) => Ok((Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version }, !still)),
                 Err(error) => Ok((Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)), rebuilt, written: version }, false)),
             };
@@ -470,12 +482,15 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
         working.push(&delta);
         let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
         let working = carried(working, listing).map_err(fail)?;
+        encoding.end();
         // A first update has no base to carry a working layer over: what it writes
         // is the base, and readying finds nothing to fold.
         let layered = usize::from(chain.is_some());
         // Another writer between the read and here: its chain is not the one this delta is against.
         let replaced: Vec<LogSegment> = references[base..].iter().chain(&stale).cloned().collect();
+        let writing = crate::stages::start("write");
         let outcome = written(&o.index, published, &references[..base], &[&working], &replaced, layered);
+        writing.end();
         let refused = match &outcome {
             Ok(false) => Some(format!("{}: another writer published it after this update read it", o.index)),
             Ok(true) => None,
