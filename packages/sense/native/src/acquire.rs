@@ -116,7 +116,7 @@ pub(crate) fn read_git(
         .map_init(
             || objects.reader(),
             |reader, (file, oid)| {
-                crate::stages::summed(&crate::stages::READ, || match oid {
+                crate::stages::summed(crate::stages::Sum::Read, || match oid {
                     Some(oid) => read_blob(root, file, oid, reader, largest, wanted, symbols),
                     None => open_and_parse(root, file, None, largest, wanted, symbols),
                 })
@@ -192,7 +192,7 @@ fn parsed(file: &str, source: String, digests: bool, symbols: bool) -> Answer {
         String::new()
     };
     (
-        crate::stages::summed(&crate::stages::PARSE, || in_arena(|arena| read_file(file, &source, arena, symbols))),
+        crate::stages::summed(crate::stages::Sum::Parse, || in_arena(|arena| read_file(file, &source, arena, symbols))),
         digest,
         Outcome::Parsed,
     )
@@ -273,7 +273,7 @@ fn open_all<'a>(
         files
             .par_iter()
             .enumerate()
-            .map(|(index, file)| crate::stages::summed(&crate::stages::READ, || open(root, file, largest, digests, oids.get(index).and_then(Option::as_ref))))
+            .map(|(index, file)| crate::stages::summed(crate::stages::Sum::Read, || open(root, file, largest, digests, oids.get(index).and_then(Option::as_ref))))
             .collect()
     };
     match opening {
@@ -298,7 +298,7 @@ fn parse_all(opened: Vec<(&str, Opened, String, bool)>, symbols: bool) -> Vec<Na
             Opened::Settled(read, outcome) => ((read, digest, outcome), false),
             Opened::Source(source) => {
                 // Counted as read too: on the store path a parse runs inside its blob's read, so `READ` holds it there, and the walk subtracts it once.
-                let read = crate::stages::summed(&crate::stages::READ, || crate::stages::summed(&crate::stages::PARSE, || in_arena(|arena| read_file(file, &source, arena, symbols))));
+                let read = crate::stages::summed(crate::stages::Sum::Read, || crate::stages::summed(crate::stages::Sum::Parse, || in_arena(|arena| read_file(file, &source, arena, symbols))));
                 ((read, digest, Outcome::Parsed), named)
             }
         })

@@ -212,7 +212,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
     let texting = texting(&o.root);
     let world = World::new(Some(tree.world.0), Some(tree.world.1)).reading(&parsing, &texting);
     opening.end();
-    let walking = crate::stages::start_walk("walk");
+    let walking = crate::stages::start("walk", &crate::stages::WALK);
     loop {
         reached.walk(&layers, &valid, &walked, &readable);
         if reached.need.is_empty() {
@@ -267,8 +267,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
         reached.stack.extend(need.into_iter().map(Cow::Owned));
     }
 
-    walking.end_walk();
-    let recording = crate::stages::start("records");
+    walking.end();
+    let recording = crate::stages::start("records", &crate::stages::NONE);
     let files = (reached.old.len() + reached.new.len()) as u32;
     let reread = reached.new.len() as u32;
     let parsed = reached.new.iter().filter(|file| walked[file.as_str()].parsed && !walked[file.as_str()].kept).count() as u32;
@@ -404,7 +404,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
         let base = references.len() - working_count;
         let beneath: Vec<&[u8]> = segments[..base].iter().map(Vec::as_slice).collect();
         recording.end();
-        let encoding = crate::stages::start("encode");
+        let encoding = crate::stages::start("encode", &crate::stages::NONE);
         if unchanged {
             let Some(listing) = listing else {
                 encoding.end();
