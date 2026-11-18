@@ -34,7 +34,7 @@ use crate::batch::{neighbours, texting, walk_beyond, GraphOptions, Neighbours, W
 use crate::chain_lookup::{fold, held_parses, At};
 use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
-use crate::generation::{encode_generation, Deleted, Generation};
+use crate::generation::{encode_generation, encode_generation_carrying, Deleted, Generation};
 use crate::git::Oid;
 use crate::index::way;
 use crate::index_chain::{read_chain, Chain};
@@ -435,18 +435,24 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             keys.dedup();
         }
         let parse_rows: Vec<(&str, &Parse)> = parses.iter().map(|(key, parse)| (key.as_str(), parse)).collect();
-        let delta = encode_generation(&Generation {
+        let generation = Generation {
             config: Some(&o.config),
             directories: &put_directories,
             parses: &parse_rows,
             records: &puts,
             deleted: Deleted { parses: &deleted_parses, records: &deleted_records, directories: &deleted_directories },
-        });
+        };
 
-        let mut working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
-        working.push(&delta);
-        let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
-        let working = carried(working, listing).map_err(fail)?;
+        // With no working layer, the delta is the working layer: its listing is
+        // encoded with it, rather than carried into a copy of it.
+        let working = if segments.len() == base {
+            encode_generation_carrying(&generation, listing.unwrap_or_default())
+        } else {
+            let delta = encode_generation(&generation);
+            let mut working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
+            working.push(&delta);
+            carried(merged(&beneath, &working).map_err(fail)?, listing).map_err(fail)?
+        };
         encoding.end();
         // A first update has no base to carry a working layer over: what it writes
         // is the base, and readying finds nothing to fold.

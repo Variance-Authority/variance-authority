@@ -1,7 +1,7 @@
 //! The generation's framing and dictionary. What its columns mean is held by
 //! the JavaScript reader: `source-index.test.ts` decodes every save it makes.
 
-use super::{encode_generation, Deleted, Delta, Generation};
+use super::{encode_generation, encode_generation_carrying, Deleted, Delta, Generation};
 use crate::held::HeldParse;
 use crate::record::Indexed;
 
@@ -37,6 +37,25 @@ fn every_column_the_decoder_names_is_written_in_its_order() {
     let path = names.iter().position(|name| *name == "targets.path").unwrap();
     assert_eq!(names[path + 1..path + 4], ["targets.reverse-to", "targets.reverse", "targets.reverse-row"]);
     assert_eq!(names.len(), 139);
+}
+
+#[test]
+fn a_listing_encoded_with_the_generation_is_the_segment_it_would_be_carried_into() {
+    let delta: Delta = serde_json::from_str(
+        r#"{"config":"v1:c","directories":[["src","v1:d"]],
+            "records":[["src/a.css",{"record":{"file":"src/a.css","digest":"git:a"},"witnesses":["src"],"targets":[null,"src/b.css"]}]],
+            "parses":[["git:a\u0000.css\u0000+",{"requests":[{"value":"./b.css","kind":"imports","bindings":[]}],"exports":[]}]]}"#,
+    )
+    .unwrap();
+    let parses: Vec<(&str, &HeldParse)> = delta.parses.iter().map(|(key, parse)| (key.as_str(), parse)).collect();
+    let records: Vec<(&str, &Indexed)> = delta.records.iter().map(|(file, held)| (file.as_str(), held)).collect();
+    let generation = Generation { config: delta.config.as_deref(), directories: &delta.directories, parses: &parses, records: &records, deleted: Deleted::default() };
+    let listing = || vec![crate::segment::u8s("listing.paths", b"src/a.css\0src/b.css".to_vec()), crate::segment::u8s("listing.meta", b"{}".to_vec())];
+    let carried = crate::held_listing::carried(&encode_generation(&generation), listing()).unwrap();
+    // A segment read back and written again keeps its sections in the order it laid them out, empty ones included.
+    assert_eq!(crate::held_listing::carried(&encode_generation(&generation), Vec::new()).unwrap(), encode_generation(&generation));
+    assert_eq!(encode_generation_carrying(&generation, listing()), carried);
+    assert_eq!(encode_generation_carrying(&generation, Vec::new()), encode_generation(&generation));
 }
 
 #[test]

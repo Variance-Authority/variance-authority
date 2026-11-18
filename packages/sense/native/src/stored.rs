@@ -65,7 +65,8 @@ impl U32s<'_> {
 
 pub struct Stored<'a> {
     bytes: &'a [u8],
-    sections: HashMap<String, (usize, usize, u8)>,
+    /// Each section's start, length, width and place in the header.
+    sections: HashMap<String, (usize, usize, u8, usize)>,
     strings: Vec<&'a str>,
     /// The text heap, `texts.blob` and `texts.off`, when the segment has one.
     texts: Option<(&'a str, U32s<'a>)>,
@@ -114,14 +115,14 @@ impl<'a> Stored<'a> {
         let base = 4 + length;
         let body = bytes.len() - base;
         let mut sections = HashMap::with_capacity(header.sections.len());
-        for section in header.sections {
+        for (place, section) in header.sections.into_iter().enumerate() {
             let fits = section.offset % ALIGNMENT == 0
                 && section.offset.checked_add(section.length).is_some_and(|end| end <= body)
                 && (section.width == 1 || (section.width == 4 && section.length % 4 == 0));
             if !fits {
                 return Err(format!("section {} lies outside the segment", section.name));
             }
-            if sections.insert(section.name.clone(), (base + section.offset, section.length, section.width)).is_some() {
+            if sections.insert(section.name.clone(), (base + section.offset, section.length, section.width, place)).is_some() {
                 return Err(format!("section {} is named twice", section.name));
             }
         }
@@ -149,14 +150,17 @@ impl<'a> Stored<'a> {
     fn section(&self, name: &str, width: u8) -> Result<Option<&'a [u8]>, String> {
         match self.sections.get(name) {
             None => Ok(None),
-            Some(&(start, length, found)) if found == width => Ok(Some(&self.bytes[start..start + length])),
+            Some(&(start, length, found, _)) if found == width => Ok(Some(&self.bytes[start..start + length])),
             Some(_) => Err(format!("section {name} is not {width} bytes wide")),
         }
     }
 
-    /// Every section as written — name, width and bytes — in the order the segment lays them out.
+    /// Every section as written — name, width and bytes — in the order the
+    /// header names them, which is the order the segment lays them out. Empty
+    /// sections share an offset, so the offset alone left their order to the
+    /// map's hash.
     pub fn columns(&self) -> Vec<(&str, u8, &'a [u8])> {
-        let mut columns: Vec<_> = self.sections.iter().map(|(name, &(start, length, width))| (start, name.as_str(), width, &self.bytes[start..start + length])).collect();
+        let mut columns: Vec<_> = self.sections.iter().map(|(name, &(start, length, width, place))| (place, name.as_str(), width, &self.bytes[start..start + length])).collect();
         columns.sort_by_key(|column| column.0);
         columns.into_iter().map(|(_, name, width, bytes)| (name, width, bytes)).collect()
     }
