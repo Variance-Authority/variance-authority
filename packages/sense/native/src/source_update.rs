@@ -163,9 +163,9 @@ fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, St
 
 /// The update, and whether it lost the race: another writer published between
 /// the read of the chain and this update's publication, which wrote nothing.
-pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Result<(Updated, bool)> {
+/// `opening` is the open stage, started by the caller before it read the carry.
+pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate::stages::Stage) -> napi::Result<(Updated, bool)> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {} did not update: {error}", o.index));
-    let opening = crate::stages::start("open");
     // A chain this update cannot stand on — unreadable, legacy, damaged, or one
     // whose read panicked (`trusted` false) — is rebuilt from the tree, as a
     // missing one is. One made under another configuration is stood on with none

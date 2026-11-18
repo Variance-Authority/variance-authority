@@ -2272,8 +2272,12 @@ memory at its end. Reading, parsing and resolving overlap inside the walk, so
 its line adds the time each took summed over every core:
 
 ```
-variance stage walk: 1.732 s, peak 2.19 GB (thread time: read 2.532 s, parse 15.912 s, resolve 11.988 s)
+variance stage walk: 1.644 s, peak 2.13 GB (thread time: read 2.310 s, parse 15.255 s, resolve 12.482 s)
 ```
+
+A stage can print more than once: a directory git does not list prints git's
+listing and then the disk's, and a writer that lost a race opens and walks
+again.
 
 No `variance.config.json` is read.
 

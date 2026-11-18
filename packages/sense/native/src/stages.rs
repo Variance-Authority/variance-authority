@@ -91,7 +91,7 @@ fn seconds(time: Duration) -> String {
 
 /// `, peak` and the process's peak resident memory so far, or nothing where the platform does not give it.
 fn peak() -> String {
-    #[cfg(unix)]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
         let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
         // SAFETY: `getrusage` fills the struct it is handed and reads nothing else.

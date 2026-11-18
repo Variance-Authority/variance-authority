@@ -267,8 +267,17 @@ impl GitTree {
     /// side (`source_update.rs`).
     #[napi(catch_unwind)]
     pub fn update_index(&self, options: source_update::UpdateOptions) -> napi::Result<source_update::Updated> {
+        // Open is timed from here: the carry reads the index, and a retry opens it again.
+        let opening = std::cell::Cell::new(Some(crate::stages::start("open")));
+        let open = || opening.take().unwrap_or_else(|| crate::stages::start("open"));
         #[cfg(unix)]
-        let carry = match change_tree::carry(&self.change, &options.config, &options.index) { Ok(carry) => carry, Err(done) => return Ok(done) };
+        let carry = match change_tree::carry(&self.change, &options.config, &options.index) {
+            Ok(carry) => carry,
+            Err(done) => {
+                open().end();
+                return Ok(done);
+            }
+        };
         let disk = acquire::TreeObjects::disk();
         let store = if options.packs == Some(false) { &disk } else { &self.store };
         let tree = || source_update::Tree {
@@ -289,12 +298,12 @@ impl GitTree {
         // the index is then rebuilt from the tree, as any other chain it cannot stand on is. The
         // rebuild reads nothing from the chain, so a panic it repeats is no damage and is the error;
         // the first panic's message is printed, since the rebuild alone cannot name it.
-        let once = |trusted: bool| match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options.clone(), tree(), trusted))) {
+        let once = |trusted: bool| match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(options.clone(), tree(), trusted, open()))) {
             Ok(done) => done,
             Err(panic) => {
                 let message = panic.downcast_ref::<&str>().map(|text| text.to_string()).or_else(|| panic.downcast_ref::<String>().cloned()).unwrap_or_default();
                 eprintln!("variance: an update standing on the source index panicked ({message}); rebuilding it from the tree");
-                source_update::update(options.clone(), tree(), false)
+                source_update::update(options.clone(), tree(), false, open())
             }
         };
         // A writer that lost the race reads the chain the winner published and makes its delta
