@@ -21,7 +21,8 @@ under Playwright, the requests each test line sent and what came back on it;
 what a package's setup
 file tells the realm's note channel as it happens, without importing sense;
 from a page, each drain's tape, which the runner names with the case and the
-line it was drained under; and, to name what was visited, the region inventory
+line it was drained under, or, from a page under Vantage, each execution's
+part as `reportPage` names it; and, to name what was visited, the region inventory
 the record beside it holds. Out: one **story** per case,
 written beside the record the run writes; read back, a route of numbered steps —
 declarations with, when steps are drawn, the branches and loops each went
@@ -85,6 +86,9 @@ by guess.
   the assembler that lays one case's page drains end to end as one story
 - `packages/sense/src/story/page-story.ts` — one page drain's tape, as the page
   hands it over
+- `packages/sense/src/story/page-told.ts` — a page under Vantage, built with
+  the story switch, taping as a live head does and telling each execution's
+  story to `reportPage`
 - `packages/sense/src/test-selection/carried-stories.ts` — the hooks that leave
   a page case's tape on its result's `meta`, and the writer both page runners
   call with the names the result gives the case
@@ -94,6 +98,8 @@ by guess.
 - `packages/playwright-test/src/requests.ts` — what a Playwright case's
   contexts sent and got back, told at the end of each spec line
 - `packages/sense/src/story/format.cts` — one case's story on disk
+- `packages/sense/src/story/story-bytes.cts` — a story's bytes, written with
+  nothing but the language, so a page writes them as Node does
 - `packages/sense/src/story/directory.ts` — the variable that asks for stories,
   and where they sit beside each record
 - `packages/sense/src/story/read.ts` — a story named through the record beside

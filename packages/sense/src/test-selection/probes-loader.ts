@@ -20,7 +20,7 @@ import { cleanId, defaultInclude } from './instrumented-modules.js';
 import { MapRefusal, placeModule, type Captured } from './captured-modules.js';
 import { handedMap, probeHanded, type HandedMap } from './loader-probes.js';
 import { shifted } from './map-segments.js';
-import { executionCollectorSource } from './probes.js';
+import { executionCollectorSource, toldCollector } from './probes.js';
 import { COLLECTOR_FILE, PROBES_LOADER, type ProbesLoaderOptions } from './probes-rule.js';
 import { repositoryRoot } from './repository-root.js';
 
@@ -30,10 +30,13 @@ export interface ProbesLoaderContext {
   readonly resourcePath: string;
   /** The project's directory, which a rule with no `root` names the checkout from. */
   readonly rootContext?: string;
-  readonly getOptions: () => ProbesLoaderOptions & { readonly collector?: string };
+  /** The rule's options; the collector's, from the query the probed module asks it by. */
+  readonly getOptions: () => ProbesLoaderOptions | { readonly collector: string; readonly stories?: string };
   /** The configured loader paths, in the order the bundler lists them. */
   readonly loaders?: readonly { readonly path: string }[];
   readonly callback: (error: Error | null, code?: string, map?: HandedMap) => void;
+  /** Hands the answer to a later `callback`, as the collector of a build asked for stories is. */
+  readonly async: () => ProbesLoaderContext['callback'];
 }
 
 /**
@@ -44,9 +47,13 @@ const REMEDY = 'Have `devtool` write source maps and every loader ahead of the p
 
 function probesLoader(this: ProbesLoaderContext, code: string, handed?: HandedMap): void {
   const options = this.getOptions();
+  if ('collector' in options && options.stories !== undefined) {
+    told(this.async(), options.collector);
+    return;
+  }
   let written: { code: string; map?: HandedMap };
   try {
-    written = options.collector === undefined ? probed(this, options, code, handed) : { code: executionCollectorSource(recipe(options.collector)) };
+    written = !('collector' in options) ? probed(this, options, code, handed) : { code: executionCollectorSource(recipe(options.collector)) };
   } catch (error) {
     if (error instanceof MapRefusal && this.loaders !== undefined && this.loaders.length > 0) {
       error.message += '\nLoader chain as listed by the bundler:\n' + this.loaders.map((loader) => `  ${loader.path}`).join('\n');
@@ -55,6 +62,18 @@ function probesLoader(this: ProbesLoaderContext, code: string, handed?: HandedMa
     return;
   }
   this.callback(null, written.code, written.map);
+}
+
+/** The collector of a build asked for stories, which loads what tells them only then. */
+function told(callback: ProbesLoaderContext['callback'], mode: string): void {
+  let collector: string;
+  try {
+    collector = executionCollectorSource(recipe(mode));
+  } catch (error) {
+    callback(error as Error);
+    return;
+  }
+  toldCollector(collector).then((told) => callback(null, told), (error: Error) => callback(error));
 }
 
 /** `code` probed, taking the collector, and the map moved with it; as handed where it is not a module to probe. */
@@ -71,7 +90,9 @@ function probed(context: ProbesLoaderContext, options: ProbesLoaderOptions, code
     : probeHanded(file, code, handed, { root, include, mode: options.mode, remedy: REMEDY });
   if (placed === undefined) return { code, map: handed };
   // `!!`: the collector goes through this loader alone, never the project's.
-  const collector = JSON.stringify(`!!${PROBES_LOADER}?collector=${options.mode ?? 'presence'}!${COLLECTOR_FILE}`);
+  // The query is the collector's options, and its identity in a bundler's cache.
+  const stories = options.stories === true ? '&stories=1' : '';
+  const collector = JSON.stringify(`!!${PROBES_LOADER}?collector=${options.mode ?? 'presence'}${stories}!${COLLECTOR_FILE}`);
   const text = placed.captured.code;
   const required = `require(${collector});`;
   // An `import` would make a script a module, and its `module.exports` unread;

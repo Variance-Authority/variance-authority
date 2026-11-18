@@ -18,6 +18,7 @@ import probeLists from '../instrument/probe-lists.cjs';
 import probeLog from '../instrument/probe-log.cjs';
 import probeSet from '../instrument/probe-set.cjs';
 import preconditions from './case-preconditions.cjs';
+import { storiesAsked } from '../story/asked.js';
 import { PAGE_STORY, type PageStory } from '../story/page-story.js';
 import { CARRIED_SOURCE } from './carried.js';
 import { EXECUTION_GLOBAL } from './execution-global.js';
@@ -173,7 +174,8 @@ export interface InstrumentingPlugin {
   /** Take back the `.map` files a build wrote only because {@link config} turned its maps on. */
   readonly generateBundle: (options: unknown, bundle: Record<string, unknown>) => void;
   readonly resolveId: (id: string) => string | null;
-  readonly load: (id: string) => string | { code: string; map: object | null } | null;
+  /** Answers the collector in a promise when the build was asked for stories, which loads what tells them only then. */
+  readonly load: (id: string) => string | Promise<string> | { code: string; map: object | null } | null;
   /**
    * Ordered `post` after the transforms, so a plain `transform` at
    * `enforce: 'post'` runs ahead of it wherever it is listed; ordered `pre`
@@ -228,6 +230,13 @@ export function testSelectionProbes(
   const root = repositoryRoot(options.root ?? process.cwd());
   const include = options.include ?? defaultInclude;
   const before = options.placement === 'before-transforms';
+  // Read as the plugin is made, as the rule reads it: what the collector is served never changes under one build.
+  const stories = storiesAsked();
+  // Imports evaluate first, so a head owns `__VA__` before the collector's
+  // page engine looks, and the page engine defers to it.
+  const served = (collector: string): string => options.journeys !== true
+    ? collector
+    : `import { collectJourneys } from "@variance-authority/sense/journey";\ncollectJourneys(${JSON.stringify({ head: options.label ?? 'build' })});\n${collector}`;
 
   const name = 'variance-authority:test-selection-probes';
   let serving = false;
@@ -274,11 +283,8 @@ export function testSelectionProbes(
     load: (id) => {
       if (id !== RESOLVED_COLLECTOR) return serving && !before ? probedFirst(id) : null;
       const collector = executionCollectorSource(options.mode);
-      if (options.journeys !== true) return collector;
-      // Imports evaluate first, so the head owns `__VA__` before this module's
-      // page engine looks, and the page engine defers to it.
-      const head = JSON.stringify({ head: options.label ?? 'build' });
-      return `import { collectJourneys } from "@variance-authority/sense/journey";\ncollectJourneys(${head});\n${collector}`;
+      if (stories) return toldCollector(collector).then(served);
+      return served(collector);
     },
 
     transform: { order: before ? 'pre' : 'post', handler(code, specifier) {
@@ -375,6 +381,14 @@ function pageReaderSource(): string {
 }
 
 /**
+ * The collector a build asked for stories serves: `collector` behind the page's
+ * tape and teller. What makes them loads only here, as the build asks for it.
+ */
+export function toldCollector(collector: string): Promise<string> {
+  return import('../story/page-told.js').then(({ toldCollectorSource }) => toldCollectorSource(collector));
+}
+
+/**
  * The page half, as source, because it has to cross `page.evaluate` or a bundler.
  *
  * The engine is `instrument/probe-log.cts`, sent as its own source with
@@ -404,8 +418,8 @@ const carries = ${JSON.stringify(!probesRegions(mode))};
 // bucket nothing writes to, so a second bundle on one page offering its own
 // would have the page report that it ran nothing.
 if (globalThis.__VA__ === undefined) {
-  // A runner that asked for stories left a maker on the page before it
-  // loaded: the tape goes in front of the root, and every drain carries it.
+  // A runner, or a build, that asked for stories left a maker on the page
+  // before it loaded: the tape goes in front of the root.
   const maker = globalThis[Symbol.for(${JSON.stringify(PAGE_STORY)})];
   const story = typeof maker === 'function' ? maker(engine) : undefined;
   globalThis.__VA__ = story === undefined ? engine.root : story.root;
