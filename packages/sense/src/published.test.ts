@@ -279,6 +279,19 @@ describe('the published source index', () => {
     expect((await readPublishedSources(at)).state).toBe('published');
   });
 
+  it('reads an index an earlier release wrote as one file, and updates it without calling it damaged', async () => {
+    const current = index('legacy-source');
+    await updateSourceIndex(root, { index: current });
+    const [base] = (await openImmutableLog(current)).segments;
+    const at = index('legacy');
+    await mkdir(dirname(at), { recursive: true });
+    await writeFile(at, base!);
+    expect((await readPublishedSources(at)).state).toBe('published');
+    const updated = await updateSourceIndex(root, { index: at });
+    expect(updated.was).toBe('published');
+    expect((await readPublishedSources(at)).state).toBe('published');
+  });
+
   it('tells an index written in another format version from a damaged one, rebuilds it on a workstation, and refuses it in CI', async () => {
     // The chain an earlier release published: the same segments under a format
     // version this reader does not read, every digest of them whole.
