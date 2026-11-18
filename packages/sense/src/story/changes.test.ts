@@ -38,6 +38,13 @@ describe('what a story says changed on the page', () => {
     expect(pageChanges(ROUTE, '+ main').found).toEqual([{ kind: 'appeared', line: 10, commit: 1, change: '+ main "Open" in App' }]);
   });
 
+  it('finds what a case changed when it reached no step at all', () => {
+    expect(pageChanges({ ...ROUTE, route: [] }, 'main')).toEqual({
+      searched: 1,
+      found: [{ kind: 'appeared', line: 10, commit: 1, change: '+ main "Open" in App' }],
+    });
+  });
+
   it('finds nothing for a pattern no change holds, and still counts the changes it searched', () => {
     expect(pageChanges(ROUTE, 'toast')).toEqual({ searched: 5, found: [] });
   });
