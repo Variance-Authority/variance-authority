@@ -209,6 +209,14 @@ pub struct Deleted<'a> {
 
 /// The segment bytes, dictionary first: every string any part names, once.
 pub fn encode_generation<P: ParseRow>(generation: &Generation<P>) -> Vec<u8> {
+    encode_generation_carrying(generation, Vec::new())
+}
+
+/// The segment bytes with `trailing` written after the generation's own
+/// columns: what `held_listing::carried` makes of the plain segment, in one
+/// encode. Carrying a listing into a segment already encoded copies the whole
+/// segment twice more, and a cold build's segment is the largest there is.
+pub fn encode_generation_carrying<P: ParseRow>(generation: &Generation<P>, trailing: Vec<Column>) -> Vec<u8> {
     let mut values = Collected::default();
     values.extend(generation.config);
     for (path, digest) in generation.directories {
@@ -242,6 +250,7 @@ pub fn encode_generation<P: ParseRow>(generation: &Generation<P>) -> Vec<u8> {
     ]));
     let deleted_records = deleted.records.iter().map(|file| strings.id(file)).collect();
     columns.extend(RecordColumns::of(generation.records, &strings).columns(deleted_records));
+    columns.extend(trailing);
     encode(columns)
 }
 
