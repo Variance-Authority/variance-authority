@@ -81,7 +81,7 @@ export default storybookCollector({
 [source index](../../docs/source-index.md). Paths are relative to where you run
 `variance`, or absolute inside that checkout. Component declarations and their
 locations come from the published generation. Run `variance index` after
-changing source; a missing index is built locally and refused in CI. Git-ignored
+changing source; a missing index is built locally and refused in CI. Untracked Git-ignored
 files are outside the source inventory. The index owns file eligibility;
 `source.extensions` and `source.exclude` are not options.
 

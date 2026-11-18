@@ -99,8 +99,9 @@ capture.
 
 `source.dirs` selects directories inside your checkout from the
 [source index](../../docs/source-index.md), which supplies component names and
-`file:line` locations. Run `variance index` after changing source; a missing
-index is built locally and refused in CI. Git-ignored files are outside the
+`file:line` locations. Paths are relative to where you run `variance`, or
+absolute inside the checkout. Run `variance index` after changing source; a missing
+index is built locally and refused in CI. Untracked Git-ignored files are outside the
 source inventory. The index owns file eligibility; `source.extensions` and
 `source.exclude` are not options. Without `source`, reports can name components
 without these locations. A directory list matching no published source file is
