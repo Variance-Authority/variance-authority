@@ -133,7 +133,8 @@ export function asDigest(value: string | undefined): Digest | undefined {
   return value === undefined || value === '' ? undefined : value;
 }
 
-function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] {
+/** Each edge once by its kind and target, in code-unit order of target, then kind. */
+export function dedupe<Edge extends FileEdge>(edges: readonly Edge[]): readonly Edge[] {
   const seen = new Set<string>();
   return edges
     .filter((edge) => {

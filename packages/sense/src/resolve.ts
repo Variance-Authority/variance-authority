@@ -1,11 +1,12 @@
 /**
  * A specifier, as written, into a file on this disk.
  *
- * This is the configured half of a scan and the reason it is a separate file:
- * `tsconfig` paths, export conditions, extension order and the partial
- * conventions of Sass all live here, and none of them is allowed to change what
- * counts as an import. [`read.ts`](./read.ts) decides that from syntax alone;
- * this only decides where the thing it found points.
+ * A scan resolves every language in the native addon
+ * (`native/src/resolve.rs`, and `native/src/world.rs` for the languages that
+ * resolve over the tree). This is the one resolution left in JavaScript: a
+ * module specifier a diff adds, asked by [`taint`](./taint/join.ts) from files
+ * the scan never read. `tsconfig` paths, export conditions and extension order
+ * live here, and none of them is allowed to change what counts as an import.
  *
  * ## What it refuses to answer
  *
@@ -29,15 +30,9 @@ import { ResolverFactory, type NapiResolveOptions } from 'oxc-resolver';
 import { caseFolded, DECLARATION } from './case-insensitive-match.js';
 import { customConditionsFor } from './conditions.js';
 import { emittedFrom, type Emitted } from './emitted.js';
-import { resolveJvm } from './jvm.js';
-import type { LanguageId } from './language.js';
-import { resolvePython } from './python.js';
+import { STYLE_EXTENSIONS } from './language.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { toRepoPath } from './repo-path.js';
-import { STYLE_EXTENSIONS, styleRequests } from './style.js';
-import { resolveRust } from './rust.js';
-import { resolveSwift } from './swift.js';
-import type { TreeWorld } from './world.js';
 
 /** What a caller may say about resolution, and nothing about what to scan. */
 export interface ResolveOptions {
@@ -63,10 +58,9 @@ export const DEFAULT_CONDITIONS = ['source', 'import', 'require', 'default'] as 
 /**
  * The resolvers a scan needs, plus the memo they share.
  *
- * Several because one set of options cannot answer every question: a stylesheet
- * request must not find a `.ts` file, a request that only resolved because `.js`
- * was rewritten to `.ts` has to be re-asked without the rewrite, and a
- * declaration answers only after all of them found nothing.
+ * Several because one set of options cannot answer every question: a request
+ * that only resolved because `.js` was rewritten to `.ts` has to be re-asked
+ * without the rewrite, and a declaration answers only after both found nothing.
  */
 export interface Resolvers {
   /** Modules first, with the `.js` → `.ts` rewrite on, under the default conditions. */
@@ -78,8 +72,6 @@ export interface Resolvers {
    * answer, and then this is always `modules`.
    */
   readonly modulesFor: (from: string) => ResolverFactory;
-  /** Stylesheet extensions only. */
-  readonly styles: ResolverFactory;
   /** No extension rewriting, for the one request where the rewrite is the bug. */
   readonly exact: ResolverFactory;
   /**
@@ -96,23 +88,12 @@ export interface Resolvers {
   /** What the file currently being resolved has already asked. */
   readonly asking: Asking;
   /**
-   * The tree itself, once a scan has walked it ([`world.ts`](./world.ts)).
+   * The repository paths a scan recorded, once a caller names them.
    *
-   * Nothing to do with `oxc-resolver`, which is why it sits beside the three
-   * rather than among them. Every language after JavaScript resolves by asking
-   * about the tree rather than by walking the disk: Python has no `node_modules`
-   * chain and no manifest to consult per request, Rust has a module tree, and
-   * Java, Kotlin and Swift turn a name into a directory. The scan already holds
-   * the answer for the whole tree — so asking it costs a map lookup where a
-   * `stat` would cost a syscall, seventy-six times per specifier on a namespace
-   * package spread across nineteen roots.
-   *
-   * Absent until a caller names a tree, and a request in one of those languages
-   * asked before then resolves to nothing rather than to a guess. It is also
-   * the evidence a landing under `build/` needs, so without one that resolves
-   * to nothing in every language ({@link toRepoPath}).
+   * The evidence a landing under `build/` needs: without it such a landing
+   * resolves to nothing ({@link toRepoPath}).
    */
-  tree: TreeWorld | undefined;
+  listed: { has(path: string): boolean } | undefined;
 }
 
 /**
@@ -175,15 +156,8 @@ export interface Landing {
 export interface Asking {
   /** The file every answer is about. Nothing until the first question. */
   file: string | undefined;
-  /**
-   * Language-and-specifier → where it landed, or `null` for nowhere.
-   *
-   * The language is in the key and not merely along for the ride: the same
-   * string asked from two languages is two questions, and `./colors` is the
-   * standing example — from a stylesheet it may land on `_colors.scss`, from a
-   * module it must not.
-   */
-  readonly answers: Map<string, readonly string[]>;
+  /** Specifier → where it landed, or `null` for nowhere. */
+  readonly answers: Map<string, string | null>;
 }
 
 export function resolversFor(options: ResolveOptions): Resolvers {
@@ -227,20 +201,19 @@ export function resolversFor(options: ResolveOptions): Resolvers {
     modules,
     modulesFor: custom ? conditioned(modules, moduleOptions, custom) : () => modules,
     declarationsFor: custom ? conditioned(declarations, declarationOptions, custom) : () => declarations,
-    styles: modules.cloneWithOptions({ extensions: [...STYLE_EXTENSIONS] }),
     exact: modules.cloneWithOptions({ extensionAlias: {} }),
     canonical: new Map(),
     against: undefined,
     emitted: emittedFrom(),
     asking: { file: undefined, answers: new Map() },
-    tree: undefined,
+    listed: undefined,
   };
 }
 
 /**
  * `modulesFor` over one factory: a file's custom conditions select a clone that
  * adds them, and files whose configs agree share it. Asked once per file, since
- * `resolveAll` asks a file's requests together.
+ * `resolveTo` asks a file's requests together.
  */
 function conditioned(
   modules: ResolverFactory,
@@ -272,10 +245,6 @@ export interface Request {
   readonly from: string;
   /** The specifier, already reduced to something resolvable by `requestOf`. */
   readonly request: string;
-  /** The language the importing file was read as, which picks the algorithm. */
-  readonly language: LanguageId;
-  /** The specifier is asked for as the item it names, as `Request.item` in `read.ts` says. */
-  readonly item?: boolean;
 }
 
 /**
@@ -286,86 +255,42 @@ export interface Request {
  * reached. None of them can be in a diff of this repository.
  */
 export function resolveTo(input: Request): string | undefined {
-  return resolveAll(input)[0];
-}
-
-/**
- * Every file a specifier reaches, in the order a caller should prefer them.
- *
- * One answer is the JavaScript, stylesheet, Python and Rust shape: a specifier
- * names a file. Java, Kotlin and Swift have no such shape — `import a.b.*` is a
- * package, and `import Core` is a whole Swift target — so the general answer is
- * a list, and the languages that can only ever return one return one.
- */
-export function resolveAll(input: Request): readonly string[] {
-  const { resolvers, root, from, request, language, item } = input;
+  const { resolvers, root, from, request } = input;
 
   // The importing file, not its directory. Under project references the config
   // that governs a file is chosen by matching the file against each referenced
   // project's `include` and `exclude`, so the two halves of a `src/` directory
   // can sit under `paths` that disagree — and a directory key would hand one
-  // half the other's answer, silently, by scan order.
+  // half the other's answer, silently, by caller order.
   //
   // The file is the memo rather than a prefix of its keys. A caller that has
   // moved on to another file can never read these answers again, so they are
-  // dropped where they stop being answers ([`Asking`](#asking)) instead of being
-  // carried to the end of a scan that is a million of them.
+  // dropped where they stop being answers ([`Asking`](#asking)).
   const { asking } = resolvers;
   if (asking.file !== from) {
     asking.file = from;
     asking.answers.clear();
   }
 
-  const key = `${language}\0${item === true ? 'item' : ''}\0${request}`;
-  const known = asking.answers.get(key);
-  if (known !== undefined) return known;
+  const known = asking.answers.get(request);
+  if (known !== undefined) return known ?? undefined;
 
-  const answer = resolved({ resolvers, root, from, request, language, item });
-  asking.answers.set(key, answer);
+  const answer = resolved(resolvers, root, from, request);
+  asking.answers.set(request, answer ?? null);
   return answer;
 }
 
-function resolved(input: {
-  readonly resolvers: Resolvers;
-  readonly root: string;
-  readonly from: string;
-  readonly request: string;
-  readonly language: LanguageId;
-  readonly item: boolean | undefined;
-}): readonly string[] {
-  const { resolvers, root, from, request, language, item } = input;
-
-  if (OVER_THE_TREE.has(language)) {
-    const world = resolvers.tree;
-    const file = toRepoPath(root, from, world);
-    if (world === undefined || file === undefined) return [];
-    switch (language) {
-      case 'python': return resolvePython({ from: file, request, world });
-      case 'rust': return resolveRust({ from: file, request, world, item });
-      case 'swift': return resolveSwift({ from: file, request, world });
-      default: return resolveJvm({ from: file, request, world });
-    }
-  }
-
-  const style = language === 'style';
-  const attempts = style ? styleRequests(request) : [request];
-  const modules = resolvers.modulesFor(from);
-  const order = style
-    ? [resolvers.styles, modules]
-    : [modules, resolvers.exact];
-
+function resolved(resolvers: Resolvers, root: string, from: string, request: string): string | undefined {
   let elsewhere = false;
-  for (const resolver of order) {
-    for (const attempt of attempts) {
-      const path = found(resolver, from, attempt);
-      if (path === undefined) continue;
+  for (const resolver of [resolvers.modulesFor(from), resolvers.exact]) {
+    const path = found(resolver, from, request);
+    if (path === undefined) continue;
 
-      const { disk, file } = landed(resolvers, root, path);
-      if (caseFolded(attempt, disk)) continue;
+    const { disk, file } = landed(resolvers, root, path);
+    if (caseFolded(request, disk)) continue;
 
-      if (file !== undefined) return [file];
-      elsewhere = true;
-    }
+    if (file !== undefined) return file;
+    elsewhere = true;
   }
 
   // A declaration answers last, only where nothing else was found, as the
@@ -373,11 +298,11 @@ function resolved(input: {
   // stylesheet or `.json`, and not for a request a package or a build answers.
   // One inside a build's output never answers, so the answer is the same
   // whether the build ran or not.
-  if (style || elsewhere) return [];
+  if (elsewhere) return undefined;
   const path = found(resolvers.declarationsFor(from), from, request);
-  if (path === undefined || !DECLARATION.test(path) || resolvers.emitted(realPath(path)) !== undefined) return [];
+  if (path === undefined || !DECLARATION.test(path) || resolvers.emitted(realPath(path)) !== undefined) return undefined;
   const { disk, file } = landed(resolvers, root, path);
-  return file === undefined || caseFolded(request, disk) ? [] : [file];
+  return file === undefined || caseFolded(request, disk) ? undefined : file;
 }
 
 /** The path a resolver found, or nothing for a failure or a builtin. */
@@ -394,21 +319,6 @@ function found(resolver: ResolverFactory, from: string, request: string): string
     return undefined;
   }
 }
-
-/**
- * The languages that resolve by asking about the tree rather than walking disk.
- *
- * Everything but JavaScript and stylesheets, which is to say everything added
- * after this package's first shape. They share the one
- * [`TreeWorld`](./world.ts) and differ only in what they ask it.
- */
-const OVER_THE_TREE: ReadonlySet<LanguageId> = new Set<LanguageId>([
-  'python',
-  'rust',
-  'java',
-  'kotlin',
-  'swift',
-]);
 
 /**
  * A resolved path as the filesystem spells it, and where that is in the tree.
@@ -454,7 +364,7 @@ function landed(resolvers: Resolvers, root: string, path: string): Landing {
   const found = realPath(path);
   const source = resolvers.emitted(found);
   const disk = source === undefined || source === null ? found : realPath(source);
-  const landing: Landing = { disk, file: source === null ? undefined : toRepoPath(root, disk, resolvers.tree) };
+  const landing: Landing = { disk, file: source === null ? undefined : toRepoPath(root, disk, resolvers.listed) };
   canonical.set(path, landing);
 
   return landing;

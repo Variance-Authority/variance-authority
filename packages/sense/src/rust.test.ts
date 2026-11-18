@@ -1,11 +1,7 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { native } from './addon.js';
 import type { Read } from './read.js';
-import { isRustRelative, resolveRust, topLevelItems } from './rust.js';
-import { worldIn, worldOn } from './world.js';
+import { isRelative } from './specifier.js';
 
 /**
  * The two certainties a Rust file offers, and the one it does not.
@@ -214,10 +210,10 @@ describe('what a Rust file asks for', () => {
   });
 
   it('answers for a path this repository could own, and not for a foreign crate', () => {
-    expect(isRustRelative('self::order')).toBe(true);
-    expect(isRustRelative('crate::read::Read')).toBe(true);
-    expect(isRustRelative('other/place.rs')).toBe(true);
-    expect(isRustRelative('std::fmt::Display')).toBe(false);
+    expect(isRelative('self::order', 'rust')).toBe(true);
+    expect(isRelative('crate::read::Read', 'rust')).toBe(true);
+    expect(isRelative('other/place.rs', 'rust')).toBe(true);
+    expect(isRelative('std::fmt::Display', 'rust')).toBe(false);
   });
 });
 
@@ -297,158 +293,6 @@ describe('what a Rust file declares', () => {
   });
 });
 
-describe('where a Rust path lands', () => {
-  const world = worldIn([
-    'Cargo.toml',
-    'src/lib.rs',
-    'src/read.rs',
-    'src/order/mod.rs',
-    'src/order/sort.rs',
-    'other/place.rs',
-  ]);
-
-  it('finds a module beside its declaration, and a directory by its own file', () => {
-    expect(resolveRust({ from: 'src/lib.rs', request: 'self::read', world }))
-      .toEqual(['src/read.rs']);
-    expect(resolveRust({ from: 'src/lib.rs', request: 'self::order', world }))
-      .toEqual(['src/order/mod.rs']);
-  });
-
-  it('takes the longest prefix of a `use` that is a file', () => {
-    // `Sort` is a type in `order/sort.rs`, and nothing in the statement says
-    // where the module stops and the item begins.
-    expect(resolveRust({ from: 'src/lib.rs', request: 'crate::order::sort::Sort', world }))
-      .toEqual(['src/order/sort.rs']);
-  });
-
-  it('climbs with `super` to the module a file sits in', () => {
-    // `src/order/sort.rs` is the module `order::sort`, so its parent is
-    // `order` — the directory's own file, not the directory.
-    expect(resolveRust({ from: 'src/order/sort.rs', request: 'super', world }))
-      .toEqual(['src/order/mod.rs']);
-    expect(resolveRust({ from: 'src/order/sort.rs', request: 'super::super::read::Read', world }))
-      .toEqual(['src/read.rs']);
-  });
-
-  it('never lands on the file that asks, which is no edge', () => {
-    // `use super::helper` in a `mod tests` of `lib.rs` names an item of
-    // `lib.rs` itself, and `super::sort::Sort` from `sort.rs` names `sort.rs`.
-    expect(resolveRust({ from: 'src/lib.rs', request: 'self::helper', world })).toEqual([]);
-    expect(resolveRust({ from: 'src/order/sort.rs', request: 'super::sort::Sort', world }))
-      .toEqual([]);
-  });
-
-  it('lands an inline module\'s `super` on the file that holds the module, never on the crate root', () => {
-    const tree = worldIn(['Cargo.toml', 'src/lib.rs', 'src/foo.rs', 'src/bar.rs']);
-    const read = readRust('src/foo.rs', 'mod tests {\n    use super::*;\n    use super::helper;\n    use super::super::bar::Bar;\n}\n');
-
-    expect(read.requests.flatMap(({ value }) => resolveRust({ from: 'src/foo.rs', request: value, world: tree })))
-      .toEqual(['src/bar.rs']);
-  });
-
-  it('lands a `#[path]` inside an inline module under that module\'s directory', () => {
-    const tree = worldIn(['Cargo.toml', 'src/lib.rs', 'src/a.rs', 'src/a/b.rs', 'src/a/b/inline/other.rs', 'src/a/elsewhere.rs']);
-    const read = readRust('src/a/b.rs', '#[path = "elsewhere.rs"]\nmod beside;\nmod inline {\n    #[path = "other.rs"]\n    mod inner;\n}\n');
-
-    expect(read.requests.flatMap(({ value }) => resolveRust({ from: 'src/a/b.rs', request: value, world: tree })))
-      .toEqual(['src/a/elsewhere.rs', 'src/a/b/inline/other.rs']);
-    // A `mod.rs` owns the directory it is in, so its inline modules sit there.
-    const owned = worldIn(['Cargo.toml', 'src/lib.rs', 'src/a/mod.rs', 'src/a/inline/other.rs', 'src/a/elsewhere.rs']);
-    const inMod = readRust('src/a/mod.rs', '#[path = "elsewhere.rs"]\nmod beside;\nmod inline {\n    #[path = "other.rs"]\n    mod inner;\n}\n');
-
-    expect(inMod.requests.flatMap(({ value }) => resolveRust({ from: 'src/a/mod.rs', request: value, world: owned })))
-      .toEqual(['src/a/elsewhere.rs', 'src/a/inline/other.rs']);
-  });
-
-  it('takes as a file\'s top-level items none of the items its inline modules declare', () => {
-    // An item inside `mod tests` is declared on its path, `tests::fixture`, and
-    // is no item of the file: `crate::shapes::fixture` names nothing.
-    const { symbols } = readRust('src/shapes.rs', 'fn top() {}\nmod tests {\n    fn fixture() {}\n    mod deep {}\n}\n');
-
-    expect(topLevelItems(symbols ?? [], new Set())).toEqual({ declared: new Set(['top']), inline: new Set(['tests']) });
-  });
-
-  it('takes a spelled path as a path, relative to the declaring file', () => {
-    expect(resolveRust({ from: 'src/lib.rs', request: 'other/place.rs', world }))
-      .toEqual([]);
-  });
-
-  it('lands a path asked for as an item only where one segment is left past its modules', () => {
-    const asked = (request: string) => resolveRust({ from: 'src/lib.rs', request, item: true, world });
-    expect(asked('crate::order::sort::Sort')).toEqual(['src/order/sort.rs']);
-    // The module itself, and a function of the type rather than of the module.
-    expect(asked('crate::order::sort')).toEqual([]);
-    expect(asked('crate::order::sort::Sort::new')).toEqual([]);
-  });
-
-  it('is silent about a crate this tree does not hold', () => {
-    expect(resolveRust({ from: 'src/lib.rs', request: 'serde::Deserialize', world }))
-      .toEqual([]);
-  });
-});
-
-describe('where a Rust path lands in the module tree its files declare', () => {
-  // `#[path]` puts a module where its name does not say, so the tree is read
-  // off the `mod` lines, and `super` climbs that tree rather than the disk.
-  const world = worldOn(tree({
-    'Cargo.toml': '[package]\nname = "kit"\nversion = "0.1.0"\n',
-    'src/lib.rs': 'mod lexicon;\nmod compact;\nmod shapes;\n',
-    'src/shapes.rs': 'fn inner() {}\n\nmod inner {\n    pub(crate) struct Thing;\n}\n',
-    'src/lexicon.rs': '#[path = "lexicon_catalogue.rs"]\nmod catalogue;\n#[path = "lexicon_view.rs"]\nmod view;\n',
-    'src/lexicon_catalogue.rs': 'pub(crate) struct Catalogue;\n',
-    'src/lexicon_view.rs': 'use super::catalogue::Catalogue;\n',
-    'src/compact.rs': 'fn flag() {}\nmod inner {\n    pub(crate) struct Thing;\n    mod deep;\n}\n',
-    'src/compact/inner/deep.rs': 'use super::super::flag;\n',
-    'tests/run.rs': 'mod helper;\nuse crate::helper::Help;\n',
-    'tests/helper.rs': 'pub struct Help;\n',
-  }));
-
-  it('finds a file `#[path]` names beside the file that declares it', () => {
-    expect(resolveRust({ from: 'src/lexicon.rs', request: 'lexicon_view.rs', world }))
-      .toEqual(['src/lexicon_view.rs']);
-  });
-
-  it('climbs with `super` to the module that declared the file', () => {
-    expect(resolveRust({ from: 'src/lexicon_view.rs', request: 'super::catalogue::Catalogue', world }))
-      .toEqual(['src/lexicon_catalogue.rs']);
-  });
-
-  it('climbs out of an inline module to the file it is written in', () => {
-    expect(resolveRust({ from: 'src/compact/inner/deep.rs', request: 'super::super::flag', world }))
-      .toEqual(['src/compact.rs']);
-  });
-
-  it('lands an item of an inline module on the file it is written in, and the module itself on nothing', () => {
-    const asked = (request: string) => resolveRust({ from: 'src/lib.rs', request, item: true, world });
-    // `inner` is a module written inside `compact.rs`, so `Thing` is the one
-    // segment past the modules, and `inner` is no item of `compact.rs`.
-    expect(asked('crate::compact::inner::Thing')).toEqual(['src/compact.rs']);
-    expect(asked('crate::compact::inner')).toEqual([]);
-    // An inline module no file is declared inside, beside a `fn` of its name.
-    expect(asked('crate::shapes::inner::Thing')).toEqual(['src/shapes.rs']);
-    expect(asked('crate::shapes::inner')).toEqual([]);
-    // The one segment past the modules lands only where the file declares it.
-    expect(asked('crate::shapes::Missing')).toEqual([]);
-  });
-
-  it('takes `crate` from a file no module declares as that file', () => {
-    // A test target is a crate root of its own.
-    expect(resolveRust({ from: 'tests/run.rs', request: 'crate::helper::Help', world }))
-      .toEqual(['tests/helper.rs']);
-  });
-});
-
-/** A directory holding `files`, for a world that can read them. */
-function tree(files: Readonly<Record<string, string>>): string {
-  const root = mkdtempSync(join(tmpdir(), 'va-rust-tree-'));
-  for (const [path, contents] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true });
-    writeFileSync(join(root, path), contents);
-  }
-  return root;
-}
-
-/** A symbol's signature and doc, as the spans it carries cut them from `contents`. */
 function spelled(contents: string, read: Read) {
   const cut = (span: { readonly start: number; readonly end: number } | undefined) => span && contents.slice(span.start, span.end);
   return (read.symbols ?? []).map(({ name, kind, line, signature, doc }) => ({ name, kind, line, signature: cut(signature), doc: cut(doc) }));

@@ -8,7 +8,6 @@
  */
 
 import { isAbsolute, relative, sep } from 'node:path';
-import type { TreeWorld } from './world.js';
 
 /**
  * Directories a scan never descends into on disk, and never records a file
@@ -48,7 +47,7 @@ export function excludedWhenListed(name: string): boolean {
 export function toRepoPath(
   root: string,
   absolute: string,
-  listed?: Pick<TreeWorld, 'has'>,
+  listed?: { has(path: string): boolean },
 ): string | undefined {
   const path = relative(root, absolute);
   if (path === '' || path.startsWith('..') || isAbsolute(path)) return undefined;

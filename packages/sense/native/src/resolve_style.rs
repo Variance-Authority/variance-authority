@@ -1,5 +1,5 @@
-//! Where a stylesheet's specifier lands: `resolveAll` in `resolve.ts` for the
-//! `style` language. Each form [`style_requests`] spells is asked of the
+//! Where a stylesheet's specifier lands. Each form [`style_requests`] spells is
+//! asked of the
 //! stylesheet resolver first and the importer's module resolver after, and a
 //! stylesheet never falls back to a declaration.
 

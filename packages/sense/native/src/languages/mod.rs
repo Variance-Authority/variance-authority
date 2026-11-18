@@ -7,7 +7,7 @@
 //! What can be absent is this module. The grammars are the `grammars` feature,
 //! on by default and dropped by `build.mjs` when they are what failed to
 //! compile; a build without them claims no language at all, and
-//! [`record.ts`](../../../src/record.ts) records every file in these five as
+//! [`read_any.rs`](../read_any.rs) records every file in these five as
 //! *unknown* rather than *edgeless* — a repository whose Python nobody parsed
 //! must not read as a repository with no Python in it.
 
@@ -214,5 +214,15 @@ mod tests {
         for node in admitted {
             assert!(kind_of(node).is_some(), "{node} has no kind");
         }
+    }
+
+    /// `swift.test.ts`: reads the targets a manifest declares, defaults and all.
+    #[test]
+    fn reads_the_targets_a_manifest_declares_defaults_and_all() {
+        let manifest = "let package = Package(name: \"Shadow\", targets: [\n  .target(name: \"Core\", path: \"Sources/core\"),\n  .testTarget(name: \"CoreTests\", dependencies: [\"Core\"]),\n  .executableTarget(name: \"Tool\"),\n])";
+        let targets: Vec<(String, String)> =
+            super::swift_targets(manifest).unwrap().into_iter().map(|target| (target.name, target.path)).collect();
+        let expected = [("Core", "Sources/core"), ("CoreTests", "Tests/CoreTests"), ("Tool", "Sources/Tool")];
+        assert_eq!(targets, expected.map(|(name, path)| (name.to_owned(), path.to_owned())));
     }
 }

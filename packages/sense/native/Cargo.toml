@@ -25,8 +25,8 @@ exclude = ["vendor"]
 # On by default, because a release that quietly dropped them would be a release
 # that lost Python, Rust, Java, Kotlin and Swift. Off is a fallback the build
 # script reaches for after the default build has already failed
-# (`build.mjs`), and it costs exactly those five languages: `readLanguage`
-# answers nothing, and `record.ts` records every file in them as unknown.
+# (`build.mjs`), and it costs exactly those five languages: the batch
+# records every file in them as unknown (`read_any.rs`).
 [features]
 default = ["grammars"]
 grammars = [

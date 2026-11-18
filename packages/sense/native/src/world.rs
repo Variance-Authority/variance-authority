@@ -1,8 +1,9 @@
-//! The tree itself, as the languages that resolve against it see it:
-//! `TreeWorld` in `world.ts`. Python looks for a file under its source roots,
-//! Rust walks a module tree, Java and Kotlin read a package's directory, and
-//! Swift takes a target's whole directory. Each is a question about the paths
-//! the walk already holds, so each is a lookup and never a syscall.
+//! The tree itself, as the languages that resolve against it see it. Python
+//! looks for a file under its source roots, Rust walks a module tree, Java and
+//! Kotlin read a package's directory, and Swift takes a target's whole
+//! directory. Each is a question about the paths the walk already holds, so
+//! each is a lookup and never a syscall: a Python namespace package spread over
+//! nineteen roots asks whether a path exists seventy-six times per specifier.
 //!
 //! A language's index over the tree is built at most once per world, before
 //! the resolve pool asks it anything ([`World::prewarm`]): built inside the
@@ -18,11 +19,11 @@ use crate::order::code_unit;
 use crate::read::Read;
 use crate::read_any::Language;
 
-/// What files of the tree say, read together, as `parsed` in `world.ts`:
+/// What files of the tree say, read together:
 /// nothing for a file that was not parsed.
 pub(crate) type Parsing<'a> = &'a (dyn Fn(&[&str]) -> Vec<Option<Read>> + Sync);
 
-/// A file's text, as `text` in `world.ts`: nothing for one that cannot be read.
+/// A file's text: nothing for one that cannot be read.
 pub(crate) type Texting<'a> = &'a (dyn Fn(&str) -> Option<String> + Sync);
 
 /// What every resolver over the tree may ask about it.
@@ -175,5 +176,48 @@ impl<'a> World<'a> {
             Language::Java | Language::Kotlin => crate::resolve_jvm::resolve(self, from, request),
             _ => Vec::new(),
         }
+    }
+}
+
+/// `world.test.ts`'s questions every language but JavaScript asks the tree.
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::World;
+
+    const PATHS: [&str; 5] = ["a/b.java", "a/b/c.java", "a/b/deep/d.java", "ab/e.java", "z.java"];
+
+    fn asked<R>(ask: impl FnOnce(&World) -> R) -> R {
+        let known: HashMap<String, u32> = PATHS.iter().map(|path| (*path).to_owned()).zip(0..).collect();
+        ask(&World::new(Some(&known), None))
+    }
+
+    #[test]
+    fn tells_what_is_directly_inside_a_directory_from_what_is_anywhere_below_it() {
+        // A Java package is a directory, not a subtree; a Swift target is a subtree.
+        asked(|world| {
+            assert_eq!(world.under("a/b").collect::<Vec<_>>(), ["a/b/c.java"]);
+            assert_eq!(world.below("a/b"), ["a/b/c.java", "a/b/deep/d.java"]);
+        });
+    }
+
+    #[test]
+    fn does_not_let_a_directory_reach_a_sibling_whose_name_it_prefixes() {
+        // `ab` sorts between `a/…` entries and would fall inside a plain prefix scan of `a`.
+        asked(|world| assert_eq!(world.below("a"), ["a/b.java", "a/b/c.java", "a/b/deep/d.java"]));
+    }
+
+    #[test]
+    fn answers_for_the_root_as_the_whole_tree() {
+        asked(|world| {
+            assert_eq!(world.below(""), PATHS);
+            assert_eq!(world.under("").collect::<Vec<_>>(), ["z.java"]);
+        });
+    }
+
+    #[test]
+    fn has_no_text_for_a_world_built_from_paths_alone() {
+        asked(|world| assert_eq!(world.text("a/b.java"), None));
     }
 }

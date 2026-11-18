@@ -1,6 +1,7 @@
 use super::*;
 
-/// `finds every shape a stylesheet names a file in` in `sense.test.ts`.
+/// Every shape a stylesheet names a file in; a stylesheet request is a
+/// whole-file dependency, so nothing binds a name — `composes` names a class.
 #[test]
 fn finds_every_shape_a_stylesheet_names_a_file_in() {
     let read = read_style(

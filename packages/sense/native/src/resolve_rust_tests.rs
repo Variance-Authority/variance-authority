@@ -9,7 +9,7 @@ fn known(paths: &[&str]) -> HashMap<String, u32> {
     paths.iter().map(|path| (*path).to_owned()).zip(0..).collect()
 }
 
-/// A world over a bare list of paths: `worldIn`.
+/// A world over a bare list of paths.
 fn layout<R>(paths: &[&str], ask: impl FnOnce(&World) -> R) -> R {
     let known = known(paths);
     ask(&World::new(Some(&known), None))

@@ -6,14 +6,13 @@
  * all of them. So a language is not a second `sense`: it is a reader that fills
  * [`Read`](./read.ts) and a resolution algorithm that turns the specifiers in it
  * into paths in this tree ([ADR-0066](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
- * Nothing above [`record.ts`](./record.ts) learns a new type, and the graph the
+ * Nothing above the native batch ([`native.ts`](./native.ts)) learns a new type, and the graph the
  * fold walks holds one kind of node whatever produced it.
  *
  * This module is the low half of that: the extension tables, and the name a file
- * is read under. The reader is chosen in [`record.ts`](./record.ts) and the
- * resolution algorithm in [`resolve.ts`](./resolve.ts), each beside the thing it
- * dispatches, because neither can be named here without this file importing the
- * whole package.
+ * is read under. The reader and the resolution algorithm are chosen in the
+ * native addon (`read_any.rs`, and `resolve_all` in `batch_walk.rs`), each beside
+ * the thing it dispatches.
  *
  * ## The id is not the extension
  *
@@ -34,7 +33,6 @@
  */
 
 import { MODULE_EXTENSIONS } from './read.js';
-import { STYLE_EXTENSIONS } from './style.js';
 
 /**
  * The languages this build can read.
@@ -72,6 +70,9 @@ export const KOTLIN_EXTENSIONS = ['.kt', '.kts'];
 /** Extensions the Swift reader claims. */
 export const SWIFT_EXTENSIONS = ['.swift'];
 
+/** Extensions the stylesheet reader claims. */
+export const STYLE_EXTENSIONS = ['.css', '.scss', '.sass', '.less'];
+
 const EXTENSIONS: Readonly<Record<LanguageId, readonly string[]>> = {
   module: MODULE_EXTENSIONS,
   style: STYLE_EXTENSIONS,
@@ -104,18 +105,6 @@ export function languageOf(suffix: string): LanguageId | undefined {
 }
 
 /**
- * Whether declarations in this language are indexed as component declarations.
- *
- * Only `module`. The component index keeps the names a React component is
- * written under — a capitalised function, class or binding of the module's own
- * statements ([`declarations.rs`](../native/src/declarations.rs)) — and a Python
- * class is not a component in any sense that index means.
- */
-export function indexesComponents(id: LanguageId): boolean {
-  return id === 'module';
-}
-
-/**
  * Whether the scan records the members a file in this language declares.
  *
  * Only `module`. A member — a property, a method, a field — is read off the
@@ -133,7 +122,7 @@ export function readsMembers(id: LanguageId): boolean {
  * import names a module that is a file, a Rust `use` names a path through one,
  * a JVM import names a class that is one. Swift names a **module**, which is a
  * whole target, and nothing in the language goes below it
- * ([`swift.ts`](./swift.ts)). So a Swift file's edges reach every file in the
+ * (`native/src/resolve_swift.rs`). So a Swift file's edges reach every file in the
  * target rather than the one the symbol came from, and they over-reach by
  * design — the direction selection is allowed to be wrong in.
  *

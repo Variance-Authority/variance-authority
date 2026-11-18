@@ -374,8 +374,8 @@ fn too_large(file: &str, size: u64, largest: u64) -> String {
     )
 }
 
-/// Whether `unknown` is the reason `too_large` gives `file`. `record.ts` writes
-/// the same words for the files it declines.
+/// Whether `unknown` is the reason `too_large` gives `file`. `declinedForSize`
+/// in `record.ts` matches the same words.
 // TODO: a record carries a decline for size only in its reason's words; a field
 // for it would let a keep ask without matching them.
 pub(crate) fn declined_for_size(file: &str, unknown: &str) -> bool {

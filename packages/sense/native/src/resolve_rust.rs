@@ -1,7 +1,57 @@
-//! Where a Rust path lands: `resolveRust` in `rust.ts`. A `mod` line declares
-//! a file, a `use` or a path in code walks the module tree those lines build,
-//! segment by segment, and the file the walk stands in is the answer. The tree
-//! is read once per world, off every `.rs` file's parse, so asking is a lookup.
+//! Where a Rust path lands. A `mod` line declares a file, a `use` or a path in
+//! code walks the module tree those lines build, segment by segment, and the
+//! file the walk stands in is the answer. The tree is read once per world, off
+//! every `.rs` file's parse, so asking is a lookup. The reader
+//! ([`rust.rs`](./languages/rust.rs)) is held to the argument here.
+//!
+//! There is no specifier that names a path. There is a *module tree*, declared
+//! statement by statement, and a set of paths that follow from it.
+//!
+//! ## Two statements, two certainties
+//!
+//! `mod order;` is a declaration: a module named `order` exists as a file, and
+//! if the file is missing the crate does not compile. So it is written fact, and
+//! a `mod` that lands nowhere is a **hole**, as a broken relative import is in
+//! every other language here.
+//!
+//! `use crate::read::harvest::Harvest;` is not. It names an *item*, and which
+//! prefix is the module is a fact about the disk: `Harvest` may be a type in
+//! `read/harvest.rs`, or `harvest` the type and `read.rs` the module. So every
+//! `use` is guessed, and the walk follows the module tree until a segment is no
+//! module: the file it stands in declares the item. A `use` that finds nothing
+//! is an external crate — the common case — and silence is the honest answer.
+//!
+//! A path in a type or an expression, `crate::graph::Limits` or
+//! `super::reach()`, is read the same way with one more doubt:
+//! `crate::map::JourneyMap::new()` may be a function of the type as well as of
+//! a module. So every prefix is asked as an item, and only the one leaving a
+//! single segment past the modules lands, and only where the file the walk
+//! stands in declares that segment: `crate::shapes::inner::Thing` passes
+//! through the inline `mod inner` of `shapes.rs`, and its prefix
+//! `crate::shapes::inner` names no item there. A single name is not asked:
+//! which item it means is scope, and the `use` that brought it in is counted.
+//!
+//! The split keeps the two from poisoning each other: an inline `mod tests { … }`
+//! declares no file, and a written-certain `use super::*` in one would be
+//! reported as a missing file.
+//!
+//! ## `#[path]` names a file directly
+//!
+//! At the top of a file it is relative to the file's directory, and is emitted
+//! as written. Inside an inline module it starts at that module's directory, so
+//! the reader emits the module first, `self::inline/other.rs`, and the
+//! directory is decided here, where `lib.rs`, `main.rs`, `mod.rs` and a file a
+//! `#[path]` loads are known to own theirs. A module path is `::`-joined
+//! identifiers, so anything carrying `.` or `/` is a filename. A file a
+//! `#[path]` loads keeps its children beside it, as a `mod.rs` does, which is
+//! why `super` is read from the `mod` lines and never from where a file sits.
+//!
+//! ## What is unknown
+//!
+//! A parse error **where an import could have been** — the top level and the
+//! body of an inline `mod` — and a missing grammar. An `ERROR` node inside a
+//! function body hides no import, so it costs nothing. `include!` and the paths
+//! a macro expands to are invisible, which is why the answer is a floor.
 
 // compass: variance-authority.reach.source-index
 

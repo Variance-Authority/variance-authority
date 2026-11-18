@@ -83,7 +83,7 @@ fn a_read_file_settles_edges_packages_and_holes() {
     assert_eq!(held.targets.as_ref().unwrap()[3], None);
 }
 
-/// `record.ts`: a guess that lands is an edge, one that does not is silence,
+/// A guess that lands is an edge, one that does not is silence,
 /// and a language says by its own rule which miss is a hole.
 #[test]
 fn a_python_guess_that_misses_is_silent_and_a_dot_that_misses_is_a_hole() {
@@ -102,7 +102,7 @@ fn a_python_guess_that_misses_is_silent_and_a_dot_that_misses_is_a_hole() {
     assert_eq!(record.unknown.as_deref(), Some("tests/a.py — 2 relative specifier(s) that resolve to nothing: .gone, ./also"));
 }
 
-/// `record.ts`: every file a request reaches is an edge, the first its target.
+/// Every file a request reaches is an edge, the first its target.
 #[test]
 fn every_file_a_request_reaches_is_an_edge_and_the_first_is_its_target() {
     let (builtins, code, directories) = (set(&[]), set(&[".swift"]), set(&[]));

@@ -45,7 +45,7 @@ pub(crate) struct Walked {
 /// empty where it lands nowhere, and every further file a request reaches,
 /// by the request's index. A Swift import is a whole target's directory, and
 /// a Java wildcard its package's: the first is the request's target and the
-/// rest are edges too, as `resolveAll` answers in `record.ts`.
+/// rest are edges too.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct Reached {
     pub first: Vec<String>,
@@ -92,7 +92,7 @@ pub(crate) fn walk_beyond(
     let root_path = Path::new(&root);
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, Some(listing)));
     // A language that reads its neighbours (Rust's module tree) reads them as
-    // the walk reads a wave, together, and a manifest off the disk, as `world.ts` does.
+    // the walk reads a wave, together, and a manifest off the disk.
     let parsing = |asked: &[&str]| {
         let files: Vec<String> = asked.iter().map(|file| (*file).to_owned()).collect();
         let oids = files.iter().map(|file| at.get(file).map(|index| tree_oids[*index as usize])).collect();

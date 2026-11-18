@@ -1,10 +1,10 @@
-//! What a stylesheet asks for: `readStyle` and `styleRequests` in `style.ts`,
-//! ported so a warm update reads and resolves a stylesheet where it reads a
-//! module, rather than handing the whole update back to JavaScript.
+//! What a stylesheet asks for: `@import`, `@use`, `@forward` and `url()`, and
+//! the forms the Sass partial convention lets one specifier take.
 //!
-//! A scan of the text and not a parse, as the oracle is: it over-reads a
-//! specifier inside a comment rather than miss one. Each pattern is the
-//! oracle's, applied in its order, and `\b` is ASCII there, so it is here.
+//! A scan of the text and not a parse: it over-reads a specifier inside a
+//! comment, which costs a collection, rather than miss one, which costs a
+//! subject nobody observed. Nothing here binds a name: a stylesheet request is
+//! a whole-file dependency. `\b` is ASCII in each pattern.
 
 // compass: variance-authority.reach.source-index
 

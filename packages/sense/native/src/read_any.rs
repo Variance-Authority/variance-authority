@@ -1,6 +1,6 @@
 //! Which reader a file is read by, and which resolution its requests take:
-//! `languageOf` in `language.ts` and `readerFor` in `record.ts`, so a native
-//! read answers a file of every language the JavaScript route reads.
+//! `languageOf` in `language.ts` names the same languages, so a file is read
+//! as the same language on both sides.
 
 // compass: variance-authority.reach.source-index
 
@@ -62,7 +62,7 @@ pub(crate) fn read_file(file: &str, source: &str, allocator: &Allocator, symbols
     }
 }
 
-/// A tree-sitter language's read, as `readLanguage` in `record.ts` keeps it.
+/// A tree-sitter language's read: the reader's answer, or *unknown* without grammars.
 #[cfg(feature = "grammars")]
 fn read_language(language: Language, file: &str, source: &str) -> Read {
     crate::languages::read(language.name(), file, source).map_or_else(|| without_grammars(language, file), from_shape)

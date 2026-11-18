@@ -106,7 +106,7 @@ pub fn built(file: &str, identity: &str, read: &Read, outcome: Outcome, reached:
         let Some(bare) = request_of(&request.value) else { continue };
         let kind = request.kind.as_str();
         if target.is_empty() {
-            // A guess that lands is an edge; one that does not is silence (`record.ts`).
+            // A guess that lands is an edge; one that does not is silence (`Request.guessed` in `read.ts`).
             if request.guessed {
                 continue;
             }

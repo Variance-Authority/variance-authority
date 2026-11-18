@@ -213,7 +213,21 @@ fn repo_path(root: &Path, absolute: &Path) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::seed_paths;
+    use super::{disk_listing, seed_paths};
+
+    /// `world.test.ts`: walks the tree the scan would, and skips what a scan skips.
+    #[test]
+    fn a_disk_listing_holds_every_file_and_skips_what_a_scan_skips() {
+        let root = std::env::temp_dir().join(format!("sense-disk-listing-{}", std::process::id()));
+        for (path, contents) in [("Cargo.toml", "[package]\nname = \"held\"\n"), ("src/lib.rs", ""), ("node_modules/dep/index.js", "")] {
+            let file = root.join(path);
+            std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+            std::fs::write(file, contents).unwrap();
+        }
+        let listed = disk_listing(&root);
+        std::fs::remove_dir_all(&root).unwrap();
+        assert_eq!(listed, ["Cargo.toml", "src/lib.rs"]);
+    }
 
     #[test]
     fn snapshot_seeds_stay_below_roots_and_out_of_generated_directories() {

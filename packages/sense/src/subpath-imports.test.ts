@@ -57,7 +57,6 @@ function oracle(root: string, value: string): string | undefined {
     root,
     from: join(root, IMPORTER),
     request: requestOf(value)!,
-    language: 'module',
   });
 }
 

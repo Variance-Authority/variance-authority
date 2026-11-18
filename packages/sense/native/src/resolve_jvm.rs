@@ -1,6 +1,31 @@
-//! Where a Java or Kotlin import lands: `resolveJvm` in `jvm.ts`. A package is
-//! a directory under a source root, and the roots are derived once per world
-//! from the package each directory's first JVM file declares, so asking is a lookup.
+//! Where a Java or Kotlin import lands. A package is a directory under a source
+//! root, and the roots are derived once per world from the package each
+//! directory's first JVM file declares, so asking is a lookup. Java and Kotlin
+//! are two syntaxes over this one algorithm, and differ in one filename rule.
+//!
+//! ## Every import is a guess
+//!
+//! `import java.util.List` and `import com.ours.List` are the same statement,
+//! and most imports in a real JVM file are the standard library or a
+//! dependency. So every request is guessed: one that lands is an edge, one that
+//! does not is silence, and a JVM file never reports an unresolved specifier.
+//!
+//! ## The source root is derived, not configured
+//!
+//! `src/main/java` is a convention, wrong for every project that does not hold
+//! to it. The file says it instead: `a/b/c/Thing.java` declaring `package b.c`
+//! sits under the root `a`, exact wherever the compiler's answer is.
+//!
+//! ## A package is implicit
+//!
+//! Types in the same package are visible with no import, so every file asks for
+//! its own package too: over a JVM codebase the majority of the real edges.
+//!
+//! ## A Kotlin file need not be named after its class
+//!
+//! `import a.b.parse` may be a top-level function in any file of `a/b/`, so
+//! when the named file is not there, every Kotlin file in the package is the
+//! answer. Java has the rule, so Java stops at the file.
 
 // compass: variance-authority.reach.source-index
 
@@ -18,7 +43,7 @@ const JVM_FILES: [&str; 2] = [".java", ".kt"];
 /// The suffix that makes a request name a package directory rather than a file.
 const WHOLE_PACKAGE: &str = ".*";
 
-/// `packageOf` in `jvm.ts`: `\w` is ASCII there, and `^` follows `\r` as well as `\n`.
+/// A file's package line: `\w` is ASCII, and `^` follows `\r` as well as `\n`.
 static PACKAGE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?mR)^[^\S\n]*package[^\S\n]+([A-Za-z0-9_.]+)").expect("a valid pattern"));
 

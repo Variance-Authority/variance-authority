@@ -1,7 +1,20 @@
-//! Where a Swift module name lands: `resolveSwift` in `swift.ts`. A module is
-//! a whole target, so a name reaches every Swift file of the target, and a
-//! file's own target (`*`) every file beside it. The targets are read once per
-//! world, off every `Package.swift`, so asking is a lookup.
+//! Where a Swift module name lands. A module is a whole target, so a name
+//! reaches every Swift file of the target, and a file's own target (`*`) every
+//! file beside it. The targets are read once per world, off every
+//! `Package.swift`, so asking is a lookup.
+//!
+//! Swift lacks the edge this package is built on: `import Core` names a whole
+//! target, nothing in the file says which of its files a symbol came from, and
+//! files see each other within a target with no import at all
+//! ([ADR-0066](https://github.com/Variance-Authority/variance-authority/blob/main/docs/context/adr/0066-a-language-is-a-reader-not-a-sense.md)).
+//! The projection onto files over-reaches the way selection is allowed to: a
+//! test that did not need running is cost. Measured on a 708-file, 51-target
+//! SwiftPM package: the largest target is 78 files, and same-target visibility
+//! is 20,756 edges, about twenty-nine per file.
+//!
+//! `Package.swift` is a program: `.target(name:path:)` is a call, `path:` is
+//! often not the default, so the manifest is read with the Swift grammar, and
+//! `Sources/<name>` is the fallback for a manifest that could not be read.
 
 // compass: variance-authority.reach.source-index
 
@@ -15,7 +28,7 @@ const OWN_TARGET: &str = "*";
 const SWIFT_FILE: &str = ".swift";
 const MANIFEST: &str = "Package.swift";
 
-/// `Targets` in `swift.ts`: each module name's directory, and every target
+/// Each module name's directory, and every target
 /// directory, longest first, so the innermost wins.
 #[derive(Debug, Default)]
 pub(crate) struct Index {
@@ -94,7 +107,7 @@ fn under(at: &str, rest: &str) -> String {
 }
 
 /// The `.target(name:path:)` calls in a manifest, read with the Swift grammar;
-/// nothing on a build without its grammars, as `declaredTargets` in `swift.ts`.
+/// nothing on a build without its grammars.
 #[cfg(feature = "grammars")]
 fn declared_targets(text: Option<&str>) -> Vec<(String, String)> {
     let targets = text.and_then(crate::languages::swift_targets).unwrap_or_default();
