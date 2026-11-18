@@ -157,20 +157,24 @@ fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, St
     held
 }
 
-pub(crate) fn update(o: UpdateOptions, tree: Tree, cold: bool) -> napi::Result<Updated> {
+pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Result<Updated> {
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {} did not update: {error}", o.index));
-    // A chain this update cannot stand on — unreadable, legacy, damaged — is
-    // rebuilt from the tree, as a missing one is. One made under another
-    // configuration is stood on with none of its records trusted: every file is
-    // resolved again and only what differs is written, so its base, and what is
-    // built on that base, stays.
-    let read = if cold { None } else { read_chain(&o.index).ok().flatten() };
-    let fits = |chain: &&Chain| chain.dropped == 0 && !chain.references.is_empty() && chain.references.len() == chain.segments.len();
+    // A chain this update cannot stand on — unreadable, legacy, damaged, or one
+    // whose read panicked (`trusted` false) — is rebuilt from the tree, as a
+    // missing one is. One made under another configuration is stood on with none
+    // of its records trusted: every file is resolved again and only what differs
+    // is written, so its base, and what is built on that base, stays.
+    let found = read_chain(&o.index);
+    let unreadable = found.is_err();
+    let read = found.ok().flatten();
+    let fits = |chain: &&Chain| trusted && chain.dropped == 0 && !chain.references.is_empty() && chain.references.len() == chain.segments.len();
     let opened = read.as_ref().filter(fits).and_then(|chain| chain.segments.par_iter().map(|bytes| Layer::open(bytes)).collect::<Result<Vec<_>, _>>().ok());
     let configured = opened.as_ref().is_some_and(|layers| layers.last().and_then(|layer| layer.config) == Some(o.config.as_str()));
     // A chain left behind for a segment that does not read is told apart from one
     // that only predates the manifest, and one another release wrote from both.
     let (rebuilt, version) = match (&read, &opened) {
+        (None, _) if unreadable => (Some("damaged".to_string()), None),
+        (Some(_), None) if !trusted => (Some("damaged".to_string()), None),
         (Some(chain), None) if chain.dropped > 0 || chain.segments.iter().any(|bytes| Layer::open(bytes).is_err()) => {
             let version = chain.segments.iter().find_map(|bytes| crate::stored::written(bytes));
             (Some(if version.is_some() { "other-version" } else { "damaged" }.to_string()), version)
@@ -398,7 +402,13 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, cold: bool) -> napi::Result<U
         let segment = |reference: &crate::index_chain::Reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 };
         let (references, published, working_count): (Vec<LogSegment>, Over, usize) = match chain {
             Some(chain) => (chain.references.iter().map(segment).collect(), Over::Published(chain.published()), chain.working),
-            None => (Vec::new(), Over::Anything, 0),
+            // A chain rebuilt is replaced only while it is still the one read;
+            // a first build only where nothing was published.
+            None => (Vec::new(), match &read {
+                Some(read) => Over::Published(read.published()),
+                None if unreadable => Over::Anything,
+                None => Over::Nothing,
+            }, 0),
         };
         // A chain rebuilt rather than updated leaves nothing of its own behind.
         let stale: Vec<LogSegment> = match (chain, &read) {

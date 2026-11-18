@@ -276,9 +276,9 @@ impl GitTree {
         // A segment of the published length is read unhashed, so damaged bytes in it can panic a read:
         // the index is then rebuilt from the tree, as any other chain it cannot stand on is.
         let first = options.clone();
-        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(first, tree(), false))) {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| source_update::update(first, tree(), true))) {
             Ok(done) => done,
-            Err(_) => source_update::update(options, tree(), true),
+            Err(_) => source_update::update(options, tree(), false),
         }
     }
 
