@@ -117,6 +117,14 @@ describe('the native warm update', () => {
     return { segments: manifest.segments.length, working: manifest.working ?? 0 };
   }
 
+  it('writes a first update as the base, leaving readying nothing to fold', async () => {
+    const start = join(work, `first-${step++}`, 'index.bin');
+    await mkdir(dirname(start), { recursive: true });
+    expect(await updateNatively(root, start, undefined, ['.'], [])).toBeDefined();
+    expect(await chain(start)).toEqual({ segments: 1, working: 0 });
+    expect(await readySourceIndex(start)).toBe(false);
+  });
+
   it('rewrites one working layer over the base, keeping what an earlier update deleted, and readying folds it in', async () => {
     const start = await both();
     const base = (await chain(start)).segments;

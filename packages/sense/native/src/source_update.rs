@@ -482,8 +482,11 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree) -> napi::Result<Option<Update
         working.push(&delta);
         let working = if working.len() == 1 { delta.clone() } else { merged(&beneath, &working).map_err(fail)? };
         let working = carried(working, listing).map_err(fail)?;
+        // A first update has no base to carry a working layer over: what it writes
+        // is the base, and readying finds nothing to fold.
+        let layered = usize::from(chain.is_some());
         // Another writer between the read and here: its chain is not the one this delta is against.
-        let refused = match written(&o.index, published, &references[..base], &[&working], &references[base..], 1) {
+        let refused = match written(&o.index, published, &references[..base], &[&working], &references[base..], layered) {
             Ok(false) => return Ok(None),
             Ok(true) => None,
             Err(error) => Some(format!("{}: {error}", o.index)),
