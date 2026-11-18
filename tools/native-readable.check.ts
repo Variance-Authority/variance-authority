@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 /**
  * One answer to *which files does a scan open*, held in two languages.
  *
- * The reader tables in `language.ts`, `read.ts` and `style.ts` say which
+ * The reader tables in `language.ts` and `read.ts` say which
  * extensions some reader claims; `EXTENSIONS` in `seed.rs` says which ones the
  * native seeder puts in front of them. Nothing compares the two at run time.
  *
@@ -35,8 +35,7 @@ function listed(source: string, name: string): readonly string[] {
 
 const readable = new Set([
   ...listed(read('src/read.ts'), 'MODULE_EXTENSIONS'),
-  ...listed(read('src/style.ts'), 'STYLE_EXTENSIONS'),
-  ...['PYTHON_EXTENSIONS', 'RUST_EXTENSIONS', 'JAVA_EXTENSIONS', 'KOTLIN_EXTENSIONS', 'SWIFT_EXTENSIONS']
+  ...['STYLE_EXTENSIONS', 'PYTHON_EXTENSIONS', 'RUST_EXTENSIONS', 'JAVA_EXTENSIONS', 'KOTLIN_EXTENSIONS', 'SWIFT_EXTENSIONS']
     .flatMap((name) => listed(read('src/language.ts'), name)),
 ]);
 

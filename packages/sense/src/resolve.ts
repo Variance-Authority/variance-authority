@@ -1,9 +1,8 @@
 /**
  * A specifier, as written, into a file on this disk.
  *
- * A scan resolves every language in the native addon
- * (`native/src/resolve.rs`, and `native/src/world.rs` for the languages that
- * resolve over the tree). This is the one resolution left in JavaScript: a
+ * A scan resolves every language in the native addon (`native/src/resolve.rs`,
+ * `native/src/world.rs`). This is the one resolution left in JavaScript: a
  * module specifier a diff adds, asked by [`taint`](./taint/join.ts) from files
  * the scan never read. `tsconfig` paths, export conditions and extension order
  * live here, and none of them is allowed to change what counts as an import.
