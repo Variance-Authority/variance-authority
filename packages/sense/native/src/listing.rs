@@ -110,6 +110,19 @@ impl Listing {
         self.regular.get(at as usize).copied().unwrap_or(false)
     }
 
+    /// What git lists at a path spelled from the root, `/` between its
+    /// parts, or `None` when git did not answer for the tree: a regular file,
+    /// a directory it lists a file beneath, or neither.
+    pub(crate) fn spelled(&self, spelled: &str) -> Option<Option<Known>> {
+        if !self.real.contains("") {
+            return None;
+        }
+        if let Some(&at) = self.files.get(spelled) {
+            return Some(self.regular(at).then_some(Known::File));
+        }
+        Some(self.real.contains(spelled).then_some(Known::Directory))
+    }
+
     /// Whether git vouches the path is a regular file. A symbolic link is a
     /// blob as well, and may name a directory.
     pub(crate) fn is_file(&self, path: &Path) -> bool {

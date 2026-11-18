@@ -11,7 +11,7 @@ use once_cell::sync::OnceCell as OnceLock;
 
 use super::{cache_impl::Cache, cached_meta::CachedMeta, thread_local::SCRATCH_PATH};
 use crate::{
-    FileMetadata, FileSystem, PackageJson, TsConfig, context::ResolveContext as Ctx,
+    FileMetadata, FileSystem, PackageJson, ResolveError, TsConfig, context::ResolveContext as Ctx,
     path::push_normalized_component,
 };
 
@@ -33,9 +33,9 @@ pub struct CachedPathImpl {
     pub node_modules: OnceLock<Option<Weak<Self>>>,
     pub package_json: OnceLock<Option<Arc<PackageJson>>>,
     /// `tsconfig.json` found at path.
-    pub tsconfig: OnceLock<Option<Arc<TsConfig>>>,
+    pub tsconfig: OnceLock<Result<Option<Arc<TsConfig>>, ResolveError>>,
     /// `tsconfig.json` after resolving `references`, `files`, `include` and `extend`.
-    pub resolved_tsconfig: OnceLock<Option<Arc<TsConfig>>>,
+    pub resolved_tsconfig: OnceLock<Result<Option<Arc<TsConfig>>, ResolveError>>,
 }
 
 impl CachedPathImpl {
