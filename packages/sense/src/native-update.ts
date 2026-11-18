@@ -39,6 +39,7 @@ export interface NativeUpdated {
   readonly parsed: number;
   readonly published: boolean;
   readonly refused?: string;
+  readonly moved?: boolean;
 }
 /** What the addon did, and the listing it took. */
 export interface NativelyUpdated {
@@ -48,6 +49,8 @@ export interface NativelyUpdated {
   readonly reread: number;
   readonly parsed: number;
   readonly refused?: string;
+  /** The refusal is another writer's publication under this one: the update run again is against its chain. */
+  readonly moved?: true;
   readonly listing?: NativeGitTree;
 }
 
@@ -100,6 +103,7 @@ export async function updateNatively(
     reread: done.reread,
     parsed: done.parsed,
     ...(done.refused === undefined || done.refused === null ? {} : { refused: done.refused }),
+    ...(done.moved === true ? { moved: true as const } : {}),
     listing: held,
   };
 }

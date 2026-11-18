@@ -85,6 +85,8 @@ pub struct Updated {
     pub published: bool,
     /// What the file system refused, when it did: the index is then as it was.
     pub refused: Option<String>,
+    /// Whether the refusal is another writer's publication between the read and the write: the same update, run again, is against its chain.
+    pub moved: bool,
 }
 
 /// The tree an update is made against.
@@ -365,7 +367,7 @@ fn update_with(o: UpdateOptions, tree: Tree, damaged: bool) -> napi::Result<Opti
         phases.next("parse stores");
         add_unheld();
         let Some(listing) = listing else {
-            return Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: None }));
+            return Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: None, moved: false }));
         };
         // Nothing to publish, and a listing to carry: the working layer is
         // written again with it, so the next update can ask Watchman from here.
@@ -377,9 +379,9 @@ fn update_with(o: UpdateOptions, tree: Tree, damaged: bool) -> napi::Result<Opti
         };
         let working = carried(working, Some(listing)).map_err(fail)?;
         return match written(&o.index, published, &references[..base], &[&working], &original[base..], 1) {
-            Ok(true) => Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: None })),
-            Ok(false) => Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: Some(format!("{} moved after it was read; run the index update again", o.index)) })),
-            Err(error) => Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)) })),
+            Ok(true) => Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: None, moved: false })),
+            Ok(false) => Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: Some(format!("{} moved after it was read; run the index update again", o.index)), moved: true })),
+            Err(error) => Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)), moved: false })),
         };
     }
 
@@ -427,10 +429,10 @@ fn update_with(o: UpdateOptions, tree: Tree, damaged: bool) -> napi::Result<Opti
     }
     phases.next("write publication");
     // Another writer between the read and here: its chain is not the one this delta is against.
-    let refused = match written_reusing(&o.index, published, &references[..base], &publications, &original[base..], working_count, if cold { &reusable } else { &[] }) {
-        Ok(false) => Some(format!("{} moved after it was read; run the index update again", o.index)),
-        Ok(true) => None,
-        Err(error) => Some(format!("{}: {error}", o.index)),
+    let (refused, moved) = match written_reusing(&o.index, published, &references[..base], &publications, &original[base..], working_count, if cold { &reusable } else { &[] }) {
+        Ok(false) => (Some(format!("{} moved after it was read; run the index update again", o.index)), true),
+        Ok(true) => (None, false),
+        Err(error) => (Some(format!("{}: {error}", o.index)), false),
     };
-    Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: refused.is_none(), refused }))
+    Ok(Some(Updated { was: was.to_owned(), written: prior_version, files, reread, parsed, published: refused.is_none(), refused, moved }))
 }

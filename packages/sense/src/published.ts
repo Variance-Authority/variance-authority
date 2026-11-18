@@ -12,7 +12,7 @@ import { assertLogPath } from './immutable-log.js';
 import { realPath } from './resolve.js';
 import { placesOf, stepped, type Progress } from './progress.js';
 import { sourceIndexPath } from './source-index.js';
-import { updateNatively } from './native-update.js';
+import { updateNatively, type NativelyUpdated } from './native-update.js';
 import { parseStoresFor } from './parse-store.js';
 import { markCheckout } from './test-selection/cache-layers.js';
 import type { SourceIndexState } from './source-index-file.js';
@@ -72,6 +72,9 @@ export interface SourceUpdate {
   readonly listing?: NativeGitTree;
 }
 
+/** How many times an update is run against a chain that moved under it, the first included. */
+const ATTEMPTS = 4;
+
 /**
  * Absorb what moved in the checkout into its source index, as one appended layer.
  *
@@ -90,13 +93,21 @@ export async function updateSourceIndex(
   const path = options.index ?? sourceIndexPath(where);
   assertLogPath(path);
   const dirs = options.dirs ?? ['.'];
-  const missing = !existsSync(path);
   const stores = await stepped(undefined, 'source parse-store policy', () =>
     dirname(path) === dirname(sourceIndexPath(where)) ? parseStoresFor(where) : undefined);
   const everything = `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
-  const natively = await updateNatively(
-    realPath(where), path, options.progress, dirs, stores, missing ? everything : undefined, options.packs, options.prepareMap === true && missing, options.changed,
-  );
+  // A writer that published between this update's read and its write left a
+  // chain this one is not against, and the same update against that chain is
+  // mostly unchanged. Readers of one checkout start together, so losing is
+  // ordinary; a chain that keeps moving is reported after `ATTEMPTS`.
+  const once = (): Promise<NativelyUpdated | undefined> => {
+    const missing = !existsSync(path);
+    return updateNatively(
+      realPath(where), path, options.progress, dirs, stores, missing ? everything : undefined, options.packs, options.prepareMap === true && missing, options.changed,
+    );
+  };
+  let natively = await once();
+  for (let lost = 1; lost < ATTEMPTS && natively?.moved === true; lost += 1) natively = await once();
   if (natively === undefined) throw new Error(`sense: native source indexing could not update ${path}`);
   if (options.index === undefined) markCheckout(realPath(where));
   return {
