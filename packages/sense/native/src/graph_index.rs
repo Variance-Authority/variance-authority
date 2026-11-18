@@ -26,7 +26,7 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 use rayon::prelude::*;
 
-use crate::batch::{neighbours, texting, walk_beyond, GraphOptions, Walked};
+use crate::batch::{neighbours, texting, walk_beyond, GraphOptions, Neighbours, Walked};
 use crate::emitted::Listing;
 use crate::generation::{encode_generation, Deleted, Delta, Generation};
 use crate::git::Oid;
@@ -85,7 +85,8 @@ pub(crate) fn index_graph(
     // A module the caller's cache or a store holds is answered from it, under
     // the size and link rules every walk keeps (`read_kept`), rather than read again.
     let kept = |identity: &str, file: &str| store?.view(identity, &way(file))?.read();
-    let parsing = neighbours(&options.root, at, tree_oids, options.largest_file, options.readers, &kept, from_blob, objects);
+    let read_by_world = Neighbours::default();
+    let parsing = neighbours(&options.root, at, tree_oids, options.largest_file, options.readers, &kept, from_blob, objects, &read_by_world);
     let texting = texting(&options.root);
     let world = World::new(Some(at), None).reading(&parsing, &texting);
     let Walked { files, identities, read, targets, kept: answered } = walk_beyond(
@@ -102,6 +103,7 @@ pub(crate) fn index_graph(
         tree_oids,
         listing,
         &world,
+        &read_by_world,
         &|_| false,
         &kept,
         from_blob,

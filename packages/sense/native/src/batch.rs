@@ -18,11 +18,14 @@ use crate::record::{records_json, RecordOptions, Settled};
 use crate::resolve::{Resolvers, Tsconfig};
 use crate::world::World;
 
+#[path = "batch_neighbours.rs"]
+mod neighbours;
 #[path = "batch_walk.rs"]
 mod walk;
 
+pub(crate) use neighbours::{neighbours, texting, Neighbours};
 use walk::{read_held, read_kept, resolve_all};
-pub(crate) use walk::{neighbours, texting, walk_beyond, Kept, Reached, Walked};
+pub(crate) use walk::{walk_beyond, Kept, Reached, Walked};
 
 /// What a batch of files said, in columns rather than per-file objects.
 #[napi(object)]
@@ -252,10 +255,12 @@ pub(crate) fn scan_graph_with_tree(
 ) -> napi::Result<ScanBatch> {
     let include_parses = options.include_parses;
     let root = options.root.clone();
-    let (parsing, texting) = (neighbours(&root, at, tree_oids, options.largest_file, options.readers, kept, from_blob, store), texting(&root));
+    let read_by_world = Neighbours::default();
+    let parsing = neighbours(&root, at, tree_oids, options.largest_file, options.readers, kept, from_blob, store, &read_by_world);
+    let texting = texting(&root);
     let world = World::new(Some(at), None).reading(&parsing, &texting);
     let Walked { files, identities, read, targets, kept: answered } =
-        walk_beyond(options, at, tree_oids, listing, &world, &|_| false, kept, from_blob, store);
+        walk_beyond(options, at, tree_oids, listing, &world, &read_by_world, &|_| false, kept, from_blob, store);
     // A kept row's parse is the store's, whole; the one the walk holds is only
     // what records need, so it is not published as a parse.
     let parse_segment = crate::index::parse_segment(&files, &identities, &read, &answered);
