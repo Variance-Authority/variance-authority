@@ -6,7 +6,7 @@ import { isCI } from 'ci-info';
 import { operatorError } from './operator.js';
 
 export interface SourceScan {
-  /** Published source directories, relative to `root` or absolute inside it. */
+  /** Published source directories, relative to `root` or absolute, anywhere inside its checkout. */
   readonly dirs: readonly string[];
   /** Defaults to `.tsx`, `.jsx`, `.ts`, `.js`. */
   readonly extensions?: readonly string[];

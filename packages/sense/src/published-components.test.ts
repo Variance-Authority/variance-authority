@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -29,5 +30,28 @@ it('reads duplicate declarations and identity within the configured directories,
     expect((await publishedComponentSources(root, ['src'], { ...options, exclude: [] })).digest).not.toBe(after.digest);
     expect((await publishedComponentSources(root, ['src'], { ...options, exclude: ['two.'] })).source.Button).toBeUndefined();
     expect(await publishedComponentSources(root, ['src'], { ...options, index: join(root, 'elsewhere.bin') })).toEqual(after);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+it('reads a directory of a sibling package, named from where it was asked, and refuses one outside the checkout', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'published-components-'));
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: root });
+    await mkdir(join(root, 'packages/app/src'), { recursive: true });
+    await mkdir(join(root, 'packages/other/src'), { recursive: true });
+    await writeFile(join(root, 'packages/app/src/App.tsx'), 'export function App() {}\n');
+    await writeFile(join(root, 'packages/other/src/Shared.tsx'), 'export function Shared() {}\n');
+    const options = { ci: true, step: 'variance index', announce: () => {} };
+    const app = join(root, 'packages/app');
+    const said: string[] = [];
+    expect((await publishedComponentSources(app, ['src', '../other/src'], { ...options, announce: (line) => said.push(line) })).source).toEqual({
+      App: [{ file: 'src/App.tsx', line: 1, via: 'function' }],
+      Shared: [{ file: '../other/src/Shared.tsx', line: 1, via: 'function' }],
+    });
+    expect(said).toEqual([expect.stringMatching(/^brought the source index of .+ up to the checkout for component attribution: 2 files read\.$/u)]);
+    expect((await publishedComponentSources(app, [join(root, 'packages/other/src')], options)).source.Shared).toEqual([
+      { file: '../other/src/Shared.tsx', line: 1, via: 'function' },
+    ]);
+    await expect(publishedComponentSources(app, ['../../..'], options)).rejects.toThrow('outside the repository');
   } finally { await rm(root, { recursive: true, force: true }); }
 });

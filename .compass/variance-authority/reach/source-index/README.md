@@ -51,6 +51,9 @@ A missing or damaged generation, or one written in another format version, is
 refused by the shared `publishedThrough` policy in CI as an operator error
 naming the step, and updated once anywhere else with a line saying which of
 them it found. Native readers report the generation's state and update nothing.
+Component attribution is the one reader that updates first, in CI too: it names
+the source as it is on disk, so it brings the checkout's index up to the
+checkout, says so in a line when a file was read, and only then reads.
 Another format version is told apart from damage, because every release upgrade
 meets it. Everything held is derived
 from the checkout: parses keyed by content digest, records also by layout and

@@ -371,8 +371,9 @@ question needs the checkout's current texts.
 `publishedComponentSources(root, dirs, options)` returns the component references,
 file count and content identity within `dirs`, from one native snapshot. Component
 names retain every matching file, so attribution reports ambiguous names.
-Directories may be repository-relative or absolute inside `root`; a directory
-outside it is refused. A file without a content identity is refused too.
+Directories are relative to `root` or absolute, anywhere inside the checkout
+`root` sits in, and each file is named from `root`; a directory outside the
+checkout is refused. A file without a content identity is refused too.
 
 `publishedNames` reads content names for selected paths under the same policy;
 `readPublishedNames` reads them without rebuilding. `ask orient --files`
