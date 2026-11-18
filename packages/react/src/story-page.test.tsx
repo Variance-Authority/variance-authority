@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import './story.js';
 
-const { act, createElement: h, useState } = await import('react');
+const { act, createElement: h, Suspense, useState } = await import('react');
 const { createRoot } = await import('react-dom/client');
 
 type Root = ReturnType<typeof createRoot>;
@@ -13,7 +13,8 @@ type Root = ReturnType<typeof createRoot>;
 
 const COMMIT = Symbol.for('variance-authority.story.page-commit');
 const OWNER = Symbol.for('variance-authority.story.page-owner');
-const realm = globalThis as { [COMMIT]?: () => void; [OWNER]?: (node: Node) => string | undefined };
+const NOTE = Symbol.for('variance-authority.story.note');
+const realm = globalThis as { [COMMIT]?: () => void; [OWNER]?: (node: Node) => string | undefined; [NOTE]?: (text: string) => void };
 
 let container: HTMLDivElement;
 let root: Root;
@@ -36,6 +37,7 @@ afterEach(async () => {
   container.remove();
   observer.disconnect();
   delete realm[COMMIT];
+  delete realm[NOTE];
 });
 
 function Dialog() {
@@ -66,5 +68,17 @@ describe('what React tells the story about the page', () => {
     expect(realm[OWNER]?.(container.querySelector('button')!)).toBe('Dialog');
     expect(realm[OWNER]?.(container.querySelector('main')!)).toBe('App');
     expect(realm[OWNER]?.(container)).toBeUndefined();
+  });
+
+  it('tells the story at the commit a boundary shows its fallback, through the channel the realm holds then', async () => {
+    const said: string[] = [];
+    realm[NOTE] = (text) => said.push(text);
+    const pending = new Promise<never>(() => undefined);
+    function Waits(): never {
+      throw pending;
+    }
+    await act(async () => root.render(h(Suspense, { fallback: h('p', null, 'Loading') }, h(Waits))));
+
+    expect(said).toEqual(['suspense Suspense shows its fallback']);
   });
 });

@@ -432,6 +432,20 @@ describe('a story read as a route', () => {
     ]);
   });
 
+  it('says a change a hook made stood on a hook line, and names no line for one made before any line opened', () => {
+    const hooked: Route = {
+      ...ROUTE,
+      route: [
+        { token: { ...place('src/cart.ts', 'Cart/mount', 1, 9).token, said: ['dom + main "Cart"'] } },
+        { token: { ...place('src/cart.ts', 'Cart/reset', 10, 19).token, said: ['hook line 4', 'dom − main "Cart"'] } },
+      ],
+    };
+    expect(formatStory({ route: hooked, zoom: { page: 'Cart' } }, 'text').split('\n').filter((line) => /^ {2}(appeared|disappeared)/.test(line))).toEqual([
+      '  appeared     step 2               + main "Cart"',
+      '  disappeared  step 3  hook line 4  − main "Cart"',
+    ]);
+  });
+
   it('says a search found nothing among what was kept, when the page wrote more than the story kept', () => {
     const said = ['test line 12', 'dom − li "Item C3"', 'dom + li "Item C4"', 'dom − div', 'page +1 −2 nodes, 0 attributes, 0 text'];
     const big: Route = { ...ROUTE, route: [{ token: { ...place('src/cart.ts', 'Cart/close', 1, 9).token, said } }], unnoted: 12 };
