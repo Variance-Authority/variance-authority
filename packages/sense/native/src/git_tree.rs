@@ -36,6 +36,9 @@ pub struct GitTree {
     pub(crate) from_blob: parse_origin::FromBlob,
     /// The object store this tree's scans read from, once they have read enough.
     pub(crate) store: acquire::TreeObjects,
+    /// Every file on disk, for a directory git does not list: what the
+    /// languages that resolve over the tree ask about (`disk_tree`).
+    pub(crate) disk: Option<(Arc<HashMap<String, u32>>, Vec<String>)>,
     /// How the tree was come by, when a change source other than git had a say.
     #[cfg(unix)]
     pub(crate) change: Option<held_listing::Change>,
@@ -106,6 +109,7 @@ pub(crate) fn tree_from_snapshot(snapshot: git::Snapshot, seeds: Vec<String>) ->
         stores: std::sync::Mutex::new(None),
         from_blob: parse_origin::FromBlob::default(),
         store: acquire::TreeObjects::default(),
+        disk: None,
         #[cfg(unix)]
         change: None,
     }
@@ -272,6 +276,7 @@ impl GitTree {
             listing: self.listing(),
             regular: &self.regular,
             unhashed: &self.unhashed,
+            world: self.disk.as_ref().map_or((&*self.at, &self.paths[..]), |(at, paths)| (&**at, &paths[..])),
             from_blob: &self.from_blob,
             store,
             #[cfg(unix)]

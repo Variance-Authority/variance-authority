@@ -195,7 +195,7 @@ export async function updateSourceIndex(
     reread: natively.reread,
     parsed: natively.parsed,
     readStartedAt,
-    listing: natively.listing,
+    ...(natively.listing === undefined ? {} : { listing: natively.listing }),
   };
 }
 

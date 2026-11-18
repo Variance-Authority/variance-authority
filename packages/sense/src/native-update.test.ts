@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openImmutableLog } from './immutable-log.js';
 import { decodeSourceIndex } from './source-index-format.js';
 import { openSourceIndexFile } from './source-index-file.js';
-import { SourceIndexUnlisted, updateNatively } from './native-update.js';
+import { updateNatively } from './native-update.js';
 import { readySourceIndex } from './ready-index.js';
 import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
@@ -228,11 +228,19 @@ describe('the native warm update', () => {
     expect(await chain(never)).toEqual({ segments: 1, working: 0 });
   });
 
-  it('refuses a directory git does not list', async () => {
+  it('indexes a directory git does not list from the disk, with no listing to hand on', async () => {
     const loose = realPath(await mkdtemp(join(tmpdir(), 'variance-native-update-loose-')));
     try {
-      await writeFile(join(loose, 'a.ts'), 'export const a = 1;\n');
-      await expect(updateNatively(loose, join(loose, 'index.bin'))).rejects.toBeInstanceOf(SourceIndexUnlisted);
+      await writeFile(join(loose, 'a.ts'), "import { b } from './b';\nexport const a = b;\n");
+      await writeFile(join(loose, 'b.ts'), 'export const b = 1;\n');
+      const index = join(work, `loose-${step++}`, 'index.bin');
+      await mkdir(dirname(index), { recursive: true });
+      const built = await updateNatively(loose, index);
+      expect(built.files).toBe(2);
+      expect(built.listing).toBeUndefined();
+      expect(await chain(index)).toEqual({ segments: 1, working: 0 });
+      const again = await updateNatively(loose, index);
+      expect(again.files).toBe(2);
     } finally {
       await rm(loose, { recursive: true, force: true });
     }

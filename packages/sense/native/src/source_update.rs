@@ -105,6 +105,9 @@ pub(crate) struct Tree<'t> {
     pub listing: Arc<Listing>,
     pub regular: &'t [bool],
     pub unhashed: &'t [String],
+    /// The files a language that resolves over the tree asks about, sorted: git's
+    /// listing, or the disk's for a directory git does not list.
+    pub world: (&'t HashMap<String, u32>, &'t [String]),
     /// Told of each tracked file read, and asked which parses may be shared.
     pub from_blob: &'t crate::parse_origin::FromBlob,
     /// The object store every round's walk reads from.
@@ -237,7 +240,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
     // tree, read from every `.rs` file) is the same each round.
     let parsing = neighbours(&o.root, tree.at, tree.oids, o.largest_file, o.readers, &kept, tree.from_blob, tree.store);
     let texting = texting(&o.root);
-    let world = World::new(Some(tree.at), Some(tree.paths)).reading(&parsing, &texting);
+    let world = World::new(Some(tree.world.0), Some(tree.world.1)).reading(&parsing, &texting);
     loop {
         reached.walk(&layers, &valid, &walked, &readable);
         if reached.need.is_empty() {

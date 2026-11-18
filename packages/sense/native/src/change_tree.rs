@@ -26,6 +26,20 @@ pub fn change_tree(root: String, index: String, dirs: Vec<String>) -> Option<Git
     }
 }
 
+/// The tree of a directory git does not list: no path git names, so every
+/// file is read off the disk under a `v1:` digest, seeded from a walk of
+/// `dirs`, with the walk of the whole directory as what the languages that
+/// resolve over the tree ask about.
+#[napi(catch_unwind)]
+pub fn disk_tree(root: String, dirs: Vec<String>) -> GitTree {
+    let disk = crate::seed::disk_listing(std::path::Path::new(&root));
+    let seeds = crate::seed::seed_paths(&root, &dirs, &disk);
+    let at = disk.iter().cloned().zip(0..).collect();
+    let mut tree = crate::git_tree::tree_from_snapshot(crate::git::Snapshot { paths: Vec::new(), oids: Vec::new(), regular: Vec::new(), unhashed: Vec::new() }, seeds);
+    tree.disk = Some((std::sync::Arc::new(at), disk));
+    tree
+}
+
 #[napi]
 impl GitTree {
     /// Watchman vouched for the listing the index held, and git listed nothing.

@@ -7,12 +7,14 @@
  * from the tree, opens only the files past them, and writes one delta
  * (`native/src/source_update.rs`). What stays this side's is the configuration
  * digest, which `reuse.ts` derives from the resolver options. A chain the
- * addon cannot stand on is rebuilt there from the tree; a directory git does
- * not list has no tree to make an index from, and is refused.
+ * addon cannot stand on is rebuilt there from the tree. A directory git does
+ * not list is indexed from a walk of the disk, every file read again on every
+ * update, under the shape no listed scan reuses.
  */
 
 // compass: variance-authority.reach.source-index
 
+import { native, nativeRefusal } from './addon.js';
 import type { NativeGitTree } from './native.js';
 import { CODE_EXTENSIONS } from './language.js';
 import { BUILTINS } from './native-index-graph.js';
@@ -20,7 +22,7 @@ import { LARGEST_FILE } from './scan.js';
 import { READABLE } from './language.js';
 import { stepped, type Progress } from './progress.js';
 import type { ResolveOptions } from './resolve.js';
-import { configOf } from './reuse.js';
+import { configOf, unlistedShapeOf } from './reuse.js';
 import { changeTreeOf } from './tree.js';
 import { withDeclaredTsconfig } from './typescript.js';
 
@@ -51,13 +53,6 @@ export interface NativeUpdated {
   readonly rebuilt?: 'damaged' | 'other-version';
   readonly written?: number;
 }
-/** The refusal for a directory git does not list: there is no tree to index. */
-export class SourceIndexUnlisted extends Error {
-  override readonly name = 'SourceIndexUnlisted';
-  /** The operator's to fix, by running in a checkout: the CLI's `varianceOperatorError` marker. */
-  readonly varianceOperatorError = true;
-}
-
 /** What the addon did, and the listing it took. */
 export interface NativelyUpdated {
   readonly files: number;
@@ -68,7 +63,8 @@ export interface NativelyUpdated {
   readonly rebuilt?: 'damaged' | 'other-version';
   /** The format version another release wrote it in, when `rebuilt` is `other-version`. */
   readonly written?: number;
-  readonly listing: NativeGitTree;
+  /** Git's listing, for a step after this one to carry. Absent when git does not list the directory. */
+  readonly listing?: NativeGitTree;
 }
 
 /**
@@ -86,13 +82,18 @@ export async function updateNatively(
   packs?: boolean,
 ): Promise<NativelyUpdated> {
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
-  const held = tree?.native;
-  if (held?.vouched) progress?.('Watchman reports nothing moved since the listing the index holds, so git listed nothing')?.();
-  if (tree === undefined || held === undefined) throw new SourceIndexUnlisted(`no source index for ${root}: git does not list it, and the index is made from git's listing`);
+  const listed = tree?.native;
+  if (listed?.vouched) progress?.('Watchman reports nothing moved since the listing the index holds, so git listed nothing')?.();
+  const addon = native();
+  if (addon === undefined) throw new Error(`no source index for ${root}: the native scanner did not load (${nativeRefusal() ?? ''})`);
+  const held = listed ?? await stepped(progress, `walking ${root}, which git does not list`, () => addon.diskTree(root, [...dirs]));
   // The scan this update stands in for reads the same setting, so the digest
   // it compares against the chain is the one that scan wrote.
   const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
-  const { config, aliases } = await configOf({ root, tree, options: tsconfig === undefined ? {} : { tsconfig } });
+  const options = tsconfig === undefined ? {} : { tsconfig };
+  const { config, aliases } = tree === undefined
+    ? { config: (await unlistedShapeOf({ root, options })).config, aliases: undefined }
+    : await configOf({ root, tree, options });
   // Asked of git while it listed: the stores are needed only now.
   const read = await stores;
   const done = await stepped(progress, reading, () => held.updateIndex({
@@ -115,6 +116,6 @@ export async function updateNatively(
     ...(done.refused === undefined || done.refused === null ? {} : { refused: done.refused }),
     ...(done.rebuilt === undefined || done.rebuilt === null ? {} : { rebuilt: done.rebuilt }),
     ...(done.written === undefined || done.written === null ? {} : { written: done.written }),
-    listing: held,
+    ...(listed === undefined ? {} : { listing: listed }),
   };
 }
