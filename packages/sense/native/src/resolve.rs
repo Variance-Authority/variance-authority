@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
 
+use dashmap::DashMap;
 use oxc_resolver::{
     ResolveOptions, ResolverGeneric, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
 };
@@ -64,8 +65,12 @@ pub struct Resolvers {
     /// Condition set → its resolver, so configs that agree share one.
     conditioned: Mutex<HashMap<Vec<String>, Arc<Resolver>>>,
     /// Condition set → the resolver that finds only declarations under it.
-    declarations: Mutex<HashMap<Vec<String>, Arc<Resolver>>>,
-    canonical: Mutex<HashMap<PathBuf, PathBuf>>,
+    declarations: DashMap<Vec<String>, Arc<Resolver>>,
+    /// Path → where its links lead. Both maps are asked on nearly every
+    /// request from every resolving thread, so they are sharded rather than
+    /// held under one lock: on Kibana that lock was the read's second-largest
+    /// wait.
+    canonical: DashMap<PathBuf, PathBuf>,
     /// The file system every resolver here reads, shared so an answer is
     /// mapped by the layouts that produced it.
     emitted: Emitted,
@@ -136,8 +141,8 @@ impl Resolvers {
             governs: condition_names.is_none() && tsconfig != Tsconfig::Off,
             governed: RwLock::new(HashMap::new()),
             conditioned: Mutex::new(conditioned),
-            declarations: Mutex::new(HashMap::new()),
-            canonical: Mutex::new(HashMap::new()),
+            declarations: DashMap::new(),
+            canonical: DashMap::new(),
             emitted,
         }
     }
@@ -198,10 +203,10 @@ impl Resolvers {
                 ..options.clone()
             }))
         };
-        let Ok(mut held) = self.declarations.lock() else {
-            return build();
-        };
-        Arc::clone(held.entry(options.condition_names.clone()).or_insert_with(build))
+        if let Some(held) = self.declarations.get(&options.condition_names) {
+            return Arc::clone(&held);
+        }
+        Arc::clone(&self.declarations.entry(options.condition_names.clone()).or_insert_with(build))
     }
 
     /// A declaration answers last, and only when nothing else was found: not
@@ -313,15 +318,11 @@ impl Resolvers {
     }
 
     fn canonical(&self, path: &Path) -> PathBuf {
-        if let Ok(held) = self.canonical.lock() {
-            if let Some(known) = held.get(path) {
-                return known.clone();
-            }
+        if let Some(known) = self.canonical.get(path) {
+            return known.clone();
         }
         let answer = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_owned());
-        if let Ok(mut held) = self.canonical.lock() {
-            held.insert(path.to_owned(), answer.clone());
-        }
+        self.canonical.insert(path.to_owned(), answer.clone());
         answer
     }
 }

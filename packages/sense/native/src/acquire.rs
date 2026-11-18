@@ -3,11 +3,12 @@
 use std::fs;
 use std::io::{ErrorKind, Read as _};
 use std::path::Path;
+use std::cell::RefCell;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use gix_hash::ObjectId;
 
-use oxc_allocator::AllocatorPool;
+use oxc_allocator::Allocator;
 use rayon::prelude::*;
 use rayon::{ThreadPool, ThreadPoolBuildError, ThreadPoolBuilder};
 
@@ -109,15 +110,14 @@ pub(crate) fn read_git(
     // core rather than at the disk reader's width: on Kibana (115,177 files)
     // the whole index took 6.4 s at six threads and 5.7 s at ten or more. The
     // few files the store does not hold open off the disk among them.
-    let arenas = AllocatorPool::new(rayon::current_num_threads());
     files
         .par_iter()
         .zip(&oids)
         .map_init(
             || objects.reader(),
             |reader, (file, oid)| match oid {
-                Some(oid) => read_blob(root, file, oid, reader, largest, wanted, &arenas, symbols),
-                None => open_and_parse(root, file, None, largest, wanted, &arenas, symbols),
+                Some(oid) => read_blob(root, file, oid, reader, largest, wanted, symbols),
+                None => open_and_parse(root, file, None, largest, wanted, symbols),
             },
         )
         .collect::<Vec<Named>>()
@@ -133,12 +133,11 @@ fn read_blob(
     reader: &mut Reader,
     largest: u64,
     digests: bool,
-    arenas: &AllocatorPool,
     symbols: bool,
 ) -> Named {
     let id = ObjectId::from_bytes_or_panic(oid);
     let Some(size) = reader.size(&id) else {
-        return open_and_parse(root, file, Some(oid), largest, digests, arenas, symbols);
+        return open_and_parse(root, file, Some(oid), largest, digests, symbols);
     };
     if size > largest {
         let unknown = Some(too_large(file, size, largest));
@@ -148,8 +147,8 @@ fn read_blob(
     // disk, which holds the content this scan reads or declines it by its bytes.
     let source = reader.blob(&id).and_then(|bytes| std::str::from_utf8(bytes).ok()).map(str::to_owned);
     match source {
-        Some(source) => (parsed(file, source, digests, arenas, symbols), true),
-        None => open_and_parse(root, file, Some(oid), largest, digests, arenas, symbols),
+        Some(source) => (parsed(file, source, digests, symbols), true),
+        None => open_and_parse(root, file, Some(oid), largest, digests, symbols),
     }
 }
 
@@ -159,30 +158,39 @@ fn open_and_parse(
     oid: Option<&Oid>,
     largest: u64,
     digests: bool,
-    arenas: &AllocatorPool,
     symbols: bool,
 ) -> Named {
     let (_, opened, digest, named) = open(root, file, largest, digests, oid);
     match opened {
         Opened::Settled(read, outcome) => ((read, digest, outcome), false),
-        Opened::Source(source) => (parsed(file, source, digests, arenas, symbols), named),
+        Opened::Source(source) => (parsed(file, source, digests, symbols), named),
     }
 }
 
-fn parsed(
-    file: &str,
-    source: String,
-    digests: bool,
-    arenas: &AllocatorPool,
-    symbols: bool,
-) -> Answer {
+thread_local! {
+    /// The arena a worker parses in, emptied after every file. A pool shared
+    /// by the workers is a lock taken twice a file: on Kibana (115,177 files)
+    /// it held more than half the lock waits sampled across the read.
+    static ARENA: RefCell<Allocator> = RefCell::new(Allocator::default());
+}
+
+/// `parse` given this thread's arena, which is emptied once it returns.
+fn in_arena<T>(parse: impl FnOnce(&Allocator) -> T) -> T {
+    ARENA.with_borrow_mut(|arena| {
+        let parsed = parse(arena);
+        arena.reset();
+        parsed
+    })
+}
+
+fn parsed(file: &str, source: String, digests: bool, symbols: bool) -> Answer {
     let digest = if digests {
         digest::of_string(&source)
     } else {
         String::new()
     };
     (
-        read_file(file, &source, &arenas.get(), symbols),
+        in_arena(|arena| read_file(file, &source, arena, symbols)),
         digest,
         Outcome::Parsed,
     )
@@ -223,7 +231,6 @@ fn read_disk(
     let largest = u64::from(largest_file.unwrap_or(LARGEST_FILE));
     let wanted = digests.unwrap_or(false);
     let at = Path::new(&root);
-    let arenas = AllocatorPool::new(rayon::current_num_threads());
     let opening = opening_pool(readers, files.len());
     let mut read = Vec::with_capacity(files.len());
     let mut chunks = (0..files.len()).step_by(CHUNK).map(|from| {
@@ -237,13 +244,13 @@ fn read_disk(
     let mut held = open_all(at, first, named, largest, wanted, &opening);
     for (next, named) in chunks {
         let (parsed, fresh) = rayon::join(
-            || parse_all(held, &arenas, symbols),
+            || parse_all(held, symbols),
             || open_all(at, next, named, largest, wanted, &opening),
         );
         read.extend(parsed);
         held = fresh;
     }
-    read.extend(parse_all(held, &arenas, symbols));
+    read.extend(parse_all(held, symbols));
     read
 }
 
@@ -282,17 +289,13 @@ fn open_all<'a>(
 // wants is a private pool per stage, sized from the performance-core count, not
 // a global width shared with the readers. `READERS = 6` was measured against
 // this same global pool and should be re-read in the same pass.
-fn parse_all(
-    opened: Vec<(&str, Opened, String, bool)>,
-    arenas: &AllocatorPool,
-    symbols: bool,
-) -> Vec<Named> {
+fn parse_all(opened: Vec<(&str, Opened, String, bool)>, symbols: bool) -> Vec<Named> {
     opened
         .into_par_iter()
         .map(|(file, held, digest, named)| match held {
             Opened::Settled(read, outcome) => ((read, digest, outcome), false),
             Opened::Source(source) => {
-                ((read_file(file, &source, &arenas.get(), symbols), digest, Outcome::Parsed), named)
+                ((in_arena(|arena| read_file(file, &source, arena, symbols)), digest, Outcome::Parsed), named)
             }
         })
         .collect()
