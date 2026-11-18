@@ -26,29 +26,69 @@ pub(crate) static READ: AtomicU64 = AtomicU64::new(0);
 pub(crate) static PARSE: AtomicU64 = AtomicU64::new(0);
 pub(crate) static RESOLVE: AtomicU64 = AtomicU64::new(0);
 
-/// The listing's parts, each its wall time summed. `tree` and `worktree` run
-/// at once, so the parts do not sum to the listing's line; a part that did not
-/// run prints nothing. The git commands are the answers the in-process readers
-/// handed back.
-pub(crate) static LISTING_PARTS: [(&str, AtomicU64); 10] = [
-    ("head", AtomicU64::new(0)),
-    ("held", AtomicU64::new(0)),
-    ("tree", AtomicU64::new(0)),
-    ("ls-tree", AtomicU64::new(0)),
-    ("worktree", AtomicU64::new(0)),
-    ("git status", AtomicU64::new(0)),
-    ("compare", AtomicU64::new(0)),
-    ("hash-object", AtomicU64::new(0)),
-    ("seeds", AtomicU64::new(0)),
-    ("assemble", AtomicU64::new(0)),
-];
+/// A part of the listing, in the order its line prints them. `Tree` and
+/// `Worktree` run at once, so the parts do not sum to the listing's line; a
+/// part that did not run prints nothing.
+#[derive(Clone, Copy)]
+pub(crate) enum Part {
+    Head,
+    Held,
+    Tree,
+    LsTree,
+    Worktree,
+    GitStatus,
+    Compare,
+    HashObject,
+    Merge,
+    Seeds,
+    Assemble,
+}
 
-/// `work`, its time added to the listing's part `name`.
-pub(crate) fn part<T>(name: &str, work: impl FnOnce() -> T) -> T {
-    match LISTING_PARTS.iter().find(|(part, _)| *part == name) {
-        Some((_, sum)) => summed(sum, work),
-        None => work(),
+impl Part {
+    const ALL: [Part; 11] = [
+        Part::Head,
+        Part::Held,
+        Part::Tree,
+        Part::LsTree,
+        Part::Worktree,
+        Part::GitStatus,
+        Part::Compare,
+        Part::HashObject,
+        Part::Merge,
+        Part::Seeds,
+        Part::Assemble,
+    ];
+
+    fn name(self) -> &'static str {
+        match self {
+            Part::Head => "head",
+            Part::Held => "held",
+            Part::Tree => "tree",
+            Part::LsTree => "ls-tree",
+            Part::Worktree => "worktree",
+            Part::GitStatus => "git status",
+            Part::Compare => "compare",
+            Part::HashObject => "hash-object",
+            Part::Merge => "merge",
+            Part::Seeds => "seeds",
+            Part::Assemble => "assemble",
+        }
     }
+
+    fn sum(self) -> &'static AtomicU64 {
+        &LISTING_PARTS[self as usize]
+    }
+}
+
+/// Each listing part's wall time summed, indexed by [`Part`].
+static LISTING_PARTS: [AtomicU64; 11] = [const { AtomicU64::new(0) }; 11];
+
+/// `work`, its time added to the listing's `part` when the clock is on.
+pub(crate) fn part<T>(part: Part, work: impl FnOnce() -> T) -> T {
+    if !on() {
+        return work();
+    }
+    summed(part.sum(), work)
 }
 
 /// `work`, its time added to `sum` when the clock is on.
@@ -75,6 +115,16 @@ pub(crate) struct Stage(Option<(&'static str, Instant)>);
 
 pub(crate) fn start(name: &'static str) -> Stage {
     Stage(on().then(|| (name, Instant::now())))
+}
+
+/// The listing, started now with its parts zeroed, so time a part took
+/// outside a listing, or in one that stopped short, is not printed as this one's.
+/// The parts are zeroed with the clock off too: eleven stores, so the tests pin it.
+pub(crate) fn start_listing(name: &'static str) -> Stage {
+    for part in Part::ALL {
+        part.sum().store(0, Ordering::Relaxed);
+    }
+    start(name)
 }
 
 /// The walk, started now with its sums zeroed, so a run that stopped short leaves nothing in them.
@@ -121,11 +171,11 @@ impl Stage {
 
 /// ` (`, each listing part that ran with its time, and `)`, or nothing when none ran; it resets each part.
 fn listing_parts() -> String {
-    let parts: Vec<String> = LISTING_PARTS
+    let parts: Vec<String> = Part::ALL
         .iter()
-        .filter_map(|(part, sum)| {
-            let time = Duration::from_nanos(sum.swap(0, Ordering::Relaxed));
-            (!time.is_zero()).then(|| format!("{part} {}", seconds(time)))
+        .filter_map(|part| {
+            let time = Duration::from_nanos(part.sum().swap(0, Ordering::Relaxed));
+            (!time.is_zero()).then(|| format!("{} {}", part.name(), seconds(time)))
         })
         .collect();
     if parts.is_empty() {

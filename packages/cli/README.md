@@ -2275,17 +2275,27 @@ its line adds the time each took summed over every core:
 variance stage walk: 1.644 s, peak 2.13 GB (thread time: read 2.310 s, parse 15.255 s, resolve 12.482 s)
 ```
 
-The listing's line names its parts, each with its wall time, and leaves out a
-part that did not run. `head` resolves the commit, `held` asks Watchman whether
-the last listing still stands, `tree` reads HEAD's tree, `worktree` walks the
-working tree, `compare` checks the walk against the tree, `hash-object` hashes
-the files that changed, and `seeds` and `assemble` build the file list. `tree`
-and `worktree` run at the same time, so the parts do not add up to the line.
-`ls-tree` and `git status` appear only when the in-process reader hands the
-work to git:
+The listing's line names its parts, each with its wall time, always in the
+order below, and leaves out a part that did not run:
+
+- `head` resolves the commit and HEAD's tree.
+- `held` reads the listing kept from the last update, asks Watchman whether it
+  still stands, and takes Watchman's clock and the stamps of git's inputs for
+  the next one.
+- `tree` reads HEAD's tree, and `ls-tree` asks git for it where the in-process
+  reader cannot.
+- `worktree` walks the working tree, and `git status` asks git for its changes
+  where the walk cannot.
+- `compare` checks the walk against the tree.
+- `hash-object` hashes the files that changed.
+- `merge` puts the changes into the tree's file list.
+- `seeds` and `assemble` build the list the update reads.
+
+`tree` and `worktree` run at the same time, so the parts add up to more than the
+line:
 
 ```
-variance stage listing: 0.857 s, peak 0.42 GB (head 0.010 s, held 0.066 s, tree 0.431 s, worktree 0.683 s, compare 0.044 s, hash-object 0.012 s, seeds 0.015 s, assemble 0.007 s)
+variance stage listing: 0.588 s, peak 0.42 GB (head 0.008 s, held 0.047 s, tree 0.054 s, worktree 0.440 s, compare 0.041 s, hash-object 0.009 s, merge 0.020 s, seeds 0.015 s, assemble 0.007 s)
 ```
 
 A stage can print more than once: a directory git does not list prints git's
