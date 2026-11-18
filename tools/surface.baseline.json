@@ -2847,6 +2847,7 @@
         "CommitChanges": "interface",
         "ContainerMember": "interface",
         "Decision": "interface",
+        "Declaration": "interface",
         "DeclaredName": "interface",
         "DeclaredNames": "interface",
         "DeclaredRoleCheck": "interface",
