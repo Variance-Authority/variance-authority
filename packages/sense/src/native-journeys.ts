@@ -232,6 +232,12 @@ export interface NativeJourneyEnd {
   readonly line: number;
 }
 
+/** A declaration of a name, and every name its file spells it. */
+export interface NativeDeclaration extends NativeJourneyEnd {
+  /** The asked name, or the names an alias or a re-export gives it in its file. */
+  readonly spelled: readonly string[];
+}
+
 /** One declaration of a name, scored against the cases that ran a line. */
 export interface NativeResonant {
   readonly file: string;
@@ -457,5 +463,5 @@ export interface NativeJourneys {
   /** Where each of `lines` of `file` stood at `commit`: `null` for a line written since. */
   linesThen?(root: string, commit: string, file: string, lines: number[]): NativeLinesThen;
   /** How each of `candidates`, the declarations of one name, resonates with `file:line`. */
-  resonance?(recording: string, name: string, file: string, line: number, candidates: NativeJourneyEnd[]): NativeResonance;
+  resonance?(recording: string, file: string, line: number, candidates: NativeDeclaration[]): NativeResonance;
 }

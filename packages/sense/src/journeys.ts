@@ -18,7 +18,7 @@ import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { checkoutListing, checkoutPath, existedAt, type CheckoutListing } from './checkout-path.js';
 import { native, nativeRefusal } from './addon.js';
-import type { NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeResonance, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeLinesThen, NativeRanModule, NativeRanRegion, NativeTestComposition, NativeTestRan } from './native-journeys.js';
+import type { NativeDeclaration, NativeForksBetween, NativeJourneyEnd, NativeJourneyMap, NativeJourneyMapFile, NativePathsThrough, NativeJourneysAmong, NativeResonance, NativeJourneysAnswer, NativeJourneysAsk, NativeJourneysCommit, NativeJourneysPrepared, NativeLinesThen, NativeRanModule, NativeRanRegion, NativeTestComposition, NativeTestRan } from './native-journeys.js';
 import type { SourceUpdate } from './published.js';
 import { sourceIndexPath } from './source-index.js';
 import { declaredTsconfig } from './typescript.js';
@@ -380,7 +380,7 @@ export interface SuiteResonance {
 }
 
 /**
- * How each of `candidates`, the declarations of `name`, resonates with the
+ * How each of `candidates`, the declarations of one name, resonates with the
  * line `at`, asked of every declared suite that has a recording: the cases that
  * entered each against the cases that ran the line. Each line is read where it
  * stood at the commit the recording ran at, one `linesThen` per file; a
@@ -389,7 +389,7 @@ export interface SuiteResonance {
  * it, is refused rather than scored where the lines stand now: a line read in
  * the wrong place scores another function's tests.
  */
-export function resonance(root: string, at: NativeJourneyEnd, name: string, candidates: readonly NativeJourneyEnd[]): readonly SuiteResonance[] {
+export function resonance(root: string, at: NativeJourneyEnd, candidates: readonly NativeDeclaration[]): readonly SuiteResonance[] {
   const asked = checkoutPath(root, at.file);
   return recordings(root).flatMap(({ suite, recording }) => {
     if (recording === undefined) return [];
@@ -408,13 +408,13 @@ export function resonance(root: string, at: NativeJourneyEnd, name: string, cand
     }
     const [line, ...then] = lines;
     if (line == null) return [refuse('the line was written since the recording ran')];
-    const placed = candidates.flatMap((candidate, at) => (then[at] == null ? [] : [{ at, end: { file: candidate.file, line: then[at]! } }]));
-    const answer = entry('resonance')(recording, name, asked.path, line, placed.map(({ end }) => end));
+    const placed = candidates.flatMap((candidate, at) => (then[at] == null ? [] : [{ at, end: { file: candidate.file, line: then[at]!, spelled: [...candidate.spelled] } }]));
+    const answer = entry('resonance')(recording, asked.path, line, placed.map(({ end }) => end));
     const resonant = answer.resonant.map((row) => {
       const { at } = placed[row.candidate]!;
       return { ...row, candidate: at, line: candidates[at]!.line };
     });
-    const since = candidates.filter((_, at) => then[at] == null);
+    const since = candidates.flatMap(({ file, line }, at) => (then[at] == null ? [{ file, line }] : []));
     return [{ ...named, resonance: { ...answer, resonant }, since }];
   });
 }

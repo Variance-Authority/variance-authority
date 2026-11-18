@@ -14,7 +14,7 @@ import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
  *
  * `useSessionId` is declared four times. `page` calls the one in `session.ts`,
  * no test enters the one in `stale.ts`, the one in `constant.ts` is a string, not a function, `header` is rendered by a test that
- * enters none, and `idle` is run by nobody. `format` is declared twice and both are entered by the same test;
+ * enters none, and `idle` is run by nobody. `format` is declared three times, once as `shout` exported under its name, and all are entered by the same test;
  * `log` is declared twice, one entered by every test.
  */
 
@@ -131,17 +131,18 @@ describe('variance ask symbol --line', () => {
     expect(answered.err.split('\n')[0]).toBe('`--line` takes `<file>:<line>`, such as `src/page.ts:3`, not `src/page.ts`');
   });
 
-  it('names two declarations entered by the same tests as tied', async () => {
+  it('names declarations entered by the same tests as tied, one exported under another name by the function its file names', async () => {
     await recorded();
 
     const answered = await run(['ask', 'symbol', '--name', 'format', '--line', 'src/use.ts:2']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out.split('\n').slice(0, 4)).toEqual([
+    expect(answered.out.split('\n').slice(0, 5)).toEqual([
       '`format` at src/use.ts:2, by the 1 recorded test that ran the line:',
       '',
       'src/a.ts:1  1.00 tied  1 of the 1 test that entered it ran the line',
       'src/b.ts:1  1.00 tied  1 of the 1 test that entered it ran the line',
+      'src/c.ts:1  1.00 tied  1 of the 1 test that entered it ran the line',
     ]);
   });
 
@@ -200,6 +201,7 @@ async function recorded({ commit = true, recording = true }: { readonly commit?:
     'src/idle.ts': "import { useSessionId } from './session';\nexport function idle(): string {\n  return useSessionId();\n}\n",
     'src/a.ts': declares('format', 'a'),
     'src/b.ts': declares('format', 'b'),
+    'src/c.ts': "function shout(): string {\n  return 'c';\n}\nexport { shout as format };\n",
     'src/use.ts': "import { format } from './a';\nexport const used = (): string => format();\n",
     'src/log.ts': declares('log', 'loud'),
     'src/quiet.ts': declares('log', 'quiet'),
@@ -227,6 +229,7 @@ async function recorded({ commit = true, recording = true }: { readonly commit?:
     'src/idle.ts': [region('function', 'idle', 2, 4, [])],
     'src/a.ts': [region('function', 'format', 1, 3, [3])],
     'src/b.ts': [region('function', 'format', 1, 3, [3])],
+    'src/c.ts': [region('function', 'shout', 1, 3, [3])],
     'src/use.ts': [region('function', 'used', 2, 2, [3])],
     'src/log.ts': [region('function', 'log', 1, 3, [0, 1, 2, 3, 4])],
     'src/quiet.ts': [region('function', 'log', 1, 3, [4])],

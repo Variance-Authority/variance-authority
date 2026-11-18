@@ -191,6 +191,7 @@ export {
   type SuiteTestRan,
 } from './journeys.js';
 export {
+  type NativeDeclaration as Declaration,
   type NativeForksBetween as ForksBetween,
   type NativeJourneyBlock as JourneyBlock,
   type NativeJourneyCase as JourneyCase,

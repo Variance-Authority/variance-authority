@@ -21,21 +21,24 @@ import { stringArg, type Tool, type ToolInvocation } from '@variance-authority/m
 import type { Help } from '@variance-authority/package/help';
 import { FoundNothing } from './find.js';
 import { ofSuite } from './grep-ran.js';
+import type { Declared } from './symbol.js';
 
 const byPlace = (a: JourneyEnd, b: JourneyEnd): number => codeUnitOrder(a.file, b.file) || a.line - b.line;
 const tests = (count: number): string => `${count} ${count === 1 ? 'test' : 'tests'}`;
 
-/** `symbol`'s answer for `input`, its declarations ordered by the line `input.line` names. */
-export function symbolAtLine(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, symbol: Tool<Help>): string {
+type DeclaredIn = (help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined) => Declared;
+
+/** `symbol`'s answer for `input`, its declarations, from `declaredIn`, ordered by the line `input.line` names. */
+export function symbolAtLine(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, symbol: Tool<Help>, declaredIn: DeclaredIn): string {
   const root = invocation?.root;
   if (root === undefined) throw new Error('`symbol --line` reads what a checkout recorded, and this host named no checkout to read');
   const name = stringArg(input, 'name');
   const at = lineOf(stringArg(input, 'line'));
   const { line: _, ...rest } = input;
-  const declared = declaredFiles(help, rest, invocation, symbol);
+  const declared = declaredFiles(help, rest, invocation, declaredIn);
   if (declared === undefined) return [`No file in this checkout declares \`${name}\`, so no recording tells its declarations apart:`, '', symbol.run(help, rest, invocation)].join('\n');
-  const candidates = [...declared].flatMap(([file, lines]) => lines.map((line) => ({ file, line })));
-  const suites = resonance(root, at, name, candidates);
+  const candidates = [...declared.files].flatMap(([file, lines]) => lines.map((line) => ({ file, line, spelled: declared.spelled.get(`${file}:${line}`) ?? [] })));
+  const suites = resonance(root, at, candidates);
   const told = suites.filter((suite) => suite.resonance.notRecorded == null && suite.resonance.cases > 0);
   const untold = suites.filter((suite) => !told.includes(suite)).map((suite) => untoldLine(suite, at, name, told.length === 0 ? ':' : '.'));
   if (told.length === 0) {
@@ -46,9 +49,9 @@ export function symbolAtLine(help: Help, input: Readonly<Record<string, unknown>
 }
 
 /** The files of this checkout that declare the name, or none when only an installed dependency may. */
-function declaredFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, symbol: Tool<Help>): ReadonlyMap<string, readonly number[]> | undefined {
+function declaredFiles(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, declaredIn: DeclaredIn): Declared | undefined {
   try {
-    return symbol.files!(help, input, invocation).files;
+    return declaredIn(help, input, invocation);
   } catch (error) {
     if (error instanceof FoundNothing) return undefined;
     throw error;
