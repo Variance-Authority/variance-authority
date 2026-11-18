@@ -69,8 +69,8 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
   const OWNER = Symbol.for('variance-authority.story.page-owner');
   // How many characters of a name or a value a change line keeps.
   const SHOWN = 80;
-  // Fields whose text and value are what a person typed.
-  const FIELDS = new Set(['input', 'select', 'textarea']);
+  // Fields whose text, value or choice is what a person typed or picked.
+  const FIELDS = new Set(['input', 'option', 'select', 'textarea']);
   type Watching = {
     tap: Pick<Tap, 'note' | 'notePage'>;
     observer: Observer;
@@ -87,17 +87,24 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
     return JSON.stringify(line.length > SHOWN ? `${line.slice(0, SHOWN - 1)}…` : line);
   };
   const tagOf = (node: Seen): string => node.nodeName.toLowerCase();
+  // A field, or a region a person edits: what it holds is theirs.
+  const field = (node: Seen): boolean => {
+    if (node.nodeType !== 1) return false;
+    const editable = node.getAttribute?.('contenteditable');
+    return FIELDS.has(tagOf(node)) || (editable != null && editable !== 'false');
+  };
+  // Whether a node sits in a field, read up from `parent` for a text node.
+  const inField = (node: Seen, parent: Seen | null = node.parentNode): boolean => {
+    for (let at = node.nodeType === 1 ? node : parent; at; at = at.parentNode) if (field(at)) return true;
+    return false;
+  };
   // The text inside a node, leaving out what a field inside it holds.
   const textOf = (node: Seen): string =>
-    node.nodeType === 3
-      ? node.nodeValue ?? ''
-      : FIELDS.has(tagOf(node))
-        ? ''
-        : Array.from(node.childNodes ?? [], textOf).join('');
+    node.nodeType === 3 ? node.nodeValue ?? '' : field(node) ? '' : Array.from(node.childNodes ?? [], textOf).join('');
   const nameOf = (node: Seen): string | undefined => {
     const given = node.getAttribute?.('aria-label') ?? node.getAttribute?.('alt') ?? node.getAttribute?.('title');
     if (given) return given;
-    if (FIELDS.has(tagOf(node))) return undefined;
+    if (inField(node)) return undefined;
     const text = textOf(node).trim();
     return text ? text : undefined;
   };
@@ -106,7 +113,7 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
   const described = (node: Seen, named = true, parent: Seen | null = node.parentNode): string | undefined => {
     if (node.nodeType === 3) {
       const text = node.nodeValue?.trim();
-      return text && !FIELDS.has(parent === null ? '' : tagOf(parent)) ? `text ${shown(text)}` : undefined;
+      return text && !inField(node, parent) ? `text ${shown(text)}` : undefined;
     }
     if (node.nodeType !== 1) return undefined;
     const tag = tagOf(node);
@@ -118,10 +125,10 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
       .filter(Boolean)
       .join(' ');
   };
-  // Whether a search could name the node: a role, an id or a label it says, or a text of its own.
+  // Whether a search could name the node: a role, an id or a label it says, or a text of its own outside a field.
   const findable = (node: Seen): boolean =>
     Boolean(node.getAttribute?.('role') || node.getAttribute?.('id') || node.getAttribute?.('aria-label')) ||
-    Array.from(node.childNodes ?? []).some((inner) => inner.nodeType === 3 && Boolean(inner.nodeValue?.trim()));
+    (Array.from(node.childNodes ?? []).some((inner) => inner.nodeType === 3 && Boolean(inner.nodeValue?.trim())) && !inField(node));
   const owner = (node: Seen): string => {
     const naming = (global as { [OWNER]?: unknown })[OWNER];
     const name = typeof naming === 'function' ? (naming as (node: Seen) => unknown)(node) : undefined;
@@ -176,17 +183,20 @@ function watchPage(tap: Pick<Tap, 'note' | 'notePage' | 'drainWith'>, global: Re
       const old = was.get(node)!.get(key)!;
       if (key === '') {
         // Text inside a field is what a person typed; its change is counted, never written.
+        // A text set back to what it was, or held by no element, is counted alone too.
         const parent = node.parentNode;
-        if (parent === null || FIELDS.has(tagOf(parent))) continue;
-        watching.tap.notePage(`dom text ${described(parent, false)!} ${shown(old ?? '')}→${shown(node.nodeValue ?? '')}${owner(parent)}${at}`);
+        const where = parent === null ? undefined : described(parent, false);
+        if (where === undefined || old === node.nodeValue || inField(node)) continue;
+        watching.tap.notePage(`dom text ${where} ${shown(old ?? '')}→${shown(node.nodeValue ?? '')}${owner(parent!)}${at}`);
         continue;
       }
       const now = node.getAttribute?.(key) ?? null;
+      if (old === now) continue;
       const value = (text: string | null): string => (text === null ? 'absent' : shown(text));
       // A field's value is what a person typed, so only that it changed is written.
-      const held = key === 'value' && FIELDS.has(tagOf(node));
+      const held = key === 'value' && field(node);
       const change = held ? '' : ` ${value(old)}→${value(now)}`;
-      watching.tap.notePage(`dom @${key} ${described(node, !FIELDS.has(tagOf(node)))!}${change}${owner(node)}${at}`);
+      watching.tap.notePage(`dom @${key} ${described(node)!}${change}${owner(node)}${at}`);
     }
   };
   let watch = page[PAGE];

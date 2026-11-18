@@ -41,4 +41,20 @@ describe('what a story says changed on the page', () => {
   it('finds nothing for a pattern no change holds, and still counts the changes it searched', () => {
     expect(pageChanges(ROUTE, 'toast')).toEqual({ searched: 5, found: [] });
   });
+
+  it('matches a pattern as whole words, so a row is not found by a longer name that starts like it', () => {
+    const rows = (sign: string, count: number) => Array.from({ length: count }, (_, at) => `dom ${sign} li "Item C${at}" in List at commit 1`);
+    const big: Route = {
+      ...ROUTE,
+      opening: { route: ['test line 10', ...rows('+', 2000)] },
+      route: [stop('remove', ['test line 14', 'dom − li "Item C3" in List at commit 2', 'dom − li "Item C30" in List at commit 2'])],
+    };
+    expect(pageChanges(big, 'Item C3').found).toEqual([
+      { kind: 'appeared', line: 10, commit: 1, change: '+ li "Item C3" in List' },
+      { kind: 'disappeared', step: 1, line: 14, commit: 2, change: '− li "Item C3" in List' },
+    ]);
+    // An end of the pattern that is a mark is matched where it stands.
+    expect(pageChanges(ROUTE, 'role="dia').found).toEqual([]);
+    expect(pageChanges(ROUTE, 'dialog"').found).toHaveLength(2);
+  });
 });

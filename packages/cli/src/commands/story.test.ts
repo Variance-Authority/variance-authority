@@ -424,12 +424,21 @@ describe('a story read as a route', () => {
   it('keeps the rows --page prints under a cap however many changes match, and counts the rest', () => {
     const rows = Array.from({ length: 2000 }, (_, at) => `dom + li "Item C${at}" in List at commit 1`);
     const big: Route = { ...ROUTE, route: [{ token: { ...place('src/cart.ts', 'Cart/fill', 1, 9).token, said: ['test line 14', ...rows] } }] };
-    const text = formatStory({ route: big, zoom: { page: 'Item C' } }, 'text');
+    const text = formatStory({ route: big, zoom: { page: 'Item' } }, 'text');
     expect(text.split('\n').filter((line) => line.startsWith('  appeared'))).toHaveLength(PAGE_ROWS);
     expect(text).toContain(`  and ${2000 - PAGE_ROWS} more; narrow the pattern\n`);
     expect(formatStory({ route: big, zoom: { page: 'Item C1999"' } }, 'text').split('\n').filter((line) => line.startsWith('  appeared'))).toEqual([
       '  appeared  step 2  line 14  commit 1  + li "Item C1999" in List',
     ]);
+  });
+
+  it('says a search found nothing among what was kept, when the page wrote more than the story kept', () => {
+    const said = ['test line 12', 'dom − li "Item C3"', 'dom + li "Item C4"', 'dom − div', 'page +1 −2 nodes, 0 attributes, 0 text'];
+    const big: Route = { ...ROUTE, route: [{ token: { ...place('src/cart.ts', 'Cart/close', 1, 9).token, said } }], unnoted: 12 };
+    expect(formatStory({ route: big, zoom: { page: 'toast' } }, 'text')).toContain(
+      '  no node holding `toast` was added, removed or changed among the 3 changes the story kept; 12 later lines are not on this route, so it may be among them\n',
+    );
+    expect(JSON.parse(formatStory({ route: big, zoom: { page: 'toast' } }, 'json'))).toMatchObject({ unnoted: 12, page: { searched: 3, found: [] } });
   });
 
   it('takes --page as a pattern, and not beside another zoom', () => {

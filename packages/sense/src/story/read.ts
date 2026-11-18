@@ -47,6 +47,7 @@ import { findModules } from '../test-selection/lookup.js';
 import moduleIds from '../test-selection/module-id.cjs';
 import { coordinatesOf, drawersOf } from './region-coordinates.js';
 import { NO_LINE } from '../test-selection/written-lines.js';
+import { cutText } from './cut.js';
 import { recordOfStories, storyDirectories } from './directory.js';
 import { foldSteps, type Step } from './fold.js';
 import stories from './format.cjs';
@@ -379,7 +380,7 @@ function heard(
   parts: readonly (readonly [number, number, number, number])[] = [],
 ): (readonly [number, string])[] {
   const cuts = [
-    ...lines.map(([at, line, said, hook]) => ({ at, said, text: `${hook === 1 ? 'hook' : 'test'} line ${line}` })),
+    ...lines.map(([at, line, said, hook]) => ({ at, said, text: cutText(line, hook === 1) })),
     ...parts.map(([at, said, , document]) => ({ at, said, text: document === 0 ? 'in the runner' : `in document ${document}` })),
   ].sort((left, right) => left.said - right.said || left.at - right.at);
   const all: (readonly [number, string])[] = [];

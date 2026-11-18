@@ -166,9 +166,18 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
   const own = packageOf(route.file);
   const lines = numbered(route);
   const steps = lines.filter((line) => line.step !== undefined).length;
+  // What every json answer opens with: the route but its steps, its package, and which readings it was read from.
+  const headJson = () => {
+    const { before: _before, route: _route, untaken: _untaken, ...head } = route;
+    const { reading } = answer;
+    return {
+      ...head, ...(own === undefined ? {} : { package: own }),
+      ...(reading === undefined ? {} : { readings: reading.of, label: reading.label, written: reading.written, unmatched: reading.unmatched }),
+    };
+  };
   if (answer.zoom !== undefined && 'page' in answer.zoom) {
     const pattern = answer.zoom.page;
-    if (format === 'json') return `${JSON.stringify({ file: route.file, name: route.name, steps, page: pageJson(route, pattern) }, null, 2)}\n`;
+    if (format === 'json') return `${JSON.stringify({ ...headJson(), steps, page: pageJson(route, pattern) }, null, 2)}\n`;
     return `${[...header(route, steps, answer.reading), ...pageText(route, pattern)].join('\n')}\n`;
   }
   const part = partOf(lines, answer.zoom, packageOf, own);
@@ -180,13 +189,10 @@ export function formatStory(answer: StoryAnswer, format: 'text' | 'json'): strin
   const reading = drawn[chosen]!;
   const finer = chosen + 1 < drawn.length ? { level: drawn[chosen + 1]!.level, characters: size(texts[chosen + 1]!) } : undefined;
   if (format === 'json') {
-    const { before: _before, route: _route, untaken: _untaken, ...head } = route;
     const shown = 'lines' in reading ? { ...reading, lines: reading.lines.map(lineJson) } : reading;
     const never = 'lines' in reading ? drawnUntaken(reading.lines, route.untaken) : [];
     return `${JSON.stringify({
-      ...head, ...(own === undefined ? {} : { package: own }),
-      ...(answer.reading === undefined ? {} : { readings: answer.reading.of, label: answer.reading.label, written: answer.reading.written, unmatched: answer.reading.unmatched }),
-      steps, reading: shown, ...(never.length === 0 ? {} : { untaken: never }),
+      ...headJson(), steps, reading: shown, ...(never.length === 0 ? {} : { untaken: never }),
       ...(finer === undefined ? {} : { finer }),
     }, null, 2)}\n`;
   }

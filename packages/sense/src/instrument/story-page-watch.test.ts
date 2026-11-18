@@ -191,8 +191,58 @@ describe('what a test line did to the page', () => {
     tap.settle();
 
     const said = tap.read().notes.map(([, , text]) => text);
-    expect(said).toEqual(['dom − label "Note"', 'dom − textarea', 'page +2 −3 nodes, 0 attributes, 0 text']);
+    // The box inside the label is not written: what would name it is what was typed into it.
+    expect(said).toEqual(['dom − label "Note"', 'page +2 −3 nodes, 0 attributes, 0 text']);
     expect(said.join('\n')).not.toMatch(/draft|hunter/);
+  });
+
+  it('never writes what a person typed into an editable region, or which option a list has chosen', () => {
+    const tap = openTap();
+    const { window } = new JSDOM(
+      '<main><section><div contenteditable>draft</div></section><select><option>Visa 1111</option><option>Visa 2222</option></select></main>',
+    );
+    const { document } = window;
+    listen(tap, { console: { ...console }, document, MutationObserver: window.MutationObserver });
+
+    tap.root.c(10);
+    const editor = document.querySelector('[contenteditable]')!;
+    editor.firstChild!.nodeValue = 'hunter2';
+    const line = document.createElement('div');
+    line.append(Object.assign(document.createElement('b'), { textContent: 'hunter3' }));
+    editor.append(line);
+    document.querySelectorAll('option')[1]!.setAttribute('selected', '');
+    tap.root.c(11);
+    document.querySelector('section')!.remove();
+    tap.root.c(12);
+    tap.settle();
+
+    const said = tap.read().notes.map(([, , text]) => text);
+    expect(said).toEqual([
+      'dom + div',
+      'dom @selected option absent→""',
+      'page +1 −0 nodes, 1 attribute, 1 text',
+      'dom − section',
+      'page +0 −1 nodes, 0 attributes, 0 text',
+    ]);
+    expect(said.join('\n')).not.toMatch(/draft|hunter|Visa/);
+  });
+
+  it('writes nothing for a value set and set back before the page was read', () => {
+    const tap = openTap();
+    const { window } = new JSDOM('<main><p class="a">idle</p></main>');
+    const { document } = window;
+    listen(tap, { console: { ...console }, document, MutationObserver: window.MutationObserver });
+
+    tap.root.c(10);
+    const p = document.querySelector('p')!;
+    p.className = 'b';
+    p.className = 'a';
+    p.firstChild!.nodeValue = 'busy';
+    p.firstChild!.nodeValue = 'idle';
+    tap.root.c(11);
+    tap.settle();
+
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['page +0 −0 nodes, 2 attributes, 2 text']);
   });
 
   it('finds a row of a 2000-node page by the lines that added and removed it, and keeps the page to its own share', () => {

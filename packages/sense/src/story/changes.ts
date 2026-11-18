@@ -1,4 +1,5 @@
 // compass: variance-authority.reach.story
+import { cutOf } from './cut.js';
 import type { Route } from './read.js';
 import { numbered } from './view.js';
 
@@ -24,11 +25,24 @@ export interface PageSearch {
 }
 
 const COMMIT = / at commit (\d+)$/;
-const CUT = /^(test|hook) line (\d+)$/;
+const WORD = /\w/;
+
+// Whether `text` holds `pattern` as whole words, as `rg -w` reads it: an end of
+// the pattern that is a word character is not continued by one in the text.
+function holds(text: string, pattern: string): boolean {
+  const open = WORD.test(pattern[0]!);
+  const close = WORD.test(pattern.at(-1)!);
+  for (let at = text.indexOf(pattern); at !== -1; at = text.indexOf(pattern, at + 1)) {
+    const end = at + pattern.length;
+    if ((!open || at === 0 || !WORD.test(text[at - 1]!)) && (!close || end === text.length || !WORD.test(text[end]!))) return true;
+  }
+  return false;
+}
 
 /**
  * The changes to the page a route says, each whose line holds `pattern` as
- * written, in the order the case made them. A story writes each change once,
+ * whole words, in the order the case made them: `Item C3` finds that row and
+ * not `Item C30`. A story writes each change once,
  * as one line, so this finds what `rg` over the story file finds, and places it.
  */
 export function pageChanges(route: Route, pattern: string): PageSearch {
@@ -38,16 +52,15 @@ export function pageChanges(route: Route, pattern: string): PageSearch {
   let hook = false;
   const read = (said: readonly string[] | undefined, step: number | undefined) => {
     for (const text of said ?? []) {
-      const cut = CUT.exec(text);
-      if (cut !== null) {
-        line = Number(cut[2]);
-        hook = cut[1] === 'hook';
+      const cut = cutOf(text);
+      if (cut !== undefined) {
+        ({ line, hook } = cut);
         continue;
       }
       if (!text.startsWith('dom ')) continue;
       searched += 1;
       const written = text.slice('dom '.length);
-      if (!written.includes(pattern)) continue;
+      if (!holds(written, pattern)) continue;
       const commit = COMMIT.exec(written);
       const change = commit === null ? written : written.slice(0, commit.index);
       found.push({

@@ -14,6 +14,12 @@ export const PAGE_ROWS = 50;
 export function pageText(route: Route, pattern: string): string[] {
   const { searched, found } = pageChanges(route, pattern);
   if (found.length === 0) {
+    // A tape that filled up kept only its first lines, so nothing found among them is not nothing at all.
+    if (route.unnoted !== undefined) {
+      return [
+        `  no node holding \`${pattern}\` was added, removed or changed among the ${changes(searched)} the story kept; ${route.unnoted} later lines are not on this route, so it may be among them`,
+      ];
+    }
     return [`  no node holding \`${pattern}\` was added, removed or changed: the story says ${changes(searched)} to the page`];
   }
   const shown = found.slice(0, PAGE_ROWS);

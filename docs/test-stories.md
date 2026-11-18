@@ -716,8 +716,9 @@ component that rendered the node, `in Dialog`, and the React commit it was
 written under, `at commit 2`. A direct `append` between two commits is written
 under the next one; only what is left when the line ends has no commit. What a
 field holds is never written: an `input`'s `value`, typed or set, is named and
-not shown, and the text of a `textarea` or a `select` is left out of every line,
-its own and its parent's.
+not shown; a `textarea`, a `select` and an editable region (`contenteditable`)
+are left out with everything inside them, from every line, their own and their
+parent's; and a chosen `option` shows only as its `selected` attribute.
 
 `variance story` prints only the count. Ask for the changes by what they hold,
 and the answer is one row per change that matches, whatever the size of the
@@ -735,9 +736,13 @@ variance story --name "opens the dialog" --page 'role="dialog"'
 
 A row says whether the node appeared, disappeared or changed, the step, the
 test line or `hook line` it stood on, and the commit. The pattern is matched as
-text, so `rg` over the story file finds what `--page` does. A pattern nothing
-matched says so, with how many changes it searched; past 50 rows the answer
-says how many more there are, to narrow the pattern. Under `--compare`, a change
+plain text in whole words: where it begins or ends with a letter or a digit, the
+line must not go on with one, so `Item C3` finds that row and not `Item C30`.
+The story file is plain text, so `rg -w` over it finds the same lines. A
+pattern nothing matched says so, with how many changes it searched, and, when
+the page outgrew the story's share, that the later lines were not kept and the
+node may be among them. Past 50 rows the answer says how many more there are,
+to narrow the pattern. Under `--compare`, a change
 that lands at another commit on every failing run is set apart like any other
 line the code said. A test run without a document has no `page` note and no
 changes.
