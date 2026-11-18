@@ -363,8 +363,8 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
 
     if (pending.length > 0) {
       const useGraph = !nativeGraphUsed && packed !== undefined && pending.length >= 10_000;
-      // A caller's cache the stores do not already stand for answers its parses in the batch.
-      const cached = options.cache === undefined || options.stores !== undefined || useGraph ? undefined : heldOf(options.cache, pending, pendingDigests);
+      // A caller's cache answers its parses in the batch, ahead of any stores.
+      const cached = options.cache === undefined || useGraph ? undefined : heldOf(options.cache, pending, pendingDigests);
       const nativeOptions = {
         addon,
         ...(packed === undefined ? {} : { tree: packed }),

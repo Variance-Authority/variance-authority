@@ -96,7 +96,7 @@ describe('a file too large to be worth parsing', () => {
  * from it, in every language, and never opened again.
  */
 describe('a file the parse cache holds', () => {
-  it('is answered from the cache without being opened', async () => {
+  it.each([['', {}], [', beside stores that hold none of it', { stores: [] }]] as const)('is answered from the cache without being opened%s', async (_, beside) => {
     const root = await mkdtemp(join(tmpdir(), 'variance-cached-'));
     try {
       const files: Record<string, string> = {
@@ -113,7 +113,7 @@ describe('a file the parse cache holds', () => {
       const digests = new Map(Object.entries(files).map(([path, text]) => [path, digestString(`${text}\n`)]));
       const cache = memoryParseCache();
       const edges = async () => {
-        const records = await scanRelations({ root, dirs: ['src'], digests, cache });
+        const records = await scanRelations({ root, dirs: ['src'], digests, cache, ...beside });
         return Object.fromEntries(['src/a.css', 'src/a.ts', 'src/pkg/a.py'].map((file) => [
           file,
           records.find((record) => record.file === file)?.edges?.map((edge) => edge.to),
