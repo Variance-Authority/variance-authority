@@ -6,7 +6,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use dashmap::DashMap;
 use oxc_resolver::{
@@ -19,11 +19,26 @@ use crate::emitted::{Emitted, Origin};
 
 type Resolver = ResolverGeneric<Emitted>;
 
+/// Request → the repository file it lands on, for the files one `tsconfig`
+/// governs in one directory.
+type Answers = DashMap<String, Option<String>>;
+
+/// What every request written in one file resolves under: the module resolver
+/// its `tsconfig` selects, and the answers its neighbours already found.
+pub(crate) struct Governing {
+    modules: Arc<Resolver>,
+    answers: Arc<Answers>,
+}
+
 pub(crate) const MODULE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
+/// The extensions a written `.js`, `.mjs` or `.cjs` stands for, in the order
+/// they are tried: the module resolver's `extension_alias`, and the listing's.
+pub(crate) const EXTENSION_ALIASES: &[(&str, &[&str])] =
+    &[(".js", &[".ts", ".tsx", ".js", ".jsx"]), (".mjs", &[".mts", ".mjs"]), (".cjs", &[".cts", ".cjs"])];
 /// What a declaration file ends in, which is also where its stem ends:
 /// `context.d.ts` is `context`, as a request names it.
 const DECLARATION_SUFFIXES: [&str; 3] = [".d.ts", ".d.mts", ".d.cts"];
-const STYLE_EXTENSIONS: &[&str] = &[".css", ".scss", ".sass", ".less"];
+pub(crate) const STYLE_EXTENSIONS: &[&str] = &[".css", ".scss", ".sass", ".less"];
 const DEFAULT_CONDITIONS: [&str; 4] = ["source", "import", "require", "default"];
 
 /// Which `tsconfig` governs resolution, `paths` and `customConditions` both
@@ -71,6 +86,11 @@ pub struct Resolvers {
     /// held under one lock: on Kibana that lock was the read's second-largest
     /// wait.
     canonical: DashMap<PathBuf, PathBuf>,
+    /// Governing `tsconfig` and directory → request → its answer. A request
+    /// resolves from the directory it is written in, under the config that owns
+    /// the file, so the files sharing both share every answer: on Kibana most
+    /// requests repeat a neighbour's, above all the packages no resolver finds.
+    answers: DashMap<(Option<PathBuf>, PathBuf), Arc<Answers>>,
     /// The file system every resolver here reads, shared so an answer is
     /// mapped by the layouts that produced it.
     emitted: Emitted,
@@ -84,31 +104,15 @@ impl Resolvers {
     /// Resolvers that read the disk through `emitted`.
     pub fn over(tsconfig: Tsconfig, condition_names: Option<Vec<String>>, emitted: Emitted) -> Self {
         let options = ResolveOptions {
-            extensions: MODULE_EXTENSIONS
-                .iter()
-                .chain(STYLE_EXTENSIONS)
-                .copied()
-                .chain(std::iter::once(".json"))
-                .map(str::to_owned)
-                .collect(),
+            extensions: relative::extensions().map(str::to_owned).collect(),
             condition_names: condition_names
                 .clone()
                 .unwrap_or_else(|| DEFAULT_CONDITIONS.map(str::to_owned).to_vec()),
             main_fields: ["source", "module", "main"].map(str::to_owned).to_vec(),
-            extension_alias: vec![
-                (
-                    ".js".to_owned(),
-                    [".ts", ".tsx", ".js", ".jsx"].map(str::to_owned).to_vec(),
-                ),
-                (
-                    ".mjs".to_owned(),
-                    [".mts", ".mjs"].map(str::to_owned).to_vec(),
-                ),
-                (
-                    ".cjs".to_owned(),
-                    [".cts", ".cjs"].map(str::to_owned).to_vec(),
-                ),
-            ],
+            extension_alias: EXTENSION_ALIASES
+                .iter()
+                .map(|(written, aliases)| ((*written).to_owned(), aliases.iter().map(|alias| (*alias).to_owned()).collect()))
+                .collect(),
             tsconfig: match &tsconfig {
                 Tsconfig::Auto => Some(TsconfigDiscovery::Auto),
                 Tsconfig::Named(path) => Some(TsconfigDiscovery::Manual(TsconfigOptions {
@@ -143,6 +147,7 @@ impl Resolvers {
             conditioned: Mutex::new(conditioned),
             declarations: DashMap::new(),
             canonical: DashMap::new(),
+            answers: DashMap::new(),
             emitted,
         }
     }
@@ -151,15 +156,22 @@ impl Resolvers {
     /// conditions plus the `customConditions` of the `tsconfig` that governs
     /// `from` — the config `oxc_resolver` already picked for its `paths`.
     fn modules_for(&self, from: &Path) -> Arc<Resolver> {
-        if !self.governs {
-            return Arc::clone(&self.modules);
-        }
-        let Ok(Some(tsconfig)) = self.modules.find_tsconfig(from) else {
-            return Arc::clone(&self.modules);
+        self.governed_by(from).1
+    }
+
+    /// The `tsconfig` that governs `from`, when one is read, and the module
+    /// resolver it selects.
+    fn governed_by(&self, from: &Path) -> (Option<PathBuf>, Arc<Resolver>) {
+        let found = self.modules.find_tsconfig(from);
+        let Ok(Some(tsconfig)) = found else {
+            return (None, Arc::clone(&self.modules));
         };
         let path = tsconfig.path();
+        if !self.governs {
+            return (Some(path.to_owned()), Arc::clone(&self.modules));
+        }
         if let Some(found) = self.governed.read().ok().and_then(|held| held.get(path).cloned()) {
-            return found;
+            return (Some(path.to_owned()), found);
         }
         let resolver = match self.emitted.configs.custom_conditions(path) {
             Some(custom) if !custom.is_empty() => self.with_conditions(custom),
@@ -168,7 +180,15 @@ impl Resolvers {
         if let Ok(mut held) = self.governed.write() {
             held.insert(path.to_owned(), Arc::clone(&resolver));
         }
-        resolver
+        (Some(path.to_owned()), resolver)
+    }
+
+    /// What every request written in `from` resolves under, found once per file.
+    pub(crate) fn governing(&self, from: &Path) -> Governing {
+        let (tsconfig, modules) = self.governed_by(from);
+        let directory = from.parent().unwrap_or(from).to_owned();
+        let answers = Arc::clone(&self.answers.entry((tsconfig, directory)).or_default());
+        Governing { modules, answers }
     }
 
     fn with_conditions(&self, custom: Vec<String>) -> Arc<Resolver> {
@@ -225,7 +245,46 @@ impl Resolvers {
         known: Option<&HashMap<String, u32>>,
     ) -> Option<String> {
         let request = request_of(written)?;
-        let modules = self.modules_for(from);
+        self.answer(root, from, request, known, &self.modules_for(from))
+    }
+
+    /// [`Self::resolve`] for one of the requests `from` holds, during one walk
+    /// that lands every request against the same `known`: `governing` is found
+    /// once for all of them, and an answer a file in the same directory under
+    /// the same `tsconfig` already found is not resolved again.
+    pub(crate) fn resolve_from(
+        &self,
+        root: &Path,
+        from: &Path,
+        written: &str,
+        known: Option<&HashMap<String, u32>>,
+        governing: &OnceLock<Governing>,
+    ) -> Option<String> {
+        let request = request_of(written)?;
+        let governing = governing.get_or_init(|| self.governing(from));
+        if let Some(answer) = governing.answers.get(request) {
+            return answer.clone();
+        }
+        let answer = self.answer(root, from, request, known, &governing.modules);
+        governing.answers.insert(request.to_owned(), answer.clone());
+        answer
+    }
+
+    fn answer(
+        &self,
+        root: &Path,
+        from: &Path,
+        request: &str,
+        known: Option<&HashMap<String, u32>>,
+        modules: &Arc<Resolver>,
+    ) -> Option<String> {
+        if let relative::Listed::File(file) = self.listed(root, from, request) {
+            if known.is_some_and(|paths| paths.contains_key(&file))
+                && to_repo_path(root, &root.join(&file), known).as_ref() == Some(&file)
+            {
+                return Some(file);
+            }
+        }
         let mut elsewhere = false;
         for resolver in [modules.as_ref(), &self.exact] {
             let Ok(answer) = resolver.resolve_file(from, request) else {
@@ -240,7 +299,7 @@ impl Resolvers {
         if elsewhere {
             return None;
         }
-        let answer = self.declarations_for(&modules).resolve_file(from, request).ok()?;
+        let answer = self.declarations_for(modules).resolve_file(from, request).ok()?;
         let path = answer.path();
         let declared = path.file_name().and_then(|name| name.to_str()).is_some_and(|name| {
             DECLARATION_SUFFIXES.iter().any(|suffix| name.len() > suffix.len() && name.ends_with(suffix))
@@ -344,6 +403,8 @@ pub fn request_of(value: &str) -> Option<&str> {
     (cut > 0).then(|| &trimmed[..cut])
 }
 
+#[path = "resolve_relative.rs"]
+mod relative;
 #[path = "resolve_style.rs"]
 mod style;
 
@@ -410,58 +471,9 @@ fn to_repo_path(root: &Path, absolute: &Path, known: Option<&HashMap<String, u32
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
+#[path = "resolve_tsconfig_tests.rs"]
+mod tsconfig_tests;
 
-    #[test]
-    fn strips_build_suffixes() {
-        assert_eq!(request_of(" ./button.ts?raw#x "), Some("./button.ts"));
-        assert_eq!(request_of("node:fs"), None);
-    }
-
-    #[test]
-    fn a_build_directory_is_source_where_git_lists_it() {
-        let root = std::env::temp_dir().join(format!("sense-listed-build-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        for (path, text) in [
-            ("src/commands/b.ts", "import './build/a';\n"),
-            ("src/commands/build/a.ts", "export {};\n"),
-            ("src/commands/dist/c.ts", "export {};\n"),
-        ] {
-            std::fs::create_dir_all(root.join(path).parent().unwrap()).unwrap();
-            std::fs::write(root.join(path), text).unwrap();
-        }
-        let root = std::fs::canonicalize(root).unwrap();
-        let from = root.join("src/commands/b.ts");
-        let listed = HashMap::from([
-            ("src/commands/b.ts".to_owned(), 0),
-            ("src/commands/build/a.ts".to_owned(), 1),
-            ("src/commands/dist/c.ts".to_owned(), 2),
-        ]);
-        let unlisted = HashMap::from([("src/commands/b.ts".to_owned(), 0)]);
-        let resolvers = Resolvers::new(Tsconfig::Auto, None);
-        let ask = |request, known| resolvers.resolve(&root, &from, request, known);
-        assert_eq!(ask("./build/a", Some(&listed)), Some("src/commands/build/a.ts".to_owned()));
-        assert_eq!(ask("./build/a", Some(&unlisted)), None);
-        assert_eq!(ask("./build/a", None), None);
-        assert_eq!(ask("./dist/c", Some(&listed)), None);
-        let _ = std::fs::remove_dir_all(&root);
-    }
-
-    #[test]
-    fn a_declaration_stem_drops_the_whole_suffix() {
-        assert_eq!(stem("context.d.ts"), "context");
-        assert_eq!(stem("context.d.mts"), "context");
-        assert_eq!(stem("context.ts"), "context");
-        assert_eq!(stem(".d.ts"), ".d");
-        assert!(case_folded("./Context", Path::new("/src/context.d.ts")));
-        assert!(!case_folded("./context", Path::new("/src/context.d.ts")));
-    }
-
-    #[test]
-    fn keeps_a_subpath_import() {
-        assert_eq!(request_of("#polyfill"), Some("#polyfill"));
-        assert_eq!(request_of("#internal/a.js?raw#x"), Some("#internal/a.js"));
-        assert_eq!(request_of("#"), Some("#"));
-    }
-}
+#[cfg(test)]
+#[path = "resolve_tests.rs"]
+mod tests;

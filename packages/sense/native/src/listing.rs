@@ -41,6 +41,20 @@ pub(crate) enum Known {
     Absent,
 }
 
+/// What git lists at one path spelled from the root.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Entry {
+    /// A regular file.
+    File,
+    /// A directory git lists a file beneath.
+    Directory,
+    /// A blob that is not a regular file: a symbolic link, which may name a
+    /// file or a directory, and only the disk says which.
+    Linked,
+    /// Nothing git lists.
+    Unlisted,
+}
+
 impl Listing {
     pub fn of(files: Arc<HashMap<String, u32>>, regular: Arc<Vec<bool>>, unhashed: &[String]) -> Self {
         let mut directories: HashMap<PathBuf, Vec<OsString>> = HashMap::new();
@@ -108,6 +122,18 @@ impl Listing {
 
     fn regular(&self, at: u32) -> bool {
         self.regular.get(at as usize).copied().unwrap_or(false)
+    }
+
+    /// What git lists at a path spelled from the root, `/` between its
+    /// parts, or `None` when git did not answer for the tree.
+    pub(crate) fn spelled(&self, spelled: &str) -> Option<Entry> {
+        if !self.real.contains("") {
+            return None;
+        }
+        if let Some(&at) = self.files.get(spelled) {
+            return Some(if self.regular(at) { Entry::File } else { Entry::Linked });
+        }
+        Some(if self.real.contains(spelled) { Entry::Directory } else { Entry::Unlisted })
     }
 
     /// Whether git vouches the path is a regular file. A symbolic link is a

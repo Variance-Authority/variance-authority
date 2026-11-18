@@ -328,10 +328,11 @@ pub(super) fn resolve_all(
                 }
                 let from = root.join(file);
                 let language = language_of(file).unwrap_or(Language::Module);
+                let governing = std::sync::OnceLock::new();
                 for (index, request) in held.requests.iter().enumerate() {
                     let landed: Vec<String> = match language {
                         Language::Style => resolvers.resolve_style(root, &from, &request.value, known).into_iter().collect(),
-                        Language::Module => resolvers.resolve(root, &from, &request.value, known).into_iter().collect(),
+                        Language::Module => resolvers.resolve_from(root, &from, &request.value, known, &governing).into_iter().collect(),
                         _ => world.resolve(language, file, &request.value, request.item),
                     };
                     let mut landed = landed.into_iter();
