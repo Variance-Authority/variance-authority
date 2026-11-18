@@ -12,9 +12,9 @@ import { EXIT_CLEAN } from '../exit.js';
  * `variance ask symbol --line`, through the command a person types: the
  * declaration a line ran is the one whose tests are the line's tests.
  *
- * `useSessionId` is declared twice. `page` calls the one in `session.ts`,
- * `header` is rendered by a test that enters neither, and `idle` is run by
- * nobody. `format` is declared twice and both are entered by the same test;
+ * `useSessionId` is declared three times. `page` calls the one in `session.ts`,
+ * no test enters the one in `stale.ts`, `header` is rendered by a test that
+ * enters none, and `idle` is run by nobody. `format` is declared twice and both are entered by the same test;
  * `log` is declared twice, one entered by every test.
  */
 
@@ -37,19 +37,20 @@ async function run(argv: readonly string[]): Promise<{ code: number; out: string
 }
 
 describe('variance ask symbol --line', () => {
-  it('names the declaration the line called first, and the one its tests never entered as not run with it', async () => {
+  it('names the declaration the line called first, and those its tests never entered as not run with it, in place order', async () => {
     await recorded();
 
     const answered = await run(['ask', 'symbol', '--name', 'useSessionId', '--line', 'src/page.ts:3']);
 
     expect([answered.code, answered.err]).toEqual([EXIT_CLEAN, '']);
-    expect(answered.out.split('\n').slice(0, 6)).toEqual([
+    expect(answered.out.split('\n').slice(0, 7)).toEqual([
       '`useSessionId` at src/page.ts:3, by the 1 recorded test that ran the line:',
       '',
       'src/session.ts:1  1.00  1 of the 1 test that entered it ran the line',
       '',
       'Not run with it:',
       'src/legacy.ts:1  none of the 1 test that entered it ran the line',
+      'src/stale.ts:1  no recorded test entered it',
     ]);
   });
 
@@ -129,6 +130,7 @@ async function recorded({ commit = true }: { readonly commit?: boolean } = {}): 
     'package.json': JSON.stringify({ name: 'resonance', private: true }),
     'src/session.ts': declares('useSessionId', 'real'),
     'src/legacy.ts': declares('useSessionId', 'legacy'),
+    'src/stale.ts': declares('useSessionId', 'stale'),
     'src/page.ts': [
       "import { useSessionId } from './session';",
       'export function page(): string {',
@@ -162,6 +164,7 @@ async function recorded({ commit = true }: { readonly commit?: boolean } = {}): 
   const modules: Record<string, ReturnType<typeof region>[]> = {
     'src/session.ts': [region('function', 'useSessionId', 1, 3, [0])],
     'src/legacy.ts': [region('function', 'useSessionId', 1, 3, [1])],
+    'src/stale.ts': [region('function', 'useSessionId', 1, 3, [])],
     'src/page.ts': [region('function', 'page', 2, 4, [0]), region('function', 'header', 5, 7, [2])],
     'src/idle.ts': [region('function', 'idle', 2, 4, [])],
     'src/a.ts': [region('function', 'format', 1, 3, [3])],
