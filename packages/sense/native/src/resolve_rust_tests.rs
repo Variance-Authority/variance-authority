@@ -18,10 +18,16 @@ fn layout<R>(paths: &[&str], ask: impl FnOnce(&World) -> R) -> R {
 /// A world whose files can be read: `worldOn` over a directory holding `files`.
 #[cfg(feature = "grammars")]
 fn written<R>(files: &[(&str, &str)], ask: impl FnOnce(&World) -> R) -> R {
+    written_by(read, files, ask)
+}
+
+/// The same world, each file read by `reader`.
+#[cfg(feature = "grammars")]
+fn written_by<R>(reader: fn(&str, &str) -> crate::read::Read, files: &[(&str, &str)], ask: impl FnOnce(&World) -> R) -> R {
     let held: HashMap<&str, &str> = files.iter().copied().collect();
     let paths: Vec<&str> = files.iter().map(|(path, _)| *path).collect();
     let known = known(&paths);
-    let parsing = |paths: &[&str]| paths.iter().map(|path| held.get(path).map(|source| read(path, source))).collect();
+    let parsing = |paths: &[&str]| paths.iter().map(|path| held.get(path).map(|source| reader(path, source))).collect();
     let texting = |path: &str| held.get(path).map(|text| (*text).to_owned());
     ask(&World::new(Some(&known), None).reading(&parsing, &texting))
 }
@@ -129,11 +135,26 @@ const DECLARED: [(&str, &str); 10] = [
     ("tests/helper.rs", "pub struct Help;\n"),
 ];
 
+/// A file's read as a parse store hands it back: written into a parse-only
+/// segment and read off its row.
+#[cfg(feature = "grammars")]
+fn kept(file: &str, source: &str) -> crate::read::Read {
+    let fresh = read(file, source);
+    let bytes = crate::index::parses_only(&[("git:a", &fresh)]);
+    let layer = crate::compact::Layer::open(&bytes).unwrap();
+    crate::compact::ParseView::of(&layer, 0).read().unwrap()
+}
+
 #[cfg(feature = "grammars")]
 fn declared(from: &str, request: &str, item: bool) -> Vec<String> {
+    declared_by(read, from, request, item)
+}
+
+#[cfg(feature = "grammars")]
+fn declared_by(reader: fn(&str, &str) -> crate::read::Read, from: &str, request: &str, item: bool) -> Vec<String> {
     let mut files = DECLARED.to_vec();
     files.sort_by(|left, right| crate::order::code_unit(left.0, right.0));
-    written(&files, |world| resolve(world, from, request, item))
+    written_by(reader, &files, |world| resolve(world, from, request, item))
 }
 
 #[cfg(feature = "grammars")]
@@ -163,6 +184,18 @@ fn lands_an_item_of_an_inline_module_on_its_file_and_the_module_itself_on_nothin
     assert_eq!(asked("crate::shapes::inner::Thing"), ["src/shapes.rs"]);
     assert!(asked("crate::shapes::inner").is_empty());
     assert!(asked("crate::shapes::Missing").is_empty());
+}
+
+#[cfg(feature = "grammars")]
+#[test]
+fn a_parse_read_back_from_the_store_lands_an_item_as_the_fresh_parse_does() {
+    let (file, source) = DECLARED.iter().find(|(file, _)| *file == "src/shapes.rs").unwrap();
+    let (fresh, held) = (read(file, source), kept(file, source));
+    let named = |read: &crate::read::Read| read.symbols.iter().map(|symbol| (symbol.name.clone(), symbol.kind)).collect::<Vec<_>>();
+    assert_eq!((held.harvested, named(&held)), (fresh.harvested, named(&fresh)));
+    for request in ["crate::shapes::inner::Thing", "crate::compact::inner::Thing", "crate::shapes::inner"] {
+        assert_eq!(declared_by(kept, "src/lib.rs", request, true), declared("src/lib.rs", request, true), "{request}");
+    }
 }
 
 #[cfg(feature = "grammars")]

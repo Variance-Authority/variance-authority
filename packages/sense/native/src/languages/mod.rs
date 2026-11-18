@@ -56,26 +56,7 @@ pub fn declaration(children: &[Node], at: usize, name: String, kind: &'static st
 /// name and declares nothing, such as Rust's `extern crate`, which a reader
 /// then leaves out.
 pub fn kind_of(node: &str) -> Option<&'static str> {
-    Some(match node {
-        "function_item" | "function_definition" | "function_declaration" => "function",
-        "struct_item" => "struct",
-        "enum_item" | "enum_declaration" => "enum",
-        "union_item" => "union",
-        "trait_item" => "trait",
-        "type_item" | "type_alias" | "typealias_declaration" => "type",
-        "const_item" => "const",
-        "static_item" => "static",
-        "mod_item" => "module",
-        "macro_definition" => "macro",
-        "class_definition" | "class_declaration" => "class",
-        "interface_declaration" => "interface",
-        "record_declaration" => "record",
-        "annotation_type_declaration" => "annotation",
-        "object_declaration" => "object",
-        "protocol_declaration" => "protocol",
-        "property_declaration" => "property",
-        _ => return None,
-    })
+    crate::harvest::KINDS.iter().find(|(_, nodes)| nodes.contains(&node)).map(|(kind, _)| *kind)
 }
 
 /// A declaration's head: from where it starts to where its body or its value

@@ -57,6 +57,34 @@ pub struct NestedSymbol {
     pub holder_line: u32,
 }
 
+/// Every kind a grammar reader gives a declaration, each with the nodes the
+/// grammars spell it by: `kind_of` in `languages/mod.rs` reads it from the
+/// node, and a parse read back from the index from the word it stored.
+pub const KINDS: [(&str, &[&str]); 17] = [
+    ("function", &["function_item", "function_definition", "function_declaration"]),
+    ("struct", &["struct_item"]),
+    ("enum", &["enum_item", "enum_declaration"]),
+    ("union", &["union_item"]),
+    ("trait", &["trait_item"]),
+    ("type", &["type_item", "type_alias", "typealias_declaration"]),
+    ("const", &["const_item"]),
+    ("static", &["static_item"]),
+    ("module", &["mod_item"]),
+    ("macro", &["macro_definition"]),
+    ("class", &["class_definition", "class_declaration"]),
+    ("interface", &["interface_declaration"]),
+    ("record", &["record_declaration"]),
+    ("annotation", &["annotation_type_declaration"]),
+    ("object", &["object_declaration"]),
+    ("protocol", &["protocol_declaration"]),
+    ("property", &["property_declaration"]),
+];
+
+/// The word of [`KINDS`] spelled `word`.
+pub fn kind_named(word: &str) -> Option<&'static str> {
+    KINDS.iter().map(|(kind, _)| *kind).find(|kind| *kind == word)
+}
+
 /// Every reach a symbol records, in the order the index stores them, from 1:
 /// its file alone (an ES module, a Swift or Kotlin `private`), its module and
 /// the modules inside it (a Rust item that is not `pub`), and any module that

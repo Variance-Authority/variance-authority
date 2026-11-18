@@ -347,7 +347,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
     let parsed_here = reached.new.iter().map(|file| (file, &walked[file.as_str()]));
     let parsed_here = parsed_here.filter(|(file, row)| row.parsed && !row.kept && !row.identity.is_empty() && tree.from_blob.shares(&row.identity, &way(file)));
     // The store serves the next root and the index this one: neither reads the other, so they are written side by side.
-    std::thread::scope(|scope| {
+    let updated = std::thread::scope(|scope| {
         scope.spawn(|| stores.add_unheld(&store, parsed_here.map(|(file, row)| (row.identity.as_str(), way(file), &row.read))));
         let mut interest: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
         interest.extend(reached.new.iter().map(|file| walked[file.as_str()].identity.as_str()).filter(|digest| !digest.is_empty()));
@@ -493,5 +493,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool) -> napi::Resul
         };
         let lost = matches!(outcome, Ok(false));
         Ok((Updated { files, reread, parsed, published: refused.is_none(), refused, rebuilt, written: version }, lost))
-    })
+    });
+    // Freeing every row the walk read takes a third of a second on a large tree, and nothing waits for it.
+    std::thread::spawn(move || drop(walked));
+    updated
 }
