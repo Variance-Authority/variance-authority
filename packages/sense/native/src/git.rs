@@ -59,35 +59,48 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
         Some(head) => head.prefix.clone().into_bytes(),
         None => trim(&git(root, &["rev-parse", "--show-prefix"], None)?).to_vec(),
     };
-    let held = head.as_ref().and_then(|head| head.blobs.as_deref());
     let prefix = asked.as_slice();
-    let (listing, status) = std::thread::scope(|scope| {
-        let listing = scope.spawn(|| held.is_none().then(|| git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None).map(Listing::Printed)).flatten());
+    let status = |listed: &[u8]| {
+        let mut args = vec!["--no-optional-locks", "status", "--porcelain=v1", "-z"];
+        args.extend(untracked_question(prefix, settings_of(listed)));
+        git(root, &args, None)
+    };
+    // The working tree is walked while `HEAD`'s tree is listed: the walk needs
+    // only the index, and the listing is what it is compared with after.
+    let (listing, (listed, walked)) = std::thread::scope(|scope| {
         // `core.fsmonitor` and `core.untrackedCache` are left to the repository,
         // for the reason `working-tree-changes.ts` gives: they are what make this
         // call cheap, and overriding either way spends a user's configuration on
         // their behalf. The shape of the question is `untracked_question`'s.
         // A reader never writes the index: its refresh would race the user's
         // own git for `index.lock`, and move the stamp a held listing stands on.
-        // The index and `HEAD`'s blobs, both held, are compared in-process;
         // `git status` answers where `worktree_status` hands the question back.
-        let status = scope.spawn(|| {
+        let walk = scope.spawn(|| {
             let listed = configured(root);
-            if let (true, Some(head), Some(held)) = (compared, &head, held) {
-                if let Some(changes) = crate::git::worktree_status::changes(head, held, &crate::git::worktree_status::config_of(&listed)) {
-                    return Some(Status::Known(changes));
-                }
-            }
-            let mut args = vec!["--no-optional-locks", "status", "--porcelain=v1", "-z"];
-            args.extend(untracked_question(prefix, settings_of(&listed)));
-            git(root, &args, None).map(Status::Printed)
+            let walked = match (compared, &head) {
+                (true, Some(head)) => crate::git::worktree_status::walk(head, &crate::git::worktree_status::config_of(&listed)),
+                _ => None,
+            };
+            let walked = walked.ok_or_else(|| status(&listed));
+            (listed, walked)
         });
-        (listing.join().ok().flatten(), status.join().ok().flatten())
+        let listing = match head.as_ref().and_then(|head| head.blobs()) {
+            Some(blobs) => Some(Listing::Held(blobs)),
+            None => git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None).map(Listing::Printed),
+        };
+        (listing, walk.join().expect("the walk does not panic"))
     });
+    // The index and `HEAD`'s blobs, both held, are compared in-process; a tree
+    // the store will not list is `git status`'s to compare.
+    let status = match (walked, &listing) {
+        (Ok(walked), Some(Listing::Held(blobs))) => Some(Status::Known(walked.against(blobs))),
+        (Ok(_), _) => status(&listed).map(Status::Printed),
+        (Err(printed), _) => printed.map(Status::Printed),
+    };
     // A repository with no commit yet has no tree to list, and that is an empty
     // listing rather than an unanswerable one: `status` names every file as
     // added or untracked, and the overlay hashes each of them from disk.
-    let listing = match head.and_then(|head| head.blobs).map(Listing::Held).or(listing) {
+    let listing = match listing {
         Some(listing) => listing,
         None if unborn(root) => Listing::Printed(Vec::new()),
         None => return None,

@@ -2,10 +2,11 @@
 //! instead of `HEAD`, below the root.
 //!
 //! Three questions, answered where the snapshot already holds the answers'
-//! inputs. The index against `HEAD`'s blobs, which `git_store::head` has just
-//! listed. The worktree against the index, by `gix-status`, which reads the
-//! stat of every entry and hashes only the files whose stat moved. And the
-//! untracked files, by `gix-dir` under the repository's ignore rules.
+//! inputs. The index against `HEAD`'s blobs, which `Head::blobs` lists while
+//! the other two are walked. The worktree against the index, by `gix-status`,
+//! which reads the stat of every entry and hashes only the files whose stat
+//! moved. And the untracked files, by `gix-dir` under the repository's ignore
+//! rules.
 //!
 //! A file is compared by its raw bytes, not through `.gitattributes` filters:
 //! the snapshot's digest names the bytes on disk, so a raw hash is the exact
@@ -93,9 +94,19 @@ pub(crate) fn config_of(listed: &[u8]) -> Config {
     config
 }
 
-/// Every path below the root the working tree or the index disagrees with
-/// `held` about, or `None` where `git status` must answer.
-pub(crate) fn changes(head: &Head, held: &[(Vec<u8>, ObjectId, bool)], config: &Config) -> Option<Changes> {
+/// The working tree against the index, walked before `HEAD`'s blobs are in
+/// hand: what `Walked::against` compares them with.
+pub(crate) struct Walked {
+    prefix: Vec<u8>,
+    index: gix_index::File,
+    removed: Paths,
+    dirty: Paths,
+    untracked: Paths,
+}
+
+/// The working tree walked against the index below the root, or `None` where
+/// `git status` must answer.
+pub(crate) fn walk(head: &Head, config: &Config) -> Option<Walked> {
     if head.format != "sha1" || config.fsmonitor {
         return None;
     }
@@ -118,8 +129,16 @@ pub(crate) fn changes(head: &Head, held: &[(Vec<u8>, ObjectId, bool)], config: &
         let untracked = scope.spawn(|| untracked(head, &index, config));
         (worktree(head, &index, config), untracked.join().ok().flatten())
     });
-    let (removed, mut dirty) = worktree?;
-    let untracked = untracked?;
+    let (removed, dirty) = worktree?;
+    Some(Walked { prefix: prefix.to_vec(), index, removed, dirty, untracked: untracked? })
+}
+
+impl Walked {
+    /// Every path below the root the working tree or the index disagrees with
+    /// `held` about.
+    pub(crate) fn against(self, held: &[(Vec<u8>, ObjectId, bool)]) -> Changes {
+    let Walked { prefix, index, removed, mut dirty, untracked } = self;
+    let prefix = prefix.as_slice();
 
     // The index against `HEAD`: a path staged away is gone unless a conflict
     // holds it, and a path staged with other contents or another kind is edited.
@@ -152,7 +171,8 @@ pub(crate) fn changes(head: &Head, held: &[(Vec<u8>, ObjectId, bool)], config: &
     gone.retain(|path| !untracked.contains(path));
     dirty.extend(untracked);
     dirty.retain(|path| !gone.contains(path));
-    Some(Changes { gone: gone.into_iter().collect(), dirty: dirty.into_iter().collect() })
+    Changes { gone: gone.into_iter().collect(), dirty: dirty.into_iter().collect() }
+    }
 }
 
 type Paths = BTreeSet<Vec<u8>>;

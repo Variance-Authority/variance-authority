@@ -74,7 +74,7 @@ fn an_edited_file_keeps_its_digest_beside_paths_that_are_not_files() {
 fn compared(root: &Path) -> bool {
     let head = crate::git_store::head(root).unwrap();
     let config = crate::git::worktree_status::config_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));
-    crate::git::worktree_status::changes(&head, head.blobs.as_deref().unwrap(), &config).is_some()
+    head.blobs().is_some() && crate::git::worktree_status::walk(&head, &config).is_some()
 }
 
 /// The snapshot compared in-process is the one `status` answers, path for path.
