@@ -112,7 +112,7 @@ describe('variance index, over a file it declines', () => {
     expect(await updated(root)).toBe('source index updated: 3 files, 1 read again,');
   });
 
-  it('keeps a tracked stylesheet it declined for its size, which JavaScript records', async () => {
+  it('keeps a tracked stylesheet the native publication declined for its size', async () => {
     const root = checkout({ 'src/theme.css': `.a { color: red; }\n${'/* padding */\n'.repeat(80_000)}` });
 
     expect(await indexed(root)).toBe('source index built: 3 files,');
@@ -154,13 +154,13 @@ describe('variance index, over a file it declines', () => {
     expect(await indexed(root)).toBe('source index built: 4 files,');
     expect(await updated(root)).toBe('source index updated: 4 files, 0 read again,');
 
-    // The module alone is the addon's update to read; a stylesheet it cannot
-    // read hands the update to JavaScript, which checks it the same way.
+    // Each dirty source is acquired from the checkout. Git's filtered object
+    // names LF bytes, so it cannot prove the raw bytes of either dirty file.
     writeFileSync(join(root, 'src/crlf.js'), module('\n'));
     expect(await updated(root)).toBe('source index updated: 4 files, 1 read again,');
     writeFileSync(join(root, 'src/theme.css'), sheet('\n'));
-    expect(await updated(root)).toBe('source index updated: 4 files, 1 read again,');
-    expect(await updated(root)).toBe('source index updated: 4 files, 0 read again,');
+    expect(await updated(root)).toBe('source index updated: 4 files, 2 read again,');
+    expect(await updated(root)).toBe('source index updated: 4 files, 2 read again,');
   });
 
   it('opens an ignored file it declined for its size on every update, because Git names no object for it', async () => {

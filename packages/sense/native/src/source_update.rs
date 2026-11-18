@@ -177,9 +177,21 @@ fn update_with(o: UpdateOptions, tree: Tree, damaged: bool) -> napi::Result<Opti
             let (layer, row) = **at;
             let (stored, records) = (&layers[layer].stored, &layers[layer].records);
             let Some(digest) = stored.optional(records.digest.at(row)) else { return false };
-            let Some(&index) = tree.at.get(**file).filter(|&&index| tree.regular.get(index as usize) == Some(&true)) else { return false };
+            let Some(&index) = tree.at.get(**file) else { return false };
             let Some(oid) = tree.oids.get(index as usize) else { return false };
-            names_object(digest, oid)
+            let size_refusal = records.unknown_of(stored, row).is_some_and(|why| crate::acquire::declined_for_size(file, why));
+            let regular = tree.regular.get(index as usize) == Some(&true);
+            let valid_origin = if size_refusal {
+                let largest = u64::from(o.largest_file.unwrap_or(crate::acquire::LARGEST_FILE));
+                if regular {
+                    tree.store.objects_now(std::path::Path::new(&o.root)).is_some_and(|objects| objects.with_readers(1, |readers|
+                        readers[0].size(&gix_hash::ObjectId::from_bytes_or_panic(oid)).is_some_and(|size| size > largest)))
+                } else {
+                    std::fs::symlink_metadata(std::path::Path::new(&o.root).join(file)).is_ok_and(|entry| entry.is_file())
+                        && crate::acquire::still_too_large(std::path::Path::new(&o.root), file, largest)
+                }
+            } else { regular };
+            valid_origin && names_object(digest, oid)
                 && (moved.is_empty() || !records.witnesses_of(stored, row).any(|directory| moved.contains(directory)))
         })
         .map(|(file, at)| (*file, *at))

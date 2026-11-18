@@ -3,6 +3,9 @@
 use super::UpdateOptions;
 use crate::git_fixture::{repository, write};
 
+#[path = "source_update_declines_tests.rs"]
+mod declines;
+
 #[path = "git_tree_marks_tests.rs"]
 mod marks;
 
@@ -222,7 +225,7 @@ fn legacy_git_identities_are_rebuilt_in_root_and_shared_parse_publications() {
 }
 
 #[test]
-fn worktree_declines_do_not_borrow_an_expected_git_identity() {
+fn worktree_size_refusals_keep_only_a_git_named_oversized_regular_file() {
     for dirty in [false, true] {
         let root = repository(if dirty { "source-update-declined-dirty" } else { "source-update-declined-worktree" }, &[("src/a.ts", b"export const value = 'too large';\n")]);
         if dirty { write(&root, "src/a.ts", b"export const value = 'different and too large';\n"); }
@@ -237,8 +240,8 @@ fn worktree_declines_do_not_borrow_an_expected_git_identity() {
         assert_eq!((first.reread, first.parsed), (1, 0));
         let record = only_record(&index);
         assert!(record.unknown.as_ref().is_some_and(|unknown| crate::acquire::declined_for_size("src/a.ts", unknown)));
-        assert_eq!(record.digest, None, "declining worktree bytes acquired no byte identity");
-        assert_eq!(tree.update_index(opts).unwrap().unwrap().reread, 1);
+        assert!(record.digest.is_some(), "the listing names this refusal, while disk-only updates still reacquire it");
+        assert_eq!(tree.update_index(opts).unwrap().unwrap().reread, if dirty { 0 } else { 1 });
         std::fs::remove_dir_all(root).unwrap();
     }
 }

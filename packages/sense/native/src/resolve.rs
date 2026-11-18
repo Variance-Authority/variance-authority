@@ -21,6 +21,9 @@ type Resolver = ResolverGeneric<Emitted>;
 #[path = "resolve_spellings.rs"]
 mod spellings;
 
+#[path = "resolve_unlisted.rs"]
+mod unlisted;
+
 pub(crate) const MODULE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
 /// What a declaration file ends in, which is also where its stem ends:
 /// `context.d.ts` is `context`, as a request names it.
@@ -236,6 +239,9 @@ impl Resolvers {
         }
         if elsewhere {
             return None;
+        }
+        if let Some(path) = unlisted::explicit(root, from, request, known, |path| std::fs::metadata(path).is_ok_and(|entry| entry.is_file())) {
+            if let Landing::File(file) = self.land(root, request, &path, known) { return Some(file); }
         }
         let answer = self.declarations_for(&modules).resolve_file(from, request).ok()?;
         let path = answer.path();

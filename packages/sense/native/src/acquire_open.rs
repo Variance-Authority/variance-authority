@@ -74,7 +74,15 @@ pub(super) fn open<'a>(
         _ => Outcome::Failed,
     };
     if size > largest {
-        return settled(too_large(file, size, largest), declined());
+        let why = too_large(file, size, largest);
+        if declined() == Outcome::Declined {
+            if let Some(oid) = oid {
+                // This names a size refusal, never a parse: reuse must prove the
+                // checked-out regular file remains oversized under this limit.
+                return (file, Opened::DeclinedBlob(SourceRead::unreadable(why), *oid), String::new(), false);
+            }
+        }
+        return settled(why, declined());
     }
     let mut source = String::with_capacity(size as usize);
     if let Err(error) = held.read_to_string(&mut source) {
