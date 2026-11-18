@@ -127,6 +127,8 @@ Know these before you rely on it:
 - **Work that makes no request is invisible to it.** A change that arrives on a
   timer longer than the quiet period, with no request in flight, is read as
   staying. Raise `quiet` for an action you know is slow that way.
+- **A request already in flight when the action starts is not waited for.** Only
+  requests that begin during the action hold staying back.
 - **An outcome must be specific to its arrival.** A recogniser that matches
   something on the page before the act is refused. When what you arrive at
   depends on an argument, declare the action per argument:

@@ -15,8 +15,8 @@ const ORIGIN = 'https://shop.test';
 
 /**
  * A checkout that announces nothing. `?answer=` picks where Continue ends,
- * `?after=` how long the server takes, and `?open=` what is on the page before
- * anybody acts.
+ * `?after=` how long the server takes, `?open=` what is on the page before
+ * anybody acts, and `?stream` has Continue open a server-sent stream that never ends.
  */
 const CHECKOUT = `<!doctype html>
 <main>
@@ -34,6 +34,7 @@ const CHECKOUT = `<!doctype html>
   };
   show(query.get('open') ?? '');
   document.querySelector('button').addEventListener('click', async () => {
+    if (query.has('stream')) new EventSource('/api/stream');
     const answer = await (await fetch('/api/billing' + location.search)).text();
     show(answer);
   });
@@ -68,6 +69,8 @@ beforeEach(async () => {
   await page.route(`${ORIGIN}/checkout**`, (route) =>
     route.fulfill({ contentType: 'text/html', body: CHECKOUT }),
   );
+  // Never answered: the stream stays in flight for as long as the page lives.
+  await page.route(`${ORIGIN}/api/stream`, () => undefined);
   await page.route(`${ORIGIN}/api/billing**`, async (route) => {
     const query = new URL(route.request().url()).searchParams;
     await new Promise((done) => setTimeout(done, Number(query.get('after') ?? 0)));
@@ -143,6 +146,17 @@ chromium_('an action over a page that announces nothing', () => {
 
     expect(reached).toEqual({ outcome: 'refused', at: undefined });
     expect(Date.now() - started).toBeGreaterThanOrEqual(100 + QUICK.quiet);
+  });
+
+  it('does not wait for a stream the server never ends', async () => {
+    const submit = action('submit', { ...outcomes, refused: stay }, click, QUICK);
+    await open('answer=nothing&stream');
+
+    const started = Date.now();
+    const reached = await submit(page);
+
+    expect(reached.outcome).toBe('refused');
+    expect(Date.now() - started).toBeLessThan(QUICK.timeout);
   });
 
   it('fails an arrival at nothing declared, naming the action and its outcomes', async () => {
