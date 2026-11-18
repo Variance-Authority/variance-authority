@@ -25,11 +25,9 @@ import {
 import {
   hexDigestOf,
   indexManifestDigest,
+  publishedHead,
   publishStore,
-  readWorkspaceSnapshot,
   workspaceGeneration,
-  workspaceIndexDigest,
-  workspacePackagesDigest,
   workspaceTreeOpens,
 } from './snapshot.js';
 import { coversWhole, scanScope, scopeSourceIndexPath } from './scan-scope.js';
@@ -49,19 +47,25 @@ export type FromIndexOptions = HelpOptions & {
   readonly readStartedAt: string;
 };
 
+/** What {@link publishWorkspaceFromIndex} did: the generation it published, or the one it kept. */
+export interface IndexPublication {
+  readonly generation: string;
+  /** The value published last was kept, because the index and the manifests are the ones it was published from. */
+  readonly kept: boolean;
+}
+
 /**
  * Publish the questions about the workspace at `root` from an index that was
  * just written, and keep the value published last when that index did not
- * move. The generation published or kept, `undefined` when there is no index
- * to read.
+ * move. What it published or kept, `undefined` when there is no index to read.
  *
  * The manifests are the costliest read before the index on a workspace that
- * lists thousands of members, so they are read once here.
+ * lists thousands of members, so they are read once here. Whether to keep is
+ * read off the store's head and the tree beside it: the store behind the head
+ * holds every export of the repository, and is opened only to publish again.
  */
-export async function publishWorkspaceFromIndex(root: string, options: FromIndexOptions): Promise<string | undefined> {
+export async function publishWorkspaceFromIndex(root: string, options: FromIndexOptions): Promise<IndexPublication | undefined> {
   const where = resolve(root);
-  const previous = await stepped(options.progress, 'reading the questions published last', () =>
-    readWorkspaceSnapshot(where, options.index === undefined ? {} : { index: options.index }).catch(() => undefined));
   const { offerings, targets } = await stepped(options.progress, `reading the package manifests of ${where}`, () =>
     readWorkspaceManifests(where, { ...options, tolerant: options.tolerant ?? true }));
   const scope = scanScope(where, offerings);
@@ -78,13 +82,13 @@ export async function publishWorkspaceFromIndex(root: string, options: FromIndex
   }
   const indexDigest = await indexManifestDigest(index);
   if (indexDigest === undefined) return undefined;
-  const kept = previous === undefined ? undefined : workspaceGeneration(previous);
   // A value published from this very manifest over these manifests is what this publish would write: an index that did
   // not move costs nothing, while the tree beside it still opens.
+  const held = publishedHead(where, own);
   if (
-    previous !== undefined && kept !== undefined && samePackages({ root: scope.root, offerings }, previous)
-    && workspaceIndexDigest(previous) === indexDigest && await workspaceTreeOpens(previous, own)
-  ) return kept;
+    held !== undefined && held.indexDigest === indexDigest
+    && held.packagesDigest === packagesDigest(scope.root, offerings) && await workspaceTreeOpens(held, own)
+  ) return { generation: held.generatedAt, kept: true };
   const help = await publishHelp({
     workspace: where,
     root: scope.root,
@@ -95,7 +99,8 @@ export async function publishWorkspaceFromIndex(root: string, options: FromIndex
     readStartedAt: options.readStartedAt,
     ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
-  return help === undefined ? undefined : workspaceGeneration(help.help);
+  const generation = help === undefined ? undefined : workspaceGeneration(help.help);
+  return generation === undefined ? undefined : { generation, kept: false };
 }
 
 /** What {@link publishHelp} reads and writes. */
@@ -211,10 +216,4 @@ export function packagesDigest(root: string, offerings: readonly Offering[]): st
     })),
   }));
   return digestString(JSON.stringify(shape));
-}
-
-/** Whether the offerings are the ones `documented` was published from; never for a value published without them. */
-export function samePackages(read: { readonly root: string; readonly offerings: readonly Offering[] }, documented: Help): boolean {
-  const held = workspacePackagesDigest(documented);
-  return held !== undefined && held === packagesDigest(read.root, read.offerings);
 }

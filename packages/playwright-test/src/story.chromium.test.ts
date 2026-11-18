@@ -152,6 +152,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'test line opens',
       'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'test line adds',
+      'dom + p id="added" "Added"',
       'page +1 −0 nodes, 0 attributes, 0 text',
       // The line that read the page did nothing a story tells, so it is not told.
       'test line adds again',
@@ -167,6 +168,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'test line opens',
       'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'test line adds',
+      'dom + p id="added" "Added"',
       // The cleanup's own click is no line of the spec's.
       'page +1 −0 nodes, 0 attributes, 0 text',
     ]);
@@ -230,6 +232,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'console.log chose cake',
       'held a frame (N ms)',
       'test line pushes',
+      'dom + div',
       'page +1 −0 nodes, 0 attributes, 0 text',
       'layout moved 0.NN',
     ]);

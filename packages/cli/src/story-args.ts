@@ -34,14 +34,15 @@ export type StoryCompare =
   | { readonly labels: readonly string[] }
   | { readonly cases: readonly string[] };
 
-/** One file's part of the route, one package's, the steps near one step, or all of it. */
+/** One file's part of the route, one package's, the steps near one step, all of it, or the changes to the page that hold a pattern. */
 export type StoryZoom =
   | { readonly in: string }
   | { readonly package: string }
   | { readonly around: number }
-  | { readonly whole: true };
+  | { readonly whole: true }
+  | { readonly page: string };
 
-const ZOOMS = ['--in', '--package', '--around', '--whole'] as const;
+const ZOOMS = ['--in', '--package', '--around', '--whole', '--page'] as const;
 
 /** Parse the story reader outside the config-shaped command parser. */
 export function parseStory(flags: Flags): ParsedStory {
@@ -100,6 +101,9 @@ function zoomOf(flags: Flags): StoryZoom | undefined {
   if (within !== undefined) return { in: within };
   const home = flags.values.get('--package');
   if (home !== undefined) return { package: home };
+  const page = flags.values.get('--page');
+  if (page === '') throw new OperatorError('--page takes the text of a change to find, such as role="dialog"');
+  if (page !== undefined) return { page };
   const around = flags.values.get('--around');
   if (around === undefined) return undefined;
   const step = Number(around);

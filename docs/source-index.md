@@ -71,7 +71,9 @@ questions: published at <cache>/test-selection/<digest>/source-index.bin.help.bi
 - **The last two lines.** What `variance ask` answers from: the third-party dependencies the checkout declares, and the
   value `ask search` and the other source questions read without scanning.
   Either one prints `not prepared` or `not published`, with the reason, when it
-  could not be written.
+  could not be written. With the index and the manifests unchanged, the
+  questions published last are kept, and their line prints
+  `questions: kept at <time>` with the reason.
 
 On your machine the command returns once the index is written. The code map,
 the journeys and the last two lines are made by a process it starts for them,

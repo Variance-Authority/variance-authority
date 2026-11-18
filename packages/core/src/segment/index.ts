@@ -125,6 +125,12 @@ export interface OpenSegment {
   maybeU32(name: string): Uint32Array;
   /** Refuse the file, in the words the caller's format uses. */
   reject(): Error;
+  /**
+   * The bytes the header declares, from the segment's first: the header, then
+   * every section padded as written. A file of another length was cut short or
+   * written past, which a prefix read tells without reading the body.
+   */
+  readonly length: number;
 }
 
 /**
@@ -220,6 +226,7 @@ export function openSegment(
 
   return {
     reject,
+    length: base + aligned(Math.max(...header.sections.map((section) => section.offset + section.length))),
     u8(name) {
       const section = at(name, 1);
       return new Uint8Array(raw.buffer, raw.byteOffset + base + section.offset, section.length);

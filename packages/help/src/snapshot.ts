@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, openSync, readSync, realpathSync } from 'node:fs';
+import { closeSync, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import {
@@ -93,11 +93,13 @@ export async function readWorkspaceSnapshot(
 }
 
 /**
- * The generation published at `index`, read off the store's head alone: the
- * rest is every export of the repository, and a caller asking whether its write
- * landed has no use for it. Absent when there is none, or it is not this format.
+ * The head of the store published at `index` for the checkout at `root`, read
+ * off the head alone: the rest is every export of the repository, and a caller
+ * asking whether a value is current has no use for it. Absent when there is
+ * none, it is not this format, it belongs to another checkout, or the file is
+ * not the length its header declares — a store cut short no reader opens.
  */
-export function publishedHead(index: string): StoreHead | undefined {
+export function publishedHead(root: string, index: string): StoreHead | undefined {
   let file: number;
   try {
     file = openSync(workspaceSnapshotPath(index), 'r');
@@ -111,7 +113,9 @@ export function publishedHead(index: string): StoreHead | undefined {
       const held = Buffer.alloc(length);
       if (readSync(file, held, 0, length, 0) !== length) return undefined;
       try {
-        return storeHeadOf(held);
+        const { head, length: declared } = storeHeadOf(held);
+        if (head === undefined || head.root !== realpathSync(resolve(root)) || fstatSync(file).size !== declared) return undefined;
+        return head;
       } catch (error) {
         if (!(error instanceof SegmentCutShort) || error.needed <= length) return undefined;
         length = error.needed;
@@ -125,14 +129,9 @@ export function publishedHead(index: string): StoreHead | undefined {
   }
 }
 
-/**
- * When the value at `index` was published, as {@link publishedHead} reads it.
- * Absent when there is no value, or it belongs to another checkout or format.
- */
+/** When the value at `index` was published, as {@link publishedHead} reads it for the checkout at `root`. */
 export async function publishedGeneration(root: string, index: string): Promise<string | undefined> {
-  const where = realpathSync(resolve(root));
-  const held = publishedHead(index);
-  return held?.root === where ? held.generatedAt : undefined;
+  return publishedHead(root, index)?.generatedAt;
 }
 
 /**
@@ -150,19 +149,13 @@ export async function readAgain(held: Help | undefined, root: string, options: {
   return published !== undefined && Date.parse(published) > Date.parse(at);
 }
 
-/** The index manifest the value was refreshed from, absent when it was read another way. */
-export function workspaceIndexDigest(help: Help): string | undefined {
-  return snapshots.get(help)?.indexDigest;
-}
-
 /**
- * Whether the tree published beside `help` at `index` opens in this build. A
- * tree of another format version, or one whose bytes moved, is published
- * again rather than kept, though the index it was drawn from did not move.
+ * Whether the tree published beside the store whose head is `held`, at
+ * `index`, opens in this build. A tree of another format version, or one whose
+ * bytes moved, is published again rather than kept, though the index it was
+ * drawn from did not move. The tree is its own file: the store is not opened.
  */
-export async function workspaceTreeOpens(help: Help, index: string): Promise<boolean> {
-  const held = snapshots.get(help);
-  if (held === undefined) return false;
+export async function workspaceTreeOpens(held: StoreHead, index: string): Promise<boolean> {
   try {
     const tree = await readFile(workspaceTreePath(index, held.graphDigest));
     if (hexDigestOf(tree) !== held.graphDigest) return false;
@@ -171,11 +164,6 @@ export async function workspaceTreeOpens(help: Help, index: string): Promise<boo
   } catch {
     return false;
   }
-}
-
-/** The package manifests the value was joined against, as `packagesDigest` states them; absent on an unrecorded reading. */
-export function workspacePackagesDigest(help: Help): string | undefined {
-  return snapshots.get(help)?.packagesDigest;
 }
 
 /**

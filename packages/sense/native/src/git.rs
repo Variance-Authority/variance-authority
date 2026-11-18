@@ -165,7 +165,9 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
         None => (None, Vec::new()),
     };
     let _merge = part(Sum::Merge);
-    let unhashed = unhashed.iter().map(|path| String::from_utf8_lossy(path).into_owned()).collect();
+    // Committed links come from a set, so the order is fixed here: the listing writes it into the segment.
+    let mut unhashed: Vec<String> = unhashed.iter().map(|path| String::from_utf8_lossy(path).into_owned()).collect();
+    unhashed.sort_by(|a, b| crate::order::code_unit(a, b));
     let mut unvouched = links;
     unvouched.extend(moved.iter().flat_map(|moved| moved.keys().cloned()));
     let held = match moved {

@@ -1,14 +1,15 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { codeUnitOrder } from '@variance-authority/core/segment';
+import { codeUnitOrder, SegmentCutShort } from '@variance-authority/core/segment';
 import * as help from '@variance-authority/package/help';
 import * as sense from '@variance-authority/sense';
 import { updateSourceIndex } from '@variance-authority/sense';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as read from './read.js';
-import { publishedGeneration, publishedHead, readWorkspaceSnapshot } from './snapshot.js';
+import { publishedGeneration, publishedHead, readWorkspaceSnapshot, workspaceSnapshotPath } from './snapshot.js';
+import { storeHeadOf } from './store-layout.js';
 import { publishWorkspaceFromIndex } from './refresh-native.js';
 
 /**
@@ -93,15 +94,15 @@ afterAll(() => {
 
 /** The time the published value says its read began. */
 function publishedReadStart(): unknown {
-  return publishedHead(index)?.readStartedAt;
+  return publishedHead(root, index)?.readStartedAt;
 }
 
 describe('publishing the questions from the index', () => {
   it('publishes from the index without scanning the checkout when nothing was published before', async () => {
-    const generation = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    const published = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
-    expect(generation).toEqual(expect.any(String));
-    expect(await publishedGeneration(root, index)).toBe(generation);
+    expect(published).toEqual({ generation: expect.any(String), kept: false });
+    expect(await publishedGeneration(root, index)).toBe(published?.generation);
     expect(manifestReads()).toEqual(ONCE);
     expect(sense.scanRelations).not.toHaveBeenCalled();
   });
@@ -117,9 +118,9 @@ describe('publishing the questions from the index', () => {
     await updateSourceIndex(root, { index });
     forget();
 
-    const generation = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    const published = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
 
-    expect(await publishedGeneration(root, index)).toBe(generation);
+    expect(await publishedGeneration(root, index)).toBe(published?.generation);
     expect(manifestReads()).toEqual(ONCE);
     expect(sense.scanRelations).not.toHaveBeenCalled();
   });
@@ -129,12 +130,65 @@ describe('publishing the questions from the index', () => {
     .map((name) => { const at = statSync(join(dirname(index), name)); return `${name} ${at.size} ${at.mtimeMs}`; })
     .toSorted(codeUnitOrder);
 
-  it('writes no file when the index did not move since the value was published', async () => {
-    const generation = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+  it('writes no file when the index did not move since the value was published, and says it kept the value', async () => {
+    const published = await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
     const before = written();
 
-    expect(await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN })).toBe(generation);
+    expect(await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN })).toEqual({ generation: published?.generation, kept: true });
     expect(written()).toEqual(before);
+  });
+
+  /** Cut the published store to its head: all a keep check reads, with no body behind it. */
+  function cutToHead(): void {
+    const at = workspaceSnapshotPath(index);
+    const bytes = readFileSync(at);
+    let length = 4;
+    for (;;) {
+      try {
+        storeHeadOf(bytes.subarray(0, length));
+        break;
+      } catch (error) {
+        if (!(error instanceof SegmentCutShort)) throw error;
+        length = error.needed;
+      }
+    }
+    writeFileSync(at, bytes.subarray(0, length));
+  }
+
+  /** Cut the last `bytes` bytes off the published store's body. */
+  function cutBody(bytes: number): void {
+    const at = workspaceSnapshotPath(index);
+    const held = readFileSync(at);
+    writeFileSync(at, held.subarray(0, held.length - bytes));
+  }
+
+  it.each([
+    ['cut to its head', cutToHead],
+    ['cut a few bytes short', () => cutBody(11)],
+  ])('publishes again over a store %s, though its head says it is current', async (_cut, cut) => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    cut();
+    await expect(readWorkspaceSnapshot(root, { index })).rejects.toThrow('no readable workspace snapshot');
+
+    expect(await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN })).toMatchObject({ kept: false });
+    await expect(readWorkspaceSnapshot(root, { index })).resolves.toBeDefined();
+  });
+
+  it('publishes again when a manifest moved and the index did not', async () => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    write('packages/b/package.json', JSON.stringify({ name: 'b', exports: { '.': './src/index.ts', './again': './src/index.ts' } }));
+
+    expect(await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN })).toMatchObject({ kept: false });
+  });
+
+  it('publishes again for another checkout asking at the same index', async () => {
+    await publishWorkspaceFromIndex(root, { index, readStartedAt: BEGAN });
+    const other = realpathSync(mkdtempSync(join(tmpdir(), 'help-publish-from-index-other-')));
+    temporary.push(other);
+    cpSync(root, other, { recursive: true });
+
+    expect(await publishWorkspaceFromIndex(other, { index, readStartedAt: BEGAN })).toMatchObject({ kept: false });
+    expect(publishedHead(other, index)?.root).toBe(other);
   });
 
   it('names the openings the manifests could not read first, then the files the index could not, then why, each in path order', async () => {

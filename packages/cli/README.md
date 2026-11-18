@@ -164,14 +164,14 @@ variance select  [--since <ref> [--ran-at <commit>]] [--execution <journey-file>
 variance shards  [--setup <seconds>] [--budget <seconds>] [--max <n>] [--workers <n>] [--since <ref> [--ran-at <commit>] [--collected <file>]] [--at-distance <hops>] [--suite <name>] [--unrecorded <n>] [--format text|json]
 variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]
 variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]
-variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--root <path>] [--format text|markdown|json|badge]
+variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--session <name>=<path>]... [--served <dir>] [--root <path>] [--format text|markdown|json|badge]
 variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]
 variance restrictions [--root <path>] [--format text|json]
 variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]
 variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]
 variance ask     [--config <path>] [<question>] [--subject <id>] [--subjects <id>[,...]] [--component <name>] [--rule <id>] [--shape <digest>] [--claims <path>] [--test <id>] [--state <state>] [--build <id>] [--file <path>] [--files <path>[,...]] [--area <id>] [--name <name>] [--package <name>] [--subpath <subpath>] [--query <words>] [--under|--above|--inside|--beside|--left-of|--right-of <words>] [--on <words>] [--from <path>] [--to <path>] [--imports <import>] [--declares <regex>] [--path <regex>] [--text <pattern>] [--except-from|--except-to|--except-imports|--except-declares|--except-path <value>] [--changed-file <path>] [--taint-file <path>] [--just-answer] [--story] [--over <time>] [--after <date>] [--limit <n>] [--offset <n>] [--at <address>] [--format text|json] [<report>...]
 variance distill [--test <name>] [--file <path> | --from <dir>] [--execution <path> | --suite <name>] [--root <path>] [--format text|json|jsonl]
-variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
+variance story   [--file <path>] [--name <name>]... [--project <name>] [--label <label>] [--in <file> | --package <name> | --around <step> | --whole | --page <text> | --compare last|outcome|<a>,<b>,…] [--root <path>] [--format text|json]
 variance watch
 variance adjudicate [--config <path>] --claims <path> [--exit-zero-on-changes] [<report>...]
 variance accept  [--config <path>] <subject>... | --all | --shape <fingerprint>[,...] [--by <name>] [--message-file <path> [--message <text>]]
@@ -1671,6 +1671,44 @@ since a split file still sends every test file that called into either part.
 None has a threshold. Under `--at-distance` the counts read only the band. `--format json` lists
 every file under `fanIn`. For one file or line, `covering` names the tests.
 
+`--session <name>=<path>` sets a run you made yourself beside the record: V8
+coverage exported from a browser or a Node process on your own machine, with
+the app built as you would ship it. Give it once per run. It reads Playwright's
+`page.coverage.stopJSCoverage()` written as JSON, CDP's
+`Profiler.takePreciseCoverage` result, or a `NODE_V8_COVERAGE` directory, and
+follows each script's source map back to the files the record holds. A page's
+scripts are named by URL, so `--served <dir>` says which directory the server
+served them from:
+
+```bash
+variance coverage --suite e2e --session flow=flow.json --session manual=manual.json --served dist
+```
+
+```text
+sessions
+          functions ran  loaded, not run  ran in another text
+  flow    29             6                0
+  manual  26             9                0
+ran by a session, by no recorded case — 5 functions
+src/main.tsx
+  reduce/filter.arg0    20     manual
+  exportTodos           34–36  manual
+  exportTodos/map.arg0  35     manual
+  Shell/anon#2          46     manual
+  Shell/anon#6          50     manual
+```
+
+A session is read function by function, in the regions the record cut, and is
+never written into the record: no session becomes a case, so `select` and
+`shards` answer as they did. A function whose text in the session differs from
+the checkout's is counted apart, since no case can be counted for it. Every
+script or source a session ran that no function is named from is named with its
+reason: a script no file on this machine answers, one whose file no longer
+holds the text Node ran, a map it could not read, a source outside the checkout
+or in `node_modules`, and a text that could not be parsed. `--format json` lists every
+function of every file a session loaded under `sessions`, with each session's
+verdict and the test files that entered it.
+
 `--format markdown` prints a table for a job summary, and `--format json` prints
 every count. `coverage` exits `0` whenever it could read the records, whatever
 the numbers are: a threshold is a line in your own workflow.
@@ -2239,7 +2277,9 @@ recording made at a commit git cannot read here prints `not prepared:` with
 git's reason, and the step that makes the journeys exits `2` once every line is
 printed. The
 last two lines are what `variance ask` answers from, and each prints why when it
-could not be written. An index the file system refuses
+could not be written. An unchanged index and unchanged manifests keep the
+questions published last, and their line prints `questions: kept at <time>`
+with the reason. An index the file system refuses
 to write prints `source index not written: <reason>, at <path>` and exits `2`.
 
 On your machine the command returns once the index is written. The code map,

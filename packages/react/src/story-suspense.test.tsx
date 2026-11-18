@@ -4,7 +4,7 @@
 // a tap at module scope, and React imported under it.
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { tapCommits } from './commits.js';
-import { watchSuspense } from './story-suspense.js';
+import { readSuspense } from './story-suspense.js';
 
 tapCommits();
 
@@ -25,7 +25,9 @@ let stop: () => void;
 
 beforeEach(() => {
   said = [];
-  stop = watchSuspense((text) => said.push(text));
+  const read = readSuspense((text) => said.push(text));
+  const watch = tapCommits({ keep: 0, onCommit: (_, committed) => committed !== undefined && read(committed) });
+  stop = () => watch.stop();
   container = document.body.appendChild(document.createElement('div'));
   root = createRoot(container);
 });
