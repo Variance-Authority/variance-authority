@@ -130,6 +130,7 @@ describe('two files holding the same bytes', () => {
     'gyp/__init__.py': 'mod = __import__(name)\n',
     'src/a.rs': 'use self::b::C;\n@ ~ !\n',
     'a/Thing.java': 'import a.B;\n@ ~ !\n',
+    'a/Thing.kt': 'import a.B\n@ ~ !\n',
     'Sources/Core/a.swift': 'import Core\n@ ~ !\n',
   };
 

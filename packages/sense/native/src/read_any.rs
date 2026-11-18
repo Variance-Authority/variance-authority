@@ -137,6 +137,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_read_without_grammars_names_the_language_and_no_file() {
+        let unknown = without_grammars(Language::Kotlin).unknown;
+        assert_eq!(
+            unknown.as_deref(),
+            Some("the native addon on this machine was built without the tree-sitter grammars that read kotlin, so what it asks for is unknown."),
+        );
+    }
+
+    #[test]
     fn a_name_takes_the_language_of_its_last_extension() {
         assert_eq!(language_of("a/b.module.css"), Some(Language::Style));
         assert_eq!(language_of("a/b.d.ts"), Some(Language::Module));
