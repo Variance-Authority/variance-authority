@@ -61,11 +61,30 @@ fn an_edited_file_keeps_its_digest_beside_paths_that_are_not_files() {
 
     assert_eq!(digest_of(&tree, "src/a.ts"), Some(git(&root, &["hash-object", "src/a.ts"])));
     assert_eq!(digest_of(&tree, "lib/x.ts"), Some(git(&root, &["rev-parse", "HEAD:lib/x.ts"])));
-    let mut unhashed = tree.unhashed.clone();
-    unhashed.sort();
-    assert_eq!(unhashed, ["dangling", "linked", "vendor/sub"]);
-    for path in &unhashed {
+    assert_eq!(tree.unhashed, ["dangling", "linked", "vendor/sub"]);
+    for path in &tree.unhashed {
         assert!(!tree.paths.contains(path), "{path} is listed with a digest");
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn committed_links_are_unhashed_in_code_unit_order_on_every_listing() {
+    let root = checkout("links-in-order");
+    write(&root, "lib/x.ts", "export const x = 1;\n");
+    let names = ["b", "a", "skills/z", "skills/c", "Q", "d.d", "e", "f"];
+    for name in names {
+        std::fs::create_dir_all(root.join(name).parent().unwrap()).unwrap();
+        std::os::unix::fs::symlink(root.join("lib"), root.join(name)).unwrap();
+    }
+    git(&root, &["init", "--quiet"]);
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "--quiet", "-m", "base"]);
+
+    let mut ordered: Vec<String> = names.iter().map(|name| (*name).to_owned()).collect();
+    ordered.sort_by(|a, b| crate::order::code_unit(a, b));
+    for _ in 0..4 {
+        assert_eq!(snapshot(root.to_str().unwrap()).unwrap().unhashed, ordered);
     }
     let _ = std::fs::remove_dir_all(&root);
 }
