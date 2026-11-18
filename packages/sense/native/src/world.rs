@@ -138,11 +138,6 @@ impl<'a> World<'a> {
         (!only_listed || self.has(file)).then_some(file)
     }
 
-    /// The source roots Python looks for a top-level module under.
-    pub(crate) fn python_roots(&self) -> &[String] {
-        &self.python_index().order
-    }
-
     /// The source roots, with the top-level modules each holds.
     pub(crate) fn python_index(&self) -> &crate::source_roots::SourceRoots {
         self.python.get_or_init(|| {

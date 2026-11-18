@@ -150,7 +150,7 @@ mod tests {
         // A scan asks in the tree's sorted order, so a nested manifest comes first.
         let known = known();
         let world = World::new(Some(&known), None);
-        assert_eq!(world.python_roots(), ["a/src", "a", "b/src", "b", ""]);
+        assert_eq!(world.python_index().order, ["a/src", "a", "b/src", "b", ""]);
     }
 
     /// `python.test.ts`: unions the source roots, because one package can be spread across them.
