@@ -114,6 +114,12 @@ what kind of thing it is.
 
 ## Rank names and find undocumented exports
 
+Install the workspace documentation reader for this section:
+
+```bash
+yarn add @variance-authority/help
+```
+
 `readWorkspace` from `@variance-authority/help` reads the native source index for what was
 written above each name — its **doc**, the block comment attached to the
 declaration — and which packages import it. Names come back ordered by how

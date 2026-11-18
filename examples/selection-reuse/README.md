@@ -64,7 +64,7 @@ scan are in [the source index](../../docs/source-index.md).
 ## The files
 
 - `package.json` — one script, `demo`.
-- `scripts/demo.mjs` — runs the demo and prints the block above.
+- `scripts/demo.mjs` — runs the demo and prints the selection, timings and work counters.
 - `src/demo.js` — builds the fixture checkout, updates the native index three times, and reports
   files reread and parsed.
 - `src/demo.test.ts` — asserts the three scans agree and that the warm scan
