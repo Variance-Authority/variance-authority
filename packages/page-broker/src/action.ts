@@ -44,28 +44,15 @@ const QUIET = 500;
 const LOOK_EVERY = 25;
 
 /**
- * Declares an action by the outcomes it can end in.
- *
- * Performing it runs `act`, then looks for every declared part of the page
- * until one is visible, and returns that outcome's name. The app announces
- * nothing: an arrival is a declared part becoming visible, and {@link stay} is
- * the page staying quiet with none of them on it.
+ * Declares an action by the outcomes it can end in. Performing it runs `act`
+ * and returns the name of the declared part of the page that became visible,
+ * or of {@link stay} when the page went quiet with none of them on it.
  *
  * @example
- * const submit = action(
- *   'submit',
- *   {
- *     payment: (page) => page.getByRole('form', { name: 'Payment' }),
- *     signIn: (page) => page.getByRole('dialog', { name: 'Sign in' }),
- *     refused: stay,
- *   },
- *   async (page) => {
- *     await page.getByRole('button', { name: 'Continue' }).click();
- *   },
- * );
- *
- * const { outcome } = await submit(page); // 'payment' | 'signIn' | 'refused'
- * const { at } = await submit(page).to('payment'); // or: expected payment, reached signIn
+ * const like = action('like', { liked: stay }, (page) => page.getByRole('button').click());
+ * const submit = action('submit', { payment: (page) => page.getByRole('form') }, click);
+ * const { outcome } = await submit(page); // 'payment'
+ * await submit(page).to('payment'); // or: submit: expected payment, reached …
  */
 export function action<const Declared extends Outcomes, Args extends readonly unknown[] = []>(
   name: string,
@@ -154,6 +141,8 @@ async function perform<Name extends string>(
           `${declared.name}: reached none of ${parts.map((part) => part.name).join(', ')} within ${declared.timeout} ms`,
         );
       }
+      // No signal owns this wait: the app announces nothing, which is the
+      // package's premise, so the page is looked at again.
       await new Promise((look) => setTimeout(look, LOOK_EVERY));
     }
   } finally {

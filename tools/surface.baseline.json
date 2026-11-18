@@ -1738,6 +1738,39 @@
       }
     }
   },
+  "@variance-authority/page-broker": {
+    "declared": {
+      "type": "module",
+      "main": "./dist/index.js",
+      "types": "./dist/index.d.ts",
+      "exports": {
+        ".": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
+      },
+      "files": [
+        "dist",
+        "!dist/**/*.d.ts.map",
+        "mark.svg"
+      ],
+      "engines": {
+        "node": ">=22"
+      }
+    },
+    "names": {
+      ".": {
+        "Action": "type",
+        "ActionOptions": "interface",
+        "Outcomes": "type",
+        "Reached": "interface",
+        "Reaching": "interface",
+        "Recogniser": "type",
+        "action": "function",
+        "stay": "const"
+      }
+    }
+  },
   "@variance-authority/playwright": {
     "declared": {
       "type": "module",

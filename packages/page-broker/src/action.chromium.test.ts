@@ -60,6 +60,8 @@ beforeAll(async () => {
   browser = await chromium.launch({ headless: true });
 });
 
+// A page per case, on Playwright alone: the package stands on nothing else
+// here, the harness's page pool included.
 beforeEach(async () => {
   if (browser === undefined) return;
   page = await browser.newPage();

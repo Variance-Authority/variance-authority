@@ -147,3 +147,7 @@ Know these before you rely on it:
 - **A part that appears and is gone within 25 ms is missed.**
 - **It models no page.** What else is on screen, whether the part you left is
   gone, and which actions are available now are not answered.
+
+---
+
+**[@variance-authority/page-broker](https://variance-authority.dev/reference/packages/page-broker)** is part of [Variance Authority](https://variance-authority.dev) — [documentation](https://variance-authority.dev/docs) · [GitHub](https://github.com/Variance-Authority/variance-authority/tree/main/packages/page-broker) · MIT

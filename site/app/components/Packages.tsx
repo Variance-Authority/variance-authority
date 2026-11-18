@@ -63,6 +63,10 @@ const PACKAGES: {
         role: "visual comparison added to a Playwright suite you already have: screenshot a Locator, compare it against the approved baseline, approve through Playwright's own update flag. This is the package a Playwright suite installs — not @variance-authority/playwright below",
       },
       {
+        name: "page-broker",
+        role: "declared outcomes for a Playwright action: say where it can end — the next page, a dialog, or nowhere — and learn which one the app reached. Needs nothing from the app, and nothing else here",
+      },
+      {
         name: "storybook-collector",
         role: "the browser half: each story opened, made ready, and collected. Install it beside the CLI, which runs it",
       },

@@ -27,6 +27,7 @@ const open = (story: string) =>
     },
   );
 
+/** An adopter's suite: Playwright's own page per test, and a navigation to start from. */
 async function manager(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('searchbox').waitFor();
