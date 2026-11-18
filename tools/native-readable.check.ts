@@ -7,17 +7,16 @@ import { describe, expect, it } from 'vitest';
  * One answer to *which files does a scan open*, held in two languages.
  *
  * The reader tables in `language.ts` and `read.ts` say which
- * extensions some reader claims; `EXTENSIONS` in `seed.rs` says which ones the
- * native seeder puts in front of them, and `language_of` in `read_any.rs`
- * says which reader the native read and resolve give each. Nothing compares
- * them at run time.
+ * extensions some reader claims, and `language_of` in `read_any.rs` says which
+ * reader the native seed, read and resolve give each. Nothing compares them at
+ * run time.
  *
- * So a language added to the reader tables and not to the Rust list is never
+ * So a language added to the reader tables and not to `language_of` is never
  * seeded: the scan opens none of its files, and every one of them is missing
  * from the graph without a word. That is the shape this file exists to refuse,
  * and it is not hypothetical — it shipped.
  *
- * Both lists are read out of their source rather than imported, so this answers
+ * Both are read out of their source rather than imported, so this answers
  * on a checkout that has been neither built nor compiled.
  */
 
@@ -58,28 +57,14 @@ const native = (() => {
   return new Map(arms.flatMap((arm) => [...arm[1]!.matchAll(/"([^"]+)"/g)].map((found) => [found[1]!, arm[2]!] as const)));
 })();
 
-const rust = (() => {
-  const source = read('native/src/seed.rs');
-  const at = source.indexOf('const EXTENSIONS: &[&str] = &[');
-  if (at === -1) throw new Error('the native seeder does not declare EXTENSIONS where this check reads it');
-  const body = source.slice(at, source.indexOf('];', at));
-  // The Rust list spells a suffix without its dot, because that is what
-  // `Path::extension` answers with.
-  return new Set([...body.matchAll(/"([^"]+)"/g)].map((found) => `.${found[1]!}`));
-})();
-
-describe('the native seeder and the reader tables', () => {
-  for (const extension of readable) {
-    it(`seeds ${extension}, which a reader claims`, () => {
-      expect(rust.has(extension)).toBe(true);
-    });
-  }
-
-  for (const extension of rust) {
-    it(`claims a reader for ${extension}, which it seeds`, () => {
-      expect(readable.has(extension)).toBe(true);
-    });
-  }
+describe('the native seeder', () => {
+  // A second table is a second answer: the seeder asks `language_of` whether a
+  // reader claims a file, so what it seeds is what the reader reads.
+  it('seeds by `language_of`, with no table of its own', () => {
+    const source = read('native/src/seed.rs');
+    expect(source).toContain('language_of(');
+    expect(source).not.toMatch(/const \w+: &\[&str\] = &\[/);
+  });
 });
 
 describe('the native reader and the reader tables', () => {
