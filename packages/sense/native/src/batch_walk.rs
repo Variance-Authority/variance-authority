@@ -19,6 +19,8 @@ use crate::read_any::{language_of, Language};
 use crate::resolve::Resolvers;
 use crate::world::World;
 
+use super::neighbours::Neighbours;
+
 /// Threads resolving a slice: every core. Resolving waits on the filesystem
 /// as much as it computes, and on Kibana six threads left 0.5 s of a cold
 /// index on the table that ten, twelve and sixteen all took back.
@@ -69,9 +71,11 @@ pub(crate) type Kept<'k> = &'k (dyn Fn(&str, &str) -> Option<crate::read::Read> 
 /// record for are the boundary of what a warm update has to open
 /// (`source_update.rs`). A file whose content `kept` answers is not opened:
 /// its parse is the kept one. `world` is the caller's, built once per run
-/// over the same tree ([`neighbours`]), so a warm update that walks round
-/// after round builds Rust's module tree, and parses every `.rs` file for it,
-/// once rather than every round.
+/// over the same tree ([`neighbours`](super::neighbours)), so a warm update
+/// that walks round after round builds Rust's module tree, and parses every
+/// `.rs` file for it, once rather than every round. The tree is built before
+/// the wave that needs it is read, and the wave takes the files it read from
+/// `read`, so a cold walk parses each `.rs` file once.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn walk_beyond(
     options: GraphOptions,
@@ -79,6 +83,7 @@ pub(crate) fn walk_beyond(
     tree_oids: &[Oid],
     listing: Arc<Listing>,
     world: &World,
+    read_by_world: &Neighbours,
     held: &dyn Fn(&str) -> bool,
     kept: Kept,
     from_blob: &FromBlob,
@@ -132,8 +137,11 @@ pub(crate) fn walk_beyond(
         // parse segment is encoded after the walk, so a cold index of 288k paths
         // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
         // it is read would bound it.
+        world.prewarm(wave.iter().filter_map(|file| language_of(file)));
         let reading = |slice: &[String], oids| {
-            read_kept(&root, store, slice, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
+            read_by_world.first(slice, oids, |unread, oids| {
+                read_kept(&root, store, unread, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
+            })
         };
         let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, world, Some(at));
         let (opened, wave_kept, resolved) = read_resolved(&wave, SLICE, oids, reading, resolving);
@@ -154,35 +162,6 @@ pub(crate) fn walk_beyond(
         targets.extend(resolved);
     }
     Walked { files, identities, read, targets, kept: answered }
-}
-
-/// What a language that reads its neighbours (Rust's module tree) is told
-/// they say: read together, as the walk reads a wave, out of Git when the tree
-/// names them and answered by `kept` when it holds them. The world it serves
-/// is built once per run, so they are read once per run.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn neighbours<'n>(
-    root: &'n str,
-    at: &'n HashMap<String, u32>,
-    tree_oids: &'n [Oid],
-    largest_file: Option<u32>,
-    readers: Option<u32>,
-    kept: Kept<'n>,
-    from_blob: &'n FromBlob,
-    store: &'n TreeObjects,
-) -> impl Fn(&[&str]) -> Vec<Option<crate::read::Read>> + Sync + 'n {
-    move |asked: &[&str]| {
-        let files: Vec<String> = asked.iter().map(|file| (*file).to_owned()).collect();
-        let oids = files.iter().map(|file| at.get(file).map(|index| tree_oids[*index as usize])).collect();
-        let reading = Some(readers.unwrap_or(6).max(1));
-        let (read, _) = read_kept(root, store, &files, oids, largest_file, Some(false), reading, kept, from_blob);
-        read.into_iter().map(|(read, _, outcome)| outcome.parsed().then_some(read)).collect()
-    }
-}
-
-/// A file's text off the disk under `root`: what a manifest is read as.
-pub(crate) fn texting(root: &str) -> impl Fn(&str) -> Option<String> + Sync + '_ {
-    move |path: &str| std::fs::read_to_string(Path::new(root).join(path)).ok()
 }
 
 /// Reads `wave` `slice` files at a time and resolves each slice while the next is read.
@@ -429,7 +408,7 @@ mod tests {
                 include_parses: false,
             };
             let listing = Arc::new(Listing::default());
-            walk_beyond(options, &HashMap::new(), &[], listing, &world, &|_| true, &|_, _| None, &FromBlob::default(), &TreeObjects::default())
+            walk_beyond(options, &HashMap::new(), &[], listing, &world, &Neighbours::default(), &|_| true, &|_, _| None, &FromBlob::default(), &TreeObjects::default())
         };
         let (first, second) = (round("src/lib.rs"), round("src/a.rs"));
         let _ = std::fs::remove_dir_all(&root);
