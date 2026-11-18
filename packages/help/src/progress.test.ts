@@ -63,11 +63,12 @@ describe('a workspace read with progress', () => {
       },
     });
 
-    expect(told.slice(0, 3)).toEqual([
-      'start reading the questions published last',
-      'end reading the questions published last',
+    // The manifests come first: the value published last is judged off its head, after them, with no step of its own.
+    expect(told.slice(0, 2)).toEqual([
       expect.stringMatching(/^start reading the package manifests of /),
+      expect.stringMatching(/^end reading the package manifests of /),
     ]);
+    expect(told.some((line) => line.includes('the questions published last'))).toBe(false);
     expect(told.filter((line) => line.startsWith('start reading the package manifests of '))).toHaveLength(1);
     expect(told.every((line, at) => line.startsWith(at % 2 === 0 ? 'start ' : 'end '))).toBe(true);
   });

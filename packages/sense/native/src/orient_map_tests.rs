@@ -243,25 +243,58 @@ fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
     // The listing the scan took is carried; git is not asked again.
     let scanned = crate::git_tree(root.clone()).expect("a checkout");
     let first = carried(&scanned, &root, &index).unwrap().unwrap();
-    assert!(!first.walked && !first.relisted && first.map.is_some());
+    assert!(!first.walked && !first.relisted && !first.kept && first.map.is_some());
     let folded = inode(&map_path(&index));
+    // The key is the manifest and the listing, so a kept map reads no segment of the chain.
+    let segments = format!("{index}.segments");
+    let aside = format!("{index}.aside");
+    std::fs::rename(&segments, &aside).unwrap();
     let again = carried(&scanned, &root, &index).unwrap().unwrap();
+    std::fs::rename(&aside, &segments).unwrap();
     assert_eq!(inode(&map_path(&index)), folded, "nothing moved, so nothing was written");
+    assert!(again.kept);
     assert_eq!(again.map.map(|map| (map.packages, map.areas)), Some((20, 4)));
     // With no scan to carry, git lists the checkout for the map, and says so.
     let alone = prepare_orient_map(&root, &index, None, false, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
-    assert!(alone.relisted && !alone.walked);
+    assert!(alone.relisted && !alone.walked && alone.kept);
     assert_eq!(inode(&map_path(&index)), folded);
     // A manifest git holds a new blob for folds the map again.
     std::fs::write(fixture.0.join("packages/ui/ui1/package.json"), r#"{"name": "@t/ui-1", "private": true}"#).unwrap();
     git(&root, &["add", "-A"]);
-    carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
+    assert!(!carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap().kept);
     let refolded = inode(&map_path(&index));
     assert_ne!(refolded, folded);
     // So does a new answer to whether the root declares workspaces, with nothing
     // git lists changed: the file that says so may be one git ignores.
     prepare_orient_map(&root, &index, None, true, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
     assert_ne!(inode(&map_path(&index)), refolded);
+}
+
+#[test]
+fn in_git_an_index_published_again_folds_the_map_again_with_the_listing_and_the_workspaces_unchanged() {
+    let (_fixture, root, index) = indexed("moved");
+    git(&root, &["init", "-q"]);
+    git(&root, &["add", "-A"]);
+    let scanned = crate::git_tree(root.clone()).expect("a checkout");
+    assert!(!carried(&scanned, &root, &index).unwrap().unwrap().kept);
+    let folded = inode(&map_path(&index));
+    // The index is published again with one more segment: its manifest moves, and the listing carried does not.
+    let (references, _) = crate::index_chain::manifest_references(&index).expect("a published manifest");
+    let kept: Vec<crate::log::LogSegment> =
+        references.into_iter().map(|reference| crate::log::LogSegment { digest: reference.digest, length: reference.length as i64 }).collect();
+    let empty = r#"{"records": [], "parses": [], "deletedRecords": [], "deletedParses": []}"#.to_owned();
+    crate::log::publish(&index, &kept, &[&merged(&[], &Delta::of(vec![empty]).unwrap())], &[]).unwrap();
+    // The shipped list beside the map is made to name the new manifest, so the map's own key is what moves it.
+    let shipped = format!("{index}.shipped");
+    let mut list: serde_json::Value = serde_json::from_slice(&std::fs::read(&shipped).unwrap()).unwrap();
+    list["index"] = serde_json::Value::String(super::manifest_digest(&index).unwrap());
+    std::fs::write(&shipped, serde_json::to_vec(&list).unwrap()).unwrap();
+
+    let again = carried(&scanned, &root, &index).unwrap().unwrap();
+
+    assert!(!again.kept);
+    assert_ne!(inode(&map_path(&index)), folded, "the manifest moved, so the map was folded again");
+    assert_eq!(again.map.map(|map| (map.packages, map.areas)), Some((20, 4)));
 }
 
 #[test]

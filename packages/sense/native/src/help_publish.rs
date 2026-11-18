@@ -62,7 +62,7 @@ pub struct HelpEncode {
     /// later refresh over the same manifest keeps the value by; absent when
     /// the value holds what no manifest says, such as a caller's taints.
     pub index_digest: Option<String>,
-    /// What `workspacePackagesDigest` states of the manifests the value was joined against.
+    /// What `packagesDigest` states of the manifests the value was joined against.
     pub packages_digest: String,
     pub packages: Vec<StorePackage>,
     pub unreadable: Vec<String>,

@@ -2239,7 +2239,9 @@ recording made at a commit git cannot read here prints `not prepared:` with
 git's reason, and the step that makes the journeys exits `2` once every line is
 printed. The
 last two lines are what `variance ask` answers from, and each prints why when it
-could not be written. An index the file system refuses
+could not be written. An unchanged index and unchanged manifests keep the
+questions published last, and their line prints `questions: kept at <time>`
+with the reason. An index the file system refuses
 to write prints `source index not written: <reason>, at <path>` and exits `2`.
 
 On your machine the command returns once the index is written. The code map,

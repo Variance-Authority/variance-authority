@@ -179,8 +179,9 @@ async function followUps(request: IndexRequest, update: SourceUpdate, alone: Alo
 
 /**
  * Publishing swallows a failed write, because a question it answered is still
- * answered. The step that exists to publish reads the value back instead, so a
- * cache it could not write is a line in the log rather than a later refusal.
+ * answered. The step that exists to publish reads back a value it wrote, so a
+ * cache it could not write is a line in the log rather than a later refusal; a
+ * value the publisher kept wrote nothing, and is printed as it says.
  */
 async function answerable(root: string, { path: index, readStartedAt }: SourceUpdate, noGit: boolean, progress: Progress | undefined): Promise<string> {
   // Loaded here, by the follow-ups alone: the index a command waits on reads no help.
@@ -189,14 +190,14 @@ async function answerable(root: string, { path: index, readStartedAt }: SourceUp
   try {
     // The index was written a moment ago, so the previous value is refreshed from it without
     // reading the chain into records; a changed surface reads the way a first publish does.
-    const generation = await publishWorkspaceFromIndex(root, {
+    const published = await publishWorkspaceFromIndex(root, {
       index,
       readStartedAt,
       ...(noGit ? { packs: false } : {}),
       ...(progress === undefined ? {} : { progress }),
     });
-    const published = await publishedGeneration(root, index);
-    if (generation === undefined || published !== generation) {
+    if (published?.kept === true) return `questions: kept at ${published.generation}, because the index and the manifests are the ones it was published from`;
+    if (published === undefined || await publishedGeneration(root, index) !== published.generation) {
       return `questions: not published: the value read back from ${at} is not the one this run wrote`;
     }
     return `questions: published at ${at}`;
@@ -287,6 +288,7 @@ function mapped({ prepared }: PreparedCodeMap): string {
     prepared.walked ? 'git could not list the checkout, so its files are the ones the index holds and its manifests the ones found beside them' : '',
     prepared.unmarked ? 'git could not say which files are generated or vendored, so none were set aside' : '',
     prepared.relisted ? 'no scan\'s listing of the checkout was carried, so git listed it again for the map' : '',
+    prepared.kept ? 'kept, because the index and the manifests are the ones it was folded from' : '',
   ].filter((note) => note !== '');
   const map = prepared.map;
   if (map === undefined || map === null) return [`code map: none, because ${prepared.unmade ?? 'there is no package to fold'}`, ...notes].join('; ');
