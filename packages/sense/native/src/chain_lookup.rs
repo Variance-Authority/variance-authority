@@ -3,11 +3,14 @@
 //! put wins over a delete. `fold` applies that rule to every file at once;
 //! `record`, `newest`, `importers` and `parse` apply it to one key, by a binary
 //! search per layer over columns sorted by key in code-unit order, rather than
-//! a pass over every row of every layer.
+//! a pass over every row of every layer. `held_parses` applies it to the
+//! parse keys under a set of digests.
 
 // compass: variance-authority.reach.source-index
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+
+use rayon::prelude::*;
 
 use crate::compact::Layer;
 use crate::stored::partition;
@@ -91,4 +94,38 @@ pub(crate) fn parse(layers: &[Layer], digest: &str, way: &str) -> Option<At> {
         }
     }
     None
+}
+
+/// The parse keys the chain holds under `digests`, as `(digest, way)`: the last
+/// layer to put or delete a key decides, as `orderedMap` folds it.
+pub(crate) fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, String)> {
+    let per_layer: Vec<Vec<(bool, &str, &str)>> = layers
+        .par_iter()
+        .map(|layer| {
+            let (stored, columns) = (&layer.stored, &layer.parses);
+            let mut rows = Vec::new();
+            for row in 0..columns.deleted.len() {
+                let digest = stored.text(columns.deleted.at(row));
+                if digests.contains(digest) {
+                    rows.push((false, digest, stored.text(columns.deleted_way.at(row))));
+                }
+            }
+            for row in 0..columns.key.len() {
+                let digest = stored.text(columns.key.at(row));
+                if digests.contains(digest) {
+                    rows.push((true, digest, stored.text(columns.way.at(row))));
+                }
+            }
+            rows
+        })
+        .collect();
+    let mut held = HashSet::new();
+    for rows in per_layer {
+        // Deletes come before puts within a layer, which is the order they were collected in.
+        for (put, digest, way) in rows {
+            let key = (digest.to_owned(), way.to_owned());
+            if put { held.insert(key); } else { held.remove(&key); }
+        }
+    }
+    held
 }
