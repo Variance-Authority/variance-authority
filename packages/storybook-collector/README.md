@@ -78,7 +78,7 @@ export default storybookCollector({
 ```
 
 `source.dirs` selects directories inside your checkout from the
-[source index](../../docs/source-index.md). Paths are relative to where you run
+[source index](https://variance-authority.dev/docs/source-index). Paths are relative to where you run
 `variance`, or absolute inside that checkout. Component declarations and their
 locations come from the published generation. Run `variance index` after
 changing source; a missing index is built locally and refused in CI. Untracked Git-ignored files enter the index only when an explicit relative

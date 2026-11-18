@@ -68,26 +68,7 @@ export interface Resolvers {
   tree: TreeWorld | undefined;
 }
 
-/**
- * Where one resolved path landed: how the disk spells it, and where that sits.
- *
- * The two travel together because they are one answer about one path, and
- * because the second is the expensive one to repeat. A 200,000-file tree draws
- * **1,210,225 edges to 202,226 distinct files**, so a repository path worked out
- * at each edge is 1.2 million `relative` calls and 1.2 million strings for two
- * hundred thousand distinct values. Worked out once per landing it is two
- * hundred thousand of each. Measured on that tree: **five to six seconds off a
- * forty-second scan**, producing the same 1,210,225 edges.
- *
- * It saves time and **no memory at all**, which is worth writing down because
- * the obvious reason to expect otherwise is wrong. The live heap of a finished
- * scan is 163.3 MiB with this memo and 163.3 MiB without it, to the tenth of a
- * mebibyte, because the edge targets were already shared before anything here
- * interned them: [`scan.ts`](./scan.ts) asks `built.has(edge.to)` for every
- * edge, and a string used as a map key is internalized by V8 — the duplicate
- * becomes a pointer to the one canonical copy. Interning a string the engine is
- * about to intern buys nothing.
- */
+/** A resolved target's filesystem spelling and its path relative to the repository. */
 export interface Landing {
   /** The path as the filesystem spells it — symlinks followed, case as stored. */
   readonly disk: string;

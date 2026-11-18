@@ -1644,6 +1644,7 @@ open the checkout.
 | `packs` | `true` | set `false` to read bytes from the working tree; Git still lists files and names their blobs |
 | `changed` | absent | supplying the complete scan-root-relative changed paths; present, including empty, skips `git status` |
 | `progress` | absent | receiving each step's start and end |
+| `prepareMap` | `false` | preparing the code map's Git metadata while building a missing index |
 
 `dirs` are seeds, not a hard boundary: an imported stylesheet outside `src`
 still joins the graph. Resolution follows the checkout's TypeScript settings
@@ -1680,6 +1681,13 @@ const questions = await publishedSelectionQuestions(root, {
 console.log(questions.sourceFiles());
 console.log(questions.sourceProblems(['src']));
 ```
+
+Both graph readers accept `tsconfig` to select a configuration, `"auto"` for
+nearest-configuration discovery, or `false` to disable its paths and conditions.
+When omitted, the root `variance.config.json` supplies `typescript.tsconfig`,
+with `"auto"` as the default. Set `raw` to `true` to omit recorded mock declarations;
+configured `taints` still apply. The default, `false`, includes those mocks.
+Pass `ci` as `true` when your host runs in CI; the default is `false`.
 
 `publishedSelectionGraph` returns the relations that Core walks.
 `publishedSelectionQuestions` exposes typed native questions such as file

@@ -3,7 +3,7 @@ import type { ImportDiff } from '../taint/index.js';
 
 /**
  * The mock columns of a source-index generation: per parse, the specifiers the
- * file mocks and the ones it loads for real ([`taint/mocks.ts`](./taint/mocks.ts)).
+ * file mocks and the ones it loads for real.
  *
  * Two offset lists and nothing else, because a parse with neither side is a
  * parse whose `mocks` is absent: the module reader records a diff only when the

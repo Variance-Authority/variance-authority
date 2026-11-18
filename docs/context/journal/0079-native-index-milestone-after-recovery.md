@@ -84,3 +84,9 @@ JS
 Raw traces from this run are retained in the task worktree under
 `node_modules/.cache/native-milestone/measure-2/` as `git-cold.log`,
 `disk-cold.log`, `git-warm.log` and `disk-warm.log`.
+
+## Power-mode provenance
+
+The power mode used for these measurements and the historical session timings
+was not recorded and remains unknown. A later `pmset` reading reported the live
+mode as `1`; it does not establish the mode during either measured run.

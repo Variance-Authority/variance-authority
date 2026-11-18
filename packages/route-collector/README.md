@@ -98,7 +98,7 @@ selectors matches, the route is a collection failure rather than an empty
 capture.
 
 `source.dirs` selects directories inside your checkout from the
-[source index](../../docs/source-index.md), which supplies component names and
+[source index](https://variance-authority.dev/docs/source-index), which supplies component names and
 `file:line` locations. Paths are relative to where you run `variance`, or
 absolute inside the checkout. Run `variance index` after changing source; a missing
 index is built locally and refused in CI. Untracked Git-ignored files enter the index only when an explicit relative
