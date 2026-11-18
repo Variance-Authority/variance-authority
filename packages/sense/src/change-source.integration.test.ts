@@ -39,8 +39,8 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     return ran;
   }
 
-  /** Whether those commands listed the checkout: HEAD's tree, read in-process or by `ls-tree`. */
-  const listed = (ran: string[]): boolean => ran.some((argv) => argv.startsWith('ls-tree') || argv.endsWith(' HEAD^{tree}'));
+  /** Whether those commands refreshed the native snapshot's Git index membership. */
+  const listed = (ran: string[]): boolean => ran.some((argv) => argv.startsWith('ls-files --stage '));
 
   /**
    * A file dated a minute back. One written in the second git writes its index
@@ -115,8 +115,9 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
   });
 
   it('runs no git when Watchman reports nothing since the clock the update recorded', async () => {
+    // The setup's native publication already carries this listing and clock.
     const first = await updateNatively(root, index);
-    expect(await gitRan()).not.toEqual([]);
+    expect(await gitRan()).toEqual([]);
 
     await tell({ clock: 'c:1:2' });
     const told: string[] = [];
