@@ -692,10 +692,50 @@ the test's last line unless one of the spec's `afterEach` hooks ran before it.
 A document a statement loads is counted from the statement after it. Changes
 inside a shadow root are not counted.
 
-The note counts; it does not show the markup, or say which component made the
-change. For the React commits behind it, use [Eyes](eyes.md), which writes each
-commit under its step with the components that rendered. A test run without a
-document has no `page` note.
+Each change behind the count is kept too, as one line of plain text in the
+story file:
+
+```text
+dom + div role="dialog" "Confirm order" in Dialog at commit 2
+dom − li id="c3" role="listitem" "Item C3"
+dom @aria-busy p "idle" absent→"true"
+dom text p "idle"→"done"
+```
+
+`+` is a node added and `−` one removed, `@name` an attribute with its old and
+new value, and `text` a text node's old and new text under its parent. A node
+is written as its tag, its `id`, `type` and role, and its accessible name or the
+first 80 characters of its text. An added subtree is one line for its root and
+one for each node inside it that has a role, an `id` or a name, so a search
+finds a button inside a dialog. With `@variance-authority/react/story` in the
+setup files, a change React made names the component that rendered the node,
+`in Dialog`, and the commit that wrote it, `at commit 2`; a change made outside
+React, such as a direct `append`, stays on its line with no commit. What a field
+holds is never written: an `input`'s `value`, typed or set, is named and not
+shown.
+
+`variance story` prints only the count. Ask for the changes by what they hold,
+and the answer is one row per change that matches, whatever the size of the
+page:
+
+```bash
+variance story --name "opens the dialog" --page 'role="dialog"'
+```
+
+```text
+  2 of 3 changes to the page hold `role="dialog"`; open a step with --around <step>
+  appeared     step 2  line 11  commit 2  + div role="dialog" "Confirm" in Dialog
+  disappeared  step 3  line 12            − div role="dialog" "Confirm"
+```
+
+A row says whether the node appeared, disappeared or changed, the step, the
+test line or `hook line` it stood on, and the commit. The pattern is matched as
+text, so `rg` over the story file finds what `--page` does. A pattern nothing
+matched says so, with how many changes it searched; past 50 rows the answer
+says how many more there are, to narrow the pattern. Under `--compare`, a change
+that lands at another commit on every failing run is set apart like any other
+line the code said. A test run without a document has no `page` note and no
+changes.
 
 ## What each line sent
 

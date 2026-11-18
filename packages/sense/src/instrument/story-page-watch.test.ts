@@ -40,8 +40,16 @@ describe('what a test line did to the page', () => {
     // second listen watches the page once. Line 12 changed nothing, so it
     // gives way to line 13 as any line nothing followed does.
     const { lines, notes } = tap.read();
-    expect(notes.map(([, , text]) => text)).toEqual(['page +1 −0 nodes, 1 attribute, 0 text', 'page +0 −1 nodes, 0 attributes, 1 text']);
-    expect(lines.map(([, , line, said]) => [line, said])).toEqual([[10, 0], [11, 1], [13, 2]]);
+    expect(notes.map(([, , text]) => text)).toEqual([
+      'dom + dialog role="dialog" "Open"',
+      'dom + h2 role="heading"',
+      'dom @aria-busy p "idle" absent→"true"',
+      'page +1 −0 nodes, 1 attribute, 0 text',
+      'dom text p "idle"→"done"',
+      'dom − p "done"',
+      'page +0 −1 nodes, 0 attributes, 1 text',
+    ]);
+    expect(lines.map(([, , line, said]) => [line, said])).toEqual([[10, 0], [11, 4], [13, 7]]);
   });
 
   it('says what a line that awaits changed once, counted since it opened', async () => {
@@ -58,7 +66,7 @@ describe('what a test line did to the page', () => {
     tap.root.c(5);
     tap.settle();
 
-    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['page +2 −0 nodes, 0 attributes, 0 text']);
+    expect(tap.read().notes.map(([, , text]) => text)).toEqual(['dom + dialog role="dialog"', 'dom + p', 'page +2 −0 nodes, 0 attributes, 0 text']);
   });
 
   it('says what the last line changed when the case settles, and nothing its hooks or cleanup change', async () => {
@@ -81,8 +89,13 @@ describe('what a test line did to the page', () => {
     tap.settle();
 
     const { lines, notes } = tap.read();
-    expect(notes.map(([, , text]) => text)).toEqual(['page +1 −0 nodes, 0 attributes, 0 text', 'page +1 −0 nodes, 0 attributes, 0 text']);
-    expect(lines.map(([, , line, said]) => [line, said])).toEqual([[4, 0], [9, 1]]);
+    expect(notes.map(([, , text]) => text)).toEqual([
+      'dom + dialog role="dialog"',
+      'page +1 −0 nodes, 0 attributes, 0 text',
+      'dom + p',
+      'page +1 −0 nodes, 0 attributes, 0 text',
+    ]);
+    expect(lines.map(([, , line, said]) => [line, said])).toEqual([[4, 0], [9, 2]]);
   });
 
   // A page's runner settles no case before its hooks: it takes the tape after them.
@@ -101,8 +114,42 @@ describe('what a test line did to the page', () => {
     tap.settle();
 
     const { lines, notes } = tap.read();
-    expect(notes.map(([, , text]) => text)).toEqual(['page +1 −0 nodes, 0 attributes, 0 text']);
-    expect(lines.map(([, , line, said]) => [line, said])).toEqual([[4, 0], [6, 1]]);
+    expect(notes.map(([, , text]) => text)).toEqual(['dom + dialog role="dialog"', 'page +1 −0 nodes, 0 attributes, 0 text']);
+    expect(lines.map(([, , line, said]) => [line, said])).toEqual([[4, 0], [6, 2]]);
+  });
+
+  it('writes each change as one line naming the node, under the line that made it, and never what a field holds', () => {
+    const tap = openTap();
+    const { window } = new JSDOM('<main><ul><li id="c3">Item C3</li></ul><input type="password" value="old"></main>');
+    const { document } = window;
+    listen(tap, { console: { ...console }, document, MutationObserver: window.MutationObserver });
+
+    tap.root.c(10);
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    dialog.setAttribute('aria-label', 'Confirm order');
+    const yes = document.createElement('button');
+    yes.textContent = 'Yes';
+    dialog.append(document.createElement('span'), yes);
+    document.body.append(dialog);
+    document.getElementById('c3')!.remove();
+    const secret = document.querySelector('input')!;
+    secret.setAttribute('value', 'hunter2');
+    secret.value = 'typed';
+    tap.root.c(11);
+    tap.settle();
+
+    // The dialog is one line for its root and one for the button inside it, which
+    // a search finds by its role; the span, which has none, is not written.
+    const said = tap.read().notes.map(([, , text]) => text);
+    expect(said).toEqual([
+      'dom + div role="dialog" "Confirm order"',
+      'dom + button role="button" "Yes"',
+      'dom − li id="c3" role="listitem" "Item C3"',
+      'dom @value input type="password"',
+      'page +1 −1 nodes, 1 attribute, 0 text',
+    ]);
+    expect(said.join('\n')).not.toMatch(/hunter2|typed|old/);
   });
 
   it('starts no page watch in a realm with no document', () => {

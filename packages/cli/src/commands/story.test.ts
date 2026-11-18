@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { Arm, Place, Route } from '@variance-authority/sense/story';
 import { parseArgs } from '../parse.js';
 import { formatStory, story } from './story.js';
+import { PAGE_ROWS } from './story-page.js';
 
 const place = (file: string, name: string, startLine: number, endLine: number, kind: Place['kind'] = 'function') =>
   ({ token: { place: { file, name, kind, at: `${file}#${name === '' ? 'module' : `${name}/entry`}`, startLine, endLine }, entered: 1, arms: [] as Arm[] } });
@@ -387,6 +388,54 @@ describe('a story read as a route', () => {
       '--in and --whole each choose how much of the route to read; name one',
     );
     expect(() => parseArgs(['story', '--around', 'first'])).toThrow('--around takes a step number from the route, not `first`');
+  });
+
+  it('answers --page with one row per change the pattern matches, at its step, test line and commit, and nothing else', () => {
+    const paged: Route = {
+      ...ROUTE,
+      route: [
+        { token: { ...place('src/cart.ts', 'Cart/open', 1, 9).token, said: ['test line 11', 'dom + div role="dialog" "Confirm" in Dialog at commit 2', 'page +1 −0 nodes, 0 attributes, 0 text'] } },
+        { token: { ...place('src/cart.ts', 'Cart/close', 10, 19).token, said: ['test line 12', 'dom − div role="dialog" "Confirm"', 'dom − li "Item C3"', 'page +0 −2 nodes, 0 attributes, 0 text'] } },
+      ],
+    };
+    expect(formatStory({ route: paged, zoom: { page: 'role="dialog"' } }, 'text')).toBe(
+      [
+        'story  src/cart.test.ts > cart > removes the last item',
+        '  goes through 5 files in 3 steps',
+        "  another test's work ran in the middle of this one twice, and is left out",
+        '  2 of 3 changes to the page hold `role="dialog"`; open a step with --around <step>',
+        '  appeared     step 2  line 11  commit 2  + div role="dialog" "Confirm" in Dialog',
+        '  disappeared  step 3  line 12            − div role="dialog" "Confirm"',
+        '',
+      ].join('\n'),
+    );
+    expect(formatStory({ route: paged, zoom: { page: 'toast' } }, 'text')).toContain(
+      '\n  no node holding `toast` was added, removed or changed: the story says 3 changes to the page\n',
+    );
+    expect(JSON.parse(formatStory({ route: paged, zoom: { page: 'Item C3' } }, 'json'))).toMatchObject({
+      page: { pattern: 'Item C3', searched: 3, found: [{ kind: 'disappeared', step: 3, line: 12, change: '− li "Item C3"' }] },
+    });
+    // A line that changed the page keeps its count; the changes themselves are --page's to read.
+    const read = formatStory({ route: paged }, 'text');
+    expect(read).toContain('» page +0 −2 nodes');
+    expect(read).not.toContain('» dom ');
+  });
+
+  it('keeps the rows --page prints under a cap however many changes match, and counts the rest', () => {
+    const rows = Array.from({ length: 2000 }, (_, at) => `dom + li "Item C${at}" in List at commit 1`);
+    const big: Route = { ...ROUTE, route: [{ token: { ...place('src/cart.ts', 'Cart/fill', 1, 9).token, said: ['test line 14', ...rows] } }] };
+    const text = formatStory({ route: big, zoom: { page: 'Item C' } }, 'text');
+    expect(text.split('\n').filter((line) => line.startsWith('  appeared'))).toHaveLength(PAGE_ROWS);
+    expect(text).toContain(`  and ${2000 - PAGE_ROWS} more; narrow the pattern\n`);
+    expect(formatStory({ route: big, zoom: { page: 'Item C1999"' } }, 'text').split('\n').filter((line) => line.startsWith('  appeared'))).toEqual([
+      '  appeared  step 2  line 14  commit 1  + li "Item C1999" in List',
+    ]);
+  });
+
+  it('takes --page as a pattern, and not beside another zoom', () => {
+    expect(parseArgs(['story', '--page', 'role="dialog"'])).toMatchObject({ command: 'story', zoom: { page: 'role="dialog"' } });
+    expect(() => parseArgs(['story', '--page', 'x', '--around', '2'])).toThrow('--around and --page each choose how much of the route to read; name one');
+    expect(() => parseArgs(['story', '--page', ''])).toThrow('--page takes the text of a change to find, such as role="dialog"');
   });
 
   it('refuses a checkout with no story by naming the variable that writes one', async () => {

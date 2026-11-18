@@ -166,6 +166,26 @@ variance story --name "cart > removes the last item" --around 6          # three
 variance story --name "cart > removes the last item" --whole             # every step, however long
 ```
 
+A test with a document keeps each change it made to the page as a line of its
+own, `dom + div role="dialog" "Confirm" in Dialog at commit 2`, and the steps
+print only the count, `» page +1 −0 nodes, 0 attributes, 0 text`. Ask when
+something appeared or went by what its line holds, a role, an id, a name or a
+text, matched as plain text:
+
+```bash
+variance story --name "cart > removes the last item" --page 'Item C3'    # one row per change that holds it
+```
+
+```text
+  1 of 2004 changes to the page holds `Item C3`; open a step with --around <step>
+  disappeared  step 6  line 14  − li id="c3" role="listitem" "Item C3"
+```
+
+Each row is appeared, disappeared or changed, with its step, test line and
+the React commit that wrote it when `@variance-authority/react/story` is set
+up. The answer stays one row per match however large the page; past 50 it says
+how many more to narrow. What a field holds is never written.
+
 The answer prints a key for its marks. What the key leaves out:
 
 - `✗` is a branch the test ran nowhere, before the test or during it: this test

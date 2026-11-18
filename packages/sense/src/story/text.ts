@@ -139,8 +139,10 @@ function linesText(
 export function saidText(said: readonly string[], indent: string): string[] {
   const seen = { printed: 0, handed: 0 };
   const kind = (line: string) => (line.startsWith('handed ') || line.startsWith('holds ') ? 'handed' : 'printed');
-  const shown = said.filter((line) => seen[kind(line)]++ < SAID).map((line) => `${indent}» ${line}`);
-  const rest = said.length - shown.length;
+  // Each change to the page is a line of its own, for `--page` to search; the step keeps its count.
+  const told = said.filter((line) => !line.startsWith('dom '));
+  const shown = told.filter((line) => seen[kind(line)]++ < SAID).map((line) => `${indent}» ${line}`);
+  const rest = told.length - shown.length;
   return rest > 0 ? [...shown, `${indent}» and ${rest} more ${rest === 1 ? 'line' : 'lines'}`] : shown;
 }
 
