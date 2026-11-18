@@ -134,9 +134,9 @@ variance run --against <ref>
 
 Component attribution in `variance run` and `variance collect`, and the source
 identity written into each collection part, read the same publication.
-`source.dirs` narrows that inventory by directory. In a Git checkout,
-Untracked Git-ignored files are excluded; test and story files in the inventory
-participate in its content identity. Run `variance index` after editing source
+`source.dirs` narrows that publication by directory. Untracked Git-ignored files
+do not seed the inventory; an explicit relative import can still reach one.
+Test and story files in the publication participate in its content identity. Run `variance index` after editing source
 and before collecting it.
 
 Each one reads the index as it was last published. Run `variance index` after
