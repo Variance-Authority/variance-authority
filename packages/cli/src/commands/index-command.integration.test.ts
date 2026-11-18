@@ -38,12 +38,12 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `unchanged` is a run that found the index where the last one left it. */
+/** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `unchanged` is a run that found the index where the last one left it, which keeps the map and the questions and reads no lexicon. */
 function unprepared(root: string, unchanged = false): string {
-  return 'code map: none, because no manifest names a package\n' +
+  return `code map: none, because no manifest names a package${unchanged ? '; kept, because the index and the manifests are the ones it was folded from' : ''}\n` +
     `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}\n` +
     `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin')}\n` +
-    `questions: published at ${sourceIndexPath(root)}.help.bin\n`;
+    `questions: published at ${sourceIndexPath(root)}.help.bin${unchanged ? '; kept, because the index and the manifests are the ones it was published from' : ''}\n`;
 }
 
 function checkout(): string {

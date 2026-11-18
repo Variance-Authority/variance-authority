@@ -243,19 +243,25 @@ fn in_git_an_unchanged_index_and_unchanged_manifests_keep_the_map_unfolded() {
     // The listing the scan took is carried; git is not asked again.
     let scanned = crate::git_tree(root.clone()).expect("a checkout");
     let first = carried(&scanned, &root, &index).unwrap().unwrap();
-    assert!(!first.walked && !first.relisted && first.map.is_some());
+    assert!(!first.walked && !first.relisted && !first.kept && first.map.is_some());
     let folded = inode(&map_path(&index));
+    // The key is the manifest and the listing, so a kept map reads no segment of the chain.
+    let segments = format!("{index}.segments");
+    let aside = format!("{index}.aside");
+    std::fs::rename(&segments, &aside).unwrap();
     let again = carried(&scanned, &root, &index).unwrap().unwrap();
+    std::fs::rename(&aside, &segments).unwrap();
     assert_eq!(inode(&map_path(&index)), folded, "nothing moved, so nothing was written");
+    assert!(again.kept);
     assert_eq!(again.map.map(|map| (map.packages, map.areas)), Some((20, 4)));
     // With no scan to carry, git lists the checkout for the map, and says so.
     let alone = prepare_orient_map(&root, &index, None, false, crate::resolve::Tsconfig::Auto).unwrap().unwrap();
-    assert!(alone.relisted && !alone.walked);
+    assert!(alone.relisted && !alone.walked && alone.kept);
     assert_eq!(inode(&map_path(&index)), folded);
     // A manifest git holds a new blob for folds the map again.
     std::fs::write(fixture.0.join("packages/ui/ui1/package.json"), r#"{"name": "@t/ui-1", "private": true}"#).unwrap();
     git(&root, &["add", "-A"]);
-    carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
+    assert!(!carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap().kept);
     let refolded = inode(&map_path(&index));
     assert_ne!(refolded, folded);
     // So does a new answer to whether the root declares workspaces, with nothing

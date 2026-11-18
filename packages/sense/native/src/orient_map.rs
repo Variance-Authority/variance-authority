@@ -169,6 +169,9 @@ pub struct OrientMapPrepared {
     /// No scan's listing was carried to the map, so git listed the checkout
     /// again for it.
     pub relisted: bool,
+    /// The map kept beside the index was folded from this index and these
+    /// manifests, so it was kept as it is and nothing was read or folded.
+    pub kept: bool,
 }
 
 #[napi(object)]
@@ -258,17 +261,19 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
     // The reason alone: the caller says what was not prepared.
     let fail = napi::Error::from_reason;
     let path = map_path(index);
-    let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
-    let digest = hex(&Sha256::digest(chain.published()));
     let walked = snapshot.is_none();
     let listed = snapshot.as_ref().and_then(listing);
-    if listed.is_some() {
+    // The key is the manifest's bytes, which name every segment, so the check
+    // reads the manifest alone: the segments are read only to fold.
+    if let (Some(_), Some(digest)) = (&listed, manifest_digest(index)) {
         let kept = kept_bytes(&path).map_err(fail)?.and_then(|bytes| serde_json::from_slice::<Kept>(&bytes).ok());
         let kept = kept.filter(|kept| kept.index == digest && kept.listed == listed && kept.workspaces == workspaces && crate::orient_map_shipped::kept(index, &digest));
         if let Some(kept) = kept {
-            return Ok(Some(OrientMapPrepared { map: kept.made.map(Into::into), unmade: kept.unmade, walked, unmarked: kept.unmarked, relisted }));
+            return Ok(Some(OrientMapPrepared { map: kept.made.map(Into::into), unmade: kept.unmade, walked, unmarked: kept.unmarked, relisted, kept: true }));
         }
     }
+    let Some(chain) = read_chain(index).map_err(fail)? else { return Ok(None) };
+    let digest = hex(&Sha256::digest(chain.published()));
     // Git owns the file list and the generated and vendored marks. Outside a
     // checkout git answers neither: the files are then the ones the index
     // holds, nothing is marked, and the result says so.
@@ -308,7 +313,7 @@ fn prepare(root: &str, index: &str, snapshot: Option<Listed>, relisted: bool, wo
         .and_then(|()| std::fs::rename(&written, &path))
         .map_err(|error| fail(format!("{path} was not written: {error}")))?;
     crate::orient_map_shipped::write(index, &stored.index, &read.shipped, &read.catalogued).map_err(fail)?;
-    Ok(Some(OrientMapPrepared { map: stored.made.map(Into::into), unmade: stored.unmade, walked, unmarked, relisted }))
+    Ok(Some(OrientMapPrepared { map: stored.made.map(Into::into), unmade: stored.unmade, walked, unmarked, relisted, kept: false }))
 }
 
 /// The map's pages and what they hold, or why there is nothing to fold.

@@ -189,6 +189,8 @@ async function answerable(root: string, { path: index, readStartedAt }: SourceUp
   try {
     // The index was written a moment ago, so the previous value is refreshed from it without
     // reading the chain into records; a changed surface reads the way a first publish does.
+    // A publish that kept the value hands back the generation published before it.
+    const before = await publishedGeneration(root, index);
     const generation = await publishWorkspaceFromIndex(root, {
       index,
       readStartedAt,
@@ -199,7 +201,8 @@ async function answerable(root: string, { path: index, readStartedAt }: SourceUp
     if (generation === undefined || published !== generation) {
       return `questions: not published: the value read back from ${at} is not the one this run wrote`;
     }
-    return `questions: published at ${at}`;
+    const kept = generation === before ? '; kept, because the index and the manifests are the ones it was published from' : '';
+    return `questions: published at ${at}${kept}`;
   } catch (error) {
     return `questions: not published: ${error instanceof Error ? error.message : String(error)}`;
   }
@@ -287,6 +290,7 @@ function mapped({ prepared }: PreparedCodeMap): string {
     prepared.walked ? 'git could not list the checkout, so its files are the ones the index holds and its manifests the ones found beside them' : '',
     prepared.unmarked ? 'git could not say which files are generated or vendored, so none were set aside' : '',
     prepared.relisted ? 'no scan\'s listing of the checkout was carried, so git listed it again for the map' : '',
+    prepared.kept ? 'kept, because the index and the manifests are the ones it was folded from' : '',
   ].filter((note) => note !== '');
   const map = prepared.map;
   if (map === undefined || map === null) return [`code map: none, because ${prepared.unmade ?? 'there is no package to fold'}`, ...notes].join('; ');
