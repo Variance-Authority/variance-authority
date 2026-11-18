@@ -15,14 +15,25 @@ use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use crate::order::code_unit;
+use crate::read::Read;
 use crate::read_any::Language;
+
+/// What files of the tree say, read together, as `parsed` in `world.ts`:
+/// nothing for a file that was not parsed.
+pub(crate) type Parsing<'a> = &'a (dyn Fn(&[&str]) -> Vec<Option<Read>> + Sync);
+
+/// A file's text, as `text` in `world.ts`: nothing for one that cannot be read.
+pub(crate) type Texting<'a> = &'a (dyn Fn(&str) -> Option<String> + Sync);
 
 /// What every resolver over the tree may ask about it.
 pub(crate) struct World<'a> {
     known: Option<&'a HashMap<String, u32>>,
     listed: Option<&'a [String]>,
+    parsing: Option<Parsing<'a>>,
+    texting: Option<Texting<'a>>,
     sorted: OnceLock<Vec<&'a str>>,
     python: OnceLock<Vec<String>>,
+    rust: OnceLock<crate::resolve_rust::Index>,
 }
 
 impl<'a> World<'a> {
@@ -30,7 +41,32 @@ impl<'a> World<'a> {
     /// and `listed`, when the caller has them, are the same paths in the
     /// order a sorted walk of the tree needs.
     pub(crate) fn new(known: Option<&'a HashMap<String, u32>>, listed: Option<&'a [String]>) -> Self {
-        Self { known, listed, sorted: OnceLock::new(), python: OnceLock::new() }
+        Self { known, listed, parsing: None, texting: None, sorted: OnceLock::new(), python: OnceLock::new(), rust: OnceLock::new() }
+    }
+
+    /// The same world, able to say what its files hold. A world over a bare
+    /// list of paths cannot, and a language that reads its neighbours falls
+    /// back to the layout their paths alone give.
+    pub(crate) fn reading(self, parsing: Parsing<'a>, texting: Texting<'a>) -> Self {
+        Self { parsing: Some(parsing), texting: Some(texting), ..self }
+    }
+
+    /// What each of `paths` says, in their order.
+    pub(crate) fn parsed(&self, paths: &[&str]) -> Vec<Option<Read>> {
+        match self.parsing {
+            Some(parsing) => parsing(paths),
+            None => paths.iter().map(|_| None).collect(),
+        }
+    }
+
+    /// The text of one file.
+    pub(crate) fn text(&self, path: &str) -> Option<String> {
+        self.texting.and_then(|texting| texting(path))
+    }
+
+    /// The module tree the crates' `mod` lines declare, and the crates by name.
+    pub(crate) fn rust_index(&self) -> &crate::resolve_rust::Index {
+        self.rust.get_or_init(|| crate::resolve_rust::Index::of(self))
     }
 
     /// Git's listing, path to row, when the caller has one.
@@ -102,20 +138,27 @@ impl<'a> World<'a> {
     /// the resolve pool.
     pub(crate) fn prewarm(&self, languages: impl IntoIterator<Item = Language>) {
         for language in languages {
-            if language == Language::Python {
-                self.python_roots();
+            match language {
+                Language::Python => {
+                    self.python_roots();
+                }
+                Language::Rust => {
+                    self.rust_index();
+                }
+                _ => {}
             }
         }
     }
 
     /// Where `request`, written in a `language` file at `file`, lands.
     /// Every file it reaches, the first of them the request's target.
-    pub(crate) fn resolve(&self, language: Language, file: &str, written: &str, _item: bool) -> Vec<String> {
+    pub(crate) fn resolve(&self, language: Language, file: &str, written: &str, item: bool) -> Vec<String> {
         let (Some(request), Some(from)) = (crate::specifier::request_of(written), self.importer(file)) else {
             return Vec::new();
         };
         match language {
             Language::Python => crate::resolve_python::resolve(self, from, request),
+            Language::Rust => crate::resolve_rust::resolve(self, from, request, item),
             _ => Vec::new(),
         }
     }

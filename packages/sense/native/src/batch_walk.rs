@@ -55,7 +55,7 @@ impl Reached {
 }
 
 /// A parse the caller keeps for a file, by Git's name for its content and its path.
-pub(crate) type Kept<'k> = &'k dyn Fn(&str, &str) -> Option<crate::read::Read>;
+pub(crate) type Kept<'k> = &'k (dyn Fn(&str, &str) -> Option<crate::read::Read> + Sync);
 
 /// The walk itself, shared by the batch that crosses as columns, the graph
 /// that stays on this side (`graph_index.rs`) and a warm update, so none can
@@ -86,7 +86,17 @@ pub(crate) fn walk_beyond(
     } = options;
     let root_path = Path::new(&root);
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, Some(listing)));
-    let world = World::new(Some(at), paths);
+    // A language that reads its neighbours (Rust's module tree) reads them as
+    // the walk reads a wave, together, and a manifest off the disk, as `world.ts` does.
+    let parsing = |asked: &[&str]| {
+        let files: Vec<String> = asked.iter().map(|file| (*file).to_owned()).collect();
+        let oids = files.iter().map(|file| at.get(file).map(|index| tree_oids[*index as usize])).collect();
+        let reading = Some(readers.unwrap_or(6).max(1));
+        let (read, _) = read_kept(&root, store, &files, oids, largest_file, Some(false), reading, kept, from_blob);
+        read.into_iter().map(|(read, _, outcome)| outcome.parsed().then_some(read)).collect()
+    };
+    let texting = |path: &str| std::fs::read_to_string(root_path.join(path)).ok();
+    let world = World::new(Some(at), paths).reading(&parsing, &texting);
     let mut files = Vec::new();
     let mut read = Vec::new();
     let mut targets = Vec::new();
