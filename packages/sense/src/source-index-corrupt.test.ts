@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import { NONE } from '@variance-authority/core/segment';
 import type { Parsed } from './cache.js';
-import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
+import { encodeSourceIndex } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 
 const DIGEST: Digest = 'git:2222222222222222222222222222222222222222';
 const PARSED: Parsed = {
@@ -29,7 +30,7 @@ function column(name: string, count: number): { encoded: Buffer; values: Uint32A
 describe('a source index whose binding members or nested declarations are damaged', () => {
   it('reads both back when nothing is damaged', () => {
     const { encoded } = column('parses.nested', 2);
-    const parsed = decodeSourceIndex(encoded).parses.get(DIGEST);
+    const parsed = readSourceIndexSegment(encoded).parses.get(DIGEST);
     expect(parsed?.bindingMembers).toEqual(PARSED.bindingMembers);
     expect(parsed?.nested).toEqual(PARSED.nested);
   });
@@ -38,24 +39,24 @@ describe('a source index whose binding members or nested declarations are damage
     // One parse, so two offsets: the start of its range and its end.
     const { encoded, values } = column('parses.binding-members', 2);
     values[1] = PARSED.bindingMembers!.length + 1;
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
   it('rejects a binding member read through a request its parse does not hold', () => {
     const { encoded, values } = column('binding-members.request', 1);
     values[0] = PARSED.requests.length;
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
   it('rejects nested declarations whose offsets run past their columns', () => {
     const { encoded, values } = column('parses.nested', 2);
     values[1] = PARSED.nested!.length + 1;
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
   it('rejects a nested signature that has a start and no end', () => {
     const { encoded, values } = column('nested.signature-end', 1);
     values[0] = NONE;
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 });

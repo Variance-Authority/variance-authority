@@ -4,15 +4,22 @@
 //! `record`, `newest`, `importers` and `parse` apply it to one key, by a binary
 //! search per layer over columns sorted by key in code-unit order, rather than
 //! a pass over every row of every layer. `held_parses` applies it to the
-//! parse keys under a set of digests.
+//! parse keys under a set of digests. `parse_fold` and `directory_fold` are
+//! `fold` for the other two kinds of key, and `in_key_order` lays a fold's
+//! winners out in code-unit order of their keys, the order a reader walks them.
 
 // compass: variance-authority.reach.source-index
 
+use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
+use std::hash::{BuildHasher, Hash};
+
+use rustc_hash::FxHashMap;
 
 use rayon::prelude::*;
 
 use crate::compact::Layer;
+use crate::order::code_unit;
 use crate::stored::partition;
 
 /// A record of the chain: its layer and row.
@@ -21,17 +28,61 @@ pub(crate) type At = (usize, usize);
 /// Every file's newest record. Oldest layer first, its deletes,
 /// then its puts, as `compacted` folds them.
 pub(crate) fn fold<'a>(layers: &'a [Layer<'a>]) -> HashMap<&'a str, At> {
-    let mut folded: HashMap<&str, At> = HashMap::new();
-    for (at, layer) in layers.iter().enumerate() {
+    folded(layers, |layer| {
         let (stored, records) = (&layer.stored, &layer.records);
-        for row in 0..records.deleted.len() {
-            folded.remove(stored.text(records.deleted.at(row)));
+        let puts = (0..records.file.len()).map(|row| stored.text(records.file.at(row))).collect();
+        (puts, (0..records.deleted.len()).map(|row| stored.text(records.deleted.at(row))).collect())
+    })
+}
+
+/// Every parse key's newest row, keyed `(digest, way)`, by `fold`'s rule.
+pub(crate) fn parse_fold<'c>(layers: &[Layer<'c>]) -> FxHashMap<(&'c str, &'c str), At> {
+    folded(layers, |layer| {
+        let (stored, parses) = (&layer.stored, &layer.parses);
+        let key = |keys: crate::stored::U32s, ways: crate::stored::U32s, row: usize| (stored.text(keys.at(row)), stored.text(ways.at(row)));
+        let puts = (0..parses.key.len()).map(|row| key(parses.key, parses.way, row)).collect();
+        (puts, (0..parses.deleted.len()).map(|row| key(parses.deleted, parses.deleted_way, row)).collect())
+    })
+}
+
+/// Every directory's newest row, by `fold`'s rule.
+pub(crate) fn directory_fold<'c>(layers: &[Layer<'c>]) -> HashMap<&'c str, At> {
+    folded(layers, |layer| {
+        let (stored, directories) = (&layer.stored, &layer.directories);
+        let puts = (0..directories.path.len()).map(|row| stored.text(directories.path.at(row))).collect();
+        (puts, (0..directories.deleted.len()).map(|row| stored.text(directories.deleted.at(row))).collect())
+    })
+}
+
+/// The rule every fold here shares: oldest layer first, its deletes and then
+/// its puts, so within one layer a put wins over a delete of the same key.
+/// `keys` gives a layer's put keys in row order and its deleted keys.
+fn folded<'l, 'c, K: Hash + Eq, S: BuildHasher + Default>(
+    layers: &'l [Layer<'c>],
+    keys: impl Fn(&'l Layer<'c>) -> (Vec<K>, Vec<K>),
+) -> HashMap<K, At, S> {
+    let mut folded = HashMap::default();
+    for (at, layer) in layers.iter().enumerate() {
+        let (puts, deletes) = keys(layer);
+        for key in &deletes {
+            folded.remove(key);
         }
-        for row in 0..records.file.len() {
-            folded.insert(stored.text(records.file.at(row)), (at, row));
-        }
+        folded.extend(puts.into_iter().enumerate().map(|(row, key)| (key, (at, row))));
     }
     folded
+}
+
+/// A fold's winners, ascending by `order` of their keys.
+pub(crate) fn in_key_order<K>(winners: impl IntoIterator<Item = (K, At)>, order: impl Fn(&K, &K) -> Ordering) -> Vec<(K, At)> {
+    let mut sorted: Vec<(K, At)> = winners.into_iter().collect();
+    sorted.sort_unstable_by(|(left, _), (right, _)| order(left, right));
+    sorted
+}
+
+/// Code-unit order of `(digest, way)` parse keys, which is the order of the
+/// keys `joined` makes of them: the separator sorts before every character.
+pub(crate) fn parse_key_order(left: &(&str, &str), right: &(&str, &str)) -> Ordering {
+    code_unit(left.0, right.0).then_with(|| code_unit(left.1, right.1))
 }
 
 /// The file's newest record, and the file as the chain spells it.
@@ -97,7 +148,8 @@ pub(crate) fn parse(layers: &[Layer], digest: &str, way: &str) -> Option<At> {
 }
 
 /// The parse keys the chain holds under `digests`, as `(digest, way)`: the last
-/// layer to put or delete a key decides, as `orderedMap` folds it.
+/// layer to put or delete a key decides, and within a layer its put, as
+/// `parse_fold` folds it.
 pub(crate) fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, String)> {
     let per_layer: Vec<Vec<(bool, &str, &str)>> = layers
         .par_iter()

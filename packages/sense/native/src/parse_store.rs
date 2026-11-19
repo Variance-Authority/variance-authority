@@ -29,6 +29,7 @@ use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 use sha2::{Digest, Sha256};
 
+use crate::chain_lookup::parse_fold;
 use crate::compact::{compacted, Layer, ParseView};
 use crate::read::Read;
 use crate::segment::{Collected, Strings};
@@ -163,7 +164,7 @@ impl<'c> Opened<'c> {
             layers.extend(opened(chain));
         }
         layers.extend(held.and_then(|bytes| Layer::open(bytes).ok()));
-        let keys = folded(&layers);
+        let keys = parse_fold(&layers);
         Opened { layers, keys }
     }
 
@@ -197,22 +198,6 @@ fn references(chain: &Chain) -> Vec<LogSegment> {
 /// it answers, as it ends a chain.
 fn opened(chain: &Chain) -> Vec<Layer<'_>> {
     chain.segments.iter().map_while(|bytes| Layer::open(bytes).ok()).collect()
-}
-
-/// Every parse key `layers` hold, as `(digest, way)`, to the layer and row that
-/// hold it: the last layer to put or delete a key decides.
-fn folded<'c>(layers: &[Layer<'c>]) -> FxHashMap<(&'c str, &'c str), (usize, usize)> {
-    let mut keys = FxHashMap::default();
-    for (at, layer) in layers.iter().enumerate() {
-        let (stored, parses) = (&layer.stored, &layer.parses);
-        for row in 0..parses.deleted.len() {
-            keys.remove(&(stored.text(parses.deleted.at(row)), stored.text(parses.deleted_way.at(row))));
-        }
-        for row in 0..parses.key.len() {
-            keys.insert((stored.text(parses.key.at(row)), stored.text(parses.way.at(row))), (at, row));
-        }
-    }
-    keys
 }
 
 /// When the segment named `digest` of the store at `path` was written.
@@ -252,15 +237,13 @@ impl<'r, 's, 'c> Parse<'r, 's, 'c> {
 }
 
 /// The row key the encoder writes for `digest` and `way`.
-pub(crate) fn key(digest: &str, way: &str) -> String {
-    if way.is_empty() { digest.to_owned() } else { format!("{digest}\0{way}") }
-}
+pub(crate) use crate::compact::joined as key;
 
 /// The parse keys the chain at `path` holds, as `(digest, way)`; `None` when it
 /// cannot be read, which says nothing of what it names. No chain names nothing.
 fn named(path: &str) -> Option<HashSet<(String, String)>> {
     match read_chain(path) {
-        Ok(Some(chain)) => Some(folded(&opened(&chain)).into_keys().map(|(digest, way)| (digest.to_owned(), way.to_owned())).collect()),
+        Ok(Some(chain)) => Some(parse_fold(&opened(&chain)).into_keys().map(|(digest, way)| (digest.to_owned(), way.to_owned())).collect()),
         Ok(None) => Some(HashSet::new()),
         Err(_) => None,
     }
@@ -293,7 +276,7 @@ pub fn prune_parse_store(store: String, chains: Vec<String>, grace_ms: f64) -> n
         .take(layers.len())
         .map(|reference| now.duration_since(written_at(&store, &reference.digest).unwrap_or(now)).unwrap_or_default() < grace)
         .collect();
-    let keys = folded(&layers);
+    let keys = parse_fold(&layers);
     let mut kept: Vec<(String, ParseView)> = Vec::new();
     for (&(digest, way), &(layer, row)) in &keys {
         if young[layer] || live.contains(&(digest.to_owned(), way.to_owned())) {

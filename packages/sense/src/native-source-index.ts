@@ -20,9 +20,45 @@ export interface NativeSourceIndexes {
    * Why the layers were not written, or `null` when they are.
    */
   appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
+  /**
+   * The source-index chain `segments` holds, oldest first, opened once
+   * (`native/src/index_reader.rs`): the one reader of the format. The reader
+   * holds the buffers rather than copying them, so none may change or be
+   * transferred while it is open.
+   */
+  openSourceIndexReader(segments: Uint8Array[]): NativeSourceIndexReader;
   /** Drop what no chain in `chains` names from the parse store at `store`, past `graceMs`; how many parses went (`native/src/parse_store.rs`). */
   pruneParseStore(store: string, chains: string[], graceMs: number): number;
   /** The index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */
   takeIndexTurn(path: string, holder: string): { release(): void } | null;
 }
 
+
+/**
+ * One opened chain. A question about keys or counts decodes no row; a row
+ * crosses as JSON shaped as JavaScript holds it, and `null` is absent.
+ */
+export interface NativeSourceIndexReader {
+  /** Let the segments go now, rather than when the reader is collected; every question after this throws. */
+  close(): void;
+  /** How many of the chain's oldest segments read; the rest are dropped. */
+  kept(): number;
+  /** The format version of the segment that stopped the read, when another release wrote it. */
+  written(): number | null;
+  /** The newest kept layer's configuration. */
+  config(): string | null;
+  /** Every directory and its digest, flattened: path, digest, path, … */
+  directories(): string[];
+  parseCount(): number;
+  parseKeys(): string[];
+  hasParse(key: string): boolean;
+  parse(key: string): string | null;
+  /** `[key, parse]` pairs from `start`, at most `count` of them, as one JSON array. */
+  parses(start: number, count: number): string;
+  recordCount(): number;
+  recordFiles(): string[];
+  hasRecord(file: string): boolean;
+  record(file: string): string | null;
+  /** `[file, record]` pairs from `start`, at most `count` of them, as one JSON array. */
+  records(start: number, count: number): string;
+}

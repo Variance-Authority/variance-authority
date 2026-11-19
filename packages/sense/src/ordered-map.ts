@@ -4,52 +4,73 @@ export interface MapLayer<K, V> {
   readonly deletes: ReadonlySet<K>;
 }
 
-/** A newest-first point lookup without first copying the complete map. */
-export function lookupInLayers<K, V>(
-  layers: readonly MapLayer<K, V>[],
-  key: K,
-): V | undefined {
-  for (let index = layers.length - 1; index >= 0; index -= 1) {
-    const layer = layers[index]!;
-    if (layer.deletes.has(key)) return undefined;
-    if (layer.puts.has(key)) return layer.puts.get(key);
-  }
-  return undefined;
+/** What {@link prunable} hands out: a map that only loses entries. */
+export interface PrunableMap<K, V> extends ReadonlyMap<K, V> {
+  delete(key: K): boolean;
+  clear(): void;
 }
 
-/** Apply an ordered set of immutable changes as one complete lookup structure. */
-export function materializeLayers<K, V>(layers: readonly MapLayer<K, V>[]): Map<K, V> {
-  const result = new Map<K, V>();
-  for (const layer of layers) {
-    for (const key of layer.deletes) result.delete(key);
-    for (const [key, value] of layer.puts) result.set(key, value);
+/**
+ * `base` as a map that entries can be dropped from without first copying it:
+ * a lazily read map stays lazy until a caller walks it.
+ */
+export function prunable<K, V>(base: ReadonlyMap<K, V>): PrunableMap<K, V> {
+  let cleared = false;
+  const dropped = new Set<K>();
+  const has = (key: K): boolean => !cleared && !dropped.has(key) && base.has(key);
+  function* entries(): Generator<[K, V], undefined, unknown> {
+    if (cleared) return undefined;
+    for (const entry of base) if (!dropped.has(entry[0])) yield entry;
+    return undefined;
   }
-  return result;
-}
-
-/** A read-only map that asks immutable layers newest first and materializes only for iteration. */
-export function orderedMap<K, V>(layers: readonly MapLayer<K, V>[]): ReadonlyMap<K, V> {
-  let materialized: Map<K, V> | undefined;
-  const complete = (): Map<K, V> => materialized ??= materializeLayers(layers);
-  return {
-    get size() { return complete().size; },
-    get(key) { return lookupInLayers(layers, key); },
-    has(key) {
-      for (let index = layers.length - 1; index >= 0; index -= 1) {
-        const layer = layers[index]!;
-        if (layer.deletes.has(key)) return false;
-        if (layer.puts.has(key)) return true;
-      }
-      return false;
+  return Object.assign(readonlyMap<K, V>({
+    size: () => cleared ? 0 : base.size - dropped.size,
+    get: (key) => has(key) ? base.get(key) : undefined,
+    has,
+    entries,
+  }), {
+    delete(key: K) {
+      if (!has(key)) return false;
+      dropped.add(key);
+      return true;
     },
-    entries: () => complete().entries(),
-    keys: () => complete().keys(),
-    values: () => complete().values(),
+    clear() { cleared = true; },
+  });
+}
+
+/** What a map answers from, for {@link readonlyMap}. */
+export interface MapSource<K, V> {
+  size(): number;
+  get(key: K): V | undefined;
+  has(key: K): boolean;
+  entries(): Iterable<[K, V]>;
+  /** The keys alone, when they are cheaper than the entries. */
+  keys?(): Iterable<K>;
+}
+
+/** A read-only map over `source`, with every method a map has. */
+export function readonlyMap<K, V>(source: MapSource<K, V>): ReadonlyMap<K, V> {
+  function* each<T>(from: Iterable<T>): Generator<T, undefined, unknown> {
+    yield* from;
+    return undefined;
+  }
+  function* pick<T>(take: (entry: [K, V]) => T): Generator<T, undefined, unknown> {
+    for (const entry of source.entries()) yield take(entry);
+    return undefined;
+  }
+  const map: ReadonlyMap<K, V> = {
+    get size() { return source.size(); },
+    get: (key) => source.get(key),
+    has: (key) => source.has(key),
+    entries: () => each(source.entries()),
+    keys: () => source.keys === undefined ? pick(([key]) => key) : each(source.keys()),
+    values: () => pick(([, value]) => value),
     forEach(callback, thisArg) {
-      complete().forEach((value, key) => callback.call(thisArg, value, key, this));
+      for (const [key, value] of source.entries()) callback.call(thisArg, value, key, map);
     },
-    [Symbol.iterator]: () => complete()[Symbol.iterator](),
+    [Symbol.iterator]: () => each(source.entries()),
   };
+  return map;
 }
 
 /** The smallest layer that turns `before` into `after`. */
@@ -60,6 +81,9 @@ export function differenceLayer<K, V>(
 ): MapLayer<K, V> {
   const puts = new Map<K, V>();
   const deletes = new Set<K>();
+  // A map handed back as it was read changed nothing, and walking it would
+  // decode every row a lazily read map holds.
+  if (before === after) return { puts, deletes };
   for (const [key, value] of after) {
     if (!before.has(key) || !equal(before.get(key)!, value)) puts.set(key, value);
   }

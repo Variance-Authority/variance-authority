@@ -25,10 +25,10 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import type { Digest } from '@variance-authority/core/format';
-import { SegmentCutShort } from '@variance-authority/core/segment';
 import { digestPieces, sha256Hex } from './digest.js';
 import { decodeManifest, segmentDirectory, segmentPath, type SegmentReference } from './immutable-log.js';
-import { SOURCE_INDEX_VERSION, sourceIndexVersionOf } from './source-index-format.js';
+import { SOURCE_INDEX_VERSION } from './source-index-format.js';
+import { segmentVersionAt } from './source-index-reader.js';
 import { writeCoverageBytes } from './test-selection/record-location.js';
 
 /**
@@ -66,7 +66,7 @@ export async function sourceIndexWrittenIn(path: string): Promise<number | undef
   const chain = await sourceIndexChain(path);
   if (chain === undefined || chain.segments.length === 0) return undefined;
   for (const segment of chain.segments) {
-    const version = await headerVersion(segment.path);
+    const version = segmentVersionAt(segment.path);
     if (version !== SOURCE_INDEX_VERSION) return version;
   }
   return SOURCE_INDEX_VERSION;
@@ -257,25 +257,3 @@ function manifestOf(bytes: Buffer): readonly SegmentReference[] | undefined {
   }
 }
 
-/** The version a segment file's header names, read a page at a time until the header is whole. */
-async function headerVersion(file: string): Promise<number | undefined> {
-  const handle = await open(file, 'r').catch(() => undefined);
-  if (handle === undefined) return undefined;
-  try {
-    let length = 4096;
-    for (;;) {
-      const buffer = Buffer.alloc(length);
-      const read = await handle.read(buffer, 0, length, 0).catch(() => undefined);
-      if (read === undefined) return undefined;
-      const { bytesRead } = read;
-      try {
-        return sourceIndexVersionOf(buffer.subarray(0, bytesRead));
-      } catch (error) {
-        if (!(error instanceof SegmentCutShort) || bytesRead < length || error.needed <= length) return undefined;
-        length = error.needed;
-      }
-    }
-  } finally {
-    await handle.close();
-  }
-}
