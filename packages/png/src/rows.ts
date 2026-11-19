@@ -107,12 +107,9 @@ export function pairWords(
  * from beside two lines of text becomes two whole lines compared against their
  * neighbours. So the pairing is weighed by what it leaves for the comparison
  * ({@link Weighed}). A tie goes to whichever moved nothing: the pairing when it
- * shifted no row and only says where rows came or went, else position. A
- * pairing that moved nothing and says nothing came or went is position, and
- * stands for it only where nothing differs: two equal captures.
+ * shifted no row and only says where rows came or went, else position.
  */
 export function explains({ rows, paired, positional }: Weighed): boolean {
-  if (paired > 0 && rows.shifted.length === 0 && rows.inserted.length === 0 && rows.removed.length === 0) return false;
   return paired < positional || (paired === positional && rows.shifted.length === 0);
 }
 

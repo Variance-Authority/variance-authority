@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { differencePixels } from "./mask.js";
 import { comparePixels } from "./compare.js";
-import { alignRows } from "./align.js";
+import { ALIGNMENT_LIMIT, alignRows } from "./align.js";
 
 /**
  * A full-page capture is a column of rows, and content in a document flows: a
@@ -290,6 +290,14 @@ describe("content that moved down the page", () => {
       { from: 123, to: 124 },
     ]);
     expect(comparison.alignment?.removed).toEqual([]);
+  });
+
+  it("keeps a fractional move whole under the most lenient policy", () => {
+    // Its lines move by 23 and by 24 in turn, and a lenient policy forgives a
+    // line read one row off: the move reported is still the one move.
+    const alignment = alignRows(page(0), page(23.5), ALIGNMENT_LIMIT, 0.5);
+
+    expect(alignment?.shifted).toEqual([{ from: 24, to: 123, by: 24 }]);
   });
 
   it("keeps a fractional move whole beside a band repainted in place above it", () => {
