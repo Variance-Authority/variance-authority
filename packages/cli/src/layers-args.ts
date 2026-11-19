@@ -1,5 +1,4 @@
 import { resolve } from 'node:path';
-import { codeUnitOrder } from '@variance-authority/core/segment';
 import { noPositionals, type Flags } from './args.js';
 import { OperatorError } from './exit.js';
 
@@ -7,7 +6,7 @@ export type LayersFormat = 'text' | 'markdown' | 'json';
 
 export interface ParsedLayers {
   readonly command: 'layers';
-  /** A source index kept at the base, with its code map beside it. Absent: list every package's layer. */
+  /** A source index kept at the base, with its code map beside it. */
   readonly against?: string;
   readonly roots?: readonly string[];
   readonly root: string;
@@ -22,7 +21,7 @@ export function parseLayersArgs(flags: Flags): ParsedLayers {
   }
   const against = flags.values.get('--against');
   if (against === '') throw new OperatorError('`--against` takes the path of a source index kept at the base.');
-  const roots = [...new Set(flags.repeated.get('--package') ?? [])].sort(codeUnitOrder);
+  const roots = [...new Set(flags.repeated.get('--package') ?? [])];
   if (roots.some((root) => root.trim() === '')) throw new OperatorError('--package takes a non-empty exact package name.');
   if (roots.length > 0 && against !== undefined) throw new OperatorError('--package cannot be combined with --against.');
   return {

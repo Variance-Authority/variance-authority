@@ -1,6 +1,7 @@
 // compass: variance-authority.reach.relations
 
 import { dependenciesOf, idOf, relationsOf, type Relation } from '@variance-authority/core/relate';
+import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { PackageLayer } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
 
@@ -31,6 +32,6 @@ export function layersFrom(packages: readonly PackageLayer[], roots: readonly st
   const selected = reached.nodes.map((node) => named.get(graph.names[node]!)!);
   return {
     packages: selected,
-    scope: { roots, packageCount: selected.length, layerCount: selected.reduce((max, entry) => Math.max(max, entry.layer), 0), boundary: 'repository' },
+    scope: { roots: [...roots].sort(codeUnitOrder), packageCount: selected.length, layerCount: selected.reduce((max, entry) => Math.max(max, entry.layer), 0), boundary: 'repository' },
   };
 }
