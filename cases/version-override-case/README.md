@@ -22,8 +22,6 @@ Run it from the repository root:
 yarn vitest run --config vitest.integration.config.mts cases/version-override-case/src/probe.integration.test.js
 ```
 
-or print every cell with `node cases/version-override-case/src/probe.mjs [runner] [flavor]`.
-
 ## What it shows
 
 Jest 30, Vitest 5, mocha 12 and `node:test` (Node 24), each in CommonJS, ESM

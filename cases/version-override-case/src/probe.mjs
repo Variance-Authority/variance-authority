@@ -1,8 +1,8 @@
-// Runs one fixture under one runner twice — from the disk, then with the
-// manifest applied — and reads back what each case reported.
+// Runs one fixture under one runner three times — from the disk, with the
+// manifest applied, from the disk again — and reads back what each case reported.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -48,9 +48,7 @@ const runners = {
   mocha: {
     args: (fixture) => [bin('mocha', 'bin/mocha.js'), '--reporter', 'json', ...fixture.testFiles],
     read: (_out, stdout) => {
-      const start = stdout.indexOf('{\n');
-      if (start === -1) return undefined;
-      const report = JSON.parse(stdout.slice(start));
+      const report = JSON.parse(stdout.slice(stdout.indexOf('{\n')));
       return Object.fromEntries([...report.passes.map((test) => [test.title, 'passed']), ...report.failures.map((test) => [test.title, 'failed'])]);
     },
   },
@@ -69,12 +67,10 @@ const runners = {
 };
 
 const jestLike = (file) => {
-  if (!existsSync(file)) return undefined;
   const report = JSON.parse(readFileSync(file, 'utf8'));
   const cases = {};
   for (const result of report.testResults) {
     for (const assertion of result.assertionResults) cases[assertion.title] = assertion.status === 'passed' ? 'passed' : 'failed';
-    if (result.assertionResults.length === 0) cases[`(file) ${basename(result.name)}`] = 'failed';
   }
   return cases;
 };
@@ -96,7 +92,7 @@ export const probe = (runner, flavor) => {
     const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(VITEST|VARIANCE_AUTHORITY_)/.test(name)));
     const env = { ...inherited, NODE_OPTIONS: options.join(' '), VERSION_OVERRIDE: override ? fixture.manifestPath : '', FORCE_COLOR: '0', NO_COLOR: '1' };
     const child = spawnSync(process.execPath, spec.args(fixture, flavor, out), { cwd: fixture.dir, env, encoding: 'utf8', timeout: 120_000 });
-    return { status: child.status, cases: spec.read(out, child.stdout) ?? {}, output: `${child.stdout}\n${child.stderr}`.trim() };
+    return { status: child.status, cases: spec.read(out, child.stdout), output: `${child.stdout}\n${child.stderr}`.trim() };
   };
   // Head, base, head again: the last run shows whether a runner's cache, keyed
   // on something other than content, hands base content to a later head run.
@@ -107,17 +103,3 @@ export const probe = (runner, flavor) => {
   if (!process.env.PROBE_KEEP) for (const suffix of ['', '-control', '-override', '-after', '-cache']) rmSync(`${fixture.dir}${suffix}`, { recursive: true, force: true });
   return { runner, flavor, dir: fixture.dir, control, override, after, untouched };
 };
-
-export const runnerNames = Object.keys(runners);
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const [only, flavorOnly] = process.argv.slice(2);
-  for (const runner of runnerNames.filter((name) => !only || name === only)) {
-    for (const flavor of ['cjs', 'esm', 'ts'].filter((name) => !flavorOnly || name === flavorOnly)) {
-      const result = probe(runner, flavor);
-      const cases = (run) => JSON.stringify(run.cases);
-      console.log(`${runner}/${flavor}\n  head  ${cases(result.control)}\n  base  ${cases(result.override)}\n  head  ${cases(result.after)}\n  untouched ${result.untouched}`);
-      if (process.env.PROBE_VERBOSE) console.log(result.override.output.slice(-3000));
-    }
-  }
-}
