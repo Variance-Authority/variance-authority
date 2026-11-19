@@ -157,7 +157,7 @@ fn stands(meta: &Meta, snapshot: &Snapshot, root: &str, socket: &str, dirs: &[St
 /// Whether the watch's `ignore_vcs` or `ignore_dirs` directories, which Watchman never
 /// reports into, hold a path of the listing, hashed or not. Each names a directory below the
 /// watched root, and is matched as git would list it: `./` and a trailing `/` dropped, ASCII
-/// case ignored. One that is no plain path below the root hides the whole listing: a guess
+/// case ignored. One that is no plain ASCII path below the root hides the whole listing: a guess
 /// that hides too much costs a git run, one that hides too little a stale digest.
 fn hides(watch: &Watch, paths: &[String], unhashed: &[String]) -> bool {
     watch.vcs.iter().chain(&watch.ignored).any(|dir| {
@@ -173,10 +173,11 @@ fn hides(watch: &Watch, paths: &[String], unhashed: &[String]) -> bool {
 }
 
 /// A directory a watch names, its empty and `.` segments dropped; nothing for one that is
-/// absolute, climbs with `..`, or names the watched root itself.
+/// absolute, climbs with `..`, names the watched root itself, or is not ASCII, which a
+/// case-insensitive volume may fold onto a listed path by rules beyond ASCII case.
 fn plain(dir: &str) -> Option<String> {
     let segments: Vec<&str> = dir.split('/').filter(|segment| !segment.is_empty() && *segment != ".").collect();
-    (!dir.starts_with('/') && !segments.is_empty() && !segments.contains(&"..")).then(|| segments.join("/"))
+    (dir.is_ascii() && !dir.starts_with('/') && !segments.is_empty() && !segments.contains(&"..")).then(|| segments.join("/"))
 }
 
 /// What of `path` lies below the directory `dir`, ASCII case ignored.
