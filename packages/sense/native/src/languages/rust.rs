@@ -11,7 +11,7 @@ use tree_sitter::{Node, Tree};
 
 use super::rust_paths::{anchored, qualified, Named, Scope};
 use super::shape::{Binding, Export, Kind, Read, Request, NAMESPACE_NAME};
-use super::{declaration, kind_of, line_of, named_children, text_of, visibility};
+use super::{declaration, kind_of, line_of, named_children, text_of, visibility, RustKind};
 use crate::harvest::SourceSymbol;
 
 struct Gathering {
@@ -62,30 +62,30 @@ fn declared_in(node: Node, source: &str, prefix: &[String], open: bool, held: &m
     let children = named_children(node);
     for at in 0..children.len() {
         let node = children[at];
-        let Some(name) = (match node.kind() {
+        let Some(name) = (match node.rust_kind() {
             "mod_item" | "macro_definition" => node.child_by_field_name("name").map(|name| text_of(name, source).to_string()),
             _ => named(node, source),
         }) else {
             continue;
         };
-        let Some(kind) = kind_of(node.kind()) else { continue };
+        let Some(kind) = kind_of(node.rust_kind()) else { continue };
         let path: Vec<String> = prefix.iter().cloned().chain([name]).collect();
         let shared = published(node, source);
         if prefix.is_empty() || !(open && shared) {
             // A `macro_rules!` has no module path: it is named as written.
-            let named = if node.kind() == "macro_definition" { path[path.len() - 1].clone() } else { path.join("::") };
+            let named = if node.rust_kind() == "macro_definition" { path[path.len() - 1].clone() } else { path.join("::") };
             let mut symbol = declaration(&children, at, named, kind, source, between_doc_and_item);
             // A `macro_rules!` is in scope by where it is written, and
             // `#[macro_export]` or `#[macro_use]` carry it further: never by
             // the module rule an item's visibility follows. A `pub` item
             // inside a private inline module reaches as far as the modules
             // around it let it, which the item alone does not say.
-            if node.kind() != "macro_definition" && (prefix.is_empty() || !shared) {
+            if node.rust_kind() != "macro_definition" && (prefix.is_empty() || !shared) {
                 symbol.reach = Some("module");
             }
             held.push(symbol);
         }
-        if let Some(body) = (node.kind() == "mod_item").then(|| node.child_by_field_name("body")).flatten() {
+        if let Some(body) = (node.rust_kind() == "mod_item").then(|| node.child_by_field_name("body")).flatten() {
             declared_in(body, source, &path, open && shared, held);
         }
     }
@@ -95,7 +95,7 @@ fn declared_in(node: Node, source: &str, prefix: &[String], open: bool, held: &m
 /// the lexer drops before rustdoc sees a token. The grammar marks a doc comment
 /// `outer` or `inner`, so a comment with neither is plain.
 fn between_doc_and_item(node: Node) -> bool {
-    match node.kind() {
+    match node.rust_kind() {
         "attribute_item" => true,
         "line_comment" | "block_comment" => node.child_by_field_name("outer").is_none() && node.child_by_field_name("inner").is_none(),
         _ => false,
@@ -110,10 +110,10 @@ fn block(node: Node, source: &str, prefix: &[String], held: &mut Gathering) {
     let children = named_children(node);
     let scope = scope_of(&children, source, prefix);
     for (at, child) in children.iter().enumerate() {
-        if child.kind() == "ERROR" || child.is_missing() {
+        if child.rust_kind() == "ERROR" || child.is_missing() {
             held.broken = true;
         }
-        match child.kind() {
+        match child.rust_kind() {
             "mod_item" => {
                 let Some(name) = child
                     .child_by_field_name("name")
@@ -286,14 +286,14 @@ fn scope_of(children: &[Node], source: &str, prefix: &[String]) -> Scope {
         prefix: prefix.to_vec(),
         mods: children
             .iter()
-            .filter(|child| child.kind() == "mod_item")
+            .filter(|child| child.rust_kind() == "mod_item")
             .filter_map(|child| child.child_by_field_name("name"))
             .map(|name| text_of(name, source).to_string())
             .collect::<HashSet<_>>(),
         bound: HashMap::new(),
     };
     let mut bound = HashMap::new();
-    for child in children.iter().filter(|child| child.kind() == "use_declaration") {
+    for child in children.iter().filter(|child| child.rust_kind() == "use_declaration") {
         let Some(argument) = child.child_by_field_name("argument") else {
             continue;
         };
@@ -318,8 +318,8 @@ fn attributes<'tree>(before: &[Node<'tree>]) -> Vec<Node<'tree>> {
     before
         .iter()
         .rev()
-        .take_while(|node| matches!(node.kind(), "attribute_item" | "line_comment" | "block_comment"))
-        .filter(|node| node.kind() == "attribute_item")
+        .take_while(|node| matches!(node.rust_kind(), "attribute_item" | "line_comment" | "block_comment"))
+        .filter(|node| node.rust_kind() == "attribute_item")
         .copied()
         .collect()
 }
@@ -353,7 +353,7 @@ pub(super) const ITEMS: [&str; 8] = [
 ];
 
 fn named(node: Node, source: &str) -> Option<String> {
-    if !ITEMS.contains(&node.kind()) {
+    if !ITEMS.contains(&node.rust_kind()) {
         return None;
     }
     node.child_by_field_name("name")
@@ -364,20 +364,22 @@ fn named(node: Node, source: &str) -> Option<String> {
 /// `pub(super)` among them, but not `pub(self)` or `pub(in self)`, which are
 /// no `pub` at all.
 fn published(node: Node, source: &str) -> bool {
-    named_children(node)
-        .into_iter()
-        .filter(|child| child.kind() == "visibility_modifier")
-        .any(|modifier| !matches!(visibility(modifier, source).as_str(), "pub(self)" | "pub(inself)"))
+    let mut cursor = node.walk();
+    let published = node
+        .named_children(&mut cursor)
+        .filter(|child| child.rust_kind() == "visibility_modifier")
+        .any(|modifier| !matches!(visibility(modifier, source).as_str(), "pub(self)" | "pub(inself)"));
+    published
 }
 
 /// The filename in `#[path = "other.rs"]`, when `node` is that attribute.
 fn path_attribute(node: Node, source: &str) -> Option<String> {
-    if node.kind() != "attribute_item" {
+    if node.rust_kind() != "attribute_item" {
         return None;
     }
     let attribute = named_children(node)
         .into_iter()
-        .find(|child| child.kind() == "attribute")?;
+        .find(|child| child.rust_kind() == "attribute")?;
     let parts = named_children(attribute);
     let key = parts.first()?;
     if text_of(*key, source) != "path" {
@@ -386,7 +388,7 @@ fn path_attribute(node: Node, source: &str) -> Option<String> {
     let value = attribute
         .child_by_field_name("value")
         .or_else(|| parts.get(1).copied())?;
-    if !value.kind().ends_with("string_literal") {
+    if !value.rust_kind().ends_with("string_literal") {
         return None;
     }
     Some(unquoted(text_of(value, source)))
@@ -409,7 +411,7 @@ fn unquoted(text: &str) -> String {
 /// name it binds when it renames one, and whether it is a `*`, whose path is
 /// the module it takes every item of.
 pub(super) fn used(node: Node, source: &str, prefix: &[String]) -> Vec<(Vec<String>, Option<String>, bool)> {
-    match node.kind() {
+    match node.rust_kind() {
         "scoped_identifier" => {
             let mut path = prefix.to_vec();
             path.extend(segments(Some(node), source));
@@ -478,7 +480,7 @@ fn segments(node: Option<Node>, source: &str) -> Vec<String> {
     let Some(node) = node else {
         return Vec::new();
     };
-    if node.kind() == "scoped_identifier" {
+    if node.rust_kind() == "scoped_identifier" {
         let mut held = segments(node.child_by_field_name("path"), source);
         if let Some(name) = node.child_by_field_name("name") {
             held.push(text_of(name, source).to_string());

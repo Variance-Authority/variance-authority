@@ -20,10 +20,10 @@ pub mod shape;
 pub mod size;
 pub mod swift;
 
-use tree_sitter::Node;
+use tree_sitter::{Node, TreeCursor};
 
 use crate::grammar::{self, Grammar};
-use crate::harvest::{SourceSymbol, TextSpan};
+use crate::harvest::{Offsets, SourceSymbol, TextSpan};
 use shape::Read;
 
 /// The 1-based line a node starts on.
@@ -71,7 +71,7 @@ pub fn head(node: Node, source: &str) -> TextSpan {
     let end = opens.map_or(node.end_byte(), |body| body.start_byte());
     let text = source.get(node.start_byte()..end).unwrap_or("");
     let kept = text.trim_end().trim_end_matches(['=', ':', '{']).trim_end();
-    span_of(source, node.start_byte(), node.start_byte() + kept.len())
+    span_of(node.start_byte(), node.start_byte() + kept.len())
 }
 
 /// The doc comment written above `children[at]`, past the siblings the
@@ -94,20 +94,18 @@ pub fn doc_above(children: &[Node], at: usize, source: &str, between: fn(Node) -
             continue;
         }
         if comment && lines.is_none() && text.starts_with("/**") && !text.starts_with("/***") && text.len() > 4 {
-            return Some(span_of(source, sibling.start_byte() + 2, sibling.end_byte() - 2));
+            return Some(span_of(sibling.start_byte() + 2, sibling.end_byte() - 2));
         }
         break;
     }
-    lines.map(|(start, end)| span_of(source, start, end))
+    lines.map(|(start, end)| span_of(start, end))
 }
 
-/// Byte offsets of `source` as the UTF-16 span every reader writes.
-pub fn span_of(source: &str, start: usize, end: usize) -> TextSpan {
-    let units = |byte: usize| source.get(..byte).map_or(0, |before| before.encode_utf16().count()) as u32;
-    if source.is_ascii() {
-        return TextSpan { start: start as u32, end: end as u32, text: None };
-    }
-    TextSpan { start: units(start), end: units(end), text: None }
+/// The bytes `start..end` as a span. A reader spans in bytes, which a node
+/// gives without counting; [`read`] converts them through
+/// [`Offsets`](crate::harvest::Offsets) once the read is whole.
+pub fn span_of(start: usize, end: usize) -> TextSpan {
+    TextSpan { start: start as u32, end: end as u32, text: None }
 }
 
 /// A visibility modifier as written, with the whitespace taken out, so
@@ -128,10 +126,79 @@ pub fn file_private(node: Node, source: &str, keywords: &[&str]) -> bool {
         .any(|modifier| keywords.contains(&visibility(modifier, source).as_str()))
 }
 
-/// Every named child of a node, in order.
+/// Every named child of a node, in order, walked by [`Children`].
 pub fn named_children(node: Node) -> Vec<Node> {
+    Children::of(node, &mut Vec::new()).map(|(child, _)| child).filter(Node::is_named).collect()
+}
+
+/// Every node under `node`, itself first, in pre-order, walked by one cursor.
+/// `enter` reads each node and says whether to walk the nodes under it. The
+/// cursor is rooted at `node`, so its walk ends there: neither a sibling nor a
+/// parent of `node` is visited.
+pub fn preorder<'tree>(node: Node<'tree>, mut enter: impl FnMut(Node<'tree>) -> bool) {
     let mut cursor = node.walk();
-    node.named_children(&mut cursor).collect()
+    loop {
+        if enter(cursor.node()) && cursor.goto_first_child() {
+            continue;
+        }
+        while !cursor.goto_next_sibling() {
+            if !cursor.goto_parent() {
+                return;
+            }
+        }
+    }
+}
+
+/// A Rust node's kind, read from the grammar's table ([`Grammar::kinds`]).
+pub trait RustKind<'tree> {
+    fn rust_kind(&self) -> &'tree str;
+}
+
+impl<'tree> RustKind<'tree> for Node<'tree> {
+    fn rust_kind(&self) -> &'tree str {
+        Grammar::Rust.kinds().of(*self)
+    }
+}
+
+/// A node's children in order, each with the field it sits in, walked by one
+/// cursor. A walk that collected every node's children into a `Vec` made an
+/// allocation per node it visited; [`Children::done`] hands the cursor back
+/// to `spare`, and the next node's children are walked by it.
+pub struct Children<'tree> {
+    cursor: TreeCursor<'tree>,
+    started: bool,
+}
+
+impl<'tree> Children<'tree> {
+    /// The children of `node`, walked by a cursor from `spare` when it holds one.
+    pub fn of(node: Node<'tree>, spare: &mut Vec<TreeCursor<'tree>>) -> Self {
+        let cursor = match spare.pop() {
+            Some(mut cursor) => {
+                cursor.reset(node);
+                cursor
+            }
+            None => node.walk(),
+        };
+        Children { cursor, started: false }
+    }
+
+    pub fn done(self, spare: &mut Vec<TreeCursor<'tree>>) {
+        spare.push(self.cursor);
+    }
+}
+
+impl<'tree> Iterator for Children<'tree> {
+    type Item = (Node<'tree>, Option<&'tree str>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let moved = if self.started {
+            self.cursor.goto_next_sibling()
+        } else {
+            self.started = true;
+            self.cursor.goto_first_child()
+        };
+        moved.then(|| (self.cursor.node(), self.cursor.field_name()))
+    }
 }
 
 /// Every child of a node under one field name, in order.
@@ -158,13 +225,18 @@ pub fn read(language: &str, source: &str) -> Option<Read> {
         }.to_owned()));
     };
 
-    let (read, symbols) = match grammar {
+    let (read, mut symbols) = match grammar {
         Grammar::Python => (python::read(source, &tree), python::declarations(&tree, source)),
         Grammar::Rust => (rust::read(source, &tree), rust::declarations(&tree, source)),
         Grammar::Swift => (swift::read(source, &tree), swift::declarations(&tree, source)),
         Grammar::Java => (jvm::read(source, &tree, "java"), jvm::declarations(&tree, source)),
         Grammar::Kotlin => (jvm::read(source, &tree, "kotlin"), jvm::declarations(&tree, source)),
     };
+    let offsets = Offsets::new(source);
+    for span in symbols.iter_mut().flat_map(|symbol| [symbol.signature.as_mut(), symbol.doc.as_mut()]).flatten() {
+        span.start = offsets.at(span.start);
+        span.end = offsets.at(span.end);
+    }
     // FIXME: only Rust reads its own uses; Python, Swift and the JVM languages
     // answer `ask uses` with what other files import alone.
     let own_uses = match grammar {

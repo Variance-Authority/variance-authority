@@ -17,6 +17,7 @@
 
 use tree_sitter::Tree;
 
+use super::preorder;
 use crate::grammar::Grammar;
 use crate::source_size::{code_lines, Size};
 
@@ -24,7 +25,7 @@ use crate::source_size::{code_lines, Size};
 pub fn size_of(source: &str, tree: &Tree, grammar: Grammar) -> Size {
     Size {
         bytes: u32::try_from(source.len()).unwrap_or(u32::MAX),
-        lines: code_lines(source, comments(tree, grammar.comments())),
+        lines: code_lines(source, comments(tree, grammar.comment_kinds())),
         blocks: None,
     }
 }
@@ -32,24 +33,16 @@ pub fn size_of(source: &str, tree: &Tree, grammar: Grammar) -> Size {
 /// Every comment node's byte range, in source order. The walk does not enter a
 /// comment, so a doc comment's marker or a nested block comment is never a
 /// second range inside the first.
-fn comments(tree: &Tree, kinds: &[&str]) -> Vec<(usize, usize)> {
+fn comments(tree: &Tree, comment: &[bool]) -> Vec<(usize, usize)> {
     let mut ranges = Vec::new();
-    let mut cursor = tree.walk();
-    loop {
-        let node = cursor.node();
-        let comment = kinds.contains(&node.kind());
+    preorder(tree.root_node(), |node| {
+        let comment = comment.get(usize::from(node.kind_id())).copied().unwrap_or(false);
         if comment {
             ranges.push((node.start_byte(), node.end_byte()));
         }
-        if !comment && cursor.goto_first_child() {
-            continue;
-        }
-        while !cursor.goto_next_sibling() {
-            if !cursor.goto_parent() {
-                return ranges;
-            }
-        }
-    }
+        !comment
+    });
+    ranges
 }
 
 #[cfg(test)]
