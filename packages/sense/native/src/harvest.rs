@@ -20,7 +20,7 @@ pub struct TextSpan {
     pub text: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct SourceSymbol {
     pub name: String,
     pub kind: &'static str,
@@ -40,7 +40,7 @@ pub struct SourceSymbol {
 /// A function another function's body declares, as [`crate::nested`] finds
 /// it: a name its holder alone can call. Kept apart from [`SourceSymbol`], so a
 /// reader of a file's top level never meets one.
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct NestedSymbol {
     pub name: String,
     pub kind: &'static str,

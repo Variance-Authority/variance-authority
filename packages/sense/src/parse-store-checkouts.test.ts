@@ -157,6 +157,43 @@ describe('the checkouts a parse store answers', () => {
     expect(await records(worktree)).toBe(alone);
   });
 
+  // The store holds the blob's parse, put there by another worktree, and the primary checkout's row is still of its edit.
+  it('takes no record its primary checkout read of bytes it edited, once another worktree stored the blob it names', async () => {
+    const primary = await checkout('left');
+    git(primary, 'update-index', '--assume-unchanged', 'packages/a/src/entry.ts');
+    await write(primary, 'packages/a/src/entry.ts', "import { side } from './right.js';\nexport const entry = side;\n");
+    const place = await temporary('variance-parse-store-worktree-');
+    const [second, third] = ['second', 'third'].map((name) => join(place, name));
+    git(primary, 'worktree', 'add', '--quiet', second!);
+    git(primary, 'worktree', 'add', '--quiet', third!);
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
+    await updateSourceIndex(third!);
+    const alone = await records(third!);
+
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    await updateSourceIndex(primary);
+    await updateSourceIndex(second!);
+    expect(await updateSourceIndex(third!)).toMatchObject({ reread: 1 });
+    expect(await records(third!)).toBe(alone);
+  });
+
+  // What a worktree's index starts from is its primary checkout's; what it holds is what a cold index of it holds.
+  it("holds what a cold index of a worktree holds, when it starts from its primary checkout's", async () => {
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-shared-');
+    const primary = await checkout('left');
+    await updateSourceIndex(primary);
+    const worktree = join(await temporary('variance-parse-store-worktree-'), 'second');
+    git(primary, 'worktree', 'add', '--quiet', worktree);
+    await write(worktree, 'packages/a/src/entry.ts', "import { side } from './right.js';\nexport const entry = side;\n");
+
+    expect(await updateSourceIndex(worktree)).toMatchObject({ reread: 1 });
+    const seeded = await records(worktree);
+    process.env[CACHE_VARIABLE] = await temporary('variance-parse-store-alone-');
+    await updateSourceIndex(worktree);
+    expect(await records(worktree)).toBe(seeded);
+  });
+
   // Paths of one blob share one parse key, so a clean read of one must not vouch for the others.
   it.each(['first', 'last'] as const)('takes no parse of an edited file whose blob another path holds unedited, the %s one', async (unedited) => {
     const twins = Array.from({ length: 40 }, (_, at) => `packages/a/src/twin-${String(at).padStart(2, '0')}.ts`);

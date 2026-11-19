@@ -40,7 +40,7 @@ import { existsSync } from 'node:fs';
 import { lstat, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pruneParseStore } from '../parse-store.js';
-import { checkoutKey, directoriesIn, readCheckoutMarker, workDirectory } from './cache-layers.js';
+import { checkoutKey, directoriesIn, listWorktrees, readCheckoutMarker, workDirectory } from './cache-layers.js';
 
 /** How long a dead run's scratch waits, in case its process id was reused. */
 export const RUN_FLOOR_MS = 60 * 60 * 1000;
@@ -365,29 +365,6 @@ async function listedKeys(primary: string, owners: PruneOwners, cacheRoot: strin
     keys.add(checkoutKey(path, cacheRoot));
   }
   return keys;
-}
-
-/** The worktrees git lists for `primary`, less the ones git itself calls prunable. */
-function listWorktrees(primary: string): Promise<readonly string[] | undefined> {
-  return new Promise((resolve) => {
-    execFile(
-      'git',
-      ['worktree', 'list', '--porcelain'],
-      { cwd: primary, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
-      (error, stdout) => {
-        if (error !== null) {
-          resolve(undefined);
-          return;
-        }
-        const listed: string[] = [];
-        for (const block of stdout.split(/\n\n/u)) {
-          const path = /^worktree (.+)$/mu.exec(block)?.[1];
-          if (path !== undefined && !/^prunable\b/mu.test(block)) listed.push(path);
-        }
-        resolve(listed);
-      },
-    );
-  });
 }
 
 /** Whether anything under `path` was written after `since`. Stops at the first that was. */

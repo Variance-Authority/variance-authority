@@ -26,6 +26,7 @@ fn options(root: &Path, index: &Path) -> UpdateOptions {
         readable: extensions,
         stores: None,
         packs: Some(false),
+        others: None,
     }
 }
 

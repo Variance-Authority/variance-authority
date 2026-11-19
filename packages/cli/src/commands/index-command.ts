@@ -299,10 +299,12 @@ function mapped({ prepared }: PreparedCodeMap): string {
 function describe(update: SourceUpdate): string {
   const files = `${update.files} ${update.files === 1 ? 'file' : 'files'}`;
   const reread = `${update.reread} read again`;
+  // An index started from another checkout's names it, and what it read beyond it.
+  const from = update.from === undefined ? '' : ` from the one at ${update.from}`;
   switch (update.was) {
-    case 'missing': return `source index built: ${files}, at ${update.path}`;
-    case 'damaged': return `source index repaired: ${files}, ${reread}, at ${update.path}`;
-    case 'other-version': return `source index rebuilt over one written in format version ${String(update.written)}: ${files}, ${reread}, at ${update.path}`;
+    case 'missing': return from === '' ? `source index built: ${files}, at ${update.path}` : `source index built${from}: ${files}, ${reread}, at ${update.path}`;
+    case 'damaged': return `source index repaired${from}: ${files}, ${reread}, at ${update.path}`;
+    case 'other-version': return `source index rebuilt${from} over one written in format version ${String(update.written)}: ${files}, ${reread}, at ${update.path}`;
     case 'published': return `source index updated: ${files}, ${reread}, at ${update.path}`;
   }
 }

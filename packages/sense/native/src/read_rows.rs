@@ -34,7 +34,7 @@ impl Kind {
     }
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Binding {
     pub(crate) imported: String,
     pub(crate) local: String,
@@ -43,7 +43,7 @@ pub struct Binding {
     pub(crate) line: u32,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Request {
     pub value: String,
     pub kind: Kind,
@@ -63,7 +63,7 @@ pub struct Request {
     pub(crate) item: bool,
 }
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Export {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) exported: Option<String>,

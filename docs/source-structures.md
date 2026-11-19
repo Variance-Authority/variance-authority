@@ -56,11 +56,14 @@ the checkout path:
 <cache>/test-selection/<checkout>/source-index.bin
 ```
 
-Deleting the index and its `source-index.bin.segments/` directory, then running
-`variance index`, is how you force the first row deliberately. A git worktree
-has a directory of its own there, so it gets an index of its own. Its
-first update builds that index from nothing: it reads every file and parses
-only the ones the cache's parse store, shared by the checkouts, does not hold.
+Deleting the index and its `source-index.bin.segments/` directory in every
+checkout of the repository, then running `variance index`, is how you force the
+first row deliberately. A git worktree has a directory of its own there, so it
+gets an index of its own. Its first update, like an update of an index that is
+damaged or another release wrote, starts from another checkout's index and reads
+only the files that differ from it. With no index in any checkout, it reads
+every file and parses only the ones the cache's parse store, shared by the
+checkouts, does not hold.
 
 ## What a change rebuilds
 

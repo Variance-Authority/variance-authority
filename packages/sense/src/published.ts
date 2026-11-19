@@ -20,7 +20,7 @@
 // compass: variance-authority.reach.source-index
 
 import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, relative, resolve } from 'node:path';
 import type { FileRecord, Uses } from '@variance-authority/core/relate';
 import type { Digest } from '@variance-authority/core/format';
 import { codeUnitOrder } from '@variance-authority/core/segment';
@@ -32,7 +32,8 @@ import { placesOf, type Progress } from './progress.js';
 import { sourceIndexPath } from './source-index.js';
 import { updateNatively } from './native-update.js';
 import { parseStoresFor } from './parse-store.js';
-import { markCheckout } from './test-selection/cache-layers.js';
+import { listWorktrees, markCheckout } from './test-selection/cache-layers.js';
+import { repositoryRoot } from './test-selection/repository-root.js';
 import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
 import { SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { usesOf } from './uses.js';
@@ -132,6 +133,8 @@ export interface SourceUpdate {
   readonly was: SourceIndexState;
   /** The format version the index was written in, when `was` is `other-version`. */
   readonly written?: number;
+  /** The index of another checkout this one started from, when it had none to stand on. */
+  readonly from?: string;
   /**
    * What the file system refused when this update wrote the index. Present only
    * then: the counts describe the scan, and the index on disk is what it was.
@@ -181,15 +184,23 @@ export async function updateSourceIndex(
   const missing = !existsSync(path);
   // An index kept in the checkout's own cache, its own or one beside it, reads the cache's parse store before it opens a file.
   // Asked now, answered while git lists: every route below awaits it.
-  const asked = dirname(path) === dirname(sourceIndexPath(where)) ? parseStoresFor(where) : undefined;
+  const cached = dirname(path) === dirname(sourceIndexPath(where));
+  const asked = cached ? parseStoresFor(where) : undefined;
   asked?.catch(() => undefined);
-  const everything = `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
-  const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, missing ? everything : undefined, options.packs);
+  // A checkout with none to stand on — missing, damaged, another release's — starts from another checkout's, and reads what differs from it.
+  // Asked while the tree is listed, as the stores are: only the addon knows whether this checkout's own chain stands.
+  // A missing index waits for the answer before the listing, to say what it will read; only the addon knows whether one fits.
+  const beside = cached ? indexesBeside(where, basename(path)) : undefined;
+  const reading = !missing ? undefined : (await beside ?? []).length > 0
+    ? `reading the files of ${placesOf(where, dirs)} that differ from another checkout's index, or every file if none of theirs fits`
+    : `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
+  const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, reading, options.packs, beside);
   if (options.index === undefined) markCheckout(realPath(where));
   return {
     path,
     was: missing ? 'missing' : natively.rebuilt ?? 'published',
     ...(natively.written === undefined ? {} : { written: natively.written }),
+    ...(natively.from === undefined ? {} : { from: natively.from }),
     ...(natively.refused === undefined ? {} : { refused: natively.refused }),
     files: natively.files,
     reread: natively.reread,
@@ -197,6 +208,18 @@ export async function updateSourceIndex(
     readStartedAt,
     ...(natively.listing === undefined ? {} : { listing: natively.listing }),
   };
+}
+
+/** The index named `name` as every other checkout of the repository keeps it for `where`, the primary first, where one does. */
+async function indexesBeside(where: string, name: string): Promise<readonly string[]> {
+  const repository = repositoryRoot(where);
+  const here = realPath(repository);
+  const inside = relative(repository, where);
+  const listed = await listWorktrees(repository) ?? [];
+  return listed
+    .filter((checkout) => realPath(checkout) !== here)
+    .map((checkout) => resolve(dirname(sourceIndexPath(resolve(checkout, inside))), name))
+    .filter((index) => existsSync(index));
 }
 
 /** The refusal a reader gives in CI when the index it reads was never published. */

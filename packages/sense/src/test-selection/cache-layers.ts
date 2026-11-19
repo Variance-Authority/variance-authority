@@ -42,6 +42,7 @@
 
 // compass: variance-authority.reach
 
+import { execFile } from 'node:child_process';
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
@@ -414,4 +415,27 @@ function readPrimary(here: string): string {
   return basename(worktrees) === 'worktrees' && basename(dirname(worktrees)) === '.git'
     ? dirname(dirname(worktrees))
     : here;
+}
+
+/** The worktrees git lists for `primary`, the primary first, less the ones git itself calls prunable. */
+export function listWorktrees(primary: string): Promise<readonly string[] | undefined> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['worktree', 'list', '--porcelain'],
+      { cwd: primary, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' } },
+      (error, stdout) => {
+        if (error !== null) {
+          resolve(undefined);
+          return;
+        }
+        const listed: string[] = [];
+        for (const block of stdout.split(/\n\n/u)) {
+          const path = /^worktree (.+)$/mu.exec(block)?.[1];
+          if (path !== undefined && !/^prunable\b/mu.test(block)) listed.push(path);
+        }
+        resolve(listed);
+      },
+    );
+  });
 }
