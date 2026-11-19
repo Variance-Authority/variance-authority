@@ -40,6 +40,7 @@ export const REPEATABLE: Readonly<Record<string, ReadonlySet<string>>> = {
   coverage: new Set(['--session']),
   covering: new Set(['--read', '--where']),
   story: new Set(['--name']),
+  layers: new Set(['--package']),
 };
 
 /**

@@ -143,7 +143,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   changelog: ['--component', '--subject', '--limit', '--since'],
   journeys: ['--all', '--file', '--limit', '--into', '--suite', '--format'],
   coverage: ['--against', '--suite', '--from', '--packages', '--at-distance', '--fan-in', '--session', '--served', '--root', '--format'],
-  layers: ['--against', '--root', '--format'],
+  layers: ['--against', '--package', '--root', '--format'],
   restrictions: ['--root', '--format'],
   review: ['--coverage', '--fail-on-uncovered', '--fail-on-lost', '--since', '--against', '--suite', '--out', '--from-run', '--artifact', '--root', '--format'],
   push: ['--run', '--commit', '--branch'],
@@ -166,7 +166,7 @@ export const USAGE = [
   'variance reach   --since <ref> [--format plain|json] [--whole-files] [--no-git]',
   'variance covering --file <path> [--line <n>|<a>-<b>] [--function <name>] [--at-distance <hops>] [--in-package] [--hops] [--text <path>|-] | --since <ref> [--against <record>] [--cases last|<test file>] [--where <name>[=<value>]]... [--read <name>[=<value>]]... [--execution <path> | --suite <name>] [--root <path>] [--format text|refs|json]',
   'variance coverage [--suite <name> [--against <record>]] [--from <dir> | --packages] [--at-distance <hops>] [--fan-in] [--session <name>=<path>]... [--served <dir>] [--root <path>] [--format text|markdown|json|badge]',
-  'variance layers  [--against <index>] [--root <path>] [--format text|markdown|json]',
+  'variance layers  [--against <index>] [--package <name>]... [--root <path>] [--format text|markdown|json]',
   'variance restrictions [--root <path>] [--format text|json]',
   'variance review  [--since <ref>] [--against <record>] [--suite <name>] [--coverage] [--fail-on-uncovered] [--fail-on-lost] [--out <dir>] | --from-run <run id or URL> [--artifact <name>] [--root <path>] [--format text|markdown|json|handover]',
   'variance report  [--config <path>] [--format text|json|html [--embed-images]] [--subject <id>] [--exit-zero-on-changes] [<report>...]',
@@ -263,6 +263,9 @@ export function helpFor(command: (typeof COMMANDS)[number]): string {
   return [
     synopsisFor(command),
     '',
+    ...(command === 'layers'
+      ? ['Repeat --package to select entry packages and all their repository dependencies (installed packages excluded). Omit it for all packages. Cannot combine with --against.']
+      : []),
     ...(flags.includes('--no-git')
       ? ['--no-git: read file contents from the working tree, not Git\'s object store; the index is the same.']
       : []),

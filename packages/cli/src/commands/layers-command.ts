@@ -40,6 +40,7 @@ import {
 import { readTiers } from '../config-declared.js';
 import { OperatorError } from '../exit.js';
 import type { ParsedLayers } from '../layers-args.js';
+import { layersFrom, type LayerScope } from './layers-scope.js';
 
 /** First line of the markdown answer, which the poster finds the previous comment by. */
 export const LAYERS_MARKER = '<!-- variance-authority:layers -->';
@@ -189,7 +190,7 @@ function placed(entry: PackageLayer, tiers: Tiers | undefined): string {
 }
 
 /** Every package's layer, lowest first, then by name in code-unit order. */
-function listing(packages: readonly PackageLayer[], tiers: Tiers | undefined, format: ParsedLayers['format']): string {
+function listing(packages: readonly PackageLayer[], tiers: Tiers | undefined, format: ParsedLayers['format'], scope?: LayerScope): string {
   const sorted = [...packages].sort((a, b) => a.layer - b.layer || (a.package < b.package ? -1 : a.package > b.package ? 1 : 0));
   if (format === 'json') {
     const entries = sorted.map((entry) => ({
@@ -197,16 +198,23 @@ function listing(packages: readonly PackageLayer[], tiers: Tiers | undefined, fo
       layer: entry.layer,
       ...(tiers === undefined ? {} : { ...tierOf(tiers, entry), lines: entry.lines, files: entry.files, unsizedFiles: entry.unsizedFiles, undeclared: entry.undeclared }),
     }));
-    return `${JSON.stringify({ packages: entries })}\n`;
+    return `${JSON.stringify({ ...(scope === undefined ? {} : { scope }), packages: entries })}\n`;
   }
   const lines = sorted.map((entry) => `${entry.layer} ${entry.package}${placed(entry, tiers)}`);
   const note = tiers === undefined ? [] : ['', UNCOUNTED, ...undeclared(sorted)];
-  return format === 'markdown' ? `${[...lines.map((line) => `- ${line}`), ...note].join('\n')}\n` : `${[...lines, ...note].join('\n')}\n`;
+  const heading = scope === undefined ? [] : [
+    `${plural(scope.packageCount, 'repository package')} in ${plural(scope.layerCount, 'dependency layer')} from ${scope.roots.join(', ')} (dependencies included; installed packages excluded).`, '',
+  ];
+  return format === 'markdown' ? `${[...heading, ...lines.map((line) => `- ${line}`), ...note].join('\n')}\n` : `${[...heading, ...lines, ...note].join('\n')}\n`;
 }
 
 export function layersOutput(request: ParsedLayers): string {
   const head = read(request.root, undefined, "checkout's");
   const tiers = readTiers(request.root);
+  if (request.roots !== undefined) {
+    const selected = layersFrom(head, request.roots);
+    return listing(selected.packages, tiers, request.format, selected.scope);
+  }
   if (request.against === undefined) return listing(head, tiers, request.format);
   const base = read(request.root, request.against, 'base');
   const moves = layerMoves(base, head);
