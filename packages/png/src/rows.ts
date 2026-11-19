@@ -82,7 +82,7 @@ export function pairWords(
     const copied = (y < head && from === y) || (y >= afterHeight - tail && from === y - lift);
     costs[y] = from < 0 ? width : copied ? 0 : cost(from, y);
   }
-  const rows = inPlace(straddled(initial, was, now, beforeHeight, width, cost, costs), was, now, beforeHeight, width, cost, costs);
+  const rows = inPlace(straddled(initial, was, now, beforeHeight, width, cost, costs), was, now, width, cost, costs);
 
   let paired = 0;
   for (let y = head; y < afterHeight; y += 1) paired += costs[y]!;

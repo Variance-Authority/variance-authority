@@ -8,8 +8,8 @@ import { colorDelta } from './judge.js';
  * A band repainted by a level, a header shaded row by row and drawn one shade
  * lighter, makes each after row a copy of the before row under it. The edit
  * pairs the band one row off, and an insertion elsewhere on the page outweighs
- * that, so the band is marked as moved and every row of it as changed. A run
- * whose move the rows above and below it do not share is a detour: paired at
+ * that, so the band is marked as moved and every row of it as changed. A run of
+ * one move whose neighbours above and below share another is a detour: paired at
  * their move instead, it is kept there when what it leaves differing under
  * {@link DEFAULT_POLICY}, an unpaired row its width, is less than the detour
  * leaves. The alignment is one for every policy, and the default is the one a
@@ -19,7 +19,6 @@ export function inPlace(
   rows: PairedRows,
   was: Uint32Array,
   now: Uint32Array,
-  beforeHeight: number,
   width: number,
   cost: (beforeRow: number, afterRow: number) => number,
   costs: Int32Array,
@@ -36,64 +35,65 @@ export function inPlace(
     let count = 0;
     for (let x = 0; x < width; x += 1) {
       if (was[beforeRow * width + x] === now[afterRow * width + x]) continue;
-      if (Math.abs(colorDelta(first, second, x * 4, afterRow * width * 4 + x * 4)) > limit) count += 1;
+      if (Math.abs(colorDelta(first, second, x * 4, afterRow * width + x)) > limit) count += 1;
     }
     return count;
   };
 
-  let { inserted, removed, shifted, grown, shrunk } = rows;
+  let { inserted, removed, grown, shrunk } = rows;
   let changed = false;
-  for (const { from, to, by } of rows.shifted) {
-    if (!source.subarray(from, to).some((_, row) => moveOf(from + row) === by)) continue;
-    // The nearest paired rows above and below that move otherwise.
-    let top = from - 1;
+  for (let y = 0; y < height; ) {
+    if (source[y]! < 0) {
+      y += 1;
+      continue;
+    }
+    // The run of one move, and the nearest paired rows above and below it that move otherwise.
+    const by = moveOf(y);
+    let top = y - 1;
     while (top >= 0 && (source[top]! < 0 || moveOf(top) === by)) top -= 1;
-    let bottom = to;
+    let bottom = y + 1;
     while (bottom < height && (source[bottom]! < 0 || moveOf(bottom) === by)) bottom += 1;
+    y = bottom;
     // A move that runs to an edge of the page is not a detour: nothing returns.
-    if (top < 0 || bottom >= height) continue;
+    if (top < 0 || bottom >= height || moveOf(top) !== moveOf(bottom)) continue;
     const move = moveOf(top);
-    if (moveOf(bottom) !== move) continue;
     const first = top + 1;
-    const end = bottom;
-    if (first - move < 0 || end - move > beforeHeight) continue;
 
-    const used = new Uint8Array(end - first);
+    const used = new Uint8Array(bottom - first);
     let detour = 0;
-    for (let y = first; y < end; y += 1) {
-      const from = source[y]!;
+    for (let row = first; row < bottom; row += 1) {
+      const from = source[row]!;
       if (from < 0) {
         detour += width;
         continue;
       }
-      detour += forgiven(from, y);
-      if (from >= first - move && from < end - move) used[from - first + move] = 1;
+      detour += forgiven(from, row);
+      if (from >= first - move && from < bottom - move) used[from - first + move] = 1;
     }
     for (const mark of used) if (mark === 0) detour += width;
     let placed = 0;
-    for (let y = first; y < end && placed < detour; y += 1) placed += forgiven(y - move, y);
+    for (let row = first; row < bottom && placed < detour; row += 1) placed += forgiven(row - move, row);
     if (placed >= detour) continue;
 
-    for (let y = first; y < end; y += 1) {
-      source[y] = y - move;
-      costs[y] = cost(y - move, y);
+    for (let row = first; row < bottom; row += 1) {
+      source[row] = row - move;
+      costs[row] = cost(row - move, row);
     }
-    const outside = (span: RowSpan, low: number): boolean => span.to <= low || span.from >= low + end - first;
+    const outside = (span: RowSpan, low: number): boolean => span.to <= low || span.from >= low + bottom - first;
     inserted = inserted.filter((span) => outside(span, first));
     grown = grown.filter((span) => outside(span, first));
     removed = removed.filter((span) => outside(span, first - move));
     shrunk = shrunk.filter((span) => outside(span, first - move));
-    shifted = [...shifted.filter((span) => outside(span, first)), ...(move === 0 ? [] : [{ from: first, to: end, by: move }])];
     changed = true;
   }
   if (!changed) return rows;
 
-  // Spans that now touch at the same move are one.
-  const merged: { from: number; to: number; by: number }[] = [];
-  for (const span of [...shifted].sort((left, right) => left.from - right.from)) {
-    const last = merged.at(-1);
-    if (last !== undefined && last.to === span.from && last.by === span.by) last.to = span.to;
-    else merged.push({ ...span });
+  const shifted: { from: number; to: number; by: number }[] = [];
+  for (let y = 0; y < height; y += 1) {
+    if (source[y]! < 0 || moveOf(y) === 0) continue;
+    const last = shifted.at(-1);
+    if (last !== undefined && last.to === y && last.by === moveOf(y)) last.to = y + 1;
+    else shifted.push({ from: y, to: y + 1, by: moveOf(y) });
   }
-  return { source, inserted, removed, shifted: merged, grown, shrunk };
+  return { source, inserted, removed, shifted, grown, shrunk };
 }
