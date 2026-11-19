@@ -102,8 +102,11 @@ export async function compareRasters(
   );
 
   return timeOn(options.steps, 'compare', () => {
+    // The mask is drawn under the listed policy with the isolating id, as `judged` reads it;
+    // one missing is the judge's to refuse.
     const isolateWith = options.isolateWith ?? DEFAULT_POLICY;
-    const aligned = alignRows(left, right, ALIGNMENT_LIMIT, isolateWith.threshold) ?? null;
+    const drawn = (options.policies ?? DEFAULT_POLICIES).find((policy) => policy.id === isolateWith.id) ?? isolateWith;
+    const aligned = alignRows(left, right, ALIGNMENT_LIMIT, drawn.threshold) ?? null;
     options.keep?.({ before: left, after: right, aligned });
     return judged(left, right, options, aligned);
   });

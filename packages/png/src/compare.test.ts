@@ -184,4 +184,25 @@ describe('the pixels a comparison hands on', () => {
     expect(reused.diff.equals(own.diff)).toBe(true);
     expect(reused.change?.equals(own.change!)).toBe(true);
   });
+
+  it('pairs under the policy the compared list names, not the default it shares an id with', async () => {
+    // A header shaded row by row and drawn one level lighter, beside an
+    // insertion lower down: a threshold of 0 keeps its copies one row off, and
+    // the default's 0.01 pairs it in place, so the two thresholds pair it apart.
+    // Content rows far apart in colour; the band's rows one level apart.
+    const [a, b, c, d, e, f, g, x, y] = [1, 2, 3, 4, 5, 6, 7, 10, 11].map((k) => k * 0x1000);
+    const band = (from: number) => Array.from({ length: 10 }, (_, k) => from + k);
+    const rows = [a, b, c, ...band(200), d, e, f, g];
+    const shaded = [a, b, c, ...band(201), d, e, x, y, f, g];
+    const paint = (values: readonly number[]) =>
+      png(4, values.length, (_, row) => [values[row]! & 0xff, (values[row]! >>> 8) & 0xff, 0x80]);
+    const exact = { ...DEFAULT_POLICY, threshold: 0 };
+    const options = { policies: [exact, STRICT_POLICY] };
+    const banded = (values: readonly number[]) => ({ bytes: paint(values).toString('base64'), width: 4, height: values.length }) as Raster;
+
+    const decoded = await compareRasters(banded(rows), banded(shaded), options);
+    const direct = comparePngs(paint(rows), paint(shaded), options);
+
+    expect(decoded.alignment).toEqual(direct.alignment);
+  });
 });
