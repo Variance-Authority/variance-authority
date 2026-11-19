@@ -4,13 +4,14 @@
 //! A record is read into owned values rather than viewed in place: it is a
 //! handful of short lists, `RecordColumns` already takes it in that shape, and
 //! a second row trait for it would be a second layout to keep in step. A list
-//! the row marks absent is absent, as `decodeSourceIndex` reads it.
+//! the row marks absent is absent, as the reader reads it.
 
 // compass: variance-authority.reach.source-index
 
 use crate::record::{Edge, FileRecord, Indexed};
 use crate::stored::{same_length, Stored, U32s};
 
+use super::check::{held, maybe};
 use super::flag;
 
 pub(crate) struct Records<'a> {
@@ -121,6 +122,34 @@ impl<'a> Records<'a> {
     /// Why the file at `row` could not be read, when it could not.
     pub fn unknown_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> Option<&'s str> {
         stored.optional(self.unknown.at(row))
+    }
+
+    /// Whether every record reads: every id it names is one the dictionary
+    /// holds, absent where the column allows it, checked a column at a time by
+    /// [`super::check`]. A list a row marks absent is checked all the same.
+    pub fn check(&self, stored: &Stored<'a>) -> Result<(), String> {
+        for (column, what) in [
+            (self.edge_to, "edge targets"),
+            (self.edge_kind, "edge kinds"),
+            (self.declare_name, "record declarations"),
+            (self.unresolved_value, "unresolved requests"),
+            (self.witness_directory, "witnesses"),
+            (self.package_to, "package targets"),
+            (self.package_kind, "package kinds"),
+        ] {
+            held(stored, column, what)?;
+        }
+        for (column, what) in [(self.digest, "record digests"), (self.unknown, "record unknowns"), (self.target_path, "targets")] {
+            maybe(stored, column, what)?;
+        }
+        // A package is named as `package_of` names it: anything else is a column read through the wrong dictionary.
+        let none = std::collections::HashSet::new();
+        let mut named = true;
+        for at in 0..self.package_to.len() {
+            let to = stored.text(self.package_to.at(at));
+            named &= crate::specifier::package_of(to, &none) == Some(to);
+        }
+        super::check::need(named, "package targets")
     }
 
     /// The record at `row`, its absent lists absent.

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { openImmutableLog } from './immutable-log.js';
-import { decodeSourceIndex } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import { updateNatively } from './native-update.js';
 import { readySourceIndex } from './ready-index.js';
@@ -141,7 +141,7 @@ describe('the native warm update', () => {
     git('checkout', '--', 'lib/unit.ts');
     await updateNatively(root, start);
     expect(await chain(start)).toEqual({ segments: base + 1, working: 1 });
-    const working = decodeSourceIndex((await openImmutableLog(start)).segments.at(-1)!);
+    const working = readSourceIndexSegment((await openImmutableLog(start)).segments.at(-1)!);
     expect([...working.records.keys()]).toEqual([]);
     // Its parse too: the base already holds the same harvested parse under that key.
     expect([...working.parses.keys()]).toEqual([]);

@@ -292,9 +292,6 @@ directory, `node_modules/.cache/variance-authority` unless your repository names
       variance-index-${{ runner.os }}-${{ runner.arch }}-
 ```
 
-**Do not move an index between hosts of different endianness.** See
-[the bytes](#the-bytes) for what the reader does with one that arrives anyway.
-
 ## How large it gets
 
 Measured on public checkouts, as the bytes on disk after a full scan:
@@ -409,30 +406,21 @@ an offset range cannot distinguish a fact that is absent from a list that is
 known to be empty.
 
 Rows are sorted and the dictionary is sorted, so two logically equal segments
-encode to equal bytes. The reader rejects duplicate section names, overlapping
-or out-of-bounds sections, invalid widths, unaligned offsets, malformed column
-lengths and invalid references.
+encode to equal bytes. The reader checks a segment whole when
+it opens it, before any row is read: it rejects duplicate section names,
+overlapping or out-of-bounds sections, invalid widths, unaligned offsets,
+malformed column lengths, a text heap that is not UTF-8, a dictionary out of
+code-unit order, keys that do not ascend, a key the segment both puts and deletes, a package column that names
+anything but a package, and any row that names a string, a text or a request the segment does
+not hold. A segment it rejects ends the chain there: the index is damaged, and
+`variance index` rebuilds it.
 
 ### Byte order
 
-The two length prefixes above are written little-endian explicitly and parse the
-same way on any host. The four-byte data columns are not: they are written as
-the writing host's native words and read as the reading host's, and nothing in
-the file records which order that was. So a byte-order mismatch is not
-detected as such.
-
-What an index written on the other endianness meets instead is the validation
-every read performs before it believes a column. An offset column must begin at
-zero, end exactly at the length of the data it points into, and never run
-backwards; every string id must land inside the dictionary; every reference must
-name a row that exists. A byte-swapped column fails that on its first non-zero
-value, and the chain is rejected whole — the reader reports no index and the
-scan runs cold.
-
-That outcome is a consequence of bounds checking rather than a check for byte
-order, so treat an index as belonging to the architecture that wrote it. Where a
-cache is shared across runners, key it by the runner architecture along with the
-operating system.
+Every number in the file is little-endian: the length prefixes above and every
+four-byte data column alike, written with Rust's `to_le_bytes` and read with
+`from_le_bytes`. An index reads the same on any host, whatever order that
+host's own words take.
 
 ---
 

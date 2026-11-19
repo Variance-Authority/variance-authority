@@ -2,21 +2,19 @@
  * The names the published source index gives a few files' texts, read without
  * opening the rest of it.
  *
- * A reader that asks what one file's text is called needs one string per layer,
- * and a whole read ({@link readPublishedSources}) decodes every parse and every
- * record to give it. This reads the record columns of each segment and keeps
- * the rows of the asked files; the chain is cut where a whole read cuts it, so
- * both say the same thing about the same files.
+ * A reader that asks what one file's text is called needs one string per file,
+ * and a whole read ({@link readPublishedSources}) offers every parse and every
+ * record. This opens the chain as a whole read does and asks it the asked files'
+ * records alone, so both say the same thing about the same files.
  */
 
 // compass: variance-authority.reach.source-index
 
-import { OtherSegmentVersion } from '@variance-authority/core/segment';
 import type { Digest } from '@variance-authority/core/format';
 import { BadLogPath, openImmutableLog, type ImmutableLog } from './immutable-log.js';
 import { publishedThrough, type PublishedSourcesOptions } from './published.js';
 import type { SourceIndexState } from './source-index-file.js';
-import { recordNamesOf, type RecordNames } from './source-index-format.js';
+import { readSourceIndexChain } from './source-index-reader.js';
 
 /** The names one published generation gives the asked files' texts. */
 export interface PublishedNames {
@@ -42,28 +40,20 @@ export async function readPublishedNames(path: string, files: Iterable<string>):
     if (error instanceof BadLogPath) throw error;
     return { path, state: 'damaged', names: new Map() };
   }
-  // Newest first, as a whole read decodes: a segment that does not read ends the
-  // chain there, and what was read above it is dropped.
-  let layers: RecordNames[] = [];
-  let written: number | undefined;
-  for (let at = log.segments.length - 1; at >= 0; at -= 1) {
-    try {
-      layers.unshift(recordNamesOf(log.segments[at]!, asked));
-    } catch (error) {
-      written = error instanceof OtherSegmentVersion ? error.written : undefined;
-      layers = [];
-    }
-  }
-  const kept = log.keep(layers.length);
+  // The chain is cut where a whole read cuts it, and only the asked files' rows
+  // are decoded.
+  const { kept: read, written, stored, close } = readSourceIndexChain(log.segments);
+  const kept = log.keep(read);
   const names = new Map<string, Digest>();
-  const decided = new Set<string>();
-  for (const layer of [...layers].reverse()) {
-    for (const [file, digest] of layer.puts) {
-      if (decided.has(file)) continue;
-      decided.add(file);
+  try {
+    for (const file of asked) {
+      const digest = stored.records.get(file)?.record.digest;
       if (digest !== undefined) names.set(file, digest);
     }
-    for (const file of layer.deletes) decided.add(file);
+  } finally {
+    // Nothing is asked after this, and a caller asking per file would otherwise
+    // hold each chain until the reader is collected.
+    close();
   }
   return {
     path,
