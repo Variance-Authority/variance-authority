@@ -190,7 +190,8 @@ changes in files that exist on both sides; a test the change added or deleted
 is not a `--file`. Read each failure: the change broke
 the behaviour it pinned, or the rewrite was the change's point and belongs in the
 pull request's body. A run that names files it was served and never read did not
-run the base; run those tests by name.
+run the base; run those tests by name. Under Rstest every run is one: it reads
+test files through Rspack, which janus does not serve yet.
 
 ## The pull request's review: act on every mark
 

@@ -5236,6 +5236,7 @@ __metadata:
   resolution: "@variance-authority/cli@workspace:packages/cli"
   dependencies:
     "@playwright/test": "npm:^1.64.1"
+    "@rstest/core": "npm:^0.12.6"
     "@variance-authority/core": "workspace:^"
     "@variance-authority/distill": "workspace:^"
     "@variance-authority/eyes": "workspace:^"

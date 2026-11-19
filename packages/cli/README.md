@@ -2713,6 +2713,10 @@ cannot have run that file's base, so it fails and names the files: a runner
 reading them below `fs` and the module loader, or a command that runs fewer
 tests than were named.
 
+Jest, Vitest, Playwright Test and `node:test` read test files through Node, and
+run the rolled-back text. Rstest does not yet: it compiles test files through
+Rspack, which reads them itself, so every run under it fails as unread.
+
 A runner that caches transformed files by path and modification time can answer
 from the head's cache entry: run it with its cache off.
 

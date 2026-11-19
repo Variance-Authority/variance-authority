@@ -13,6 +13,20 @@ const git = (root: string, ...args: string[]) => execFileSync('git', args, { cwd
 /** Every tracked and untracked file's content, so a run that wrote the checkout shows. */
 const snapshot = (root: string) => git(root, 'ls-files', '-co', '--exclude-standard').split('\n').map((file) => `${file}\n${readFileSync(join(root, file), 'utf8')}`);
 
+/** Run `body` with `vars` in the environment, which the command janus starts inherits. */
+async function withEnv<T>(vars: Record<string, string>, body: () => Promise<T>): Promise<T> {
+  const before = Object.fromEntries(Object.keys(vars).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, vars);
+  try {
+    return await body();
+  } finally {
+    for (const [key, value] of Object.entries(before)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
 const nodeTest = (out: string, ...files: string[]) => [process.execPath, '--test', '--test-reporter=spec', `--test-reporter-destination=${out}`, ...files];
 
 /** `node:test` run on the files it is given, reporting to a file. */
@@ -152,6 +166,45 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
     const report = JSON.parse(readFileSync(out, 'utf8')) as { testResults: { assertionResults: { title: string; status: string }[] }[] };
     expect(report.testResults.flatMap((file) => file.assertionResults.map(({ title, status }) => `${status} ${title}`)).sort()).toEqual(['failed value is one']);
     expect(exit).not.toBe(0);
+  });
+
+  it('serves Playwright Test', async () => {
+    const playwright = dirname(createRequire(import.meta.url).resolve('@playwright/test/package.json'));
+    const spec = (value: string, expected: number) => `const { test, expect } = require('@playwright/test');\nconst { value } = require('./value');\ntest('value is ${value}', () => expect(value).toBe(${expected}));\n`;
+    mkdirSync(join(root, 'node_modules', '@playwright'), { recursive: true });
+    symlinkSync(playwright, join(root, 'node_modules', '@playwright', 'test'));
+    writeFileSync(join(root, 'package.json'), '{}\n');
+    writeFileSync(join(root, 'src', 'value.spec.js'), spec('one', 1));
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'base for playwright');
+    git(root, 'tag', '-f', 'base');
+    writeFileSync(join(root, 'src', 'value.spec.js'), spec('two', 2));
+    git(root, 'commit', '-qam', 'head for playwright');
+    const exit = await withEnv({ PLAYWRIGHT_JSON_OUTPUT_NAME: out }, () => janusOn(['src/value.spec.js'], process.execPath, join(playwright, 'cli.js'), 'test', 'src/value.spec.js', '--reporter=json'));
+    const report = JSON.parse(readFileSync(out, 'utf8')) as { suites: { specs: { title: string; ok: boolean }[] }[] };
+    expect(report.suites.flatMap((suite) => suite.specs.map(({ title, ok }) => `${ok ? 'passed' : 'failed'} ${title}`))).toEqual(['failed value is one']);
+    expect(notes.join('')).toBe('');
+    expect(exit).not.toBe(0);
+  });
+
+  it('fails every run under Rstest, which reads test files through Rspack, as unread', async () => {
+    const rstest = dirname(createRequire(import.meta.url).resolve('@rstest/core/package.json'));
+    const spec = (value: string, expected: number) => `import { expect, test } from '@rstest/core';\nimport { value } from './value';\ntest('value is ${value}', () => expect(value).toBe(${expected}));\n`;
+    mkdirSync(join(root, 'node_modules', '@rstest'), { recursive: true });
+    symlinkSync(rstest, join(root, 'node_modules', '@rstest', 'core'));
+    writeFileSync(join(root, 'package.json'), '{}\n');
+    writeFileSync(join(root, 'src', 'value.test.js'), spec('one', 1));
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'base for rstest');
+    git(root, 'tag', '-f', 'base');
+    writeFileSync(join(root, 'src', 'value.test.js'), spec('two', 2));
+    git(root, 'commit', '-qam', 'head for rstest');
+    const command = [join(rstest, 'bin', 'rstest.js'), 'run', '--root', root, '--reporter=dot', 'src/value.test.js'];
+    // The head's test passes, so the run's failure is janus's: the base was served and never read.
+    execFileSync(process.execPath, command, { cwd: root, stdio: 'ignore' });
+    const exit = await janus(process.execPath, ...command);
+    expect(notes.join('')).toContain('src/value.test.js');
+    expect(exit).toBe(1);
   });
 
   it('refuses a file the checkout does not hold, and one the base did not, as the operator\'s error', async () => {

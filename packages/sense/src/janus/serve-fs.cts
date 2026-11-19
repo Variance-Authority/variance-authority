@@ -15,6 +15,8 @@
  * ESM loader is one, and `serve-modules.mts` serves it.
  */
 
+// TODO: Rstest compiles test files through Rspack, which reads them below Node, so neither preload serves them and every run under it fails as unread.
+
 import fs = require('node:fs');
 import path = require('node:path');
 import url = require('node:url');
