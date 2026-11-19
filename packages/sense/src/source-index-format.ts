@@ -2,6 +2,8 @@ import {
   flagOf,
   NONE,
   openSegment,
+  OtherSegmentVersion,
+  SegmentCutShort,
   rangeOf,
   sameLength as sameLengthOf,
   stringReader as openStrings,
@@ -43,6 +45,22 @@ const VERSION = SOURCE_INDEX_VERSION;
 const WHAT = 'source index';
 /** Rows per document: a few megabytes of JSON, far under any string limit. */
 const ROWS = 4096;
+
+/**
+ * The format version a source index segment's first bytes name, or undefined
+ * when they are not a source index segment. Throws {@link SegmentCutShort} with
+ * the length that holds the header when `prefix` stops before it ends.
+ */
+export function sourceIndexVersionOf(prefix: Uint8Array): number | undefined {
+  try {
+    openSegment(FORMAT, VERSION, prefix, WHAT, { prefix: true });
+    return VERSION;
+  } catch (error) {
+    if (error instanceof OtherSegmentVersion) return error.written;
+    if (error instanceof SegmentCutShort) throw error;
+    return undefined;
+  }
+}
 
 /** A record, and the directories whose contents could still change its edges. */
 export interface IndexedRecord {

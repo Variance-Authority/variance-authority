@@ -47,6 +47,7 @@ import {
   type SourceUpdate,
 } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
+import { restoreFromMainline } from './source-index-share.js';
 import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
 
 export interface IndexRequest {
@@ -103,6 +104,7 @@ async function written(request: IndexRequest, alone: Alone): Promise<SourceUpdat
   const update = await turn(request, alone, () => updateSourceIndex(request.cwd, {
     ...(request.noGit ? { packs: false } : {}),
     ...(request.progress === undefined ? {} : { progress: request.progress }),
+    restore: restoreFromMainline,
   }));
   // A scan treats an unwritable cache as a cold next run. This step exists to
   // write it, so a refusal is the answer, and nothing after it has an index to read.
@@ -300,7 +302,8 @@ function describe(update: SourceUpdate): string {
   const files = `${update.files} ${update.files === 1 ? 'file' : 'files'}`;
   const reread = `${update.reread} read again`;
   // An index started from another checkout's names it, and what it read beyond it.
-  const from = update.from === undefined ? '' : ` from the one at ${update.from}`;
+  // An index fetched in place of another release's names whose it is.
+  const from = update.fetched !== undefined ? ` from the one fetched, ${update.fetched}` : update.from === undefined ? '' : ` from the one at ${update.from}`;
   switch (update.was) {
     case 'missing': return from === '' ? `source index built: ${files}, at ${update.path}` : `source index built${from}: ${files}, ${reread}, at ${update.path}`;
     case 'damaged': return `source index repaired${from}: ${files}, ${reread}, at ${update.path}`;

@@ -54,6 +54,14 @@ interface SharedFields {
 
   /** The remote that hosts the mainlines. Defaults to `origin`. */
   readonly remote?: string;
+
+  /**
+   * Whether a mainline's publish carries the source index beside the record,
+   * and a checkout whose index another release wrote fetches it rather than
+   * reading every file again. Off by default: one commit's index is the size of
+   * the parsed checkout, worth carrying where a cold build takes minutes.
+   */
+  readonly sourceIndex?: boolean;
 }
 
 export interface DirectoryShare extends SharedFields {
@@ -82,7 +90,7 @@ export interface GitShare extends SharedFields {
   readonly namespace?: string;
 }
 
-const COMMON = ['kind', 'mainlines', 'remote'];
+const COMMON = ['kind', 'mainlines', 'remote', 'sourceIndex'];
 
 export function parseShare(value: unknown, options: ParseOptions): ShareConfig {
   const kind = kindOf(value, 'share', ['directory', 'http', 'git'], options);
@@ -93,9 +101,12 @@ export function parseShare(value: unknown, options: ParseOptions): ShareConfig {
       fail('share.mainlines', 'must name at least one branch; leave it out to let git answer', options);
     }
     const remote = optionalText(source, 'remote', options, 'share.remote');
+    const sourceIndex = source['sourceIndex'];
+    if (sourceIndex !== undefined && typeof sourceIndex !== 'boolean') fail('share.sourceIndex', 'must be true or false', options);
     return {
       ...(mainlines !== undefined ? { mainlines } : {}),
       ...(remote !== undefined ? { remote } : {}),
+      ...(sourceIndex === true ? { sourceIndex } : {}),
     };
   };
 

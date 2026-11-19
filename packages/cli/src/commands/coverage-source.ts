@@ -52,6 +52,7 @@ import type { FileSize, SourceScope } from '@variance-authority/sense';
 import { beforeReach, relationsOfFiles, type FileRecord } from '@variance-authority/core/relate';
 import { messageOf } from '../config-values.js';
 import { OperatorError } from '../exit.js';
+import { restoreFromMainline } from './source-index-share.js';
 
 /** Files in scope that no suite recorded, added up, and each one. */
 export interface Unloaded {
@@ -133,6 +134,7 @@ export async function readSource(root: string, from: string | undefined, package
       ci: isCI,
       step: 'variance index',
       announce: (line) => process.stderr.write(`variance: ${line}\n`),
+      restore: restoreFromMainline,
     });
   } catch (error) {
     // The ratio over what the suites loaded is still true without the index.

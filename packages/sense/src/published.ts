@@ -124,6 +124,23 @@ export interface SourceUpdateOptions {
    * them: what they hold and what it reaches. The whole of `root` when absent.
    */
   readonly dirs?: readonly string[];
+  /**
+   * Puts an index somebody else built at `path` when the one there is another
+   * release's, and says whose it put, or nothing. Asked as the update starts and
+   * awaited only as the addon starts, so it runs while the checkout is listed.
+   */
+  readonly restore?: SourceRestore;
+}
+
+/** {@link SourceUpdateOptions.restore}: what it put at `path`, or undefined when it put nothing. */
+export type SourceRestore = (root: string, path: string) => Promise<SourceRestored | undefined>;
+
+/** An index put in place of one another release wrote. */
+export interface SourceRestored {
+  /** The format version the replaced index was written in. */
+  readonly written: number;
+  /** Whose index it is, as a reader is told: the mainline and the commit it was built at. */
+  readonly fetched: string;
 }
 
 /** What one update read and what it published. */
@@ -135,6 +152,8 @@ export interface SourceUpdate {
   readonly written?: number;
   /** The index of another checkout this one started from, when it had none to stand on. */
   readonly from?: string;
+  /** Whose index this update started from, fetched in place of one another release wrote. */
+  readonly fetched?: string;
   /**
    * What the file system refused when this update wrote the index. Present only
    * then: the counts describe the scan, and the index on disk is what it was.
@@ -182,6 +201,8 @@ export async function updateSourceIndex(
   // The addon answers from the chain in place, and rebuilds one it cannot stand on.
   const dirs = options.dirs ?? ['.'];
   const missing = !existsSync(path);
+  // Started first: a fetch is the slowest thing an update can wait on, and the listing does not need it.
+  const restoring = options.restore?.(where, path).catch(() => undefined);
   // An index kept in the checkout's own cache, its own or one beside it, reads the cache's parse store before it opens a file.
   // Asked now, answered while git lists: every route below awaits it.
   const cached = dirname(path) === dirname(sourceIndexPath(where));
@@ -194,12 +215,17 @@ export async function updateSourceIndex(
   const reading = !missing ? undefined : (await beside ?? []).length > 0
     ? `reading the files of ${placesOf(where, dirs)} that differ from another checkout's index, or every file if none of theirs fits`
     : `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
-  const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, reading, options.packs, beside);
+  // The addon opens the chain only once the restore has placed it, or declined to.
+  const others = restoring === undefined ? beside : restoring.then(async () => await beside ?? []);
+  const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, reading, options.packs, others);
+  const restored = await restoring;
   if (options.index === undefined) markCheckout(realPath(where));
+  const written = restored?.written ?? natively.written;
   return {
     path,
-    was: missing ? 'missing' : natively.rebuilt ?? 'published',
-    ...(natively.written === undefined ? {} : { written: natively.written }),
+    was: missing ? 'missing' : restored === undefined ? natively.rebuilt ?? 'published' : 'other-version',
+    ...(written === undefined ? {} : { written }),
+    ...(restored === undefined ? {} : { fetched: restored.fetched }),
     ...(natively.from === undefined ? {} : { from: natively.from }),
     ...(natively.refused === undefined ? {} : { refused: natively.refused }),
     files: natively.files,
@@ -238,6 +264,8 @@ export interface PublishedSourcesOptions {
   readonly index?: string;
   /** How a local update reads bytes, as {@link SourceUpdateOptions} takes it. */
   readonly packs?: boolean;
+  /** What a local update starts from when the index is another release's, as {@link SourceUpdateOptions} takes it. */
+  readonly restore?: SourceRestore;
 }
 
 /**
@@ -286,6 +314,7 @@ export async function publishedThrough<Read extends { readonly state: SourceInde
   await updateSourceIndex(root, {
     index: path,
     ...(options.packs === undefined ? {} : { packs: options.packs }),
+    ...(options.restore === undefined ? {} : { restore: options.restore }),
   });
   return read(path);
 }

@@ -27,6 +27,7 @@ import { OperatorError } from '../exit.js';
 import { distanceFrom, keepsByCommit, type Env } from '../share-lines.js';
 import { executionIndexOf } from './execution-input.js';
 import { selectMainline, type MainlineSelection } from './mainline-selected.js';
+import { startSourceIndexFetch } from './source-index-share.js';
 import { CACHE_PRUNE_REASONS, checkoutOwners, pruneCacheWhenDue } from './prune-cache.js';
 import { describeDistance, describeMiss, mainlineSuite } from './share.js';
 import type { MainlineMiss } from './mainline-entry.js';
@@ -207,6 +208,8 @@ async function readMainline(root: string, suite: string, chosen: MainlineSelecti
 
   const asked = new Date(now).toISOString();
   const at = named === undefined ? {} : { mainline: named.name, ...(named.base === undefined ? {} : { base: named.base }) };
+  // Not awaited: the record is what this read waits on, and the index update that wants the fetch takes it.
+  startSourceIndexFetch(root, place, { env, ...at });
   const found = await mainlineSuite(place, suite, { env, cwd: root, ...at });
   if ('miss' in found) {
     // With no mainline, or no credential, the line was not asked: that is this

@@ -765,6 +765,24 @@ Paths resolve against this file's own directory, and unknown keys are refused by
 name. Every kind takes `mainlines` and `remote`. There are three kinds, and a
 Tribunal deployment is an `http` share.
 
+Every kind also takes `sourceIndex`, which is off by default. It is for a
+repository where building the [source index](source-index.md) from nothing
+takes minutes, so that a release that changes the index's format does not cost
+every checkout those minutes:
+
+- **A mainline's publish adds the index CI built** as one more entry beside the
+  record, at the same commit.
+- **A checkout whose index a release in another format wrote fetches it** while
+  it fetches the mainline's record, and the record does not wait for it. The
+  next update reads only the files that differ from CI's index. An index in
+  this release's format is never replaced.
+- **The index is large.** On Firefox, about 200,000 files, it is about 2 GB, or
+  0.7 GB compressed. A directory and an HTTP store keep the latest only. A git
+  share keeps one at every mainline commit until `--purge-older-than` deletes
+  it.
+- **A checkout that updates `variance` before CI publishes** an index in the new
+  format finds none, and reads every file.
+
 ### The repository's own refs
 
 ```json

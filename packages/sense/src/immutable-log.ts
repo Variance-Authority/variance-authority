@@ -24,7 +24,8 @@ const HEADER_BYTES = MAGIC.length + 4;
 /** How many manifests a reader follows while writers keep moving it, before it keeps the prefix it read as `moved`. */
 const MOVED_ATTEMPTS = 8;
 
-interface SegmentReference {
+/** One segment a manifest names: its `v1:` digest, the first half of its bytes' sha256, and its length. */
+export interface SegmentReference {
   readonly digest: Digest;
   readonly length: number;
 }
@@ -155,7 +156,12 @@ function logAt(
   };
 }
 
-function decodeManifest(bytes: Buffer): readonly SegmentReference[] {
+/**
+ * The segments a manifest's bytes name, in order. Throws on bytes that are not
+ * a manifest: for a copy of a chain, which carries the manifest as it is and
+ * places the segments it names ({@link segmentPath}).
+ */
+export function decodeManifest(bytes: Buffer): readonly SegmentReference[] {
   if (bytes.length < HEADER_BYTES) throw new Error('invalid immutable log manifest');
   const length = bytes.readUInt32LE(MAGIC.length);
   if (length !== bytes.length - HEADER_BYTES) throw new Error('invalid immutable log manifest');
@@ -219,6 +225,8 @@ async function moved(path: string, read: Buffer): Promise<boolean> {
   }
 }
 
+/** Where the chain whose manifest is at `path` keeps the segment `digest`. */
+export function segmentPath(path: string, digest: Digest): string { return join(segmentDirectory(path), fileName(digest)); }
 function segmentDirectory(path: string): string { return `${path}.segments`; }
 function fileName(digest: Digest): string { return `${digest.replace(':', '-')}.bin`; }
 function missing(error: unknown): boolean {

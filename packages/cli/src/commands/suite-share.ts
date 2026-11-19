@@ -34,6 +34,7 @@ import { landSuite } from './journeys-command.js';
 import { mainlineBase, mainlineMissed, mainlineRead, type MainlineBase } from './mainline-base.js';
 import { recordHeld, rootShare } from './mainline-selected.js';
 import { layMainline, mainlinePassedOver } from './suite-base.js';
+import { sourceIndexEntryOf } from './source-index-share.js';
 import { describePublish, eyesWritten, unkept, type Here, type RunPublish } from './share.js';
 
 /** What `share --suite` was asked to do. */
@@ -117,17 +118,22 @@ async function publishOnLine(
   if ('unpublished' in entry) return on({ none: `${suiteEntry(suite)} is left out: ${entry.unpublished}` });
 
   const { retired, ...shared } = entry;
-  const published = await publishLine(cell, run.line, [shared], {
+  // The mainline's source index rides its record, for a checkout another release's index would make read every file.
+  const index = run.line.kind === 'mainline' && place.share?.sourceIndex === true ? await sourceIndexEntryOf(root, at) : undefined;
+  const carried = index !== undefined && 'entry' in index ? index : undefined;
+  const published = await publishLine(cell, run.line, carried === undefined ? [shared] : [shared, carried.entry], {
     descends: run.line.kind === 'mainline' ? await descendsOf(place, run.line.name, root) : async () => undefined,
-    // A suite entry names no image.
+    // A suite entry names no image; the source index's segments are its images.
     image: async (digest) => {
+      if (carried !== undefined) return carried.image(digest);
       throw new Error(`a suite record names no image, and was asked for ${digest}`);
     },
   });
   if ('kind' in published) return on({ line: run.line, miss: published, ...noMainline });
   const eyes = entryCarriesEyes(entry) ? eyesWritten([entry.name], published.written) : {};
   const gone = retired === undefined ? {} : { retired: { [entry.name]: retired } };
-  return on({ line: run.line, published, ...eyes, ...gone, ...noMainline });
+  const left = index !== undefined && 'unpublished' in index ? { unpublished: [`the source index: ${index.unpublished}`] } : {};
+  return on({ line: run.line, published, ...eyes, ...gone, ...left, ...noMainline });
 }
 
 /** Where `root` shares its records: the share in its root config, and the cache it reads them into. */
