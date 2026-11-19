@@ -182,6 +182,7 @@ variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
 variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
+variance janus   --since <ref> --file <path>... -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore [--transform jest [--shard <k>/<n>]] | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
@@ -205,6 +206,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | prints what this machine can observe, before a run, not after one, and whether each declared suite has recorded; `--baselines` asks only what the baseline store holds, with no browser opened, and exits 2 on a checkout of git-LFS pointers git-lfs cannot fetch here |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
+| `janus` | runs a command with the files it names rolled back to their text at a ref, so the old tests run on the new code, with nothing checked out |
 | `collect` | reads the suite index's facts with no baseline, comparison or image, one part per shard; `collect merge` checks the parts are one build and folds them into the index |
 | `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite, and a repository that configures no project takes the only suite it declares's record alone; `--purge-older-than <days>` removes the records kept by commit that are older |
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
@@ -2684,6 +2686,42 @@ Files outside the repository are not selected on, and a file the job has never
 read is not seen: a new page the build would pick up does not select it. Declare
 what the recorder cannot see under the suite's `before`: a server the job leaves
 running, or the workflow that starts it.
+
+### `janus`: the old tests on the new code
+
+A change that rewrites code and its tests together can pass because the tests
+were rewritten to agree. `variance janus` answers whether the tests as they stood
+before the change still pass on the code after it:
+
+```bash
+variance janus --since origin/main --file src/value.test.js -- <test command>
+```
+
+Each `--file` is rolled back: the command reads its text at the merge base with
+`<ref>`. Every other file is the checkout's. A `--file` names a change in an
+existing file, one the checkout and the base both hold; a file either side lacks
+is refused, because janus neither adds a file nor hides one. A test the change
+deleted or added is not rolled back: run the base's tests that still exist.
+
+Nothing is written: no checkout, no copy and no worktree, so the run starts as
+fast as the command does. Two preloads in `NODE_OPTIONS` serve the files' text
+through `fs` and Node's module loader, in every Node process the command
+starts; finding, listing and resolving files stay the disk's.
+
+The exit is the command's. A run in which no process read a file it was served
+cannot have run that file's base, so it fails and names the files: a runner
+reading them below `fs` and the module loader, or a command that runs fewer
+tests than were named.
+
+Jest, Vitest, Playwright Test and `node:test` read test files through Node, and
+run the rolled-back text. Rstest does not yet: it compiles test files through
+Rspack, which reads them itself, so every run under it fails as unread.
+
+A runner that caches transformed files by path and modification time can answer
+from the head's cache entry: run it with its cache off.
+
+A failure is a test the change broke or a test the change was right to rewrite;
+the run does not tell them apart.
 
 ### `shards`: how many CI jobs a suite is worth
 

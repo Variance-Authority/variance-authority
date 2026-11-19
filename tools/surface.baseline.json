@@ -3600,6 +3600,7 @@
         "selectJourneyFile": "function",
         "selectTestFiles": "function",
         "selectedLines": "function",
+        "serveBase": "function",
         "sessionSources": "function",
         "sessionsAgainst": "function",
         "shardArgument": "function",

@@ -16,7 +16,7 @@ import type { Parsed } from './parse.js';
  * which is exactly the point of parsing into a value first.
  */
 export async function dispatch(
-  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' } | { command: 'job' } | Configless>,
+  parsed: Exclude<Parsed, { command: 'help' } | { command: 'version' } | { command: 'job' } | { command: 'janus' } | Configless>,
   streams: { out(text: string): void; err(text: string): void; detach?(argv: readonly string[], log: string): number | undefined },
 ): Promise<ExitCode> {
   if (parsed.command === 'journeys' && parsed.operation !== undefined)

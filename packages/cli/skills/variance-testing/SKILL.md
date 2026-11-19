@@ -177,6 +177,22 @@ lands:
    see one fail. A test that passes on a broken line pins nothing. Restore the
    line.
 
+When the change rewrote tests as well as code, run the old tests on the new code:
+
+```bash
+variance janus   --since <ref> --file <path>... -- <command>...
+```
+
+With `<ref>` the branch point, a `--file` for each test file the change edited,
+and `<command>` the test command, it rolls those files back to their text at
+`<ref>`, with nothing checked out, and exits as the command does. It rolls back
+changes in files that exist on both sides; a test the change added or deleted
+is not a `--file`. Read each failure: the change broke
+the behaviour it pinned, or the rewrite was the change's point and belongs in the
+pull request's body. A run that names files it was served and never read did not
+run the base; run those tests by name. Under Rstest every run is one: it reads
+test files through Rspack, which janus does not serve yet.
+
 ## The pull request's review: act on every mark
 
 CI posts the same reading as a comment, from `variance review`. Its header
