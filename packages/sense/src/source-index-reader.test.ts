@@ -190,6 +190,33 @@ describe('the source index the addon reads', () => {
     expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
+  it('refuses a question once the chain is closed, and keeps the rows already read', () => {
+    const read = readSourceIndexChain([encodeSourceIndex(WHOLE)]);
+    const file = read.stored.records.get('src/a.ts');
+    read.close();
+    expect(read.stored.records.get('src/a.ts')).toBe(file);
+    expect(() => read.stored.records.get('src/b.ts')).toThrow('the source index reader is closed');
+  });
+
+  it('reads a row that names what its segment does not hold as absent, and keeps the segment', () => {
+    const parses = parsesOnly([[A, FULL], [B, EMPTY]]);
+    // A's first request names a string past the dictionary.
+    column(parses, 'requests.value', 1)[0] = 0x7fffffff;
+    const records = encodeSourceIndex({ ...WHOLE, parses: new Map() });
+    // src/a.ts is the first record, and its digest names a string past the dictionary.
+    column(records, 'records.digest', 1)[0] = 0x7fffffff;
+
+    const read = readSourceIndexChain([records, parses]);
+    expect(read.kept).toBe(2);
+    expect(read.stored.parses.has(A)).toBe(false);
+    expect(read.stored.parses.get(A)).toBeUndefined();
+    expect([...read.stored.parses]).toStrictEqual([[B, EMPTY]]);
+    expect(read.stored.records.has('src/a.ts')).toBe(false);
+    expect(read.stored.records.get('src/a.ts')).toBeUndefined();
+    expect([...read.stored.records.keys()]).toContain('src/a.ts');
+    expect([...read.stored.records.values()].map((value) => value.record.file)).toEqual(['src/b.ts', 'src/c.ts']);
+  });
+
   it('keeps a package name that nothing else in the segment names', () => {
     // Only a subpath import reaches `@scope/only-here`, so the bare name is in no
     // other column. A dictionary that missed it wrote row 0 — whatever sorted

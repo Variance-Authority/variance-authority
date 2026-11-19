@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { native } from './addon.js';
 import { openImmutableLog } from './immutable-log.js';
 import { publishedNames, readPublishedNames } from './published-names.js';
 import { readPublishedSources, SourceIndexUnpublished, updateSourceIndex } from './published.js';
@@ -68,6 +69,32 @@ describe('the names the published source index gives some files', () => {
       expect(read.names.get('lib/unit.ts')).toBe(`git:${execFileSync('git', ['hash-object', 'lib/unit.ts'], { cwd: root, encoding: 'utf8' }).trim()}`);
     } finally {
       git('checkout', '--', 'lib/unit.ts', 'lib/alone.ts');
+    }
+  });
+
+  it('lets the chain go once the names are read, rather than when the reader is collected', async () => {
+    const at = index('closed');
+    await updateSourceIndex(root, { index: at });
+    const addon = native()!;
+    const open = addon.openSourceIndexReader.bind(addon);
+    const readers: { closed: boolean }[] = [];
+    vi.spyOn(addon, 'openSourceIndexReader').mockImplementation((segments) => {
+      const reader = open(segments);
+      const opened = { closed: false };
+      readers.push(opened);
+      const close = reader.close.bind(reader);
+      reader.close = () => {
+        opened.closed = true;
+        close();
+      };
+      return reader;
+    });
+    try {
+      const read = await readPublishedNames(at, ['lib/unit.ts']);
+      expect(read.names.has('lib/unit.ts')).toBe(true);
+      expect(readers).toEqual([{ closed: true }]);
+    } finally {
+      vi.restoreAllMocks();
     }
   });
 

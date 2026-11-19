@@ -38,6 +38,8 @@ export interface NativeSourceIndexes {
  * crosses as JSON shaped as JavaScript holds it, and `null` is absent.
  */
 export interface NativeSourceIndexReader {
+  /** Let the segments go now, rather than when the reader is collected; every question after this throws. */
+  close(): void;
   /** How many of the chain's oldest segments read; the rest are dropped. */
   kept(): number;
   /** The format version of the segment that stopped the read, when another release wrote it. */

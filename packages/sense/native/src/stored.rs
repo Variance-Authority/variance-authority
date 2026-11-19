@@ -57,6 +57,20 @@ impl U32s<'_> {
         (at < self.len() && self.at(at) == value).then_some(at)
     }
 
+    /// Whether no entry is below the one before it. One pass without an
+    /// early exit or a bounds check per entry, so it vectorises: every
+    /// segment's offset columns are checked at open.
+    fn never_back(&self) -> bool {
+        let mut words = self.0.chunks_exact(4).map(|word| u32::from_le_bytes([word[0], word[1], word[2], word[3]]));
+        let Some(mut before) = words.next() else { return true };
+        let mut forward = true;
+        for word in words {
+            forward &= before <= word;
+            before = word;
+        }
+        forward
+    }
+
     /// The children of `row`, from an offset column already checked by
     /// [`Stored::offsets`].
     pub fn range(&self, row: usize) -> Range<usize> {
@@ -70,7 +84,9 @@ pub struct Stored<'a> {
     sections: HashMap<String, (usize, usize, u8, usize)>,
     strings: Vec<&'a str>,
     /// The text heap, `texts.blob` and `texts.off`, when the segment has one.
-    texts: Option<(&'a str, U32s<'a>)>,
+    /// Each text is checked to be UTF-8 when it is read, not the heap at open:
+    /// a reader of a few rows reads a few texts of a heap that runs to megabytes.
+    texts: Option<(&'a [u8], U32s<'a>)>,
 }
 
 /// The format version another release wrote these bytes in: none when they are
@@ -138,7 +154,6 @@ impl<'a> Stored<'a> {
             .collect::<Option<_>>()
             .ok_or("a dictionary entry that is not a string")?;
         if let Some(blob) = stored.section("texts.blob", 1)? {
-            let blob = std::str::from_utf8(blob).map_err(|_| "a text heap that is not UTF-8")?;
             let off = stored.u32s("texts.off")?;
             if off.len() == 0 || off.at(0) != 0 || off.at(off.len() - 1) as usize != blob.len() {
                 return Err("a text heap whose offsets do not span it".to_owned());
@@ -198,10 +213,7 @@ impl<'a> Stored<'a> {
     /// ending at `end`, and never going back.
     pub fn offsets(&self, name: &str, rows: usize, end: usize) -> Result<U32s<'a>, String> {
         let column = self.u32s(name)?;
-        let spans = column.len() == rows + 1
-            && column.at(0) == 0
-            && column.at(rows) as usize == end
-            && (1..=rows).all(|at| column.at(at - 1) <= column.at(at));
+        let spans = column.len() == rows + 1 && column.at(0) == 0 && column.at(rows) as usize == end && column.never_back();
         if spans { Ok(column) } else { Err(format!("offsets {name} do not span their {end} entries")) }
     }
 
@@ -227,9 +239,16 @@ impl<'a> Stored<'a> {
 
     /// Whether [`Self::kept`] reads `id`: none, or a whole text the heap holds.
     pub fn keeps(&self, id: u32) -> bool {
+        id == NONE || self.heap_text(id).is_some()
+    }
+
+    /// The text the heap holds under `id`: its offsets in order, within the
+    /// heap, and the bytes between them UTF-8.
+    fn heap_text(&self, id: u32) -> Option<&'a str> {
+        let (blob, off) = self.texts?;
         let at = id as usize;
-        id == NONE
-            || self.texts.is_some_and(|(blob, off)| at + 1 < off.len() && blob.get(off.at(at) as usize..off.at(at + 1) as usize).is_some())
+        let bytes = (at + 1 < off.len()).then(|| blob.get(off.at(at) as usize..off.at(at + 1) as usize)).flatten()?;
+        std::str::from_utf8(bytes).ok()
     }
 
     pub fn optional(&self, id: u32) -> Option<&'a str> {
@@ -237,14 +256,12 @@ impl<'a> Stored<'a> {
     }
 
     /// A text the heap keeps under `id`, absent for `NONE`. An id past the
-    /// heap, or offsets that cut a character, panic as [`Self::text`] does.
+    /// heap, or bytes under it that are not UTF-8, panic as [`Self::text`] does.
     pub fn kept(&self, id: u32) -> Option<&'a str> {
         if id == NONE {
             return None;
         }
-        let at = id as usize;
-        let text = self.texts.and_then(|(blob, off)| (at + 1 < off.len()).then(|| blob.get(off.at(at) as usize..off.at(at + 1) as usize)).flatten());
-        match text {
+        match self.heap_text(id) {
             Some(text) => Some(text),
             None => panic!("source index: text {id} is not one the heap holds"),
         }

@@ -42,12 +42,18 @@ export async function readPublishedNames(path: string, files: Iterable<string>):
   }
   // The chain is cut where a whole read cuts it, and only the asked files' rows
   // are decoded.
-  const { kept: read, written, stored } = readSourceIndexChain(log.segments);
+  const { kept: read, written, stored, close } = readSourceIndexChain(log.segments);
   const kept = log.keep(read);
   const names = new Map<string, Digest>();
-  for (const file of asked) {
-    const digest = stored.records.get(file)?.record.digest;
-    if (digest !== undefined) names.set(file, digest);
+  try {
+    for (const file of asked) {
+      const digest = stored.records.get(file)?.record.digest;
+      if (digest !== undefined) names.set(file, digest);
+    }
+  } finally {
+    // Nothing is asked after this, and a caller asking per file would otherwise
+    // hold each chain until the reader is collected.
+    close();
   }
   return {
     path,

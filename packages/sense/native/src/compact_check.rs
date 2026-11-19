@@ -2,11 +2,12 @@
 //! dictionary or the text heap holds, every span has both ends or neither and
 //! runs forward, and every member names a request of its own row.
 //!
-//! The index reader (`index_reader.rs`) checks every row of a layer before it
-//! keeps the layer, so whether a segment reads depends on its bytes alone, and
-//! a row it hands to JavaScript is one [`super::ParseView`] reads without a
-//! panic. A list a row marks absent is checked all the same: it lies in the
-//! segment, and a damaged one says the segment is damaged.
+//! The index reader (`index_reader.rs`) checks a row when it is asked for, not
+//! every row at open: open reads only what deciding the valid prefix and the
+//! key index needs. A row that fails reads as absent, a cache miss the next save
+//! writes again, and a row it hands to JavaScript is one [`super::ParseView`]
+//! reads without a panic. A list a row marks absent is checked all the same: it
+//! lies in the row, and a damaged one says the row is damaged.
 
 // compass: variance-authority.reach.source-index
 

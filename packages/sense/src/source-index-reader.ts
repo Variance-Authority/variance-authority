@@ -28,6 +28,12 @@ export interface ReadSourceIndexChain {
   readonly written?: number;
   /** What the kept segments hold, newest answering first. */
   readonly stored: StoredSourceIndex;
+  /**
+   * Let the segments go now: the reader holds them until it is collected
+   * otherwise, which a caller that opens a chain per question outpaces. A row
+   * not yet decoded throws after this.
+   */
+  close(): void;
 }
 
 /** Read the chain `segments` holds, oldest first, up to the first segment that does not read. */
@@ -41,6 +47,7 @@ export function readSourceIndexChain(segments: readonly Uint8Array[]): ReadSourc
   return {
     kept: reader.kept(),
     ...(written === undefined ? {} : { written }),
+    close: () => reader.close(),
     stored: {
       parses: lazyMap<ParseKey, Parsed>({
         count: () => reader.parseCount(),
