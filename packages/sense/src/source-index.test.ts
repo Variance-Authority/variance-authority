@@ -265,6 +265,13 @@ describe('the binary source index', () => {
     expect(third.cache.get(OTHER)).toEqual({ requests: [] });
   });
 
+  it('answers a parse the adopted native layer holds before the save, and none it does not', async () => {
+    const opened = await openSourceIndex(await path());
+    adoptNativeParses(opened.cache, nativeLayer([[DIGEST, PARSED]]));
+    expect(opened.cache.get(DIGEST)).toEqual(PARSED);
+    expect(opened.cache.get(OTHER)).toBeUndefined();
+  });
+
   it('rewrites one working layer over the base, a native parse layer included, and readying folds it in', async () => {
     const file = await path();
     for (let at = 0; at < 7; at += 1) {

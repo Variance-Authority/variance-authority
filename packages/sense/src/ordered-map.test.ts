@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { differenceLayer, prunable } from './ordered-map.js';
+import { differenceLayer, prunable, readonlyMap } from './ordered-map.js';
 
 describe('ordered immutable map layers', () => {
   it('drops entries from a map it never copies', () => {
@@ -15,6 +15,17 @@ describe('ordered immutable map layers', () => {
     expect(map.has('a')).toBe(false);
     expect([...map.keys()]).toEqual([]);
     expect(base.size).toBe(3);
+  });
+
+  it('answers every read a map has over a source that lists only its entries', () => {
+    const rows = new Map([['a', 1], ['b', 2]]);
+    const map = readonlyMap({ size: () => rows.size, get: (key: string) => rows.get(key), has: (key: string) => rows.has(key), entries: () => rows.entries() });
+    expect([...map.entries()]).toEqual([['a', 1], ['b', 2]]);
+    expect([...map.keys()]).toEqual(['a', 'b']);
+    expect([...map.values()]).toEqual([1, 2]);
+    const seen: [string, number, ReadonlyMap<string, number>][] = [];
+    map.forEach((value, key, owner) => seen.push([key, value, owner]));
+    expect(seen).toEqual([['a', 1, map], ['b', 2, map]]);
   });
 
   it('finds a map handed back as it was read unchanged, without walking it', () => {
