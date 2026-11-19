@@ -94,7 +94,8 @@ export function judgeRows(
     }
 
     // The rows around a pixel, two each way, as each image has them: the after
-    // image's on the canvas, and the before image's around the row it came from.
+    // image's on the canvas, and the before image's around the row it came from,
+    // to the before image's own edge rather than the canvas's.
     // Where two paired runs meet, the canvas sets before rows side by side that
     // never were, and anti-aliasing read across that seam is a fact about
     // neither image.
@@ -104,7 +105,7 @@ export function judgeRows(
       for (let d = -2; d <= 2; d += 1) {
         const at = y + d;
         const was = from < 0 ? at : from + d;
-        const outside = at < 0 || at >= height || (from >= 0 && (was < 0 || was >= before.height));
+        const outside = from < 0 ? at < 0 || at >= height : was < 0 || was >= before.height;
         first.bytes.push(outside ? undefined : from < 0 ? first8[at] : was8(was));
         first.words.push(outside ? undefined : from < 0 ? first32[at] : was32row(was));
       }

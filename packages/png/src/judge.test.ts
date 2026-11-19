@@ -80,6 +80,29 @@ describe('a row on a seam', () => {
   });
 });
 
+describe('a row near the canvas edge', () => {
+  it('is judged for anti-aliasing against the before rows its source row has, wherever the canvas ends', () => {
+    // The top three rows are removed, so the after image's first row comes from
+    // the before image's fourth, whose rows above are black. Kept above the
+    // after image unchanged, they give the verdict the two images give unaligned.
+    const width = 5;
+    const grey = (value: number) => image(width, 1, () => flat(value)).data;
+    const before = stack(width, [grey(0), grey(0), grey(0), grey(128), grey(255), grey(255)]);
+    const after = stack(width, [grey(0), grey(255), grey(255)]);
+    const kept = stack(width, [grey(0), grey(0), grey(0), grey(0), grey(255), grey(255)]);
+
+    const aligned = judgeRows(before, after, whole(after, [3, 4, 5]), [DEFAULT_POLICY], { mask: 0 }).mask!;
+    const unaligned = judgeRows(before, kept, undefined, [DEFAULT_POLICY], { mask: 0 }).mask!;
+    expect(aligned.subarray(0, width)).toEqual(unaligned.subarray(3 * width, 4 * width));
+  });
+});
+
+function stack(width: number, rows: readonly Uint8Array[]): DecodedImage {
+  const data = new Uint8Array(rows.length * width * 4);
+  rows.forEach((row, y) => data.set(row, y * width * 4));
+  return { width, height: rows.length, data };
+}
+
 /** One strip across the whole width, or none when the rows are unaligned. */
 function whole(image: DecodedImage, source: readonly number[] | undefined): SourceStrip[] | undefined {
   return source && [{ from: 0, to: image.width, source }];
