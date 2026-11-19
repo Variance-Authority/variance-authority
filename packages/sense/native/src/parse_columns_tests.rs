@@ -63,3 +63,23 @@ fn a_text_heap_past_one_part_gives_the_bytes_of_one_buffer() {
     let one = [u8s("texts.blob", texts.concat().into_bytes()), u32s("texts.off", std::iter::once(0).chain(ends).collect())];
     assert!(encode(heap.columns().into()) == encode(one.into()), "the parts differ from one buffer");
 }
+
+#[test]
+fn heaps_past_one_part_joined_give_the_bytes_of_one_heap() {
+    let texts: Vec<String> = (b'a'..b's').map(|letter| char::from(letter).to_string().repeat(PART / 3)).collect();
+    let heap_of = |texts: &[String]| {
+        let mut heap = Heap::default();
+        texts.iter().for_each(|text| {
+            heap.push(Some(text));
+        });
+        heap
+    };
+    let mut runs = texts.chunks(6).map(heap_of);
+    let mut joined = runs.next().unwrap();
+    for (run, heap) in runs.enumerate() {
+        assert!(!heap.parts.is_empty(), "a run fits one part, so its held bytes are not exercised");
+        assert_eq!(joined.append(heap) as usize, 6 * (run + 1));
+    }
+    let whole = heap_of(&texts);
+    assert!(encode(joined.columns().into()) == encode(whole.columns().into()), "the joined heaps differ from one heap");
+}

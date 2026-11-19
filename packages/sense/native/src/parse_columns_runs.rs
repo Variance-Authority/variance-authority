@@ -12,7 +12,7 @@ use crate::segment::{Strings, NONE};
 impl Heap {
     /// `other` after these, each id it gave moved past the ones these hold,
     /// and its bytes kept as the parts they are rather than copied.
-    fn append(&mut self, other: Heap) -> u32 {
+    pub(super) fn append(&mut self, other: Heap) -> u32 {
         let (ids, bytes) = (self.ends.len() as u32, (self.held + self.blob.len()) as u32);
         let Heap { parts, held, blob, ends } = other;
         self.parts.push(std::mem::take(&mut self.blob));
