@@ -2,8 +2,8 @@
 "@variance-authority/sense": patch
 ---
 
-`variance index` waits on Watchman for about a second at most, and lists with
-git when the watch has not answered by then. A watch still crawling a fresh
+Each question `variance index` asks Watchman waits about a second at most, and
+the update lists with git when the watch has not answered by then. A watch still crawling a fresh
 worktree, or still catching up after a large branch switch, no longer holds the
 update: the clock is taken without a sync, and whether the watch has caught up
 is asked beside git's listing, so only a watch that has caught up gives the next

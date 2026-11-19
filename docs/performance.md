@@ -736,8 +736,8 @@ takes the listing from about 0.66 s to about 0.23 s on Kibana, and from about
 same as one commit away. On Kibana, 200 commits away moves 4,039 files and the
 root `.gitignore`, so every directory is walked again for untracked files.
 
-Git answers first, and Watchman only skips work. An update waits on the server
-no longer than a settled watch takes to answer, about a second. A watch that is
+Git answers first, and Watchman only skips work. Each question an update asks
+the server waits no longer than a settled watch takes to answer, about a second. A watch that is
 still crawling a fresh worktree, or still catching up after a large switch, is
 no answer, and the update lists with git at git's speed. The question whether
 the watch has caught up runs beside git's listing, not before it, and only a

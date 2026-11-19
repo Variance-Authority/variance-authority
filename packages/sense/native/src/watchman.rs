@@ -148,8 +148,9 @@ pub(crate) fn watch(socket: &str, root: &str) -> Option<Watch> {
 }
 
 /// Whether the watch has seen everything up to now, within `SETTLED`: a watch
-/// still crawling or catching up fails the sync, and a clock taken before it
-/// vouches for nothing.
+/// still crawling or catching up fails the sync. The clock taken before it is
+/// safe either way; one kept from mid-crawl would make the next update's
+/// `since` report most of the checkout, so only a settled watch keeps it.
 pub(crate) fn settled(watch: &Watch) -> bool {
     ask(&watch.socket, &json!(["clock", watch.watched, { "sync_timeout": SETTLED }])).is_some()
 }
@@ -157,8 +158,8 @@ pub(crate) fn settled(watch: &Watch) -> bool {
 /// What moved below the watch's root since its clock, leaving out `excluded`:
 /// directories relative to that root whose writes are the update's or git's.
 pub(crate) fn since(watch: &Watch, excluded: &[String]) -> Option<Since> {
-    // Watchman's default sync is a minute: a watch that cannot answer within `SETTLED` answers nothing.
-    let mut query = json!({ "since": watch.clock, "fields": ["name"], "empty_on_fresh_instance": true, "sync_timeout": SETTLED });
+    // Watchman's default sync and lock waits are a minute each: a watch that cannot answer within `SETTLED` answers nothing.
+    let mut query = json!({ "since": watch.clock, "fields": ["name"], "empty_on_fresh_instance": true, "sync_timeout": SETTLED, "lock_timeout": SETTLED });
     if let Some(relative) = &watch.relative {
         query["relative_root"] = json!(relative);
     }

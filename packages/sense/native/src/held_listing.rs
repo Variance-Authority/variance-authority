@@ -240,7 +240,8 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
             (snapshot, followed, true)
         }
         (_, Some(answer)) => (git::snapshot_against(root, &record)?, false, answer.is_some()),
-        // Whether the watch caught up is asked beside git's listing, so git never waits on it.
+        // Whether the watch caught up is asked beside git's listing, so git never waits on it; a
+        // listing faster than the answer waits for it, within `SETTLED`, to keep its clock.
         (_, None) => {
             let (snapshot, settled) = std::thread::scope(|scope| {
                 let settled = scope.spawn(|| watch.as_ref().is_some_and(watchman::settled));
