@@ -6,6 +6,9 @@ const NOTE = Symbol.for('variance-authority.story.note');
 
 type Realm = { [NOTE]?: unknown };
 
+/** The console levels a story prints in any realm: `PRINTS` in sense's `story-listen.cts`. */
+const PRINTS = new Set(['log', 'info', 'warn', 'error', 'debug']);
+
 // Looked up on every line, so a story that stops recording hears no more of it.
 // A channel that throws is swallowed here, not inside Playwright's emitter.
 const say = (text: string): void => {
@@ -29,8 +32,8 @@ const say = (text: string): void => {
 export async function tellStory(page: Page): Promise<void> {
   if (typeof (globalThis as Realm)[NOTE] !== 'function') return;
   page.on('console', (message) => {
-    const type = message.type();
-    say(`page console.${type === 'warning' ? 'warn' : type} ${message.text()}`);
+    const type = message.type() === 'warning' ? 'warn' : message.type();
+    if (PRINTS.has(type)) say(`page console.${type} ${message.text()}`);
   });
   page.on('pageerror', (error) => say(`page error ${String(error).split('\n')[0]}`));
   page.on('crash', () => say('page crashed'));

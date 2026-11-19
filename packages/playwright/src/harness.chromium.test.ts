@@ -326,6 +326,26 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a story recorded in this 
     ]);
   });
 
+  it('is told only the console lines a story prints anywhere else', async () => {
+    const notes: string[] = [];
+    realm[NOTE] = (text) => notes.push(text);
+    const harness = await createHarness(reloading);
+    try {
+      await harness.page.evaluate(() => {
+        console.table([1]);
+        console.count();
+        console.info('kept');
+      });
+      await expect.poll(() => notes.includes('page console.info kept')).toBe(true);
+    } finally {
+      await harness.close();
+    }
+
+    expect(notes.filter((note) => note.startsWith('page console.') && note !== 'page console.log document loaded')).toEqual([
+      'page console.info kept',
+    ]);
+  });
+
   it('is told the page crashed', async () => {
     const notes: string[] = [];
     realm[NOTE] = (text) => notes.push(text);
