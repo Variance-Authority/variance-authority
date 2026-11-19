@@ -2,29 +2,54 @@
 // through its own bindings, below `fs`, so `override.cjs` cannot reach a
 // `require` or `import` of a served or hidden path. Registered through
 // `NODE_OPTIONS=--import`, these hooks run in the loading thread for both.
-import { existsSync, readFileSync } from 'node:fs';
-import { registerHooks } from 'node:module';
-import { dirname, extname, join, resolve } from 'node:path';
+import { closeSync, openSync, readFileSync } from 'node:fs';
+import { findPackageJSON, registerHooks } from 'node:module';
+import { dirname, extname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const manifestPath = process.env.VERSION_OVERRIDE;
 const files = manifestPath ? JSON.parse(readFileSync(manifestPath, 'utf8')) : {};
 
-const pathOf = (url) => (url.startsWith('file:') ? fileURLToPath(url) : undefined);
-
-/** The `type` of the package that holds `file`, read from the disk. */
-const packageType = (file) => {
-  for (let dir = dirname(file); ; dir = dirname(dir)) {
-    const manifest = join(dir, 'package.json');
-    if (existsSync(manifest)) return JSON.parse(readFileSync(manifest, 'utf8')).type === 'module' ? 'module' : 'commonjs';
-    if (dirname(dir) === dir) return 'commonjs';
+/**
+ * Whether the disk holds the file, asked of `open`, which `override.cjs` leaves
+ * alone: the main entry's default resolve does not check, and the CommonJS
+ * loader it hands a base-only file to looks again below `fs` and misses it.
+ */
+const onDisk = (file) => {
+  try {
+    closeSync(openSync(file, 'r'));
+    return true;
+  } catch {
+    return false;
   }
 };
+
+const probed = ['.js', '.cjs', '.mjs', '.json', '.ts', '.cts', '.mts'];
+/**
+ * The manifest's key a specifier names: itself, or, for a `require`, the file
+ * CommonJS would probe for, an extension and then `index`. An import names its file.
+ */
+const servedAs = (candidate, probes) => {
+  if (Object.hasOwn(files, candidate)) return candidate;
+  if (!probes) return undefined;
+  return [...probed.map((extension) => candidate + extension), ...probed.map((extension) => `${candidate}/index${extension}`)].find((file) => typeof files[file] === 'string');
+};
+
+const pathOf = (url) => (url.startsWith('file:') ? fileURLToPath(url) : undefined);
+
+/**
+ * The format of a file only the base holds, which Node's resolver cannot see:
+ * its own rule, the extension and then the nearest package's `type`.
+ */
 const formatOf = (file) => {
+  const typescript = /\.[cm]?ts$/.test(file) ? '-typescript' : '';
   const extension = extname(file);
-  if (extension === '.cjs' || extension === '.cts') return 'commonjs';
-  if (extension === '.mjs' || extension === '.mts') return 'module';
-  return packageType(file);
+  if (extension === '.cjs' || extension === '.cts') return `commonjs${typescript}`;
+  if (extension === '.mjs' || extension === '.mts') return `module${typescript}`;
+  // From its directory: Node's lookup resolves a file it is given, and this one is not on the disk.
+  const manifest = findPackageJSON(pathToFileURL(`${dirname(file)}/`));
+  const type = manifest && JSON.parse(readFileSync(manifest, 'utf8')).type;
+  return `${type === 'module' ? 'module' : 'commonjs'}${typescript}`;
 };
 
 registerHooks({
@@ -37,13 +62,16 @@ registerHooks({
         : specifier.startsWith('.') && context.parentURL
           ? pathOf(new URL(specifier, context.parentURL).href)
           : undefined;
-    if (candidate !== undefined && Object.hasOwn(files, candidate)) {
-      if (files[candidate] === null) {
-        const error = new Error(`Cannot find module '${candidate}' imported from ${context.parentURL}`);
+    const file = candidate === undefined ? undefined : servedAs(candidate, context.conditions?.includes('require'));
+    if (file !== undefined) {
+      if (files[file] === null) {
+        const error = new Error(`Cannot find module '${file}' imported from ${context.parentURL}`);
         error.code = 'ERR_MODULE_NOT_FOUND';
         throw error;
       }
-      return { url: pathToFileURL(candidate).href, format: formatOf(candidate), shortCircuit: true };
+      // A path the disk holds is Node's to resolve; only its content is the base's.
+      if (onDisk(file)) return nextResolve(specifier, context);
+      return { url: pathToFileURL(file).href, format: formatOf(file), shortCircuit: true };
     }
     return nextResolve(specifier, context);
   },

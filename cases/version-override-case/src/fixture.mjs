@@ -7,6 +7,8 @@
 //   gone.test      base only: in the manifest, not on disk
 //   added.test     head only: on disk, hidden by the manifest
 //   added-helper   head only: on disk, hidden, and the base kept.test proves it cannot load it
+//   new-helper     base only, imported by the base kept.test: a `require` names it without an extension
+//   old/deep.test  base only, in a directory the head does not have
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -46,12 +48,15 @@ export const writeFixture = (runner, flavor) => {
     [file('kept.test')]:
       `${prelude}${assert}${imports('helper', './helper')}` +
       `it('kept base', () => assert.strictEqual(helper(), 'base-helper'));\n` +
-      `it('hides added helper', async () => { await assert.rejects(async () => ${loads('./added-helper')}); });\n`,
+      `it('hides added helper', async () => { await assert.rejects(async () => ${loads('./added-helper')}); });\n` +
+      `it('base helper', async () => assert.strictEqual((${loads('./new-helper')}).n, 7));\n`,
+    [file('new-helper')]: exports('n', 7),
+    [file('old/deep.test')]: `${prelude}${assert}${imports('value', '../src/value')}it('deep', () => assert.strictEqual(value, 2));\n`,
     [file('gone.test')]: `${prelude}${assert}${imports('value', './src/value')}it('gone', () => assert.strictEqual(value, 2));\n`,
     [file('added.test')]: null,
     [file('added-helper')]: null,
   };
   const manifestPath = join(dir, '.version-override.json');
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
-  return { dir, manifestPath, testFiles: [file('kept.test'), file('gone.test')], ext };
+  return { dir, manifestPath, testFiles: { head: [file('kept.test'), file('added.test')], base: [file('kept.test'), file('gone.test'), file('old/deep.test')] }, ext };
 };

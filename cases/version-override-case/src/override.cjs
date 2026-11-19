@@ -22,6 +22,25 @@ const { syncBuiltinESMExports } = require('node:module');
 const manifestPath = process.env.VERSION_OVERRIDE;
 const files = manifestPath ? JSON.parse(fs.readFileSync(manifestPath, 'utf8')) : {};
 const template = manifestPath ? fs.statSync(manifestPath) : undefined;
+const dirTemplate = manifestPath ? fs.statSync(path.dirname(manifestPath)) : undefined;
+/**
+ * Served names per directory, so a listing reads one entry instead of the
+ * manifest: each served file, and each directory above it, which the disk may
+ * not hold when only the base had it.
+ */
+const servedIn = new Map();
+const dirs = new Set();
+const serve = (dir, entry) => {
+  const names = servedIn.get(dir) ?? new Map();
+  if (names.has(entry.name)) return;
+  servedIn.set(dir, names.set(entry.name, entry.type));
+  if (entry.type === fs.constants.UV_DIRENT_DIR) dirs.add(path.join(dir, entry.name));
+  const parent = path.dirname(dir);
+  if (parent !== dir) serve(parent, { name: path.basename(dir), type: fs.constants.UV_DIRENT_DIR });
+};
+for (const [file, content] of Object.entries(files)) {
+  if (content !== null) serve(path.dirname(file), { name: path.basename(file), type: fs.constants.UV_DIRENT_FILE });
+}
 
 /** The manifest's absolute key for what a caller passed, or undefined for a descriptor or a miss. */
 const keyOf = (target) => {
@@ -31,13 +50,18 @@ const keyOf = (target) => {
   return path.resolve(text);
 };
 
-/** `{ content }` for a served path, `{ absent: true }` for a hidden one, undefined for the disk's. */
+/** `{ content }` for a served path, `{ absent: true }` for a hidden one, `{ dir: true }` for a directory only the base holds, undefined for the disk's. */
 const lookup = (target) => {
   const key = keyOf(target);
+  if (key !== undefined && dirs.has(key) && !onDisk(key)) return { key, dir: true };
   if (key === undefined || !Object.hasOwn(files, key)) return undefined;
   const content = files[key];
   return content === null ? { key, absent: true } : { key, content };
 };
+
+/** Whether the disk holds a path, asked before any patch below. */
+const realExists = fs.existsSync;
+const onDisk = (key) => realExists(key);
 
 const missing = (syscall, key) => {
   const error = new Error(`ENOENT: no such file or directory, ${syscall} '${key}'`);
@@ -57,6 +81,7 @@ const contentAs = (content, options) => {
 
 /** A stat for a served path: the disk's own when the file is there, else the manifest's, sized to the content. */
 const statOf = (hit, real) => {
+  if (hit.dir) return Object.assign(Object.create(Object.getPrototypeOf(dirTemplate)), dirTemplate);
   let base;
   try {
     base = real(hit.key);
@@ -82,11 +107,9 @@ const entriesOf = (dir, names, withFileTypes) => {
   const nameOf = (entry) => (typeof entry === 'string' ? entry : entry.name);
   const listed = new Set(names.map(nameOf));
   let out = names.filter((entry) => !(lookup(path.join(key, nameOf(entry)))?.absent));
-  for (const [file, content] of Object.entries(files)) {
-    if (content === null || path.dirname(file) !== key) continue;
-    const name = path.basename(file);
+  for (const [name, type] of servedIn.get(key) ?? []) {
     if (listed.has(name)) continue;
-    out = [...out, withFileTypes ? new fs.Dirent(name, fs.constants.UV_DIRENT_FILE, key) : name];
+    out = [...out, withFileTypes ? new fs.Dirent(name, type, key) : name];
   }
   return out;
 };
@@ -95,19 +118,19 @@ const wantsTypes = (options) => typeof options === 'object' && options !== null 
 fs.readFileSync = function readFileSync(target, options) {
   const hit = lookup(target);
   if (hit === undefined) return real.readFileSync.apply(this, arguments);
-  if (hit.absent) throw missing('open', hit.key);
+  if (hit.absent || hit.dir) throw missing('open', hit.key);
   return contentAs(hit.content, options);
 };
 fs.readFile = function readFile(target, options, callback) {
   const hit = lookup(target);
   if (hit === undefined) return real.readFile.apply(this, arguments);
   const done = typeof options === 'function' ? options : callback;
-  process.nextTick(() => (hit.absent ? done(missing('open', hit.key)) : done(null, contentAs(hit.content, options))));
+  process.nextTick(() => (hit.absent || hit.dir ? done(missing('open', hit.key)) : done(null, contentAs(hit.content, options))));
 };
 promises.readFile = async function readFile(target, options) {
   const hit = lookup(target);
   if (hit === undefined) return realPromises.readFile.apply(this, arguments);
-  if (hit.absent) throw missing('open', hit.key);
+  if (hit.absent || hit.dir) throw missing('open', hit.key);
   return contentAs(hit.content, options);
 };
 
@@ -184,18 +207,18 @@ promises.realpath = async function realpath(target) {
 };
 
 fs.readdirSync = function readdirSync(dir, options) {
+  if (lookup(dir)?.dir) return entriesOf(dir, [], wantsTypes(options));
   return entriesOf(dir, real.readdirSync.apply(this, arguments), wantsTypes(options));
 };
 fs.readdir = function readdir(dir, options, callback) {
   const done = typeof options === 'function' ? options : callback;
   const opts = typeof options === 'function' ? undefined : options;
+  if (lookup(dir)?.dir) return process.nextTick(() => done(null, entriesOf(dir, [], wantsTypes(opts))));
   return real.readdir.call(this, dir, opts ?? {}, (error, names) => (error ? done(error) : done(null, entriesOf(dir, names, wantsTypes(opts)))));
 };
 promises.readdir = async function readdir(dir, options) {
+  if (lookup(dir)?.dir) return entriesOf(dir, [], wantsTypes(options));
   return entriesOf(dir, await realPromises.readdir.apply(this, arguments), wantsTypes(options));
 };
 
 syncBuiltinESMExports();
-
-// Read by a probe to know the preload ran in this process.
-process.env.VERSION_OVERRIDE_LOADED = String(Object.keys(files).length);

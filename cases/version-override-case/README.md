@@ -26,24 +26,44 @@ yarn vitest run --config vitest.integration.config.mts cases/version-override-ca
 
 Jest 30, Vitest 5, mocha 12 and `node:test` (Node 24), each in CommonJS, ESM
 and TypeScript — swc for jest (`@swc/jest`), `node --test` and mocha; Vitest
-transforms TypeScript itself:
+transforms TypeScript itself. Jest, Vitest and mocha find the test files
+themselves; `node:test` is handed the list.
 
 - With the manifest applied, every runner reports the base cases: the test
-  file and its helper at the base, a test file only the base had run, a file
-  only the head has fails to load, and the head-only test is not run.
+  file and its helper at the base, a test file only the base had, one in a
+  directory only the base had, a helper only the base had that a `require`
+  names without its extension; a file only the head has fails to load, and the
+  head-only test is not found.
 - The head run after the base run reports the head again: neither Jest's
   transform cache nor Vitest 5's module cache hands the base to it.
 - No file in the fixture changes. The runners write their own caches under
   `node_modules`, as they do on any run.
 
-One read escapes. The `node --test` CLI globs its arguments through
-`lib/internal/fs/glob.js`, which takes `lstatSync` and `readdirSync` from `fs`
-when Node starts, before any preload, so a file only the manifest holds is
-dropped without a word. `run({ files })` takes the list as given and serves it.
+## What escapes
+
+A reader that resolves or lists below `fs` and the module loader does not see
+a file only the base holds. The probe pins each one it found:
+
+- Jest resolves every import through its own native resolver, so a helper only
+  the base has is not found in any module system. Its `resolver` option is the
+  seam.
+- Vitest resolves an import through Vite's resolver, so an ESM or TypeScript
+  import of such a helper is not found; a `require` is. A Vite plugin is the
+  seam.
+- The `node --test` CLI globs its arguments through `lib/internal/fs/glob.js`,
+  which takes `lstatSync` and `readdirSync` from `fs` when Node starts, before
+  any preload, so a file only the manifest holds is dropped without a word.
+  `run({ files })` takes the list as given and serves it.
+
+A file or directory only the base holds has no stat of its own: it takes the
+manifest's, or its directory's, with the size of its content, and its realpath
+is the path asked for. `open`, `read`, streams, `opendir` and `copyFile` read
+the disk.
 
 ## What it does not show
 
-A runner's watch mode, Vitest's browser mode, a native addon reading files
-itself, and Jest under watchman (the probe passes `--no-watchman`). Which files
-count as test-side, and the per-case verdict of an old test on new code, are
+A runner's watch mode, Vitest's browser mode, Rstest, whether Jest ran
+the files in its worker processes or in band, a native addon reading files itself, and Jest
+under watchman (the probe passes `--no-watchman`). Which files count as
+test-side, and the per-case verdict of an old test on new code, are
 [#1504](https://github.com/Variance-Authority/variance-authority/issues/1504)'s.
