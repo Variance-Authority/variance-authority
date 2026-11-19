@@ -16,3 +16,8 @@ walked. A Watchman watch that ignores directories, such as `node_modules` or
 the source:
 on Firefox, whose own watch ignores its build directories, an unchanged run
 falls from about 6.2 s to about 1.2 s.
+Under a watch, a branch switch, a reset or a commit compares only the files
+Watchman reports moved, and the kept listing answers for the rest: a switch one
+commit away and back takes the listing from about 0.66 s to about 0.23 s on
+Kibana, and from about 2.2 s to about 0.67 s on Firefox, where the run falls
+from about 5.9 s to about 4.4 s.

@@ -711,7 +711,7 @@ container boundary. When it is, git recomputes.
 ### A Watchman that already watches the checkout
 
 When a Watchman server already watches your checkout, an update asks it which
-files changed since the last update, and asks git only when one did. The update
+files changed since the last update, and compares only those. The update
 keeps, beside the index it writes, the listing git made and the Watchman clock
 taken before git made it. Next time, when the same server reports no change since
 that clock, and none of git's own files changed — `HEAD`, the index, a ref, an
@@ -722,11 +722,26 @@ directories itself, such as `node_modules` or `dist`, vouches the same way:
 what it ignores is out of the source. On Material
 UI's 41,171 paths an update that runs no git takes 22 ms against 121 ms with git.
 
-Anything else lists with git, as above: a change Watchman reports, a server
-that restarted, a checkout no server watches, a machine with no Watchman. Nothing
-starts a server or adds a watch. Under a watch, an update that lists with git
-costs 5 ms more when only git's files changed, and 29 ms more when a tracked file
-did: the Watchman round trips that found the change. The watch is yours to add:
+When files did change, through an edit, a branch switch, a reset or a commit,
+the same server names every file that moved since the kept listing's clock. The
+update reads git's index, but compares only those files, and the files the
+kept listing did not hold clean, against the working tree; the kept listing answers for every other path. The
+files git does not track are the kept listing's and the moved ones, less those
+git ignores. A directory whose `.gitignore` moved is walked again, since a
+changed rule may show a file no listing held. So a switch costs what it moved,
+not the size of the checkout. Under a watch, a switch one commit away and back
+takes the listing from about 0.66 s to about 0.23 s on Kibana, and from about
+2.2 s to about 0.67 s on Firefox, where the run as a whole falls from about
+5.9 s to about 4.4 s. A switch 60 commits away on Firefox, 308 files, costs the
+same as one commit away. On Kibana, 200 commits away moves 4,039 files and the
+root `.gitignore`, so every directory is walked again for untracked files, and
+the wait for the server to report the switch, 3–8 s, is most of the run either
+way.
+
+Anything else lists with git, as above: an exclude or configuration file that
+changed, a server that restarted, a checkout no server watches, a machine with
+no Watchman. Nothing starts a server or adds a watch. The watch is yours to
+add:
 
 ```bash
 watchman watch-project .

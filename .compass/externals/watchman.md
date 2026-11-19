@@ -9,7 +9,9 @@ moved since any clock it handed out.
 ## Good at
 
 Saying that nothing moved. An update that held the tree it was made against
-asks once and, on an empty answer, lists nothing with git.
+asks once and, on an empty answer, lists nothing with git. Saying what moved:
+after a branch switch, a reset or a commit, only the files it names are
+compared, and the held listing answers for the rest.
 
 ## Bad at
 
