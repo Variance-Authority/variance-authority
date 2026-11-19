@@ -54,6 +54,15 @@ export function suiteEntry(suite: string): string {
   return `suite-v1/${suite}`;
 }
 
+/**
+ * The entry a mainline's source index is published under: one slot per format
+ * `version`, so a reader asks for the format it reads. Its bytes are the
+ * index's manifest and its images the segments (`commands/source-index-share.ts`).
+ */
+export function sourceIndexEntry(version: number): string {
+  return `source-index-v${String(version)}`;
+}
+
 /** Where an entry was derived: the commit CI ran on, and the head a pull request pointed at. */
 export interface Derived {
   readonly commit: string;

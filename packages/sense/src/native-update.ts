@@ -44,6 +44,8 @@ export interface NativeUpdateOptions {
   readonly packs?: boolean;
   /** This index as the repository's other checkouts keep it, read when this one has none to stand on. */
   readonly others?: string[];
+  /** This index as CI published it from a clean tree, read after `others`, its rows trusted where the tree names their digest. */
+  readonly published?: string[];
 }
 /** `Updated` in `native/src/source_update.rs`. */
 export interface NativeUpdated {
@@ -77,6 +79,7 @@ export interface NativelyUpdated {
  * `reading` names the read as progress says it: an index started from the stores has no last index to read the changes since.
  * `packs: false` reads every file off the working tree rather than out of Git's object store.
  * `others` is this index as the repository's other checkouts keep it, asked while the tree is listed: one with none to stand on starts from the first that fits.
+ * `published` is one CI published, fetched while the tree is listed: tried after `others`.
  */
 export async function updateNatively(
   root: string,
@@ -87,6 +90,7 @@ export async function updateNatively(
   reading = 'reading the files that changed since the last index',
   packs?: boolean,
   others?: Promise<readonly string[]>,
+  published?: Promise<string | undefined>,
 ): Promise<NativelyUpdated> {
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
   const listed = tree?.native;
@@ -104,6 +108,7 @@ export async function updateNatively(
   // Asked of git while it listed: the stores are needed only now.
   const read = await stores;
   const beside = await others ?? [];
+  const fetched = await published;
   const done = await stepped(progress, reading, () => held.updateIndex({
     root,
     index,
@@ -117,6 +122,7 @@ export async function updateNatively(
     ...(read === undefined ? {} : { stores: [...read] }),
     ...(packs === undefined ? {} : { packs }),
     ...(beside.length === 0 ? {} : { others: [...beside] }),
+    ...(fetched === undefined ? {} : { published: [fetched] }),
   }));
   return {
     files: done.files,

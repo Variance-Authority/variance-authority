@@ -227,7 +227,8 @@ async function moved(path: string, read: Buffer): Promise<boolean> {
 
 /** Where the chain whose manifest is at `path` keeps the segment `digest`. */
 export function segmentPath(path: string, digest: Digest): string { return join(segmentDirectory(path), fileName(digest)); }
-function segmentDirectory(path: string): string { return `${path}.segments`; }
+/** Where the chain whose manifest is at `path` keeps its segments. */
+export function segmentDirectory(path: string): string { return `${path}.segments`; }
 function fileName(digest: Digest): string { return `${digest.replace(':', '-')}.bin`; }
 function missing(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error &&

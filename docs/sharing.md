@@ -777,7 +777,8 @@ every checkout those minutes:
   next update reads only the files that differ from CI's index. An index in
   this release's format is never replaced.
 - **The index is large.** On Firefox, about 200,000 files, it is about 2 GB, or
-  0.7 GB compressed. A directory and an HTTP store keep the latest only. A git
+  0.7 GB compressed. A publish uploads only the segments the line does not
+  hold yet. A directory and an HTTP store keep the latest only. A git
   share keeps one at every mainline commit until `--purge-older-than` deletes
   it.
 - **A checkout that updates `variance` before CI publishes** an index in the new

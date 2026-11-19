@@ -86,9 +86,14 @@ async function mainlinePublished(opted: boolean) {
   return { ci, origin, first, written: 'published' in done ? done.published.written : [] };
 }
 
-/** A clone of `origin` with one module edited, whose index an earlier release built. */
-async function laptopOnOlderRelease(origin: string) {
+/**
+ * A clone of `origin` with one module edited, whose index an earlier release
+ * built. `before` changes it before anything reads it: the root config is read
+ * once per process.
+ */
+async function laptopOnOlderRelease(origin: string, before: (clone: string) => Promise<void> = async () => undefined) {
   const clone = await cloneOf(home, origin);
+  await before(clone);
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'clone-cache'));
   await writeFile(join(clone, 'src/c.ts'), "import { b } from './b';\nexport const c = b + 2;\n");
   await updateSourceIndex(clone);
@@ -147,22 +152,35 @@ describe('`variance index` over an index another release wrote', () => {
         `${String(Object.keys(SOURCES).length)} files, 1 read again, at ${path}`,
     );
     expect(await sourceIndexWrittenIn(path)).toBe(SOURCE_INDEX_VERSION);
+    expect(await sourceIndexChain(`${path}.fetched`)).toBeUndefined();
     expect((await readPublishedSources(path)).records).toEqual(await coldRecords(clone));
   });
 
-  it('fetches nothing for a repository that did not opt in, and reads every file', async () => {
-    const { origin, written } = await mainlinePublished(false);
+  it('publishes no index for a repository that did not opt in', async () => {
+    const { written } = await mainlinePublished(false);
+
     expect(written).toEqual(['suite-v1/unit']);
-    const clone = await laptopOnOlderRelease(origin);
+    const held = await readdir(join(home, 'share'), { recursive: true });
+    expect(held.filter((name) => name.includes('source-index'))).toEqual([]);
+  });
+
+  it('fetches nothing for a checkout whose configuration does not opt in, though the share holds an index, and reads every file', async () => {
+    const { origin, written } = await mainlinePublished(true);
+    expect(written).toContain(`source-index-v${String(SOURCE_INDEX_VERSION)}`);
+    const clone = await laptopOnOlderRelease(origin, async (at) => {
+      const config = JSON.parse(await readFile(join(at, 'variance.config.json'), 'utf8')) as { share: Record<string, unknown> };
+      delete config.share.sourceIndex;
+      await writeFile(join(at, 'variance.config.json'), JSON.stringify(config));
+    });
 
     const out = await indexOutput({ cwd: clone });
 
+    const path = sourceIndexPath(clone);
     const files = Object.keys(SOURCES).length;
     expect(out.split('\n')[0]).toBe(
-      `source index rebuilt over one written in format version ${String(OLDER)}: ${String(files)} files, ${String(files)} read again, at ${sourceIndexPath(clone)}`,
+      `source index rebuilt over one written in format version ${String(OLDER)}: ${String(files)} files, ${String(files)} read again, at ${path}`,
     );
-    const held = await readdir(join(home, 'share'), { recursive: true });
-    expect(held.filter((name) => name.includes('source-index'))).toEqual([]);
+    expect(await sourceIndexChain(`${path}.fetched`)).toBeUndefined();
   });
 
   it('reads the mainline record without waiting on the index it fetches beside it', async () => {

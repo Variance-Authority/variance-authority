@@ -36,6 +36,7 @@ import { listWorktrees, markCheckout } from './test-selection/cache-layers.js';
 import { repositoryRoot } from './test-selection/repository-root.js';
 import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
 import { SOURCE_INDEX_VERSION } from './source-index-format.js';
+import { dropSourceIndex, fetchedSourceIndexPath, sourceIndexWrittenIn } from './source-index-copy.js';
 import { usesOf } from './uses.js';
 
 /** One published generation, opened for reading. */
@@ -125,23 +126,16 @@ export interface SourceUpdateOptions {
    */
   readonly dirs?: readonly string[];
   /**
-   * Puts an index somebody else built at `path` when the one there is another
-   * release's, and says whose it put, or nothing. Asked as the update starts and
-   * awaited only as the addon starts, so it runs while the checkout is listed.
+   * Asked only when the index is another release's: places at `into` one CI
+   * published for an ancestor of the checkout, and says whose it is. The update
+   * asks it as it starts, lists the checkout meanwhile, and offers the addon what
+   * it placed to start from; the addon writes the index, and `into` is removed.
    */
-  readonly restore?: SourceRestore;
+  readonly fetch?: SourceFetch;
 }
 
-/** {@link SourceUpdateOptions.restore}: what it put at `path`, or undefined when it put nothing. */
-export type SourceRestore = (root: string, path: string) => Promise<SourceRestored | undefined>;
-
-/** An index put in place of one another release wrote. */
-export interface SourceRestored {
-  /** The format version the replaced index was written in. */
-  readonly written: number;
-  /** Whose index it is, as a reader is told: the mainline and the commit it was built at. */
-  readonly fetched: string;
-}
+/** {@link SourceUpdateOptions.fetch}: whose index it placed at `into`, or undefined when it placed none. */
+export type SourceFetch = (root: string, into: string) => Promise<string | undefined>;
 
 /** What one update read and what it published. */
 export interface SourceUpdate {
@@ -202,7 +196,8 @@ export async function updateSourceIndex(
   const dirs = options.dirs ?? ['.'];
   const missing = !existsSync(path);
   // Started first: a fetch is the slowest thing an update can wait on, and the listing does not need it.
-  const restoring = options.restore?.(where, path).catch(() => undefined);
+  const into = fetchedSourceIndexPath(path);
+  const fetching = options.fetch === undefined || missing ? undefined : fetchFor(path, () => options.fetch?.(where, into));
   // An index kept in the checkout's own cache, its own or one beside it, reads the cache's parse store before it opens a file.
   // Asked now, answered while git lists: every route below awaits it.
   const cached = dirname(path) === dirname(sourceIndexPath(where));
@@ -215,18 +210,19 @@ export async function updateSourceIndex(
   const reading = !missing ? undefined : (await beside ?? []).length > 0
     ? `reading the files of ${placesOf(where, dirs)} that differ from another checkout's index, or every file if none of theirs fits`
     : `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
-  // The addon opens the chain only once the restore has placed it, or declined to.
-  const others = restoring === undefined ? beside : restoring.then(async () => await beside ?? []);
-  const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, reading, options.packs, others);
-  const restored = await restoring;
+  // The addon tries CI's after every checkout's: one on this machine is nearer.
+  const published = fetching?.then((whose) => whose === undefined ? undefined : into);
+  const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, reading, options.packs, beside, published)
+    .finally(async () => { if (fetching !== undefined) await dropSourceIndex(into); });
+  const whose = await fetching;
   if (options.index === undefined) markCheckout(realPath(where));
-  const written = restored?.written ?? natively.written;
+  const fetched = whose !== undefined && natively.from === into ? whose : undefined;
   return {
     path,
-    was: missing ? 'missing' : restored === undefined ? natively.rebuilt ?? 'published' : 'other-version',
-    ...(written === undefined ? {} : { written }),
-    ...(restored === undefined ? {} : { fetched: restored.fetched }),
-    ...(natively.from === undefined ? {} : { from: natively.from }),
+    was: missing ? 'missing' : natively.rebuilt ?? 'published',
+    ...(natively.written === undefined ? {} : { written: natively.written }),
+    ...(fetched === undefined ? {} : { fetched }),
+    ...(natively.from === undefined || fetched !== undefined ? {} : { from: natively.from }),
     ...(natively.refused === undefined ? {} : { refused: natively.refused }),
     files: natively.files,
     reread: natively.reread,
@@ -234,6 +230,21 @@ export async function updateSourceIndex(
     readStartedAt,
     ...(natively.listing === undefined ? {} : { listing: natively.listing }),
   };
+}
+
+/**
+ * `fetch`, asked only over an index another release wrote. One this release
+ * wrote updates by what changed, which is cheaper than any fetch; one that is
+ * damaged is the primary checkout's to stand in for, by `others`.
+ */
+async function fetchFor(path: string, fetch: () => Promise<string | undefined> | undefined): Promise<string | undefined> {
+  try {
+    const written = await sourceIndexWrittenIn(path);
+    if (written === undefined || written === SOURCE_INDEX_VERSION) return undefined;
+    return await fetch();
+  } catch {
+    return undefined;
+  }
 }
 
 /** The index named `name` as every other checkout of the repository keeps it for `where`, the primary first, where one does. */
@@ -265,7 +276,7 @@ export interface PublishedSourcesOptions {
   /** How a local update reads bytes, as {@link SourceUpdateOptions} takes it. */
   readonly packs?: boolean;
   /** What a local update starts from when the index is another release's, as {@link SourceUpdateOptions} takes it. */
-  readonly restore?: SourceRestore;
+  readonly fetch?: SourceFetch;
 }
 
 /**
@@ -314,7 +325,7 @@ export async function publishedThrough<Read extends { readonly state: SourceInde
   await updateSourceIndex(root, {
     index: path,
     ...(options.packs === undefined ? {} : { packs: options.packs }),
-    ...(options.restore === undefined ? {} : { restore: options.restore }),
+    ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
   });
   return read(path);
 }

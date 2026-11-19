@@ -47,7 +47,7 @@ import {
   type SourceUpdate,
 } from '@variance-authority/sense';
 import { OperatorError } from '../exit.js';
-import { restoreFromMainline } from './source-index-share.js';
+import { fetchFromMainline } from './source-index-share.js';
 import { followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, releaseFollowUps, reserveFollowUps, waitingLine, type Detach } from './index-follow-ups.js';
 
 export interface IndexRequest {
@@ -104,7 +104,7 @@ async function written(request: IndexRequest, alone: Alone): Promise<SourceUpdat
   const update = await turn(request, alone, () => updateSourceIndex(request.cwd, {
     ...(request.noGit ? { packs: false } : {}),
     ...(request.progress === undefined ? {} : { progress: request.progress }),
-    restore: restoreFromMainline,
+    fetch: fetchFromMainline,
   }));
   // A scan treats an unwritable cache as a cold next run. This step exists to
   // write it, so a refusal is the answer, and nothing after it has an index to read.

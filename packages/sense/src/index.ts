@@ -77,12 +77,11 @@ export {
   SourceIndexUnpublished,
   type PublishedSources,
   type PublishedSourcesOptions,
-  type SourceRestore,
-  type SourceRestored,
+  type SourceFetch,
   type SourceUpdate,
   type SourceUpdateOptions,
 } from './published.js';
-export { restoreSourceIndex, sourceIndexChain, sourceIndexWrittenIn, type SourceIndexChain } from './source-index-copy.js';
+export { fetchedSourceIndexPath, placeSourceIndex, sourceIndexChain, sourceIndexWrittenIn, type SourceIndexChain } from './source-index-copy.js';
 export { publishedNames, readPublishedNames, type PublishedNames } from './published-names.js';
 export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';

@@ -3,12 +3,13 @@
  *
  * A release that changes the index's format makes every checkout read every
  * file again, and in a large repository that is minutes. CI has already paid
- * it for the mainline, so a checkout that opted in takes CI's index whole and
- * the update that follows reads only the files that differ from it: the addon
- * updates a chain it can open by each file's blob, whichever machine wrote it.
+ * it for the mainline, so a checkout that opted in places CI's index beside its
+ * own, and the update offers it to the addon to start from, as it offers another
+ * checkout's: the addon reads only the files that differ from it and writes the
+ * checkout's own index. Nothing here writes that index.
  *
- * Nothing here composes a manifest. The publisher carries the manifest and the
- * segments as they are on disk, and the restore places them where they were:
+ * Nothing here composes a manifest either. The publisher carries the manifest
+ * and the segments as they are on disk, and the fetch places them as they were:
  * every segment by its digest first, the manifest last, as the addon's own
  * writer commits a chain (`native/src/log.rs`).
  */
@@ -19,7 +20,7 @@ import { open, readFile, rm } from 'node:fs/promises';
 import type { Digest } from '@variance-authority/core/format';
 import { SegmentCutShort } from '@variance-authority/core/segment';
 import { digestBytes } from './digest.js';
-import { decodeManifest, segmentPath, type SegmentReference } from './immutable-log.js';
+import { decodeManifest, segmentDirectory, segmentPath, type SegmentReference } from './immutable-log.js';
 import { SOURCE_INDEX_VERSION, sourceIndexVersionOf } from './source-index-format.js';
 import { writeCoverageBytes } from './test-selection/record-location.js';
 
@@ -43,7 +44,9 @@ export async function sourceIndexChain(path: string): Promise<SourceIndexChain |
  * The format version the index at `path` was written in: this release's when
  * every segment names it, else the first other one a segment names. Undefined
  * when there is no index, or one that does not read that far. Reads each
- * segment's header and nothing past it.
+ * segment's header and nothing past it: what an update asks before it fetches,
+ * and what a publish asks before it carries the index, neither of which reads
+ * the index itself.
  */
 export async function sourceIndexWrittenIn(path: string): Promise<number | undefined> {
   const chain = await sourceIndexChain(path);
@@ -55,50 +58,41 @@ export async function sourceIndexWrittenIn(path: string): Promise<number | undef
   return SOURCE_INDEX_VERSION;
 }
 
+/** Where an update over the index at `path` has a fetched index placed: beside it, read once and removed. */
+export function fetchedSourceIndexPath(path: string): string {
+  return `${path}.fetched`;
+}
+
 /**
- * Place the chain `manifest` names at `path`, each segment's bytes from `read`,
- * over an index another release wrote. False, and the index left as it was,
- * when a segment is not what its digest says or not this release's format, or
- * when the index at `path` was written in this release's format meanwhile.
+ * Place the chain `manifest` names at `into`, each segment's bytes from `read`.
+ * False, with no manifest written, when a segment is missing or not what its
+ * digest says. Whether the chain opens under this release is the addon's to say.
  */
-export async function restoreSourceIndex(
-  path: string,
+export async function placeSourceIndex(
+  into: string,
   manifest: Uint8Array,
   read: (digest: Digest) => Promise<Uint8Array | undefined>,
 ): Promise<boolean> {
   const segments = manifestOf(Buffer.from(manifest));
   if (segments === undefined || segments.length === 0) return false;
-  const placed: string[] = [];
   for (const { digest, length } of segments) {
-    const file = segmentPath(path, digest);
     const bytes = await read(digest);
     if (bytes === undefined || bytes.length !== length || digestBytes(bytes) !== digest) return false;
-    if (versionOf(bytes) !== SOURCE_INDEX_VERSION) return false;
-    await writeCoverageBytes(file, bytes);
-    placed.push(file);
+    await writeCoverageBytes(segmentPath(into, digest), bytes);
   }
-  // An update that rebuilt the index while the segments came is newer than CI's; it stands.
-  if (await sourceIndexWrittenIn(path) === SOURCE_INDEX_VERSION) return false;
-  const replaced = await sourceIndexChain(path);
-  await writeCoverageBytes(path, manifest);
-  const kept = new Set(placed);
-  await Promise.all((replaced?.segments ?? [])
-    .filter((segment) => !kept.has(segment.path))
-    .map((segment) => rm(segment.path, { force: true })));
+  await writeCoverageBytes(into, manifest);
   return true;
+}
+
+/** Remove the chain at `path`, manifest and segments. */
+export async function dropSourceIndex(path: string): Promise<void> {
+  await rm(path, { force: true });
+  await rm(segmentDirectory(path), { recursive: true, force: true });
 }
 
 function manifestOf(bytes: Buffer): readonly SegmentReference[] | undefined {
   try {
     return decodeManifest(bytes);
-  } catch {
-    return undefined;
-  }
-}
-
-function versionOf(bytes: Uint8Array): number | undefined {
-  try {
-    return sourceIndexVersionOf(bytes);
   } catch {
     return undefined;
   }
