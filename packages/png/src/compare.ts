@@ -8,7 +8,7 @@ import {
   type DiffPolicy,
   type RasterComparison,
 } from '@variance-authority/raster';
-import { ALIGNMENT_LIMIT, alignRows, lenientOf, type AlignedRows } from './align.js';
+import { ALIGNMENT_LIMIT, alignRows, type AlignedRows } from './align.js';
 import { changeImages } from './change.js';
 import { decodePortable } from './format.js';
 import { judgeImages } from './images.js';
@@ -102,8 +102,8 @@ export async function compareRasters(
   );
 
   return timeOn(options.steps, 'compare', () => {
-    const policies = options.policies ?? DEFAULT_POLICIES;
-    const aligned = alignRows(left, right, ALIGNMENT_LIMIT, lenientOf(policies)) ?? null;
+    const isolateWith = options.isolateWith ?? DEFAULT_POLICY;
+    const aligned = alignRows(left, right, ALIGNMENT_LIMIT, isolateWith.threshold) ?? null;
     options.keep?.({ before: left, after: right, aligned });
     return judged(left, right, options, aligned);
   });

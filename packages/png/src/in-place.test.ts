@@ -46,6 +46,17 @@ describe("a band repainted in place", () => {
     expect(comparison.alignment?.shifted).toContainEqual({ from: 3, to: 12, by: -1 });
   });
 
+  it("pairs under the isolating policy, whatever is judged beside it", () => {
+    const before = distinct([A, B, C, ...range(200, 210), D, E, F, G]);
+    const after = distinct([A, B, C, ...range(201, 211), D, E, X, Y, F, G]);
+
+    const alone = comparePixels(before, after, { policies: [STRICT_POLICY], isolateWith: STRICT_POLICY });
+    const beside = comparePixels(before, after, { policies: [STRICT_POLICY, DEFAULT_POLICY], isolateWith: STRICT_POLICY });
+
+    expect(beside.alignment).toEqual(alone.alignment);
+    expect(beside.changed.strict).toBe(alone.changed.strict);
+  });
+
   it("pairs the band at the move of the page around it, below an earlier insertion", () => {
     const before = distinct([A, B, C, ...range(200, 210), D, E, F, G]);
     const after = distinct([A, P, Q, B, C, ...range(201, 211), D, E, X, Y, F, G]);

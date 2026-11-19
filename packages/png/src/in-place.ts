@@ -6,7 +6,7 @@ import { regrouped } from './straddle.js';
  * Rows the shortest edit moved that belong where they are: a band repainted by
  * a level, which the edit pairs one row off beside a real insertion, is paired
  * at the move of the rows around it when that leaves less differing under
- * `threshold`, the most lenient policy's. `costs` is kept true for the rows paired anew.
+ * `threshold`, the policy's whose verdict it serves. `costs` is kept true for the rows paired anew.
  */
 export function inPlace(
   rows: PairedRows,

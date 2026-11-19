@@ -4,7 +4,7 @@
  */
 
 import type { DiffPolicy, RowAlignment } from '@variance-authority/raster';
-import { ALIGNMENT_LIMIT, alignRows, lenientOf, type AlignedRows } from './align.js';
+import { ALIGNMENT_LIMIT, alignRows, type AlignedRows } from './align.js';
 import { judgeRows, type JudgeOutput } from './judge.js';
 import type { DecodedImage } from './mask.js';
 
@@ -51,7 +51,8 @@ export interface JudgedImages {
  * one scan rather than one per policy.
  *
  * The policies differ only in what they call a different pixel, so the rows are
- * aligned once, under the most lenient of them, each pixel is read once, and
+ * aligned once, under the policy whose mask or picture is drawn, so its verdict
+ * is the same whatever is judged beside it; each pixel is read once, and
  * anti-aliasing is asked about once however many policies forgive it.
  */
 export function judgeImages(
@@ -62,7 +63,8 @@ export function judgeImages(
   output: JudgeOutput,
 ): JudgedImages {
   // `null` is a caller that already asked and found no alignment.
-  const alignment = given === undefined ? alignRows(before, after, ALIGNMENT_LIMIT, lenientOf(policies)) : (given ?? undefined);
+  const drawn = policies[output.mask ?? output.picture?.policy ?? 0]!;
+  const alignment = given === undefined ? alignRows(before, after, ALIGNMENT_LIMIT, drawn.threshold) : (given ?? undefined);
 
   if (alignment === undefined || unmoved(alignment, before, after)) {
     const width = Math.max(before.width, after.width);

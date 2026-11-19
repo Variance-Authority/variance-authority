@@ -34,7 +34,7 @@ describe("content pushed down by a fractional height", () => {
     expect(comparison.alignment?.removed).toEqual([]);
   });
 
-  it("keeps a fractional move whole under the most lenient policy", () => {
+  it("keeps a fractional move whole under a lenient policy", () => {
     // Its lines move by 23 and by 24 in turn, and a lenient policy forgives a
     // line read one row off: the move reported is still the one move.
     const alignment = alignRows(page(0), page(23.5), ALIGNMENT_LIMIT, 0.5);
