@@ -78,9 +78,22 @@ export function straddled(
     held.fill(1, top + 1, from);
   }
 
+  return regrouped(rows, joined, (row) => held[row] === 1);
+}
+
+/**
+ * The spans of `rows` once a pass has paired some of its rows anew in `rows.source`:
+ * a shift runs while its rows move alike or are `joined` to the row above, and
+ * moves by what most of its rows move by, so content a fraction of a row lower
+ * stays one shift. The inserted and grown rows left are those still unpaired,
+ * and the removed and shrunk ones those `held` does not hold.
+ */
+export function regrouped(rows: PairedRows, joined: Uint8Array, held: (row: number) => boolean): PairedRows {
+  const { source } = rows;
+  const height = source.length;
   const unpaired = (span: RowSpan): RowSpan[] => spans(span.from, span.to, (y) => source[y]! < 0);
   const free = <Span extends RowSpan & { readonly at: number }>(span: Span): Span[] =>
-    spans(span.from, span.to, (row) => !held[row]).map((part) => ({ ...span, ...part }));
+    spans(span.from, span.to, (row) => !held(row)).map((part) => ({ ...span, ...part }));
 
   const shifted: { from: number; to: number; last: number; moved: Map<number, number> }[] = [];
   for (let y = 0; y < height; y += 1) {

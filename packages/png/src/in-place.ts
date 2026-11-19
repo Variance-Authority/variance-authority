@@ -1,6 +1,6 @@
-import type { RowSpan } from '@variance-authority/raster';
 import type { PairedRows } from './align.js';
 import { colorDelta, limitOf } from './judge.js';
+import { regrouped } from './straddle.js';
 
 /**
  * Rows the shortest edit moved that belong where they are: a band repainted by
@@ -42,7 +42,7 @@ export function inPlace(
     if (run !== undefined && run.by === moveOf(y)) run.last = y;
     else runs.push({ first: y, last: y, by: moveOf(y) });
   }
-  // Which reported shift each after row is in, so a shift no detour touched stays as it was.
+  // Which reported shift each after row is in, so a shift stays one as placing changes its rows.
   const span = new Int32Array(height).fill(-1);
   rows.shifted.forEach((shift, index) => span.fill(index, shift.from, shift.to));
 
@@ -67,7 +67,6 @@ export function inPlace(
     for (let row = run.first; row <= run.last; row += 1) weight += source[row]! < 0 ? width : forgiven(source[row]!, row);
     return (run.weight = weight);
   };
-  const placed = new Uint8Array(height);
   const reclaimed = new Uint8Array(was.length / width);
   // What `run` leaves differing paired at the move of the two around it, when that
   // is less than the detour leaves: the run, the unpaired rows beside it and each
@@ -93,7 +92,6 @@ export function inPlace(
       source[row] = row - move;
       costs[row] = cost(row - move, row);
     }
-    placed.fill(1, first, bottom);
     reclaimed.fill(1, first - move, bottom - move);
     return kept;
   };
@@ -115,35 +113,18 @@ export function inPlace(
   }
   if (!changed) return rows;
 
-  // A span of unpaired rows lies wholly inside a placed band or wholly outside it.
-  const unplaced = (span: RowSpan): boolean => placed[span.from] === 0;
-  const unreclaimed = (span: RowSpan): boolean => reclaimed[span.from] === 0;
-  // A reported shift moves by what most of its rows move by, as the fractional pass
-  // reads it, so one a fraction of a row long, its rows one off in turn, stays one,
-  // counted after placing; a placed row outside every shift reads its own move.
-  const moved = rows.shifted.map(() => new Map<number, number>());
-  for (let y = 0; y < height; y += 1) {
-    if (source[y]! >= 0 && span[y]! >= 0) moved[span[y]!]!.set(moveOf(y), (moved[span[y]!]!.get(moveOf(y)) ?? 0) + 1);
-  }
-  const most = moved.map((counts) => [...counts].reduce((best, entry) => (entry[1] > best[1] ? entry : best))[0]);
-  const shifted: { from: number; to: number; by: number }[] = [];
-  for (let y = 0; y < height; y += 1) {
-    if (source[y]! < 0) continue;
-    const by = span[y]! >= 0 ? most[span[y]!]! : placed[y] ? moveOf(y) : 0;
-    if (by === 0) continue;
-    const open = shifted.at(-1);
-    if (open?.to === y && open.by === by && (placed[y] || placed[y - 1] || span[y] === span[y - 1])) open.to = y + 1;
-    else shifted.push({ from: y, to: y + 1, by });
-  }
-  const inserted = rows.inserted.filter(unplaced);
-  const removed = rows.removed.filter(unreclaimed);
+  // A shift reported before placing stays one, its rows read at the move most of them make now.
+  const joined = new Uint8Array(height);
+  for (let y = 1; y < height; y += 1) if (span[y]! >= 0 && span[y] === span[y - 1]) joined[y] = 1;
+  const regrouping = regrouped({ ...rows, source }, joined, (row) => reclaimed[row] === 1);
   // Rows all back in place leave nothing for a pairing to explain: position reads them.
+  const { shifted, inserted, removed } = regrouping;
   if (shifted.length === 0 && inserted.length === 0 && removed.length === 0) {
     source.set(saved!.source);
     costs.set(saved!.costs);
     return rows;
   }
-  return { source, inserted, removed, shifted, grown: rows.grown.filter(unplaced), shrunk: rows.shrunk.filter(unreclaimed) };
+  return regrouping;
 }
 
 interface Run {
