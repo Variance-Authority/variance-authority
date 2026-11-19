@@ -410,7 +410,8 @@ encode to equal bytes. The reader checks a segment whole when
 it opens it, before any row is read: it rejects duplicate section names,
 overlapping or out-of-bounds sections, invalid widths, unaligned offsets,
 malformed column lengths, a text heap that is not UTF-8, keys that do not
-ascend, and any row that names a string, a text or a request the segment does
+ascend, a key the segment both puts and deletes, a package column that names
+anything but a package, and any row that names a string, a text or a request the segment does
 not hold. A segment it rejects ends the chain there: the index is damaged, and
 `variance index` rebuilds it.
 

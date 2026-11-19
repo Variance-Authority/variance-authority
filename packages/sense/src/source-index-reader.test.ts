@@ -224,17 +224,15 @@ describe('the source index the addon reads', () => {
     expect(readSourceIndexSegment(recordOnly(record)).records.get(record.file)?.record.packages).toEqual([{ to: '@scope/only-here', kind: 'type' }]);
   });
 
-  it('reads a package column as written: the one encoder names packages, the reader does not judge them', () => {
+  it('refuses a package column that names a relative specifier', () => {
     const encoded = recordOnly({ file: 'src/card.tsx', digest: B as Digest, packages: [{ to: 'zzzzzzzzzz', kind: 'imports' }] });
     encoded.write('../exit.js', encoded.indexOf('zzzzzzzzzz'));
 
-    // The write leaves the dictionary out of code-unit order, so the record is walked to, not looked up.
-    const [read] = readSourceIndexSegment(encoded).records.values();
-    expect(read?.record.packages).toEqual([{ to: '../exit.js', kind: 'imports' }]);
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
-  it('answers a key that one segment both writes and deletes with what it writes', () => {
-    expect(readSourceIndexSegment(parsesOnly([[A, FULL]], new Set([A]))).parses.get(A)).toStrictEqual(FULL);
+  it('rejects a key that one segment both writes and deletes', () => {
+    expect(() => readSourceIndexSegment(parsesOnly([[A, FULL]], new Set([A])))).toThrow('not a variance-authority source index');
   });
 
   it('keeps each side of a mock diff apart, and a parse with none has no diff', () => {

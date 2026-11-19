@@ -10,7 +10,7 @@ import { openImmutableLog } from './immutable-log.js';
 import { readPublishedSources } from './published.js';
 import { encodeSourceIndex } from './source-index-format.js';
 import { readSourceRecords } from './source-index.js';
-import { readSourceIndexChain } from './source-index-reader.js';
+import { readSourceIndexChain, readSourceIndexSegment } from './source-index-reader.js';
 
 
 /**
@@ -81,18 +81,20 @@ describe('a chain whose later layer puts every key again', () => {
     expect(read.stored.records.get('src/1.ts')).toEqual({ record: { file: 'src/1.ts' }, witnesses: [] });
   });
 
-  it('answers a key one layer both puts and deletes with its put, as compaction folds it', () => {
+  it('refuses a layer that puts and deletes one key, though a later layer decided it', () => {
     const key = `git:${'0'.repeat(40)}` as Digest;
     const none = { parses: new Map(), directories: new Map(), records: new Map() };
-    const base = encodeSourceIndex({ ...none, parses: new Map([[key, { requests: [], harvested: true }]]), directories: new Map([['src', key]]) });
+    const decided = encodeSourceIndex({ ...none, parses: new Map([[key, { requests: [] }]]), records: new Map(), directories: new Map([['src', key]]) });
     // The encoder writes no record deletes, so a record cannot be both here.
-    const parse = readSourceIndexChain([base, encodeSourceIndex({ ...none, parses: new Map([[key, { requests: [] }]]), deletedParses: new Set([key]) })]);
-    const directory = readSourceIndexChain([base, encodeSourceIndex({ ...none, directories: new Map([['src', 'git:new' as Digest]]), deletedDirectories: new Set(['src']) })]);
+    const layers = [
+      { ...none, parses: new Map([[key, { requests: [] }]]), deletedParses: new Set([key]) },
+      { ...none, directories: new Map([['src', key]]), deletedDirectories: new Set(['src']) },
+    ];
 
-    expect(parse.kept).toBe(2);
-    expect([...parse.stored.parses]).toEqual([[key, { requests: [] }]]);
-    expect(directory.kept).toBe(2);
-    expect([...directory.stored.directories]).toEqual([['src', 'git:new']]);
+    for (const layer of layers) {
+      expect(() => readSourceIndexSegment(encodeSourceIndex(layer))).toThrow('not a variance-authority source index');
+      expect(readSourceIndexChain([encodeSourceIndex(layer), decided]).kept).toBe(0);
+    }
   });
 
   it('reads up to a damaged segment as though no layer above it decided anything', async () => {

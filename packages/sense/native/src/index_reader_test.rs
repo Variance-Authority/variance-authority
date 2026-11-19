@@ -100,15 +100,15 @@ fn a_newer_layer_answers_and_a_damaged_one_ends_the_chain() {
 }
 
 #[test]
-fn a_layer_that_puts_and_deletes_one_key_answers_with_its_put() {
+fn a_layer_that_puts_and_deletes_one_key_ends_the_chain_there() {
     let deletes = ["a".to_owned()];
     let base = segment(None, &[("a", bare())], &[], Deleted::default());
     let both = segment(None, &[("a", empty())], &[], Deleted { parses: &deletes, ..Deleted::default() });
     let segments = vec![base, both];
     let read = chain(&segments);
-    assert_eq!(read.layers.len(), 2);
+    assert_eq!(read.layers.len(), 1);
     assert_eq!(keys(&read), ["a"]);
-    assert_eq!(read_back(&read, "a"), empty());
+    assert_eq!(read_back(&read, "a"), bare());
 }
 
 #[test]

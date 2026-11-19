@@ -142,7 +142,14 @@ impl<'a> Records<'a> {
         for (column, what) in [(self.digest, "record digests"), (self.unknown, "record unknowns"), (self.target_path, "targets")] {
             maybe(stored, column, what)?;
         }
-        Ok(())
+        // A package is named as `package_of` names it: anything else is a column read through the wrong dictionary.
+        let none = std::collections::HashSet::new();
+        let mut named = true;
+        for at in 0..self.package_to.len() {
+            let to = stored.text(self.package_to.at(at));
+            named &= crate::specifier::package_of(to, &none) == Some(to);
+        }
+        super::check::need(named, "package targets")
     }
 
     /// The record at `row`, its absent lists absent.

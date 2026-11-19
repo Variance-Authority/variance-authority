@@ -151,6 +151,34 @@ fn a_layer_whose_record_files_do_not_ascend_is_refused_at_open() {
 }
 
 #[test]
+fn a_layer_that_both_puts_and_deletes_one_key_is_refused_at_open() {
+    // No writer deletes a key in the segment that puts it: each one's deletes are
+    // what its puts do not hold. The encoder below drops a record so deleted, so
+    // the record case is made by pointing the delete at the put.
+    let parse = encoded(r#"{"parses": [["git:a", {"requests": []}]], "deletedParses": ["git:a"]}"#);
+    assert!(crate::compact::Layer::open(&parse).is_err(), "a parse both put and deleted was read");
+    let directory = encoded(r#"{"directories": [["src", "v1:d"]], "deletedDirectories": ["src"]}"#);
+    assert!(crate::compact::Layer::open(&directory).is_err(), "a directory both put and deleted was read");
+    let document = r#"{"records": [["src/a.ts", {"record": {"file": "src/a.ts"}, "witnesses": []}]], "deletedRecords": ["src/b.ts"]}"#;
+    let file = crate::compact::Layer::open(&encoded(document)).unwrap().records.file.at(0);
+    assert!(crate::compact::Layer::open(&with_u32_of(document, "records.deleted", file)).is_err(), "a record both put and deleted was read");
+}
+
+#[test]
+fn a_layer_whose_package_column_names_what_is_no_package_is_refused_at_open() {
+    let document = FULL.replace(r#"{"to": "react", "kind": "imports"}"#, r#"{"to": "zzzzzzzzzz", "kind": "imports"}"#);
+    assert_ne!(document, FULL);
+    let good = encoded(&document);
+    assert!(crate::compact::Layer::open(&good).is_ok());
+    let at = good.windows(10).position(|window| window == b"zzzzzzzzzz").unwrap();
+    for named in [&b"../exit.js"[..], b"@scope/a/b", b"react/jsx1", b"node:fs/x1"] {
+        let mut damaged = good.clone();
+        damaged[at..at + 10].copy_from_slice(named);
+        assert!(crate::compact::Layer::open(&damaged).is_err(), "{} was read as a package", String::from_utf8_lossy(named));
+    }
+}
+
+#[test]
 fn a_layer_whose_flag_is_neither_zero_nor_one_is_refused() {
     for name in ["records.edges-present", "parses.harvested", "bindings.type"] {
         let error = compacted(&[&with_byte(name, 3)]).err().unwrap_or_else(|| panic!("{name} = 3 was read"));

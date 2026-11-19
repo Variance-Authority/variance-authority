@@ -3,7 +3,8 @@
 //! layer.
 //!
 //! A layer reads when it carries a text heap, its key columns ascend with no
-//! key twice — every lookup searches them — and every row names only what the
+//! key twice — every lookup searches them — no key is both put and deleted,
+//! each package is named as `package_of` names it, and every row names only what the
 //! segment holds: each id one the dictionary or the heap holds, absent only
 //! where its column allows it, each span with both ends or neither and running
 //! forward, and each member naming a request of its own row. A layer one row of
@@ -38,6 +39,10 @@ pub(super) fn layer(stored: &Stored, parses: &Parses, records: &Records, directo
         // A key of one column pairs with the first id, which every dictionary holds.
         ascending(stored, column.len(), |row| (column.at(row), 0), what)?;
     }
+    // No writer deletes a key in the segment that puts it: its deletes are what its puts do not hold.
+    apart(parses.key.len(), parses.deleted.len(), |row| (parses.key.at(row), parses.way.at(row)), |row| (parses.deleted.at(row), parses.deleted_way.at(row)), "parse keys both put and deleted")?;
+    apart(records.file.len(), records.deleted.len(), |row| (records.file.at(row), 0), |row| (records.deleted.at(row), 0), "record files both put and deleted")?;
+    apart(directories.path.len(), directories.deleted.len(), |row| (directories.path.at(row), 0), |row| (directories.deleted.at(row), 0), "directory paths both put and deleted")?;
     held(stored, directories.digest, "directory digests")?;
     parse_rows(stored, parses)?;
     records.check(stored)
@@ -147,6 +152,19 @@ fn ascending(stored: &Stored, len: usize, key: impl Fn(usize) -> (u32, u32), wha
         let (first, second) = key(row);
         need(stored.holds(first) && stored.holds(second) && before < Some((first, second)), what)?;
         before = Some((first, second));
+    }
+    Ok(())
+}
+
+/// Whether two ascending key columns share no key: one walk over both.
+fn apart(puts: usize, deletes: usize, put: impl Fn(usize) -> (u32, u32), delete: impl Fn(usize) -> (u32, u32), what: &str) -> Result<(), String> {
+    let (mut at, mut gone) = (0, 0);
+    while at < puts && gone < deletes {
+        match put(at).cmp(&delete(gone)) {
+            std::cmp::Ordering::Less => at += 1,
+            std::cmp::Ordering::Greater => gone += 1,
+            std::cmp::Ordering::Equal => return need(false, what),
+        }
     }
     Ok(())
 }
