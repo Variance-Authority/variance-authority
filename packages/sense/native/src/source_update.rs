@@ -12,7 +12,8 @@
 //! What stays JavaScript's is what it owns: the configuration digest, which
 //! `reuse.ts` derives from the resolver options. Every index is made here: a
 //! chain this cannot stand on — none, a legacy or damaged one, another
-//! configuration — is rebuilt from the tree, and what it cannot do at all is
+//! configuration — is rebuilt from the tree, over another checkout's chain
+//! where the repository has one (`source_update_seed.rs`), and what it cannot do at all is
 //! an error rather than somebody else's turn.
 //!
 //! Nothing changed, no record is written; a listing the tree carries (spec
@@ -50,6 +51,8 @@ use crate::world::World;
 #[path = "source_update_reach.rs"]
 mod reach;
 use reach::Reached;
+#[path = "source_update_seed.rs"]
+mod seed;
 
 /// What an update needs that only the caller knows.
 #[napi(object)]
@@ -75,6 +78,11 @@ pub struct UpdateOptions {
     pub stores: Option<Vec<String>>,
     /// `false` reads every file off the working tree, never out of Git's object store.
     pub packs: Option<bool>,
+    /// This index as the repository's other checkouts keep it, the nearest
+    /// first. One this update cannot stand on — none yet, or one it must
+    /// rebuild — starts from the first of them made under the same
+    /// configuration, and reads only what differs from it.
+    pub others: Option<Vec<String>>,
 }
 
 /// What an update did.
@@ -155,8 +163,17 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
         _ => (None, None),
     };
     let chain = if opened.is_some() { read.as_ref() } else { None };
-    let layers = opened.unwrap_or_default();
-    let segments: &[Vec<u8>] = chain.map_or(&[], |chain| &chain.segments);
+    // With no chain of its own to stand on, the update stands on another
+    // checkout's: its layers are copied, and what differs is written over them.
+    let other = if opened.is_none() && trusted { seed::other(o.others.as_deref().unwrap_or_default(), &o.config) } else { None };
+    let seeded = other.is_some();
+    // `base`: how many of `segments` are the base, the rest the working layer.
+    let (layers, segments, base): (Vec<Layer>, &[Vec<u8>], usize) = match (opened, chain, &other) {
+        (Some(layers), Some(chain), _) => (layers, &chain.segments, chain.segments.len() - chain.working),
+        (_, _, Some(other)) => seed::opened(other),
+        _ => (Vec::new(), &[], 0),
+    };
+    let configured = configured || (seeded && !layers.is_empty());
     let stores = Stores::read(o.stores.as_deref().unwrap_or_default());
     let store = stores.open();
     let kept = |identity: &str, file: &str| store.view(identity, &way(file))?.read();
@@ -191,6 +208,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             let Some(digest) = stored.optional(records.digest.at(row)) else { return false };
             let Some(&index) = tree.at.get(**file) else { return false };
             names_object(digest, &tree.oids[index as usize])
+                && (!seeded || seed::proven(&layers, &store, file, digest))
                 && (moved.is_empty() || !records.witnesses_of(stored, row).any(|directory| moved.contains(directory)))
                 // Git's object is the cleaned bytes and a decline was decided on
                 // the checked-out ones, so it holds while those are still over.
@@ -344,11 +362,13 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
                 held.contains(&(digest.to_owned(), way.to_owned())) && !users.contains(key)
             })
             .collect();
+        // Over another checkout's layers, a parse held may be of bytes it edited:
+        // the one read here is written over it.
         let mut parses: Vec<(String, Parse)> = fresh
             .into_iter()
             .filter(|(key, _)| {
                 let (digest, way) = crate::generation::key_parts(key);
-                !held.contains(&(digest.to_owned(), way.to_owned()))
+                seeded || !held.contains(&(digest.to_owned(), way.to_owned()))
             })
             .collect();
 
@@ -361,7 +381,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             held_directories.keys().filter(|path| !directories.contains_key(**path)).map(|path| (*path).to_owned()).collect();
 
         // A configuration that changed alone is still published, or every update after it resolves again.
-        let unchanged = configured && puts.is_empty()
+        // Over another checkout's layers, nothing is this checkout's until it is written.
+        let unchanged = configured && !seeded && puts.is_empty()
             && deleted_records.is_empty()
             && parses.is_empty()
             && deleted_parses.is_empty()
@@ -384,15 +405,15 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             Ok(segment)
         };
         let segment = |reference: &crate::index_chain::Reference| LogSegment { digest: reference.digest.clone(), length: reference.length as i64 };
-        let (references, published, working_count): (Vec<LogSegment>, Over, usize) = match chain {
-            Some(chain) => (chain.references.iter().map(segment).collect(), Over::Published(chain.published()), chain.working),
+        let (references, published): (Vec<LogSegment>, Over) = match chain {
+            Some(chain) => (chain.references.iter().map(segment).collect(), Over::Published(chain.published())),
             // A chain rebuilt is replaced only while it is still the one read;
             // a first build only where nothing was published.
             None => (Vec::new(), match &read {
                 Some(read) => Over::Published(read.published()),
                 None if unreadable => Over::Anything,
                 None => Over::Nothing,
-            }, 0),
+            }),
         };
         // A chain rebuilt rather than updated leaves nothing of its own behind.
         let stale: Vec<LogSegment> = match (chain, &read) {
@@ -401,7 +422,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
         };
         // The working layer and this delta become the next working layer: an update
         // rewrites what changed since the index was readied, and never the base.
-        let base = references.len() - working_count;
+        // Over another checkout's layers, its base is copied, and none of the references is this one's.
+        let own = if seeded { 0 } else { base };
         let beneath: Vec<&[u8]> = segments[..base].iter().map(Vec::as_slice).collect();
         recording.end();
         let encoding = crate::stages::start("encode", &crate::stages::NONE);
@@ -419,7 +441,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
                 _ => carried(merged(&beneath, &working).map_err(fail)?, Some(listing)).map_err(fail)?,
             };
             encoding.end();
-            return match crate::stages::timed("write", || { let done = written(&o.index, published, &references[..base], &[&working], &references[base..], 1); storing.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)); done }) {
+            return match crate::stages::timed("write", || { let done = written(&o.index, published, &references[..own], &[&working], &references[own..], 1); storing.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)); done }) {
                 Ok(still) => Ok((Updated { files, reread, parsed, published: false, refused: None, rebuilt, written: version }, !still)),
                 Err(error) => Ok((Updated { files, reread, parsed, published: false, refused: Some(format!("{}: {error}", o.index)), rebuilt, written: version }, false)),
             };
@@ -450,15 +472,19 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             let delta = encode_generation(&generation);
             let mut working: Vec<&[u8]> = segments[base..].iter().map(Vec::as_slice).collect();
             working.push(&delta);
+            // Another checkout's listing is of its own tree, never carried here.
+            let listing = if seeded { Some(listing.unwrap_or_default()) } else { listing };
             carried(merged(&beneath, &working).map_err(fail)?, listing).map_err(fail)?
         };
         encoding.end();
         // A first update has no base to carry a working layer over: what it writes
         // is the base, and readying finds nothing to fold.
-        let layered = usize::from(chain.is_some());
+        let layered = usize::from(chain.is_some() || (seeded && base > 0));
+        let mut writing: Vec<&[u8]> = if seeded { beneath.clone() } else { Vec::new() };
+        writing.push(&working);
         // Another writer between the read and here: its chain is not the one this delta is against.
-        let replaced: Vec<LogSegment> = references[base..].iter().chain(&stale).cloned().collect();
-        let outcome = crate::stages::timed("write", || { let done = written(&o.index, published, &references[..base], &[&working], &replaced, layered); storing.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)); done });
+        let replaced: Vec<LogSegment> = references[own..].iter().chain(&stale).cloned().collect();
+        let outcome = crate::stages::timed("write", || { let done = written(&o.index, published, &references[..own], &writing, &replaced, layered); storing.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic)); done });
         let refused = match &outcome {
             Ok(false) => Some(format!("{}: another writer published it after this update read it", o.index)),
             Ok(true) => None,

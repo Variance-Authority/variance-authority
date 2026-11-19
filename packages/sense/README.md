@@ -325,8 +325,8 @@ and `sourceIndexPath(root)` the source index beside it. A git worktree gets
 `.work/<its own digest>/` in its own cache, which is inside the worktree at the
 default location. Its coverage reads both layers and writes only its own, so a
 worktree cut this morning inherits what the repository already recorded. Its source index is its own too,
-and the first update in it builds that index from nothing: it reads every file and
-parses only those whose parse the cache's parse store does not hold. Pass `coverageFile` in the options to put
+and the first update in it starts from another checkout's index and reads only the
+files that differ from it. Pass `coverageFile` in the options to put
 it somewhere you name instead — a CI job that uploads the file as an artifact
 needs that.
 
@@ -1730,9 +1730,12 @@ again only the files whose blob changed. Its result names the state it found
 (`was`), the files it holds, and how many it read again (`reread`). Pass
 `packs: false` to read bytes from the working tree, as `scanRelations` does.
 Pass `dirs` for an index that covers some directories of the checkout and what
-they import, rather than all of it. A missing index is built from nothing, in a
-worktree too: no record is copied from another checkout's index, and the parse
-store is what a second checkout reuses. An `index` you name in the checkout's
+they import, rather than all of it. A missing index starts from the same index
+of another checkout of the repository, its primary checkout's first, and reads
+only the files that differ from it. A record of that index stands only where the
+cache's parse store holds the same parse of the blob, so a file the other
+checkout edited without telling git is read again. With no such index, it reads
+every file, and the parse store is what a second checkout reuses. An `index` you name in the checkout's
 own cache directory reads that store as the checkout's own index does. `progress` is told each step's name as it starts, the git listing
 and then the read of what changed, and returns the function to call when that
 step ends.

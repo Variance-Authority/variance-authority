@@ -42,6 +42,8 @@ export interface NativeUpdateOptions {
   readonly stores?: string[];
   /** `false` reads every file off the working tree. */
   readonly packs?: boolean;
+  /** This index as the repository's other checkouts keep it, read when this one has none to stand on. */
+  readonly others?: string[];
 }
 /** `Updated` in `native/src/source_update.rs`. */
 export interface NativeUpdated {
@@ -71,6 +73,7 @@ export interface NativelyUpdated {
  * Update the index at `index` over `dirs` of the checkout at `root` in the addon.
  * `reading` names the read as progress says it: an index started from the stores has no last index to read the changes since.
  * `packs: false` reads every file off the working tree rather than out of Git's object store.
+ * `others` is this index as the repository's other checkouts keep it: one with none to stand on starts from the first that fits.
  */
 export async function updateNatively(
   root: string,
@@ -80,6 +83,7 @@ export async function updateNatively(
   stores?: Promise<readonly string[] | undefined>,
   reading = 'reading the files that changed since the last index',
   packs?: boolean,
+  others: readonly string[] = [],
 ): Promise<NativelyUpdated> {
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
   const listed = tree?.native;
@@ -108,6 +112,7 @@ export async function updateNatively(
     readable: [...READABLE],
     ...(read === undefined ? {} : { stores: [...read] }),
     ...(packs === undefined ? {} : { packs }),
+    ...(others.length === 0 ? {} : { others: [...others] }),
   }));
   return {
     files: done.files,

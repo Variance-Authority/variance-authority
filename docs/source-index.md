@@ -224,8 +224,12 @@ printf %s "$(pwd -P)" | shasum -a 256 | cut -c1-32
 A git worktree keeps its own index under
 `test-selection/<primary digest>/.work/<digest>/` in its own cache, where
 `<primary digest>` names the checkout it was cut from. Its first `variance
-index` builds that index from nothing. It reads every file, and parses only the
-ones whose parse the checkout it was cut from has not already put in the cache's
+index` starts from the index of another checkout of the repository, its primary
+checkout's first, and reads only the files that differ from it, as an update
+would. A record stands only where the cache's parse store holds the same parse
+of the blob, so a file the other checkout edited without telling git is read
+again here. With no index in any checkout, the first `variance index` reads
+every file, and parses only the ones whose parse is not already in the cache's
 parse store.
 `sourceIndexPath(root)` returns the path for a checkout. Cache the whole
 `<cache>` directory and you do not need to compute either.
@@ -237,9 +241,10 @@ together. The file alone names segments that are not there, and a chain whose
 members are missing is rejected whole — a cold scan, not a wrong answer.
 
 To force a cold scan, delete the two and run `variance index`. That is the
-whole recovery procedure. The cache's parse store still answers for the files it holds, in a worktree
-as in any checkout, so the scan reads every file and parses only what the store
-does not hold. The directory also holds test-selection recordings,
+whole recovery procedure. In a checkout whose repository has another checkout
+with an index, the scan starts from that one instead and reads what differs;
+delete each checkout's to read every file. The cache's parse store still answers
+for the files it holds, so the scan parses only what the store does not hold. The directory also holds test-selection recordings,
 so delete the index and not the directory:
 
 ```bash

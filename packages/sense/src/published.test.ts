@@ -166,30 +166,51 @@ describe('the published source index', () => {
     expect(sourceIndexPath(link, cache)).toBe(sourceIndexPath(root, cache));
   });
 
-  it("starts a worktree's index from nothing, parsing only what its primary checkout's update did not", async () => {
+  /** `run` under a cache of its own, with `names` cut as worktrees of the fixture at its commit. */
+  async function worktrees(names: readonly string[], run: (paths: string[]) => Promise<void>): Promise<void> {
     const layers = await mkdtemp(join(tmpdir(), 'variance-published-layers-'));
-    const worktree = join(layers, 'worktree');
+    const paths = names.map((name) => join(layers, name));
     const cacheHome = process.env['VARIANCE_AUTHORITY_CACHE'];
-    process.env['VARIANCE_AUTHORITY_CACHE'] = layers;
+    process.env['VARIANCE_AUTHORITY_CACHE'] = join(layers, 'cache');
     try {
-      const primary = await updateSourceIndex(root);
-      const published = await openImmutableLog(primary.path);
-      git('worktree', 'add', '--quiet', '--detach', worktree);
-      await writeFile(join(worktree, 'lib/alone.ts'), 'export const alone = 3;\n');
-
-      const first = await updateSourceIndex(worktree);
-      expect(first).toMatchObject({ was: 'missing', files: 5, reread: 5, parsed: 1 });
-      expect(first).not.toHaveProperty('from');
-      expect(first.path).not.toBe(primary.path);
-      expect((await readPublishedSources(first.path)).records)
-        .toEqual(await scanRelations({ root: worktree, dirs: ['.'] }));
-      expect((await openImmutableLog(primary.path)).digests).toEqual(published.digests);
+      for (const path of paths) git('worktree', 'add', '--quiet', '--detach', path);
+      await run(paths);
     } finally {
       if (cacheHome === undefined) delete process.env['VARIANCE_AUTHORITY_CACHE'];
       else process.env['VARIANCE_AUTHORITY_CACHE'] = cacheHome;
-      git('worktree', 'remove', '--force', worktree);
+      for (const path of paths) git('worktree', 'remove', '--force', path);
       await rm(layers, { recursive: true, force: true });
     }
+  }
+
+  it("starts a worktree's index from its primary checkout's, reading only the files that differ", async () => {
+    await worktrees(['same', 'edited'], async ([same, edited]) => {
+      const primary = await updateSourceIndex(root);
+      const published = await openImmutableLog(primary.path);
+
+      const first = await updateSourceIndex(same!);
+      expect(first).toMatchObject({ was: 'missing', files: 5, reread: 0, parsed: 0 });
+      expect(first.path).not.toBe(primary.path);
+      expect((await readPublishedSources(first.path)).records).toEqual(await scanRelations({ root: same!, dirs: ['.'] }));
+
+      // An edit made there first costs what an update for that edit costs: the file that moved.
+      await writeFile(join(edited!, 'lib/alone.ts'), 'export const alone = 3;\n');
+      const moved = await updateSourceIndex(edited!);
+      expect(moved).toMatchObject({ was: 'missing', files: 5, reread: 1, parsed: 1 });
+      expect((await readPublishedSources(moved.path)).records).toEqual(await scanRelations({ root: edited!, dirs: ['.'] }));
+      expect((await openImmutableLog(primary.path)).digests).toEqual(published.digests);
+    });
+  });
+
+  it("starts a checkout's index from any other checkout of the repository that holds one", async () => {
+    await worktrees(['first', 'second'], async ([first, second]) => {
+      // No checkout holds an index yet, so the first reads every file.
+      expect(await updateSourceIndex(first!)).toMatchObject({ was: 'missing', files: 5, reread: 5 });
+      expect(await updateSourceIndex(second!)).toMatchObject({ was: 'missing', files: 5, reread: 0, parsed: 0 });
+      const primary = await updateSourceIndex(root);
+      expect(primary).toMatchObject({ was: 'missing', files: 5, reread: 0, parsed: 0 });
+      expect((await readPublishedSources(primary.path)).records).toEqual(await scanRelations({ root, dirs: ['.'] }));
+    });
   });
 
   it('publishes a file it could not read as unknown, rather than leaving it out', async () => {

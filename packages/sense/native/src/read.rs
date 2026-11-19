@@ -23,7 +23,7 @@ use crate::source_size::{size_of, Size};
 pub use crate::read_rows::{Binding, Export, Kind, Request};
 use crate::read_rows::{is_false};
 
-#[derive(Clone, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct Read {
     pub requests: Vec<Request>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
