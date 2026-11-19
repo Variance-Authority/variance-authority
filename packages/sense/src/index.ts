@@ -91,6 +91,7 @@ export {
   sourceIndexWrittenIn,
   type SourceIndexChain,
 } from './source-index-copy.js';
+export { processAlive } from './process-alive.js';
 export { publishedNames, readPublishedNames, type PublishedNames } from './published-names.js';
 export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';

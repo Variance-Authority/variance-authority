@@ -27,6 +27,7 @@ import { dirname, join } from 'node:path';
 import type { Digest } from '@variance-authority/core/format';
 import { digestPieces, sha256Hex } from './digest.js';
 import { decodeManifest, segmentDirectory, segmentPath, type SegmentReference } from './immutable-log.js';
+import { processAlive } from './process-alive.js';
 import { SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { segmentVersionAt } from './source-index-reader.js';
 import { writeCoverageBytes } from './test-selection/record-location.js';
@@ -100,17 +101,7 @@ export async function sweepFetchedSourceIndexes(path: string): Promise<void> {
   const names = await readdir(directory).catch(() => [] as string[]);
   for (const name of names) {
     const pid = Number(/^(\d+)-/.exec(name)?.[1]);
-    if (Number.isSafeInteger(pid) && pid > 0 && !alive(pid)) await rm(join(directory, name), { recursive: true, force: true });
-  }
-}
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    // Refused is a process this user may not signal: it runs.
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
+    if (Number.isSafeInteger(pid) && pid > 0 && !processAlive(pid)) await rm(join(directory, name), { recursive: true, force: true });
   }
 }
 

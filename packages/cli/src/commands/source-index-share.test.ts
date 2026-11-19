@@ -314,6 +314,21 @@ describe('`variance index` over an index another release wrote', () => {
     expect(update.fetched).toBeUndefined();
   });
 
+  it('answers, and reads every file, when what the fetch left at its place cannot be removed', async () => {
+    const { origin } = await mainlinePublished(true);
+    const clone = await laptopOnOlderRelease(origin);
+
+    const update = await updateSourceIndex(clone, {
+      fetch: async (_, into) => {
+        await mkdir(join(into, 'not an index'), { recursive: true });
+        return 'main';
+      },
+    });
+
+    expect(update).toMatchObject({ was: 'other-version', files: Object.keys(SOURCES).length, reread: Object.keys(SOURCES).length });
+    expect(update.fetched).toBeUndefined();
+  });
+
   it.each([
     ['a segment it holds is not what its digest says', 'images', `a segment of main's at`],
     ['the manifest it holds is not what its digest says', 'entries', `the manifest of main's at`],

@@ -124,6 +124,27 @@ describe('a carried source index', () => {
     expect(await placedFrom(file, carried)).toEqual(await segmentsOf(file));
   });
 
+  it('hashes every segment again when what it kept is of pieces of another size', async () => {
+    const file = await chainOf(index('one'));
+    await carriedSourceIndex((await sourceIndexChain(file))!, 1024);
+    seen.hashed = [];
+
+    const carried = await carriedSourceIndex((await sourceIndexChain(file))!, 512);
+
+    expect(seen.hashed).toEqual(await piecesOf(file, 512));
+    expect(await placedFrom(file, carried)).toEqual(await segmentsOf(file));
+  });
+
+  it('carries the index whole when the place it keeps piece names in cannot be read or written', async () => {
+    const file = await chainOf(index('one'), index('two'));
+    await mkdir(`${file}.pieces`);
+
+    const carried = await carriedSourceIndex((await sourceIndexChain(file))!, 1024);
+
+    expect(seen.hashed).toEqual(await piecesOf(file, 1024));
+    expect(await placedFrom(file, carried)).toEqual(await segmentsOf(file));
+  });
+
   it('places a segment whole on a disk that takes fewer bytes than it was handed', async () => {
     const file = await chainOf(index('one'), index('two'));
     const carried = await carriedSourceIndex((await sourceIndexChain(file))!, 1024);

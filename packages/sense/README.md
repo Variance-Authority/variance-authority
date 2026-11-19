@@ -1756,7 +1756,8 @@ before it hashed. `placeSourceIndex(into, bytes, piece)` places such an index fr
 those bytes and a reader of each piece by name; no segment is held whole, and
 one whose length or digest is not its own leaves nothing placed; `fetchedSourceIndexPath(path)` names a place beside
 `path` for one update to have it placed, another on every call, so a download an
-update dropped without waiting removes only its own when it ends; and
+update dropped without waiting removes only its own when it ends, and the next
+update that fetches removes those of a process `processAlive(pid)` says has ended; and
 `sourceIndexChain(path)` lists the files of one to publish. An `index` you name in the checkout's
 own cache directory reads that store as the checkout's own index does. `progress` is told each step's name as it starts, the git listing
 and then the read of what changed, and returns the function to call when that
