@@ -184,13 +184,16 @@ describe('the published source index', () => {
   }
 
   it("starts a worktree's index from its primary checkout's, reading only the files that differ", async () => {
-    await worktrees(['same', 'edited'], async ([same, edited]) => {
+    await worktrees(['same', 'edited', 'damaged'], async ([same, edited, damaged]) => {
       const primary = await updateSourceIndex(root);
       const published = await openImmutableLog(primary.path);
 
       const first = await updateSourceIndex(same!);
-      expect(first).toMatchObject({ was: 'missing', files: 5, reread: 0, parsed: 0 });
+      expect(first).toMatchObject({ was: 'missing', from: primary.path, files: 5, reread: 0, parsed: 0 });
       expect(first.path).not.toBe(primary.path);
+      // Nothing differs, so no record is encoded: the primary's segments are its own,
+      // under one that holds only its configuration.
+      expect((await openImmutableLog(first.path)).digests.slice(0, published.digests.length)).toEqual(published.digests);
       expect((await readPublishedSources(first.path)).records).toEqual(await scanRelations({ root: same!, dirs: ['.'] }));
 
       // An edit made there first costs what an update for that edit costs: the file that moved.
@@ -199,6 +202,11 @@ describe('the published source index', () => {
       expect(moved).toMatchObject({ was: 'missing', files: 5, reread: 1, parsed: 1 });
       expect((await readPublishedSources(moved.path)).records).toEqual(await scanRelations({ root: edited!, dirs: ['.'] }));
       expect((await openImmutableLog(primary.path)).digests).toEqual(published.digests);
+
+      // One it cannot stand on starts there too, rather than from every file.
+      await mkdir(dirname(sourceIndexPath(damaged!)), { recursive: true });
+      await writeFile(sourceIndexPath(damaged!), 'not an index');
+      expect(await updateSourceIndex(damaged!)).toMatchObject({ was: 'damaged', from: primary.path, files: 5, reread: 0, parsed: 0 });
     });
   });
 

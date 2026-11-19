@@ -226,9 +226,10 @@ A git worktree keeps its own index under
 `<primary digest>` names the checkout it was cut from. Its first `variance
 index` starts from the index of another checkout of the repository, its primary
 checkout's first, and reads only the files that differ from it, as an update
-would. A record stands only where the cache's parse store holds the same parse
-of the blob, so a file the other checkout edited without telling git is read
-again here. With no index in any checkout, the first `variance index` reads
+would, and says which index it started from. A record that holds a parse stands
+only where the cache's parse store holds the same parse of the blob, so a file
+the other checkout edited without telling git is read again here. An index that
+is damaged, or that another release wrote, starts the same way. With no index in any checkout, the first `variance index` reads
 every file, and parses only the ones whose parse is not already in the cache's
 parse store.
 `sourceIndexPath(root)` returns the path for a checkout. Cache the whole

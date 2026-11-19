@@ -1730,9 +1730,10 @@ again only the files whose blob changed. Its result names the state it found
 (`was`), the files it holds, and how many it read again (`reread`). Pass
 `packs: false` to read bytes from the working tree, as `scanRelations` does.
 Pass `dirs` for an index that covers some directories of the checkout and what
-they import, rather than all of it. A missing index starts from the same index
-of another checkout of the repository, its primary checkout's first, and reads
-only the files that differ from it. A record of that index stands only where the
+they import, rather than all of it. An index that is missing, damaged or another
+release's starts from the same index of another checkout of the repository, its
+primary checkout's first, and reads only the files that differ from it; `from`
+names that index. A record of it that holds a parse stands only where the
 cache's parse store holds the same parse of the blob, so a file the other
 checkout edited without telling git is read again. With no such index, it reads
 every file, and the parse store is what a second checkout reuses. An `index` you name in the checkout's

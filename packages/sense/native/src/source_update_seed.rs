@@ -11,23 +11,21 @@ use crate::index::way;
 use crate::index_chain::{read_chain, Chain};
 use crate::parse_store::Opened;
 
-/// The first of `others` that reads whole and was made under `config`.
-pub(super) fn other(others: &[String], config: &str) -> Option<Chain> {
+/// The first of `others` whose every segment opens and whose last was made
+/// under `config`, and its path: one that does not is passed over for the next.
+pub(super) fn other(others: &[String], config: &str) -> Option<(String, Chain)> {
     others.iter().find_map(|path| {
         let chain = read_chain(path).ok().flatten().filter(|chain| chain.dropped == 0)?;
-        let last = Layer::open(chain.segments.last()?).ok()?;
-        (last.config == Some(config)).then_some(())?;
-        drop(last);
-        Some(chain)
+        let layers = opened(&chain)?;
+        (layers.last()?.config == Some(config)).then_some(())?;
+        drop(layers);
+        Some((path.clone(), chain))
     })
 }
 
-/// `other`'s layers, its segments, and how many of them are its base.
-pub(super) fn opened(other: &Chain) -> (Vec<Layer<'_>>, &[Vec<u8>], usize) {
-    match other.segments.par_iter().map(|bytes| Layer::open(bytes)).collect::<Result<Vec<_>, _>>() {
-        Ok(layers) => (layers, &other.segments, other.segments.len().saturating_sub(other.working)),
-        Err(_) => (Vec::new(), &[], 0),
-    }
+/// `other`'s layers, where every one of its segments opens.
+pub(super) fn opened(other: &Chain) -> Option<Vec<Layer<'_>>> {
+    other.segments.par_iter().map(|bytes| Layer::open(bytes)).collect::<Result<Vec<_>, _>>().ok()
 }
 
 /// Whether another checkout's record of `file` at `digest` stands here. Its

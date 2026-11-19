@@ -54,6 +54,7 @@ export interface NativeUpdated {
   readonly refused?: string;
   readonly rebuilt?: 'damaged' | 'other-version';
   readonly written?: number;
+  readonly from?: string;
 }
 /** What the addon did, and the listing it took. */
 export interface NativelyUpdated {
@@ -65,6 +66,8 @@ export interface NativelyUpdated {
   readonly rebuilt?: 'damaged' | 'other-version';
   /** The format version another release wrote it in, when `rebuilt` is `other-version`. */
   readonly written?: number;
+  /** The index of another checkout this one started from, when it had none to stand on. */
+  readonly from?: string;
   /** Git's listing, for a step after this one to carry. Absent when git does not list the directory. */
   readonly listing?: NativeGitTree;
 }
@@ -73,7 +76,7 @@ export interface NativelyUpdated {
  * Update the index at `index` over `dirs` of the checkout at `root` in the addon.
  * `reading` names the read as progress says it: an index started from the stores has no last index to read the changes since.
  * `packs: false` reads every file off the working tree rather than out of Git's object store.
- * `others` is this index as the repository's other checkouts keep it: one with none to stand on starts from the first that fits.
+ * `others` is this index as the repository's other checkouts keep it, asked while the tree is listed: one with none to stand on starts from the first that fits.
  */
 export async function updateNatively(
   root: string,
@@ -83,7 +86,7 @@ export async function updateNatively(
   stores?: Promise<readonly string[] | undefined>,
   reading = 'reading the files that changed since the last index',
   packs?: boolean,
-  others: readonly string[] = [],
+  others?: Promise<readonly string[]>,
 ): Promise<NativelyUpdated> {
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
   const listed = tree?.native;
@@ -100,6 +103,7 @@ export async function updateNatively(
     : await configOf({ root, tree, options });
   // Asked of git while it listed: the stores are needed only now.
   const read = await stores;
+  const beside = await others ?? [];
   const done = await stepped(progress, reading, () => held.updateIndex({
     root,
     index,
@@ -112,7 +116,7 @@ export async function updateNatively(
     readable: [...READABLE],
     ...(read === undefined ? {} : { stores: [...read] }),
     ...(packs === undefined ? {} : { packs }),
-    ...(others.length === 0 ? {} : { others: [...others] }),
+    ...(beside.length === 0 ? {} : { others: [...beside] }),
   }));
   return {
     files: done.files,
@@ -121,6 +125,7 @@ export async function updateNatively(
     ...(done.refused === undefined || done.refused === null ? {} : { refused: done.refused }),
     ...(done.rebuilt === undefined || done.rebuilt === null ? {} : { rebuilt: done.rebuilt }),
     ...(done.written === undefined || done.written === null ? {} : { written: done.written }),
+    ...(done.from === undefined || done.from === null ? {} : { from: done.from }),
     ...(listed === undefined ? {} : { listing: listed }),
   };
 }

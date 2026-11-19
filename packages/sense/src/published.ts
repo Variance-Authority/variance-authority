@@ -133,6 +133,8 @@ export interface SourceUpdate {
   readonly was: SourceIndexState;
   /** The format version the index was written in, when `was` is `other-version`. */
   readonly written?: number;
+  /** The index of another checkout this one started from, when it had none to stand on. */
+  readonly from?: string;
   /**
    * What the file system refused when this update wrote the index. Present only
    * then: the counts describe the scan, and the index on disk is what it was.
@@ -185,17 +187,19 @@ export async function updateSourceIndex(
   const cached = dirname(path) === dirname(sourceIndexPath(where));
   const asked = cached ? parseStoresFor(where) : undefined;
   asked?.catch(() => undefined);
-  // A checkout with none starts from another checkout's, and reads what differs from it.
-  const others = missing && cached ? await indexesBeside(where, basename(path)) : [];
-  const reading = others.length > 0
+  // A checkout with none to stand on — missing, damaged, another release's — starts from another checkout's, and reads what differs from it.
+  // Asked while the tree is listed, as the stores are: only the addon knows whether this checkout's own chain stands.
+  const beside = cached ? indexesBeside(where, basename(path)).catch(() => []) : undefined;
+  const reading = !missing ? undefined : (await beside ?? []).length > 0
     ? `reading the files of ${placesOf(where, dirs)} that differ from another checkout's index, which this one starts from`
     : `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
-  const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, missing ? reading : undefined, options.packs, others);
+  const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, reading, options.packs, beside);
   if (options.index === undefined) markCheckout(realPath(where));
   return {
     path,
     was: missing ? 'missing' : natively.rebuilt ?? 'published',
     ...(natively.written === undefined ? {} : { written: natively.written }),
+    ...(natively.from === undefined ? {} : { from: natively.from }),
     ...(natively.refused === undefined ? {} : { refused: natively.refused }),
     files: natively.files,
     reread: natively.reread,
