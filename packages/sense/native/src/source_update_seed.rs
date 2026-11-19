@@ -11,6 +11,15 @@ use crate::index::way;
 use crate::index_chain::{read_chain, Chain};
 use crate::parse_store::Opened;
 
+/// The index an update with none to stand on starts from, and whether it is
+/// CI's: a checkout's first, since it is on this machine, then the one fetched.
+pub(super) fn chosen(o: &super::UpdateOptions) -> (Option<(String, Chain)>, bool) {
+    match other(o.others.as_deref().unwrap_or_default(), &o.config) {
+        Some(other) => (Some(other), false),
+        None => (other(o.published.as_deref().unwrap_or_default(), &o.config), true),
+    }
+}
+
 /// The first of `others` whose every segment opens and whose last was made
 /// under `config`, and its path: one that does not is passed over for the next.
 pub(super) fn other(others: &[String], config: &str) -> Option<(String, Chain)> {
