@@ -16,11 +16,12 @@
 
 // compass: variance-authority.reach.source-index
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
 import { dirname } from 'node:path';
-import { digestOfSha256, type Digest } from '@variance-authority/core/format';
+import type { Digest } from '@variance-authority/core/format';
 import { SegmentCutShort } from '@variance-authority/core/segment';
+import { digestPieces } from './digest.js';
 import { decodeManifest, segmentDirectory, segmentPath, type SegmentReference } from './immutable-log.js';
 import { SOURCE_INDEX_VERSION, sourceIndexVersionOf } from './source-index-format.js';
 import { writeCoverageBytes } from './test-selection/record-location.js';
@@ -100,7 +101,7 @@ async function placeSegment(
   await mkdir(dirname(file), { recursive: true });
   const part = `${file}.${String(process.pid)}-${randomUUID()}.part`;
   const handle = await open(part, 'w');
-  const hash = createHash('sha256');
+  const hash = digestPieces();
   let written = 0;
   let whole = true;
   try {
@@ -116,7 +117,7 @@ async function placeSegment(
   } finally {
     await handle.close();
   }
-  if (whole && written === length && digestOfSha256(hash.digest('hex')) === digest) {
+  if (whole && written === length && hash.digest() === digest) {
     await rename(part, file);
     return true;
   }

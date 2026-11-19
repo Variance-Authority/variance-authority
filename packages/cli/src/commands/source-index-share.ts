@@ -70,6 +70,8 @@ export async function sourceIndexEntryOf(
     return { unpublished: `the source index at ${path} was written in format version ${String(written)}, and this release writes ${String(sense.SOURCE_INDEX_VERSION)}` };
   }
   // Digested here and read again when the share asks: it asks only for the pieces the share does not hold yet.
+  // A piece is named as the share names an image, the whole SHA-256 in hex, which `entryDigest` gives from the
+  // portable implementation: about 30 s over Firefox's 2 GB index, against about 2 s from `node:crypto` here.
   const pieces = new Map<string, Piece>();
   const segments: Record<string, string[]> = {};
   for (const segment of chain.segments) {

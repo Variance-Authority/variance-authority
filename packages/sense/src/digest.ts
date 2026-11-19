@@ -30,3 +30,14 @@ export function digestString(input: string): Digest {
 export function digestBytes(bytes: Uint8Array): Digest {
   return digestOfSha256(createHash('sha256').update(bytes).digest('hex'));
 }
+
+/** The digest of bytes given in pieces, in order: {@link digestBytes} of the pieces joined, with none held whole. */
+export function digestPieces(): { update(piece: Uint8Array): void; digest(): Digest } {
+  const hash = createHash('sha256');
+  return {
+    update: (piece) => {
+      hash.update(piece);
+    },
+    digest: () => digestOfSha256(hash.digest('hex')),
+  };
+}
