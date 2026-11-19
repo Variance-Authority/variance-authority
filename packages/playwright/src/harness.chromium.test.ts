@@ -265,6 +265,7 @@ const RELOADING = 'http://reloading.test/';
 const RELOADING_PAGE = `<script>console.log('document loaded')</script>
 <button id="choose" onclick="console.log('chose tea')">Choose</button>
 <button id="restart" onclick="console.warn('server connection lost'); location.reload()">Restart</button>
+<button id="overlap" onclick="location.reload(); location.hash = 'later'">Overlap</button>
 <button id="fail" onclick="setTimeout(() => { throw new Error('checkout broke\\nat line 2'); })">Fail</button>
 <iframe src="${RELOADING}frame"></iframe>`;
 
@@ -305,6 +306,23 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a story recorded in this 
       `page reloaded ${RELOADING}`,
       'page console.log document loaded',
       'page error Error: checkout broke',
+    ]);
+  });
+
+  it('names a reload that a same-document move started under', async () => {
+    const notes: string[] = [];
+    realm[NOTE] = (text) => notes.push(text);
+    const harness = await createHarness(reloading);
+    try {
+      await harness.page.click('#overlap');
+      await expect.poll(() => notes.filter((note) => note === 'page console.log document loaded').length).toBe(2);
+    } finally {
+      await harness.close();
+    }
+
+    expect(notes.filter((note) => note.startsWith('page navigated') || note.startsWith('page reloaded'))).toEqual([
+      `page navigated ${RELOADING}`,
+      `page reloaded ${RELOADING}`,
     ]);
   });
 

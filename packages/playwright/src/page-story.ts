@@ -7,9 +7,13 @@ const NOTE = Symbol.for('variance-authority.story.note');
 type Realm = { [NOTE]?: unknown };
 
 // Looked up on every line, so a story that stops recording hears no more of it.
+// A channel that throws is swallowed here, not inside Playwright's emitter.
 const say = (text: string): void => {
   const note = (globalThis as Realm)[NOTE];
-  if (typeof note === 'function') note(text);
+  if (typeof note !== 'function') return;
+  try {
+    note(text);
+  } catch {}
 };
 
 /**
@@ -18,11 +22,11 @@ const say = (text: string): void => {
  * threw and that it crashed, each on the step running when Node heard it.
  *
  * Attaches nothing where no story records as the page opens. Chromium's
- * `Page.frameNavigated` commits a new document, and
- * `Page.frameStartedNavigating` says whether it was a reload.
+ * `Page.frameNavigated` commits a new document, and the
+ * `Page.frameStartedNavigating` with the same loader id says whether it was a
+ * reload.
  */
 export async function tellStory(page: Page): Promise<void> {
-  // TODO: Playwright Test's story hears navigations but not page errors or a crash.
   if (typeof (globalThis as Realm)[NOTE] !== 'function') return;
   page.on('console', (message) => {
     const type = message.type();
@@ -34,13 +38,15 @@ export async function tellStory(page: Page): Promise<void> {
   await session.send('Page.enable');
   // A top frame keeps its id across the documents it loads.
   const top = (await session.send('Page.getFrameTree')).frameTree.frame.id;
-  let reload = false;
+  const reloads = new Map<string, boolean>();
   session.on('Page.frameStartedNavigating', (event) => {
-    if (event.frameId === top) reload = event.navigationType === 'reload' || event.navigationType === 'reloadBypassingCache';
+    if (event.frameId !== top) return;
+    reloads.set(event.loaderId, event.navigationType === 'reload' || event.navigationType === 'reloadBypassingCache');
   });
   session.on('Page.frameNavigated', ({ frame }) => {
     if (frame.id !== top) return;
-    say(navigationNote(frame.url, reload));
-    reload = false;
+    say(navigationNote(frame.url, reloads.get(frame.loaderId) === true));
+    // A start that never committed was cancelled; its verdict answers nothing.
+    reloads.clear();
   });
 }

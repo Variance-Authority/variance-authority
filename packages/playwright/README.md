@@ -108,7 +108,7 @@ installed. If you do not own page-side code of that kind, use
 
 While a [test story](https://variance-authority.dev/docs/test-stories) records, the harness writes
 what its page printed, threw and loaded into the story, on the step that was
-running when Node heard it: `page console.log …`, `page error …`, `page
+running when Node heard it: `page console.<level> …`, `page error …`, `page
 crashed`, `page navigated <address>` or `page reloaded <address>`, the address
 without its query. With no story recording it adds no listener.
 
