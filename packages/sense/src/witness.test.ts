@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { aliasesIn, directoriesOf, movedDirectories, witnessesOf } from './witness.js';
 
@@ -282,14 +282,29 @@ describe('where a configuration says a bare request can land', () => {
     expect([...(aliases?.read.keys() ?? [])]).toEqual(['node_modules/@tsconfig/node20/tsconfig.json']);
   });
 
-  it('reads an `extends` that lands outside the checkout, and places nothing there', async () => {
-    const outside = await fixture({ 'tsconfig.json': '{ "compilerOptions": { "paths": { "@x/*": ["x/*"] } } }' });
+  it('reads an `extends` that lands outside the checkout, and places only what climbs back in', async () => {
     const root = await fixture({ 'tsconfig.json': '{ "extends": "@shared/tsconfig" }' });
+    const outside = await fixture({
+      'tsconfig.json': `{ "compilerOptions": { "paths": { "@x/*": ["x/*"], "@app/*": ["../${basename(root)}/src/*"] } } }`,
+    });
     await link(root, 'node_modules/@shared/tsconfig', outside);
+    const aliases = await aliasesIn(root, ['tsconfig.json']);
 
-    // A directory outside the checkout holds no path of it, so the pattern
-    // bounds nothing a record could be kept against.
-    expect(await aliasesIn(root, ['tsconfig.json'])).toMatchObject({ table: { bases: [], mappings: [] } });
+    // A directory outside the checkout holds no path of it, so that pattern
+    // bounds nothing; a target placed there that climbs back in lands here.
+    expect(aliases?.candidatesFor('@x/y')).toEqual([]);
+    expect(aliases?.candidatesFor('@app/y')).toEqual(['src/y']);
+  });
+
+  it('reads a relative `extends` that names a directory as its `tsconfig.json`', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ "extends": "./configs" }',
+      'configs/tsconfig.json': '{ "compilerOptions": { "paths": { "@x/*": ["../x/*"] } } }',
+    });
+    const aliases = await aliasesIn(root, ['tsconfig.json']);
+
+    expect(aliases?.candidatesFor('@x/y')).toEqual(['x/y']);
+    expect(aliases?.missing).toEqual([]);
   });
 
   it('bounds by what the configuration declares itself, when its `extends` reaches nothing, and names what it missed', async () => {

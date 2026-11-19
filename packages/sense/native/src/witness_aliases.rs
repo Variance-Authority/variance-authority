@@ -22,6 +22,7 @@ use regex::Regex;
 use serde_json::{Map, Value};
 use sha2::{Digest as _, Sha256};
 
+use crate::conditions::{config_file, normalize as normalize_path};
 use crate::digest;
 use crate::order::code_unit;
 use crate::witness::{dirname, join, normalize};
@@ -88,18 +89,17 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
         let paths_from = options.from.get("paths").map_or(path, String::as_str);
         // Each option is placed against the file that wrote it rather than
         // the file that inherited it, which is what TypeScript does.
-        let base = match base_url {
-            Some(base_url) => within(&join(&[dirname(options.from.get("baseUrl").map_or(path, String::as_str)), base_url])),
-            None => within(dirname(paths_from)),
-        };
-        let Some(base) = base else { continue };
-        if base_url.is_some() && !bases.contains(&base) {
-            bases.push(base.clone());
+        let at = normalize(&match base_url {
+            Some(base_url) => join(&[dirname(options.from.get("baseUrl").map_or(path, String::as_str)), base_url]),
+            None => dirname(paths_from).to_owned(),
+        });
+        if let Some(base) = within(&at).filter(|base| base_url.is_some() && !bases.contains(base)) {
+            bases.push(base);
         }
         if !matches!(declared, Some(Value::Object(_) | Value::Array(_))) {
             continue;
         }
-        if !placed_from.insert(format!("{paths_from}\u{0}{base}")) {
+        if !placed_from.insert(format!("{paths_from}\u{0}{at}")) {
             continue;
         }
         let entries: Vec<(String, &Value)> = match declared {
@@ -110,7 +110,7 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
         for (pattern, targets) in entries {
             let Value::Array(targets) = targets else { return None };
             let placed: Vec<String> =
-                targets.iter().filter_map(Value::as_str).filter_map(|target| within(&join(&[&base, target]))).collect();
+                targets.iter().filter_map(Value::as_str).filter_map(|target| extended.place(&at, target)).collect();
             // Two files declaring one pattern with the same targets are one mapping.
             if !already.insert(format!("{pattern}\u{0}{}", placed.join("\u{0}"))) {
                 continue;
@@ -239,9 +239,21 @@ impl Extended<'_> {
             .map(|(parsed, _)| parsed)
     }
 
-    /// Whether `path` names a file this read can open.
-    fn exists(&self, path: &str) -> bool {
-        self.parsed.contains_key(path) || Path::new(self.root).join(path).is_file()
+    /// The root as the resolver names it, which `relative` measures from.
+    fn anchor(&mut self) -> Option<PathBuf> {
+        self.real.get_or_insert_with(|| std::fs::canonicalize(self.root).ok()).clone()
+    }
+
+    /// Where `target` lands placed against the directory `at`, from the root,
+    /// or nothing outside it. A directory outside places a target as
+    /// TypeScript does, so one that climbs back into the checkout lands there.
+    fn place(&mut self, at: &str, target: &str) -> Option<String> {
+        let joined = join(&[at, target]);
+        if within(at).is_some() {
+            return within(&joined);
+        }
+        let anchor = self.anchor()?;
+        within(normalize_path(&anchor.join(&joined)).strip_prefix(&anchor).ok()?.to_str()?)
     }
 
     /// The file an `extends` entry reaches: `Some(None)` when it reaches no
@@ -249,13 +261,12 @@ impl Extended<'_> {
     fn answer(&mut self, config: &str, specifier: &str) -> Option<Option<String>> {
         let from = dirname(config);
         if specifier.starts_with("./") || specifier.starts_with("../") {
-            // TypeScript's rule: the path as written, then with `.json` appended.
+            // `oxc_resolver`'s order, which `conditions.rs` reads a chain by too.
             let at = normalize(&join(&[from, specifier]));
-            if self.exists(&at) {
-                return Some(Some(at));
-            }
-            let json = format!("{at}.json");
-            return Some((!at.ends_with(".json") && self.exists(&json)).then_some(json));
+            return Some(match config_file(&Path::new(self.root).join(&at)) {
+                None => None,
+                Some(file) => Some(normalize(file.strip_prefix(self.root).ok()?.to_str()?)),
+            });
         }
         if specifier.is_empty() || specifier.starts_with('.') || specifier.starts_with('/') {
             return None;
@@ -264,7 +275,7 @@ impl Extended<'_> {
         if let Some(answer) = self.answers.get(&key) {
             return answer.clone();
         }
-        let anchor = self.real.get_or_insert_with(|| std::fs::canonicalize(self.root).ok()).clone();
+        let anchor = self.anchor();
         // The rule `oxc_resolver` follows an `extends` by, which is not the
         // one it resolves a module by.
         let resolver = self.resolver.get_or_insert_with(|| {
@@ -286,7 +297,7 @@ impl Extended<'_> {
 }
 
 /// `to` from the directory `from`, in `/` segments, climbing with `..` where
-/// it lies outside: a name `within` refuses, so nothing is placed there.
+/// it lies outside: a name `within` refuses, so only `place` lands from there.
 fn relative(from: &Path, to: &Path) -> Option<String> {
     let from: Vec<_> = from.components().collect();
     let to: Vec<_> = to.components().collect();

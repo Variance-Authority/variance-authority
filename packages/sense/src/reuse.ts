@@ -243,7 +243,8 @@ export async function configOf(input: {
     // A base an `extends` reached that the listing does not name — `tspaths.json`,
     // a package's config under `node_modules` — decides the aliases as much as
     // a `tsconfig.json` does, so its contents are configuration too.
-    ...[...(aliases?.read ?? [])].map(([path, digest]) => `extends ${path} ${digest}`),
+    // The listing owns a tracked one's digest, and the bytes read stand in for the rest.
+    ...[...(aliases?.read ?? [])].map(([path, digest]) => `extends ${path} ${tree.get(path) ?? digest}`),
     // One that reached nothing declares nothing until it arrives.
     ...(aliases?.missing ?? []).map((entry) => `extends-missing ${entry}`),
   ];

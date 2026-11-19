@@ -52,14 +52,15 @@ describe('a configuration an `extends` reads that the listing does not name', ()
     expect((await shapes(held)).config).not.toBe(before);
   });
 
-  it('moves the configuration when a tracked base it extends is edited, though its listed digest did not move', async () => {
-    const { at, shapes } = await extending('base.json', './base.json');
+  it('moves the configuration when the listing moves the digest of a tracked base it extends', async () => {
+    const { shapes } = await extending('base.json', './base.json');
     const held = tree([['tsconfig.json', A], ['base.json', A], ['src/Button.tsx', A]]);
     const before = (await shapes(held)).config;
 
-    await write(at, 'base.json', '{ "compilerOptions": { "paths": { "@app/*": ["lib/*"] } } }');
-    expect((await shapes(held)).config).not.toBe(before);
+    // The listing owns a tracked file's digest; the base is not read again for it.
+    expect((await shapes(tree([...held, ['base.json', B]]))).config).not.toBe(before);
   });
+
   it('keeps the configuration when a path appears, and moves it when the base it extends is generated', async () => {
     const { at, shapes } = await extending('ignored.json', './.nuxt/tsconfig.json');
     const held = tree([['tsconfig.json', A], ['src/Button.tsx', A]]);

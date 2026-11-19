@@ -31,8 +31,8 @@
  *
  * A configuration's `extends` chain is folded in first, because a `paths`
  * inherited from a base is the base's answer. A base named by a path is read
- * where the path points, with `.json` appended when the name as written is not
- * there, as TypeScript reads it. A base named by a package — `@tsconfig/node22`,
+ * where it points, then as a directory's `tsconfig.json`, then with `.json`
+ * appended, as `oxc-resolver` reads it. A base named by a package — `@tsconfig/node22`,
  * or `@org/tsconfig/base` in a workspace that shares its configuration — is
  * asked of `oxc-resolver` under the rule it follows `extends` by: the
  * package's `exports`, then its `tsconfig.json`.
@@ -41,13 +41,13 @@
  * beside its `tsconfig`, a package under `node_modules`. Each one the listing
  * does not hold is handed back in `read` with the digest of its bytes, and each
  * that is not there yet in `missing`, so the config digest names both and an
- * edit, a build or an install moves every record's configuration. A pattern
+ * edit, a build or an install moves every record's configuration. A target
  * placed outside the checkout bounds no path of it, and is dropped.
  *
- * So only when a configuration cannot be read — invalid JSON, or a base that
- * is there and is not one — is there no honest bound on where a bare specifier
- * could land. Aliases are then **unknown**, and the caller falls back to
- * treating the whole path set as one witness ([`reuse.ts`](./reuse.ts)).
+ * So only when a configuration cannot be read — invalid JSON, a base that is
+ * there and is not one, or one the resolver cannot answer — is there no honest
+ * bound on where a bare specifier could land. Aliases are then **unknown**, and
+ * the caller falls back to the whole path set as one witness ([`reuse.ts`](./reuse.ts)).
  */
 
 import { dirname, join, normalize } from 'node:path/posix';
