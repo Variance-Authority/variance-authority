@@ -243,7 +243,7 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
     });
     let (git, inputs) = watch.as_ref().and(inputs).unzip();
     let before = inputs.as_deref().map(stamped);
-    let snapshot = git::snapshot_against(root, Path::new(&format!("{index}.committed")))?;
+    let snapshot = git::snapshot_against(root, &crate::committed_tree::record(index))?;
     let after = inputs.as_deref().map(stamped);
     let change = match (watch.zip(git), before) {
         // `status` refreshing the index while it listed is a listing nothing can vouch for yet.

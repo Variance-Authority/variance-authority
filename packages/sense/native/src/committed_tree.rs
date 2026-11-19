@@ -22,7 +22,8 @@
 //! the blob. A manifest that names nothing is one key more, never a wrong
 //! answer, since everything taken is taken by an equal tree id.
 //!
-//! The record is the index's (`{index}.committed`), in the segment framing,
+//! The record is the index's (`{index}.committed`), read and advanced by every
+//! listing made for that index, the update's and orientation's alike, in the segment framing,
 //! compressed with a checksum;
 //! one that does not decode, or was read for another root, is nothing held and
 //! the tree is read whole. The working tree is compared against the listing on
@@ -32,7 +33,7 @@
 
 use std::collections::HashMap;
 use std::io::Write as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use gix_hash::ObjectId;
 
@@ -67,6 +68,11 @@ struct Dir {
     /// From the root, ending in `/`.
     path: Vec<u8>,
     id: ObjectId,
+}
+
+/// The record beside the index at `index`, which every listing made for that index reads and advances.
+pub(crate) fn record(index: &str) -> PathBuf {
+    PathBuf::from(format!("{index}.committed"))
 }
 
 /// The blobs of the tree `top` below `prefix`, taking from `held` every subtree
