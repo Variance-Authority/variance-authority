@@ -292,6 +292,22 @@ describe("content that moved down the page", () => {
     expect(comparison.alignment?.removed).toEqual([]);
   });
 
+  it("keeps a fractional move whole beside a band repainted in place above it", () => {
+    // A header shaded row by row and drawn one level lighter sits above the
+    // page the banner pushed down by 23.5 rows. The band stays where it is, and
+    // the move below it is still one.
+    const header = (from: number) => [17, ...range(from, from + 10), 23];
+    const before = greysAbove(header(100), page(0));
+    const after = greysAbove(header(101), page(23.5));
+
+    const comparison = comparePixels(before, after);
+
+    expect(comparison.alignment?.shifted).toEqual([
+      { from: 36, to: 135, by: 24 },
+    ]);
+    expect(comparison.alignment?.removed).toEqual([]);
+  });
+
   it("pairs rows whose only difference is the colour under a fully transparent pixel", () => {
     // A kept WebP drops that colour (libwebp without `exact`), and no
     // comparison sees it, so a fresh capture that still carries it is the same row.
@@ -481,3 +497,16 @@ describe("two equal captures", () => {
     });
   });
 });
+
+/** `image` with rows of one grey each, `greys` top to bottom, drawn above it. */
+function greysAbove(
+  greys: readonly number[],
+  image: { width: number; height: number; data: Uint8Array },
+): { width: number; height: number; data: Uint8Array } {
+  const data = new Uint8Array(image.width * (greys.length + image.height) * 4);
+  for (const [y, grey] of greys.entries()) {
+    for (let x = 0; x < image.width; x += 1) data.set([grey, grey, grey, 255], (y * image.width + x) * 4);
+  }
+  data.set(image.data, image.width * greys.length * 4);
+  return { width: image.width, height: greys.length + image.height, data };
+}

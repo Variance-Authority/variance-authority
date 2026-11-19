@@ -73,7 +73,7 @@ export function judgeRows(
     return second;
   };
 
-  const limits = policies.map((policy) => 35215 * policy.threshold * policy.threshold);
+  const limits = policies.map((policy) => limitOf(policy.threshold));
   const changed = policies.map(() => 0);
   const mask = output.mask === undefined ? undefined : new Uint8Array(width * height);
   const picture = output.picture === undefined ? undefined : new Uint8Array(height * row);
@@ -232,6 +232,11 @@ function manySiblings(rows: readonly (Uint32Array | undefined)[], x1: number, y1
     }
   }
   return false;
+}
+
+/** The squared YIQ distance past which a pixel differs under `threshold`: `pixelmatch`'s `35215 · threshold²`. */
+export function limitOf(threshold: number): number {
+  return 35215 * threshold * threshold;
 }
 
 /**

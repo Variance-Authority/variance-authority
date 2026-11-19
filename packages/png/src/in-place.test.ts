@@ -30,7 +30,7 @@ describe("a band repainted in place", () => {
     });
     expect(comparison.changed.default).toBe(2 * WIDTH);
     // What the pairing leaves differing is read anew for the rows paired in place.
-    const paired = pairWords(wordsOf(before), wordsOf(after), before.height, after.height, WIDTH, 2000).paired;
+    const paired = pairWords(wordsOf(before), wordsOf(after), before.height, after.height, WIDTH, 2000, 0.01).paired;
     expect(paired).toBe(12 * WIDTH);
   });
 

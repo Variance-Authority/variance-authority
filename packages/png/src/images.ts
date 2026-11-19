@@ -4,7 +4,7 @@
  */
 
 import type { DiffPolicy, RowAlignment } from '@variance-authority/raster';
-import { alignRows, type AlignedRows } from './align.js';
+import { ALIGNMENT_LIMIT, alignRows, lenientOf, type AlignedRows } from './align.js';
 import { judgeRows, type JudgeOutput } from './judge.js';
 import type { DecodedImage } from './mask.js';
 
@@ -50,10 +50,9 @@ export interface JudgedImages {
  * Two images under every policy at once: {@link differencePixels}' rule, in
  * one scan rather than one per policy.
  *
- * The pairing is a fact about the two images and the policies differ only in
- * what they call a different pixel, so the rows are aligned once, each pixel is
- * read once, and anti-aliasing is asked about once however many policies
- * forgive it.
+ * The policies differ only in what they call a different pixel, so the rows are
+ * aligned once, under the most lenient of them, each pixel is read once, and
+ * anti-aliasing is asked about once however many policies forgive it.
  */
 export function judgeImages(
   before: DecodedImage,
@@ -63,7 +62,7 @@ export function judgeImages(
   output: JudgeOutput,
 ): JudgedImages {
   // `null` is a caller that already asked and found no alignment.
-  const alignment = given === undefined ? alignRows(before, after) : (given ?? undefined);
+  const alignment = given === undefined ? alignRows(before, after, ALIGNMENT_LIMIT, lenientOf(policies)) : (given ?? undefined);
 
   if (alignment === undefined || unmoved(alignment, before, after)) {
     const width = Math.max(before.width, after.width);

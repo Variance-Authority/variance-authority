@@ -1,7 +1,7 @@
 import { PNG } from 'pngjs';
 import type { DiffRegion } from '@variance-authority/core/attribute';
 import { DEFAULT_POLICY, type DiffPolicy, type RowSpan } from '@variance-authority/raster';
-import { alignRows, type AlignedRows, type PairedRows } from './align.js';
+import { ALIGNMENT_LIMIT, alignRows, type AlignedRows, type PairedRows } from './align.js';
 import { blankColumns, inked, inkOf, spacingRow, texted } from './change-ink.js';
 import { composeSheet, drawWindow, type ChangeLabels, type Gap, type Mark, type Moved, type SheetRow } from './change-draw.js';
 import { differencePixels, type DecodedImage } from './mask.js';
@@ -100,7 +100,7 @@ export function changeImages(
    */
   aligned?: AlignedRows | null,
 ): ChangeImages {
-  const alignment = aligned === undefined ? alignRows(was, now) : (aligned ?? undefined);
+  const alignment = aligned === undefined ? alignRows(was, now, ALIGNMENT_LIMIT, policy.threshold) : (aligned ?? undefined);
   const difference = differencePixels(was, now, policy, { alignment: alignment ?? null });
   const diff = encode(difference);
   // The comparison's canvas is the after image's only when it used the alignment.
