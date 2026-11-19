@@ -23,7 +23,8 @@ the excludes file, HEAD.
 
 A restarted server has no history back to an old clock and says so as a fresh
 instance; `ignore_vcs` hides the directories it names at the watched root;
-no server listens. Each is no answer, and the update lists with git as it would
+no server listens; a watch still crawling, or catching up after a switch,
+fails a sync bounded to about a second. Each is no answer, and the update lists with git as it would
 without Watchman. `ignore_dirs` is not one of them: what the watch ignores is
 out of the source, whatever git lists there.
 

@@ -2325,7 +2325,8 @@ order below, and leaves out a part that did not run:
 - `head` resolves the commit and HEAD's tree.
 - `held` reads the listing kept from the last update, asks Watchman whether it
   still stands, and takes Watchman's clock and the stamps of git's inputs for
-  the next one.
+  the next one. Each question it asks Watchman waits about a second at most. A
+  watch that has not answered by then is no answer, and git lists.
 - `tree` reads HEAD's tree into the file list, and `ls-tree` asks git for it,
   and reads what git prints, where the in-process reader cannot.
 - `worktree` walks the working tree, and `git status` asks git for its changes

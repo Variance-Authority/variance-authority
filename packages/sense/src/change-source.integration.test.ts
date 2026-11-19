@@ -28,7 +28,7 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
   const answers = () => join(wire, 'answers.json');
   const asked = () => join(wire, 'git.log');
 
-  async function tell(told: { roots?: string[]; clock?: string; fresh?: boolean; files?: unknown[]; config?: unknown }): Promise<void> {
+  async function tell(told: { roots?: string[]; clock?: string; fresh?: boolean; files?: unknown[]; config?: unknown; settling?: boolean }): Promise<void> {
     await writeFile(answers(), JSON.stringify({ roots: [root], clock: 'c:1:1', ...told }));
   }
 
@@ -333,6 +333,35 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     const vouched = await updateNatively(root, index);
     expect(await gitRan()).toEqual([]);
     expect(vouched?.listing.vouched).toBe(true);
+  });
+
+  // The server holds a synced command for as long as it is given; the update gives it no longer than an answer now takes.
+  it('lists with git, without waiting, while the watch is still crawling', { timeout: 60_000 }, async () => {
+    await tell({ clock: 'c:15:1', settling: true });
+    const fresh = join(dirname(index), 'fresh.bin');
+    let started = performance.now();
+    const first = await updateNatively(root, fresh);
+    expect(performance.now() - started).toBeLessThan(5_000);
+    expect(listed(await gitRan())).toBe(true);
+
+    // A listing held from before, which the watch cannot yet vouch for.
+    started = performance.now();
+    const held = await updateNatively(root, index);
+    expect(performance.now() - started).toBeLessThan(5_000);
+    expect(listed(await gitRan())).toBe(true);
+    expect(held.listing!.paths()).toEqual(first.listing!.paths());
+  });
+
+  it('records no clock a watch still crawling could not vouch for', { timeout: 60_000 }, async () => {
+    const fresh = join(dirname(index), 'fresh.bin');
+    await tell({ clock: 'c:16:1', settling: true });
+    await updateNatively(root, fresh);
+    await gitRan();
+
+    await tell({ clock: 'c:16:2' });
+    const after = await updateNatively(root, fresh);
+    expect(listed(await gitRan())).toBe(true);
+    expect(after?.listing.vouched).toBe(false);
   });
 
   it('asks the watchman command where its server listens once for an index, not on every update', async () => {
