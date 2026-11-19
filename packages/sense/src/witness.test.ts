@@ -296,6 +296,26 @@ describe('where a configuration says a bare request can land', () => {
     expect(aliases?.candidatesFor('@app/y')).toEqual(['src/y']);
   });
 
+  it('places a `baseUrl` an outside base points back into the checkout', async () => {
+    const root = await fixture({ 'tsconfig.json': '{ "extends": "@shared/tsconfig" }' });
+    const outside = await fixture({ 'tsconfig.json': `{ "compilerOptions": { "baseUrl": "../${basename(root)}/src" } }` });
+    await link(root, 'node_modules/@shared/tsconfig', outside);
+
+    expect((await aliasesIn(root, ['tsconfig.json']))?.table.bases).toEqual(['src']);
+  });
+
+  it('places `${configDir}` at the configuration that inherits it, not the base that wrote it', async () => {
+    const root = await fixture({
+      'app/tsconfig.json': '{ "extends": "../shared/tsconfig.json" }',
+      'shared/tsconfig.json': '{ "compilerOptions": { "baseUrl": "${configDir}", "paths": { "@/*": ["${configDir}/src/*"] } } }',
+    });
+    const aliases = await aliasesIn(root, ['app/tsconfig.json']);
+
+    // The `baseUrl` makes the request itself a candidate too, as TypeScript reads it.
+    expect(aliases?.candidatesFor('@/y')).toEqual(['app/@/y', 'app/src/y']);
+    expect(aliases?.table.bases).toEqual(['app']);
+  });
+
   it('reads a relative `extends` that names a directory as its `tsconfig.json`', async () => {
     const root = await fixture({
       'tsconfig.json': '{ "extends": "./configs" }',

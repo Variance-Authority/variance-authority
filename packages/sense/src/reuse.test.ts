@@ -158,7 +158,6 @@ describe('naming the shape of a tree', () => {
   });
 });
 
-
 describe('the record cache in memory', () => {
   it('answers only for the bytes the record was built from', () => {
     const cache = memoryRecordCache();

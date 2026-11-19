@@ -88,18 +88,23 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
         let base_url = options.values.get("baseUrl").and_then(|value| value.as_str());
         let paths_from = options.from.get("paths").map_or(path, String::as_str);
         // Each option is placed against the file that wrote it rather than
-        // the file that inherited it, which is what TypeScript does.
+        // the file that inherited it, which is what TypeScript does; only
+        // `${configDir}` names the inheriting file's directory.
         let at = normalize(&match base_url {
-            Some(base_url) => join(&[dirname(options.from.get("baseUrl").map_or(path, String::as_str)), base_url]),
+            Some(base_url) => configured(path, options.from.get("baseUrl").map_or(path, String::as_str), base_url),
             None => dirname(paths_from).to_owned(),
         });
-        if let Some(base) = within(&at).filter(|base| base_url.is_some() && !bases.contains(base)) {
-            bases.push(base);
+        if base_url.is_some() {
+            if let Some(base) = extended.place(&at, ".").filter(|base| !bases.contains(base)) {
+                bases.push(base);
+            }
         }
         if !matches!(declared, Some(Value::Object(_) | Value::Array(_))) {
             continue;
         }
-        if !placed_from.insert(format!("{paths_from}\u{0}{at}")) {
+        // A `${configDir}` target lands per inheriting file, so it is not shared.
+        let per_file = if declared.is_some_and(|value| value.to_string().contains(CONFIG_DIR)) { path } else { "" };
+        if !placed_from.insert(format!("{paths_from}\u{0}{at}\u{0}{per_file}")) {
             continue;
         }
         let entries: Vec<(String, &Value)> = match declared {
@@ -109,8 +114,12 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
         };
         for (pattern, targets) in entries {
             let Value::Array(targets) = targets else { return None };
-            let placed: Vec<String> =
-                targets.iter().filter_map(Value::as_str).filter_map(|target| extended.place(&at, target)).collect();
+            let placed =
+                targets.iter().filter_map(Value::as_str).filter_map(|target| match target.strip_prefix(CONFIG_DIR) {
+                    Some(rest) => extended.place(dirname(path), rest.trim_start_matches('/')),
+                    None => extended.place(&at, target),
+                });
+            let placed: Vec<String> = placed.collect();
             // Two files declaring one pattern with the same targets are one mapping.
             if !already.insert(format!("{pattern}\u{0}{}", placed.join("\u{0}"))) {
                 continue;
@@ -133,6 +142,18 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
     missing.sort_unstable_by(|a, b| code_unit(a, b));
     missing.dedup();
     Some(AliasesRead { bases, mappings, read, missing })
+}
+
+/// The placeholder TypeScript reads as the inheriting configuration's directory.
+const CONFIG_DIR: &str = "${configDir}";
+
+/// `value`, an option `from` wrote, as a path from the root: against `from`'s
+/// directory, or against `config`'s where it opens with `${configDir}`.
+fn configured(config: &str, from: &str, value: &str) -> String {
+    match value.strip_prefix(CONFIG_DIR) {
+        Some(rest) => join(&[dirname(config), rest.trim_start_matches('/')]),
+        None => join(&[dirname(from), value]),
+    }
 }
 
 /// Configuration files whose `paths` decide where a bare specifier can land.
@@ -207,7 +228,7 @@ fn compiler_options(path: &str, extended: &mut Extended<'_>, seen: &HashSet<Stri
 type Beyond = Option<(Map<String, Value>, String)>;
 
 /// Every `extends` entry answered as a configuration this read can open:
-/// `extendedIn` in `witness.ts`.
+/// `aliasesIn` in `witness.ts`.
 struct Extended<'a> {
     root: &'a str,
     parsed: &'a HashMap<&'a str, Map<String, Value>>,
