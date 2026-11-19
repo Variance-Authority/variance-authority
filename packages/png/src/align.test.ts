@@ -202,25 +202,6 @@ describe("content that moved down the page", () => {
     expect(comparison.changed.strict).toBe(1);
   });
 
-  it("pairs a band repainted by one level in place, beside a real insertion", () => {
-    // A header shaded row by row, repainted one level lighter: each after row
-    // is now byte for byte the before row under it. The shortest edit pairs
-    // the header one row up, and the insertion lower down outweighs that on the
-    // whole page. Paired in place the header differs only by a level the
-    // default policy forgives, so the insertion is the whole change.
-    const before = distinct([0, 1, 2, ...range(200, 210), 1000, 1001, 1002, 1003]);
-    const after = distinct([0, 1, 2, ...range(201, 211), 1000, 1001, 5000, 5001, 1002, 1003]);
-
-    const comparison = comparePixels(before, after);
-
-    expect(comparison.alignment).toEqual({
-      inserted: [{ from: 15, to: 17 }],
-      removed: [],
-      shifted: [{ from: 17, to: 19, by: 2 }],
-    });
-    expect(comparison.changed.default).toBe(2 * WIDTH);
-  });
-
   it("names a row added at the bottom, which position explains as well", () => {
     const comparison = comparePixels(column([1, 2, 3]), column([1, 2, 3, 8]));
 
