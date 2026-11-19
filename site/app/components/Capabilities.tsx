@@ -8,7 +8,7 @@ const CAPABILITIES = [
   { name: "VR", href: "/docs/path-visual-review" },
   { name: "Debugging", href: "/docs/path-test-failure" },
   { name: "Review signals", href: "/docs/path-code-review" },
-  { name: "Cost", href: "/docs/path-faster-ci" },
+  { name: "Cost reduction", href: "/docs/path-faster-ci" },
 ] as const;
 
 export default function Capabilities() {
