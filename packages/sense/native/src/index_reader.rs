@@ -43,9 +43,11 @@ struct Chain<'a> {
 
 self_cell::self_cell!(
     /// The segments and the chain read over them, kept together because the
-    /// chain borrows the bytes.
+    /// chain borrows the bytes. The bytes are JavaScript's own buffers, held
+    /// rather than copied, so they must not change while the reader is open:
+    /// each is a segment file read whole and never written again.
     struct Opened {
-        owner: Vec<Vec<u8>>,
+        owner: Vec<Buffer>,
         #[covariant]
         dependent: Chain,
     }
@@ -96,7 +98,7 @@ fn read_layer(bytes: &[u8]) -> Result<Layer<'_>, String> {
     Ok(layer)
 }
 
-fn chain(segments: &[Vec<u8>]) -> Chain<'_> {
+fn chain<B: std::ops::Deref<Target = [u8]>>(segments: &[B]) -> Chain<'_> {
     let (mut layers, mut written_by) = (Vec::new(), None);
     for bytes in segments.iter().rev() {
         match read_layer(bytes) {
@@ -172,8 +174,7 @@ pub struct SourceIndexReader {
 /// Open the chain `segments` holds, oldest first.
 #[napi(catch_unwind)]
 pub fn open_source_index_reader(segments: Vec<Buffer>) -> napi::Result<SourceIndexReader> {
-    let owned = segments.into_iter().map(|segment| segment.to_vec()).collect();
-    Ok(SourceIndexReader { opened: Opened::new(owned, |segments| chain(segments)) })
+    Ok(SourceIndexReader { opened: Opened::new(segments, |segments| chain(segments)) })
 }
 
 impl SourceIndexReader {
