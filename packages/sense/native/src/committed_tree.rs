@@ -1,8 +1,8 @@
 //! `HEAD`'s tree below the root, held by package, so that the next listing
 //! reads only the trees on the paths that moved.
 //!
-//! The record keeps every blob below the root, the tree id of the root, and
-//! the tree id of every package below it: a directory holding a
+//! The record keeps every blob below the root, the tree ids from the top of
+//! the checkout down to the root, and the tree id of every package below it: a directory holding a
 //! `package.json` the package owner would read
 //! (`crate::package_owners::is_manifest`), a nested one a key of its own. No
 //! other directory is kept, as a monorepo's directories outnumber its packages
@@ -13,8 +13,9 @@
 //! git's `diff-tree` does: a subtree both sides name by the same id is taken
 //! from the record, not read, so only the trees on the paths that moved are
 //! read, on both sides, whatever history lies between the two. Where the store
-//! no longer holds an old tree, gc having dropped it, the new side below it is
-//! read whole, but for the packages whose ids the record holds.
+//! no longer holds an old tree, gc having dropped it, a package below it is
+//! diffed from the id the record keys it by, and a package or directory whose
+//! own old tree is gone too is read whole.
 //!
 //! A package is cut by its manifest's path, not by the name inside it: the
 //! walk reads trees and nothing else, and the owner learns a name by reading
@@ -121,12 +122,12 @@ impl Walk<'_> {
             match kind {
                 Entry::Tree => {
                     path.push(b'/');
-                    let was = old.get(&name).copied();
-                    if was == Some(oid) || self.holds(path, &oid) {
+                    let was = old.get(&name).copied().or_else(|| self.held(path));
+                    if was == Some(oid) {
                         self.take(path);
                     } else {
                         let entries = self.read(&oid)?;
-                        if is_package(path, &entries) {
+                        if is_unit(path, &entries) {
                             self.out.dirs.push(Dir { path: path.clone(), id: oid });
                         }
                         let old = was.and_then(|was| self.read(&was));
@@ -140,11 +141,11 @@ impl Walk<'_> {
         Some(())
     }
 
-    /// Whether the record holds a package at `path` by the tree `id`, which
-    /// reaches it where the store has dropped the tree above it.
-    fn holds(&self, path: &[u8], id: &ObjectId) -> bool {
+    /// The tree id the record keys a package at `path` by: the old side of a
+    /// package whose parent's old tree the store has dropped.
+    fn held(&self, path: &[u8]) -> Option<ObjectId> {
         let dirs = &self.held.dirs;
-        dirs.binary_search_by(|dir| dir.path.as_slice().cmp(path)).is_ok_and(|at| dirs[at].id == *id)
+        dirs.binary_search_by(|dir| dir.path.as_slice().cmp(path)).ok().map(|at| dirs[at].id)
     }
 
     /// Every held blob and package below `prefix`, moved into place. What is
@@ -167,9 +168,9 @@ impl Walk<'_> {
     }
 }
 
-/// Whether the directory at `path`, holding `entries`, is a package by the
-/// owner's rule for a manifest's path.
-fn is_package(path: &[u8], entries: &Entries) -> bool {
+/// Whether the directory at `path`, holding `entries`, is a unit of the
+/// record: a package by the owner's rule for a manifest's path.
+fn is_unit(path: &[u8], entries: &Entries) -> bool {
     entries.iter().any(|(name, _, kind)| name == b"package.json" && matches!(kind, Entry::Blob { .. }))
         && std::str::from_utf8(&[path, b"package.json"].concat()).is_ok_and(crate::package_owners::is_manifest)
 }

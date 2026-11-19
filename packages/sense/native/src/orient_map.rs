@@ -136,8 +136,7 @@ impl<'a> From<&'a crate::git::Snapshot> for Listed<'a> {
 /// `None` when git gave no blob id for one of them.
 fn listing(snapshot: &Listed) -> Option<String> {
     let counts = |path: &str| {
-        let name = path.rsplit('/').next().unwrap_or(path);
-        (name == "package.json" && crate::package_owners::is_package(path)) || name == ".gitattributes"
+        crate::package_owners::is_manifest(path) || path.rsplit('/').next() == Some(".gitattributes")
     };
     if snapshot.unhashed.iter().any(|path| counts(path)) {
         return None;

@@ -221,6 +221,35 @@ fn a_held_tree_the_store_has_dropped_is_read_new_and_whole_but_for_the_packages_
     let _ = std::fs::remove_dir_all(&root);
 }
 
+#[test]
+fn a_package_whose_old_tree_the_store_still_has_is_diffed_though_the_tree_above_it_was_dropped() {
+    let root = repository("committed-kept-package", &[
+        ("apps/x/package.json", MANIFEST),
+        ("apps/x/deep/b.ts", A),
+        ("apps/x/one/e.ts", A),
+        ("apps/x/two/e.ts", A),
+        ("apps/x/three/e.ts", A),
+        ("apps/y/c.ts", A),
+        ("lib/d.ts", A),
+    ]);
+    let held = root.join(".git/committed");
+    listed(&root, Some(&held));
+    // A tag keeps the package's old tree, and every tree above it only the replaced commit named is pruned.
+    git(&root, &["tag", "keep", "HEAD:apps/x"]);
+    write(&root, "apps/x/deep/b.ts", b"edited\n");
+    write(&root, "apps/y/c.ts", b"edited\n");
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "--quiet", "--amend", "--no-edit"]);
+    git(&root, &["reflog", "expire", "--expire=now", "--all"]);
+    git(&root, &["gc", "--quiet", "--prune=now"]);
+    let (fresh, advanced) = (listed(&root, None), listed(&root, Some(&held)));
+    assert_eq!(advanced.encode(), fresh.encode());
+    // New: the top, `apps`, `apps/x`, `apps/x/deep`, `apps/y` and `lib`. Old: `apps/x` by
+    // the id the record keys it by, and `apps/x/deep`; `one`, `two` and `three` are taken.
+    assert_eq!((fresh.read, advanced.read), (9, 8));
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// The snapshot of `root`, path for path, with its digests.
 fn digests(snapshot: &crate::git::Snapshot) -> (Vec<(String, [u8; 20], bool)>, Vec<String>) {
     let paths = snapshot.paths.iter().zip(&snapshot.oids).zip(&snapshot.regular).map(|((path, oid), regular)| (path.clone(), *oid, *regular)).collect();
