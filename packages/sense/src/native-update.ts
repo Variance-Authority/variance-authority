@@ -107,6 +107,7 @@ export async function updateNatively(
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
   const listed = tree?.native;
   if (listed?.vouched) progress?.('Watchman reports nothing moved since the listing the index holds, so git listed nothing')?.();
+  if (listed?.followed) progress?.('Watchman reports what moved since the listing the index holds, so only that was compared')?.();
   const addon = native();
   if (addon === undefined) throw new Error(`no source index for ${root}: the native scanner did not load (${nativeRefusal() ?? ''})`);
   const held = listed ?? await stepped(progress, `walking ${root}, which git does not list`, () => addon.diskTree(root, [...dirs]));

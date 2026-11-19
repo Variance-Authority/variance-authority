@@ -68,7 +68,7 @@ pub fn external_dependencies(
     sites: u32,
 ) -> napi::Result<Option<ExternalOrientation>> {
     let (chain, snapshot) = std::thread::scope(|scope| {
-        let snapshot = scope.spawn(|| crate::git::snapshot(&root));
+        let snapshot = scope.spawn(|| crate::git::snapshot_against(&root, &crate::committed_tree::record(&index)));
         (read_chain(&index), snapshot.join().ok().flatten())
     });
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));
@@ -98,7 +98,7 @@ pub fn orient_around(
     external_sites: u32,
 ) -> napi::Result<Option<Around>> {
     let (chain, snapshot) = std::thread::scope(|scope| {
-        let snapshot = scope.spawn(|| crate::git::snapshot(&root));
+        let snapshot = scope.spawn(|| crate::git::snapshot_against(&root, &crate::committed_tree::record(&index)));
         (read_chain(&index), snapshot.join().ok().flatten())
     });
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));

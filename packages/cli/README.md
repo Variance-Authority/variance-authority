@@ -2329,7 +2329,8 @@ order below, and leaves out a part that did not run:
 - `tree` reads HEAD's tree into the file list, and `ls-tree` asks git for it,
   and reads what git prints, where the in-process reader cannot.
 - `worktree` walks the working tree, and `git status` asks git for its changes
-  where the walk cannot.
+  where the walk cannot. Under a watch, it compares only the files Watchman
+  reports moved since the kept listing, which answers for the rest.
 - `compare` checks the walk against the tree.
 - `overlay` reads the changes and checks which are files, and `hash-object`,
   part of it, hashes the files that changed.

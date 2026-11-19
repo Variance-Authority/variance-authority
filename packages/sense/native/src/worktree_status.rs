@@ -95,16 +95,28 @@ pub(crate) fn config_of(listed: &[u8]) -> Config {
 /// The working tree against the index, walked before `HEAD`'s blobs are in
 /// hand: what `Walked::against` compares them with.
 pub(crate) struct Walked {
-    prefix: Vec<u8>,
-    index: gix_index::File,
-    removed: Paths,
-    dirty: Paths,
-    untracked: Paths,
+    pub(super) prefix: Vec<u8>,
+    pub(super) index: gix_index::File,
+    pub(super) removed: Paths,
+    pub(super) dirty: Paths,
+    pub(super) untracked: Paths,
 }
 
 /// The working tree walked against the index below the root, or `None` where
 /// `git status` must answer.
 pub(crate) fn walk(head: &Head, config: &Config) -> Option<Walked> {
+    let index = indexed(head, config)?;
+    let (worktree, untracked) = std::thread::scope(|scope| {
+        let untracked = scope.spawn(|| super::worktree_untracked::untracked(head, &index, config));
+        (worktree(head, &index, config), untracked.join().ok().flatten())
+    });
+    let (removed, dirty) = worktree?;
+    Some(Walked { prefix: head.prefix.as_bytes().to_vec(), index, removed, dirty, untracked: untracked? })
+}
+
+/// The index a walk compares the working tree with, or `None` where `git
+/// status` must answer.
+pub(super) fn indexed(head: &Head, config: &Config) -> Option<gix_index::File> {
     if head.format != "sha1" || config.fsmonitor {
         return None;
     }
@@ -122,13 +134,7 @@ pub(crate) fn walk(head: &Head, config: &Config) -> Option<Walked> {
     if index.is_sparse() || index.entries().iter().any(|entry| handed(entry) && below(entry)) {
         return None;
     }
-
-    let (worktree, untracked) = std::thread::scope(|scope| {
-        let untracked = scope.spawn(|| super::worktree_untracked::untracked(head, &index, config));
-        (worktree(head, &index, config), untracked.join().ok().flatten())
-    });
-    let (removed, dirty) = worktree?;
-    Some(Walked { prefix: prefix.to_vec(), index, removed, dirty, untracked: untracked? })
+    Some(index)
 }
 
 impl Walked {
@@ -173,11 +179,11 @@ impl Walked {
     }
 }
 
-type Paths = BTreeSet<Vec<u8>>;
+pub(super) type Paths = BTreeSet<Vec<u8>>;
 
 /// The worktree against the index: paths removed, and paths edited, changed
 /// in kind or mode, conflicted or only intended to be added.
-fn worktree(head: &Head, index: &gix_index::File, config: &Config) -> Option<(Paths, Paths)> {
+pub(super) fn worktree(head: &Head, index: &gix_index::File, config: &Config) -> Option<(Paths, Paths)> {
     let prefix = head.prefix.as_bytes();
     let top = head.top.as_path();
     let stack = gix_worktree::Stack::new(top, State::IgnoreStack(empty_ignore(Default::default())), case(config), Vec::new(), Vec::new());

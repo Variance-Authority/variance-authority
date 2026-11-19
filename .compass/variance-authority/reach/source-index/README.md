@@ -64,6 +64,7 @@ reference to it, since the owner compacts and deletes its segments.
 ## Implementation coordinates
 
 - `packages/sense/native/src/held_listing.rs`, `packages/sense/native/src/watchman.rs` — the listing an update carries, and Watchman asked whether it stands
+- `packages/sense/native/src/committed_tree.rs` — `HEAD`'s tree below the root, kept by each package's tree id beside the index, so an unchanged tree is not read again and a changed package is diffed against its old tree
 - `packages/sense/src/published.ts` — `updateSourceIndex`, `publishedSources`, `sourcesWithin`
 - `packages/sense/src/source-index.ts` — `openSourceIndex`, the two caches and the append
 - `packages/sense/src/immutable-log.ts` — the segment chain, and the copy a worktree starts from

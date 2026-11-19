@@ -96,7 +96,7 @@ pub(crate) struct Limits {
 pub fn orient_packages(root: String, index: String, files: Vec<String>, rows: u32, names: u32) -> napi::Result<Option<Orientation>> {
     let limits = Limits { rows: rows as usize, names: names as usize };
     let (chain, snapshot) = std::thread::scope(|scope| {
-        let snapshot = scope.spawn(|| crate::git::snapshot(&root));
+        let snapshot = scope.spawn(|| crate::git::snapshot_against(&root, &crate::committed_tree::record(&index)));
         (read_chain(&index), snapshot.join().ok().flatten())
     });
     let fail = |error: String| napi::Error::from_reason(format!("the source index at {index} did not read: {error}"));

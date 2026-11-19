@@ -93,13 +93,13 @@ fn committed_links_are_unhashed_in_code_unit_order_on_every_listing() {
 fn compared(root: &Path) -> bool {
     let head = crate::git_store::head(root).unwrap();
     let config = crate::git::worktree_status::config_of(&crate::git::git_porcelain::configured(root.to_str().unwrap()));
-    head.blobs().is_some() && crate::git::worktree_status::walk(&head, &config).is_some()
+    head.committed(None).is_some() && crate::git::worktree_status::walk(&head, &config).is_some()
 }
 
 /// The snapshot compared in-process is the one `status` answers, path for path.
 fn agrees(root: &Path) {
     let root = root.to_str().unwrap();
-    let (known, printed) = (snapshot_of(root, true).unwrap(), snapshot_of(root, false).unwrap());
+    let (known, printed) = (snapshot_of(root, true, None, None).unwrap().0, snapshot_of(root, false, None, None).unwrap().0);
     let digests = |tree: &super::Snapshot| -> Vec<(String, String, bool)> {
         tree.paths.iter().zip(&tree.oids).zip(&tree.regular).map(|((path, oid), regular)| (path.clone(), hex(oid), *regular)).collect()
     };
