@@ -167,6 +167,16 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
     await expect(janus('va-no-such-command')).rejects.toThrow('`va-no-such-command` could not be started');
   });
 
+  it('answers the command\'s exit, from the command line', async () => {
+    const cwd = process.cwd();
+    process.chdir(root);
+    try {
+      expect(await main(['janus', '--since', 'HEAD', '--', process.execPath, '-e', 'process.exitCode = 3'], { out: () => {}, err: streams.err })).toBe(3);
+    } finally {
+      process.chdir(cwd);
+    }
+  });
+
   it('refuses a ref git cannot read, from the command line', async () => {
     const err: string[] = [];
     const exit = await main(['janus', '--since', 'va-no-such-ref', '--', process.execPath, '-e', ''], { out: () => {}, err: (text: string) => void err.push(text) });
