@@ -8,7 +8,8 @@ import { memoryParseCache, type Parsed } from './cache.js';
 import { nativeAvailable } from './addon.js';
 import { digestString } from './digest.js';
 import { keyFor, parseWay } from './files.js';
-import { LARGEST_FILE, scanRelations } from './test-support/scan.js';
+import { LARGEST_FILE } from './record.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * What the scan declines to open.

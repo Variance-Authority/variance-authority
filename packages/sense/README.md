@@ -1714,8 +1714,8 @@ const records = sourcesWithin(published.records, process.cwd(), ['src'], []);
 
 `updateSourceIndex(root)` scans the whole checkout, whoever calls it, and reads
 again only the files whose blob changed. Its result names the state it found
-(`was`), the files it holds, and how many it read again (`reread`). Pass
-`packs: false` to read bytes from the working tree.
+(`was`), the files it holds, and how many it read again (`reread`). Set
+`packs` to `false` to read bytes from the working tree.
 Pass `dirs` for an index that covers some directories of the checkout and what
 they import, rather than all of it. An index that is missing, damaged or another
 release's starts from the same index of another checkout of the repository, its

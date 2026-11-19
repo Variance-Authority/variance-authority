@@ -110,7 +110,7 @@ export interface Resolvers {
  * the obvious reason to expect otherwise is wrong. The live heap of a finished
  * scan is 163.3 MiB with this memo and 163.3 MiB without it, to the tenth of a
  * mebibyte, because the edge targets were already shared before anything here
- * interned them: [`scan.ts`](./scan.ts) asks `built.has(edge.to)` for every
+ * interned them: `test-support/scan.ts` asks `built.has(edge.to)` for every
  * edge, and a string used as a map key is internalized by V8 — the duplicate
  * becomes a pointer to the one canonical copy. Interning a string the engine is
  * about to intern buys nothing.

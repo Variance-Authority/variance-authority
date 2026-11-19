@@ -24,8 +24,6 @@ import { declinedForSize, LARGEST_FILE, stillTooLarge } from '../record.js';
 import { withDeclaredTsconfig } from '../typescript.js';
 import { realPath, type ResolveOptions } from '../resolve.js';
 
-export { LARGEST_FILE };
-
 export interface ScanOptions extends ResolveOptions {
   /** Repository root. Every path in the result is relative to it. */
   readonly root: string;
@@ -67,7 +65,7 @@ export interface ScanOptions extends ResolveOptions {
 
   /**
    * The cache's parse stores, read for a tracked module before it is opened
-   * ([`parse-store.ts`](./parse-store.ts)). A module one answers is resolved
+   * ([`parse-store.ts`](../parse-store.ts)). A module one answers is resolved
    * here as if it were read, and its parse is `cache`'s to keep from the store:
    * `cache` has to read the same stores.
    */
@@ -81,7 +79,7 @@ export interface ScanOptions extends ResolveOptions {
    *
    * Unlike the parse cache this one is off by default, because it is only sound
    * with digests: a record with no digest names no bytes, and reusing it would be
-   * reusing edges nothing checked ([`reuse.ts`](./reuse.ts)).
+   * reusing edges nothing checked ([`reuse.ts`](../reuse.ts)).
    */
   readonly reuse?: RecordCache;
 

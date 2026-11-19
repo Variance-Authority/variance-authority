@@ -270,7 +270,7 @@ export const MEMORY_PARSE_ENTRIES = 4096;
  * `get` returning nothing is always a correct answer — the caller reads the file
  * — so a bound here cannot make a scan wrong, only slower by the parses it drops.
  * The one caller that notices is a scan reusing whole records
- * ([`scan.ts`](./scan.ts)) and handing every file's parse to `parsed`: a record
+ * (`test-support/scan.ts`) and handing every file's parse to `parsed`: a record
  * reused without opening the file has no parse in hand, and looks for it here.
  * That pairing wants the cache on disk, because a record cache spanning runs and
  * a parse cache that forgets at exit already disagree about what they are for.
