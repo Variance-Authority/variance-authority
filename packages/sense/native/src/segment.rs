@@ -59,7 +59,7 @@ struct Header<'f> {
 }
 
 pub fn u8s(name: &'static str, bytes: Vec<u8>) -> Column {
-    Column { name: Cow::Borrowed(name), width: 1, parts: vec![bytes] }
+    u8_parts(name, vec![bytes])
 }
 
 /// A byte column written in parts, its bytes the parts in order.
