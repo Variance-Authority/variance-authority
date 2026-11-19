@@ -31,6 +31,11 @@ export function digestBytes(bytes: Uint8Array): Digest {
   return digestOfSha256(createHash('sha256').update(bytes).digest('hex'));
 }
 
+/** Raw bytes' whole SHA-256 in hex, which {@link digestBytes} shortens: the name a share gives an image. */
+export function sha256Hex(bytes: Uint8Array): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
 /** The digest of bytes given in pieces, in order: {@link digestBytes} of the pieces joined, with none held whole. */
 export function digestPieces(): { update(piece: Uint8Array): void; digest(): Digest } {
   const hash = createHash('sha256');

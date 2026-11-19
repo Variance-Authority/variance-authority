@@ -81,7 +81,16 @@ export {
   type SourceUpdate,
   type SourceUpdateOptions,
 } from './published.js';
-export { fetchedSourceIndexPath, placeSourceIndex, sourceIndexChain, sourceIndexWrittenIn, type SourceIndexChain } from './source-index-copy.js';
+export {
+  carriedSourceIndex,
+  type CarriedSourceIndex,
+  fetchedSourceIndexPath,
+  placeSourceIndex,
+  SOURCE_INDEX_PIECE,
+  sourceIndexChain,
+  sourceIndexWrittenIn,
+  type SourceIndexChain,
+} from './source-index-copy.js';
 export { publishedNames, readPublishedNames, type PublishedNames } from './published-names.js';
 export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';

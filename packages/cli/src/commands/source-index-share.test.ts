@@ -5,8 +5,10 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchedSourceIndexPath,
+  placeSourceIndex,
   readPublishedSources,
   type SourceFetch,
+  SOURCE_INDEX_PIECE,
   SOURCE_INDEX_VERSION,
   sourceIndexChain,
   sourceIndexPath,
@@ -18,7 +20,7 @@ import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { indexOutput } from './index-command.js';
 import { BEFORE, DISCOUNTS, PUSH, cloneOf, collectedBoth, git, originAndCi, ranWhole, recordIn } from './mainline-fixture.js';
 import { suiteBase } from './suite-base.js';
-import { fetchFromMainline, placeSourceIndexEntry, SOURCE_INDEX_PIECE, sourceIndexEntryOf } from './source-index-share.js';
+import { fetchFromMainline, sourceIndexEntryOf } from './source-index-share.js';
 import { publishSuite } from './suite-share.js';
 
 /**
@@ -224,20 +226,42 @@ describe('`variance index` over an index another release wrote', () => {
     for (const image of await readdir(images)) expect((await stat(join(images, image))).size).toBeLessThanOrEqual(SOURCE_INDEX_PIECE);
   });
 
-  it('starts from a sibling checkout of this release, and starts no download', async () => {
+  it('starts from a sibling checkout of this release that fits, and drops the download without waiting on it', async () => {
     const { origin } = await mainlinePublished(true);
     const clone = await laptopOnOlderRelease(origin);
     const sibling = join(home, 'sibling');
     await git(clone, 'worktree', 'add', '--quiet', sibling);
     await updateSourceIndex(sibling);
-    const fetch = vi.fn<SourceFetch>(() => Promise.resolve(undefined));
+    const signals: AbortSignal[] = [];
+    // A download that never ends on its own: the update finishes only if it drops it.
+    const fetch = vi.fn<SourceFetch>((_root, _into, signal) => new Promise((resolve) => {
+      signals.push(signal);
+      signal.addEventListener('abort', () => resolve(undefined));
+    }));
 
     const update = await updateSourceIndex(clone, { fetch });
 
-    expect(fetch).not.toHaveBeenCalled();
+    expect(signals.map((signal) => signal.aborted)).toEqual([true]);
     expect(update).toMatchObject({ was: 'other-version', files: Object.keys(SOURCES).length, reread: 1 });
     expect(update.from).toMatch(/source-index\.bin$/);
     expect(update.fetched).toBeUndefined();
+  });
+
+  it('fetches CI\'s index when the sibling checkout of this release does not open, and reads again only the module that differs', async () => {
+    const { origin } = await mainlinePublished(true);
+    const clone = await laptopOnOlderRelease(origin);
+    const sibling = join(home, 'sibling');
+    await git(clone, 'worktree', 'add', '--quiet', sibling);
+    await updateSourceIndex(sibling);
+    const damaged = (await sourceIndexChain(sourceIndexPath(sibling)))?.segments.at(-1)?.path ?? '';
+    // Its header still names this release; the rest does not open.
+    await truncate(damaged, (await stat(damaged)).size - 1);
+    expect(await sourceIndexWrittenIn(sourceIndexPath(sibling))).toBe(SOURCE_INDEX_VERSION);
+
+    const update = await updateSourceIndex(clone, { fetch: fetchFromMainline });
+
+    expect(update).toMatchObject({ was: 'other-version', files: Object.keys(SOURCES).length, reread: 1 });
+    expect(update.fetched).toMatch(/^main's at /);
   });
 
   it('says why nothing was fetched for an opted-in checkout whose share holds no index, and reads every file', async () => {
@@ -315,7 +339,7 @@ describe('`variance index` over an index another release wrote', () => {
     const clone = await laptopOnOlderRelease(origin);
     const into = fetchedSourceIndexPath(sourceIndexPath(clone));
 
-    const said = await stderrOf(() => fetchFromMainline(clone, into));
+    const said = await stderrOf(() => fetchFromMainline(clone, into, new AbortController().signal));
 
     expect(said.out).toBeUndefined();
     expect(said.lines.at(-1)).toMatch(/^variance: CI's source index was not fetched, so every file is read: a segment of main's at \w{12} is missing or not what its digest says\n$/);
@@ -327,7 +351,7 @@ describe('`variance index` over an index another release wrote', () => {
     const clone = await laptopOnOlderRelease(origin);
     asked.fails = new Error('the share refused the connection');
 
-    const said = await stderrOf(() => fetchFromMainline(clone, fetchedSourceIndexPath(sourceIndexPath(clone))));
+    const said = await stderrOf(() => fetchFromMainline(clone, fetchedSourceIndexPath(sourceIndexPath(clone)), new AbortController().signal));
 
     expect(said.out).toBeUndefined();
     expect(said.lines).toEqual([`variance: CI's source index was not fetched, so every file is read: the share refused the connection\n`]);
@@ -338,7 +362,7 @@ describe('`variance index` over an index another release wrote', () => {
     await mkdir(root, { recursive: true });
     await writeFile(join(root, 'variance.config.json'), JSON.stringify({ share: { kind: 'nowhere', sourceIndex: true } }));
 
-    const said = await stderrOf(() => fetchFromMainline(root, fetchedSourceIndexPath(sourceIndexPath(root))));
+    const said = await stderrOf(() => fetchFromMainline(root, fetchedSourceIndexPath(sourceIndexPath(root)), new AbortController().signal));
 
     expect(said).toEqual({ out: undefined, lines: [] });
     expect(asked.names).toEqual([]);
@@ -409,7 +433,7 @@ describe('the index a publish carries, read off its segments', () => {
     for (const image of images) expect((await carried.image(image)).length).toBeLessThanOrEqual(1024);
 
     const into = fetchedSourceIndexPath(path);
-    expect(await placeSourceIndexEntry(into, carried.entry.bytes, carried.image)).toBe(true);
+    expect(await placeSourceIndex(into, carried.entry.bytes, carried.image)).toBe(true);
 
     const placed = await sourceIndexChain(into);
     const original = await sourceIndexChain(path);
@@ -426,7 +450,7 @@ describe('the index a publish carries, read off its segments', () => {
     const gone = carried.entry.images?.at(-1);
     const into = fetchedSourceIndexPath(path);
 
-    const placed = await placeSourceIndexEntry(into, carried.entry.bytes, (digest) =>
+    const placed = await placeSourceIndex(into, carried.entry.bytes, (digest) =>
       digest === gone ? Promise.resolve(undefined) : carried.image(digest),
     );
 
@@ -470,7 +494,7 @@ describe('the index a publish carries, read off its segments', () => {
     const { path } = await indexed();
     const into = fetchedSourceIndexPath(path);
 
-    expect(await placeSourceIndexEntry(into, Buffer.from('not a manifest'), () => Promise.resolve(undefined))).toBe(false);
+    expect(await placeSourceIndex(into, Buffer.from('not a manifest'), () => Promise.resolve(undefined))).toBe(false);
     expect(await sourceIndexChain(into)).toBeUndefined();
   });
 });

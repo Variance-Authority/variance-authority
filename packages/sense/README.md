@@ -1738,17 +1738,21 @@ cache's parse store holds the same parse of the blob, so a file the other
 checkout edited without telling git is read again. With no such index, it reads
 every file, and the parse store is what a second checkout reuses. Pass
 `fetch` to start from an index somebody else built, such as the one CI
-published: it is asked only when the index is another release's and no other
-checkout has an index of this release, as the update starts, and places that
-index at the path it is given while the checkout is listed. The addon tries it after every other checkout's, and trusts a record
+published: it is asked only when the index is another release's, as the update
+starts, and places that index at the path it is given while the checkout is
+listed. When another checkout's index of this release opens, the update starts
+from that one, aborts the `signal` it gave `fetch`, and does not wait for it.
+The addon tries a fetched index after every other checkout's, and trusts a record
 of it without the parse store wherever the tree names the record's digest: the
 index keys a file git calls changed by the bytes it read, so an edit CI made
 before indexing never matches a checkout's tree. The result names
 whose it was as `fetched`, and the placed copy is removed.
-`placeSourceIndex(into, manifest, read)` places such an index from its manifest
-and, for each segment's digest, the pieces that segment is carried in, in order;
-no segment is held whole, and one whose length or digest is not its own leaves
-nothing placed; `fetchedSourceIndexPath(path)` is where an update
+`carriedSourceIndex(chain)` carries a chain from `sourceIndexChain` as bytes
+that name its manifest and each segment's pieces of `SOURCE_INDEX_PIECE` bytes
+by their SHA-256, the names of those pieces once in `pieces`, and `piece(name)`
+to read one; `placeSourceIndex(into, bytes, piece)` places such an index from
+those bytes and a reader of each piece by name; no segment is held whole, and
+one whose length or digest is not its own leaves nothing placed; `fetchedSourceIndexPath(path)` is where an update
 over `path` has it placed, and `sourceIndexChain(path)` lists the files of one
 to publish. An `index` you name in the checkout's
 own cache directory reads that store as the checkout's own index does. `progress` is told each step's name as it starts, the git listing

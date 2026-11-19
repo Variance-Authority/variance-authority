@@ -130,12 +130,14 @@ export interface SourceUpdateOptions {
    * published, such as the mainline's, and says whose it is. The update
    * asks it as it starts, lists the checkout meanwhile, and offers the addon what
    * it placed to start from; the addon writes the index, and `into` is removed.
+   * `signal` aborts when another checkout's index fits, which the update starts
+   * from without waiting: the fetch then stops and places nothing.
    */
   readonly fetch?: SourceFetch;
 }
 
 /** {@link SourceUpdateOptions.fetch}: whose index it placed at `into`, or undefined when it placed none. */
-export type SourceFetch = (root: string, into: string) => Promise<string | undefined>;
+export type SourceFetch = (root: string, into: string, signal: AbortSignal) => Promise<string | undefined>;
 
 /** What one update read and what it published. */
 export interface SourceUpdate {
@@ -205,17 +207,24 @@ export async function updateSourceIndex(
   // A missing index waits for the answer before the listing, to say what it will read; only the addon knows whether one fits.
   const beside = cached ? indexesBeside(where, basename(path)) : undefined;
   // Started before the listing: a fetch is the slowest thing an update can wait on, and the listing does not need it.
-  // Not started when another checkout of this release has an index: the update starts from that one, and waits on no download.
+  // Dropped when another checkout's index fits: the update starts from that one, and waits on no download.
   const into = fetchedSourceIndexPath(path);
-  const fetching = options.fetch === undefined || missing ? undefined : fetchFor(path, beside, () => options.fetch?.(where, into));
+  const dropped = new AbortController();
+  const over = options.fetch === undefined || missing ? undefined : overAnotherRelease(path);
+  const fetching = over?.then((yes) => yes ? options.fetch?.(where, into, dropped.signal) : undefined).catch(() => undefined);
   const reading = !missing ? undefined : (await beside ?? []).length > 0
     ? `reading the files of ${placesOf(where, dirs)} that differ from another checkout's index, or every file if none of theirs fits`
     : `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
   // The addon tries CI's after every checkout's: one on this machine is nearer.
-  const published = fetching?.then((whose) => whose === undefined ? undefined : into);
+  const published = over === undefined || fetching === undefined ? undefined : {
+    over,
+    placed: fetching.then((whose) => whose === undefined ? undefined : into),
+    drop: () => { dropped.abort(); },
+  };
   const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, reading, options.packs, beside, published)
-    // After the fetch settles, never during it: an update that fails before the addon runs must not leave a copy behind.
-    .finally(async () => { if (fetching !== undefined) { await fetching; await dropSourceIndex(into); } });
+    // Once the fetch settles, never before: an update that fails before the addon runs must not leave a copy behind,
+    // and drops the download it no longer needs.
+    .finally(async () => { if (fetching !== undefined) { dropped.abort(); await fetching; await dropSourceIndex(into); } });
   const whose = await fetching;
   if (options.index === undefined) markCheckout(realPath(where));
   const fetched = whose !== undefined && natively.from === into ? whose : undefined;
@@ -235,28 +244,14 @@ export async function updateSourceIndex(
 }
 
 /**
- * `fetch`, asked only over an index another release wrote, and only when no
- * checkout `beside` this one has an index this release wrote. One this release
- * wrote updates by what changed, which is cheaper than any fetch; one that is
- * damaged is the primary checkout's to stand in for, by `others`; and another
- * checkout's of this release is on this machine, where the update starts from
- * it without waiting on a download.
+ * Whether the index at `path` is another release's: the one an update fetches
+ * CI's over. One this release wrote updates by what changed, which is cheaper
+ * than any fetch, and one that is damaged is the primary checkout's to stand in
+ * for, by `others`.
  */
-async function fetchFor(
-  path: string,
-  beside: Promise<readonly string[]> | undefined,
-  fetch: () => Promise<string | undefined> | undefined,
-): Promise<string | undefined> {
-  try {
-    const written = await sourceIndexWrittenIn(path);
-    if (written === undefined || written === SOURCE_INDEX_VERSION) return undefined;
-    for (const other of await beside ?? []) {
-      if (await sourceIndexWrittenIn(other) === SOURCE_INDEX_VERSION) return undefined;
-    }
-    return await fetch();
-  } catch {
-    return undefined;
-  }
+async function overAnotherRelease(path: string): Promise<boolean> {
+  const written = await sourceIndexWrittenIn(path).catch(() => undefined);
+  return written !== undefined && written !== SOURCE_INDEX_VERSION;
 }
 
 /** The index named `name` as every other checkout of the repository keeps it for `where`, the primary first, where one does. */

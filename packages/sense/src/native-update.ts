@@ -47,6 +47,13 @@ export interface NativeUpdateOptions {
   /** This index as CI published it, read after `others`, its rows trusted where the tree names their digest. */
   readonly published?: string[];
 }
+/** CI's index as an update fetches it: whether the update is over another release's index, where it was placed, and how to drop it. */
+export interface CiSourceIndex {
+  readonly over: Promise<boolean>;
+  readonly placed: Promise<string | undefined>;
+  readonly drop: () => void;
+}
+
 /** `Updated` in `native/src/source_update.rs`. */
 export interface NativeUpdated {
   readonly files: number;
@@ -79,7 +86,8 @@ export interface NativelyUpdated {
  * `reading` names the read as progress says it: an index started from the stores has no last index to read the changes since.
  * `packs: false` reads every file off the working tree rather than out of Git's object store.
  * `others` is this index as the repository's other checkouts keep it, asked while the tree is listed: one with none to stand on starts from the first that fits.
- * `published` is one CI published, fetched while the tree is listed: tried after `others`.
+ * `published` is one CI published, fetched while the tree is listed: tried after `others`, and waited on only when none of
+ * them fits, since one on this machine needs no download; when one does, the download is dropped.
  */
 export async function updateNatively(
   root: string,
@@ -90,7 +98,7 @@ export async function updateNatively(
   reading = 'reading the files that changed since the last index',
   packs?: boolean,
   others?: Promise<readonly string[]>,
-  published?: Promise<string | undefined>,
+  published?: CiSourceIndex,
 ): Promise<NativelyUpdated> {
   const tree = await stepped(progress, `listing ${root}`, () => changeTreeOf(root, index, dirs));
   const listed = tree?.native;
@@ -108,7 +116,11 @@ export async function updateNatively(
   // Asked of git while it listed: the stores are needed only now.
   const read = await stores;
   const beside = await others ?? [];
-  const fetched = await published;
+  const seeded = published !== undefined && beside.length > 0 && await published.over
+    ? addon.sourceIndexSeed([...beside], config) ?? undefined
+    : undefined;
+  if (seeded !== undefined) published?.drop();
+  const fetched = seeded === undefined ? await published?.placed : undefined;
   const done = await stepped(progress, reading, () => held.updateIndex({
     root,
     index,

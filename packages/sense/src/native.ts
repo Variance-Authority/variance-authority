@@ -168,6 +168,8 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   changeTree(root: string, index: string, dirs: string[]): NativeGitTree | null;
   /** The tree of a directory git does not list, read off the disk (`native/src/change_tree.rs`). */
   diskTree(root: string, dirs: string[]): NativeGitTree;
+  /** The first of `others` an update with no chain to stand on starts from under `config` (`native/src/source_update_seed.rs`). */
+  sourceIndexSeed(others: string[], config: string): string | null;
   /** Every readable file below the configured roots, using bounded native I/O. */
   seedFiles(root: string, dirs: string[]): string[];
   /**
