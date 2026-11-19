@@ -11,7 +11,7 @@ import {
   type StoredSourceIndex,
 } from './source-index-format.js';
 import type { NativeIndexGraph } from './native-index-graph.js';
-import { readSourceIndexChain } from './source-index-reader.js';
+import { readSourceIndexChain, SourceIndexUnreadable } from './source-index-reader.js';
 import type { NativeScanner } from './native.js';
 
 const EMPTY: StoredSourceIndex = { parses: new Map(), records: new Map(), directories: new Map() };
@@ -91,7 +91,8 @@ export async function openSourceIndexFile(path: string): Promise<SourceIndexFile
 }
 
 /**
- * Everything a read can fail at is a cache miss, except being asked wrongly.
+ * Everything a read can fail at is a cache miss, except being asked wrongly
+ * and having no addon to read with.
  *
  * A chain that is missing, foreign, truncated or corrupt costs the segments
  * from the first unusable one onward — the whole of it when that is the
@@ -100,10 +101,11 @@ export async function openSourceIndexFile(path: string): Promise<SourceIndexFile
  * file is not in that class: swallowed here it would return an empty cache and
  * then hand the same unusable path to the writer, so the run would report a
  * warm-cache saving of nothing, every run, and write its segments under a name
- * nobody chose. That one throws.
+ * nobody chose. That one throws, and so does an addon that did not load: no
+ * index reads without it, so calling this one damaged would hide why.
  */
 function miss(error: unknown): never | void {
-  if (error instanceof BadLogPath) throw error;
+  if (error instanceof BadLogPath || error instanceof SourceIndexUnreadable) throw error;
 }
 
 async function opening(path: string): Promise<Opened> {

@@ -82,10 +82,18 @@ export function readSourceIndexSegment(bytes: Uint8Array): StoredSourceIndex {
   return read.stored;
 }
 
+/**
+ * The addon, which reads every index, did not load: no chain is readable in
+ * this process, whatever its bytes, so this is not a damaged index.
+ */
+export class SourceIndexUnreadable extends Error {
+  override readonly name = 'SourceIndexUnreadable';
+}
+
 function opened(): NonNullable<ReturnType<typeof native>> {
   const addon = native();
   if (addon === undefined) {
-    throw new Error(`the source index is read by the native addon, which did not load: ${nativeRefusal()}`);
+    throw new SourceIndexUnreadable(`the source index is read by the native addon, which did not load: ${nativeRefusal()}`);
   }
   return addon;
 }
