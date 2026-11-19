@@ -33,7 +33,7 @@ const LANGUAGES = [
 const CAPABILITIES = [
   { name: "Coverage", href: "/docs/test-level-coverage" },
   { name: "Code search", href: "/docs/locate" },
-  { name: "Visual review", href: "/docs/path-visual-review" },
+  { name: "VR", href: "/docs/path-visual-review" },
   { name: "Debugging", href: "/docs/path-test-failure" },
   { name: "Review signals", href: "/docs/path-code-review" },
   { name: "Cost", href: "/docs/path-faster-ci" },
