@@ -73,6 +73,24 @@ describe('page stories', () => {
     expect(story.lines).toEqual([[0, 5, 0]]);
   });
 
+  it('names each navigation on the document it loaded, and a reload by the address it kept', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
+    directories.push(directory);
+    const stories = pageStories(directory);
+    const rows = { ids: ['a'], counts: [2], bases: [0] };
+
+    stories.line(subject, 5);
+    const first = drained({ tape: [0], rows, url: 'http://shop.test/' });
+    const second = drained({ tape: [1], rows, url: 'http://shop.test/checkout' });
+    stories.add(subject, drained({ tape: [0], rows, url: 'http://shop.test/checkout', before: [first, second] }));
+    stories.write(subject, false);
+
+    expect(written(directory).notes).toEqual([
+      [1, 'page navigated http://shop.test/checkout'],
+      [2, 'page navigated http://shop.test/checkout (reload)'],
+    ]);
+  });
+
   it('says which frame and document each part ran in, and where the runner spoke between them', () => {
     const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
     directories.push(directory);
