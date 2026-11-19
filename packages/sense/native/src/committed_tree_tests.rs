@@ -53,7 +53,14 @@ fn executable(root: &Path, path: &str) {
 
 #[test]
 fn a_changed_tree_id_reads_only_the_trees_that_moved_and_lists_what_a_fresh_read_lists() {
-    let root = repository("committed-advance", &[("apps/x/a.ts", A), ("apps/x/deep/b.ts", A), ("apps/y/c.ts", A), ("lib/d.ts", A), ("top.ts", A)]);
+    let root = repository("committed-advance", &[
+        ("apps/x/package.json", MANIFEST),
+        ("apps/x/a.ts", A),
+        ("apps/x/deep/b.ts", A),
+        ("apps/y/c.ts", A),
+        ("lib/d.ts", A),
+        ("top.ts", A),
+    ]);
     let places: Vec<PathBuf> = vec![root.clone(), root.join("apps"), root.join("apps/x")];
     let held = |place: usize| root.join(format!(".git/committed-{place}"));
     for (place, at) in places.iter().enumerate() {
@@ -63,6 +70,10 @@ fn a_changed_tree_id_reads_only_the_trees_that_moved_and_lists_what_a_fresh_read
     // Each step commits, and every place lists from what the step before it left held.
     let steps: Vec<(&str, Box<dyn Fn(&Path)>)> = vec![
         ("an added file", Box::new(|root| write(root, "apps/x/deep/new.ts", A))),
+        ("a package nested in another", Box::new(|root| write(root, "apps/x/deep/package.json", MANIFEST))),
+        ("a package around a held one", Box::new(|root| write(root, "apps/package.json", MANIFEST))),
+        ("a package's manifest gone", Box::new(|root| std::fs::remove_file(root.join("apps/x/package.json")).unwrap())),
+        ("a package's own file changed", Box::new(|root| write(root, "apps/x/deep/b.ts", b"edited\n"))),
         ("a deleted directory", Box::new(|root| std::fs::remove_file(root.join("apps/y/c.ts")).unwrap())),
         ("a rename", Box::new(|root| std::fs::rename(root.join("lib/d.ts"), root.join("lib/e.ts")).unwrap())),
         ("an executable bit", Box::new(|root| executable(root, "top.ts"))),
@@ -102,26 +113,66 @@ fn a_changed_tree_id_reads_only_the_trees_that_moved_and_lists_what_a_fresh_read
             let fresh = listed(at, None);
             let advanced = listed(at, Some(&held(place)));
             assert_eq!(advanced.encode(), fresh.encode(), "{step}, from {}", at.display());
-            assert!(advanced.read <= fresh.read, "{step}, from {}: {} trees read, {} fresh", at.display(), advanced.read, fresh.read);
         }
     }
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// The directories `held` keys, as text.
+fn keys(held: &Committed) -> Vec<String> {
+    held.dirs.iter().map(|dir| String::from_utf8(dir.path.clone()).unwrap()).collect()
+}
+
+const MANIFEST: &[u8] = b"{ \"name\": \"p\" }\n";
+
 #[test]
-fn an_advance_reads_the_trees_on_the_changed_path_and_no_other() {
-    let root = repository("committed-counted", &[("apps/x/a.ts", A), ("apps/x/deep/b.ts", A), ("apps/y/c.ts", A), ("lib/d.ts", A), ("top.ts", A)]);
+fn the_record_keys_a_package_root_and_no_directory_below_or_between() {
+    let root = repository("committed-keys", &[
+        ("package.json", MANIFEST),
+        ("apps/x/package.json", MANIFEST),
+        ("apps/x/deep/b.ts", A),
+        ("apps/x/inner/package.json", MANIFEST),
+        ("apps/x/inner/c.ts", A),
+        ("apps/y/c.ts", A),
+        ("lib/d.ts", A),
+        ("vendor/node_modules/z/package.json", MANIFEST),
+    ]);
+    // The root is the chain's; each package below it is its own key, a nested one too,
+    // and a manifest the package owner declines is none.
+    assert_eq!(keys(&listed(&root, None)), ["apps/x/", "apps/x/inner/"]);
+    assert_eq!(keys(&listed(&root.join("apps/x"), None)), ["inner/"]);
+    assert_eq!(keys(&listed(&root.join("lib"), None)), Vec::<String>::new());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn an_advance_reads_the_trees_on_the_changed_path_on_both_sides_and_no_other() {
+    let root = repository("committed-counted", &[
+        ("apps/x/package.json", MANIFEST),
+        ("apps/x/a.ts", A),
+        ("apps/x/deep/b.ts", A),
+        ("apps/y/package.json", MANIFEST),
+        ("apps/y/c.ts", A),
+        ("lib/d.ts", A),
+        ("top.ts", A),
+    ]);
     let held = root.join(".git/committed");
     let under = root.join(".git/committed-apps");
     assert_eq!(listed(&root, Some(&held)).read, 6);
 
     write(&root, "apps/x/deep/new.ts", A);
     commit(&root);
-    // The top, `apps`, `apps/x` and `apps/x/deep`; `apps/y` and `lib` are held.
+    // The top, `apps`, `apps/x` and `apps/x/deep`, each new and as held; `apps/y`
+    // and `lib` are taken by the ids both sides name, though only `apps/y` is a package.
+    assert_eq!(listed(&root, Some(&held)).read, 8);
+
+    write(&root, "lib/e.ts", A);
+    commit(&root);
+    // The top and `lib`, on both sides; `apps` is taken whole.
     assert_eq!(listed(&root, Some(&held)).read, 4);
     listed(&root.join("apps"), Some(&under));
 
-    write(&root, "lib/e.ts", A);
+    write(&root, "lib/f.ts", A);
     commit(&root);
     // The top only, whose `apps` is the one held.
     assert_eq!(listed(&root.join("apps"), Some(&under)).read, 1);
@@ -130,7 +181,7 @@ fn an_advance_reads_the_trees_on_the_changed_path_and_no_other() {
 
 #[test]
 fn a_tree_that_shares_no_history_with_the_one_held_is_advanced_to_by_its_ids() {
-    let root = repository("committed-unrelated", &[("apps/x/a.ts", A), ("lib/d.ts", A)]);
+    let root = repository("committed-unrelated", &[("apps/x/a.ts", A), ("lib/package.json", MANIFEST), ("lib/d.ts", A)]);
     let held = root.join(".git/committed");
     listed(&root, Some(&held));
     git(&root, &["checkout", "--quiet", "--orphan", "other"]);
@@ -140,10 +191,33 @@ fn a_tree_that_shares_no_history_with_the_one_held_is_advanced_to_by_its_ids() {
     commit(&root);
     let (fresh, advanced) = (listed(&root, None), listed(&root, Some(&held)));
     assert_eq!(advanced.encode(), fresh.encode());
-    // `lib` is the tree both hold.
-    assert_eq!(advanced.read, fresh.read - 1);
+    // The top on both sides and `other`; `lib` is the tree both hold.
+    assert_eq!((fresh.read, advanced.read), (3, 3));
     git(&root, &["checkout", "--quiet", "main"]);
     assert_eq!(listed(&root, Some(&held)).encode(), listed(&root, None).encode());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn a_held_tree_the_store_has_dropped_is_read_new_and_whole_but_for_the_packages_held() {
+    let root = repository("committed-dropped", &[
+        ("apps/x/package.json", MANIFEST),
+        ("apps/x/a.ts", A),
+        ("apps/y/c.ts", A),
+        ("lib/d.ts", A),
+    ]);
+    let held = root.join(".git/committed");
+    listed(&root, Some(&held));
+    // The commit replaced, and every tree only it named pruned from the store.
+    write(&root, "apps/y/c.ts", b"edited\n");
+    git(&root, &["add", "-A"]);
+    git(&root, &["commit", "--quiet", "--amend", "--no-edit"]);
+    git(&root, &["reflog", "expire", "--expire=now", "--all"]);
+    git(&root, &["gc", "--quiet", "--prune=now"]);
+    let (fresh, advanced) = (listed(&root, None), listed(&root, Some(&held)));
+    assert_eq!(advanced.encode(), fresh.encode());
+    // The top, `apps`, `apps/y` and `lib`, new; `apps/x` is the package held.
+    assert_eq!((fresh.read, advanced.read), (5, 4));
     let _ = std::fs::remove_dir_all(&root);
 }
 

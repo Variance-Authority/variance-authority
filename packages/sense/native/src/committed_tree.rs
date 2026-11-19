@@ -1,12 +1,25 @@
-//! `HEAD`'s tree below the root, held by the ids it was read from, so that the
-//! next listing reads only the trees whose ids it does not hold.
+//! `HEAD`'s tree below the root, held by package, so that the next listing
+//! reads only the trees on the paths that moved.
 //!
-//! A tree id names its whole content, so a held directory whose id the new
-//! tree names again holds the same blobs, and they are taken, not read. An
-//! unchanged `HEAD^{tree}` reads no tree at all; a moved one reads the trees on
-//! the paths that moved, whatever history lies between the two, as git's
-//! `diff-tree` prunes equal subtrees. Only the new side is read: the held side
-//! is the record, so an old tree the store has since dropped costs nothing.
+//! The record keeps every blob below the root, the tree id of the root, and
+//! the tree id of every package below it: a directory holding a
+//! `package.json` the package owner would read
+//! (`crate::package_owners::is_manifest`), a nested one a key of its own. No
+//! other directory is kept, as a monorepo's directories outnumber its packages
+//! by twenty to a hundred to one.
+//!
+//! An unchanged `HEAD^{tree}` reads no tree at all. A moved one is diffed
+//! against the tree the record was read from, straight from the store, as
+//! git's `diff-tree` does: a subtree both sides name by the same id is taken
+//! from the record, not read, so only the trees on the paths that moved are
+//! read, on both sides, whatever history lies between the two. Where the store
+//! no longer holds an old tree, gc having dropped it, the new side below it is
+//! read whole, but for the packages whose ids the record holds.
+//!
+//! A package is cut by its manifest's path, not by the name inside it: the
+//! walk reads trees and nothing else, and the owner learns a name by reading
+//! the blob. A manifest that names nothing is one key more, never a wrong
+//! answer, since everything taken is taken by an equal tree id.
 //!
 //! The record is the index's (`{index}.committed`), in the segment framing,
 //! compressed with a checksum;
@@ -16,6 +29,7 @@
 
 // compass: variance-authority.reach.source-index
 
+use std::collections::HashMap;
 use std::io::Write as _;
 use std::path::Path;
 
@@ -28,7 +42,10 @@ use crate::stored::Stored;
 /// A blob below the root: its path from the root, its id, and whether it is a symbolic link.
 pub(crate) type Blob = (Vec<u8>, ObjectId, bool);
 
-/// The listing of one tree below one root, with the id of every directory in it.
+/// The entries of one tree, as the store lists them.
+type Entries = Vec<(Vec<u8>, ObjectId, Entry)>;
+
+/// The listing of one tree below one root, with the id of every package in it.
 #[derive(Debug, Default)]
 pub(crate) struct Committed {
     /// `--show-prefix`: the root's place in the checkout.
@@ -38,19 +55,10 @@ pub(crate) struct Committed {
     chain: Vec<ObjectId>,
     /// In tree order, which is byte order over the path.
     pub(crate) blobs: Vec<Blob>,
-    /// Every directory below the root, in the same order, each with its range.
+    /// Every package below the root, in the same order.
     dirs: Vec<Dir>,
-    /// Tree objects this listing read; held ones are not counted, nor recorded.
+    /// Tree objects this listing read, on either side; held ones are not counted, nor recorded.
     pub(crate) read: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Range {
-    /// The first blob below the directory, and the one past its last.
-    start: u32,
-    end: u32,
-    /// The directory past its last descendant.
-    after: u32,
 }
 
 #[derive(Debug)]
@@ -58,11 +66,10 @@ struct Dir {
     /// From the root, ending in `/`.
     path: Vec<u8>,
     id: ObjectId,
-    range: Range,
 }
 
-/// The blobs of the tree `top` below `prefix`, taking every directory `held`
-/// holds by the same path and id. `None` where a tree is missing or does not decode.
+/// The blobs of the tree `top` below `prefix`, taking from `held` every subtree
+/// it holds by the same path and id. `None` where a new tree is missing or does not decode.
 pub(crate) fn list(reader: &mut Reader, top: ObjectId, prefix: &str, held: Option<Committed>) -> Option<Committed> {
     let mut held = held.filter(|held| held.prefix == prefix).unwrap_or_default();
     let mut out = Committed { prefix: prefix.to_owned(), ..Committed::default() };
@@ -81,36 +88,50 @@ pub(crate) fn list(reader: &mut Reader, top: ObjectId, prefix: &str, held: Optio
         };
         tree = next;
     }
-    Walk { reader, held: &mut held, cursor: 0, out: &mut out }.dir(&tree, &mut Vec::new())?;
+    let was = held.chain.get(names.len()).copied();
+    let mut walk = Walk { reader, held: &mut held, out: &mut out };
+    let entries = walk.read(&tree)?;
+    let old = was.and_then(|was| walk.read(&was));
+    walk.dir(entries, old, &mut Vec::new())?;
     Some(out)
 }
 
 struct Walk<'a> {
     reader: &'a mut Reader,
     held: &'a mut Committed,
-    /// The first held directory not yet passed: the walk asks in their order.
-    cursor: usize,
     out: &'a mut Committed,
 }
 
 impl Walk<'_> {
-    fn dir(&mut self, id: &ObjectId, path: &mut Vec<u8>) -> Option<()> {
+    /// The entries of the tree `id`, counted as read, or `None` where the store holds no such tree.
+    fn read(&mut self, id: &ObjectId) -> Option<Entries> {
+        let entries = self.reader.entries(id)?;
         self.out.read += 1;
-        for (name, oid, kind) in self.reader.entries(id)? {
+        Some(entries)
+    }
+
+    /// The blobs below the directory at `path`, from its new `entries` and the
+    /// entries `old` its held tree has where the store still holds it.
+    fn dir(&mut self, entries: Entries, old: Option<Entries>, path: &mut Vec<u8>) -> Option<()> {
+        let old: HashMap<Vec<u8>, ObjectId> =
+            old.into_iter().flatten().filter(|entry| matches!(entry.2, Entry::Tree)).map(|(name, id, _)| (name, id)).collect();
+        for (name, oid, kind) in entries {
             let at = path.len();
             path.extend_from_slice(&name);
             match kind {
                 Entry::Tree => {
                     path.push(b'/');
-                    let me = self.out.dirs.len();
-                    let start = self.out.blobs.len() as u32;
-                    self.out.dirs.push(Dir { path: path.clone(), id: oid, range: Range { start, end: start, after: 0 } });
-                    match self.held_at(path, &oid) {
-                        Some(found) => self.take(found),
-                        None => self.dir(&oid, path)?,
+                    let was = old.get(&name).copied();
+                    if was == Some(oid) || self.holds(path, &oid) {
+                        self.take(path);
+                    } else {
+                        let entries = self.read(&oid)?;
+                        if is_package(path, &entries) {
+                            self.out.dirs.push(Dir { path: path.clone(), id: oid });
+                        }
+                        let old = was.and_then(|was| self.read(&was));
+                        self.dir(entries, old, path)?;
                     }
-                    let (end, after) = (self.out.blobs.len() as u32, self.out.dirs.len() as u32);
-                    (self.out.dirs[me].range.end, self.out.dirs[me].range.after) = (end, after);
                 }
                 Entry::Blob { link } => self.out.blobs.push((path.clone(), oid, link)),
             }
@@ -119,33 +140,38 @@ impl Walk<'_> {
         Some(())
     }
 
-    /// The held directory at `path` when it holds the tree `id`. Directories are
-    /// asked in byte order, which is the order they are held in.
-    fn held_at(&mut self, path: &[u8], id: &ObjectId) -> Option<usize> {
+    /// Whether the record holds a package at `path` by the tree `id`, which
+    /// reaches it where the store has dropped the tree above it.
+    fn holds(&self, path: &[u8], id: &ObjectId) -> bool {
         let dirs = &self.held.dirs;
-        while dirs.get(self.cursor).is_some_and(|dir| dir.path.as_slice() < path) {
-            self.cursor += 1;
-        }
-        let dir = dirs.get(self.cursor)?;
-        (dir.path == path && dir.id == *id).then_some(self.cursor)
+        dirs.binary_search_by(|dir| dir.path.as_slice().cmp(path)).is_ok_and(|at| dirs[at].id == *id)
     }
 
-    /// Everything below the held directory `found`, moved into place behind the
-    /// one just pushed for it. Nothing behind the cursor is asked again.
-    fn take(&mut self, found: usize) {
-        let Range { start, end, after } = self.held.dirs[found].range;
-        let (blob_shift, dir_shift) = (self.out.blobs.len() as i64 - start as i64, self.out.dirs.len() as i64 - found as i64 - 1);
-        let moved = |at: u32, shift: i64| (at as i64 + shift) as u32;
-        for blob in &mut self.held.blobs[start as usize..end as usize] {
+    /// Every held blob and package below `prefix`, moved into place. What is
+    /// below a prefix is one run in byte order, and the walk asks in that
+    /// order, so a run moved out, its paths emptied, lies before every later
+    /// prefix and still sorts as it did.
+    fn take(&mut self, prefix: &[u8]) {
+        let blobs = &mut self.held.blobs;
+        let start = blobs.partition_point(|blob| blob.0.as_slice() < prefix);
+        let end = start + blobs[start..].partition_point(|blob| blob.0.starts_with(prefix));
+        for blob in &mut blobs[start..end] {
             self.out.blobs.push((std::mem::take(&mut blob.0), blob.1, blob.2));
         }
-        for dir in &mut self.held.dirs[found + 1..after as usize] {
-            let Range { start, end, after } = dir.range;
-            let range = Range { start: moved(start, blob_shift), end: moved(end, blob_shift), after: moved(after, dir_shift) };
-            self.out.dirs.push(Dir { path: std::mem::take(&mut dir.path), id: dir.id, range });
+        let dirs = &mut self.held.dirs;
+        let start = dirs.partition_point(|dir| dir.path.as_slice() < prefix);
+        let end = start + dirs[start..].partition_point(|dir| dir.path.starts_with(prefix));
+        for dir in &mut dirs[start..end] {
+            self.out.dirs.push(Dir { path: std::mem::take(&mut dir.path), id: dir.id });
         }
-        self.cursor = after as usize;
     }
+}
+
+/// Whether the directory at `path`, holding `entries`, is a package by the
+/// owner's rule for a manifest's path.
+fn is_package(path: &[u8], entries: &Entries) -> bool {
+    entries.iter().any(|(name, _, kind)| name == b"package.json" && matches!(kind, Entry::Blob { .. }))
+        && std::str::from_utf8(&[path, b"package.json"].concat()).is_ok_and(crate::package_owners::is_manifest)
 }
 
 /// What a tree entry is to the listing; a gitlink is a commit, and is left out.
@@ -155,14 +181,13 @@ pub(crate) enum Entry {
 }
 
 const FORMAT: &str = "variance-authority-committed-tree";
-const VERSION: u8 = 1;
+const VERSION: u8 = 2;
 
 impl Committed {
     /// The record, as written; equal for two listings of the same tree below the same root.
     pub(crate) fn encode(&self) -> Vec<u8> {
         let (blob_paths, blob_offsets) = joined(self.blobs.iter().map(|blob| blob.0.as_slice()));
         let (dir_paths, dir_offsets) = joined(self.dirs.iter().map(|dir| dir.path.as_slice()));
-        let ranges = |at: fn(&Range) -> u32| self.dirs.iter().map(|dir| at(&dir.range)).collect();
         // Paths are git's bytes, not always UTF-8, so they sit in byte heaps and the dictionary is empty.
         segment::encode_as(FORMAT, VERSION, vec![
             segment::u8s("strings.blob", Vec::new()),
@@ -176,14 +201,11 @@ impl Committed {
             segment::u8s("dirs.path", dir_paths),
             segment::u32s("dirs.path.off", dir_offsets),
             segment::u8s("dirs.id", self.dirs.iter().flat_map(|dir| dir.id.as_bytes().to_owned()).collect()),
-            segment::u32s("dirs.start", ranges(|range| range.start)),
-            segment::u32s("dirs.end", ranges(|range| range.end)),
-            segment::u32s("dirs.after", ranges(|range| range.after)),
         ])
     }
 
     /// The record `bytes` holds, or `None` where it is not one this build wrote
-    /// whole: a range out of place reads as nothing held, never as a listing.
+    /// whole: paths out of order read as nothing held, never as a listing.
     fn decode(bytes: &[u8]) -> Option<Committed> {
         let stored = Stored::open_as(bytes, FORMAT, VERSION).ok()?;
         let prefix = String::from_utf8(stored.u8s("prefix").ok()?.to_vec()).ok()?;
@@ -193,24 +215,13 @@ impl Committed {
         let blob_paths = paths(&stored, "blobs.path", blob_ids.len())?;
         let dir_ids = ids(stored.u8s("dirs.id").ok()?)?;
         let dir_paths = paths(&stored, "dirs.path", dir_ids.len())?;
-        let [start, end, after] = ["dirs.start", "dirs.end", "dirs.after"].map(|name| stored.u32s(name).ok());
-        let (start, end, after) = (start?, end?, after?);
-        if links.len() != blob_ids.len() || [start.len(), end.len(), after.len()] != [dir_ids.len(); 3] {
+        if links.len() != blob_ids.len() {
             return None;
         }
         let blobs: Vec<Blob> = blob_paths.into_iter().zip(blob_ids).zip(links).map(|((path, id), link)| (path, id, *link == 1)).collect();
-        let dirs: Vec<Dir> = dir_paths
-            .into_iter()
-            .zip(dir_ids)
-            .enumerate()
-            .map(|(at, (path, id))| Dir { path, id, range: Range { start: start.at(at), end: end.at(at), after: after.at(at) } })
-            .collect();
-        let placed = dirs.iter().enumerate().all(|(index, dir)| {
-            let Range { start, end, after } = dir.range;
-            start <= end && end as usize <= blobs.len() && index < after as usize && after as usize <= dirs.len()
-        });
-        let sorted = dirs.windows(2).all(|pair| pair[0].path < pair[1].path);
-        (placed && sorted).then_some(Committed { prefix, chain, blobs, dirs, read: 0 })
+        let dirs: Vec<Dir> = dir_paths.into_iter().zip(dir_ids).map(|(path, id)| Dir { path, id }).collect();
+        let sorted = blobs.windows(2).all(|pair| pair[0].0 < pair[1].0) && dirs.windows(2).all(|pair| pair[0].path < pair[1].path);
+        sorted.then_some(Committed { prefix, chain, blobs, dirs, read: 0 })
     }
 
     /// What `path` holds, or nothing held.
@@ -249,7 +260,8 @@ fn paths(stored: &Stored, name: &str, rows: usize) -> Option<Vec<Vec<u8>>> {
 }
 
 fn ids(bytes: &[u8]) -> Option<Vec<ObjectId>> {
-    (bytes.len() % 20 == 0).then(|| bytes.chunks_exact(20).map(ObjectId::try_from).collect::<Result<_, _>>().ok())?
+    let (chunks, rest) = bytes.as_chunks::<20>();
+    rest.is_empty().then(|| chunks.iter().map(|id| ObjectId::try_from(id.as_slice())).collect::<Result<_, _>>().ok())?
 }
 
 #[cfg(test)]
