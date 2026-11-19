@@ -100,6 +100,8 @@ export interface AskRequest extends Crossing {
   readonly area?: string;
   /** `--name <name>`, `--package <name>`, `--subpath <subpath>`: what the source questions take. */
   readonly name?: string;
+  /** `--line <file>:<line>`: the line `symbol` orders the declarations by. */
+  readonly line?: string;
   readonly package?: string;
   readonly subpath?: string;
   readonly query?: string;

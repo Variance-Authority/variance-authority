@@ -5,7 +5,7 @@ import type { AskRequest } from './ask.js';
 export type Flagged = Crossing & Pick<
   AskRequest,
   | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'build' | 'file' | 'files' | 'area'
-  | 'name' | 'package' | 'subpath' | 'query'
+  | 'name' | 'line' | 'package' | 'subpath' | 'query'
   | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
   | 'from' | 'to' | 'over' | 'after' | 'limit' | 'offset' | 'story'
 >;
@@ -31,6 +31,7 @@ export function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     files: request.files,
     area: request.area,
     name: request.name,
+    line: request.line,
     package: request.package,
     subpath: request.subpath,
     query: request.query,

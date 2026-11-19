@@ -54,10 +54,10 @@ function more(count: number): string {
   return count > CAP ? `, and ${count - CAP} more` : '';
 }
 
-/** One original an import binds under another name, and the lines of the checkout that export and declare it, when they are known. */
+/** One original an import binds under another name, and the lines of the checkout that export and declare it, each with the name written there, when they are known. */
 interface Original {
   readonly text: string;
-  readonly at: readonly (readonly [string, number])[];
+  readonly at: readonly (readonly [string, number, string])[];
 }
 
 /**
@@ -71,7 +71,7 @@ export const localNames = askedOnce((
   root: string | undefined,
   local: string,
   wanted: string | undefined,
-): { readonly blocks: readonly string[]; readonly files: readonly (readonly [string, number])[] } => {
+): { readonly blocks: readonly string[]; readonly files: readonly (readonly [string, number, string])[] } => {
   if (root === undefined) return { blocks: [], files: [] };
   let aliases: readonly Alias[] | undefined;
   try {
@@ -87,7 +87,7 @@ export const localNames = askedOnce((
     groups.set(key, [...(groups.get(key) ?? []), alias]);
   }
   const blocks: string[] = [];
-  const files: (readonly [string, number])[] = [];
+  const files: (readonly [string, number, string])[] = [];
   for (const group of groups.values()) {
     const [first] = group;
     if (first === undefined) continue;
@@ -106,7 +106,7 @@ export const localNames = askedOnce((
       '',
       original.text,
     ].join('\n'));
-    files.push(...group.map((alias) => [alias.at, alias.line] as const));
+    files.push(...group.map((alias) => [alias.at, alias.line, local] as const));
     files.push(...original.at);
   }
   return { blocks, files };
@@ -133,7 +133,7 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
     if (wanted !== undefined && !isPackage(published, held, wanted)) return undefined;
     // The original's own sites are not read here, so the entry's are what may read it.
     const may = undecided(published.name, held, entry);
-    return { text: [block(published, held, entry, { may, imported: false }), ...memberRows(root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line]] };
+    return { text: [block(published, held, entry, { may, imported: false }), ...memberRows(root, entry.at, entry.name, entry.line)].join('\n'), at: [[entry.at, entry.line, entry.name]] };
   }
   const to = alias.to ?? undefined;
   if (to !== undefined) {
@@ -146,7 +146,7 @@ function originalOf(help: Help, root: string, alias: Alias, wanted: string | und
           ...rows,
           ...memberRows(root, declared.at, declared.name, declared.line),
         ].join('\n'),
-        at: [[held.at, held.line], ...(declared === held ? [] : [[declared.at, declared.line] as const])],
+        at: [[held.at, held.line, held.name], ...(declared === held ? [] : [[declared.at, declared.line, declared.name] as const])],
       };
     }
   }

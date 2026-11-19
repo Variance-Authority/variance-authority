@@ -170,6 +170,26 @@ impl JourneyMasks {
             .min_by_key(|&at| (self.bits[at as usize].end - self.bits[at as usize].start, at)))
     }
 
+    /// The source regions of module `module` holding `line` that hold no other
+    /// that does: what a case entered when it ran the line. Two regions of one
+    /// span do not nest, save a function and its own one-line guard; two that
+    /// meet on the line are both innermost. `passedAt` reads "ran" by this rule.
+    pub fn innermost_at(&self, module: usize, line: u32) -> Vec<u32> {
+        let (from, to) = self.rows[module];
+        let holding: Vec<u32> = (from..to)
+            .filter(|&at| {
+                let bit = &self.bits[at as usize];
+                bit.shape != Shape::Module && bit.source && bit.start <= line && line <= bit.end
+            })
+            .collect();
+        let span = |bit: &Bit| bit.end - bit.start;
+        let holds = |outer: u32, inner: u32| {
+            let (o, i) = (&self.bits[outer as usize], &self.bits[inner as usize]);
+            o.start <= i.start && i.end <= o.end && (span(i) < span(o) || (o.shape == Shape::Function && i.shape != Shape::Function && i.function == Some(outer)))
+        };
+        holding.iter().copied().filter(|&outer| !holding.iter().any(|&inner| holds(outer, inner))).collect()
+    }
+
     /// The rows of module `module`, `[from, to)`.
     pub fn rows_of(&self, module: usize) -> std::ops::Range<u32> {
         let (from, to) = self.rows[module];

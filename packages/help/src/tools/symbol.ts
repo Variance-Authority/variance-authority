@@ -10,7 +10,7 @@ import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, notShown, textRows, unreadLine } from './declared.js';
 import { uses } from './uses.js';
-import { type Members, containerOf, membersOf, membersStop } from './members.js';
+import { type Members, containerOf, isUnnamedContainer, membersOf, membersStop } from './members.js';
 import { exportedRows } from './passed-on.js';
 import { answers, boundOf, keyOf, originOf, SLOT } from './declaration-key.js';
 import { UNCOUNTED, exportsNamed, importsApart } from './unpublished.js';
@@ -18,6 +18,7 @@ import { type Counted, counted, spokenSplit } from './uses-count.js';
 import { type PublishedDeclaration, publishedDeclarations, publishingFiles, usesOf } from './uses-of.js';
 import { localNames, renamedSites } from './renamed.js';
 import { exportedIn, exportedNamed } from './rows.js';
+import { symbolAtLine } from './symbol-line.js';
 
 /**
  * `docs_symbol` — what a name is and where it is declared, in full.
@@ -56,12 +57,19 @@ export const symbol: Tool<Help> = {
           'that path resolves it: its version and signature there, whether the code already imports it, and where ' +
           'else it is declared when it is not usable there.',
       },
+      line: {
+        type: 'string',
+        description:
+          'Optional. `<file>:<line>`, a line that uses the name: its declarations are ordered by how closely the tests ' +
+          'that entered each match the recorded tests that ran the line. Overlap of tests, not proof of which one the line called.',
+      },
     },
     required: ['name'],
     additionalProperties: false,
   },
 
   run(help, input, invocation) {
+    if (input['line'] !== undefined) return symbolAtLine(help, input, invocation, symbol, declaredInCheckout);
     const spell = spellingOf(invocation);
     const name = stringArg(input, 'name');
     const from = input['package'];
@@ -174,10 +182,20 @@ export const symbol: Tool<Help> = {
   // same readings `run` answers from; an installed declaration is
   // not a file of the checkout, so a name only a dependency declares is unfound.
   files(help, input, invocation): FileSet {
-    const root = invocation?.root;
-    return declaredIn(help, input, invocation, (exported) => declaringExports(stringArg(input, 'name'), exported, root).map(([held]) => held));
+    return declaredInCheckout(help, input, invocation);
   },
 };
+
+/** {@link symbol}'s `files`, with the names each declaration is written by. */
+export function declaredInCheckout(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined): Declared {
+  const root = invocation?.root;
+  return declaredIn(help, input, invocation, (exported) => declaringExports(stringArg(input, 'name'), exported, root).map(([held]) => held));
+}
+
+/** The files that declare a name, each at its lines, and every name each `file:line` is written by there. */
+export interface Declared extends FileSet {
+  readonly spelled: ReadonlyMap<string, readonly string[]>;
+}
 
 /**
  * The files an answer about a name rests on, to be compared with the checkout:
@@ -205,39 +223,46 @@ function publishingEntries(help: Help, input: Readonly<Record<string, unknown>>,
 }
 
 /** The files that declare a name, each at its lines, with `exports` choosing which of its unpublished exports count. */
-function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, exports: (exported: readonly Named[]) => readonly Named[], aliases = true): FileSet {
+function declaredIn(help: Help, input: Readonly<Record<string, unknown>>, invocation: ToolInvocation<Help> | undefined, exports: (exported: readonly Named[]) => readonly Named[], aliases = true): Declared {
   const name = stringArg(input, 'name');
   const from = input['package'];
   const wanted = typeof from === 'string' && from !== '' ? from : undefined;
   const published = publishedDeclarations(help, invocation?.root, name, wanted);
-  const at: (readonly [string, number])[] = published.map((one) => [one.at, one.line]);
+  const at: (readonly [string, number, ...string[]])[] = published.map((one) => [one.at, one.line, ...one.spellings]);
   if (at.length === 0) {
     for (const site of sitesByPath(help, name, wanted)) {
       const declared = declaration(help, name, site);
-      if (declared !== undefined) at.push([declared.at, declared.line]);
+      if (declared !== undefined) at.push([declared.at, declared.line, declared.name]);
     }
   }
   const exported = unpublishedExports(help, invocation?.root, name, wanted, published.length > 0 ? published.map((one) => [one.at, one.declared] as const) : at.map(([file]) => [file, name] as const));
   for (const held of exports(exported)) {
-    at.push([held.at, held.line]);
+    // `export { shout as format }` declares nothing: the function it binds, in the same file, is the declaration.
+    const local = boundOf(invocation?.root, held);
+    at.push(local !== undefined && local.at === held.at ? [local.at, local.line, local.name, held.name] : [held.at, held.line, held.name]);
     const origin = originOf(help, invocation?.root, held);
-    if (origin !== undefined) at.push([origin.at, origin.line]);
+    if (origin !== undefined) at.push([origin.at, origin.line, origin.name]);
   }
   const declared = declaredAt(help, invocation?.root, name, wanted);
-  at.push(...declared.filter((one) => !isNested(one)).map((one) => [one.at, one.line] as const));
+  at.push(...declared.filter((one) => !isNested(one)).map((one) => [one.at, one.line, one.name] as const));
   if (aliases) at.push(...localNames(help, invocation?.root, name, wanted).files);
   // A member stands beside every other declaration, as `run` answers it.
   const members = membersOf(help, invocation?.root, name, wanted);
-  at.push(...declared.filter(isNested).map((one) => [one.at, one.line] as const));
-  at.push(...members.declared.map((one) => [one.at, one.line] as const));
+  at.push(...declared.filter(isNested).map((one) => [one.at, one.line, one.name] as const));
+  // The recording names a method under its class, as `Store/useSessionId`.
+  at.push(...members.declared.map((one) => [one.at, one.line, isUnnamedContainer(one.by) ? members.member : `${one.by}/${members.member}`] as const));
   if (at.length === 0) throw new FoundNothing(nowhere(help, name, wanted, invocation?.root, members, undefined, spellingOf(invocation)));
   const files = new Map<string, number[]>();
-  for (const [file, line] of at) {
+  const spelled = new Map<string, string[]>();
+  for (const [file, line, ...names] of at) {
     const lines = files.get(file) ?? [];
     if (!lines.includes(line)) lines.push(line);
     files.set(file, lines);
+    const written = spelled.get(`${file}:${line}`) ?? [];
+    written.push(...names.filter((one) => !written.includes(one)));
+    spelled.set(`${file}:${line}`, written);
   }
-  return { files };
+  return { files, spelled };
 }
 
 /**

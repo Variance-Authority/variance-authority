@@ -102,6 +102,8 @@ export interface ParsedAsk extends Crossing {
   readonly area?: string;
   /** `--name <name>`: an exported name, matched exactly, for `symbol` and `uses`; a test's name or a word of it, for `test-composition`. */
   readonly name?: string;
+  /** `--line <file>:<line>`: a line that uses the name, for `symbol` to order its declarations by the tests that ran it. */
+  readonly line?: string;
   /** `--package <name>`: a workspace package, for `entrypoint` and to narrow `symbol` and `uses`. */
   readonly package?: string;
   /** `--subpath <subpath>`: one import specifier a package's `exports` map opens, for `entrypoint`. */
@@ -187,6 +189,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     .filter((value) => value !== '');
   const area = flags.values.get('--area');
   const name = flags.values.get('--name');
+  const line = flags.values.get('--line');
   const pkg = flags.values.get('--package');
   const subpath = flags.values.get('--subpath');
   const query = flags.values.get('--query');
@@ -227,6 +230,7 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     ...(files.length > 0 ? { files } : {}),
     ...(area !== undefined ? { area } : {}),
     ...(name !== undefined ? { name } : {}),
+    ...(line !== undefined ? { line } : {}),
     ...(pkg !== undefined ? { package: pkg } : {}),
     ...(subpath !== undefined ? { subpath } : {}),
     ...(query !== undefined ? { query } : {}),
