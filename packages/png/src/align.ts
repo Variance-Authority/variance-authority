@@ -20,8 +20,8 @@ import { straddled } from './straddle.js';
  * pixel by pixel, and every row that moved, came or went is itself a change, so
  * no pairing can make a page read as unchanged. A row with no partner is
  * reported, never paired with white. Where two paired runs meet, the before
- * rows on either side were not neighbours, and pixelmatch's anti-aliasing test,
- * which reads neighbours, may count a pixel on that seam differently.
+ * rows on either side were not neighbours, so the comparison reads each before
+ * pixel's anti-aliasing from the rows around the one it came from.
  *
  * Myers is O((N+M)·D) in time and keeps O(D²) of trace, where N and M count runs
  * rather than rows and D is the size of the edit in runs. A page's runs are

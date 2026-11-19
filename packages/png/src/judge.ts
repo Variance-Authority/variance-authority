@@ -12,7 +12,11 @@
  * Parity with `pixelmatch` is the contract, not an approximation of it: the
  * verdict is the product, and a verdict that moved with the kernel would be a
  * difference this package invented. `judge.test.ts` holds the two to the same
- * counts and the same pixels.
+ * counts and the same pixels. The one departure is a seam, where two paired
+ * runs meet: the copy set before rows side by side that never were, and its
+ * anti-aliasing test read across them, so a pixel was forgiven or counted on
+ * neighbours it never had. Here a before pixel's neighbours are the rows
+ * around the one it came from.
  */
 
 import type { DiffPolicy } from '@variance-authority/raster';
@@ -71,6 +75,36 @@ export function judgeRows(
     second32.push(now32.subarray(y * width, (y + 1) * width));
   }
 
+  // The rows around a pixel, two each way, as each image has them: the after
+  // image's on the canvas, and the before image's around the row it came from.
+  // Where two paired runs meet, the canvas sets before rows side by side that
+  // never were, and anti-aliasing read across that seam is a fact about
+  // neither image.
+  const near = (y: number): Window => {
+    const from = source === undefined ? y : source[y]!;
+    const first: Window = { bytes: [], words: [] };
+    for (let d = -2; d <= 2; d += 1) {
+      const at = y + d;
+      const was = from < 0 ? at : from + d;
+      const outside = at < 0 || at >= height || (from >= 0 && (was < 0 || was >= before.height));
+      first.bytes.push(outside ? undefined : from < 0 ? first8[at] : was8(was));
+      first.words.push(outside ? undefined : from < 0 ? first32[at] : was32row(was));
+    }
+    return first;
+  };
+  const was8 = (at: number) => was.subarray(at * row, (at + 1) * row);
+  const was32row = (at: number) => was32.subarray(at * width, (at + 1) * width);
+  const canvas = (y: number): Window => {
+    const second: Window = { bytes: [], words: [] };
+    for (let d = -2; d <= 2; d += 1) {
+      const outside = y + d < 0 || y + d >= height;
+      second.bytes.push(outside ? undefined : second8[y + d]);
+      second.words.push(outside ? undefined : second32[y + d]);
+    }
+    return second;
+  };
+  let windows: { y: number; first: Window; second: Window } | undefined;
+
   const limits = policies.map((policy) => 35215 * policy.threshold * policy.threshold);
   const changed = policies.map(() => 0);
   const mask = output.mask === undefined ? undefined : new Uint8Array(width * height);
@@ -101,9 +135,10 @@ export function judgeRows(
           continue;
         }
         if (!policies[index]!.includeAA) {
+          if (windows?.y !== y) windows = { y, first: near(y), second: canvas(y) };
           excused ??=
-            antialiased(first8, x, y, width, height, first32, second32) ||
-            antialiased(second8, x, y, width, height, second32, first32);
+            antialiased(windows.first, x, pos, width, windows.second) ||
+            antialiased(windows.second, x, pos, width, windows.first);
           if (excused) {
             if (index === drawn && greyed) paint(picture!, pos, 255, 255, 0);
             continue;
@@ -124,33 +159,28 @@ function bytes(data: Uint8Array): Uint8Array {
   return data.byteOffset % 4 === 0 ? data : new Uint8Array(data);
 }
 
+/** Five rows centred on a pixel's, `undefined` past the image's edge. */
+interface Window {
+  readonly bytes: (Uint8Array | undefined)[];
+  readonly words: (Uint32Array | undefined)[];
+}
+
 /**
- * `pixelmatch`'s anti-aliasing detector (Vysniauskas, 2009), over row views.
- *
- * `rows` is the image whose pixel is asked about; `own` and `other` are both
- * images as words, the first being `rows`'.
+ * `pixelmatch`'s anti-aliasing detector (Vysniauskas, 2009), over the rows
+ * around a pixel: `own` is the image whose pixel, at the centre row, is asked
+ * about, and `other` the other image's rows at the same places. `pos` is the
+ * pixel's offset on the canvas, where the checkerboard is read.
  */
-function antialiased(
-  rows: readonly Uint8Array[],
-  x1: number,
-  y1: number,
-  width: number,
-  height: number,
-  own: readonly Uint32Array[],
-  other: readonly Uint32Array[],
-): boolean {
+function antialiased(own: Window, x1: number, pos: number, width: number, other: Window): boolean {
   const x0 = Math.max(x1 - 1, 0);
-  const y0 = Math.max(y1 - 1, 0);
   const x2 = Math.min(x1 + 1, width - 1);
-  const y2 = Math.min(y1 + 1, height - 1);
-  const centre = rows[y1]!;
+  const centre = own.bytes[2]!;
   const at = x1 * 4;
-  const pos = (y1 * width + x1) * 4;
   const r1 = centre[at]!;
   const g1 = centre[at + 1]!;
   const b1 = centre[at + 2]!;
   const a1 = centre[at + 3]!;
-  let zeroes = x1 === x0 || x1 === x2 || y1 === y0 || y1 === y2 ? 1 : 0;
+  let zeroes = x1 === x0 || x1 === x2 || own.bytes[1] === undefined || own.bytes[3] === undefined ? 1 : 0;
   let min = 0;
   let max = 0;
   let minX = 0;
@@ -159,9 +189,10 @@ function antialiased(
   let maxY = 0;
 
   for (let x = x0; x <= x2; x += 1) {
-    for (let y = y0; y <= y2; y += 1) {
-      if (x === x1 && y === y1) continue;
-      const delta = brightnessDelta(rows[y]!, x * 4, pos, r1, g1, b1, a1);
+    for (let y = 1; y <= 3; y += 1) {
+      const row = own.bytes[y];
+      if (row === undefined || (x === x1 && y === 2)) continue;
+      const delta = brightnessDelta(row, x * 4, pos, r1, g1, b1, a1);
       if (delta === 0) {
         zeroes += 1;
         if (zeroes > 2) return false;
@@ -179,24 +210,25 @@ function antialiased(
 
   if (min === 0 || max === 0) return false;
   return (
-    (manySiblings(own, minX, minY, width, height) && manySiblings(other, minX, minY, width, height)) ||
-    (manySiblings(own, maxX, maxY, width, height) && manySiblings(other, maxX, maxY, width, height))
+    (manySiblings(own.words, minX, minY, width) && manySiblings(other.words, minX, minY, width)) ||
+    (manySiblings(own.words, maxX, maxY, width) && manySiblings(other.words, maxX, maxY, width))
   );
 }
 
-/** Three or more of a pixel's neighbours are the same colour as it. */
-function manySiblings(rows: readonly Uint32Array[], x1: number, y1: number, width: number, height: number): boolean {
+/** Three or more of a pixel's neighbours are the same colour as it; `y1` indexes `rows`. */
+function manySiblings(rows: readonly (Uint32Array | undefined)[], x1: number, y1: number, width: number): boolean {
   const x0 = Math.max(x1 - 1, 0);
-  const y0 = Math.max(y1 - 1, 0);
   const x2 = Math.min(x1 + 1, width - 1);
-  const y2 = Math.min(y1 + 1, height - 1);
-  const value = rows[y1]![x1];
-  let zeroes = x1 === x0 || x1 === x2 || y1 === y0 || y1 === y2 ? 1 : 0;
+  const centre = rows[y1];
+  if (centre === undefined) return false;
+  const value = centre[x1];
+  let zeroes = x1 === x0 || x1 === x2 || rows[y1 - 1] === undefined || rows[y1 + 1] === undefined ? 1 : 0;
 
   for (let x = x0; x <= x2; x += 1) {
-    for (let y = y0; y <= y2; y += 1) {
-      if (x === x1 && y === y1) continue;
-      zeroes += +(value === rows[y]![x]);
+    for (let y = y1 - 1; y <= y1 + 1; y += 1) {
+      const row = rows[y];
+      if (row === undefined || (x === x1 && y === y1)) continue;
+      zeroes += +(value === row[x]);
       if (zeroes > 2) return true;
     }
   }

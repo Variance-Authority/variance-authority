@@ -211,8 +211,8 @@ inserted, as the rows it lost are removed, so the place it grew is a region. Row
 kept runs are paired from the band's top or its bottom, whichever leaves fewer
 pixels differing, so a block drawn into the middle of a gap marks the block and
 not the gap under it. Where two paired runs meet, the before rows on either
-side were not neighbours, and the anti-aliasing test, which reads neighbours,
-may count a pixel on that seam differently. Only whole rows are matched:
+side were not neighbours, so a before pixel's anti-aliasing is read from the
+rows around the one it came from, not from the rows the pairing set beside it. Only whole rows are matched:
 content that moves in one column beside a column that stays put is compared
 where it sits.
 

@@ -12,6 +12,9 @@ import type { DecodedImage } from './mask.js';
  * must agree on every count, every mask pixel and every byte of the picture,
  * over images built to reach each branch: noise, translucency, bytes that
  * differ only under zero alpha, and anti-aliased edges, aligned and not.
+ * Where the alignment sets two before rows side by side that were not, the
+ * kernel reads anti-aliasing around the row each came from and the copy cannot:
+ * there the oracle is the two images unaligned.
  */
 
 const LOOSE: DiffPolicy = { id: 'loose', threshold: 0.1, includeAA: false };
@@ -49,6 +52,44 @@ describe('a byte view that cannot hold words', () => {
     );
   });
 });
+
+describe('a row on a seam', () => {
+  it('is judged for anti-aliasing against its own before neighbours, not the rows the alignment set beside it', () => {
+    // Rows 5 to 8 are drawn twice in the after image, so the alignment pairs
+    // rows 0 to 4 with themselves and leaves the copies unpaired. Above the
+    // seam every row's after neighbours are the after image's own, and its
+    // before neighbours should be the before image's own: the verdict there
+    // is the one the two images give unaligned. Flat greys at a few levels
+    // make pixels whose neighbourhood decides whether they are anti-aliasing.
+    const random = seeded(SEAM_SEED);
+    const width = 12;
+    const height = 12;
+    const levels = [0, 60, 128, 200, 255];
+    const level = () => levels[Math.floor(random() * levels.length)]!;
+    const grey = Array.from({ length: width * height }, level);
+    const page = image(width, height, (x, y) => flat(grey[y * width + x]!));
+    const moved = image(width, height, (x, y) => flat(random() < 0.3 ? level() : grey[y * width + x]!));
+    const row = width * 4;
+    const after: DecodedImage = {
+      width,
+      height: height + 4,
+      data: Uint8Array.from([...moved.data.subarray(0, 9 * row), ...moved.data.subarray(5 * row)]),
+    };
+    const source = Array.from({ length: height + 4 }, (_, y) => (y < 5 ? y : y < 9 ? -1 : y - 4));
+
+    const above = 5 * width;
+    const unaligned = judgeRows(page, moved, undefined, [DEFAULT_POLICY], { mask: 0 }).mask!.subarray(0, above);
+    const seamed = judgeRows(page, after, source, [DEFAULT_POLICY], { mask: 0 }).mask!.subarray(0, above);
+    expect(seamed).toEqual(unaligned);
+  });
+});
+
+/** A seed whose page puts a pixel on the seam that its neighbours decide. */
+const SEAM_SEED = 16;
+
+function flat(value: number): Pixel {
+  return [value, value, value, 255];
+}
 
 type Case = readonly [string, DecodedImage, DecodedImage, readonly number[] | undefined];
 
@@ -91,7 +132,6 @@ function cases(): Case[] {
 
   // Rows reordered, one row with no partner: the aligned path.
   const moved = Array.from({ length: height }, (_, y) => (y === 4 ? -1 : y < 4 ? y : y - 1));
-  const reversed = Array.from({ length: height }, (_, y) => height - 1 - y);
   const taller = image(width, height + 5, (x, y) => pixel(nudged, x, y % height) as Pixel);
 
   return [
@@ -102,7 +142,6 @@ function cases(): Case[] {
     ['text re-rendered', text, retext, undefined],
     ['identical', text, text, undefined],
     ['rows inserted', noise, nudged, moved],
-    ['rows reordered, anti-aliasing read across them', edge(0), edge(1), reversed],
     ['a taller before image', taller, nudged, moved.map((from) => (from < 0 ? -1 : from + 3))],
   ];
 }
