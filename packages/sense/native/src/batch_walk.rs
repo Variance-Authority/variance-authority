@@ -137,7 +137,7 @@ pub(crate) fn walk_beyond(
         // parse segment is encoded after the walk, so a cold index of 288k paths
         // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
         // it is read would bound it.
-        world.prewarm(wave.iter().filter_map(|file| language_of(file)));
+        crate::stages::summed(crate::stages::Sum::Index, || world.prewarm(wave.iter().filter_map(|file| language_of(file))));
         let reading = |slice: &[String], oids| {
             read_by_world.first(slice, oids, |unread, oids| {
                 read_kept(&root, store, unread, oids, largest_file, Some(true), Some(readers.unwrap_or(6).max(1)), kept, from_blob)
@@ -312,8 +312,7 @@ pub(super) fn resolve_all(
     let mut languages: Vec<Language> = files.iter().filter_map(|file| language_of(file)).collect();
     languages.sort_unstable_by_key(|language| *language as u8);
     languages.dedup();
-    // Preparing a language's roots and manifests is resolving, read and parsed or not.
-    crate::stages::summed(crate::stages::Sum::Resolve, || world.prewarm(languages));
+    crate::stages::summed(crate::stages::Sum::Index, || world.prewarm(languages));
     let resolving = ThreadPoolBuilder::new()
         .num_threads(resolving_width().min(files.len().max(1)))
         .build();
