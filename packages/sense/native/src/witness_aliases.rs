@@ -73,8 +73,16 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
     for (path, value) in configs.iter().zip(read) {
         parsed.insert(path, value?);
     }
-    let mut extended =
-        Extended { root, parsed: &parsed, beyond: HashMap::new(), resolver: None, real: None, answers: HashMap::new(), missing: Vec::new() };
+    let mut extended = Extended {
+        root,
+        parsed: &parsed,
+        beyond: HashMap::new(),
+        resolver: None,
+        real: None,
+        answers: HashMap::new(),
+        missing: Vec::new(),
+        directories: HashMap::new(),
+    };
 
     let mut mappings = Vec::new();
     let mut bases: Vec<String> = Vec::new();
@@ -91,8 +99,11 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
         // the file that inherited it, which is what TypeScript does; only
         // `${configDir}` names the inheriting file's directory.
         let at = normalize(&match base_url {
-            Some(base_url) => configured(path, options.from.get("baseUrl").map_or(path, String::as_str), base_url),
-            None => dirname(paths_from).to_owned(),
+            Some(base_url) => {
+                let from = options.from.get("baseUrl").map_or(path, String::as_str);
+                configured(path, &extended.directory(path, from), base_url)
+            }
+            None => extended.directory(path, paths_from),
         });
         if base_url.is_some() {
             if let Some(base) = extended.place(&at, ".").filter(|base| !bases.contains(base)) {
@@ -147,12 +158,14 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
 /// The placeholder TypeScript reads as the inheriting configuration's directory.
 const CONFIG_DIR: &str = "${configDir}";
 
-/// `value`, an option `from` wrote, as a path from the root: against `from`'s
-/// directory, or against `config`'s where it opens with `${configDir}`.
+/// `value`, an option written in the directory `from`, as a path from the
+/// root: against `from`, against `config`'s directory where it opens with
+/// `${configDir}`, and as written where it is absolute.
 fn configured(config: &str, from: &str, value: &str) -> String {
     match value.strip_prefix(CONFIG_DIR) {
         Some(rest) => join(&[dirname(config), rest.trim_start_matches('/')]),
-        None => join(&[dirname(from), value]),
+        None if value.starts_with('/') => normalize(value),
+        None => join(&[from, value]),
     }
 }
 
@@ -239,6 +252,8 @@ struct Extended<'a> {
     real: Option<Option<PathBuf>>,
     answers: HashMap<(String, String), Option<Option<String>>>,
     missing: Vec<String>,
+    /// The directory each inherited base is placed from, by its path.
+    directories: HashMap<String, String>,
 }
 
 impl Extended<'_> {
@@ -265,11 +280,39 @@ impl Extended<'_> {
         self.real.get_or_insert_with(|| std::fs::canonicalize(self.root).ok()).clone()
     }
 
+    /// The directory `config`'s options are placed from when `from` wrote
+    /// them: the resolver places a base at the file it reads, so a base
+    /// reached through a link is placed where the link leads.
+    fn directory(&mut self, config: &str, from: &str) -> String {
+        if from == config {
+            return dirname(from).to_owned();
+        }
+        if let Some(held) = self.directories.get(from) {
+            return held.clone();
+        }
+        let real = self.anchor().and_then(|anchor| {
+            let file = std::fs::canonicalize(Path::new(self.root).join(from)).ok()?;
+            relative(&anchor, file.parent()?)
+        });
+        let directory = real.unwrap_or_else(|| dirname(from).to_owned());
+        self.directories.insert(from.to_owned(), directory.clone());
+        directory
+    }
+
     /// Where `target` lands placed against the directory `at`, from the root,
     /// or nothing outside it. A directory outside places a target as
-    /// TypeScript does, so one that climbs back into the checkout lands there.
+    /// TypeScript does, so one that climbs back into the checkout lands there,
+    /// and an absolute target lands where it names, as the resolver reads it.
     fn place(&mut self, at: &str, target: &str) -> Option<String> {
-        let joined = join(&[at, target]);
+        let joined = if target.starts_with('/') { normalize(target) } else { join(&[at, target]) };
+        if joined.starts_with('/') {
+            let root = normalize(self.root);
+            if let Some(rest) = joined.strip_prefix(&root).filter(|rest| rest.is_empty() || rest.starts_with('/')) {
+                return within(rest.trim_start_matches('/'));
+            }
+            let anchor = self.anchor()?;
+            return within(Path::new(&joined).strip_prefix(&anchor).ok()?.to_str()?);
+        }
         if within(at).is_some() {
             return within(&joined);
         }

@@ -327,6 +327,24 @@ describe('where a configuration says a bare request can land', () => {
     expect(aliases?.missing).toEqual([]);
   });
 
+  it('places what a linked base declares at the file the link reaches, as the resolver does', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ "extends": "./base.json" }',
+      'configs/paths.json': '{ "compilerOptions": { "paths": { "@app/*": ["../src/*"] } } }',
+    });
+    await symlink('configs/paths.json', join(root, 'base.json'), 'file');
+
+    expect((await aliasesIn(root, ['tsconfig.json']))?.candidatesFor('@app/time')).toEqual(['src/time']);
+  });
+
+  it('places an absolute target a base declares where it points, not under the base', async () => {
+    const root = await fixture({ 'tsconfig.json': '{ "extends": "./configs/base.json" }' });
+    await mkdir(join(root, 'configs'));
+    await writeFile(join(root, 'configs/base.json'), `{ "compilerOptions": { "paths": { "@app/*": ["${root}/src/*"] } } }`);
+
+    expect((await aliasesIn(root, ['tsconfig.json']))?.candidatesFor('@app/x')).toEqual(['src/x']);
+  });
+
   it('bounds by what the configuration declares itself, when its `extends` reaches nothing, and names what it missed', async () => {
     const root = await fixture({
       'tsconfig.json': '{ "extends": ["./.nuxt/tsconfig.json", "@tsconfig/node20/tsconfig.json"], "compilerOptions": { "paths": { "@x/*": ["x/*"] } } }',
