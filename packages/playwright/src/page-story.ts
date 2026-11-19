@@ -15,17 +15,14 @@ const say = (text: string): void => {
 /**
  * Tells a story recorded in this realm what a page did that the test cannot
  * see from Node: what it printed, each document its top frame loaded, what it
- * threw and that it crashed. A note lands on the step that was running when
-Node heard it.
+ * threw and that it crashed, each on the step running when Node heard it.
  *
- * Attaches nothing where no story records as the page opens. The navigation is
- * the engine's: Chromium's `Page.frameNavigated` commits a new document and
- * not a change within one, and `Page.frameStartedNavigating` says whether it
- * was a reload, so a link back to the same address is not called one.
+ * Attaches nothing where no story records as the page opens. Chromium's
+ * `Page.frameNavigated` commits a new document, and
+ * `Page.frameStartedNavigating` says whether it was a reload.
  */
-// TODO: a Playwright Test story hears a page's navigations but not its errors
-// or a crash; this module writes those for the harness alone.
 export async function tellStory(page: Page): Promise<void> {
+  // TODO: Playwright Test's story hears navigations but not page errors or a crash.
   if (typeof (globalThis as Realm)[NOTE] !== 'function') return;
   page.on('console', (message) => {
     const type = message.type();
