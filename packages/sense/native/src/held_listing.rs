@@ -148,24 +148,41 @@ fn ignores_all(root: &str, paths: &[String]) -> bool {
 /// Whether a held listing can still be vouched for, before Watchman is asked:
 /// the same checkout, server and roots, a watch that hides none of its paths, and git's inputs as they were.
 /// A watch that ignores directories still vouches: they hold git's ignored output, which no listing holds.
-fn stands(meta: &Meta, paths: &[String], root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
+fn stands(meta: &Meta, snapshot: &Snapshot, root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
     // An index shared across checkouts holds another's listing, watch and stamps: none of them speaks for this one.
     let made = meta.watch.relative.as_ref().map_or_else(|| PathBuf::from(&meta.watch.watched), |relative| Path::new(&meta.watch.watched).join(relative));
-    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && !hides(&meta.watch, paths) && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
+    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && !hides(&meta.watch, &snapshot.paths, &snapshot.unhashed) && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
 }
 
 /// Whether the watch's `ignore_vcs` or `ignore_dirs` directories, which Watchman never
-/// reports into, hold a path of the listing. Each names a directory below the watched root.
-fn hides(watch: &Watch, paths: &[String]) -> bool {
+/// reports into, hold a path of the listing, hashed or not. Each names a directory below the
+/// watched root, and is matched as git would list it: `./` and a trailing `/` dropped, ASCII
+/// case ignored. One that is no plain path below the root hides the whole listing: a guess
+/// that hides too much costs a git run, one that hides too little a stale digest.
+fn hides(watch: &Watch, paths: &[String], unhashed: &[String]) -> bool {
     watch.vcs.iter().chain(&watch.ignored).any(|dir| {
+        let Some(dir) = plain(dir) else { return true };
         let below = match &watch.relative {
             None => Some(dir.as_str()),
-            Some(relative) => dir.strip_prefix(relative.as_str()).and_then(|rest| rest.strip_prefix('/')),
+            Some(relative) => under(&dir, relative),
         };
         // A directory above the checkout's root, or beside it, holds nothing of it; one that is the root holds all of it.
-        let covers = watch.relative.as_ref().is_some_and(|relative| relative == dir || relative.starts_with(&format!("{dir}/")));
-        covers || below.is_some_and(|below| paths.iter().any(|path| path.strip_prefix(below).is_some_and(|rest| rest.starts_with('/'))))
+        let covers = watch.relative.as_ref().is_some_and(|relative| relative.eq_ignore_ascii_case(&dir) || under(relative, &dir).is_some());
+        covers || below.is_some_and(|below| paths.iter().chain(unhashed).any(|path| under(path, below).is_some()))
     })
+}
+
+/// A directory a watch names, its empty and `.` segments dropped; nothing for one that is
+/// absolute, climbs with `..`, or names the watched root itself.
+fn plain(dir: &str) -> Option<String> {
+    let segments: Vec<&str> = dir.split('/').filter(|segment| !segment.is_empty() && *segment != ".").collect();
+    (!dir.starts_with('/') && !segments.is_empty() && !segments.contains(&"..")).then(|| segments.join("/"))
+}
+
+/// What of `path` lies below the directory `dir`, ASCII case ignored.
+fn under<'a>(path: &'a str, dir: &str) -> Option<&'a str> {
+    let rest = path.get(dir.len()..)?.strip_prefix('/')?;
+    path.as_bytes()[..dir.len()].eq_ignore_ascii_case(dir.as_bytes()).then_some(rest)
 }
 
 /// The tree under `root` for an update of the index at `index`: the held one when
@@ -178,7 +195,7 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
     if let (Some(socket), Some((snapshot, meta, manifest))) = (&socket, held) {
         let excluded: Vec<String> = index_dir.iter().cloned().chain(meta.git.iter().filter_map(|dir| below(Path::new(dir)))).collect();
         let vouched = crate::stages::summed(crate::stages::Sum::Held, || {
-            stands(&meta, &snapshot.paths, root, socket, dirs, |input| stamp(Path::new(input)))
+            stands(&meta, &snapshot, root, socket, dirs, |input| stamp(Path::new(input)))
                 && watchman::since(&meta.watch, &excluded).is_some_and(|since| !since.fresh && ignores_all(root, &since.files))
         });
         if vouched {

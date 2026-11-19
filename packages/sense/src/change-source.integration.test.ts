@@ -301,6 +301,16 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     expect(listed(await gitRan())).toBe(true);
   });
 
+  it.each([['cache/'], ['./cache'], ['Cache'], ['../elsewhere']])('asks git when the watch ignores %s, however it spells a directory', async (spelled) => {
+    // A case-insensitive volume ignores `Cache` as `cache`; an entry that is no plain path below the root is not guessed at.
+    await tell({ clock: 'c:14:1', fresh: true, config: { ignore_dirs: [spelled] } });
+    await updateNatively(root, index);
+    await gitRan();
+    await tell({ clock: 'c:14:2', config: { ignore_dirs: [spelled] } });
+    await updateNatively(root, index);
+    expect(listed(await gitRan())).toBe(true);
+  });
+
   it('asks the watchman command where its server listens once for an index, not on every update', async () => {
     const bin = join(wire, 'cli');
     await mkdir(bin, { recursive: true });
