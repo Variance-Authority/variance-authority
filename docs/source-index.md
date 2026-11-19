@@ -339,16 +339,14 @@ scan and an unchanged run.
 | the checkout's absolute path | the parses, for the same reason |
 | which directories you scan | everything. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work |
 
-To know which directories a bare specifier could land in, the scan reads `paths`
-and `baseUrl` out of every tracked `tsconfig*.json` and `jsconfig.json`, and out
-of every base each one `extends`, following a package name through its
-`node_modules` link the way the resolver does. A config it cannot read — not
-valid JSON, or a base that is not — declares no patterns, while every other
-config keeps its own, and an import through one of its patterns that names a
-file not yet there keeps its old answer until the
-importing file is edited. [Source index
-structures](source-structures.md#a-tsconfig-the-scan-cannot-follow) names every
-such config and what to change.
+To know which directories a bare specifier could land in, the scan uses the
+`paths` and `baseUrl` of the configuration that governs the importing file,
+including its inherited mappings. It keeps the candidate directories even when
+the target does not exist, so adding that target rebuilds the importing record.
+Configurations that govern other files contribute no candidates for this one.
+When TypeScript configuration resolution is disabled, it contributes none.
+[Source index structures](source-structures.md#a-tsconfig-the-scan-cannot-follow)
+explains what happens when the resolver cannot read a required configuration.
 
 ## Reading it
 
