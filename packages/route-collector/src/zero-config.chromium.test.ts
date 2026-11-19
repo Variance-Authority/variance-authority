@@ -117,15 +117,10 @@ async function build(config: string, lead: readonly string[], react: 18 | 19): P
   const server = await createServer({
     root,
     configFile: join(root, 'vite.config.mjs'),
-    // Everything here belongs to the harness, not to the adopter: where to
-    // listen, how loud to be, and where to keep prebundles so the run does not
-    // write into this repository's `node_modules` through that symlink.
-    // `fs.allow` is the symlink's consequence — React's real path is outside
-    // this root, and Vite declines to serve outside it until told otherwise.
-    // Nothing watched and no HMR client: the files above were written just
-    // before the server started, and a watcher can report them late. A late
-    // change to the config restarts the server, and the client reloads the page
-    // under a read in progress.
+    // The harness's, not the adopter's: prebundles kept out of the symlinked
+    // `node_modules`, `fs.allow` for React's real path, and no watcher or HMR
+    // client, whose late report of these fresh writes restarts the server and
+    // reloads the page under a read.
     server: { port: 0, host: '127.0.0.1', fs: { allow: [root, REPO] }, watch: null, hmr: false },
     cacheDir: join(root, '.vite-cache'),
     logLevel: 'silent',
