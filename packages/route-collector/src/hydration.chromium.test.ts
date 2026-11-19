@@ -209,7 +209,7 @@ beforeAll(async () => {
   server = await createServer({
     root,
     configFile: join(root, 'vite.config.mjs'),
-    server: { port: 0, host: '127.0.0.1', fs: { allow: [root, REPO] } },
+    server: { port: 0, host: '127.0.0.1', fs: { allow: [root, REPO] }, watch: null, hmr: false },
     cacheDir: join(root, '.vite-cache'),
     logLevel: 'silent',
     plugins: [
