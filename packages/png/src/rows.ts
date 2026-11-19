@@ -71,13 +71,20 @@ export function pairWords(
   const script = edits(left.hash, right.hash, limit);
 
   const cost = (from: number, to: number): number => differing(was, from, now, to, width);
-  const rows = straddled(pairing(left, right, script, afterHeight, cost), was, now, beforeHeight, width, cost);
+  const initial = pairing(left, right, script, afterHeight, cost);
+  // What each after row's pairing leaves differing, read once: the fractional
+  // pass and the weighing both need it. A head or tail row is its own copy.
+  const costs = new Int32Array(afterHeight);
+  const lift = afterHeight - beforeHeight;
+  for (let y = 0; y < afterHeight; y += 1) {
+    const from = initial.source[y]!;
+    const copied = (y < head && from === y) || (y >= afterHeight - tail && from === y - lift);
+    costs[y] = from < 0 ? width : copied ? 0 : cost(from, y);
+  }
+  const rows = straddled(initial, was, now, beforeHeight, width, cost, costs);
 
   let paired = 0;
-  for (let y = head; y < afterHeight; y += 1) {
-    const from = rows.source[y]!;
-    paired += from < 0 ? width : differing(was, from, now, y, width);
-  }
+  for (let y = head; y < afterHeight; y += 1) paired += costs[y]!;
   for (const span of rows.removed) paired += (span.to - span.from) * width;
 
   let positional = 0;

@@ -9,7 +9,9 @@ import type { PairedRows } from './align.js';
  * paired rows whose moves are `low` and `low + 1`, a stretch whose rows each
  * lie between their two counterparts is that move: each after row is paired
  * with the closer one. A stretch of copies, a gap a row taller, joins only
- * beside a blending stretch of the same `low`.
+ * beside a blending stretch of the same `low`. `costs` holds what each after
+ * row's pairing leaves differing, an unpaired row its width, and is kept true
+ * for the rows paired anew.
  */
 export function straddled(
   rows: PairedRows,
@@ -18,17 +20,18 @@ export function straddled(
   beforeHeight: number,
   width: number,
   cost: (beforeRow: number, afterRow: number) => number,
+  costs: Int32Array,
 ): PairedRows {
   const source = rows.source;
   const height = source.length;
-  const image: Image = { was, now, beforeHeight, afterHeight: height, width, cost };
+  const image: Image = { was, now, beforeHeight, afterHeight: height, width };
 
   // In page order; `undefined` where the move jumps by more than a row.
   const stretches: (Stretch | undefined)[] = [];
   let last = -1;
   for (let y = 0; y < height; y += 1) {
     const from = source[y]!;
-    if (from < 0 || cost(from, y) !== 0) continue;
+    if (from < 0 || costs[y] !== 0) continue;
     if (last >= 0) {
       const top = source[last]!;
       const above = last - top;
@@ -64,7 +67,13 @@ export function straddled(
   const joined = new Uint8Array(height);
   const held = new Uint8Array(beforeHeight);
   for (const { last: open, y, top, from, low } of bridged) {
-    for (let gap = open + 1; gap < y; gap += 1) source[gap] = nearer(gap - low - 1, gap, cost);
+    for (let gap = open + 1; gap < y; gap += 1) {
+      const upper = gap - low - 1;
+      const high = cost(upper, gap);
+      const under = cost(upper + 1, gap);
+      source[gap] = high <= under ? upper : upper + 1;
+      costs[gap] = Math.min(high, under);
+    }
     joined.fill(1, open + 1, y + 1);
     held.fill(1, top + 1, from);
   }
@@ -120,12 +129,6 @@ interface Image {
   readonly beforeHeight: number;
   readonly afterHeight: number;
   readonly width: number;
-  readonly cost: (beforeRow: number, afterRow: number) => number;
-}
-
-/** Which of before row `upper` and the one under it after row `row` is closer to. */
-function nearer(upper: number, row: number, cost: Image['cost']): number {
-  return cost(upper, row) <= cost(upper + 1, row) ? upper : upper + 1;
 }
 
 /**
@@ -133,28 +136,24 @@ function nearer(upper: number, row: number, cost: Image['cost']): number {
  * whether a row of it blends its two; `undefined` where it does not.
  */
 function fractional(stretch: Stretch, low: number, image: Image): boolean | undefined {
-  const { was, now, beforeHeight, afterHeight, width, cost } = image;
+  const { was, now, beforeHeight, afterHeight, width } = image;
   const { last, y, top, from } = stretch;
   // After row `row` falls across before rows `row - low - 1` and the next.
   const after = new Spread();
-  const afterPicks = new Set<number>();
   for (let row = last + 1; row < y; row += 1) {
     const upper = row - low - 1;
     if (upper < 0 || upper + 1 >= beforeHeight) return undefined;
-    afterPicks.add(nearer(upper, row, cost));
     after.row(now, row, was, upper, width);
   }
   // Before row `row` falls across after rows `row + low` and the next.
   const before = new Spread();
-  const beforePicks = new Set<number>();
   for (let row = top + 1; row < from; row += 1) {
     const upper = row + low;
     if (upper < 0 || upper + 1 >= afterHeight) return undefined;
-    beforePicks.add(cost(row, upper) <= cost(row, upper + 1) ? upper : upper + 1);
     before.row(was, row, now, upper, width);
   }
-  const fromAfter = after.all(y - last - 1) && accounted(top + 1, from, before.rows, afterPicks);
-  const fromBefore = before.all(from - top - 1) && accounted(last + 1, y, after.rows, beforePicks);
+  const fromAfter = after.all(y - last - 1) && accounted(top + 1, from, before.rows, after.picks);
+  const fromBefore = before.all(from - top - 1) && accounted(last + 1, y, after.rows, before.picks);
   if (fromAfter && after.blended) return true;
   if (fromBefore && before.blended) return true;
   return fromAfter || fromBefore ? false : undefined;
@@ -176,6 +175,8 @@ function accounted(first: number, end: number, spread: ReadonlySet<number>, pick
 class Spread {
   /** The rows that fit, until one does not. */
   readonly rows = new Set<number>();
+  /** Of each fitting row's two, the one it is closer to: the upper on a tie. */
+  readonly picks = new Set<number>();
   /** Whether a fitting row blends its two. */
   blended = false;
   private broken = false;
@@ -212,6 +213,7 @@ class Spread {
     }
     this.blended ||= Math.min(fromHigh, fromLow) * 2 > apart;
     this.rows.add(row);
+    this.picks.add(fromHigh <= fromLow ? upper : upper + 1);
   }
 }
 

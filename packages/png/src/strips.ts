@@ -30,8 +30,10 @@ export function stripped(
   kept: PairedRows | undefined,
   whole: number,
 ): AlignedStrip[] | undefined {
-  const differs = differingColumns(was, now, Math.min(beforeHeight, afterHeight), width);
-  const bounds = stripsOf(differs, width);
+  const shorter = Math.min(beforeHeight, afterHeight);
+  const flags = movedColumns(was, now, shorter, width);
+  if (flags === undefined) return undefined;
+  const bounds = stripsOf(flags, width);
   if (bounds.length < 2) return undefined;
   // A still strip leaves only its rows past the shorter foot. When the still
   // strips are margins, one moved strip's pairing is the whole width's.
@@ -56,13 +58,13 @@ export function stripped(
     let rows: PairedRows | undefined;
     let paired = Infinity;
     if (moved) {
-      for (let x = from; x < to; x += 1) placed += differs[x]!;
       if (reused !== undefined) ({ rows, paired } = reused);
       else {
         const left = columnsOf(was, beforeHeight, width, from, to);
         const right = columnsOf(now, afterHeight, width, from, to);
         ({ rows, paired } = pairWords(left, right, beforeHeight, afterHeight, columns, limit));
       }
+      placed += placedIn(was, now, shorter, width, from, to, paired - placed);
     }
     const pairs = rows !== undefined && (paired < placed || (paired === placed && rows.shifted.length === 0));
     total += pairs ? paired : placed;
@@ -100,17 +102,64 @@ function costIn(rows: PairedRows, was: Uint32Array, now: Uint32Array, width: num
 /** Narrower than this, a still stretch beside moved columns is part of them. */
 const STRIP_WIDTH = 16;
 
-/** Per column, how many rows both images have differ there by position: a column that differs in any moved. */
-function differingColumns(was: Uint32Array, now: Uint32Array, height: number, width: number): Uint32Array {
-  const counts = new Uint32Array(width);
+/**
+ * Per column, whether any row both images have differs there by position: a
+ * column that does moved. `undefined` once no still stretch as wide as
+ * {@link STRIP_WIDTH} is left, since then every column joins one strip; a page
+ * that moved across its width is told from its first rows. A row reads only
+ * the columns still left.
+ */
+function movedColumns(was: Uint32Array, now: Uint32Array, height: number, width: number): Uint8Array | undefined {
+  const moved = new Uint8Array(width);
+  const still = Int32Array.from({ length: width }, (_, x) => x);
+  let left = width;
+  let narrowed = false;
   for (let y = 0; y < height; y += 1) {
     const at = y * width;
-    for (let x = 0; x < width; x += 1) if (was[at + x] !== now[at + x]) counts[x]! += 1;
+    let kept = 0;
+    for (let index = 0; index < left; index += 1) {
+      const x = still[index]!;
+      if (was[at + x] !== now[at + x]) moved[x] = 1;
+      else still[kept++] = x;
+    }
+    narrowed ||= kept < left;
+    left = kept;
+    if (narrowed && (y % CHECKED === 0 || y === height - 1)) {
+      if (!stillStretch(moved)) return undefined;
+      narrowed = false;
+    }
   }
-  return counts;
+  return moved;
 }
 
-function stripsOf(flags: Uint32Array, width: number): (RowSpan & { moved: boolean })[] {
+/** How many rows apart the probe looks for a still stretch that is left. */
+const CHECKED = 32;
+
+function stillStretch(moved: Uint8Array): boolean {
+  let run = 0;
+  for (const flag of moved) {
+    run = flag === 0 ? run + 1 : 0;
+    if (run >= STRIP_WIDTH) return true;
+  }
+  return false;
+}
+
+/** What position leaves differing in columns `from` up to `to`, counted until it passes `cap`. */
+function placedIn(
+  was: Uint32Array,
+  now: Uint32Array,
+  height: number,
+  width: number,
+  from: number,
+  to: number,
+  cap: number,
+): number {
+  let count = 0;
+  for (let y = 0; y < height && count <= cap; y += 1) count += differingIn(was, y, now, y, width, from, to);
+  return count;
+}
+
+function stripsOf(flags: Uint8Array, width: number): (RowSpan & { moved: boolean })[] {
   const runs: { from: number; to: number; moved: boolean }[] = [];
   for (let x = 0; x < width; x += 1) {
     const last = runs.at(-1);
