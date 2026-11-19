@@ -3,19 +3,10 @@ import type { PairedRows } from './align.js';
 import { colorDelta, limitOf } from './judge.js';
 
 /**
- * Rows the shortest edit moved that belong where they are.
- *
- * A band repainted by a level, a header shaded row by row and drawn one shade
- * lighter, makes each after row a copy of the before row under it. The edit
- * pairs the band one row off, and an insertion elsewhere on the page outweighs
- * that, so the band is marked as moved and every row of it as changed. A run of
- * one move whose neighbours above and below share another is a detour: paired at
- * their move instead, it is kept there when what it leaves differing under
- * `threshold`, an unpaired row its width, is less than the detour leaves, where
- * a before row the detour leaves unused counts its width too. `threshold` is the
- * most lenient policy's that will judge the pairing. A detour placed joins the
- * runs around it, so the detour it sat inside is weighed next. `costs` is kept
- * true for the rows paired anew.
+ * Rows the shortest edit moved that belong where they are: a band repainted by
+ * a level, which the edit pairs one row off beside a real insertion, is paired
+ * at the move of the rows around it when that leaves less differing under
+ * `threshold`, the most lenient policy's. `costs` is kept true for the rows paired anew.
  */
 export function inPlace(
   rows: PairedRows,
@@ -57,7 +48,9 @@ export function inPlace(
 
   const placed = new Uint8Array(height);
   const reclaimed = new Uint8Array(was.length / width);
-  // Pairs `run` at the move of the two around it, where that leaves less differing.
+  // Pairs `run` at the move of the two around it when that leaves fewer pixels
+  // differing than the detour does, an unpaired row and a before row the detour
+  // leaves unused each counting its width.
   const placeable = (above: Run, run: Run, below: Run): boolean => {
     const top = above.last;
     const bottom = below.first;
