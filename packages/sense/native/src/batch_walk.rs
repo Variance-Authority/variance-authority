@@ -89,6 +89,56 @@ pub(crate) fn walk_beyond(
     from_blob: &FromBlob,
     store: &TreeObjects,
 ) -> Walked {
+    let every = |slice: Slice| -> Vec<(String, Answer, bool)> {
+        slice.identities.into_iter().zip(slice.read).zip(slice.kept.iter().copied()).map(|((identity, read), kept)| (identity, read, kept)).collect()
+    };
+    let WalkedRows { files, rows, targets } =
+        walk_settled(options, at, tree_oids, listing, world, read_by_world, held, kept, from_blob, store, every);
+    let (mut identities, mut read, mut answered) =
+        (Vec::with_capacity(rows.len()), Vec::with_capacity(rows.len()), Vec::with_capacity(rows.len()));
+    for (identity, answer, kept) in rows {
+        identities.push(identity);
+        read.push(answer);
+        answered.push(kept);
+    }
+    Walked { files, identities, read, targets, kept: answered }
+}
+
+/// One slice of a wave, read and resolved, handed to the caller of
+/// [`walk_settled`] before the next slice is: its files, the digest each row is
+/// named by, what was read, whether `kept` answered it, and its targets.
+pub(crate) struct Slice<'s> {
+    pub files: &'s [String],
+    pub identities: Vec<String>,
+    pub read: Vec<Answer>,
+    pub kept: &'s [bool],
+    pub targets: &'s [Reached],
+}
+
+/// What [`walk_settled`] walked: one row per file as the caller settled it.
+pub(crate) struct WalkedRows<S> {
+    pub files: Vec<String>,
+    pub rows: Vec<S>,
+    pub targets: Vec<Reached>,
+}
+
+/// [`walk_beyond`], with each slice's answers handed to `settle` as soon as
+/// they are resolved, so a caller that keeps less than the reads holds a slice
+/// of them at a time rather than the closure's.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn walk_settled<S: Send>(
+    options: GraphOptions,
+    at: &HashMap<String, u32>,
+    tree_oids: &[Oid],
+    listing: Arc<Listing>,
+    world: &World,
+    read_by_world: &Neighbours,
+    held: &dyn Fn(&str) -> bool,
+    kept: Kept,
+    from_blob: &FromBlob,
+    store: &TreeObjects,
+    settle: impl Fn(Slice) -> Vec<S> + Sync,
+) -> WalkedRows<S> {
     let GraphOptions {
         root,
         seeds,
@@ -101,10 +151,8 @@ pub(crate) fn walk_beyond(
     let root_path = Path::new(&root);
     let resolvers = Resolvers::over(tsconfig, condition_names, Emitted::listed(root_path, Some(listing)));
     let mut files = Vec::new();
-    let mut read = Vec::new();
+    let mut rows = Vec::new();
     let mut targets = Vec::new();
-    let mut identities = Vec::new();
-    let mut answered = Vec::new();
     let mut queue = Vec::new();
     let mut seen = HashSet::with_capacity(seeds.len() * 2);
     for file in seeds {
@@ -133,10 +181,6 @@ pub(crate) fn walk_beyond(
         // come out of the same parse: `ask symbol` reads them from the rows this
         // walk publishes, and a walk that left them out answered a checkout of
         // ten thousand modules as if it declared nothing.
-        // FIXME: every wave's answers, declarations included, are held until the
-        // parse segment is encoded after the walk, so a cold index of 288k paths
-        // peaks near 3.3 GB against a 600 MB read ceiling; encoding each wave as
-        // it is read would bound it.
         world.prewarm(wave.iter().filter_map(|file| language_of(file)));
         let reading = |slice: &[String], oids| {
             read_by_world.first(slice, oids, |unread, oids| {
@@ -144,59 +188,76 @@ pub(crate) fn walk_beyond(
             })
         };
         let resolving = |slice: &[String], read: &[Answer]| resolve_all(root_path, slice, read, &resolvers, world, Some(at));
-        let (opened, wave_kept, resolved) = read_resolved(&wave, SLICE, oids, reading, resolving);
-        answered.extend(wave_kept);
+        let settling = |start: usize, files: &[String], read: Vec<Answer>, kept: &[bool], targets: &[Reached]| {
+            let identities = wave_identities[start..start + files.len()]
+                .iter()
+                .zip(&read)
+                .map(|(identity, (_, digest, _))| identity.clone().unwrap_or_else(|| digest.clone()))
+                .collect();
+            settle(Slice { files, identities, read, kept, targets })
+        };
+        let (settled, _, resolved) = read_resolved(&wave, SLICE, oids, reading, resolving, settling);
         for target in resolved.iter().flat_map(Reached::all) {
             if language_of(target).is_some() && !held(target) && seen.insert(target.clone()) {
                 queue.push(target.clone());
             }
         }
         files.extend(wave);
-        identities.extend(
-            wave_identities
-                .into_iter()
-                .zip(&opened)
-                .map(|(identity, (_, digest, _))| identity.unwrap_or_else(|| digest.clone())),
-        );
-        read.extend(opened);
+        rows.extend(settled);
         targets.extend(resolved);
     }
-    Walked { files, identities, read, targets, kept: answered }
+    WalkedRows { files, rows, targets }
 }
 
 /// Reads `wave` `slice` files at a time and resolves each slice while the next is read.
 /// Reads parse on the cores and resolves wait on the file system's path lookups, so
 /// neither waits for the other's whole wave; the rows keep the wave's order.
-fn read_resolved<'w, R, T>(
+/// `settling` takes each slice's rows, with where the slice starts in the wave,
+/// its kept flags and its targets, as soon as the slice is resolved, on the
+/// resolving thread: what it keeps of them is what the wave holds, so a caller
+/// that keeps less than a read holds no more than a slice of reads at a time.
+fn read_resolved<'w, R, T, S>(
     wave: &'w [String],
     slice: usize,
     oids: Vec<Option<Oid>>,
     reading: impl Fn(&'w [String], Vec<Option<Oid>>) -> (Vec<R>, Vec<bool>),
     resolving: impl Fn(&'w [String], &[R]) -> Vec<T> + Sync,
-) -> (Vec<R>, Vec<bool>, Vec<T>)
+    settling: impl Fn(usize, &'w [String], Vec<R>, &[bool], &[T]) -> Vec<S> + Sync,
+) -> (Vec<S>, Vec<bool>, Vec<T>)
 where
     R: Send + Sync,
     T: Send,
+    S: Send,
 {
-    let (mut read, mut answered, mut targets) =
+    let (mut settled, mut answered, mut targets) =
         (Vec::with_capacity(wave.len()), Vec::with_capacity(wave.len()), Vec::with_capacity(wave.len()));
     let (mut slices, mut oids) = (wave.chunks(slice.max(1)), oids.into_iter());
-    let mut previous: Option<(&'w [String], Vec<R>)> = None;
+    let (resolving, settling) = (&resolving, &settling);
+    let mut previous: Option<(usize, &'w [String], Vec<R>, Vec<bool>)> = None;
+    let mut start = 0;
     loop {
         let next = slices.next();
         if next.is_none() && previous.is_none() {
-            return (read, answered, targets);
+            return (settled, answered, targets);
         }
         let (fresh, resolved) = std::thread::scope(|scope| {
-            let resolving = previous.as_ref().map(|(files, rows)| scope.spawn(|| resolving(files, rows)));
+            let resolved = previous.take().map(|(start, files, rows, kept)| {
+                scope.spawn(move || {
+                    let targets = resolving(files, &rows);
+                    (settling(start, files, rows, &kept, &targets), kept, targets)
+                })
+            });
             let fresh = next.map(|files| (files, reading(files, oids.by_ref().take(files.len()).collect())));
-            (fresh, resolving.map(|thread| thread.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))))
+            (fresh, resolved.map(|thread| thread.join().unwrap_or_else(|panic| std::panic::resume_unwind(panic))))
         });
-        read.extend(previous.take().map(|(_, rows)| rows).into_iter().flatten());
-        targets.extend(resolved.into_iter().flatten());
-        if let Some((files, (rows, kept))) = fresh {
+        if let Some((rows, kept, resolved)) = resolved {
+            settled.extend(rows);
             answered.extend(kept);
-            previous = Some((files, rows));
+            targets.extend(resolved);
+        }
+        if let Some((files, (rows, kept))) = fresh {
+            previous = Some((start, files, rows, kept));
+            start += files.len();
         }
     }
 }
@@ -350,86 +411,5 @@ pub(super) fn resolve_all(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    type Row = (String, Option<u8>);
-
-    /// Each file's row, kept flag and targets come from that file, in the wave's
-    /// order, whether the wave is one slice, a few, or slices that do not divide it.
-    #[test]
-    fn a_sliced_wave_keeps_every_file_on_its_own_row() {
-        let wave: Vec<String> = (0..7).map(|n| format!("f{n}.ts")).collect();
-        let oids: Vec<Option<Oid>> = (0..7u8).map(|n| (n % 2 == 0).then_some([n; 20])).collect();
-        let expected: Vec<Row> = wave.iter().zip(0u8..).map(|(file, n)| (file.clone(), (n % 2 == 0).then_some(n))).collect();
-        for slice in [1, 3, 7, 16] {
-            let reading = |files: &[String], oids: Vec<Option<Oid>>| {
-                assert_eq!(files.len(), oids.len());
-                let rows: Vec<Row> = files.iter().zip(&oids).map(|(file, oid)| (file.clone(), oid.map(|oid| oid[0]))).collect();
-                (rows, oids.iter().map(Option::is_some).collect())
-            };
-            let resolving = |files: &[String], rows: &[Row]| {
-                files.iter().zip(rows).map(|(file, (row, _))| vec![format!("{file} read {row}")]).collect()
-            };
-            let (read, kept, targets) = read_resolved(&wave, slice, oids.clone(), reading, resolving);
-            assert_eq!(read, expected, "slice {slice}");
-            assert_eq!(kept, oids.iter().map(Option::is_some).collect::<Vec<_>>(), "slice {slice}");
-            assert_eq!(targets, wave.iter().map(|file| vec![format!("{file} read {file}")]).collect::<Vec<_>>(), "slice {slice}");
-        }
-    }
-
-    /// A warm update walks round after round over one tree: the world it is
-    /// handed reads every `.rs` file for Rust's module tree once, not per round.
-    #[cfg(feature = "grammars")]
-    #[test]
-    fn rounds_over_one_world_read_the_module_tree_once() {
-        use std::sync::Mutex;
-        let files = [("src/lib.rs", "mod a;\nmod b;\n"), ("src/a.rs", "use crate::b;\n"), ("src/b.rs", "pub fn b() {}\n")];
-        let root = std::env::temp_dir().join(format!("sense-walk-rounds-{}", std::process::id()));
-        for (file, text) in files {
-            std::fs::create_dir_all(root.join(file).parent().unwrap()).unwrap();
-            std::fs::write(root.join(file), text).unwrap();
-        }
-        let known: HashMap<String, u32> = files.iter().map(|(file, _)| (*file).to_owned()).zip(0..).collect();
-        let asked = Mutex::new(Vec::<String>::new());
-        let parsing = |paths: &[&str]| {
-            asked.lock().unwrap().extend(paths.iter().map(|path| (*path).to_owned()));
-            let held = |path: &str| files.iter().find(|(file, _)| *file == path).map(|(_, text)| *text);
-            paths.iter().map(|path| held(path).map(|text| crate::read_any::read_file(path, text, &oxc_allocator::Allocator::default(), true))).collect()
-        };
-        let texting = |_: &str| None;
-        let world = World::new(Some(&known), None).reading(&parsing, &texting);
-        let round = |seed: &str| {
-            let options = GraphOptions {
-                root: root.to_string_lossy().into_owned(),
-                seeds: vec![seed.to_owned()],
-                largest_file: None,
-                readers: None,
-                tsconfig: crate::resolve::Tsconfig::from_js(None),
-                condition_names: None,
-                include_parses: false,
-            };
-            let listing = Arc::new(Listing::default());
-            walk_beyond(options, &HashMap::new(), &[], listing, &world, &Neighbours::default(), &|_| true, &|_, _| None, &FromBlob::default(), &TreeObjects::default())
-        };
-        let (first, second) = (round("src/lib.rs"), round("src/a.rs"));
-        let _ = std::fs::remove_dir_all(&root);
-        assert_eq!(first.targets[0].first, ["src/a.rs", "src/b.rs"]);
-        assert_eq!(second.targets[0].first, ["src/b.rs"]);
-        let mut asked = asked.into_inner().unwrap();
-        asked.sort_unstable();
-        assert_eq!(asked, ["src/a.rs", "src/b.rs", "src/lib.rs"]);
-    }
-
-    #[test]
-    fn an_empty_wave_reads_and_resolves_nothing() {
-        let (read, kept, targets) = read_resolved(
-            &[],
-            SLICE,
-            Vec::new(),
-            |_: &[String], _| -> (Vec<Row>, Vec<bool>) { panic!("nothing to read") },
-            |_: &[String], _: &[Row]| -> Vec<Vec<String>> { panic!("nothing to resolve") },
-        );
-        assert!(read.is_empty() && kept.is_empty() && targets.is_empty());
-    }
-}
+#[path = "batch_walk_tests.rs"]
+mod tests;

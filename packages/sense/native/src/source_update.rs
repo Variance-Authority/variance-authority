@@ -30,7 +30,7 @@ use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::acquire::{declined_for_size, still_too_large, LARGEST_FILE};
-use crate::batch::{neighbours, texting, walk_beyond, GraphOptions, Neighbours, Walked};
+use crate::batch::{neighbours, texting, walk_settled, GraphOptions, Neighbours, WalkedRows};
 use crate::chain_lookup::{fold, held_parses, At};
 use crate::compact::{merged, Layer};
 use crate::emitted::Listing;
@@ -43,13 +43,17 @@ use crate::order::code_unit;
 use crate::package_graph::names_object;
 use crate::parse_store::{self, Parse, Stores};
 use crate::read::Read;
-use crate::record::{built, Indexed, Settling};
+use crate::record::{Indexed, Settling};
 use crate::witness::AliasTable;
 use crate::world::World;
 
 #[path = "source_update_reach.rs"]
 mod reach;
 use reach::Reached;
+
+#[path = "source_update_runs.rs"]
+mod runs;
+use runs::{Place, Runs};
 
 /// What an update needs that only the caller knows.
 #[napi(object)]
@@ -121,7 +125,8 @@ pub(crate) struct Tree<'t> {
 struct Row {
     indexed: Indexed,
     identity: String,
-    read: Read,
+    /// Where its parse lies among the runs, when it was parsed here.
+    parse: Option<Place>,
     parsed: bool,
     /// Answered by a store rather than read.
     kept: bool,
@@ -203,6 +208,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
 
     let readable: FxHashSet<String> = o.readable.into_iter().collect();
     let mut walked: FxHashMap<String, Row> = FxHashMap::default();
+    let runs = Runs::default();
     let mut reached = Reached::from(tree.seeds, valid.len());
     let mut settled: Option<(HashSet<String>, HashSet<String>, HashSet<String>)> = None;
     // One world for every round: what it builds over the tree (Rust's module
@@ -226,7 +232,8 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
                 directories.keys().cloned().collect(),
             )
         });
-        let Walked { files, identities, read, targets, kept: answered } = walk_beyond(
+        let settling = Settling { builtins, code, remembering: true, directories: dirs, aliases: aliases.as_ref() };
+        let WalkedRows { files, rows, targets: _ } = walk_settled(
             GraphOptions {
                 root: o.root.clone(),
                 seeds: need.clone(),
@@ -245,20 +252,9 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             &kept,
             tree.from_blob,
             tree.store,
+            |slice| runs::settled(slice, &settling, &runs),
         );
-        let settling = Settling { builtins, code, remembering: true, directories: dirs, aliases: aliases.as_ref() };
         let before = walked.len();
-        let rows: Vec<Row> = files
-            .par_iter()
-            .zip(identities.into_par_iter())
-            .zip(read.into_par_iter())
-            .zip(targets.par_iter())
-            .zip(answered.into_par_iter())
-            .map(|((((file, identity), (read, _, outcome)), targets), kept)| {
-                let indexed = built(file, &identity, &read, outcome, targets, &settling);
-                Row { indexed, identity, read, parsed: outcome.parsed(), kept }
-            })
-            .collect();
         walked.extend(files.into_iter().zip(rows));
         // What was needed is walked on from: a file the walk did not build would be walked for again, forever.
         if let Some(file) = need.iter().find(|file| !walked.contains_key(file.as_str())).or(need.first().filter(|_| walked.len() == before)) {
@@ -268,6 +264,9 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
     }
 
     walking.end();
+    // The runs, opened in place: every parse this update writes is copied from them.
+    let runs = runs.into_inner();
+    let opened: Vec<Layer> = runs.iter().map(|bytes| Layer::open(bytes)).collect::<Result<_, _>>().map_err(fail)?;
     let recording = crate::stages::start("records", &crate::stages::NONE);
     let files = (reached.old.len() + reached.new.len()) as u32;
     let reread = reached.new.len() as u32;
@@ -309,14 +308,22 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
         .iter()
         .map(|file| (file, &walked[file.as_str()]))
         .filter(|(_, row)| row.parsed && !row.identity.is_empty())
-        .filter_map(|(file, row)| Parse::of(Some(&store), &row.identity, file, row.kept, &row.read))
+        .filter_map(|(file, row)| {
+            let way = way(file);
+            let parse = match row.parse {
+                Some(place) => runs::view(&opened, place),
+                // Answered by the store: its row, whole, while it still holds it.
+                None => store.view(&row.identity, &way)?,
+            };
+            Some((parse_store::key(&row.identity, &way), Parse::Kept(parse)))
+        })
         .collect();
     // What this update parsed of the blob it is named by that no store holds, for every root after it.
     let parsed_here = reached.new.iter().map(|file| (file, &walked[file.as_str()]));
     let parsed_here = parsed_here.filter(|(file, row)| row.parsed && !row.kept && !row.identity.is_empty() && tree.from_blob.shares(&row.identity, &way(file)));
     // The store serves the next root and the index this one: neither reads the other, so they are written side by side, and write waits for both.
     let updated = std::thread::scope(|scope| {
-        let storing = scope.spawn(|| stores.add_unheld(&store, parsed_here.map(|(file, row)| (row.identity.as_str(), way(file), &row.read))));
+        let storing = scope.spawn(|| stores.add_unheld(&store, parsed_here.filter_map(|(file, row)| Some((row.identity.as_str(), way(file), runs::view(&opened, row.parse?))))));
         let mut interest: HashSet<&str> = retired.iter().filter_map(|(_, digest)| *digest).collect();
         interest.extend(reached.new.iter().map(|file| walked[file.as_str()].identity.as_str()).filter(|digest| !digest.is_empty()));
         let held = if interest.is_empty() { HashSet::new() } else { held_parses(&layers, &interest) };

@@ -25,7 +25,7 @@ mod walk;
 
 pub(crate) use neighbours::{neighbours, texting, Neighbours};
 use walk::{read_held, read_kept, resolve_all};
-pub(crate) use walk::{walk_beyond, Kept, Reached, Walked};
+pub(crate) use walk::{walk_beyond, walk_settled, Kept, Reached, Slice, Walked, WalkedRows};
 
 /// What a batch of files said, in columns rather than per-file objects.
 #[napi(object)]

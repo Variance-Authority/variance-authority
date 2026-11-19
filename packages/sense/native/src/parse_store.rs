@@ -115,12 +115,12 @@ impl Stores {
     /// Add to the first store each of `read`, as `(digest, way, parse)`, that
     /// none of the stores holds. A store not written costs the next root a
     /// parse, never an answer, so a failed write is dropped.
-    pub(crate) fn add_unheld<'r>(&self, opened: &Opened, read: impl Iterator<Item = (&'r str, String, &'r Read)>) {
-        let mut rows: Vec<(String, &Read)> =
+    pub(crate) fn add_unheld<'r, P: ParseRow>(&self, opened: &Opened, read: impl Iterator<Item = (&'r str, String, P)>) {
+        let mut rows: Vec<(String, P)> =
             read.filter(|(digest, way, _)| !opened.holds(digest, way)).map(|(digest, way, read)| (key(digest, &way), read)).collect();
         rows.sort_by(|left, right| code_unit(&left.0, &right.0));
         rows.dedup_by(|left, right| left.0 == right.0);
-        let rows: Vec<(&str, &Read)> = rows.iter().map(|(key, read)| (key.as_str(), *read)).collect();
+        let rows: Vec<(&str, &P)> = rows.iter().map(|(key, read)| (key.as_str(), read)).collect();
         let _ = self.append(&rows);
     }
 }
