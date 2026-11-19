@@ -624,15 +624,11 @@ beside that directory would be what `@kbn/i18n` resolves to. So every record
 that imports one of those packages watches the directory, 35% of the index.
 
 One repository shape removes the per-directory bound: a `tsconfig` the scan
-cannot follow, because it is not valid JSON or because its `extends` does not
-land on a `tsconfig*.json` or `jsconfig.json` your repository tracks — a base
-installed from a registry, say, rather than one of your workspace's own
-packages. A bare specifier is bounded by the `paths` a configuration declares, so
-a configuration that cannot be read is no bound at all, and there every added
-path invalidates every record. The symptom is a warm run that costs what a cold
-one does. [A `tsconfig` the scan cannot
-follow](source-structures.md#a-tsconfig-the-scan-cannot-follow) lists every such
-`extends`.
+cannot read, because it or a base it `extends` is not valid JSON. A bare
+specifier is then bounded only by the directory its answer sits in. That costs
+nothing — no run turns cold — but an import through a pattern keeps its answer
+until the importing file is edited. [A `tsconfig` the scan cannot
+follow](source-structures.md#a-tsconfig-the-scan-cannot-follow) lists the cases.
 
 ### Where the third of a second is
 

@@ -68,7 +68,7 @@ only the ones the cache's parse store, shared by the checkouts, does not hold.
 | --- | --- |
 | the contents of a file | that one file's record, and its parse if those exact bytes have never appeared at another path in any branch |
 | a file added, moved or deleted | only the records whose imports could have been answered from the affected directory. For one added file that is 105 of Material UI's 24,908, and 111 of Kibana's 106,215 |
-| `package.json`, `jsconfig.json`, `deno.json`, `pnpm-workspace.yaml`, any lock file, or any `tsconfig*.json` | that file's own record, as for any file. A configuration edit reaches other files through the edits that come with it: a new `paths` entry or `exports` subpath arrives with the files refactored to import through it, a moved target is a moved file, a new package is new files imported by edited files, and a dependency bump moves no answer in your workspace. Editing a mapping alone, to redirect code nobody edited, is not followed until that code is edited |
+| `package.json`, `jsconfig.json`, `deno.json`, `pnpm-workspace.yaml`, any lock file, or any `tsconfig*.json` | no other file's record. A configuration edit reaches other files through the edits that come with it: a new `paths` entry or `exports` subpath arrives with the files refactored to import through it, a moved target is a moved file, a new package is new files imported by edited files, and a dependency bump moves no answer in your workspace. Editing a mapping alone, to redirect code nobody edited, is not followed until that code is edited |
 | `source.dirs` — the directories scanned | nothing. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work and neither invalidates the other |
 
 Two more, neither of them yours to change: upgrading to a release that changes
@@ -104,27 +104,21 @@ through the `node_modules` link your package manager made, then the package's
 `extends` names only the package. In a workspace, that link leads back into your
 repository, and the base is read there.
 
-Every base has to land on a `tsconfig*.json` or `jsconfig.json` that git tracks,
-because tracked files are what the index keys its records on. The scan cannot
-follow a config that is not valid JSON, or one whose `extends`:
-
-- names a package that is not installed, so nothing resolves;
-- names a package installed from a registry, such as `@tsconfig/strictest`,
-  whose file sits in `node_modules`, which git does not track;
-- resolves to a file outside your checkout, or is an absolute path;
-- lands on a file with any other name, such as `base.json`.
+A base is read wherever it lands — a registry package in `node_modules`, a file
+outside your checkout, a file of any name — and an `extends` that resolves to
+nothing declares nothing. The scan cannot follow a config, or a base one
+reaches, that cannot be read or is not JSON (comments and trailing commas are
+fine), nor an `extends` that is an absolute path.
 
 One such config anywhere in the tree, or anywhere in the chain of bases a config
 extends, leaves the scan with no `paths` patterns to watch. A bare specifier then
 watches only the directory its answer sits in. An import through a pattern that
 answers nothing today does not start answering when the file it names appears,
 and an import that a new file would shadow keeps its old answer. Either is
-corrected when the importing file is edited, or by `variance index`. Reuse stays
-warm: the config itself rebuilds nothing beyond its own record.
-
-A base your repository tracks restores the bound: a workspace package, or a
-relative path to a `tsconfig*.json`. When the base comes from a registry, write
-the options you use from it into a tracked base instead.
+corrected when the importing file is edited, or by a cold index: delete the
+index and run `variance index`, as [Source index](source-index.md) says. Reuse
+stays warm: the config itself rebuilds nothing beyond its own record. Fixing the
+file the read stops at restores the patterns.
 
 Kibana keeps its base in a workspace package: 1,527 of its 1,534 `tsconfig`
 files extend `@kbn/tsconfig-base/tsconfig.json`, whose link leads back to
@@ -494,7 +488,7 @@ is O(degree).
 | digest every tracked path | O(n) listing, O(d) hashes | start of every run that reads the index |
 | parse lookup by digest | O(s) map reads, O(1) once touched | per file being rebuilt |
 | record lookup by path and digest | O(s) map reads, one comparison | per file visited, every run |
-| configuration digest | O(n log n) | start of every run |
+| configuration digest | O(1) | start of every run |
 | directory map | O(n) segments, O(k log k) digests | start of every run |
 | records invalidated by a move | O(k) compare, O(r) witness scan | the first run after a file is added, moved or deleted |
 | scan, caches warm | O(n + m) queue, O(d) reads, O(n log n) sort | `variance run`, `variance ask locate`, `variance serve` |

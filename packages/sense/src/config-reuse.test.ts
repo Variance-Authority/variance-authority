@@ -149,7 +149,7 @@ describe('a configuration edit, warm', () => {
     at.commit();
 
     // The new file moves the root's listing, and only what witnessed it is read again.
-    expect(await at.update()).toBeLessThan(5);
+    expect(await at.update()).toBe(2);
     const { warm, cold } = await at.answers();
     expect(warm).toEqual(cold);
   });
@@ -206,5 +206,9 @@ describe('a configuration edit, warm', () => {
     const unmapped = (records: unknown): unknown =>
       (records as { file: string }[]).filter((record) => record.file !== 'packages/app/src/other.ts');
     expect(unmapped(warm)).toEqual(unmapped(cold));
+    // The accepted gap, pinned so that closing it shows here.
+    const other = (records: unknown): unknown =>
+      (records as { file: string }[]).find((record) => record.file === 'packages/app/src/other.ts');
+    expect(other(warm)).not.toEqual(other(cold));
   });
 });

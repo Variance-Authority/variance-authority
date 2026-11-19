@@ -337,13 +337,12 @@ scan and an unchanged run.
 To know which directories a bare specifier could land in, the scan reads `paths`
 and `baseUrl` out of every tracked `tsconfig*.json` and `jsconfig.json`, and out
 of every base each one `extends`, following a package name through its
-`node_modules` link the way the resolver does. A config it cannot follow — not
-valid JSON, or an `extends` that does not land on a `tsconfig*.json` or
-`jsconfig.json` your repository tracks, such as a base installed from a registry
-— leaves it no patterns, and an import through a pattern that names a file not
-yet there keeps its old answer until the importing file is edited. [Source index
+`node_modules` link the way the resolver does. A config it cannot read — not
+valid JSON, or a base that is not — leaves it no patterns, and an import through
+a pattern that names a file not yet there keeps its old answer until the
+importing file is edited. [Source index
 structures](source-structures.md#a-tsconfig-the-scan-cannot-follow) names every
-such `extends`, the two other cases like it, and what to change.
+such config and what to change.
 
 ## Reading it
 
