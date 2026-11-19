@@ -94,8 +94,13 @@ export function changeImages(
   policy: DiffPolicy = DEFAULT_POLICY,
   /** What the sheet says about itself: the subject, and where each side came from. */
   labels: ChangeLabels = {},
+  /**
+   * How the comparison paired the rows, when it already asked: `null` where it
+   * found no pairing. Left out, the rows are aligned here.
+   */
+  aligned?: AlignedRows | null,
 ): ChangeImages {
-  const alignment = alignRows(was, now);
+  const alignment = aligned === undefined ? alignRows(was, now) : (aligned ?? undefined);
   const difference = differencePixels(was, now, policy, { alignment: alignment ?? null });
   const diff = encode(difference);
   // The comparison's canvas is the after image's only when it used the alignment.

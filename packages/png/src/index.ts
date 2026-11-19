@@ -22,7 +22,7 @@ export {
   diffImage,
   pngjsDecoder,
 } from './compare.js';
-export type { PngDecoder } from './compare.js';
+export type { ComparedPixels, PngDecoder } from './compare.js';
 export type { DecodedImage } from './mask.js';
 
 export { changeImages } from './change.js';

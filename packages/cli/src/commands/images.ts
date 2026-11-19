@@ -9,7 +9,7 @@ import {
   type SemanticSnapshot,
 } from '@variance-authority/core/format';
 import { packSnapshot, type Observation } from '@variance-authority/observe';
-import { changeImages, decode, imageFormat, pngjsDecoder } from '@variance-authority/png';
+import { changeImages, decode, imageFormat, pngjsDecoder, type ComparedPixels } from '@variance-authority/png';
 import type { BaselineKey, RasterStore, Renderer } from '@variance-authority/raster';
 import type { ObservationRecord } from '@variance-authority/report';
 import type { Config } from '../config.js';
@@ -67,6 +67,8 @@ export async function images(
    * is, and the two would agree until one of them was changed.
    */
   findingMarks?: readonly string[],
+  /** What the comparison decoded and how it paired the rows, so neither is done twice. */
+  compared?: ComparedPixels,
 ): Promise<{ images?: ObservationRecord['images'] }> {
   const cached = await candidateRaster(deps.store, document, renderer);
   if (cached === null) return {};
@@ -176,16 +178,17 @@ export async function images(
   // change at its own size rather than two pages scaled to a column. It names
   // the subject and each side's source itself, since a person who taps it in a
   // comment sees it without the comment around it.
-  const [wasPixels, nowPixels] = await Promise.all([
-    pngjsDecoder.decode(was),
-    pngjsDecoder.decode(decode(raster.bytes)),
-  ]);
+  const [wasPixels, nowPixels] =
+    compared === undefined
+      ? await Promise.all([pngjsDecoder.decode(was), pngjsDecoder.decode(decode(raster.bytes))])
+      : [compared.before, compared.after];
   const { diff, change } = changeImages(
     wasPixels,
     nowPixels,
     observation.isolation?.regions ?? [],
     undefined,
     { subject: id, before: 'baseline', after: 'this run' },
+    compared?.aligned,
   );
   await deps.writeArtifact(`${base}.diff.png`, diff);
   if (change !== undefined) await deps.writeArtifact(`${base}.change.png`, change);

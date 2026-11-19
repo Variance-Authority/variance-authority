@@ -8,6 +8,7 @@ import {
   type DiffPolicy,
   type RasterComparison,
 } from '@variance-authority/raster';
+import { alignRows, type AlignedRows } from './align.js';
 import { changeImages } from './change.js';
 import { decodePortable } from './format.js';
 import { judgeImages, type DecodedImage } from './mask.js';
@@ -56,6 +57,21 @@ export const pngjsDecoder: PngDecoder = {
 };
 
 /**
+ * The two images a comparison decoded, and how it paired their rows.
+ *
+ * Handed to a caller that draws from the same pair next, so the report's
+ * pictures do not decode both sides and align their rows a second time. Never
+ * kept on the comparison: a suite's worth of decoded pages is the memory a
+ * report cannot hold.
+ */
+export interface ComparedPixels {
+  readonly before: DecodedImage;
+  readonly after: DecodedImage;
+  /** `null` where the rows did not align and the two were compared in place. */
+  readonly aligned: AlignedRows | null;
+}
+
+/**
  * Compare two stored rasters, decoding both **concurrently**.
  *
  * The concurrency is the point rather than a tidy-up. Under a threadpool decoder
@@ -70,6 +86,8 @@ export async function compareRasters(
     readonly decoder?: PngDecoder;
     /** Takes `decode`, both images at once, and `compare`, the pixels. */
     readonly steps?: StepClock;
+    /** Given the decoded pair, for a caller that draws from it next. */
+    readonly keep?: (pixels: ComparedPixels) => void;
   } = {},
 ): Promise<RasterComparison> {
   const decoder = options.decoder ?? pngjsDecoder;
@@ -82,7 +100,11 @@ export async function compareRasters(
     Promise.all([decoder.decode(decode(left0.bytes)), decoder.decode(decode(right0.bytes))]),
   );
 
-  return timeOn(options.steps, 'compare', () => comparePixels(left, right, options));
+  return timeOn(options.steps, 'compare', () => {
+    const aligned = alignRows(left, right) ?? null;
+    options.keep?.({ before: left, after: right, aligned });
+    return judged(left, right, options, aligned);
+  });
 }
 
 export function comparePngs(
@@ -108,6 +130,16 @@ export function comparePixels(
   right: DecodedImage,
   options: CompareOptions = {},
 ): RasterComparison {
+  return judged(left, right, options, undefined);
+}
+
+/** {@link comparePixels}, on rows a caller may already have paired. */
+function judged(
+  left: DecodedImage,
+  right: DecodedImage,
+  options: CompareOptions,
+  aligned: AlignedRows | null | undefined,
+): RasterComparison {
   const dimensionsChanged = left.width !== right.width || left.height !== right.height;
 
   const policies = options.policies ?? [DEFAULT_POLICY, STRICT_POLICY];
@@ -123,7 +155,7 @@ export function comparePixels(
 
   // One scan for every policy: the pairing is a fact about the two images, and
   // the policies differ only in what they call a different pixel.
-  const judged = judgeImages(left, right, policies, undefined, { mask: isolated });
+  const judged = judgeImages(left, right, policies, aligned, { mask: isolated });
   const { width, height, alignment } = judged;
   const changed: Record<string, number> = {};
   for (const [index, policy] of policies.entries()) changed[policy.id] = judged.changed[index]!;

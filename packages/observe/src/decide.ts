@@ -55,6 +55,7 @@ export async function decide(
   const comparison = await compareRasters(before, after, {
     ...options.compare,
     ...(options.decoder !== undefined ? { decoder: options.decoder } : {}),
+    ...(options.keep !== undefined ? { keep: options.keep } : {}),
     ...(options.steps !== undefined ? { steps: options.steps } : {}),
   });
   const missingFonts = [...new Set([...before.missingFonts, ...after.missingFonts])];

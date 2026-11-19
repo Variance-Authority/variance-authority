@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { PNG } from 'pngjs';
+import { describe, expect, it, vi } from 'vitest';
+import { pngjsDecoder, type ComparedPixels } from '@variance-authority/png';
 import { keepImage } from '@variance-authority/png-sharp';
 import type { RenderDocument } from '@variance-authority/core/format';
 import type { Found, RasterStore } from '@variance-authority/raster';
@@ -58,6 +60,8 @@ async function writtenFor(
     isolation?: Observation['isolation'];
     /** The baseline's bytes as a store keeps them, when not the fixture's PNG. */
     kept?: string;
+    /** What the comparison decoded and aligned, handed on. */
+    compared?: ComparedPixels;
   } = {},
 ): Promise<{ written: string[]; record: Awaited<ReturnType<typeof images>> }> {
   const document = documentFor(SUBJECT);
@@ -83,6 +87,9 @@ async function writtenFor(
     configOf(),
     deps,
     options.ephemeral === true ? null : { subject: SUBJECT },
+    undefined,
+    undefined,
+    options.compared,
   );
   return { written, record };
 }
@@ -170,5 +177,23 @@ describe('which verdicts get a pair', () => {
       record: 'images/fixture%3Aa.after.json',
       after: 'images/fixture%3Aa.after.png',
     });
+  });
+});
+
+describe('the pixels the comparison already decoded', () => {
+  it('draws the diff from them, decoding neither side again', async () => {
+    const decode = vi.spyOn(pngjsDecoder, 'decode');
+    const compared: ComparedPixels = {
+      before: PNG.sync.read(Buffer.from(BLACK, 'base64')),
+      after: PNG.sync.read(Buffer.from(WHITE, 'base64')),
+      aligned: null,
+    };
+    try {
+      const { written } = await writtenFor('changed', { compared });
+      expect(written).toContain('/repo/out/images/fixture%3Aa.diff.png');
+      expect(decode).not.toHaveBeenCalled();
+    } finally {
+      decode.mockRestore();
+    }
   });
 });

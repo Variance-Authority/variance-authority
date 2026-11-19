@@ -15,7 +15,7 @@ import {
   type StepClock,
 } from '@variance-authority/core/format';
 import type { Level } from '@variance-authority/core/judge';
-import type { PngDecoder } from '@variance-authority/png';
+import type { ComparedPixels, PngDecoder } from '@variance-authority/png';
 import {
   identityCause,
   type BaselineKey,
@@ -276,6 +276,12 @@ export interface CompareInputs {
    * comparison.
    */
   readonly decoder?: PngDecoder;
+  /**
+   * Given the two decoded images and their row pairing, for a caller that draws
+   * from them next. A callback rather than a field: an observation carries no
+   * pixels, and a caller holding several would hold every page decoded.
+   */
+  readonly keep?: (pixels: ComparedPixels) => void;
   /** Grid at which neighbouring changed pixels count as one place. */
   readonly cell?: number;
   readonly limit?: number;
