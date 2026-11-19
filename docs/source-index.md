@@ -5,8 +5,10 @@ Two scans of the same unchanged checkout should not do the same work twice. The
 
 `variance index` writes the index, and the commands that use the file graph
 read it without scanning. Everything in it is derived from the checkout, so a
-missing, incomplete or corrupt index costs a scan and cannot change what a scan
-finds. It stores the two things a repeated scan would otherwise redo:
+missing, incomplete or corrupt index cannot change what a scan finds: on a
+workstation it costs a scan, and in CI the command stops and names the step
+that should have published it, as [when the index is absent or
+damaged](#when-the-index-is-absent-or-damaged) says. It stores the two things a repeated scan would otherwise redo:
 
 - One parse per set of file bytes.
 - **One resolved record per file.** It lists that file's outgoing edges, the
@@ -141,13 +143,26 @@ the index up to the checkout before it measures hops, since a hop is an import
 the checkout holds now. When the index cannot be updated, a leg runs every
 selected test file and says why.
 
-When a reader finds no index, or one it can read only up to a bad segment, the
-answer depends on where it runs. In CI it exits with an error that names
-`variance index` as the step the pipeline lacks, because building the index
-there would hide a cache that never arrived. Add the step, or fix the restore.
-Anywhere else it updates the index once, prints that in one line on stderr, and
-reads it. CI is decided from the runner's own environment variables, the same
-way Jest decides it.
+### When the index is absent or damaged
+
+An index is damaged when one of its segments is missing, cut short, or fails
+the check the reader runs on a segment as it opens it. The reader keeps the
+segments before that one and reads nothing after it, so a damaged index
+answers from an older state, never a wrong one. What happens next depends on
+where the command runs, decided from the runner's own environment variables,
+the same way Jest decides it.
+
+In CI the command exits with an error, because building the index there would
+hide a cache that never arrived:
+
+```text
+the source index at <path> is damaged, and reads only up to its first bad segment. In CI the index is a step of the pipeline: restore the cache that holds it, then run `variance index` before this command.
+```
+
+An absent index starts `no source index is published at <path>` instead. Add
+the step, or fix the restore. On a workstation the command updates the index
+once from the segments it could read, prints one line on stderr saying so, and
+reads it.
 
 A source question that names a start point in the tree opens the same index as
 a cache. It scans, reuses what is unchanged, and saves what it learned before it
@@ -240,8 +255,9 @@ parse store.
 **The index is two things on disk.** Beside `source-index.bin` is a directory
 `source-index.bin.segments/` that contains the data; the file itself is only
 the pointer to which segments are current. Copy, restore and move the two
-together. The file alone names segments that are not there, and a chain whose
-members are missing is rejected whole — a cold scan, not a wrong answer.
+together. The file alone names segments that are not there, and the index
+reads as [damaged](#when-the-index-is-absent-or-damaged) from the first one
+missing.
 
 To force a cold scan, delete the two and run `variance index`. That is the
 whole recovery procedure. In a checkout whose repository has another checkout
@@ -291,6 +307,10 @@ directory, `node_modules/.cache/variance-authority` unless your repository names
     restore-keys: |
       variance-index-${{ runner.os }}-${{ runner.arch }}-
 ```
+
+The index reads the same on any host, as [byte order](#byte-order) says; the
+operating system and the architecture stay in the key because the directory
+is the whole cache, keyed as [the cache](cache.md#in-ci) keys it.
 
 ## How large it gets
 
@@ -357,13 +377,14 @@ it: the layout belongs to the version that wrote it, and the reader refuses
 anything it does not recognise. To read the graph, call `readPublishedSources`,
 which returns the published records and opens nothing but the index. To build
 it, call `updateSourceIndex`, which runs [`scanRelations`](source.md) over the
-index. To fix an index, delete it.
+index. To fix a damaged index, run `variance index`; to start from nothing,
+delete it as above.
 
 An index another release wrote is named as such rather than as damaged, and
 `variance index` rebuilds it. `select`, `review` and the other commands that
 read the graph through `publishedSources` rebuild it on your workstation and say
-so, and refuse it in CI, naming `variance index` as the step to run first. A
-whole index they read as it stands. `coverage`, `covering` and `review` name
+so, and refuse it in CI, naming `variance index` as the step to run first. An
+index that is neither damaged nor another release's they read as it stands. `coverage`, `covering` and `review` name
 the checkout's texts by the index, so on your workstation they bring it up to
 the checkout first; when that update fails, they say why on stderr and count
 what ran as over a text not known.
@@ -412,8 +433,8 @@ overlapping or out-of-bounds sections, invalid widths, unaligned offsets,
 malformed column lengths, a text heap that is not UTF-8, keys that do not
 ascend, a key the segment both puts and deletes, a package column that names
 anything but a package, and any row that names a string, a text or a request the segment does
-not hold. A segment it rejects ends the chain there: the index is damaged, and
-`variance index` rebuilds it.
+not hold. A segment it rejects ends the chain there, and the index reads as
+[damaged](#when-the-index-is-absent-or-damaged).
 
 ### Byte order
 
