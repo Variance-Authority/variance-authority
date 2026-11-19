@@ -91,18 +91,9 @@ export async function openSourceIndexFile(path: string): Promise<SourceIndexFile
 }
 
 /**
- * Everything a read can fail at is a cache miss, except being asked wrongly
- * and having no addon to read with.
- *
- * A chain that is missing, foreign, truncated or corrupt costs the segments
- * from the first unusable one onward — the whole of it when that is the
- * manifest — which a scan pays back by re-reading what they held, so it is
- * answered with the valid prefix and a `state` that says so. A caller that passed something that cannot name a
- * file is not in that class: swallowed here it would return an empty cache and
- * then hand the same unusable path to the writer, so the run would report a
- * warm-cache saving of nothing, every run, and write its segments under a name
- * nobody chose. That one throws, and so does an addon that did not load: no
- * index reads without it, so calling this one damaged would hide why.
+ * Every read failure is a cache miss, answered with the valid prefix, except
+ * two that no rescan repairs: a path that names no file, and an addon that did
+ * not load. Swallowed, each would read as an empty index every run.
  */
 function miss(error: unknown): never | void {
   if (error instanceof BadLogPath || error instanceof SourceIndexUnreadable) throw error;
