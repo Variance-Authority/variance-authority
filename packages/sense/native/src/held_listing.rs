@@ -147,16 +147,17 @@ fn ignores_all(root: &str, paths: &[String]) -> bool {
 
 /// Whether a held listing can still be vouched for, before Watchman is asked:
 /// the same checkout, server and roots, a watch that hides none of its paths, and git's inputs as they were.
+/// A watch that ignores directories still vouches: they hold git's ignored output, which no listing holds.
 fn stands(meta: &Meta, paths: &[String], root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
     // An index shared across checkouts holds another's listing, watch and stamps: none of them speaks for this one.
     let made = meta.watch.relative.as_ref().map_or_else(|| PathBuf::from(&meta.watch.watched), |relative| Path::new(&meta.watch.watched).join(relative));
-    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && meta.watch.ignored.is_empty() && !hides(&meta.watch, paths) && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
+    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && !hides(&meta.watch, paths) && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
 }
 
-/// Whether the watch's `ignore_vcs` directories, which Watchman never reports into,
-/// hold a path of the listing. Each names a directory at the watched root.
+/// Whether the watch's `ignore_vcs` or `ignore_dirs` directories, which Watchman never
+/// reports into, hold a path of the listing. Each names a directory below the watched root.
 fn hides(watch: &Watch, paths: &[String]) -> bool {
-    watch.vcs.iter().any(|dir| {
+    watch.vcs.iter().chain(&watch.ignored).any(|dir| {
         let below = match &watch.relative {
             None => Some(dir.as_str()),
             Some(relative) => dir.strip_prefix(relative.as_str()).and_then(|rest| rest.strip_prefix('/')),
