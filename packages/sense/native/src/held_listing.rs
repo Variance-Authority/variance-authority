@@ -55,11 +55,6 @@ pub(crate) struct Meta {
     /// `UpdateOptions.config` and `Updated.files` of the update that wrote it.
     pub config: Option<String>,
     pub files: u32,
-    /// Git ignored every `ignore_dirs` directory below the root when it listed: a file that comes
-    /// into one Watchman never reports is one git would not list either. Absent in a listing an
-    /// earlier build wrote, and so never vouched for.
-    #[serde(default)]
-    pub unlisted: bool,
 }
 
 /// How a tree was come by, for the update made against it.
@@ -152,37 +147,11 @@ fn ignores_all(root: &str, paths: &[String]) -> bool {
 
 /// Whether a held listing can still be vouched for, before Watchman is asked:
 /// the same checkout, server and roots, a watch that hides none of its paths, and git's inputs as they were.
-/// A watch that ignores directories still vouches when git ignored each of them too: they hold git's ignored output, which no listing holds.
+/// A watch that ignores directories still vouches: they hold git's ignored output, which no listing holds.
 fn stands(meta: &Meta, snapshot: &Snapshot, root: &str, socket: &str, dirs: &[String], stamp: impl Fn(&str) -> Option<Stamp>) -> bool {
     // An index shared across checkouts holds another's listing, watch and stamps: none of them speaks for this one.
     let made = meta.watch.relative.as_ref().map_or_else(|| PathBuf::from(&meta.watch.watched), |relative| Path::new(&meta.watch.watched).join(relative));
-    made == Path::new(root)
-        && meta.watch.socket == socket
-        && meta.dirs == dirs
-        && meta.unlisted
-        && !hides(&meta.watch, &snapshot.paths, &snapshot.unhashed)
-        && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
-}
-
-/// Whether git ignores every `ignore_dirs` directory of `watch` that lies below `root`, each
-/// asked as a directory, so git's rules say it whether or not it exists yet. Asked once, as git
-/// lists: an ignore file that changes after is an input stamped, or a file Watchman reports.
-/// A directory beside the root holds nothing of it; one that is no plain path, or holds the
-/// root, is `hides`'s to refuse.
-fn unlisted(root: &str, watch: &Watch) -> bool {
-    let below: Vec<String> = watch
-        .ignored
-        .iter()
-        .filter_map(|dir| {
-            let dir = plain(dir)?;
-            match &watch.relative {
-                None => Some(dir),
-                Some(relative) => under(&dir, relative).map(str::to_owned),
-            }
-        })
-        .map(|dir| format!("{dir}/"))
-        .collect();
-    ignores_all(root, &below)
+    made == Path::new(root) && meta.watch.socket == socket && meta.dirs == dirs && !hides(&meta.watch, &snapshot.paths, &snapshot.unhashed) && meta.inputs.iter().all(|(input, was)| stamp(input) == *was)
 }
 
 /// Whether the watch's `ignore_vcs` or `ignore_dirs` directories, which Watchman never
@@ -248,8 +217,7 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
     let change = match (watch.zip(git), before) {
         // `status` refreshing the index while it listed is a listing nothing can vouch for yet.
         (Some((watch, git)), Some(before)) if Some(&before) == after.as_ref() => {
-            let unlisted = unlisted(root, &watch);
-            Some(Change::Listed(Meta { watch, dirs: dirs.to_vec(), inputs: before, git, config: None, files: 0, unlisted }))
+            Some(Change::Listed(Meta { watch, dirs: dirs.to_vec(), inputs: before, git, config: None, files: 0 }))
         }
         _ => None,
     };

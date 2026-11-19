@@ -717,8 +717,8 @@ that clock, and none of git's own files changed — `HEAD`, the index, a ref, an
 exclude or configuration file — the update reads the listing it kept and runs
 no git at all. When all it reports are paths git ignores — a tool's cache, a
 build's output — the update asks git only `check-ignore` about them. A watch that ignores
-directories itself, such as `node_modules` or `dist`, vouches the same way when
-git ignores each of them too and tracks no file in one. On Material
+directories itself, such as `node_modules` or `dist`, vouches the same way,
+unless git tracks a file in one. On Material
 UI's 41,171 paths an update that runs no git takes 22 ms against 121 ms with git.
 
 Anything else lists with git, as above: a change Watchman reports, a server
