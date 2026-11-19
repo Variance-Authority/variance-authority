@@ -64,6 +64,7 @@ describe('the index a publish carries, read off its segments', () => {
     ['is missing', (segment: string) => rm(segment)],
     ['stops inside its header', (segment: string) => truncate(segment, 10)],
     ['is not a segment', (segment: string) => writeFile(segment, Buffer.alloc(8192, 7))],
+    ['holds a whole header of no segment', (segment: string) => writeFile(segment, Buffer.from([2, 0, 0, 0, 0x7b, 0x7d]))],
     ['stops inside the text of its header', async (segment: string) => truncate(segment, (await readFile(segment)).indexOf('"version":'))],
     ['is a directory', async (segment: string) => {
       await rm(segment);

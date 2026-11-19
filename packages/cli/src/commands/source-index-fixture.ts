@@ -24,8 +24,8 @@ export const SOURCES: Readonly<Record<string, string>> = {
  * header names the older format version, and every digest is its bytes' own.
  */
 export async function asOlderRelease(path: string): Promise<void> {
-  const chain = await sourceIndexChain(path);
-  if (chain === undefined) throw new Error(`no index at ${path}`);
+  // Every caller indexes first; the index it wrote is the one rewritten.
+  const chain = (await sourceIndexChain(path))!;
   const length = chain.manifest.readUInt32LE(8);
   const manifest = JSON.parse(chain.manifest.subarray(12, 12 + length).toString('utf8')) as { segments: { digest: string; length: number }[] };
   const current = `"version":${String(SOURCE_INDEX_VERSION)},`;
