@@ -28,7 +28,7 @@ export async function runJanus({ since, run }: ParsedJanus, streams: Pick<Stream
   const files = await baseTests(since, cwd);
   if (Object.keys(files).length === 0) streams.err(`Nothing on the test side changed since \`${since}\`: the command runs on the tests as they are.\n`);
   const ran = await serveBase(files, run, cwd);
-  if (ran === undefined) throw new OperatorError(`\`${run[0]!}\` could not be started: no such command`);
+  if (ran === undefined) throw new OperatorError(`\`${run[0]}\` could not be started: no such command`);
   const { exit, unread } = ran;
   if (unread.length === 0) return exit;
   streams.err(
@@ -41,9 +41,9 @@ export async function runJanus({ since, run }: ParsedJanus, streams: Pick<Stream
 
 /** Each test-side file the diff since `since` changed, by absolute path: its text at the base, or `null` where the base had none. */
 async function baseTests(since: string, cwd: string): Promise<Record<string, string | null>> {
-  const changed = (await changedSince(since, [], cwd)).filter(isTestPath);
   const point = await diffPoint(since, [], cwd);
   if (point === undefined) throw new OperatorError(`\`--since ${since}\` could not be read at its merge base`);
+  const changed = (await changedSince(since, [], cwd)).filter(isTestPath);
   const files: Record<string, string | null> = {};
   await Promise.all(
     changed.map(async (file) => {

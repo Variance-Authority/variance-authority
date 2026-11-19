@@ -29,9 +29,8 @@ export interface ServedRun {
  * process it starts. Undefined when there is no such command. An empty
  * manifest runs the command as it is, with no preload.
  */
-export async function serveBase(files: Readonly<Record<string, string | null>>, command: readonly string[], cwd: string): Promise<ServedRun | undefined> {
+export async function serveBase(files: Readonly<Record<string, string | null>>, command: readonly [string, ...string[]], cwd: string): Promise<ServedRun | undefined> {
   const [program, ...args] = command;
-  if (program === undefined) return undefined;
   if (Object.keys(files).length === 0) {
     const exit = await started(program, args, cwd);
     return exit === undefined ? undefined : { exit, unread: [] };

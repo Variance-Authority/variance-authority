@@ -4,6 +4,8 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { main } from '../bin.js';
+import { EXIT_OPERATOR } from '../exit.js';
 import { runJanus } from './janus.js';
 
 const git = (root: string, ...args: string[]) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
@@ -30,7 +32,7 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
   let notes: string[];
   let out: string;
   const streams = { err: (text: string) => void notes.push(text) };
-  const janus = (...run: string[]) => runJanus({ command: 'janus', since: 'base', run }, streams, root);
+  const janus = (...run: [string, ...string[]]) => runJanus({ command: 'janus', since: 'base', run }, streams, root);
 
   beforeEach(() => {
     root = realpathSync(mkdtempSync(join(tmpdir(), 'va-janus-')));
@@ -152,6 +154,24 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
     expect(report).toMatch(/✖ value is one/);
     expect(report).not.toContain('value is two');
     expect(exit).toBe(1);
+  });
+
+  it('runs the command on the tests as they are when the diff changed none, and says so', async () => {
+    const exit = await runJanus({ command: 'janus', since: 'HEAD', run: [process.execPath, 'run.mjs', out, 'src/value.test.js', 'src/new.test.js'] }, streams, root);
+    expect(readFileSync(out, 'utf8')).toMatch(/✔ value is two/);
+    expect(notes.join('')).toContain('Nothing on the test side changed since `HEAD`');
+    expect(exit).toBe(0);
+  });
+
+  it('refuses a command that cannot be started, as the operator\'s error', async () => {
+    await expect(janus('va-no-such-command')).rejects.toThrow('`va-no-such-command` could not be started');
+  });
+
+  it('refuses a ref git cannot read, from the command line', async () => {
+    const err: string[] = [];
+    const exit = await main(['janus', '--since', 'va-no-such-ref', '--', process.execPath, '-e', ''], { out: () => {}, err: (text: string) => void err.push(text) });
+    expect(err.join('')).toContain('`--since va-no-such-ref` could not be read');
+    expect(exit).toBe(EXIT_OPERATOR);
   });
 
   it('lists a base-only test to a runner that finds its tests in one recursive listing', async () => {

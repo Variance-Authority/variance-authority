@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { readFlags } from './args.js';
-import { parseJanusArgs } from './janus-args.js';
-import { flagsFor, synopsisFor } from './usage.js';
+import { parseArgs } from './parse.js';
 
-const parse = (...argv: string[]) => parseJanusArgs(readFlags(argv, 'janus', flagsFor('janus'), synopsisFor('janus')));
+const parse = (...argv: string[]) => parseArgs(['janus', ...argv]);
 
 describe('`janus` arguments', () => {
   it('takes the ref and the command after `--`, flags and all', () => {
