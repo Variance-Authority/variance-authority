@@ -10,6 +10,8 @@
 //   added-helper   head only: on disk, hidden, and the base kept.test proves it cannot load it
 //   new-helper     base only, imported by the base kept.test: a `require` names it without an extension
 //   old/deep.test  base only, in a directory the head does not have
+//   choice         CommonJS only: head `choice.js` on disk, a base-only `choice/index.js`; Node's probe order picks the file
+//   data.json      CommonJS only: base only, loaded as JSON
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -40,6 +42,7 @@ export const writeFixture = (runner, flavor) => {
   writeFileSync(file('src/value'), exports('value', 3));
   writeFileSync(file('helper'), exports('helper', "()" + typed + " => 'head-helper'"));
   writeFileSync(file('added-helper'), exports('added', 'true'));
+  if (!esm) writeFileSync(file('choice'), exports('c', "'file'"));
   const head = (name, body) => `${prelude}${assert}${body}`.replace('NAME', name);
   writeFileSync(file('kept.test'), head('kept head', `${imports('helper', './helper')}it('NAME', () => assert.strictEqual(helper(), 'head-helper'));\n`));
   writeFileSync(file('added.test'), head('added', `${imports('value', './src/value')}it('NAME', () => assert.strictEqual(value, 3));\n`));
@@ -50,8 +53,10 @@ export const writeFixture = (runner, flavor) => {
       `${prelude}${assert}${imports('helper', './helper')}` +
       `it('kept base', () => assert.strictEqual(helper(), 'base-helper'));\n` +
       `it('hides added helper', async () => { await assert.rejects(async () => ${loads('./added-helper')}); });\n` +
-      `it('base helper', async () => assert.strictEqual((${loads('./new-helper')}).n, 7));\n`,
+      `it('base helper', async () => assert.strictEqual((${loads('./new-helper')}).n, 7));\n` +
+      (esm ? '' : `it('probe order', () => assert.strictEqual(require('./choice').c, 'file'));\nit('base json', () => assert.strictEqual(require('./data.json').n, 7));\n`),
     [file('new-helper')]: exports('n', 7),
+    ...(esm ? {} : { [join(dir, 'choice/index.js')]: exports('c', "'dir'"), [join(dir, 'data.json')]: '{"n":7}' }),
     [file('old/deep.test')]: `${prelude}${assert}${imports('value', '../src/value')}it('deep', () => assert.ok(value > 0));\n`,
     [file('gone.test')]: `${prelude}${assert}${imports('value', './src/value')}it('gone', () => assert.strictEqual(value, 2));\n`,
     [file('added.test')]: null,

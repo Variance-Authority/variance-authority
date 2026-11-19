@@ -2,7 +2,7 @@
 // through its own bindings, below `fs`, so `override.cjs` cannot reach a
 // `require` or `import` of a served or hidden path. Registered through
 // `NODE_OPTIONS=--import`, these hooks run in the loading thread for both.
-import { closeSync, openSync, readFileSync } from 'node:fs';
+import { closeSync, fstatSync, openSync, readFileSync } from 'node:fs';
 import { findPackageJSON, registerHooks } from 'node:module';
 import { dirname, extname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -16,23 +16,32 @@ const files = manifestPath ? JSON.parse(readFileSync(manifestPath, 'utf8')) : {}
  * loader it hands a base-only file to looks again below `fs` and misses it.
  */
 const onDisk = (file) => {
+  let descriptor;
   try {
-    closeSync(openSync(file, 'r'));
-    return true;
+    descriptor = openSync(file, 'r');
+    return fstatSync(descriptor).isFile();
   } catch {
     return false;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
   }
 };
 
 const probed = ['.js', '.cjs', '.mjs', '.json', '.ts', '.cts', '.mts'];
 /**
  * The manifest's key a specifier names: itself, or, for a `require`, the file
- * CommonJS would probe for, an extension and then `index`. An import names its file.
+ * CommonJS would probe for, an extension and then `index`, in Node's order
+ * across the disk and the manifest: a file the disk holds first is Node's. An
+ * import names its file.
  */
 const servedAs = (candidate, probes) => {
   if (Object.hasOwn(files, candidate)) return candidate;
   if (!probes) return undefined;
-  return [...probed.map((extension) => candidate + extension), ...probed.map((extension) => `${candidate}/index${extension}`)].find((file) => typeof files[file] === 'string');
+  for (const file of [...probed.map((extension) => candidate + extension), ...probed.map((extension) => `${candidate}/index${extension}`)]) {
+    if (typeof files[file] === 'string') return file;
+    if (files[file] !== null && onDisk(file)) return undefined;
+  }
+  return undefined;
 };
 
 const pathOf = (url) => (url.startsWith('file:') ? fileURLToPath(url) : undefined);
@@ -42,6 +51,7 @@ const pathOf = (url) => (url.startsWith('file:') ? fileURLToPath(url) : undefine
  * its own rule, the extension and then the nearest package's `type`.
  */
 const formatOf = (file) => {
+  if (extname(file) === '.json') return 'json';
   const typescript = /\.[cm]?ts$/.test(file) ? '-typescript' : '';
   const extension = extname(file);
   if (extension === '.cjs' || extension === '.cts') return `commonjs${typescript}`;

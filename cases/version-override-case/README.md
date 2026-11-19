@@ -32,7 +32,10 @@ themselves; `node:test` is handed the list.
 - With the manifest applied, every runner reports the base cases: the test
   file and its helper at the base, a test file only the base had, one in a
   directory only the base had, a helper only the base had that a `require`
-  names without its extension; a file only the head has fails to load, and the
+  names without its extension, and a JSON file only the base had, which
+  `require` loads as JSON. A `require` probes in Node's order across the disk
+  and the manifest: a head `choice.js` wins over a base-only `choice/index.js`.
+  A file only the head has fails to load, and the
   head-only test is not found.
 - The base tests run on the head source, which changed: an old test whose
   assertion the change broke fails, and one whose assertion still holds passes.
