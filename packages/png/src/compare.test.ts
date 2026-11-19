@@ -1,11 +1,18 @@
 import { PNG } from 'pngjs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { isolateRegions } from '@variance-authority/core/attribute';
 import type { Raster } from '@variance-authority/core/format';
 import { DEFAULT_POLICY, STRICT_POLICY } from '@variance-authority/raster';
+import { alignRows } from './align.js';
 import { changeImages } from './change.js';
 import { comparePngs, compareRasters, type ComparedPixels } from './compare.js';
 import { comparePixels } from './index.js';
+
+// The real pairing, counted: the report must not pair the rows again.
+vi.mock('./align.js', async (actual) => {
+  const module = await actual<typeof import('./align.js')>();
+  return { ...module, alignRows: vi.fn(module.alignRows) };
+});
 
 /**
  * Comparison, on images built pixel by pixel rather than rendered.
@@ -145,7 +152,8 @@ describe('the pixels a comparison hands on', () => {
   const after = png(16, 15, (x, y) => (y < 3 ? [200, 30, 30] : y === 7 ? [0, 0, 0] : [255, 255, 255]));
   const raster = (bytes: Buffer, height: number) => ({ bytes: bytes.toString('base64'), width: 16, height }) as Raster;
 
-  it('decodes each side once, and gives the report what it decoded and how the rows paired', async () => {
+  it('decodes and pairs each side once, and gives the report what it decoded and how the rows paired', async () => {
+    vi.mocked(alignRows).mockClear();
     let decoded = 0;
     const decoder = {
       decode: async (bytes: Buffer) => {
@@ -161,7 +169,10 @@ describe('the pixels a comparison hands on', () => {
       },
     });
 
+    const reusedImages = changeImages(kept!.before, kept!.after, isolateRegions(comparison.mask).regions, undefined, {}, kept!.aligned);
     expect(decoded).toBe(2);
+    expect(vi.mocked(alignRows)).toHaveBeenCalledTimes(1);
+    expect(reusedImages.diff.length).toBeGreaterThan(0);
     expect([kept?.before.height, kept?.after.height]).toEqual([12, 15]);
     expect(kept?.aligned?.inserted).toEqual(comparison.alignment?.inserted);
 
