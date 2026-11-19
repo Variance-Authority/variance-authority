@@ -148,7 +148,8 @@ selected test file and says why.
 An index is damaged when one of its segments is missing, cut short, or fails
 the check the reader runs on a segment as it opens it. The reader keeps the
 segments before that one and reads nothing after it, so a damaged index
-answers from an older state, never a wrong one. What happens next depends on
+holds an older state of the checkout, never a wrong one, and nothing reads it
+as current. What happens next depends on
 where the command runs, decided from the runner's own environment variables,
 the same way Jest decides it.
 
@@ -413,8 +414,9 @@ little-endian length, and a UTF-8 JSON manifest naming the committed segments
 oldest to newest, each by content digest and byte length. The digest names the
 segment's file and is computed once, by the writer. Readers load each named
 segment and check that it is there at its length, and keep the chain up to the
-first that is missing or of another length. A missing or incompatible chain is
-an empty cache and causes a normal scan.
+first that is missing or of another length; what a command does with an index
+read that way is [when the index is absent or
+damaged](#when-the-index-is-absent-or-damaged).
 
 Each segment is a 32-bit little-endian header length, a padded UTF-8 JSON
 section table, and the sections themselves, each starting on an eight-byte
