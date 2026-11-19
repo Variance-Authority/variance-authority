@@ -57,9 +57,8 @@ import { suiteRecord } from './suite-record.js';
  * *this diff touched nothing*, and answering a broken `git` with it would narrow
  * a run to nothing while reporting success.
  */
-export async function changedSince(ref: string, roots: readonly string[] = []): Promise<readonly string[]> {
+export async function changedSince(ref: string, roots: readonly string[] = [], here = process.cwd()): Promise<readonly string[]> {
   const run = promisify(execFile);
-  const here = process.cwd();
 
   try {
     const asked = roots[0] === undefined ? here : join(here, roots[0]);

@@ -182,6 +182,7 @@ variance serve   [--config <path>] [--just-answer] # MCP over stdio
 variance doctor  [--config <path>] [--baselines]
 variance prune
 variance job     --suite <name> [--complete-on <exit>] -- <command>...
+variance janus   --since <ref> -- <command>...
 variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]
 variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>
 variance carry   restore [--transform jest [--shard <k>/<n>]] | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]
@@ -205,6 +206,7 @@ variance comment [--config <path>] [--body-file <path>] [--run-url <url>] [--to-
 | `push` | sends a finished run to a review surface for somebody to decide |
 | `doctor` | prints what this machine can observe, before a run, not after one, and whether each declared suite has recorded; `--baselines` asks only what the baseline store holds, with no browser opened, and exits 2 on a checkout of git-LFS pointers git-lfs cannot fetch here |
 | `prune` | removes the cache entries whose checkout, worktree, process or commit is gone, now |
+| `janus` | runs a command with the test files a diff changed shown as they were at its base, so the old tests run on the new code, with nothing checked out |
 | `collect` | reads the suite index's facts with no baseline, comparison or image, one part per shard; `collect merge` checks the parts are one build and folds them into the index |
 | `share` | prints what the share holds for your mainline, or publishes this run, or every shard of one build, to its line; `--suite <name>` does either for one suite, and a repository that configures no project takes the only suite it declares's record alone; `--purge-older-than <days>` removes the records kept by commit that are older |
 | `carry` | prints the paths and cache keys a CI job restores before a run and saves after it, from the config |
@@ -2682,6 +2684,33 @@ Files outside the repository are not selected on, and a file the job has never
 read is not seen: a new page the build would pick up does not select it. Declare
 what the recorder cannot see under the suite's `before`: a server the job leaves
 running, or the workflow that starts it.
+
+### `janus`: the old tests on the new code
+
+A change that rewrites code and its tests together can pass because the tests
+were rewritten to agree. `variance janus` answers whether the tests as they stood
+before the change still pass on the code after it:
+
+```bash
+variance janus --since origin/main -- npx vitest run
+```
+
+Every test file the diff since `<ref>` changed is served to the command as the
+base held it: a rewritten test reads its old text, a deleted one is found again,
+and one the change added is not there. Every other file is the checkout's. Nothing
+is written: no checkout, no copy and no worktree, so the run starts as fast as the
+command does. Two preloads in `NODE_OPTIONS` serve the files through `fs` and
+Node's module loader, in every process and worker the command starts.
+
+The exit is the command's. A run that never read a file it was served did not run
+the base, so it fails and names the files: a runner reaching them below `fs` and
+the module loader, or a command that names fewer tests than the diff changed. The
+`node --test` CLI is one: its glob reads the disk before any preload runs, so a
+test only the base has is not found. Run it through `run({ files })` from
+`node:test` instead.
+
+A failure is a test the change broke or a test the change was right to rewrite;
+the run does not tell them apart.
 
 ### `shards`: how many CI jobs a suite is worth
 
