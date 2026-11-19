@@ -15,7 +15,7 @@
 use std::borrow::Cow;
 
 use crate::name_table::{Item, NameColumn};
-use crate::segment::{u32s, u8_parts, u8s, Collected, Column, Strings, NONE};
+use crate::segment::{u32s, u8s, Collected, Column, Strings, NONE};
 use crate::source_size::Size;
 
 /// One parse row, as the encoder asks for it.
@@ -43,48 +43,6 @@ pub trait ParseRow: Sync {
 /// A text span's two ends and the text it holds, when the row kept it; absent
 /// when there is no span.
 pub type Span<'t> = Option<(u32, u32, Option<&'t str>)>;
-
-/// The size a part of the text heap's blob grows to before the next opens.
-const PART: usize = 16 << 20;
-
-/// The text heap: the signatures, docs and lines the parse cut, each where
-/// its row put it. Not the dictionary: these are long, mostly unique and
-/// never looked up by value, and sorting them into it was most of what they
-/// cost to write. The blob is held in the parts its runs wrote, `held` bytes
-/// before `blob`, and copied once, into the segment.
-#[derive(Default)]
-struct Heap {
-    parts: Vec<Vec<u8>>,
-    held: usize,
-    blob: Vec<u8>,
-    ends: Vec<u32>,
-}
-
-impl Heap {
-    /// The id of `text` once appended, or `NONE` when there is none.
-    fn push(&mut self, text: Option<&str>) -> u32 {
-        let Some(text) = text else { return NONE };
-        // A part that would grow is closed instead: growing copies what it
-        // holds, and the copy keeps every page it reaches.
-        if self.blob.len() + text.len() > self.blob.capacity() && self.blob.capacity() >= PART {
-            self.held += self.blob.len();
-            self.parts.push(std::mem::replace(&mut self.blob, Vec::with_capacity(PART)));
-        }
-        self.blob.extend_from_slice(text.as_bytes());
-        self.ends.push((self.held + self.blob.len()) as u32);
-        self.ends.len() as u32 - 1
-    }
-
-    /// `texts.blob` and `texts.off`: the `id`-th text runs from offset `id`
-    /// to offset `id + 1`, and the first offset is 0.
-    fn columns(mut self) -> [Column; 2] {
-        let mut off = Vec::with_capacity(self.ends.len() + 1);
-        off.push(0);
-        off.extend(self.ends);
-        self.parts.push(self.blob);
-        [u8_parts("texts.blob", self.parts), u32s("texts.off", off)]
-    }
-}
 
 /// What [`ParseRow::words`] answers of a doc: absent when there is no span,
 /// unknown when the span has no text, else the words of its cut.
@@ -483,6 +441,12 @@ impl ParseColumns {
 pub fn request_flags(guessed: bool, item: bool) -> u8 {
     u8::from(guessed) | (u8::from(item) << 1)
 }
+
+#[path = "parse_columns_heap.rs"]
+mod heap;
+use heap::Heap;
+#[cfg(test)]
+use heap::PART;
 
 #[path = "parse_columns_runs.rs"]
 mod runs;
