@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "commit": "e68640b57ec2dfe06dbd01568e59f86ea3371277",
+  "costs": {
+    "story:case-surface--button-primary": 183,
+    "story:case-surface--button-secondary": 145,
+    "story:case-surface--card-rebranded": 891,
+    "story:case-surface--card-with-actions": 289,
+    "story:case-surface--composed": 164,
+    "story:case-surface--deferred": 1447,
+    "story:case-surface--loading": 150,
+    "story:case-surface--receipt-at-two-widths@375": 224,
+    "story:case-surface--receipt-at-two-widths@800": 4,
+    "story:case-surface--revealed": 163,
+    "story:case-surface--suspense-settles": 382,
+    "story:case-surface--suspense-stalled": 143,
+    "story:case-surface--suspense-waterfall": 681
+  },
+  "files": {
+    "story:case-surface--button-primary": "src/button.stories.jsx",
+    "story:case-surface--button-secondary": "src/button.stories.jsx",
+    "story:case-surface--card-rebranded": "src/card.stories.jsx",
+    "story:case-surface--card-with-actions": "src/card.stories.jsx",
+    "story:case-surface--composed": "src/page.stories.jsx",
+    "story:case-surface--deferred": "src/settling.stories.jsx",
+    "story:case-surface--loading": "src/instability.stories.jsx",
+    "story:case-surface--receipt-at-two-widths@375": "src/card.stories.jsx",
+    "story:case-surface--receipt-at-two-widths@800": "src/card.stories.jsx",
+    "story:case-surface--revealed": "src/settling.stories.jsx",
+    "story:case-surface--suspense-settles": "src/settling.stories.jsx",
+    "story:case-surface--suspense-stalled": "src/settling.stories.jsx",
+    "story:case-surface--suspense-waterfall": "src/settling.stories.jsx"
+  }
+}
