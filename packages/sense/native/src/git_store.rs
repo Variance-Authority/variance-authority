@@ -48,6 +48,8 @@ use gix_index::entry::{stat, Flags, Mode, Stage, Stat};
 use gix_object::{Find as _, Kind};
 use gix_odb::Header as _;
 
+use crate::committed_tree::{Committed, Entry};
+
 /// The largest file a search inflates rather than the disk opening it.
 ///
 /// Measured on a Material UI docs closure of 4,811 files, many of them images:
@@ -199,26 +201,19 @@ impl Head {
     /// blob, and is left out. `None` where the store will not open, or a tree
     /// is missing or does not decode, and `ls-tree` answers instead.
     ///
+    /// Read from the record at `held` where one is given, and only the trees it
+    /// does not hold by id; it is then written back (`committed_tree.rs`).
     /// Apart from where the root lies, so that the listing reads the tree while
     /// the working tree is walked, rather than before it.
-    pub(crate) fn blobs(&self) -> Option<Vec<(Vec<u8>, ObjectId, bool)>> {
+    pub(crate) fn committed(&self, held: Option<&Path>) -> Option<Committed> {
         let objects = Objects::at(&self.format, &self.objects, replaced(&self.root)?)?;
-        below(&mut objects.reader(), ObjectId::from_hex(self.tree.as_bytes()).ok()?, &self.prefix)
+        let top = ObjectId::from_hex(self.tree.as_bytes()).ok()?;
+        let listed = crate::committed_tree::list(&mut objects.reader(), top, &self.prefix, held.and_then(Committed::load))?;
+        if let Some(held) = held.filter(|_| listed.read > 0) {
+            listed.save(held);
+        }
+        Some(listed)
     }
-}
-
-/// The blobs below `prefix` in the tree `tree`; a prefix the tree does not
-/// hold has none.
-fn below(reader: &mut Reader, mut tree: ObjectId, prefix: &str) -> Option<Vec<(Vec<u8>, ObjectId, bool)>> {
-    for name in prefix.split('/').filter(|name| !name.is_empty()) {
-        let Some(next) = reader.subtree(&tree, name.as_bytes())? else {
-            return Some(Vec::new());
-        };
-        tree = next;
-    }
-    let mut blobs = Vec::new();
-    reader.blobs(&tree, &mut Vec::new(), &mut blobs)?;
-    Some(blobs)
 }
 
 impl Store {
@@ -348,7 +343,7 @@ impl Reader {
 
     /// The tree `name` names in the tree `id`, `Some(None)` where it holds no
     /// tree by that name, or `None` where `id` is no tree the store can decode.
-    fn subtree(&mut self, id: &ObjectId, name: &[u8]) -> Option<Option<ObjectId>> {
+    pub(crate) fn subtree(&mut self, id: &ObjectId, name: &[u8]) -> Option<Option<ObjectId>> {
         let data = self.objects.try_find(id, &mut self.buffer).ok()??;
         if data.kind != Kind::Tree {
             return None;
@@ -362,33 +357,27 @@ impl Reader {
         Some(None)
     }
 
-    /// Every blob below the tree `id`, each path behind `path`, depth first in
-    /// tree order.
-    fn blobs(&mut self, id: &ObjectId, path: &mut Vec<u8>, out: &mut Vec<(Vec<u8>, ObjectId, bool)>) -> Option<()> {
+    /// The entries of the tree `id` the listing keeps, in tree order, or `None`
+    /// where `id` is no tree the store can decode. Owned: a subtree's read
+    /// reuses the buffer they would borrow.
+    pub(crate) fn entries(&mut self, id: &ObjectId) -> Option<Vec<(Vec<u8>, ObjectId, Entry)>> {
         let data = self.objects.try_find(id, &mut self.buffer).ok()??;
         if data.kind != Kind::Tree {
             return None;
         }
-        // Owned before the descent: a subtree's read reuses the buffer these borrow.
         let mut entries = Vec::new();
         for entry in gix_object::TreeRefIter::from_bytes(data.data, gix_hash::Kind::Sha1) {
             let entry = entry.ok()?;
-            if entry.mode.is_tree() || entry.mode.is_blob_or_symlink() {
-                entries.push((entry.filename.to_vec(), entry.oid.to_owned(), entry.mode));
-            }
-        }
-        for (name, oid, mode) in entries {
-            let at = path.len();
-            path.extend_from_slice(&name);
-            if mode.is_tree() {
-                path.push(b'/');
-                self.blobs(&oid, path, out)?;
+            let kind = if entry.mode.is_tree() {
+                Entry::Tree
+            } else if entry.mode.is_blob_or_symlink() {
+                Entry::Blob { link: entry.mode.is_link() }
             } else {
-                out.push((path.clone(), oid, mode.is_link()));
-            }
-            path.truncate(at);
+                continue;
+            };
+            entries.push((entry.filename.to_vec(), entry.oid.to_owned(), kind));
         }
-        Some(())
+        Some(entries)
     }
 
     /// The bytes `fresh` was checked out from, or `None` to read the worktree,

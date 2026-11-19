@@ -69,6 +69,15 @@ impl GitTree {
         #[cfg(not(unix))]
         false
     }
+
+    /// Git listed only what Watchman reports moved since the listing the index held.
+    #[napi(getter)]
+    pub fn followed(&self) -> bool {
+        #[cfg(unix)]
+        return matches!(self.change, Some(crate::held_listing::Change::Followed(..)));
+        #[cfg(not(unix))]
+        false
+    }
 }
 
 /// The listing an update under `config` carries forward, or, when the update
@@ -83,7 +92,7 @@ pub(crate) fn carry(change: &Option<crate::held_listing::Change>, config: &str, 
         Some(Change::Vouched(meta, manifest)) if meta.config.as_deref() == Some(config) && std::fs::read(index).is_ok_and(|now| now == *manifest) => {
             Err(crate::source_update::Updated { files: meta.files, reread: 0, parsed: 0, published: false, refused: None, rebuilt: None, written: None, from: None })
         }
-        Some(Change::Vouched(meta, _) | Change::Listed(meta)) => Ok(Some(meta.clone())),
+        Some(Change::Vouched(meta, _) | Change::Listed(meta) | Change::Followed(meta)) => Ok(Some(meta.clone())),
         None => Ok(None),
     }
 }

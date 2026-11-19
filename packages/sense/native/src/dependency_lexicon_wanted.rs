@@ -8,7 +8,7 @@ use std::{fs, path::Path};
 use super::sites::{sites, State};
 use super::view::Owning;
 use super::Owner;
-use crate::package_owners::{is_package, NO_OWNER};
+use crate::package_owners::{is_manifest, NO_OWNER};
 
 /// The `package.json` paths git tracks under `root`, in code-unit order. A manifest that is not yet added is
 /// not listed: the walk for untracked files costs half a second on a checkout the size of Kibana, and a
@@ -45,12 +45,12 @@ pub(super) fn of(owners: &[Owner], state: Option<&State>) -> BTreeMap<(String, S
     wanted
 }
 
-/// The owner rows: every tracked `package.json` the package owner would read (`crate::package_owners::is_package`),
+/// The owner rows: every tracked `package.json` the package owner would read (`crate::package_owners::is_manifest`),
 /// so a file is judged against the manifest nearest above it (ADR-0082) whether or not the root's `workspaces` list
 /// it. A project nested in the checkout with a manifest and an install of its own declares its own dependencies. A
 /// manifest without a `name` declares them all the same: a name makes a package importable, not its declarations.
 pub(super) fn owners(root: &Path, paths: &[String]) -> Vec<Owner> {
-    let manifests = paths.iter().filter(|path| path.rsplit('/').next() == Some("package.json") && is_package(path));
+    let manifests = paths.iter().filter(|path| is_manifest(path));
     let mut found = Vec::new();
     for manifest in manifests {
         let directory = manifest.strip_suffix("/package.json").unwrap_or("");

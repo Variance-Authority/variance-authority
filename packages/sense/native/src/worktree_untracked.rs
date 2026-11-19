@@ -24,13 +24,20 @@ use crate::git_store::Head;
 /// costs. Here a walker meeting a tracked directory while the queue runs short
 /// hands it over instead of descending, so every walker has work.
 pub(crate) fn untracked(head: &Head, index: &gix_index::File, config: &Config) -> Option<BTreeSet<Vec<u8>>> {
+    untracked_below(head, index, config, vec![head.prefix.as_bytes().trim_end_with(|c| c == '/').to_vec()])
+}
+
+/// `untracked`, below `dirs` alone, each named from the top of the checkout
+/// and none below another: a directory the walk enters is still classified
+/// from the top, so one git ignores lists nothing.
+pub(crate) fn untracked_below(head: &Head, index: &gix_index::File, config: &Config, dirs: Vec<Vec<u8>>) -> Option<BTreeSet<Vec<u8>>> {
     let top = head.top.as_path();
     let mut buf = Vec::new();
     let globals = gix_ignore::Search::from_git_dir(&head.common, excludes_file(config, top)?, &mut buf, Default::default()).ok()?;
     let lookup = config.ignore_case.then(|| index.prepare_icase_backing());
     let git_dir = gix_path::realpath(&head.git_dir).ok()?;
     let threads = std::thread::available_parallelism().map_or(1, usize::from).min(WALKERS);
-    let queue = Queue { state: Mutex::new((vec![head.prefix.as_bytes().trim_end_with(|c| c == '/').to_vec()], 0)), ready: Condvar::new(), wanted: threads * 2 };
+    let queue = Queue { state: Mutex::new((dirs, 0)), ready: Condvar::new(), wanted: threads * 2 };
     let failed = AtomicBool::new(false);
     let walked: Vec<BTreeSet<Vec<u8>>> = std::thread::scope(|scope| {
         let walkers: Vec<_> = (0..threads)

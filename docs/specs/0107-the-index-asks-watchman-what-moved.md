@@ -2,6 +2,8 @@
 
 **Partly built.** An update over a checkout a running Watchman watches reads
 the listing it held, and runs no git, when nothing moved but paths git ignores.
+When files moved, it compares only those against git's index, and the held
+listing answers for the rest.
 **Missing:** an update of the source index that starts from the generation it
 updates and asks what moved since it. Every `variance select` brings the index
 up to the checkout before it reads the graph, and today that update rebuilds
