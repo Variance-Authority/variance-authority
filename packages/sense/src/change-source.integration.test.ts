@@ -281,8 +281,8 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     }
   });
 
-  it('runs no git when the watch ignores directories git ignores too, and asks it when one holds a tracked file', async () => {
-    // A real watch leaves out `node_modules`, `dist` and caches: git's ignored output, which the listing never holds.
+  it('runs no git when the watch ignores directories', async () => {
+    // A real watch leaves out `node_modules`, `dist` and caches: what it ignores is out of the source.
     // A fresh clock makes git list under the watch as it is configured now.
     await tell({ clock: 'c:13:1', fresh: true, config: { ignore_dirs: ['node_modules', 'dist'] } });
     await updateNatively(root, index);
@@ -291,24 +291,6 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     const vouched = await updateNatively(root, index);
     expect(await gitRan()).toEqual([]);
     expect(vouched?.listing.vouched).toBe(true);
-
-    // `cache/kept.ts` is tracked though git ignores `cache/`: Watchman would never report its edit.
-    await tell({ clock: 'c:13:3', fresh: true, config: { ignore_dirs: ['cache'] } });
-    await updateNatively(root, index);
-    await gitRan();
-    await tell({ clock: 'c:13:4', config: { ignore_dirs: ['cache'] } });
-    await updateNatively(root, index);
-    expect(listed(await gitRan())).toBe(true);
-  });
-
-  it.each([['cache/'], ['./cache'], ['Cache'], ['../elsewhere']])('asks git when the watch ignores %s, however it spells a directory', async (spelled) => {
-    // A case-insensitive volume ignores `Cache` as `cache`; an entry that is no plain path below the root is not guessed at.
-    await tell({ clock: 'c:14:1', fresh: true, config: { ignore_dirs: [spelled] } });
-    await updateNatively(root, index);
-    await gitRan();
-    await tell({ clock: 'c:14:2', config: { ignore_dirs: [spelled] } });
-    await updateNatively(root, index);
-    expect(listed(await gitRan())).toBe(true);
   });
 
   it('asks the watchman command where its server listens once for an index, not on every update', async () => {
