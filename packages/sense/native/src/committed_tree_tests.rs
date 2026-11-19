@@ -184,3 +184,33 @@ fn a_snapshot_from_the_held_tree_is_the_snapshot_git_lists_in_every_state_of_the
     agrees("a staged rename");
     let _ = std::fs::remove_dir_all(&root);
 }
+
+#[test]
+fn a_held_record_never_answers_for_another_root_an_unborn_branch_or_a_replace_ref() {
+    let root = repository("committed-snapshot-held", &[("a.ts", A), ("b/c.ts", A), ("b/d/e.ts", A)]);
+    let held = root.join(".git/committed");
+    let agrees = |at: &Path, state: &str| {
+        let at = at.to_str().unwrap();
+        let fresh = crate::git::snapshot(at).unwrap();
+        assert_eq!(digests(&crate::git::snapshot_against(at, &held).unwrap()), digests(&fresh), "{state}");
+        assert_eq!(digests(&crate::git::snapshot_against(at, &held).unwrap()), digests(&fresh), "{state}, held");
+    };
+    agrees(&root, "the root");
+    agrees(&root.join("b"), "a directory below, from the root's record");
+    agrees(&root.join("b/d"), "deeper still");
+    agrees(&root, "the root again, from the directory's record");
+    write(&root, "b/c.ts", b"export const c = 3;\n");
+    commit(&root);
+    agrees(&root, "advanced");
+    let a = git(&root, &["rev-parse", "HEAD:a.ts"]);
+    let c = git(&root, &["rev-parse", "HEAD:b/c.ts"]);
+    git(&root, &["replace", &a, &c]);
+    agrees(&root, "a replace ref");
+    git(&root, &["replace", "-d", &a]);
+    agrees(&root, "the replace ref gone");
+    git(&root, &["checkout", "-q", "--orphan", "unborn"]);
+    agrees(&root, "an unborn branch, its index staged");
+    git(&root, &["rm", "-q", "-r", "--cached", "b"]);
+    agrees(&root, "an unborn branch, part unstaged");
+    let _ = std::fs::remove_dir_all(&root);
+}

@@ -8,7 +8,8 @@
 //! `diff-tree` prunes equal subtrees. Only the new side is read: the held side
 //! is the record, so an old tree the store has since dropped costs nothing.
 //!
-//! The record is the index's (`{index}.committed`), compressed with a checksum;
+//! The record is the index's (`{index}.committed`), in the segment framing,
+//! compressed with a checksum;
 //! one that does not decode, or was read for another root, is nothing held and
 //! the tree is read whole. The working tree is compared against the listing on
 //! every run, as before: this holds only what a tree id fixes.
@@ -21,6 +22,8 @@ use std::path::Path;
 use gix_hash::ObjectId;
 
 use crate::git_store::Reader;
+use crate::segment;
+use crate::stored::Stored;
 
 /// A blob below the root: its path from the root, its id, and whether it is a symbolic link.
 pub(crate) type Blob = (Vec<u8>, ObjectId, bool);
@@ -151,53 +154,63 @@ pub(crate) enum Entry {
     Blob { link: bool },
 }
 
-const MAGIC: &[u8] = b"va-committed\x01";
+const FORMAT: &str = "variance-authority-committed-tree";
+const VERSION: u8 = 1;
 
 impl Committed {
     /// The record, as written; equal for two listings of the same tree below the same root.
     pub(crate) fn encode(&self) -> Vec<u8> {
-        let mut bytes = MAGIC.to_vec();
-        put(&mut bytes, self.prefix.as_bytes());
-        count(&mut bytes, self.chain.len());
-        for id in &self.chain {
-            bytes.extend_from_slice(id.as_bytes());
-        }
-        count(&mut bytes, self.blobs.len());
-        for (path, id, link) in &self.blobs {
-            put(&mut bytes, path);
-            bytes.extend_from_slice(id.as_bytes());
-            bytes.push(u8::from(*link));
-        }
-        count(&mut bytes, self.dirs.len());
-        for Dir { path, id, range } in &self.dirs {
-            put(&mut bytes, path);
-            bytes.extend_from_slice(id.as_bytes());
-            for at in [range.start, range.end, range.after] {
-                bytes.extend_from_slice(&at.to_le_bytes());
-            }
-        }
-        bytes
+        let (blob_paths, blob_offsets) = joined(self.blobs.iter().map(|blob| blob.0.as_slice()));
+        let (dir_paths, dir_offsets) = joined(self.dirs.iter().map(|dir| dir.path.as_slice()));
+        let ranges = |at: fn(&Range) -> u32| self.dirs.iter().map(|dir| at(&dir.range)).collect();
+        // Paths are git's bytes, not always UTF-8, so they sit in byte heaps and the dictionary is empty.
+        segment::encode_as(FORMAT, VERSION, vec![
+            segment::u8s("strings.blob", Vec::new()),
+            segment::u32s("strings.off", vec![0]),
+            segment::u8s("prefix", self.prefix.as_bytes().to_vec()),
+            segment::u8s("chain", self.chain.iter().flat_map(|id| id.as_bytes().to_owned()).collect()),
+            segment::u8s("blobs.path", blob_paths),
+            segment::u32s("blobs.path.off", blob_offsets),
+            segment::u8s("blobs.id", self.blobs.iter().flat_map(|blob| blob.1.as_bytes().to_owned()).collect()),
+            segment::u8s("blobs.link", self.blobs.iter().map(|blob| u8::from(blob.2)).collect()),
+            segment::u8s("dirs.path", dir_paths),
+            segment::u32s("dirs.path.off", dir_offsets),
+            segment::u8s("dirs.id", self.dirs.iter().flat_map(|dir| dir.id.as_bytes().to_owned()).collect()),
+            segment::u32s("dirs.start", ranges(|range| range.start)),
+            segment::u32s("dirs.end", ranges(|range| range.end)),
+            segment::u32s("dirs.after", ranges(|range| range.after)),
+        ])
     }
 
     /// The record `bytes` holds, or `None` where it is not one this build wrote
     /// whole: a range out of place reads as nothing held, never as a listing.
     fn decode(bytes: &[u8]) -> Option<Committed> {
-        let mut at = Cursor(bytes.strip_prefix(MAGIC)?);
-        let prefix = String::from_utf8(at.bytes()?.to_vec()).ok()?;
-        let chain = (0..at.count()?).map(|_| at.id()).collect::<Option<Vec<_>>>()?;
-        let blobs = (0..at.count()?).map(|_| Some((at.bytes()?.to_vec(), at.id()?, at.take(1)?[0] == 1))).collect::<Option<Vec<_>>>()?;
-        let mut dirs = Vec::new();
-        for _ in 0..at.count()? {
-            let (path, id) = (at.bytes()?.to_vec(), at.id()?);
-            let range = Range { start: at.u32()?, end: at.u32()?, after: at.u32()? };
-            dirs.push(Dir { path, id, range });
+        let stored = Stored::open_as(bytes, FORMAT, VERSION).ok()?;
+        let prefix = String::from_utf8(stored.u8s("prefix").ok()?.to_vec()).ok()?;
+        let chain = ids(stored.u8s("chain").ok()?)?;
+        let blob_ids = ids(stored.u8s("blobs.id").ok()?)?;
+        let links = stored.codes("blobs.link", 1).ok()?;
+        let blob_paths = paths(&stored, "blobs.path", blob_ids.len())?;
+        let dir_ids = ids(stored.u8s("dirs.id").ok()?)?;
+        let dir_paths = paths(&stored, "dirs.path", dir_ids.len())?;
+        let [start, end, after] = ["dirs.start", "dirs.end", "dirs.after"].map(|name| stored.u32s(name).ok());
+        let (start, end, after) = (start?, end?, after?);
+        if links.len() != blob_ids.len() || [start.len(), end.len(), after.len()] != [dir_ids.len(); 3] {
+            return None;
         }
+        let blobs: Vec<Blob> = blob_paths.into_iter().zip(blob_ids).zip(links).map(|((path, id), link)| (path, id, *link == 1)).collect();
+        let dirs: Vec<Dir> = dir_paths
+            .into_iter()
+            .zip(dir_ids)
+            .enumerate()
+            .map(|(at, (path, id))| Dir { path, id, range: Range { start: start.at(at), end: end.at(at), after: after.at(at) } })
+            .collect();
         let placed = dirs.iter().enumerate().all(|(index, dir)| {
             let Range { start, end, after } = dir.range;
             start <= end && end as usize <= blobs.len() && index < after as usize && after as usize <= dirs.len()
         });
         let sorted = dirs.windows(2).all(|pair| pair[0].path < pair[1].path);
-        (at.0.is_empty() && placed && sorted).then_some(Committed { prefix, chain, blobs, dirs, read: 0 })
+        (placed && sorted).then_some(Committed { prefix, chain, blobs, dirs, read: 0 })
     }
 
     /// What `path` holds, or nothing held.
@@ -219,40 +232,24 @@ impl Committed {
     }
 }
 
-fn count(bytes: &mut Vec<u8>, count: usize) {
-    bytes.extend_from_slice(&(count as u32).to_le_bytes());
+/// Paths laid end to end, with the offset of each and one past the last.
+fn joined<'p>(paths: impl Iterator<Item = &'p [u8]>) -> (Vec<u8>, Vec<u32>) {
+    let (mut blob, mut offsets) = (Vec::new(), vec![0]);
+    for path in paths {
+        blob.extend_from_slice(path);
+        offsets.push(blob.len() as u32);
+    }
+    (blob, offsets)
 }
 
-fn put(bytes: &mut Vec<u8>, field: &[u8]) {
-    count(bytes, field.len());
-    bytes.extend_from_slice(field);
+fn paths(stored: &Stored, name: &str, rows: usize) -> Option<Vec<Vec<u8>>> {
+    let blob = stored.u8s(name).ok()?;
+    let offsets = stored.offsets(&format!("{name}.off"), rows, blob.len()).ok()?;
+    Some((0..rows).map(|at| blob[offsets.at(at) as usize..offsets.at(at + 1) as usize].to_vec()).collect())
 }
 
-struct Cursor<'a>(&'a [u8]);
-
-impl<'a> Cursor<'a> {
-    fn take(&mut self, length: usize) -> Option<&'a [u8]> {
-        let (field, rest) = self.0.split_at_checked(length)?;
-        self.0 = rest;
-        Some(field)
-    }
-
-    fn u32(&mut self) -> Option<u32> {
-        Some(u32::from_le_bytes(self.take(4)?.try_into().ok()?))
-    }
-
-    fn count(&mut self) -> Option<usize> {
-        self.u32().map(|count| count as usize)
-    }
-
-    fn bytes(&mut self) -> Option<&'a [u8]> {
-        let length = self.count()?;
-        self.take(length)
-    }
-
-    fn id(&mut self) -> Option<ObjectId> {
-        ObjectId::try_from(self.take(20)?).ok()
-    }
+fn ids(bytes: &[u8]) -> Option<Vec<ObjectId>> {
+    (bytes.len() % 20 == 0).then(|| bytes.chunks_exact(20).map(ObjectId::try_from).collect::<Result<_, _>>().ok())?
 }
 
 #[cfg(test)]

@@ -20,9 +20,11 @@ the excludes file, HEAD.
 ## How it breaks
 
 A restarted server has no history back to an old clock and says so as a fresh
-instance; `ignore_dirs` hides paths from every answer, and `ignore_vcs` hides
-the directories it names at the watched root; no server listens. Each
-is no answer, and the update lists with git as it would without Watchman.
+instance; `ignore_vcs` hides the directories it names at the watched root;
+`ignore_dirs` hides paths from every answer, which is no answer only where git
+tracks a file in one of them, since what the watch ignores git answers as its
+own ignored paths; no server listens. Each is no answer, and the update lists
+with git as it would without Watchman.
 
 ## How you talk to it
 
