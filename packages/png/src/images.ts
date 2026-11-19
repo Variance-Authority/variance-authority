@@ -3,7 +3,7 @@
  * not align, and on the after image's rows, strip by strip, when they do.
  */
 
-import type { DiffPolicy, RowAlignment } from '@variance-authority/raster';
+import { type DiffPolicy, type RowAlignment, SEVERITY_LEVELS } from '@variance-authority/raster';
 import { alignRows, type AlignedRows } from './align.js';
 import { judgeRows, type JudgeOutput } from './judge.js';
 import type { DecodedImage } from './mask.js';
@@ -84,7 +84,7 @@ export function judgeImages(
       const pixels = (span.to - span.from) * (strip.to - strip.from);
       for (let index = 0; index < changed.length; index += 1) changed[index]! += pixels;
       for (let y = span.from; y < span.to; y += 1) {
-        mask?.fill(1, y * width + strip.from, y * width + strip.to);
+        mask?.fill(SEVERITY_LEVELS.length, y * width + strip.from, y * width + strip.to);
         if (picture === undefined) continue;
         for (let index = y * row + strip.from * 4; index < y * row + strip.to * 4; index += 4) {
           if (diffMask) picture.set(INSERTED, index);

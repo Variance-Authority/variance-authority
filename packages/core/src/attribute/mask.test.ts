@@ -64,7 +64,7 @@ describe('isolating a change', () => {
     );
 
     expect(isolation.regions).toEqual([
-      { x: 2, y: 1, width: 2, height: 2, pixels: 4, density: 1 },
+      { x: 2, y: 1, width: 2, height: 2, pixels: 4, density: 1, grade: 1 },
     ]);
   });
 

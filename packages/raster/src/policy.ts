@@ -52,6 +52,22 @@ export const DEFAULT_POLICY: DiffPolicy = { id: 'default', threshold: 0.01, incl
  */
 export const STRICT_POLICY: DiffPolicy = { id: 'strict', threshold: 0, includeAA: true };
 
+/**
+ * How strongly a counted pixel differs, on the threshold scale: a pixel's grade
+ * is how many of these its colour distance passes, at least 1 once a policy
+ * counted it, and the last for a row with no partner. The policy decides
+ * whether a pixel differs; the grade only says how much, so it never changes a
+ * count.
+ */
+export const SEVERITY_LEVELS: readonly number[] = [0.01, 0.05, 0.1, 0.2];
+
+/**
+ * The grade from which a region is strong: a pixel past 0.2, the threshold
+ * Playwright's comparator forgives up to by default, or a row with no partner.
+ * A region below it is faint, a repaint that a reader triages after the rest.
+ */
+export const STRONG_GRADE = SEVERITY_LEVELS.length;
+
 export interface RasterComparison {
   /** Canvas the two images were compared on: the union of their boxes. */
   readonly width: number;
@@ -63,7 +79,7 @@ export interface RasterComparison {
   /** Changed pixels under {@link DiffPolicy.id}, for every policy compared. */
   readonly changed: Readonly<Record<string, number>>;
   readonly total: number;
-  /** Mask under the policy the comparison was asked to isolate on. */
+  /** Mask under the policy the comparison was asked to isolate on, each byte a pixel's grade ({@link SEVERITY_LEVELS}). */
   readonly mask: ChangeMask;
   /**
    * How the rows of the two images were paired, when they were.

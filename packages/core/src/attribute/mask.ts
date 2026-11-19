@@ -26,7 +26,10 @@ import type { IgnoreSite, SemanticSnapshot } from '../format/snapshot.js';
 export interface ChangeMask {
   readonly width: number;
   readonly height: number;
-  /** `1` where the pixel differs. Length is `width * height`. */
+  /**
+   * Non-zero where the pixel differs: how strongly, as a grade that grows with
+   * its colour distance. Length is `width * height`.
+   */
   readonly data: Uint8Array;
   /** Count of set bytes, carried so callers need not rescan. */
   readonly changed: number;
@@ -37,6 +40,8 @@ export interface DiffRegion extends Rect {
   readonly pixels: number;
   /** `pixels / (width * height)`. Low means scattered; high means a solid block. */
   readonly density: number;
+  /** The highest grade of its pixels ({@link ChangeMask.data}): how strongly its strongest pixel differs. */
+  readonly grade: number;
 }
 
 export interface IsolationOptions {
@@ -270,6 +275,7 @@ function tighten(mask: ChangeMask, cells: readonly number[], cell: number, colum
   let maxX = -1;
   let maxY = -1;
   let pixels = 0;
+  let grade = 0;
 
   for (const index of cells) {
     const startX = (index % columns) * cell;
@@ -280,8 +286,10 @@ function tighten(mask: ChangeMask, cells: readonly number[], cell: number, colum
     for (let y = startY; y < endY; y += 1) {
       const rowOffset = y * mask.width;
       for (let x = startX; x < endX; x += 1) {
-        if (mask.data[rowOffset + x] === 0) continue;
+        const value = mask.data[rowOffset + x]!;
+        if (value === 0) continue;
         pixels += 1;
+        if (value > grade) grade = value;
         if (x < minX) minX = x;
         if (x > maxX) maxX = x;
         if (y < minY) minY = y;
@@ -293,7 +301,7 @@ function tighten(mask: ChangeMask, cells: readonly number[], cell: number, colum
   const width = maxX - minX + 1;
   const height = maxY - minY + 1;
 
-  return { x: minX, y: minY, width, height, pixels, density: pixels / (width * height) };
+  return { x: minX, y: minY, width, height, pixels, density: pixels / (width * height), grade };
 }
 
 
