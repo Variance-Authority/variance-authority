@@ -3,7 +3,10 @@
 // The update's client is the code under test; the server is the part a test
 // cannot ask CI to run. `answers` is read on every request, so a test changes
 // what the next query reports by rewriting it, and every request is appended
-// to `requests` as one JSON line.
+// to `requests` as one JSON line. `settling: true` stands for a watch still
+// crawling or catching up: a command that syncs, as `clock` given a
+// `sync_timeout` and every `query` but one given `sync_timeout: 0` do, waits out
+// that timeout and fails, as Watchman's cookie does; the rest answer at once.
 //
 //   node watchman-server.mjs <socket> <answers.json> <requests.log>
 
@@ -30,6 +33,12 @@ function matches(expression, file) {
   }
 }
 
+/** How long a command syncs for before Watchman answers it, in ms; 0 is not at all. */
+function syncs([name, , options]) {
+  if (name === 'clock') return options?.sync_timeout ?? 0;
+  return name === 'query' ? (options?.sync_timeout ?? 60_000) : 0;
+}
+
 const named = (file) => (typeof file === 'string' ? file : file.name);
 
 function answer(command) {
@@ -54,13 +63,18 @@ function answer(command) {
 
 createServer((connection) => {
   let pending = '';
+  // A client that stopped waiting has gone: what it was owed is dropped.
+  connection.on('error', () => {});
   connection.on('data', (chunk) => {
     pending += chunk;
     for (let end = pending.indexOf('\n'); end >= 0; end = pending.indexOf('\n')) {
       const command = JSON.parse(pending.slice(0, end));
       pending = pending.slice(end + 1);
       appendFileSync(requests, `${JSON.stringify(command)}\n`);
-      connection.write(`${JSON.stringify({ version: 'fixture', ...answer(command) })}\n`);
+      const reply = (answered) => connection.write(`${JSON.stringify({ version: 'fixture', ...answered })}\n`);
+      const wait = JSON.parse(readFileSync(answers, 'utf8')).settling ? syncs(command) : 0;
+      if (wait === 0) reply(answer(command));
+      else setTimeout(() => connection.writable && reply({ error: `syncToNow: timed out waiting for cookie file to be observed by watcher within ${wait} milliseconds` }), wait);
     }
   });
 }).listen(socket, () => process.stdout.write('ready\n'));

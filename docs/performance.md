@@ -734,9 +734,18 @@ takes the listing from about 0.66 s to about 0.23 s on Kibana, and from about
 2.2 s to about 0.67 s on Firefox, where the run as a whole falls from about
 5.9 s to about 4.4 s. A switch 60 commits away on Firefox, 308 files, costs the
 same as one commit away. On Kibana, 200 commits away moves 4,039 files and the
-root `.gitignore`, so every directory is walked again for untracked files, and
-the wait for the server to report the switch, 3–8 s, is most of the run either
-way.
+root `.gitignore`, so every directory is walked again for untracked files.
+
+Git answers first, and Watchman only skips work. An update waits on the server
+no longer than a settled watch takes to answer, about a second. A watch that is
+still crawling a fresh worktree, or still catching up after a large switch, is
+no answer, and the update lists with git at git's speed. The question whether
+the watch has caught up runs beside git's listing, not before it, and only a
+watch that has caught up gives the next update its clock. On Firefox, a fresh
+worktree under a crawling watch takes the same time as one with no watch, about
+15 s for the run. On Kibana, the switch 200 commits away is still being reported
+when the update asks, so the update waits that second, lists with git, and
+takes about 6 s for the run.
 
 Anything else lists with git, as above: an exclude or configuration file that
 changed, a server that restarted, a checkout no server watches, a machine with

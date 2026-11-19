@@ -216,8 +216,9 @@ that Watchman reports counts as moved:
   a dropped-events flag is `is_fresh_instance`, the git source.
 
 Anything Watchman cannot vouch for — a generation with no clock, a clock for
-another root or another server, `is_fresh_instance`, a recrawl, a socket error
-— is answered by the git source, and the progress line names the reason. A
+another root or another server, `is_fresh_instance`, a recrawl, a socket error,
+a sync cookie the watch does not see within `SETTLED` (1 s) — is answered by the
+git source, and the progress line names the reason. A
 worktree's first update reads a generation seeded from the primary checkout,
 whose clock is for another root, and takes the git source once.
 

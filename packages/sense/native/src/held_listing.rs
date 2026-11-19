@@ -196,16 +196,25 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
     let below = |dir: &Path| dir.strip_prefix(root).ok().map(|dir| dir.to_string_lossy().into_owned()).filter(|dir| !dir.is_empty());
     let index_dir = Path::new(index).parent().and_then(below);
     let mut followed = None;
-    if let (Some(socket), Some((snapshot, meta, manifest))) = (&socket, held) {
+    // A watch that could not answer now is asked nothing more this run: git lists, as with no watch.
+    let mut socket = socket;
+    if let (Some(asking), Some((snapshot, meta, manifest))) = (socket.clone(), held) {
         let excluded: Vec<String> = index_dir.iter().cloned().chain(meta.git.iter().filter_map(|dir| below(Path::new(dir)))).collect();
-        let vouched = crate::stages::summed(crate::stages::Sum::Held, || {
-            stands(&meta, &snapshot.paths, root, socket, dirs, |input| stamp(Path::new(input)))
-                && watchman::since(&meta.watch, &excluded).is_some_and(|since| !since.fresh && ignores_all(root, &since.files))
+        let (vouched, unanswered) = crate::stages::summed(crate::stages::Sum::Held, || {
+            if !stands(&meta, &snapshot.paths, root, &asking, dirs, |input| stamp(Path::new(input))) {
+                return (false, false);
+            }
+            match watchman::since(&meta.watch, &excluded) {
+                Some(since) => (!since.fresh && ignores_all(root, &since.files), false),
+                None => (false, true),
+            }
         });
         if vouched {
             return Some((snapshot, Some(Change::Vouched(meta, manifest))));
         }
-        if follows(&meta, &snapshot.paths, root, socket, dirs, |input| stamp(Path::new(input))) {
+        if unanswered {
+            socket = None;
+        } else if follows(&meta, &snapshot.paths, root, &asking, dirs, |input| stamp(Path::new(input))) {
             followed = Some((snapshot, meta.watch, excluded));
         }
     }
@@ -219,17 +228,29 @@ pub(crate) fn change_tree(root: &str, index: &str, dirs: &[String]) -> Option<(S
     let (git, inputs) = watch.as_ref().and(inputs).unzip();
     let before = inputs.as_deref().map(stamped);
     // What moved since the held listing is asked after the clock the new one is taken at, so nothing between them is missed.
+    // An answer to it says the watch caught up past the new clock; none says it has not.
     let since = followed.as_ref().zip(watch.as_ref()).and_then(|((_, held, excluded), watch)| {
         let same = Watch { clock: held.clock.clone(), ..watch.clone() } == *held;
-        crate::stages::summed(crate::stages::Sum::Held, || same.then(|| watchman::since(held, excluded)).flatten()).filter(|since| !since.fresh)
+        same.then(|| crate::stages::summed(crate::stages::Sum::Held, || watchman::since(held, excluded)))
     });
     let record = crate::committed_tree::record(index);
-    let (snapshot, followed) = match (&followed, since) {
-        (Some((listing, ..)), Some(since)) => git::snapshot_since(root, &record, &git::worktree_moved::Before { listing, moved: &since.files })?,
-        _ => (git::snapshot_against(root, &record)?, false),
+    let (snapshot, followed, settled) = match (&followed, since) {
+        (Some((listing, ..)), Some(Some(since))) if !since.fresh => {
+            let (snapshot, followed) = git::snapshot_since(root, &record, &git::worktree_moved::Before { listing, moved: &since.files })?;
+            (snapshot, followed, true)
+        }
+        (_, Some(answer)) => (git::snapshot_against(root, &record)?, false, answer.is_some()),
+        // Whether the watch caught up is asked beside git's listing, so git never waits on it.
+        (_, None) => {
+            let (snapshot, settled) = std::thread::scope(|scope| {
+                let settled = scope.spawn(|| watch.as_ref().is_some_and(watchman::settled));
+                (git::snapshot_against(root, &record), settled.join().unwrap_or(false))
+            });
+            (snapshot?, false, settled)
+        }
     };
     let after = inputs.as_deref().map(stamped);
-    let change = match (watch.zip(git), before) {
+    let change = match (watch.filter(|_| settled).zip(git), before) {
         // `status` refreshing the index while it listed is a listing nothing can vouch for yet.
         (Some((watch, git)), Some(before)) if Some(&before) == after.as_ref() => {
             let meta = Meta { watch, dirs: dirs.to_vec(), inputs: before, git, config: None, files: 0 };

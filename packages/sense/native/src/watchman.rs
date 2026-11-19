@@ -8,6 +8,10 @@
 //!
 //! The client only reads. It never starts a server (`--no-spawn`) and never
 //! adds a watch: a checkout somebody already watches is the one this helps.
+//!
+//! Git answers first, and Watchman only skips work. No command waits on a
+//! watch longer than a settled one takes to answer: one still crawling, or
+//! catching up after a switch, fails its sync within `SETTLED` and is no answer.
 
 // compass: variance-authority.reach.source-index
 
@@ -97,11 +101,16 @@ pub(crate) fn socket(kept: &Path) -> Option<String> {
     socket
 }
 
+/// How long, in ms, a synced command may wait for Watchman to see its cookie.
+/// A settled watch answers one in well under a second, on a loaded machine and
+/// a checkout of half a million files alike; a watch that cannot is not settled.
+const SETTLED: u32 = 1_000;
+
 /// One command over a fresh connection, and its answer; `None` on any error.
 fn ask(socket: &str, command: &Value) -> Option<Value> {
     let mut stream = UnixStream::connect(socket).ok()?;
     // A server that stops answering is no answer, not an update that waits on it.
-    stream.set_read_timeout(Some(std::time::Duration::from_secs(15))).ok()?;
+    stream.set_read_timeout(Some(std::time::Duration::from_millis(u64::from(SETTLED) + 2_000))).ok()?;
     let mut line = serde_json::to_vec(command).ok()?;
     line.push(b'\n');
     stream.write_all(&line).ok()?;
@@ -111,7 +120,10 @@ fn ask(socket: &str, command: &Value) -> Option<Value> {
     answer.get("error").is_none().then_some(answer)
 }
 
-/// The watch over `root` on the server at `socket`, at a clock taken now.
+/// The watch over `root` on the server at `socket`, at a clock taken now
+/// without a sync: what the watch has not seen yet gets a later tick, so it is
+/// reported after this clock, never lost. Whether the watch has caught up is
+/// `settled`'s to say.
 pub(crate) fn watch(socket: &str, root: &str) -> Option<Watch> {
     let roots = ask(socket, &json!(["watch-list"]))?;
     let watched = roots
@@ -131,14 +143,22 @@ pub(crate) fn watch(socket: &str, root: &str) -> Option<Watch> {
     let ignored = named("ignore_dirs").unwrap_or_default();
     // Unset is Watchman's default.
     let vcs = named("ignore_vcs").unwrap_or_else(|| [".git", ".svn", ".hg"].map(str::to_owned).to_vec());
-    let clock = ask(socket, &json!(["clock", watched, { "sync_timeout": 10_000 }]))?.get("clock")?.as_str()?.to_owned();
+    let clock = ask(socket, &json!(["clock", watched]))?.get("clock")?.as_str()?.to_owned();
     Some(Watch { socket: socket.to_owned(), watched, relative, clock, ignored, vcs })
+}
+
+/// Whether the watch has seen everything up to now, within `SETTLED`: a watch
+/// still crawling or catching up fails the sync, and a clock taken before it
+/// vouches for nothing.
+pub(crate) fn settled(watch: &Watch) -> bool {
+    ask(&watch.socket, &json!(["clock", watch.watched, { "sync_timeout": SETTLED }])).is_some()
 }
 
 /// What moved below the watch's root since its clock, leaving out `excluded`:
 /// directories relative to that root whose writes are the update's or git's.
 pub(crate) fn since(watch: &Watch, excluded: &[String]) -> Option<Since> {
-    let mut query = json!({ "since": watch.clock, "fields": ["name"], "empty_on_fresh_instance": true });
+    // Watchman's default sync is a minute: a watch that cannot answer within `SETTLED` answers nothing.
+    let mut query = json!({ "since": watch.clock, "fields": ["name"], "empty_on_fresh_instance": true, "sync_timeout": SETTLED });
     if let Some(relative) = &watch.relative {
         query["relative_root"] = json!(relative);
     }
