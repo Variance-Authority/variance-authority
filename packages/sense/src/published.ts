@@ -250,7 +250,7 @@ export async function updateSourceIndex(
  * for, by `others`.
  */
 async function overAnotherRelease(path: string): Promise<boolean> {
-  const written = await sourceIndexWrittenIn(path).catch(() => undefined);
+  const written = await sourceIndexWrittenIn(path);
   return written !== undefined && written !== SOURCE_INDEX_VERSION;
 }
 

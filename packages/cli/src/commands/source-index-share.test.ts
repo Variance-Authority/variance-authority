@@ -28,7 +28,16 @@ import { publishSuite } from './suite-share.js';
  * repository opted in to carrying CI's index beside the mainline's record.
  */
 
-const asked = vi.hoisted(() => ({ names: [] as string[], fails: undefined as Error | undefined }));
+const asked = vi.hoisted(() => ({ names: [] as string[], fails: undefined as Error | undefined, carryFails: undefined as Error | undefined }));
+vi.mock('@variance-authority/sense', async (actual) => {
+  const real = await actual<typeof import('@variance-authority/sense')>();
+  return {
+    ...real,
+    // The index as it is carried; or a disk that fails under it once its headers have read, once `carryFails` is set.
+    carriedSourceIndex: (...args: Parameters<typeof real.carriedSourceIndex>) =>
+      asked.carryFails === undefined ? real.carriedSourceIndex(...args) : Promise.reject(asked.carryFails),
+  };
+});
 vi.mock('./mainline-entry.js', async (actual) => {
   const real = await actual<typeof import('./mainline-entry.js')>();
   return {
@@ -61,6 +70,7 @@ beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-source-index-share-'));
   asked.names = [];
   asked.fails = undefined;
+  asked.carryFails = undefined;
 });
 
 afterEach(async () => {
@@ -296,7 +306,16 @@ describe('`variance index` over an index another release wrote', () => {
     });
 
     expect(written).toEqual(['suite-v1/unit']);
-    expect(unpublished).toEqual([expect.stringMatching(/^the source index: EISDIR/)]);
+    expect(unpublished).toEqual([expect.stringMatching(/^the source index: this checkout has no source index at .+ that reads$/)]);
+  });
+
+  it('publishes the record, and says why the index is left out, when the disk fails while the index is carried', async () => {
+    const { written, unpublished } = await mainlinePublished(true, async () => {
+      asked.carryFails = new Error('EIO: i/o error, read');
+    });
+
+    expect(written).toEqual(['suite-v1/unit']);
+    expect(unpublished).toEqual(['the source index: EIO: i/o error, read']);
   });
 
   it('starts from no fetched index, and reads every file, when the fetch fails', async () => {
@@ -355,6 +374,19 @@ describe('`variance index` over an index another release wrote', () => {
 
     expect(said.out).toBeUndefined();
     expect(said.lines).toEqual([`variance: CI's source index was not fetched, so every file is read: the share refused the connection\n`]);
+  });
+
+  it('places nothing, and says nothing, once another checkout\'s index fits', async () => {
+    const { origin } = await mainlinePublished(true);
+    const clone = await laptopOnOlderRelease(origin);
+    const into = fetchedSourceIndexPath(sourceIndexPath(clone));
+    const fits = new AbortController();
+    fits.abort();
+
+    const said = await stderrOf(() => fetchFromMainline(clone, into, fits.signal));
+
+    expect(said).toEqual({ out: undefined, lines: [] });
+    expect(await sourceIndexChain(into)).toBeUndefined();
   });
 
   it('fetches nothing, and says nothing, for a checkout whose share section does not parse', async () => {
@@ -416,6 +448,11 @@ describe('the index a publish carries, read off its segments', () => {
     ['is missing', (segment: string) => rm(segment)],
     ['stops inside its header', (segment: string) => truncate(segment, 10)],
     ['is not a segment', (segment: string) => writeFile(segment, Buffer.alloc(8192, 7))],
+    ['stops inside the text of its header', async (segment: string) => truncate(segment, (await readFile(segment)).indexOf('"version":'))],
+    ['is a directory', async (segment: string) => {
+      await rm(segment);
+      await mkdir(segment);
+    }],
   ])('names no version for an index one of whose segments %s', async (_, damage) => {
     const { path, segment } = await indexed();
     await damage(segment);
@@ -441,6 +478,15 @@ describe('the index a publish carries, read off its segments', () => {
     for (const [at, held] of (original?.segments ?? []).entries()) {
       expect(await readFile(placed?.segments[at]?.path ?? '')).toEqual(await readFile(held.path));
     }
+  });
+
+  it('says which segment ended inside a piece it held when published', async () => {
+    const { root, segment } = await indexed();
+    const carried = await sourceIndexEntryOf(root, { commit: 'a'.repeat(40) }, 1024);
+    if (!('entry' in carried)) throw new Error(carried.unpublished);
+    await truncate(segment, 1500);
+
+    await expect(carried.image(carried.entry.images?.[1] ?? '')).rejects.toThrow(`${segment} ended at 1500, inside a piece it held when published`);
   });
 
   it('places nothing when a piece is missing, and leaves no part of a segment behind', async () => {

@@ -265,7 +265,9 @@ async function headerVersion(file: string): Promise<number | undefined> {
     let length = 4096;
     for (;;) {
       const buffer = Buffer.alloc(length);
-      const { bytesRead } = await handle.read(buffer, 0, length, 0);
+      const read = await handle.read(buffer, 0, length, 0).catch(() => undefined);
+      if (read === undefined) return undefined;
+      const { bytesRead } = read;
       try {
         return sourceIndexVersionOf(buffer.subarray(0, bytesRead));
       } catch (error) {
