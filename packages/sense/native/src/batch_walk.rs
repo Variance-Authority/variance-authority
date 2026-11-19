@@ -216,10 +216,9 @@ pub(super) fn read_kept(
     kept: Kept,
     from_blob: &FromBlob,
 ) -> (Vec<Answer>, Vec<bool>) {
-    // Each lookup is its own file's, so they run on every core, in the files' order.
     let hits: Vec<Option<(crate::read::Read, String)>> = files
-        .par_iter()
-        .zip(oids.par_iter())
+        .iter()
+        .zip(&oids)
         .map(|(file, oid)| {
             let identity = git::spell(oid.as_ref()?);
             Some((held(root, file, &identity, largest_file, kept)?, identity))

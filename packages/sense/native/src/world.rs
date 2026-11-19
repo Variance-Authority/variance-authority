@@ -68,6 +68,7 @@ impl<'a> World<'a> {
     }
 
     /// The module tree the crates' `mod` lines declare, and the crates by name.
+    /// Built on rayon, so `prewarm` builds it before any pool resolves through it.
     pub(crate) fn rust_index(&self) -> &crate::resolve_rust::Index {
         self.rust.get_or_init(|| crate::resolve_rust::Index::of(self))
     }
@@ -78,6 +79,7 @@ impl<'a> World<'a> {
     }
 
     /// The JVM source roots, with the top-level packages each holds.
+    /// Built on rayon, so `prewarm` builds it before any pool resolves through it.
     pub(crate) fn jvm_index(&self) -> &crate::source_roots::SourceRoots {
         self.jvm.get_or_init(|| crate::resolve_jvm::index(self))
     }

@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Mutex;
 
-use rayon::prelude::*;
 use rustc_hash::FxHashMap;
 
 use super::walk::{read_kept, Kept};
@@ -65,7 +64,7 @@ pub(crate) fn neighbours<'n>(
         let reading = Some(readers.unwrap_or(6).max(1));
         // Digests as the walk reads them, so a row taken from here is the walk's own.
         let (answers, answered) = read_kept(root, store, &files, oids, largest_file, Some(true), reading, kept, from_blob);
-        let parses = answers.par_iter().map(|(parse, _, outcome)| outcome.parsed().then(|| parse.clone())).collect();
+        let parses = answers.iter().map(|(parse, _, outcome)| outcome.parsed().then(|| parse.clone())).collect();
         read.0.lock().unwrap_or_else(std::sync::PoisonError::into_inner).extend(files.into_iter().zip(answers.into_iter().zip(answered)));
         parses
     }
