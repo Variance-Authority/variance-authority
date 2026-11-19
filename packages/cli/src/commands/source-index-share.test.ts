@@ -230,6 +230,7 @@ describe('`variance index` over an index another release wrote', () => {
     await updateSourceIndex(sibling);
     asked.stalls = true;
 
+    // A deadline, not a wait: the share never answers, so nothing signals the update was held, and the timer names that it was.
     const stalled = Symbol('stalled');
     let timer: NodeJS.Timeout | undefined;
     const update = await Promise.race([
