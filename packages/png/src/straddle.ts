@@ -24,7 +24,7 @@ export function straddled(
 ): PairedRows {
   const source = rows.source;
   const height = source.length;
-  const image: Image = { was, now, beforeHeight, afterHeight: height, width };
+  const image: Image = { was, now, width };
 
   // In page order; `undefined` where the move jumps by more than a row.
   const stretches: (Stretch | undefined)[] = [];
@@ -126,8 +126,6 @@ interface Stretch {
 interface Image {
   readonly was: Uint32Array;
   readonly now: Uint32Array;
-  readonly beforeHeight: number;
-  readonly afterHeight: number;
   readonly width: number;
 }
 
@@ -136,22 +134,14 @@ interface Image {
  * whether a row of it blends its two; `undefined` where it does not.
  */
 function fractional(stretch: Stretch, low: number, image: Image): boolean | undefined {
-  const { was, now, beforeHeight, afterHeight, width } = image;
+  const { was, now, width } = image;
   const { last, y, top, from } = stretch;
   // After row `row` falls across before rows `row - low - 1` and the next.
   const after = new Spread();
-  for (let row = last + 1; row < y; row += 1) {
-    const upper = row - low - 1;
-    if (upper < 0 || upper + 1 >= beforeHeight) return undefined;
-    after.row(now, row, was, upper, width);
-  }
+  for (let row = last + 1; row < y; row += 1) after.row(now, row, was, row - low - 1, width);
   // Before row `row` falls across after rows `row + low` and the next.
   const before = new Spread();
-  for (let row = top + 1; row < from; row += 1) {
-    const upper = row + low;
-    if (upper < 0 || upper + 1 >= afterHeight) return undefined;
-    before.row(was, row, now, upper, width);
-  }
+  for (let row = top + 1; row < from; row += 1) before.row(was, row, now, row + low, width);
   const fromAfter = after.all(y - last - 1) && accounted(top + 1, from, before.rows, after.picks);
   const fromBefore = before.all(from - top - 1) && accounted(last + 1, y, after.rows, before.picks);
   if (fromAfter && after.blended) return true;
