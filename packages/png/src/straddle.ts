@@ -1,5 +1,5 @@
 import type { RowSpan } from '@variance-authority/raster';
-import type { AlignedRows } from './align.js';
+import type { PairedRows } from './align.js';
 
 /**
  * The rows content pushed down by a height that is not whole rows straddles.
@@ -28,13 +28,13 @@ import type { AlignedRows } from './align.js';
  * joins are one, at the distance most of their rows moved.
  */
 export function straddled(
-  rows: AlignedRows,
+  rows: PairedRows,
   was: Uint32Array,
   now: Uint32Array,
   beforeHeight: number,
   width: number,
   cost: (beforeRow: number, afterRow: number) => number,
-): AlignedRows {
+): PairedRows {
   const source = rows.source;
   const height = source.length;
   const image: Image = { was, now, beforeHeight, afterHeight: height, width, cost };

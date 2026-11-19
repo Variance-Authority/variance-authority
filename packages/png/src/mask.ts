@@ -142,21 +142,25 @@ export function judgeImages(
   const { width, height } = after;
   // An inserted row is compared with itself, so it counts nothing there and is
   // marked here, in full, rather than against an invented background.
-  const { changed, mask, picture } = judgeRows(before, after, alignment.source, policies, output);
+  const { changed, mask, picture } = judgeRows(before, after, alignment.strips, policies, output);
   const row = width * 4;
   const diffMask = output.picture?.diffMask;
 
-  for (const span of alignment.inserted) {
-    const pixels = (span.to - span.from) * width;
-    for (let index = 0; index < changed.length; index += 1) changed[index]! += pixels;
-    mask?.fill(1, span.from * width, span.to * width);
-    if (picture === undefined) continue;
-    for (let index = span.from * row; index < span.to * row; index += 4) {
-      if (diffMask) picture.set(INSERTED, index);
-      else {
-        // The dimmed after pixel, tinted, so the inserted content stays legible.
-        for (let channel = 0; channel < 3; channel += 1) {
-          picture[index + channel] = Math.round(picture[index + channel]! * 0.6 + INSERTED[channel]! * 0.4);
+  for (const strip of alignment.strips) {
+    for (const span of strip.inserted) {
+      const pixels = (span.to - span.from) * (strip.to - strip.from);
+      for (let index = 0; index < changed.length; index += 1) changed[index]! += pixels;
+      for (let y = span.from; y < span.to; y += 1) {
+        mask?.fill(1, y * width + strip.from, y * width + strip.to);
+        if (picture === undefined) continue;
+        for (let index = y * row + strip.from * 4; index < y * row + strip.to * 4; index += 4) {
+          if (diffMask) picture.set(INSERTED, index);
+          else {
+            // The dimmed after pixel, tinted, so the inserted content stays legible.
+            for (let channel = 0; channel < 3; channel += 1) {
+              picture[index + channel] = Math.round(picture[index + channel]! * 0.6 + INSERTED[channel]! * 0.4);
+            }
+          }
         }
       }
     }

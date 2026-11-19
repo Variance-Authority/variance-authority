@@ -1,7 +1,7 @@
 import pixelmatch from 'pixelmatch';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_POLICY, STRICT_POLICY, type DiffPolicy } from '@variance-authority/raster';
-import { judgeRows } from './judge.js';
+import { judgeRows, type SourceStrip } from './judge.js';
 import type { DecodedImage } from './mask.js';
 
 /**
@@ -26,13 +26,13 @@ describe('one scan agrees with pixelmatch', () => {
       const copied = warp(before, after, source);
       const masks = POLICIES.map((policy) => oracle(copied, after, policy, true));
 
-      const judged = judgeRows(before, after, source, POLICIES, { mask: 0 });
+      const judged = judgeRows(before, after, whole(after, source), POLICIES, { mask: 0 });
       expect(judged.changed).toEqual(masks.map((mask) => mask.changed));
       expect(judged.mask).toEqual(alphaOf(masks[0]!.data));
 
       for (const diffMask of [true, false]) {
         for (const [index, policy] of POLICIES.entries()) {
-          const picture = judgeRows(before, after, source, POLICIES, { picture: { policy: index, diffMask } }).picture;
+          const picture = judgeRows(before, after, whole(after, source), POLICIES, { picture: { policy: index, diffMask } }).picture;
           expect(picture).toEqual(oracle(copied, after, policy, diffMask).data);
         }
       }
@@ -79,10 +79,15 @@ describe('a row on a seam', () => {
 
     const above = 5 * width;
     const unaligned = judgeRows(page, moved, undefined, [DEFAULT_POLICY], { mask: 0 }).mask!.subarray(0, above);
-    const seamed = judgeRows(page, after, source, [DEFAULT_POLICY], { mask: 0 }).mask!.subarray(0, above);
+    const seamed = judgeRows(page, after, whole(after, source), [DEFAULT_POLICY], { mask: 0 }).mask!.subarray(0, above);
     expect(seamed).toEqual(unaligned);
   });
 });
+
+/** One strip across the whole width, or none when the rows are unaligned. */
+function whole(image: DecodedImage, source: readonly number[] | undefined): SourceStrip[] | undefined {
+  return source && [{ from: 0, to: image.width, source }];
+}
 
 /** A seed whose page puts a pixel on the seam that its neighbours decide. */
 const SEAM_SEED = 16;

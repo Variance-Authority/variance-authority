@@ -179,9 +179,14 @@ export interface AttributionOptions {
    * begins, so a region inside one is as wide as the image and only the root
    * contains it by area. It is joined by its rows instead: to the tightest box
    * whose rows span it, which is the box that grew. Absent when the rows were
-   * compared by position.
+   * compared by position. A run with `columns` was inserted in those raster
+   * columns alone, and joins only a region inside them.
    */
-  readonly inserted?: readonly { readonly from: number; readonly to: number }[];
+  readonly inserted?: readonly {
+    readonly from: number;
+    readonly to: number;
+    readonly columns?: { readonly from: number; readonly to: number };
+  }[];
 }
 
 const DEFAULT_CONTAINMENT = 0.9;
@@ -225,7 +230,13 @@ export function attributeRegions(
     const area = css.width * css.height;
     // Rows the after image added are joined by the rows they span, and only to
     // this render's box: the before side never painted them.
-    const added = options.inserted?.some((run) => run.from <= region.y && region.y + region.height <= run.to) ?? false;
+    const added =
+      options.inserted?.some(
+        (run) =>
+          run.from <= region.y &&
+          region.y + region.height <= run.to &&
+          (run.columns === undefined || (run.columns.from <= region.x && region.x + region.width <= run.columns.to)),
+      ) ?? false;
 
     let inside: (typeof boxed)[number] | undefined;
     let overlapping: (typeof boxed)[number] | undefined;

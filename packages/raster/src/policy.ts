@@ -78,10 +78,16 @@ export interface RasterComparison {
   readonly alignment?: RowAlignment;
 }
 
-/** Rows `from` up to, and not including, `to`. */
+/**
+ * Rows `from` up to, and not including, `to`: across the whole width, or across
+ * `columns` alone where the page was aligned in vertical strips, a column whose
+ * content moved beside one that stayed put.
+ */
 export interface RowSpan {
   readonly from: number;
   readonly to: number;
+  /** Columns `from` up to, and not including, `to`. Absent across the whole width. */
+  readonly columns?: { readonly from: number; readonly to: number };
 }
 
 /**

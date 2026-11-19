@@ -82,4 +82,30 @@ describe('a region of inserted rows', () => {
 
     expect(attributed).toMatchObject({ path: '0', component: 'Card' });
   });
+
+  it('is joined by area when the rows were inserted in other columns', () => {
+    // A sidebar gained the rows, so in the columns the band covers nothing was
+    // inserted at those heights: the rows say nothing about where it belongs.
+    const [attributed] = attributeRegions([{ ...BAND, x: 200, width: 130, pixels: 390 }], card(36), {
+      scale: 1,
+      origin: { x: 0, y: 0 },
+      before: card(30),
+      beforeOrigin: { x: 0, y: 0 },
+      inserted: [{ ...INSERTED[0]!, columns: { from: 0, to: 100 } }],
+    });
+
+    expect(attributed).toMatchObject({ path: '0', component: 'Card' });
+  });
+
+  it('is joined by its rows inside the columns that gained them', () => {
+    const [attributed] = attributeRegions([{ ...BAND, x: 200, width: 130, pixels: 390 }], card(36), {
+      scale: 1,
+      origin: { x: 0, y: 0 },
+      before: card(30),
+      beforeOrigin: { x: 0, y: 0 },
+      inserted: [{ ...INSERTED[0]!, columns: { from: 200, to: 330 } }],
+    });
+
+    expect(attributed).toMatchObject({ path: '0/0', component: 'Button' });
+  });
 });

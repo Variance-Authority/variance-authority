@@ -16,7 +16,8 @@
  * runs meet: the copy set before rows side by side that never were, and its
  * anti-aliasing test read across them, so a pixel was forgiven or counted on
  * neighbours it never had. Here a before pixel's neighbours are the rows
- * around the one it came from.
+ * around the one it came from, and so they are at a strip's edge, where the
+ * column beside it was paired with another before row.
  */
 
 import type { DiffPolicy } from '@variance-authority/raster';
@@ -37,18 +38,26 @@ export interface Judged {
   readonly picture?: Uint8Array;
 }
 
+/** Columns `from` up to `to`, and for each after row the before row it shows there. */
+export interface SourceStrip {
+  readonly from: number;
+  readonly to: number;
+  readonly source: ArrayLike<number>;
+}
+
 /**
  * Judge `after` against `before` on the after image's canvas.
  *
- * `source[y]` is the before row that shows after row `y`'s content, or `-1`
- * for a row with no partner, which is compared with itself and so counts
- * nothing; the caller marks it. Without `source` the two are compared position
- * by position and must already be the same size.
+ * Each strip's `source[y]` is the before row that shows after row `y`'s content
+ * across the strip's columns, or `-1` for a row with no partner, which is
+ * compared with itself and so counts nothing; the caller marks it. The strips
+ * tile the width. Without them the two are compared position by position and
+ * must already be the same size.
  */
 export function judgeRows(
   before: DecodedImage,
   after: DecodedImage,
-  source: ArrayLike<number> | undefined,
+  strips: readonly SourceStrip[] | undefined,
   policies: readonly DiffPolicy[],
   output: JudgeOutput = {},
 ): Judged {
@@ -59,39 +68,12 @@ export function judgeRows(
   const was32 = new Uint32Array(was.buffer, was.byteOffset, was.length >> 2);
   const now32 = new Uint32Array(now.buffer, now.byteOffset, now.length >> 2);
 
-  // Each canvas row of the first image, as a view: the before row it pairs
-  // with, or the after row itself where it pairs with none.
-  const first8: Uint8Array[] = [];
-  const first32: Uint32Array[] = [];
   const second8: Uint8Array[] = [];
   const second32: Uint32Array[] = [];
   for (let y = 0; y < height; y += 1) {
-    const from = source === undefined ? y : source[y]!;
-    const [bytes8, words] = from < 0 ? [now, now32] : [was, was32];
-    const at = from < 0 ? y : from;
-    first8.push(bytes8.subarray(at * row, (at + 1) * row));
-    first32.push(words.subarray(at * width, (at + 1) * width));
     second8.push(now.subarray(y * row, (y + 1) * row));
     second32.push(now32.subarray(y * width, (y + 1) * width));
   }
-
-  // The rows around a pixel, two each way, as each image has them: the after
-  // image's on the canvas, and the before image's around the row it came from.
-  // Where two paired runs meet, the canvas sets before rows side by side that
-  // never were, and anti-aliasing read across that seam is a fact about
-  // neither image.
-  const near = (y: number): Window => {
-    const from = source === undefined ? y : source[y]!;
-    const first: Window = { bytes: [], words: [] };
-    for (let d = -2; d <= 2; d += 1) {
-      const at = y + d;
-      const was = from < 0 ? at : from + d;
-      const outside = at < 0 || at >= height || (from >= 0 && (was < 0 || was >= before.height));
-      first.bytes.push(outside ? undefined : from < 0 ? first8[at] : was8(was));
-      first.words.push(outside ? undefined : from < 0 ? first32[at] : was32row(was));
-    }
-    return first;
-  };
   const was8 = (at: number) => was.subarray(at * row, (at + 1) * row);
   const was32row = (at: number) => was32.subarray(at * width, (at + 1) * width);
   const canvas = (y: number): Window => {
@@ -103,7 +85,6 @@ export function judgeRows(
     }
     return second;
   };
-  let windows: { y: number; first: Window; second: Window } | undefined;
 
   const limits = policies.map((policy) => 35215 * policy.threshold * policy.threshold);
   const changed = policies.map(() => 0);
@@ -112,41 +93,74 @@ export function judgeRows(
   const drawn = output.picture?.policy ?? -1;
   const greyed = output.picture !== undefined && !output.picture.diffMask;
 
-  for (let y = 0; y < height; y += 1) {
-    const a8 = first8[y]!;
-    const a32 = first32[y]!;
-    const b8 = second8[y]!;
-    const b32 = second32[y]!;
-    for (let x = 0; x < width; x += 1) {
-      const at = x * 4;
-      const pos = y * row + at;
-      if (a32[x] === b32[x]) {
-        if (greyed) grey(a8, at, picture!, pos);
-        continue;
+  for (const { from: x0, to: x1, source } of strips ?? [{ from: 0, to: width, source: undefined }]) {
+    // Each canvas row of the first image, as a view: the before row it pairs
+    // with, or the after row itself where it pairs with none.
+    const first8: Uint8Array[] = [];
+    const first32: Uint32Array[] = [];
+    for (let y = 0; y < height; y += 1) {
+      const from = source === undefined ? y : source[y]!;
+      const [bytes8, words] = from < 0 ? [now, now32] : [was, was32];
+      const at = from < 0 ? y : from;
+      first8.push(bytes8.subarray(at * row, (at + 1) * row));
+      first32.push(words.subarray(at * width, (at + 1) * width));
+    }
+
+    // The rows around a pixel, two each way, as each image has them: the after
+    // image's on the canvas, and the before image's around the row it came from.
+    // Where two paired runs meet, the canvas sets before rows side by side that
+    // never were, and anti-aliasing read across that seam is a fact about
+    // neither image.
+    const near = (y: number): Window => {
+      const from = source === undefined ? y : source[y]!;
+      const first: Window = { bytes: [], words: [] };
+      for (let d = -2; d <= 2; d += 1) {
+        const at = y + d;
+        const was = from < 0 ? at : from + d;
+        const outside = at < 0 || at >= height || (from >= 0 && (was < 0 || was >= before.height));
+        first.bytes.push(outside ? undefined : from < 0 ? first8[at] : was8(was));
+        first.words.push(outside ? undefined : from < 0 ? first32[at] : was32row(was));
       }
-      const delta = colorDelta(a8, b8, at, pos);
-      const size = Math.abs(delta);
-      // Anti-aliasing is a fact about the two images, asked once and shared by
-      // every policy that forgives it.
-      let excused: boolean | undefined;
-      for (let index = 0; index < policies.length; index += 1) {
-        if (!(size > limits[index]!)) {
-          if (index === drawn && greyed) grey(a8, at, picture!, pos);
+      return first;
+    };
+    let windows: { y: number; first: Window; second: Window } | undefined;
+
+    for (let y = 0; y < height; y += 1) {
+      const a8 = first8[y]!;
+      const a32 = first32[y]!;
+      const b8 = second8[y]!;
+      const b32 = second32[y]!;
+      for (let x = x0; x < x1; x += 1) {
+        const at = x * 4;
+        const pos = y * row + at;
+        if (a32[x] === b32[x]) {
+          if (greyed) grey(a8, at, picture!, pos);
           continue;
         }
-        if (!policies[index]!.includeAA) {
-          if (windows?.y !== y) windows = { y, first: near(y), second: canvas(y) };
-          excused ??=
-            antialiased(windows.first, x, pos, width, windows.second) ||
-            antialiased(windows.second, x, pos, width, windows.first);
-          if (excused) {
-            if (index === drawn && greyed) paint(picture!, pos, 255, 255, 0);
+        const delta = colorDelta(a8, b8, at, pos);
+        const size = Math.abs(delta);
+        // Anti-aliasing is a fact about the two images, asked once and shared by
+        // every policy that forgives it.
+        let excused: boolean | undefined;
+        for (let index = 0; index < policies.length; index += 1) {
+          if (!(size > limits[index]!)) {
+            if (index === drawn && greyed) grey(a8, at, picture!, pos);
             continue;
           }
+          if (!policies[index]!.includeAA) {
+            if (windows?.y !== y) windows = { y, first: near(y), second: canvas(y) };
+            excused ??=
+              antialiased(windows.first, x, pos, width, windows.second) ||
+              antialiased(windows.second, x, pos, width, windows.first);
+            if (excused) {
+              if (index === drawn && greyed) paint(picture!, pos, 255, 255, 0);
+              continue;
+            }
+          }
+          changed[index]! += 1;
+          if (index === output.mask) mask![y * width + x] = 1;
+          if (index === drawn) paint(picture!, pos, 255, 0, 0);
         }
-        changed[index]! += 1;
-        if (index === output.mask) mask![y * width + x] = 1;
-        if (index === drawn) paint(picture!, pos, 255, 0, 0);
       }
     }
   }
