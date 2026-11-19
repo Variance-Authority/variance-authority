@@ -31,26 +31,23 @@
  *
  * A configuration's `extends` chain is folded in first, because a `paths`
  * inherited from a base is the base's answer. A base named by a path is read
- * where the path points. A base named by a package — `@org/tsconfig/base`, the
- * shape of a workspace that keeps its shared configuration in a package — is
- * asked of `oxc-resolver` under the rule it follows `extends` by, so the file
- * read here is the file the resolver itself inherits from: the package's
- * `exports`, then its `tsconfig.json`, reached through the `node_modules` link
- * the workspace manifests put there. The manifests and the lockfile that decide
- * where that link leads are already in the config digest.
+ * where it points, then as a directory's `tsconfig.json`, then with `.json`
+ * appended, as `oxc-resolver` reads it. A base named by a package — `@tsconfig/node22`,
+ * or `@org/tsconfig/base` in a workspace that shares its configuration — is
+ * asked of `oxc-resolver` under the rule it follows `extends` by: the
+ * package's `exports`, then its `tsconfig.json`.
  *
- * The base counts only when it lands on a configuration the tree tracks, since
- * git owns what exists and the config digest names only tracked contents. A
- * workspace package's link leads back into the tree and lands on one. A base
- * installed from a registry lands in `node_modules`, which git does not track,
- * and a base outside the checkout is no path of this repository — either could
- * change its `paths` without moving anything a record is kept under.
+ * A base is read whatever it is named and wherever it lies — `tspaths.json`
+ * beside its `tsconfig`, a package under `node_modules`. Each one the listing
+ * does not hold is handed back in `read` with the digest of its bytes, and each
+ * that is not there yet in `missing`, so the config digest names both and an
+ * edit, a build or an install moves every record's configuration. A target
+ * placed outside the checkout bounds no path of it, and is dropped.
  *
- * So when a configuration cannot be read — invalid JSON, or an `extends` that
- * does not resolve to a configuration the tree tracks — there is no honest
+ * So only when a configuration cannot be read — invalid JSON, a base that is
+ * there and is not one, or one the resolver cannot answer — is there no honest
  * bound on where a bare specifier could land. Aliases are then **unknown**, and
- * the caller that asks for them is expected to fall back to treating the whole
- * path set as one witness ([`reuse.ts`](./reuse.ts)).
+ * the caller falls back to the whole path set as one witness ([`reuse.ts`](./reuse.ts)).
  */
 
 import { dirname, join, normalize } from 'node:path/posix';
@@ -69,6 +66,18 @@ export interface Aliases {
    * the same table rather than reading the configurations a second time.
    */
   readonly table: AliasTable;
+  /**
+   * Every configuration an `extends` chain read that the paths handed in do
+   * not hold, from the root, with the digest of the bytes read. They decide
+   * the table as much as the listed ones do, so the config digest names them.
+   */
+  readonly read: ReadonlyMap<string, Digest>;
+  /**
+   * Every `extends` entry that reached no file, as the configuration naming it
+   * and the name as written. It declares nothing yet, and the config digest
+   * names it, so the base appearing moves every record's configuration.
+   */
+  readonly missing: readonly string[];
 }
 
 /** The placed `baseUrl` directories, in the order declared, and every mapping. */
@@ -112,6 +121,8 @@ export async function aliasesIn(
 
   return {
     table: { bases, mappings },
+    read: new Map(held.read.map(({ path, digest }) => [path, digest as Digest])),
+    missing: held.missing,
     candidatesFor(request) {
       const found: string[] = [];
       for (const base of bases) found.push(join(base, request));
