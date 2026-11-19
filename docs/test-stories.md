@@ -654,6 +654,13 @@ their step:
 - **[`vae`](../packages/event/README.md)**, when your product code uses it.
   Each announcement it makes.
 
+A test in Node that opens its page through
+[`createHarness`](../packages/playwright/README.md) also hears the page: each
+line it printed as `page console.log <text>`, a page error as `page error
+<first line>`, a crash as `page crashed`, and each document its top frame
+loaded as `page navigated <address>`, with ` (reload)` where the browser
+reports a reload.
+
 So when you need a value the story does not hold, add a `console.log` that
 prints it, record the test again, and read the line at its step. A step shows
 its first 5 lines and counts the rest.
