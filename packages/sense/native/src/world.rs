@@ -142,25 +142,47 @@ impl<'a> World<'a> {
     }
 
     /// Builds the indexes `languages` resolve through, here rather than in
-    /// the resolve pool.
+    /// the resolve pool. They are independent, so they are built at once,
+    /// each once: a thread waiting inside one index may take the work of
+    /// another, never its own. The sorted tree they all walk is settled
+    /// first, so none waits on another's initialiser.
     pub(crate) fn prewarm(&self, languages: impl IntoIterator<Item = Language>) {
+        let mut wanted = [false; 4];
         for language in languages {
             match language {
-                Language::Python => {
-                    self.python_index();
-                }
-                Language::Rust => {
-                    self.rust_index();
-                }
-                Language::Swift => {
-                    self.swift_index();
-                }
-                Language::Java | Language::Kotlin => {
-                    self.jvm_index();
-                }
+                Language::Python => wanted[0] = true,
+                Language::Rust => wanted[1] = true,
+                Language::Swift => wanted[2] = true,
+                Language::Java | Language::Kotlin => wanted[3] = true,
                 _ => {}
             }
         }
+        if !wanted.contains(&true) {
+            return;
+        }
+        self.sorted();
+        rayon::scope(|scope| {
+            if wanted[0] {
+                scope.spawn(|_| {
+                    self.python_index();
+                });
+            }
+            if wanted[1] {
+                scope.spawn(|_| {
+                    self.rust_index();
+                });
+            }
+            if wanted[2] {
+                scope.spawn(|_| {
+                    self.swift_index();
+                });
+            }
+            if wanted[3] {
+                scope.spawn(|_| {
+                    self.jvm_index();
+                });
+            }
+        });
     }
 
     /// Where `request`, written in a `language` file at `file`, lands.

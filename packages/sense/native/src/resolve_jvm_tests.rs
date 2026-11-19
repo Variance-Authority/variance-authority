@@ -59,3 +59,29 @@ fn reads_a_package_only_at_the_start_of_a_line() {
     assert_eq!(package("x package a.b;\n"), None);
     assert_eq!(package("package\na.b;\n"), None);
 }
+
+/// The roots are the ones a single thread reading the tree in path order
+/// derives, however many threads read the directories' package lines.
+#[test]
+fn derives_the_same_roots_on_one_thread_as_on_many() {
+    let mut files: Vec<(String, String)> = Vec::new();
+    for module in 0..64 {
+        files.push((format!("m{module:02}/src/main/java/a/b/Thing.java"), "package a.b;\n".to_owned()));
+        files.push((format!("m{module:02}/odd/Loose.java"), "class Loose {}\n".to_owned()));
+        files.push((format!("m{module:02}/src/main/kotlin/c/d.kt"), format!("package c\n// {module}\n")));
+    }
+    files.sort_by(|left, right| crate::order::code_unit(&left.0, &right.0));
+    let held: HashMap<&str, &str> = files.iter().map(|(path, text)| (path.as_str(), text.as_str())).collect();
+    let known: HashMap<String, u32> = files.iter().map(|(path, _)| path.clone()).zip(0..).collect();
+    let parsing = |paths: &[&str]| paths.iter().map(|_| None).collect();
+    let texting = |path: &str| held.get(path).map(|text| (*text).to_owned());
+    let built = |threads: usize| {
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+        pool.install(|| super::roots(&World::new(Some(&known), None).reading(&parsing, &texting)))
+    };
+    let alone = built(1);
+    assert!(alone.contains(&"m00/src/main/java".to_owned()) && alone.contains(&"m63/odd".to_owned()));
+    for round in 0..16 {
+        assert_eq!(built(8), alone, "round {round}");
+    }
+}

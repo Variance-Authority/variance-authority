@@ -43,9 +43,9 @@ fn the_listing_line_names_each_part_that_ran_in_order_and_resets_it() {
 }
 
 #[test]
-fn the_walk_line_names_every_thread_time_with_reading_less_parsing() {
-    let sums = table(&[(Sum::Read, 3_000_000_000), (Sum::Parse, 1_000_000_000)]);
-    assert_eq!(taken(&sums, &WALK), " (thread time: read 2.000 s, parse 1.000 s, resolve 0.000 s)");
+fn the_walk_line_names_every_thread_time_with_reading_less_parsing_then_the_wall_time_of_its_indexes() {
+    let sums = table(&[(Sum::Read, 3_000_000_000), (Sum::Parse, 1_000_000_000), (Sum::Index, 250_000_000)]);
+    assert_eq!(taken(&sums, &WALK), " (thread time: read 2.000 s, parse 1.000 s, resolve 0.000 s; wall: index 0.250 s)");
     assert!(all_zero(&sums));
 }
 

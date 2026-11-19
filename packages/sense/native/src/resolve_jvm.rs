@@ -32,6 +32,7 @@
 use std::collections::HashSet;
 use std::sync::LazyLock;
 
+use rayon::prelude::*;
 use regex::Regex;
 
 use crate::order::code_unit;
@@ -61,19 +62,22 @@ fn roots(world: &World) -> Vec<String> {
             }
         }
     }
-    let mut roots: Vec<String> = Vec::new();
-    for directory in directories {
-        let sample = world.under(directory).find(|path| is_jvm(path));
-        let text = sample.and_then(|sample| world.text(sample));
-        let declared = text.as_deref().and_then(|text| PACKAGE.captures(text)).and_then(|found| found.get(1));
-        let suffix = declared.map(|name| name.as_str().replace('.', "/"));
-        let root = match suffix {
-            Some(suffix) if directory == suffix => String::new(),
-            Some(suffix) if directory.ends_with(&format!("/{suffix}")) => directory[..directory.len() - suffix.len() - 1].to_owned(),
-            _ => directory.to_owned(),
-        };
-        roots.push(root);
-    }
+    // Each directory's root is its own sample's to say, so they are read on
+    // every core; the roots are sorted after, so no thread's order shows.
+    let mut roots: Vec<String> = directories
+        .into_par_iter()
+        .map(|directory| {
+            let sample = world.under(directory).find(|path| is_jvm(path));
+            let text = sample.and_then(|sample| world.text(sample));
+            let declared = text.as_deref().and_then(|text| PACKAGE.captures(text)).and_then(|found| found.get(1));
+            let suffix = declared.map(|name| name.as_str().replace('.', "/"));
+            match suffix {
+                Some(suffix) if directory == suffix => String::new(),
+                Some(suffix) if directory.ends_with(&format!("/{suffix}")) => directory[..directory.len() - suffix.len() - 1].to_owned(),
+                _ => directory.to_owned(),
+            }
+        })
+        .collect();
     roots.sort_by(|left, right| left.len().cmp(&right.len()).then_with(|| code_unit(left, right)));
     roots.dedup();
     roots

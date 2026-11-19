@@ -58,6 +58,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 
+use rayon::prelude::*;
 use regex::Regex;
 
 use crate::harvest::SourceSymbol;
@@ -110,28 +111,27 @@ pub(crate) struct Index {
 
 impl Index {
     /// The tree `world`'s `.rs` files declare, read together, and its crates.
+    /// What one file says is its own, so the files are taken on every core and
+    /// folded in path order, and the crates are read beside the tree: the
+    /// index is the one a single thread reading in path order builds.
     pub(crate) fn of(world: &World) -> Self {
+        let (mut index, crates) = rayon::join(|| Self::tree(world), || crates(world));
+        index.crates = crates;
+        index
+    }
+
+    /// The module tree alone.
+    fn tree(world: &World) -> Self {
         let mut index = Self::default();
-        let rust: Vec<&str> = world.below("").iter().copied().filter(|file| file.ends_with(".rs")).collect();
+        let rust: Vec<&str> = world.below("").par_iter().copied().filter(|file| file.ends_with(".rs")).collect();
+        let own: Vec<Option<Own>> = world.parsed(&rust).into_par_iter().map(|read| read.map(own)).collect();
         let mut declared: Vec<(&str, String, String)> = Vec::new();
-        for (file, read) in rust.iter().zip(world.parsed(&rust)) {
-            let Some(read) = read else { continue };
+        for (file, own) in rust.iter().zip(own) {
+            let Some(own) = own else { continue };
             index.children.insert((*file).to_owned(), HashMap::new());
-            let mut files = HashSet::new();
-            for request in read.requests {
-                // A `mod` line: written, and the file taken whole under its name.
-                let Some(binding) = request.bindings.first() else { continue };
-                if request.guessed || binding.imported != NAMESPACE_NAME {
-                    continue;
-                }
-                let local = binding.local.clone();
-                if request.value == format!("self::{local}") || (spelled_path(&request.value) && !inline_spelled(&request.value)) {
-                    files.insert(local.clone());
-                }
-                declared.push((file, request.value, local));
-            }
-            if read.harvested {
-                index.items.insert((*file).to_owned(), top_level_items(&read.symbols, &files));
+            declared.extend(own.declared.into_iter().map(|(value, local)| (*file, value, local)));
+            if let Some(items) = own.items {
+                index.items.insert((*file).to_owned(), items);
             }
         }
 
@@ -157,7 +157,6 @@ impl Index {
                 index.place(file, path.join("::"), child, inline.to_vec());
             }
         }
-        index.crates = crates(world);
         index
     }
 
@@ -170,6 +169,32 @@ impl Index {
             children.insert(key, child);
         }
     }
+}
+
+/// What one `.rs` file says about the tree: each `mod` line, as written and
+/// by the name it binds, and its top-level items when its symbols were read.
+struct Own {
+    declared: Vec<(String, String)>,
+    items: Option<Items>,
+}
+
+fn own(read: crate::read::Read) -> Own {
+    let mut files = HashSet::new();
+    let mut declared = Vec::new();
+    for request in read.requests {
+        // A `mod` line: written, and the file taken whole under its name.
+        let Some(binding) = request.bindings.first() else { continue };
+        if request.guessed || binding.imported != NAMESPACE_NAME {
+            continue;
+        }
+        let local = binding.local.clone();
+        if request.value == format!("self::{local}") || (spelled_path(&request.value) && !inline_spelled(&request.value)) {
+            files.insert(local.clone());
+        }
+        declared.push((request.value, local));
+    }
+    let items = read.harvested.then(|| top_level_items(&read.symbols, &files));
+    Own { declared, items }
 }
 
 /// Where `request`, asked from `from`, lands: at most one file, never `from`.
@@ -359,14 +384,18 @@ fn root_of(file: &str, world: &World, modules: &Index) -> String {
 /// `[package]` name when the manifest can be read, its directory's otherwise,
 /// a hyphen an underscore either way.
 fn crates(world: &World) -> HashMap<String, String> {
+    let manifests: Vec<&str> = world.below("").par_iter().copied().filter(|path| *path == "Cargo.toml" || path.ends_with("/Cargo.toml")).collect();
+    let named: Vec<(String, &str)> = manifests
+        .par_iter()
+        .map(|path| {
+            let directory = &path[..path.len().saturating_sub("/Cargo.toml".len())];
+            let text = world.text(path);
+            (text.as_deref().and_then(manifest_name).unwrap_or_else(|| name_of(directory)).replace('-', "_"), directory)
+        })
+        .collect();
+    // In path order, so a name two manifests give goes to the later one.
     let mut by_name = HashMap::new();
-    for path in world.below("") {
-        if *path != "Cargo.toml" && !path.ends_with("/Cargo.toml") {
-            continue;
-        }
-        let directory = &path[..path.len().saturating_sub("/Cargo.toml".len())];
-        let text = world.text(path);
-        let name = text.as_deref().and_then(manifest_name).unwrap_or_else(|| name_of(directory)).replace('-', "_");
+    for (name, directory) in named {
         if !name.is_empty() {
             by_name.insert(name, directory.to_owned());
         }
