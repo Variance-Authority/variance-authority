@@ -154,6 +154,20 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
     expect(exit).toBe(1);
   });
 
+  it('lists a base-only test to a runner that finds its tests in one recursive listing', async () => {
+    writeFileSync(join(root, 'run.mjs'), runner.replace(
+      'const [out, ...files] = process.argv.slice(2);',
+      "import { readdirSync } from 'node:fs';\nconst [out] = process.argv.slice(2);\nconst files = readdirSync('.', { recursive: true }).filter((file) => file.endsWith('.test.js'));",
+    ));
+    git(root, 'commit', '-qam', 'recursive runner');
+    const exit = await janus(process.execPath, 'run.mjs', out);
+    const report = readFileSync(out, 'utf8');
+    expect(report).toContain('only the base has me');
+    expect(report).not.toContain('only the head has me');
+    expect(notes.join('')).toBe('');
+    expect(exit).toBe(1);
+  });
+
   it('loads a base-only test written as a module where no `type` says so, as Node detects it', async () => {
     git(root, 'checkout', '-q', 'base');
     writeFileSync(join(root, 'src', 'module.test.js'), "import { test } from 'node:test';\ntest('a module only the base has', () => {});\n");

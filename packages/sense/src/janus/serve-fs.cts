@@ -212,7 +212,35 @@ writablePromises.realpath = async function realpath(target) {
   return hit.key;
 };
 
+const recursive = (options: unknown): boolean => typeof options === 'object' && options !== null && (options as { recursive?: boolean }).recursive === true;
+
+/** One directory's listing for this run, read through the disk's own non-recursive listing. */
+const listingOf = (dir: unknown, withFileTypes: boolean): (string | fs.Dirent)[] => {
+  const hit = lookup(dir);
+  if (hit !== undefined && 'dir' in hit) return entriesOf(dir, [], withFileTypes);
+  return entriesOf(dir, real.readdirSync!(dir, { withFileTypes }) as (string | fs.Dirent)[], withFileTypes);
+};
+
+/**
+ * A recursive listing walked one level at a time, so every level holds what
+ * this run serves: Node's own recursive listing reads below `fs`, and a served
+ * file below the asked directory would be missing from it.
+ */
+const walk = (dir: unknown, withFileTypes: boolean): (string | fs.Dirent)[] => {
+  const out: (string | fs.Dirent)[] = [];
+  const level = (at: string, relative: string): void => {
+    for (const entry of listingOf(at, true) as fs.Dirent[]) {
+      const name = relative === '' ? entry.name : path.join(relative, entry.name);
+      out.push(withFileTypes ? entry : name);
+      if (entry.isDirectory()) level(path.join(at, entry.name), name);
+    }
+  };
+  level(keyOf(dir) ?? String(dir), '');
+  return out;
+};
+
 writable.readdirSync = function readdirSync(dir, options) {
+  if (recursive(options)) return walk(dir, wantsTypes(options));
   const hit = lookup(dir);
   if (hit !== undefined && 'dir' in hit) return entriesOf(dir, [], wantsTypes(options));
   return entriesOf(dir, real.readdirSync!.apply(this, arguments as never) as (string | fs.Dirent)[], wantsTypes(options));
@@ -220,11 +248,23 @@ writable.readdirSync = function readdirSync(dir, options) {
 writable.readdir = function readdir(dir, options, callback) {
   const done = callbackOf(options, callback);
   const opts: unknown = typeof options === 'function' ? undefined : options;
+  if (recursive(opts)) {
+    return process.nextTick(() => {
+      let listed: (string | fs.Dirent)[];
+      try {
+        listed = walk(dir, wantsTypes(opts));
+      } catch (error) {
+        return done(error as NodeJS.ErrnoException);
+      }
+      done(null, listed);
+    });
+  }
   const hit = lookup(dir);
   if (hit !== undefined && 'dir' in hit) return process.nextTick(() => done(null, entriesOf(dir, [], wantsTypes(opts))));
   return real.readdir!.call(this, dir, opts ?? {}, (error: NodeJS.ErrnoException | null, names: (string | fs.Dirent)[]) => (error ? done(error) : done(null, entriesOf(dir, names, wantsTypes(opts)))));
 };
 writablePromises.readdir = async function readdir(dir, options) {
+  if (recursive(options)) return walk(dir, wantsTypes(options));
   const hit = lookup(dir);
   if (hit !== undefined && 'dir' in hit) return entriesOf(dir, [], wantsTypes(options));
   return entriesOf(dir, (await realPromises.readdir!.apply(this, arguments as never)) as (string | fs.Dirent)[], wantsTypes(options));
