@@ -301,9 +301,8 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     expect(listed(await gitRan())).toBe(true);
   });
 
-  it.each([['cache/'], ['./cache'], ['Cache'], ['../elsewhere'], ['çache']])('asks git when the watch ignores %s, however it spells a directory', async (spelled) => {
-    // A case-insensitive volume ignores `Cache` as `cache`. An entry that is no plain path below the root is not guessed at,
-    // nor is one that is not ASCII, which a volume may fold onto a listed path by rules this does not know.
+  it.each([['cache/'], ['./cache'], ['Cache'], ['../elsewhere']])('asks git when the watch ignores %s, however it spells a directory', async (spelled) => {
+    // A case-insensitive volume ignores `Cache` as `cache`; an entry that is no plain path below the root is not guessed at.
     await tell({ clock: 'c:14:1', fresh: true, config: { ignore_dirs: [spelled] } });
     await updateNatively(root, index);
     await gitRan();

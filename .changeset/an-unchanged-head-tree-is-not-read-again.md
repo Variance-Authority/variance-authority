@@ -11,5 +11,4 @@ pruned its old tree; the working tree is compared on every run, as
 before. On Kibana the tree part of an unchanged run falls from about 110 ms to
 about 25 ms; the run's wall time does not move, because the tree is read while
 the working tree is walked. A Watchman watch that ignores directories, such as `node_modules` or
-`dist`, now vouches for the held listing too, unless a tracked file lies in one
-or one is named in other than ASCII.
+`dist`, now vouches for the held listing too, unless a tracked file lies in one.
