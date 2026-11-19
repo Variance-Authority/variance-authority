@@ -338,6 +338,7 @@
         "keepsSnapshot": "function",
         "keyedByPosition": "function",
         "mergeDiagnostics": "function",
+        "navigationNote": "function",
         "occupiesPixels": "function",
         "pageOrigin": "function",
         "picture": "function",

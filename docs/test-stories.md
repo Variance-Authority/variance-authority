@@ -543,10 +543,14 @@ Under Playwright, Storybook and the browser modes of Vitest and Rstest, the
 story is of the code the page ran. Under Playwright and the browser modes, each
 statement of the test opens what the page did next with its line. When the test
 ran in more than one page document, such as a page and a popup or a page it
-navigated, the story marks where it moves into each. A ref is its own
-document's, and what two documents did under one statement is in the order it
-reached the test, not the order it ran, so a comparison does not count that
-order as a difference.
+navigated, the story marks where it moves into each. Where the page went to
+another document of the same origin, or reloaded, the step it happened during
+says so before what the new document ran: `page navigated
+http://shop.test/checkout`, or `page reloaded http://shop.test/` where the
+browser reports a reload; a move back or forward is a navigation. The
+address drops its query and fragment. A ref is its own document's, and what two
+documents did under one statement is in the order it reached the test, not the
+order it ran, so a comparison does not count that order as a difference.
 
 - **Where stories are kept.** In [the cache](cache.md), under
   `coverage.stories/`. A story is removed 14 days after it was written, with
