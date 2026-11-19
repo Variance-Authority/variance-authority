@@ -663,8 +663,13 @@ base.
 ### git, and the two accelerators
 
 Everything Variance Authority knows about a working tree comes from git.
-`ls-tree` reads the commit and does not grow with the checkout. `status` reads
-the working tree and does, so it is the row that matters, and git ships two
+Reading the commit's tree does not grow with the checkout, and `variance index`
+reads it only where it moved: it keeps the tree beside the index by the id of
+every directory, so an unchanged `HEAD` reads no tree and a commit, a pull or a
+branch switch reads only the directories whose ids changed. On Kibana that part
+falls from about 110 ms to about 25 ms, and the run as a whole does not move,
+because the tree is read while the working tree is walked. `status` reads the
+working tree and grows with it, so it is the row that matters, and git ships two
 accelerators for it that are off by default:
 
 | Asking git for `status` | Material UI | Kibana |
@@ -710,7 +715,9 @@ taken before git made it. Next time, when the same server reports no change sinc
 that clock, and none of git's own files changed — `HEAD`, the index, a ref, an
 exclude or configuration file — the update reads the listing it kept and runs
 no git at all. When all it reports are paths git ignores — a tool's cache, a
-build's output — the update asks git only `check-ignore` about them. On Material
+build's output — the update asks git only `check-ignore` about them. A watch that ignores
+directories itself, such as `node_modules` or `dist`, vouches the same way,
+unless git tracks a file in one. On Material
 UI's 41,171 paths an update that runs no git takes 22 ms against 121 ms with git.
 
 Anything else lists with git, as above: a change Watchman reports, a server
