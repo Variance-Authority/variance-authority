@@ -265,14 +265,18 @@ const RELOADING = 'http://reloading.test/';
 const RELOADING_PAGE = `<script>console.log('document loaded')</script>
 <button id="choose" onclick="console.log('chose tea')">Choose</button>
 <button id="restart" onclick="console.warn('server connection lost'); setTimeout(() => { location.reload(); }, 100)">Restart</button>
-<button id="fail" onclick="setTimeout(() => { throw new Error('checkout broke\\nat line 2'); })">Fail</button>`;
+<button id="fail" onclick="setTimeout(() => { throw new Error('checkout broke\\nat line 2'); })">Fail</button>
+<iframe src="${RELOADING}frame"></iframe>`;
 
 describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a story recorded in this realm', () => {
   const realm = globalThis as { [NOTE]?: (text: string) => void };
   const reloading: HarnessOptions = {
     ...OPTIONS,
     url: RELOADING,
-    prepare: (page) => page.route(`${RELOADING}**`, (route) => route.fulfill({ contentType: 'text/html', body: RELOADING_PAGE })),
+    prepare: (page) =>
+      page.route(`${RELOADING}**`, (route) =>
+        route.fulfill({ contentType: 'text/html', body: route.request().url().endsWith('/frame') ? '<p>a frame</p>' : RELOADING_PAGE }),
+      ),
   };
 
   afterAll(() => {
@@ -302,6 +306,19 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a story recorded in this 
       'page console.log document loaded',
       'page error Error: checkout broke',
     ]);
+  });
+
+  it('is told the page crashed', async () => {
+    const notes: string[] = [];
+    realm[NOTE] = (text) => notes.push(text);
+    const harness = await createHarness(reloading);
+    try {
+      // Chromium's own address for killing the renderer; the navigation is aborted.
+      await harness.page.goto('chrome://crash').catch(() => undefined);
+      await expect.poll(() => notes.includes('page crashed')).toBe(true);
+    } finally {
+      await harness.close();
+    }
   });
 
   it('listens to nothing more when no story records', async () => {
