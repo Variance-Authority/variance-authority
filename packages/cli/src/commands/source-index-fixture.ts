@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { digestBytes } from '@variance-authority/core/format';
 import { readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect } from 'vitest';
@@ -35,7 +35,7 @@ export async function asOlderRelease(path: string): Promise<void> {
     const at = bytes.indexOf(current);
     expect(at).toBeGreaterThan(0);
     const older = Buffer.concat([bytes.subarray(0, at), Buffer.from(`"version":${String(OLDER)},`), bytes.subarray(at + current.length)]);
-    const digest = `v1:${createHash('sha256').update(older).digest('hex').slice(0, 32)}`;
+    const digest = digestBytes(older);
     await writeFile(join(`${path}.segments`, `${digest.replace(':', '-')}.bin`), older);
     await rm(segment.path);
     manifest.segments.push({ digest, length: older.length });
