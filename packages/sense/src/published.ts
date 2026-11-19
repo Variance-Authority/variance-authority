@@ -36,7 +36,7 @@ import { listWorktrees, markCheckout } from './test-selection/cache-layers.js';
 import { repositoryRoot } from './test-selection/repository-root.js';
 import { openSourceIndexFile, type SourceIndexState } from './source-index-file.js';
 import { SOURCE_INDEX_VERSION } from './source-index-format.js';
-import { dropSourceIndex, fetchedSourceIndexPath, sourceIndexWrittenIn } from './source-index-copy.js';
+import { dropSourceIndex, fetchedSourceIndexPath, sourceIndexWrittenIn, sweepFetchedSourceIndexes } from './source-index-copy.js';
 import { usesOf } from './uses.js';
 
 /** One published generation, opened for reading. */
@@ -211,21 +211,34 @@ export async function updateSourceIndex(
   const into = fetchedSourceIndexPath(path);
   const dropped = new AbortController();
   const over = options.fetch === undefined || missing ? undefined : overAnotherRelease(path);
-  const fetching = over?.then((yes) => yes ? options.fetch?.(where, into, dropped.signal) : undefined).catch(() => undefined);
+  const fetching = over?.then(async (yes) => {
+    if (!yes) return undefined;
+    await sweepFetchedSourceIndexes(path);
+    return options.fetch?.(where, into, dropped.signal);
+  }).catch(() => undefined);
+  // Removed once the fetch ends, whenever that is: `into` is this update's alone, so a fetch that outlives it removes nothing of another's.
+  const removed = fetching?.then(() => dropSourceIndex(into)).catch(() => undefined);
+  let waited = false;
   const reading = !missing ? undefined : (await beside ?? []).length > 0
     ? `reading the files of ${placesOf(where, dirs)} that differ from another checkout's index, or every file if none of theirs fits`
     : `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
   // The addon tries CI's after every checkout's: one on this machine is nearer.
   const published = over === undefined || fetching === undefined ? undefined : {
     over,
-    placed: fetching.then((whose) => whose === undefined ? undefined : into),
+    placed: async () => {
+      waited = true;
+      return (await fetching) === undefined ? undefined : into;
+    },
     drop: () => { dropped.abort(); },
   };
+  // A fetch the update waited on has ended, and its copy is gone before the update answers.
+  // One it never waited on is dropped, and neither it nor what removes its copy holds the update: a remote that hears no abort keeps neither.
   const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, reading, options.packs, beside, published)
-    // Once the fetch settles, never before: an update that fails before the addon runs must not leave a copy behind,
-    // and drops the download it no longer needs.
-    .finally(async () => { if (fetching !== undefined) { dropped.abort(); await fetching; await dropSourceIndex(into); } });
-  const whose = await fetching;
+    .finally(async () => {
+      dropped.abort();
+      if (waited) await removed;
+    });
+  const whose = waited ? await fetching : undefined;
   if (options.index === undefined) markCheckout(realPath(where));
   const fetched = whose !== undefined && natively.from === into ? whose : undefined;
   return {

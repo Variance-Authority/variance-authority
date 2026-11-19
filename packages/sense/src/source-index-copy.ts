@@ -22,8 +22,8 @@
 // compass: variance-authority.reach.source-index
 
 import { randomUUID } from 'node:crypto';
-import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { mkdir, open, readdir, readFile, rename, rm } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import type { Digest } from '@variance-authority/core/format';
 import { digestPieces, sha256Hex } from './digest.js';
 import { decodeManifest, segmentDirectory, segmentPath, type SegmentReference } from './immutable-log.js';
@@ -38,10 +38,14 @@ import { writeCoverageBytes } from './test-selection/record-location.js';
  */
 export const SOURCE_INDEX_PIECE = 32 * 2 ** 20;
 
-/** A chain as it is on disk: the manifest's bytes, and each segment it names with the file that holds it. */
+/**
+ * A chain as it is on disk: where its manifest is, the manifest's bytes, and
+ * each segment it names with its length and the file that holds it.
+ */
 export interface SourceIndexChain {
+  readonly path: string;
   readonly manifest: Buffer;
-  readonly segments: readonly { readonly digest: Digest; readonly path: string }[];
+  readonly segments: readonly { readonly digest: Digest; readonly length: number; readonly path: string }[];
 }
 
 /** The chain whose manifest is at `path`, or undefined when there is none or it is not a manifest. */
@@ -51,7 +55,7 @@ export async function sourceIndexChain(path: string): Promise<SourceIndexChain |
   const segments = manifestOf(manifest);
   return segments === undefined
     ? undefined
-    : { manifest, segments: segments.map(({ digest }) => ({ digest, path: segmentPath(path, digest) })) };
+    : { path, manifest, segments: segments.map(({ digest, length }) => ({ digest, length, path: segmentPath(path, digest) })) };
 }
 
 /**
@@ -72,9 +76,42 @@ export async function sourceIndexWrittenIn(path: string): Promise<number | undef
   return SOURCE_INDEX_VERSION;
 }
 
-/** Where an update over the index at `path` has a fetched index placed: beside it, read once and removed. */
+/**
+ * Where one update over the index at `path` has a fetched index placed: beside
+ * it, read once and removed. Every call names another place, so a fetch an
+ * update dropped unawaited, and removes whenever it ends, never meets the next
+ * update's.
+ */
 export function fetchedSourceIndexPath(path: string): string {
+  return join(fetchedDirectory(path), `${String(process.pid)}-${randomUUID()}.bin`);
+}
+
+function fetchedDirectory(path: string): string {
   return `${path}.fetched`;
+}
+
+/**
+ * Remove what the fetches of an ended process left beside the index at `path`:
+ * a process that exits while a dropped fetch still waits on the remote never
+ * removes its place. A live process's place, this one's included, is its own.
+ */
+export async function sweepFetchedSourceIndexes(path: string): Promise<void> {
+  const directory = fetchedDirectory(path);
+  const names = await readdir(directory).catch(() => [] as string[]);
+  for (const name of names) {
+    const pid = Number(/^(\d+)-/.exec(name)?.[1]);
+    if (Number.isSafeInteger(pid) && pid > 0 && !alive(pid)) await rm(join(directory, name), { recursive: true, force: true });
+  }
+}
+
+function alive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // Refused is a process this user may not signal: it runs.
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
 }
 
 /** A carried chain's bytes, every piece they name once, and the bytes of one piece, read again from its segment when asked. */
@@ -86,21 +123,43 @@ export interface CarriedSourceIndex {
 
 /**
  * `chain` as it is carried: its manifest and each segment's pieces by name, in
- * order. Every piece is hashed here and none is held: `piece` reads one again
- * when asked, so a share that holds most of them reads only the rest. `size` is
- * the most bytes one piece holds.
+ * order. None is held: `piece` reads one again when asked, so a share that
+ * holds most of them reads only the rest. `size` is the most bytes one piece
+ * holds.
+ *
+ * A segment never changes under its digest, so the names of its pieces are
+ * kept beside the chain once hashed, and a carry hashes only the segments no
+ * carry before it hashed: the update that wrote them is the cost, not the
+ * size of the index. A kept list that does not read is hashed again.
  */
 export async function carriedSourceIndex(chain: SourceIndexChain, size = SOURCE_INDEX_PIECE): Promise<CarriedSourceIndex> {
+  const kept = await keptPieces(chain.path, size);
   const held = new Map<string, Piece>();
   const segments: Record<string, string[]> = {};
+  let hashed = false;
   for (const segment of chain.segments) {
+    const known = kept.get(segment.digest);
     const names: string[] = [];
-    await eachPiece(segment.path, size, (bytes, offset) => {
-      const name = sha256Hex(bytes);
-      if (!held.has(name)) held.set(name, { file: segment.path, offset, length: bytes.length });
-      names.push(name);
-    });
+    if (known !== undefined && known.length === Math.ceil(segment.length / size)) {
+      known.forEach((name, at) => {
+        const offset = at * size;
+        if (!held.has(name)) held.set(name, { file: segment.path, offset, length: Math.min(size, segment.length - offset) });
+        names.push(name);
+      });
+    } else {
+      hashed = true;
+      await eachPiece(segment.path, size, (bytes, offset) => {
+        const name = sha256Hex(bytes);
+        if (!held.has(name)) held.set(name, { file: segment.path, offset, length: bytes.length });
+        names.push(name);
+      });
+    }
     segments[segment.digest] = names;
+  }
+  // Kept for the chain as it is now: a segment it no longer names is not kept, and a list that is not written is hashed again next time.
+  if (hashed || kept.size !== chain.segments.length) {
+    const pieces: KeptPieces = { size, segments };
+    await writeCoverageBytes(piecesPath(chain.path), Buffer.from(JSON.stringify(pieces), 'utf8')).catch(() => undefined);
   }
   const carried: Carried = { manifest: chain.manifest.toString('base64'), segments };
   return {
@@ -156,6 +215,30 @@ interface Piece {
   readonly file: string;
   readonly offset: number;
   readonly length: number;
+}
+
+/** The names of each segment's pieces, by its digest, as a carry of `size`-byte pieces last hashed them. */
+interface KeptPieces {
+  readonly size: number;
+  readonly segments: Readonly<Record<string, readonly string[]>>;
+}
+
+function piecesPath(path: string): string {
+  return `${path}.pieces`;
+}
+
+/** What a carry before this one kept of the chain at `path` in `size`-byte pieces: nothing when it kept none, of another size, or what does not read. */
+async function keptPieces(path: string, size: number): Promise<ReadonlyMap<string, readonly string[]>> {
+  try {
+    const kept = JSON.parse(await readFile(piecesPath(path), 'utf8')) as Partial<KeptPieces>;
+    const segments = kept.segments;
+    if (kept.size !== size || typeof segments !== 'object' || segments === null) return new Map();
+    const named = (list: unknown): list is string[] =>
+      Array.isArray(list) && list.every((name) => typeof name === 'string' && /^[0-9a-f]{64}$/.test(name));
+    return new Map(Object.entries(segments).filter((entry): entry is [string, string[]] => named(entry[1])));
+  } catch {
+    return new Map();
+  }
 }
 
 function carriedOf(bytes: Uint8Array): Carried | undefined {
@@ -229,8 +312,12 @@ async function placeSegment(
         break;
       }
       hash.update(piece);
-      await handle.write(piece, 0, piece.length, written);
-      written += piece.length;
+      // A write may take fewer bytes than it was handed: the rest is written from where it stopped.
+      for (let taken = 0; taken < piece.length; ) {
+        const { bytesWritten } = await handle.write(piece, taken, piece.length - taken, written);
+        taken += bytesWritten;
+        written += bytesWritten;
+      }
     }
   } finally {
     await handle.close();
@@ -243,9 +330,10 @@ async function placeSegment(
   return false;
 }
 
-/** Remove the chain at `path`, manifest and segments. */
+/** Remove the chain at `path`, manifest and segments, and what a carry kept of its pieces. */
 export async function dropSourceIndex(path: string): Promise<void> {
   await rm(path, { force: true });
+  await rm(piecesPath(path), { force: true });
   await rm(segmentDirectory(path), { recursive: true, force: true });
 }
 

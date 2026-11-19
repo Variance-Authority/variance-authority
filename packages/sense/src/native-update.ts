@@ -47,10 +47,14 @@ export interface NativeUpdateOptions {
   /** This index as CI published it, read after `others`, its rows trusted where the tree names their digest. */
   readonly published?: string[];
 }
-/** CI's index as an update fetches it: whether the update is over another release's index, where it was placed, and how to drop it. */
+/**
+ * CI's index as an update fetches it: whether the update is over another
+ * release's index, where it was placed, waited on only when asked, and how to
+ * drop it unawaited.
+ */
 export interface CiSourceIndex {
   readonly over: Promise<boolean>;
-  readonly placed: Promise<string | undefined>;
+  readonly placed: () => Promise<string | undefined>;
   readonly drop: () => void;
 }
 
@@ -121,7 +125,7 @@ export async function updateNatively(
   const seeded = asked ? addon.sourceIndexSeed([...beside], config) ?? undefined : undefined;
   const starts = asked ? (seeded === undefined ? [] : [seeded]) : beside;
   if (seeded !== undefined) published?.drop();
-  const fetched = seeded === undefined ? await published?.placed : undefined;
+  const fetched = seeded === undefined ? await published?.placed() : undefined;
   const done = await stepped(progress, reading, () => held.updateIndex({
     root,
     index,

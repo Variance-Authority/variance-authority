@@ -1750,11 +1750,14 @@ whose it was as `fetched`, and the placed copy is removed.
 `carriedSourceIndex(chain)` carries a chain from `sourceIndexChain` as bytes
 that name its manifest and each segment's pieces of `SOURCE_INDEX_PIECE` bytes
 by their SHA-256, the names of those pieces once in `pieces`, and `piece(name)`
-to read one; `placeSourceIndex(into, bytes, piece)` places such an index from
+to read one. A segment never changes under its digest, so the names of its
+pieces are kept beside the chain, and a carry hashes only the segments no carry
+before it hashed. `placeSourceIndex(into, bytes, piece)` places such an index from
 those bytes and a reader of each piece by name; no segment is held whole, and
-one whose length or digest is not its own leaves nothing placed; `fetchedSourceIndexPath(path)` is where an update
-over `path` has it placed, and `sourceIndexChain(path)` lists the files of one
-to publish. An `index` you name in the checkout's
+one whose length or digest is not its own leaves nothing placed; `fetchedSourceIndexPath(path)` names a place beside
+`path` for one update to have it placed, another on every call, so a download an
+update dropped without waiting removes only its own when it ends; and
+`sourceIndexChain(path)` lists the files of one to publish. An `index` you name in the checkout's
 own cache directory reads that store as the checkout's own index does. `progress` is told each step's name as it starts, the git listing
 and then the read of what changed, and returns the function to call when that
 step ends.

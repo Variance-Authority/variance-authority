@@ -26,7 +26,7 @@ import { publishSuite } from './suite-share.js';
  * repository opted in to carrying CI's index beside the mainline's record.
  */
 
-const asked = vi.hoisted(() => ({ names: [] as string[], fails: undefined as Error | undefined, carryFails: undefined as Error | undefined }));
+const asked = vi.hoisted(() => ({ names: [] as string[], fails: undefined as Error | undefined, carryFails: undefined as Error | undefined, stalls: false }));
 vi.mock('@variance-authority/sense', async (actual) => {
   const real = await actual<typeof import('@variance-authority/sense')>();
   return {
@@ -40,10 +40,11 @@ vi.mock('./mainline-entry.js', async (actual) => {
   const real = await actual<typeof import('./mainline-entry.js')>();
   return {
     ...real,
-    // The share as it is, with every entry it is asked for written down; or one that cannot be asked, once `fails` is set.
+    // The share as it is, with every entry it is asked for written down; or one that cannot be asked, once `fails` is set; or one that never answers and hears no abort, once `stalls` is.
     mainlineEntry: (...args: Parameters<typeof real.mainlineEntry>) => {
       asked.names.push(String(args[1]));
       if (asked.fails !== undefined) return Promise.reject(asked.fails);
+      if (asked.stalls) return new Promise<never>(() => undefined);
       return real.mainlineEntry(...args);
     },
   };
@@ -60,6 +61,11 @@ async function stderrOf<T>(run: () => Promise<T>): Promise<{ readonly out: T; re
   return { out, lines };
 }
 
+/** What the updates over the index at `path` left of the indexes they fetched: each places its own beside it. */
+async function fetchedLeft(path: string): Promise<string[]> {
+  return readdir(`${path}.fetched`).catch(() => []);
+}
+
 let home: string;
 const cwd = process.cwd();
 
@@ -68,6 +74,7 @@ beforeEach(async () => {
   asked.names = [];
   asked.fails = undefined;
   asked.carryFails = undefined;
+  asked.stalls = false;
 });
 
 afterEach(async () => {
@@ -148,7 +155,7 @@ describe('`variance index` over an index another release wrote', () => {
         `${String(Object.keys(SOURCES).length)} files, 1 read again, at ${path}`,
     );
     expect(await sourceIndexWrittenIn(path)).toBe(SOURCE_INDEX_VERSION);
-    expect(await sourceIndexChain(`${path}.fetched`)).toBeUndefined();
+    expect(await fetchedLeft(path)).toEqual([]);
     expect((await readPublishedSources(path)).records).toEqual(await coldRecords(clone));
   });
 
@@ -178,7 +185,7 @@ describe('`variance index` over an index another release wrote', () => {
     expect(out.split('\n')[0]).toBe(
       `source index rebuilt over one written in format version ${String(OLDER)}: ${String(files)} files, ${String(files)} read again, at ${path}`,
     );
-    expect(await sourceIndexChain(`${path}.fetched`)).toBeUndefined();
+    expect(await fetchedLeft(path)).toEqual([]);
   });
 
   it('publishes an index whose segment is past what Node reads whole, as images no larger than a piece', async () => {
@@ -213,6 +220,26 @@ describe('`variance index` over an index another release wrote', () => {
     expect(update).toMatchObject({ was: 'other-version', files: Object.keys(SOURCES).length, reread: 1 });
     expect(update.from).toMatch(/source-index\.bin$/);
     expect(update.fetched).toBeUndefined();
+  });
+
+  it('starts from a sibling checkout of this release that fits while the share never answers and hears no abort', async () => {
+    const { origin } = await mainlinePublished(true);
+    const clone = await laptopOnOlderRelease(origin);
+    const sibling = join(home, 'sibling');
+    await git(clone, 'worktree', 'add', '--quiet', sibling);
+    await updateSourceIndex(sibling);
+    asked.stalls = true;
+
+    const stalled = Symbol('stalled');
+    let timer: NodeJS.Timeout | undefined;
+    const update = await Promise.race([
+      updateSourceIndex(clone, { fetch: fetchFromMainline }),
+      new Promise<typeof stalled>((resolve) => { timer = setTimeout(() => resolve(stalled), 5_000); }),
+    ]).finally(() => clearTimeout(timer));
+
+    expect(update).not.toBe(stalled);
+    expect(update).toMatchObject({ was: 'other-version', files: Object.keys(SOURCES).length, reread: 1 });
+    expect(update === stalled ? undefined : update.fetched).toBeUndefined();
   });
 
   it('fetches CI\'s index when the sibling checkout of this release does not open, and reads again only the module that differs', async () => {
@@ -302,7 +329,7 @@ describe('`variance index` over an index another release wrote', () => {
       `source index rebuilt over one written in format version ${String(OLDER)}: ${files} files, ${files} read again, at ${sourceIndexPath(clone)}`,
     );
     expect(said.lines.filter((line) => line.includes('source index was not fetched'))).toEqual([expect.stringContaining(why)]);
-    expect(await sourceIndexChain(`${sourceIndexPath(clone)}.fetched`)).toBeUndefined();
+    expect(await fetchedLeft(sourceIndexPath(clone))).toEqual([]);
   });
 
   it('says why nothing was fetched, and places nothing, when the share names images other than the segments the manifest names', async () => {
