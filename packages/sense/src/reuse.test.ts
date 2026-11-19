@@ -90,15 +90,14 @@ describe('naming the shape of a tree', () => {
     expect(after.directories.get('')).toBe(before.directories.get(''));
   });
 
-  it('moves the configuration when a file that decides resolution is edited', async () => {
+  it('keeps the configuration when a file that decides resolution is edited', async () => {
     const edited = tree([...files].map(([path, digest]) =>
       path === 'package.json' ? ([path, B] as const) : ([path, digest] as const),
     ));
 
-    // One `paths` entry in a `tsconfig` redirects every `@/` specifier in the
-    // repository. Its own digest is the only thing that says so, and there is no
-    // narrower answer than everything.
-    expect((await shapeOf(edited)).config).not.toBe((await shapeOf(files)).config);
+    // A configuration file is a file (#1523): its edit reaches the imports that
+    // use it through the source edits that come with it, and no other record.
+    expect((await shapeOf(edited)).config).toBe((await shapeOf(files)).config);
   });
 
   it('holds still entirely when a source file is edited', async () => {
@@ -125,7 +124,7 @@ describe('naming the shape of a tree', () => {
     expect((await shapeOf(files, { largestFile: 8 })).config).not.toBe(before.config);
   });
 
-  it('moves when the config the caller names is edited, though the listing does not hold it', async () => {
+  it('keeps the configuration when the config the caller names is edited', async () => {
     const at = await mkdtemp(join(tmpdir(), 'variance-reuse-named-'));
     made.push(at);
     await mkdir(join(at, 'config'));
@@ -137,10 +136,10 @@ describe('naming the shape of a tree', () => {
     const before = await named();
     await writeFile(join(at, 'config/aliases.json'), '{ "compilerOptions": { "paths": { "@/*": ["lib/*"] } } }');
 
-    expect(await named()).not.toBe(before);
+    expect(await named()).toBe(before);
   });
 
-  it('falls back to the whole path set when no configuration bounds an alias', async () => {
+  it('keeps the configuration when a configuration cannot be read and a path appears', async () => {
     const at = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
     made.push(at);
     await writeFile(join(at, 'tsconfig.json'), '{ this is not JSON', 'utf8');
@@ -150,11 +149,9 @@ describe('naming the shape of a tree', () => {
     const shapes = async (digests: ReadonlyMap<string, Digest>): Promise<TreeShape> =>
       (await treeShapeOf({ root: at, digests })).shape;
 
-    // A `tsconfig` that cannot be read is no bound on where a bare specifier
-    // lands, so there is no bound on what a new path can change either. The old
-    // whole-tree rule is the honest answer here, and this is the only place it
-    // still applies.
-    expect((await shapes(added)).config).not.toBe((await shapes(held)).config);
+    // A `tsconfig` that cannot be read declares no alias, and rebuilds nothing
+    // beyond its own record: a new path moves only the directory that holds it.
+    expect((await shapes(added)).config).toBe((await shapes(held)).config);
   });
 });
 

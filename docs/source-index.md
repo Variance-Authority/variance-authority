@@ -330,20 +330,18 @@ scan and an unchanged run.
 | --- | --- |
 | a file's contents | everything except that file's record, and its parse when no path in any branch has ever had those bytes |
 | a file added, moved or deleted | every record except those whose specifiers could have been answered from the directory that moved |
-| a manifest, a lock file, any `tsconfig*.json` or `jsconfig.json` | the parses. Every record is rebuilt: one `paths` entry can redirect every bare specifier in the repository |
+| a manifest, a lock file, any `tsconfig*.json` or `jsconfig.json` | everything except that file's own record. The files refactored to use a new mapping are edited, and rebuilt as edits |
 | the checkout's absolute path | the parses, for the same reason |
 | which directories you scan | everything. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work |
 
-One case removes the per-directory bound and makes every run cold. To establish
-that an added file cannot change where a bare specifier lands, the scan reads
-`paths` and `baseUrl` out of every tracked `tsconfig*.json` and `jsconfig.json`,
-and out of every base each one `extends`, following a package name through its
+To know which directories a bare specifier could land in, the scan reads `paths`
+and `baseUrl` out of every tracked `tsconfig*.json` and `jsconfig.json`, and out
+of every base each one `extends`, following a package name through its
 `node_modules` link the way the resolver does. A config it cannot follow — not
 valid JSON, or an `extends` that does not land on a `tsconfig*.json` or
 `jsconfig.json` your repository tracks, such as a base installed from a registry
-— leaves the whole tree unbounded, and then every record is rebuilt whenever any
-tracked file appears or disappears. The symptom is a warm run that costs what a
-cold one does. [Source index
+— leaves it no patterns, and an import through a pattern that names a file not
+yet there keeps its old answer until the importing file is edited. [Source index
 structures](source-structures.md#a-tsconfig-the-scan-cannot-follow) names every
 such `extends`, the two other cases like it, and what to change.
 

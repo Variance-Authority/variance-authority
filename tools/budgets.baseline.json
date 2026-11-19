@@ -2381,9 +2381,6 @@
   "packages/sense/scripts/storage.mjs docblock": [
     11
   ],
-  "packages/sense/scripts/tree-cost.mjs overview": [
-    16
-  ],
   "packages/sense/scripts/tuned-cost.mjs overview": [
     32
   ],
@@ -2507,9 +2504,6 @@
   ],
   "packages/sense/src/restrictions-transitive.ts overview": [
     17
-  ],
-  "packages/sense/src/reuse.ts overview": [
-    41
   ],
   "packages/sense/src/scan.ts block": [
     8
@@ -3135,17 +3129,14 @@
     12,
     6
   ],
-  "packages/sense/src/tree.ts docblock": [
-    11
-  ],
   "packages/sense/src/tree.ts overview": [
     20
   ],
   "packages/sense/src/typescript-use.ts docblock": [
-    13
+    12
   ],
   "packages/sense/src/witness.ts overview": [
-    42
+    41
   ],
   "packages/sense/src/working-tree-changes.ts docblock": [
     14

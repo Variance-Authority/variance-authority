@@ -6,9 +6,8 @@
  * A cold scan of a large monorepo spent its first seconds in neither git nor the
  * parser: it spent them turning one large `ls-tree` string into JavaScript maps,
  * sorting four hundred thousand paths, filtering them, walking every segment of
- * every one of them, and — where no `tsconfig` bounded a bare specifier —
- * joining the whole listing into one string to hash. Five folds, none of them
- * the work, all of them the size of the repository.
+ * every one of them. Folds, none of them the work, all of them the size of the
+ * repository.
  *
  * So this times exactly those folds, both ways, over a generated tree whose
  * shape is stated rather than found: `--files` files spread over a directory
@@ -32,7 +31,6 @@ import { native } from '../dist/addon.js';
 
 const run = promisify(execFile);
 const LAYOUT = ['package.json', 'jsconfig.json', 'yarn.lock'];
-const HEADER = ['version 2', 'root /x', 'tsconfig auto', 'conditions source,import,require,default'];
 
 const argued = new Map();
 for (let at = 2; at < process.argv.length; at += 2) {
@@ -60,16 +58,6 @@ report('git discovery', jsDiscovery.ms, nativeDiscovery.ms);
 report('paths, listed', (await timed(() => js.paths())).ms, (await timed(() => held.paths())).ms);
 report('config files', (await timed(() => js.named(LAYOUT))).ms, (await timed(() => held.named(LAYOUT))).ms);
 report('directories', (await timed(() => js.directories())).ms, (await timed(() => held.directories())).ms);
-report(
-  'config digest, bounded',
-  (await timed(() => js.configDigest(HEADER, LAYOUT, false))).ms,
-  (await timed(() => held.configDigest(HEADER, LAYOUT, false))).ms,
-);
-report(
-  'config digest, unbounded',
-  (await timed(() => js.configDigest(HEADER, LAYOUT, true))).ms,
-  (await timed(() => held.configDigest(HEADER, LAYOUT, true))).ms,
-);
 
 if (given === undefined) await rm(root, { recursive: true, force: true });
 

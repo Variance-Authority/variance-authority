@@ -1,8 +1,6 @@
 //! `aliasesIn` in `packages/sense/src/witness.ts`: the `paths` and `baseUrl`
 //! every `tsconfig` and `jsconfig` the tree tracks declares, placed as
-//! repository paths, with every base their `extends` chains read past the
-//! listing and its digest, and every one they reach no file at; or nothing
-//! when one of them cannot be read.
+//! repository paths; or nothing when one of them cannot be read.
 //!
 //! The module comment of `witness.ts` states the rule; this is its one
 //! implementation. A large workspace holds thousands of configurations, and
@@ -20,11 +18,8 @@ use oxc_resolver::{ResolveError, ResolveOptions, Resolver};
 use rayon::prelude::*;
 use regex::Regex;
 use serde_json::{Map, Value};
-use sha2::{Digest as _, Sha256};
 
 use crate::conditions::{config_file, normalize as normalize_path};
-use crate::digest;
-use crate::order::code_unit;
 use crate::witness::{dirname, join, normalize};
 
 /// One `paths` pattern, placed: `Mapping` in `witness.ts`.
@@ -36,24 +31,11 @@ pub struct AliasMapping {
     pub targets: Vec<String>,
 }
 
-/// A configuration an `extends` reached that the listing passed in does not
-/// hold, named from the root, and the digest of the bytes read.
-#[napi(object)]
-pub struct ConfigRead {
-    pub path: String,
-    pub digest: String,
-}
-
-/// `AliasTable` in `witness.ts`, and every configuration read past the listing.
+/// `AliasTable` in `witness.ts`.
 #[napi(object)]
 pub struct AliasesRead {
     pub bases: Vec<String>,
     pub mappings: Vec<AliasMapping>,
-    /// In code-unit order of their paths.
-    pub read: Vec<ConfigRead>,
-    /// Every `extends` entry that reached no file, as the configuration that
-    /// names it and the name as written, joined by a space, in code-unit order.
-    pub missing: Vec<String>,
 }
 
 /// The alias table the configurations among `paths` declare, read from
@@ -80,7 +62,6 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
         resolver: None,
         real: None,
         answers: HashMap::new(),
-        missing: Vec::new(),
         directories: HashMap::new(),
     };
 
@@ -143,16 +124,7 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
             });
         }
     }
-    let mut read: Vec<ConfigRead> = extended
-        .beyond
-        .into_iter()
-        .filter_map(|(path, held)| held.map(|(_, digest)| ConfigRead { path, digest }))
-        .collect();
-    read.sort_unstable_by(|a, b| code_unit(&a.path, &b.path));
-    let mut missing = extended.missing;
-    missing.sort_unstable_by(|a, b| code_unit(a, b));
-    missing.dedup();
-    Some(AliasesRead { bases, mappings, read, missing })
+    Some(AliasesRead { bases, mappings })
 }
 
 /// The placeholder TypeScript reads as the inheriting configuration's directory.
@@ -195,8 +167,7 @@ struct Options {
 }
 
 /// One configuration's options with everything it extends folded in. An
-/// `extends` entry that reaches no file declares nothing, and is named in
-/// `missing`; one that reaches a file that cannot be read abandons the chain.
+/// `extends` entry that reaches no file declares nothing; one that reaches a file that cannot be read abandons the chain.
 fn compiler_options(path: &str, extended: &mut Extended<'_>, seen: &HashSet<String>) -> Option<Options> {
     if seen.contains(path) {
         return Some(Options::default());
@@ -218,10 +189,7 @@ fn compiler_options(path: &str, extended: &mut Extended<'_>, seen: &HashSet<Stri
     };
     let mut options = Options::default();
     for specifier in named {
-        let Some(resolved) = extended.answer(path, &specifier)? else {
-            extended.missing.push(format!("{path} {specifier}"));
-            continue;
-        };
+        let Some(resolved) = extended.answer(path, &specifier)? else { continue };
         let mut deeper = seen.clone();
         deeper.insert(path.to_owned());
         let base = compiler_options(&resolved, extended, &deeper)?;
@@ -237,8 +205,6 @@ fn compiler_options(path: &str, extended: &mut Extended<'_>, seen: &HashSet<Stri
     Some(options)
 }
 
-/// A configuration read from disk past the listing, and the digest of its bytes.
-type Beyond = Option<(Map<String, Value>, String)>;
 
 /// Every `extends` entry answered as a configuration this read can open:
 /// `aliasesIn` in `witness.ts`.
@@ -247,18 +213,17 @@ struct Extended<'a> {
     parsed: &'a HashMap<&'a str, Map<String, Value>>,
     /// What an `extends` reached that `parsed` does not hold, by its path from
     /// the root; `None` for a file that is there and is not a configuration.
-    beyond: HashMap<String, Beyond>,
+    beyond: HashMap<String, Option<Map<String, Value>>>,
     resolver: Option<Resolver>,
     real: Option<Option<PathBuf>>,
     answers: HashMap<(String, String), Option<Option<String>>>,
-    missing: Vec<String>,
     /// The directory each inherited base is placed from, by its path.
     directories: HashMap<String, String>,
 }
 
 impl Extended<'_> {
-    /// The configuration at `path`, read and digested on first ask when the
-    /// listing did not hold it.
+    /// The configuration at `path`, read on first ask when the listing did
+    /// not hold it.
     fn config(&mut self, path: &str) -> Option<&Map<String, Value>> {
         if let Some(held) = self.parsed.get(path) {
             return Some(held);
@@ -268,11 +233,9 @@ impl Extended<'_> {
             .entry(path.to_owned())
             .or_insert_with(|| {
                 let bytes = std::fs::read(Path::new(root).join(path)).ok()?;
-                let parsed = parse_config(&String::from_utf8_lossy(&bytes))?;
-                Some((parsed, digest::of_sha256(Sha256::digest(&bytes).as_slice())))
+                parse_config(&String::from_utf8_lossy(&bytes))
             })
             .as_ref()
-            .map(|(parsed, _)| parsed)
     }
 
     /// The root as the resolver names it, which `relative` measures from.
