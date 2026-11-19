@@ -46,12 +46,18 @@ pub struct Snapshot {
 /// outside a repository would be useless in exactly the tarball and sandbox
 /// cases it should handle quietly.
 pub fn snapshot(root: &str) -> Option<Snapshot> {
-    snapshot_of(root, true)
+    snapshot_of(root, true, None)
+}
+
+/// `snapshot`, with `HEAD`'s tree read from the record at `held` and only the
+/// trees it does not hold by id read from the store (`committed_tree.rs`).
+pub(crate) fn snapshot_against(root: &str, held: &std::path::Path) -> Option<Snapshot> {
+    snapshot_of(root, true, Some(held))
 }
 
 /// `snapshot`, with the working tree compared in-process only when `compared`
 /// asks for it: the tests hold the two answers side by side.
-fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
+fn snapshot_of(root: &str, compared: bool, held: Option<&std::path::Path>) -> Option<Snapshot> {
     // One call names the root's place and `HEAD`'s tree, and the object store
     // lists the tree in-process; `ls-tree` answers where it will not, as under a
     // replace ref or on an unborn branch.
@@ -93,7 +99,7 @@ fn snapshot_of(root: &str, compared: bool) -> Option<Snapshot> {
             let walked = walked.ok_or_else(|| status(&listed));
             (listed, walked)
         });
-        let listing = match summed(Sum::Tree, || head.as_ref().and_then(|head| head.blobs())) {
+        let listing = match summed(Sum::Tree, || head.as_ref().and_then(|head| head.committed(held)).map(|committed| committed.blobs)) {
             Some(blobs) => Some(Listing::Held(blobs)),
             None => summed(Sum::LsTree, || git(root, &["ls-tree", "-r", "-z", "HEAD", "--", "."], None)).map(Listing::Printed),
         };
