@@ -122,7 +122,11 @@ async function build(config: string, lead: readonly string[], react: 18 | 19): P
     // write into this repository's `node_modules` through that symlink.
     // `fs.allow` is the symlink's consequence — React's real path is outside
     // this root, and Vite declines to serve outside it until told otherwise.
-    server: { port: 0, host: '127.0.0.1', fs: { allow: [root, REPO] } },
+    // Nothing watched and no HMR client: the files above were written just
+    // before the server started, and a watcher can report them late. A late
+    // change to the config restarts the server, and the client reloads the page
+    // under a read in progress.
+    server: { port: 0, host: '127.0.0.1', fs: { allow: [root, REPO] }, watch: null, hmr: false },
     cacheDir: join(root, '.vite-cache'),
     logLevel: 'silent',
   });
