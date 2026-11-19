@@ -623,9 +623,10 @@ names straight onto directories inside it, `@kbn/i18n` onto
 beside that directory would be what `@kbn/i18n` resolves to. So every record
 that imports one of those packages watches the directory, 35% of the index.
 
-One repository shape removes the per-directory bound: a `tsconfig` the scan
-cannot read, because it or a base it `extends` is not valid JSON. A bare
-specifier is then bounded only by the directory its answer sits in. That costs
+One repository shape removes the per-directory bound for one config's patterns:
+a `tsconfig` the scan cannot read, because it or a base it `extends` is not
+valid JSON. A bare specifier only it maps is then bounded only by the directory
+its answer sits in; every other config's patterns still bound their own. That costs
 nothing — no run turns cold — but an import through a pattern keeps its answer
 until the importing file is edited. [A `tsconfig` the scan cannot
 follow](source-structures.md#a-tsconfig-the-scan-cannot-follow) lists the cases.

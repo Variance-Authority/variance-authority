@@ -225,12 +225,16 @@ describe('where a configuration says a bare request can land', () => {
     expect(aliases?.candidatesFor('@x/y')).toEqual(['a/@x/y', 'x/y', 'a/x/y']);
   });
 
-  it('gives up on a configuration it cannot read', async () => {
-    const root = await fixture({ 'tsconfig.json': '{ this is not JSON' });
+  it('reads every other configuration past one it cannot read', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ this is not JSON',
+      'app/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { '@app/*': ['./src/*'] } } }),
+    });
 
-    // Not a bound it can weaken — a bound it does not have. A bare specifier
-    // then witnesses only the directory its answer sits in.
-    expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
+    // The unreadable one declares nothing; the other keeps its own patterns.
+    const aliases = await aliasesIn(root, ['tsconfig.json', 'app/tsconfig.json']);
+    expect(aliases.candidatesFor('@app/x')).toEqual(['app/src/x']);
+    expect(aliases.table.mappings).toHaveLength(1);
   });
 
   it('follows an `extends` that names a workspace package back into the tree', async () => {
@@ -345,8 +349,8 @@ describe('where a configuration says a bare request can land', () => {
     expect(aliases?.candidatesFor('@x/y')).toEqual(['x/y']);
   });
 
-  it('gives up on a configuration that is not there', async () => {
-    expect(await aliasesIn(await fixture({}), ['tsconfig.json'])).toBeUndefined();
+  it('reads nothing from a configuration that is not there', async () => {
+    expect((await aliasesIn(await fixture({}), ['tsconfig.json'])).table.mappings).toEqual([]);
   });
 
   it('answers nothing, rather than giving up, for a tree that configures nothing', async () => {

@@ -174,7 +174,7 @@ function tsconfigNamed(root: string, tsconfig: string | false | undefined): stri
  * use it, a moved target is a moved file, a new package is new files imported
  * by edited files, and a dependency bump moves no workspace answer. A mapping
  * edited alone, to redirect code nobody edited, is not followed; nor is a
- * `tsconfig` that cannot be read.
+ * mapping in a `tsconfig` that cannot be read, which declares nothing.
  */
 export async function configOf(input: {
   readonly root: string;

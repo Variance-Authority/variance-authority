@@ -110,11 +110,12 @@ nothing declares nothing. The scan cannot follow a config, or a base one
 reaches, that cannot be read or is not JSON (comments and trailing commas are
 fine), nor an `extends` that is an absolute path.
 
-One such config anywhere in the tree, or anywhere in the chain of bases a config
-extends, leaves the scan with no `paths` patterns to watch. A bare specifier then
-watches only the directory its answer sits in. An import through a pattern that
-answers nothing today does not start answering when the file it names appears,
-and an import that a new file would shadow keeps its old answer. Either is
+Such a config, and every config whose chain of bases reaches one, declares no
+`paths` patterns to watch; every other config still declares its own. A bare
+specifier that only such a config maps watches only the directory its answer
+sits in. An import through one of its patterns that answers nothing today does
+not start answering when the file it names appears, and an import that a new
+file would shadow keeps its old answer. Either is
 corrected when the importing file is edited, or by a cold index: delete the
 index and run `variance index`, as [Source index](source-index.md) says. Reuse
 stays warm: the config itself rebuilds nothing beyond its own record. Fixing the

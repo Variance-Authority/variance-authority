@@ -43,8 +43,8 @@
  * path of it, and is dropped.
  *
  * When a configuration cannot be read — invalid JSON, a base that is there and
- * is not one, or one the resolver cannot answer — there is no table, and a
- * bare specifier witnesses no alias directory. A configuration's bytes are no
+ * is not one, or one the resolver cannot answer — it declares nothing, and
+ * every other configuration still declares its own. A configuration's bytes are no
  * part of any record's key ([`reuse.ts`](./reuse.ts)): its edit reaches the
  * imports that use it through the source edits that come with it.
  */
@@ -83,7 +83,7 @@ export interface Mapping {
 }
 
 /**
- * The alias patterns the tree declares, or nothing when one of them cannot be read.
+ * The alias patterns the tree declares, leaving out a configuration that cannot be read.
  *
  * Every configuration is read, not only the one a scan was pointed at: `'auto'`
  * discovers the nearest one per file, so the bound has to hold for all of them.
@@ -95,11 +95,10 @@ export interface Mapping {
 export async function aliasesIn(
   root: string,
   paths: Iterable<string>,
-): Promise<Aliases | undefined> {
+): Promise<Aliases> {
   const read = native();
   if (read === undefined) throw new Error(`aliases are read by the native scanner, and ${nativeRefusal() ?? 'it did not load'}`);
   const held = read.aliasesIn(root, [...paths]);
-  if (held === null) return undefined;
   const mappings: Mapping[] = held.mappings.map((mapping) =>
     mapping.suffix === undefined || mapping.suffix === null
       ? { prefix: mapping.prefix, targets: mapping.targets }

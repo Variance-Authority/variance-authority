@@ -1,6 +1,7 @@
 //! `aliasesIn` in `packages/sense/src/witness.ts`: the `paths` and `baseUrl`
 //! every `tsconfig` and `jsconfig` the tree tracks declares, placed as
-//! repository paths; or nothing when one of them cannot be read.
+//! repository paths. A configuration that cannot be read, or whose chain of
+//! bases cannot, declares nothing, and every other one still declares its own.
 //!
 //! The module comment of `witness.ts` states the rule; this is its one
 //! implementation. A large workspace holds thousands of configurations, and
@@ -39,13 +40,13 @@ pub struct AliasesRead {
 }
 
 /// The alias table the configurations among `paths` declare, read from
-/// `root`; `None` when one of them cannot be read.
+/// `root`, leaving out any that cannot be read.
 #[napi(catch_unwind)]
-pub fn aliases_in(root: String, paths: Vec<String>) -> Option<AliasesRead> {
+pub fn aliases_in(root: String, paths: Vec<String>) -> AliasesRead {
     read(&root, &paths)
 }
 
-pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
+pub(crate) fn read(root: &str, paths: &[String]) -> AliasesRead {
     let configs: Vec<&str> = paths.iter().map(String::as_str).filter(|path| is_config(path)).collect();
     let read: Vec<Option<Map<String, Value>>> = configs
         .par_iter()
@@ -53,7 +54,9 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
         .collect();
     let mut parsed: HashMap<&str, Map<String, Value>> = HashMap::with_capacity(configs.len());
     for (path, value) in configs.iter().zip(read) {
-        parsed.insert(path, value?);
+        if let Some(value) = value {
+            parsed.insert(path, value);
+        }
     }
     let mut extended = Extended {
         root,
@@ -72,7 +75,7 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
     // table however many configurations inherit it.
     let mut placed_from = HashSet::new();
     for &path in &configs {
-        let options = compiler_options(path, &mut extended, &HashSet::new())?;
+        let Some(options) = compiler_options(path, &mut extended, &HashSet::new()) else { continue };
         let declared = options.values.get("paths");
         let base_url = options.values.get("baseUrl").and_then(|value| value.as_str());
         let paths_from = options.from.get("paths").map_or(path, String::as_str);
@@ -105,7 +108,7 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
             _ => continue,
         };
         for (pattern, targets) in entries {
-            let Value::Array(targets) = targets else { return None };
+            let Value::Array(targets) = targets else { continue };
             let placed =
                 targets.iter().filter_map(Value::as_str).filter_map(|target| match target.strip_prefix(CONFIG_DIR) {
                     Some(rest) => extended.place(dirname(path), rest.trim_start_matches('/')),
@@ -124,7 +127,7 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
             });
         }
     }
-    Some(AliasesRead { bases, mappings })
+    AliasesRead { bases, mappings }
 }
 
 /// The placeholder TypeScript reads as the inheriting configuration's directory.
@@ -167,7 +170,8 @@ struct Options {
 }
 
 /// One configuration's options with everything it extends folded in. An
-/// `extends` entry that reaches no file declares nothing; one that reaches a file that cannot be read abandons the chain.
+/// `extends` entry that reaches no file declares nothing; one that reaches a
+/// file that cannot be read abandons the chain, and the configuration with it.
 fn compiler_options(path: &str, extended: &mut Extended<'_>, seen: &HashSet<String>) -> Option<Options> {
     if seen.contains(path) {
         return Some(Options::default());
@@ -204,7 +208,6 @@ fn compiler_options(path: &str, extended: &mut Extended<'_>, seen: &HashSet<Stri
     }
     Some(options)
 }
-
 
 /// Every `extends` entry answered as a configuration this read can open:
 /// `aliasesIn` in `witness.ts`.

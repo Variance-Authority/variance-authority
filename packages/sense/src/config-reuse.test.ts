@@ -193,6 +193,23 @@ describe('a configuration edit, warm', () => {
     expect(warm).toEqual(cold);
   });
 
+  it('answers as a cold index for one package while another package has an unreadable tsconfig for a while', async () => {
+    const at = await checkout();
+    await at.write('packages/lib/tsconfig.json', '{ "extends": ');
+    await at.write('packages/app/src/other.ts', "import { next } from '@lib/next';\nexport const other = next;\n");
+    at.commit();
+    await at.update();
+    await at.write('packages/lib/tsconfig.json', json({ extends: '../../tsconfig.json' }));
+    at.commit();
+    await at.update();
+    await at.write('packages/lib/src/next.ts', 'export const next = 4;\n');
+    at.commit();
+
+    await at.update();
+    const { warm, cold } = await at.answers();
+    expect(warm).toEqual(cold);
+  });
+
   it('reads nothing again when the base tsconfig stops reading, and what it did not map answers as cold', async () => {
     const at = await checkout();
     await at.write('tsconfig.base.json', '{ "compilerOptions": { "paths": ');

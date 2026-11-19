@@ -159,10 +159,10 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   gitTree(root: string): NativeGitTree | null;
   /**
    * The alias table the `tsconfig` and `jsconfig` files among `paths` declare,
-   * read from `root`: `native/src/witness_aliases.rs`. `null` when one of them
-   * cannot be read.
+   * read from `root`: `native/src/witness_aliases.rs`. One that cannot be read
+   * declares nothing.
    */
-  aliasesIn(root: string, paths: string[]): AliasTable | null;
+  aliasesIn(root: string, paths: string[]): AliasTable;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */
   changeTree(root: string, index: string, dirs: string[]): NativeGitTree | null;
