@@ -2,7 +2,8 @@
 // compass: variance-authority.reach.source-index
 
 use super::{Governing, Resolvers};
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use oxc_resolver::PathUtil;
 use std::sync::OnceLock;
 
 impl Resolvers {
@@ -27,8 +28,7 @@ impl Resolvers {
             paths.push(base);
         }
         let mut candidates: Vec<String> = paths.into_iter().filter_map(|path| {
-            let normalized = crate::witness::normalize(&path.to_str()?.replace('\\', "/"));
-            let path = PathBuf::from(normalized);
+            let path = path.normalize();
             let relative = path.strip_prefix(root).ok()?;
             Some(relative.to_string_lossy().replace('\\', "/"))
         }).collect();
