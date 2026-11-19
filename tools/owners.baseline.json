@@ -867,7 +867,7 @@
   {
     "idiom": "fresh-page",
     "at": "packages/playwright/src/harness.chromium.test.ts",
-    "count": 1
+    "count": 2
   },
   {
     "idiom": "fresh-page",

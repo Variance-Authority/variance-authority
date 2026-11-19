@@ -313,7 +313,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a story recorded in this 
     realm[NOTE] = (text) => notes.push(text);
     const harness = await createHarness(reloading);
     try {
-      // Chromium's own address for killing the renderer; the navigation is aborted.
+      // A crash is the subject, and Chromium kills the renderer only for this address; the navigation is aborted.
       await harness.page.goto('chrome://crash').catch(() => undefined);
       await expect.poll(() => notes.includes('page crashed')).toBe(true);
     } finally {
