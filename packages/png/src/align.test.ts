@@ -1,7 +1,8 @@
+import { DEFAULT_POLICY } from "@variance-authority/raster";
 import { describe, expect, it } from "vitest";
 import { differencePixels } from "./mask.js";
 import { comparePixels } from "./compare.js";
-import { alignRows } from "./align.js";
+import { ALIGNMENT_LIMIT, alignRows } from "./align.js";
 
 /**
  * A full-page capture is a column of rows, and content in a document flows: a
@@ -101,7 +102,7 @@ describe("content that moved down the page", () => {
     const before = column([1, 12, 6, 12, 12, 3, 4]);
     const after = column([1, 12, 12, 12, 6, 12, 3, 9, 4]);
 
-    const rows = alignRows(before, after)!;
+    const rows = alignRows(before, after, ALIGNMENT_LIMIT, DEFAULT_POLICY.threshold)!;
 
     expect(rows.inserted).toEqual([
       { from: 2, to: 4 },
@@ -113,7 +114,7 @@ describe("content that moved down the page", () => {
   });
 
   it("counts a gap that grew and the line drawn under it as one inserted band", () => {
-    const rows = alignRows(column([1, 12, 6]), column([1, 12, 12, 9, 6]))!;
+    const rows = alignRows(column([1, 12, 6]), column([1, 12, 12, 9, 6]), ALIGNMENT_LIMIT, DEFAULT_POLICY.threshold)!;
 
     expect(rows.inserted).toEqual([{ from: 2, to: 4 }]);
     expect(rows.strips[0]!.grown).toEqual([{ from: 2, to: 3 }]);
@@ -380,7 +381,7 @@ describe("two equal captures", () => {
     const before = column([1, 1, 2, 3, 3, 3]);
     const after = column([1, 1, 2, 3, 3, 3]);
 
-    const rows = alignRows(before, after);
+    const rows = alignRows(before, after, ALIGNMENT_LIMIT, DEFAULT_POLICY.threshold);
 
     expect(rows).toMatchObject({ inserted: [], removed: [], shifted: [] });
     expect(rows!.strips).toHaveLength(1);

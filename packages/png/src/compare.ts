@@ -102,12 +102,15 @@ export async function compareRasters(
   );
 
   return timeOn(options.steps, 'compare', () => {
-    const policies = options.policies ?? [DEFAULT_POLICY, STRICT_POLICY];
+    const policies = options.policies ?? DEFAULT_POLICIES;
     const aligned = alignRows(left, right, ALIGNMENT_LIMIT, lenientOf(policies)) ?? null;
     options.keep?.({ before: left, after: right, aligned });
     return judged(left, right, options, aligned);
   });
 }
+
+/** The policies a comparison judges with when its caller names none. */
+const DEFAULT_POLICIES = [DEFAULT_POLICY, STRICT_POLICY];
 
 export function comparePngs(
   before: Buffer,
@@ -144,7 +147,7 @@ function judged(
 ): RasterComparison {
   const dimensionsChanged = left.width !== right.width || left.height !== right.height;
 
-  const policies = options.policies ?? [DEFAULT_POLICY, STRICT_POLICY];
+  const policies = options.policies ?? DEFAULT_POLICIES;
   const isolateWith = options.isolateWith ?? DEFAULT_POLICY;
   const isolated = policies.findIndex((policy) => policy.id === isolateWith.id);
   if (isolated < 0) {

@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
+import { DEFAULT_POLICY } from '@variance-authority/raster';
 import { isolateRegions } from '@variance-authority/core/attribute';
 import type { Raster } from '@variance-authority/core/format';
-import { alignRows } from './align.js';
+import { ALIGNMENT_LIMIT, alignRows } from './align.js';
 import { compareRasters } from './compare.js';
 
 /**
@@ -17,7 +18,7 @@ const after = file('after');
 
 describe("a site header repainted by one level beside a real insertion", () => {
   it("pairs the header in place and shifts only what the insertion pushed down", () => {
-    const alignment = alignRows(PNG.sync.read(before), PNG.sync.read(after));
+    const alignment = alignRows(PNG.sync.read(before), PNG.sync.read(after), ALIGNMENT_LIMIT, DEFAULT_POLICY.threshold);
     expect(alignment?.shifted).toEqual([
       { from: 202, to: 214, by: 47 },
       { from: 220, to: 273, by: 53 },

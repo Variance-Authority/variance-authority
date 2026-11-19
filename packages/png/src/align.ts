@@ -1,4 +1,4 @@
-import { DEFAULT_POLICY, type DiffPolicy, type RowAlignment, type RowSpan } from '@variance-authority/raster';
+import { type DiffPolicy, type RowAlignment, type RowSpan } from '@variance-authority/raster';
 import type { DecodedImage } from './mask.js';
 import { explains, pairWords, wordsOf } from './rows.js';
 import { spansOf, stripped } from './strips.js';
@@ -52,8 +52,8 @@ export const ALIGNMENT_LIMIT = 2000;
 export function alignRows(
   before: DecodedImage,
   after: DecodedImage,
-  limit = ALIGNMENT_LIMIT,
-  threshold = DEFAULT_POLICY.threshold,
+  limit: number,
+  threshold: number,
 ): AlignedRows | undefined {
   if (before.width !== after.width) return undefined;
 

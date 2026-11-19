@@ -1,6 +1,6 @@
-import { STRICT_POLICY } from "@variance-authority/raster";
+import { DEFAULT_POLICY, STRICT_POLICY } from "@variance-authority/raster";
 import { describe, expect, it } from "vitest";
-import { alignRows } from "./align.js";
+import { ALIGNMENT_LIMIT, alignRows } from "./align.js";
 import { comparePixels } from "./compare.js";
 import { pairWords, wordsOf } from "./rows.js";
 
@@ -73,7 +73,7 @@ describe("a band repainted in place", () => {
       removed: [],
       shifted: [{ from: 17, to: 19, by: 2 }],
     });
-    const [strip] = alignRows(before, after)!.strips;
+    const [strip] = alignRows(before, after, ALIGNMENT_LIMIT, DEFAULT_POLICY.threshold)!.strips;
     expect([strip!.grown, strip!.shrunk]).toEqual([[], []]);
   });
 
