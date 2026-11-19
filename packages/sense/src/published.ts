@@ -213,7 +213,8 @@ export async function updateSourceIndex(
   // The addon tries CI's after every checkout's: one on this machine is nearer.
   const published = fetching?.then((whose) => whose === undefined ? undefined : into);
   const natively = await updateNatively(realPath(where), path, options.progress, dirs, asked, reading, options.packs, beside, published)
-    .finally(async () => { if (fetching !== undefined) await dropSourceIndex(into); });
+    // After the fetch settles, never during it: an update that fails before the addon runs must not leave a copy behind.
+    .finally(async () => { if (fetching !== undefined) { await fetching; await dropSourceIndex(into); } });
   const whose = await fetching;
   if (options.index === undefined) markCheckout(realPath(where));
   const fetched = whose !== undefined && natively.from === into ? whose : undefined;

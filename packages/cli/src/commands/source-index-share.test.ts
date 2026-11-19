@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -65,7 +65,7 @@ const SOURCES: Readonly<Record<string, string>> = {
  * CI on `main`: `variance index`, then the whole suite's record published by
  * `share --suite` to a directory share, which carries the index when `opted`.
  */
-async function mainlinePublished(opted: boolean) {
+async function mainlinePublished(opted: boolean, indexed: (ci: string) => Promise<void> = async () => undefined) {
   const { origin, ci } = await originAndCi(home);
   for (const [file, text] of Object.entries(SOURCES)) {
     await mkdir(join(ci, file, '..'), { recursive: true });
@@ -82,10 +82,17 @@ async function mainlinePublished(opted: boolean) {
 
   vi.stubEnv('VARIANCE_AUTHORITY_CACHE', join(home, 'ci-cache'));
   await updateSourceIndex(ci);
+  await indexed(ci);
   await recordIn(ci, first, ['test/total.test.ts'], [DISCOUNTS]);
   await ranWhole(testCoverageFile(ci, { suite: 'unit' }), first);
   const done = await publishSuite(ci, 'unit', { env: PUSH }, { collected: await collectedBoth(home) });
-  return { ci, origin, first, written: 'published' in done ? done.published.written : [] };
+  return {
+    ci,
+    origin,
+    first,
+    written: 'published' in done ? done.published.written : [],
+    unpublished: 'published' in done ? done.unpublished ?? [] : [],
+  };
 }
 
 /**
@@ -185,6 +192,41 @@ describe('`variance index` over an index another release wrote', () => {
       `source index rebuilt over one written in format version ${String(OLDER)}: ${String(files)} files, ${String(files)} read again, at ${path}`,
     );
     expect(await sourceIndexChain(`${path}.fetched`)).toBeUndefined();
+  });
+
+  it('publishes the record, and says why the index is left out, when a segment is past what one image carries', async () => {
+    const { written, unpublished } = await mainlinePublished(true, async (ci) => {
+      const chain = await sourceIndexChain(sourceIndexPath(ci));
+      // Sparse: the length a large repository's segment reaches, without writing it.
+      await truncate(chain?.segments[0]?.path ?? '', 2 ** 31);
+    });
+
+    expect(written).toEqual(['suite-v1/unit']);
+    expect(unpublished).toEqual([expect.stringMatching(/^the source index: its segment .* is 2147483648 bytes, past the 2147483647 one image can carry$/)]);
+  });
+
+  it('says why nothing was fetched for an opted-in checkout whose share holds no index, and reads every file', async () => {
+    const { origin } = await mainlinePublished(false);
+    const clone = await laptopOnOlderRelease(origin, async (at) => {
+      const config = JSON.parse(await readFile(join(at, 'variance.config.json'), 'utf8')) as { share: Record<string, unknown> };
+      config.share.sourceIndex = true;
+      await writeFile(join(at, 'variance.config.json'), JSON.stringify(config));
+    });
+    const said: string[] = [];
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation((line) => {
+      said.push(String(line));
+      return true;
+    });
+
+    const out = await indexOutput({ cwd: clone }).finally(() => stderr.mockRestore());
+
+    const files = String(Object.keys(SOURCES).length);
+    expect(out.split('\n')[0]).toBe(
+      `source index rebuilt over one written in format version ${String(OLDER)}: ${files} files, ${files} read again, at ${sourceIndexPath(clone)}`,
+    );
+    expect(said.filter((line) => line.includes('source index was not fetched'))).toEqual([
+      `variance: CI's source index was not fetched, so every file is read: the share holds no source-index-v${String(SOURCE_INDEX_VERSION)} (absent)\n`,
+    ]);
   });
 
   it('reads the mainline record without asking the share for the index, which only an update fetches', async () => {

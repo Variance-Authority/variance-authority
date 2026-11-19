@@ -27,6 +27,7 @@ import { basename, dirname, isAbsolute, join, posix, relative, resolve, sep } fr
 import { publishLine } from '@variance-authority/core/share';
 import { instrumentationId } from '@variance-authority/sense/instrument';
 import type { DeclaredSuite } from '@variance-authority/sense/test-selection';
+import { messageOf } from '../config-values.js';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError, type ExitCode } from '../exit.js';
 import { entryCarriesEyes, suiteEntry, suiteEntryOf } from '../share-entries.js';
 import { descendsOf, lineCellOf, lineOfRun } from '../share-lines.js';
@@ -119,7 +120,10 @@ async function publishOnLine(
 
   const { retired, ...shared } = entry;
   // The mainline's source index rides its record, for a checkout another release's index would make read every file.
-  const index = run.line.kind === 'mainline' && place.share?.sourceIndex === true ? await sourceIndexEntryOf(root, at) : undefined;
+  // What fails in the index is said beside the record, which publishes without it.
+  const index = run.line.kind === 'mainline' && place.share?.sourceIndex === true
+    ? await sourceIndexEntryOf(root, at).catch((error: unknown) => ({ unpublished: messageOf(error) }))
+    : undefined;
   const carried = index !== undefined && 'entry' in index ? index : undefined;
   const published = await publishLine(cell, run.line, carried === undefined ? [shared] : [shared, carried.entry], {
     descends: run.line.kind === 'mainline' ? await descendsOf(place, run.line.name, root) : async () => undefined,

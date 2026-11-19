@@ -44,7 +44,7 @@ export interface NativeUpdateOptions {
   readonly packs?: boolean;
   /** This index as the repository's other checkouts keep it, read when this one has none to stand on. */
   readonly others?: string[];
-  /** This index as CI published it from a clean tree, read after `others`, its rows trusted where the tree names their digest. */
+  /** This index as CI published it, read after `others`, its rows trusted where the tree names their digest. */
   readonly published?: string[];
 }
 /** `Updated` in `native/src/source_update.rs`. */

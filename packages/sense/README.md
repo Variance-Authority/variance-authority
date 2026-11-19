@@ -1740,8 +1740,10 @@ every file, and the parse store is what a second checkout reuses. Pass
 `fetch` to start from an index somebody else built, such as the one CI
 published: it is asked only when the index is another release's, as the update
 starts, and places that index at the path it is given while the checkout is
-listed. The addon tries it after every other checkout's, and trusts its records
-without the parse store, since CI built it from a clean tree; the result names
+listed. The addon tries it after every other checkout's, and trusts a record
+of it without the parse store wherever the tree names the record's digest: the
+index keys a file git calls changed by the bytes it read, so an edit CI made
+before indexing never matches a checkout's tree. The result names
 whose it was as `fetched`, and the placed copy is removed.
 `placeSourceIndex(into, manifest, read)` places such an index from its manifest
 and a reader of its segments, `fetchedSourceIndexPath(path)` is where an update

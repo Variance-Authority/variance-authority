@@ -80,7 +80,7 @@ pub struct UpdateOptions {
     /// another release's — starts from the first of them that reads whole under
     /// the same configuration, and reads only what differs from it.
     pub others: Option<Vec<String>>,
-    /// This index as CI published it from a clean tree, tried after `others`: a row stands where the tree names its digest.
+    /// This index as CI published it, tried after `others`: a row stands where the tree names its digest.
     pub published: Option<Vec<String>>,
 }
 
