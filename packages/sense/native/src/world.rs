@@ -33,10 +33,10 @@ pub(crate) struct World<'a> {
     parsing: Option<Parsing<'a>>,
     texting: Option<Texting<'a>>,
     sorted: OnceLock<Vec<&'a str>>,
-    python: OnceLock<Vec<String>>,
+    python: OnceLock<crate::source_roots::SourceRoots>,
     rust: OnceLock<crate::resolve_rust::Index>,
     swift: OnceLock<crate::resolve_swift::Index>,
-    jvm: OnceLock<Vec<String>>,
+    jvm: OnceLock<crate::source_roots::SourceRoots>,
 }
 
 impl<'a> World<'a> {
@@ -77,9 +77,9 @@ impl<'a> World<'a> {
         self.swift.get_or_init(|| crate::resolve_swift::Index::of(self))
     }
 
-    /// The JVM source roots, derived from the package each directory declares.
-    pub(crate) fn jvm_roots(&self) -> &[String] {
-        self.jvm.get_or_init(|| crate::resolve_jvm::roots(self))
+    /// The JVM source roots, with the top-level packages each holds.
+    pub(crate) fn jvm_index(&self) -> &crate::source_roots::SourceRoots {
+        self.jvm.get_or_init(|| crate::resolve_jvm::index(self))
     }
 
     /// Whether the tree holds this repository path.
@@ -136,9 +136,9 @@ impl<'a> World<'a> {
         (!only_listed || self.has(file)).then_some(file)
     }
 
-    /// The source roots Python looks for a top-level module under.
-    pub(crate) fn python_roots(&self) -> &[String] {
-        self.python.get_or_init(|| crate::resolve_python::roots_in(self.below(""), self.below("")))
+    /// The source roots, with the top-level modules each holds.
+    pub(crate) fn python_index(&self) -> &crate::source_roots::SourceRoots {
+        self.python.get_or_init(|| crate::resolve_python::index(self))
     }
 
     /// Builds the indexes `languages` resolve through, here rather than in
@@ -147,7 +147,7 @@ impl<'a> World<'a> {
         for language in languages {
             match language {
                 Language::Python => {
-                    self.python_roots();
+                    self.python_index();
                 }
                 Language::Rust => {
                     self.rust_index();
@@ -156,7 +156,7 @@ impl<'a> World<'a> {
                     self.swift_index();
                 }
                 Language::Java | Language::Kotlin => {
-                    self.jvm_roots();
+                    self.jvm_index();
                 }
                 _ => {}
             }

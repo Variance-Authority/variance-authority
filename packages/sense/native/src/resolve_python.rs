@@ -42,6 +42,7 @@
 // compass: variance-authority.reach.source-scan
 
 use crate::order::code_unit;
+use crate::source_roots::SourceRoots;
 use crate::world::World;
 
 /// Files a package is made of, in the order Python looks for them.
@@ -49,6 +50,13 @@ const MODULE_FILES: [&str; 4] = [".py", "/__init__.py", ".pyi", "/__init__.pyi"]
 
 /// Manifests whose directory is a source root, and whose `src/` is one too.
 const MANIFESTS: [&str; 3] = ["pyproject.toml", "setup.py", "setup.cfg"];
+
+/// The source roots, with the top-level modules each holds.
+pub(crate) fn index(world: &World) -> SourceRoots {
+    let sorted = world.below("");
+    let files: Vec<&str> = MODULE_FILES.into_iter().filter(|end| !end.starts_with('/')).collect();
+    SourceRoots::of(roots_in(sorted, sorted), sorted.iter().copied(), &files)
+}
 
 /// Each manifest's directory, after its `src/` when something is under it,
 /// in the order `paths` names them, then the repository root: `pythonRootsOf`.
@@ -60,7 +68,7 @@ pub(crate) fn roots_of(paths: &[&str]) -> Vec<String> {
 }
 
 /// [`roots_of`] for a tree whose paths are already sorted, as a world's are.
-pub(crate) fn roots_in(paths: &[&str], sorted: &[&str]) -> Vec<String> {
+fn roots_in(paths: &[&str], sorted: &[&str]) -> Vec<String> {
     // `src/` counts when something is under it, not when it is merely named.
     let holds = |src: &str| {
         let prefix = format!("{src}/");
@@ -103,7 +111,7 @@ pub(crate) fn resolve(world: &World, from: &str, request: &str) -> Vec<String> {
         let named = if base.is_empty() { tail } else if tail.is_empty() { base } else { format!("{base}/{tail}") };
         return found(world, &named).into_iter().collect();
     }
-    for root in world.python_roots() {
+    for root in world.python_index().holding(tail.split('/').next().unwrap_or("")) {
         let named = if root.is_empty() { tail.clone() } else { format!("{root}/{tail}") };
         if let Some(landed) = found(world, &named) {
             return vec![landed];
@@ -150,7 +158,7 @@ mod tests {
         // A scan asks in the tree's sorted order, so a nested manifest comes first.
         let known = known();
         let world = World::new(Some(&known), None);
-        assert_eq!(world.python_roots(), ["a/src", "a", "b/src", "b", ""]);
+        assert_eq!(world.python_index().order, ["a/src", "a", "b/src", "b", ""]);
     }
 
     /// `python.test.ts`: unions the source roots, because one package can be spread across them.
