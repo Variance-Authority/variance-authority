@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
+import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed, ParseKey } from './cache.js';
 import { countDecodedParseRows } from './__fixtures__/decoded-parse-rows.js';
 import { encodeSourceIndex, SOURCE_INDEX_VERSION, type IndexedRecord, type StoredSourceIndex } from './source-index-format.js';
@@ -65,6 +66,27 @@ const WHOLE: StoredSourceIndex = {
     ['src/c.ts', { record: { file: 'src/c.ts' }, witnesses: [] }],
   ]),
 };
+
+/** `count` words of the column `name` in `encoded`, written through to its bytes. */
+function column(encoded: Buffer, name: string, count: number): Uint32Array {
+  const headerLength = encoded.readUInt32LE(0);
+  const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
+    sections: { name: string; offset: number }[];
+  };
+  const section = header.sections.find((value) => value.name === name);
+  expect(section).toBeDefined();
+  return new Uint32Array(encoded.buffer, encoded.byteOffset + 4 + headerLength + section!.offset, count);
+}
+
+/** A segment of `parses` alone. */
+function parsesOnly(parses: [ParseKey, Parsed][], deletedParses?: Set<ParseKey>): Buffer {
+  return encodeSourceIndex({ parses: new Map(parses), ...(deletedParses ? { deletedParses } : {}), directories: new Map(), records: new Map() });
+}
+
+/** A segment of `record` alone. */
+function recordOnly(record: FileRecord): Buffer {
+  return encodeSourceIndex({ parses: new Map(), directories: new Map(), records: new Map([[record.file, { record, witnesses: ['src'] }]]) });
+}
 
 /** `stored` as plain maps, read through every question a caller asks of it. */
 function plain(stored: StoredSourceIndex): object {
@@ -147,5 +169,63 @@ describe('the source index the addon reads', () => {
     expect(other.written).toBe(SOURCE_INDEX_VERSION - 1);
 
     expect(() => readSourceIndexSegment(Buffer.from('damaged'))).toThrow('not a variance-authority source index');
+  });
+
+  it('rejects duplicate logical keys instead of accepting a partial generation', () => {
+    const encoded = parsesOnly([[A, FULL], [B, EMPTY]]);
+    const digests = column(encoded, 'parses.key', 2);
+    digests[1] = digests[0]!;
+
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
+  });
+
+  it.each([
+    ['member declarations', 'parses.member-declarations', FULL.memberDeclarations!.length],
+    ['member uses', 'parses.member-uses', FULL.memberUses!.length],
+  ])('rejects %s whose offsets run past their columns', (_, name, length) => {
+    const encoded = parsesOnly([[A, FULL]]);
+    // One parse, so two offsets: the start of its range and its end.
+    column(encoded, name, 2)[1] = length + 1;
+
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
+  });
+
+  it('keeps a package name that nothing else in the segment names', () => {
+    // Only a subpath import reaches `@scope/only-here`, so the bare name is in no
+    // other column. A dictionary that missed it wrote row 0 — whatever sorted
+    // first — and a relative specifier sorts before every package.
+    const record: FileRecord = { file: 'src/card.tsx', digest: B as Digest, unresolved: ['../exit.js'], packages: [{ to: '@scope/only-here', kind: 'type' }] };
+
+    expect(readSourceIndexSegment(recordOnly(record)).records.get(record.file)?.record.packages).toEqual([{ to: '@scope/only-here', kind: 'type' }]);
+  });
+
+  it('reads a package column as written: the one encoder names packages, the reader does not judge them', () => {
+    const encoded = recordOnly({ file: 'src/card.tsx', digest: B as Digest, packages: [{ to: 'zzzzzzzzzz', kind: 'imports' }] });
+    encoded.write('../exit.js', encoded.indexOf('zzzzzzzzzz'));
+
+    // The write leaves the dictionary out of code-unit order, so the record is walked to, not looked up.
+    const [read] = readSourceIndexSegment(encoded).records.values();
+    expect(read?.record.packages).toEqual([{ to: '../exit.js', kind: 'imports' }]);
+  });
+
+  it('answers a key that one segment both writes and deletes with what it writes', () => {
+    expect(readSourceIndexSegment(parsesOnly([[A, FULL]], new Set([A]))).parses.get(A)).toStrictEqual(FULL);
+  });
+
+  it('keeps each side of a mock diff apart, and a parse with none has no diff', () => {
+    const read = readSourceIndexSegment(parsesOnly([[A, { requests: [], mocks: { plus: ['./real.js'] } }], [B, { requests: [] }]]));
+
+    expect(read.parses.get(A)?.mocks).toEqual({ plus: ['./real.js'] });
+    expect(read.parses.get(B)).toEqual({ requests: [] });
+  });
+
+  it('keeps whether a reader guessed a request, and whether it asked for it as an item', () => {
+    const requests: Parsed['requests'] = [
+      { value: 'self::graph', kind: 'imports', line: 1, bindings: [] },
+      { value: 'crate::graph::Limits', kind: 'imports', line: 2, bindings: [], guessed: true },
+      { value: 'crate::graph', kind: 'imports', line: 3, bindings: [], guessed: true, item: true },
+    ];
+
+    expect(readSourceIndexSegment(parsesOnly([[A, { requests }]])).parses.get(A)?.requests).toEqual(requests);
   });
 });
