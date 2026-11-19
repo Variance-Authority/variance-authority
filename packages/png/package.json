@@ -56,10 +56,10 @@
     "@jsquash/webp": "1.5.0",
     "@variance-authority/core": "workspace:^",
     "@variance-authority/raster": "workspace:^",
-    "pixelmatch": "^7.2.0",
     "pngjs": "^7.0.0"
   },
   "devDependencies": {
+    "pixelmatch": "^7.2.0",
     "sharp": "^0.35.5"
   }
 }

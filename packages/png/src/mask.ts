@@ -1,7 +1,7 @@
 /**
  * `@variance-authority/png/mask` — the difference mask, without a codec.
  *
- * `pixelmatch` takes RGBA and returns RGBA. Nothing in the per-pixel work needs
+ * The comparison takes RGBA and returns RGBA. Nothing in the per-pixel work needs
  * a decoder, and the only reason it ever lived beside one is that every caller
  * in this repository happened to be holding PNG bytes. A caller holding pixels —
  * a canvas, a framebuffer, `createImageBitmap` in a review page — should not
@@ -18,16 +18,16 @@
  * not made from. Hence one function, imported by both.
  */
 
-import pixelmatch from 'pixelmatch';
 import { DEFAULT_POLICY, type DiffPolicy, type RowAlignment } from '@variance-authority/raster';
 import { alignRows, type AlignedRows } from './align.js';
+import { judgeRows, type JudgeOutput } from './judge.js';
 
 export type { AlignedRows } from './align.js';
 
 /**
  * One decoded image: raw 8-bit RGBA, row-major, no padding.
  *
- * The shape `pixelmatch` needs and the smallest thing every decoder agrees on.
+ * The shape the comparison needs and the smallest thing every decoder agrees on.
  */
 export interface DecodedImage {
   readonly width: number;
@@ -78,7 +78,7 @@ export function padTo(image: DecodedImage, width: number, height: number): Decod
  * Two images onto one mask, at a policy.
  *
  * `diffMask` is the difference between the two things this is asked for. Off,
- * `pixelmatch` renders the familiar picture — the after image dimmed with the
+ * it renders `pixelmatch`'s familiar picture — the before image dimmed with the
  * changed pixels in red — which is what a human opens. On, it writes *only* the
  * differing pixels and leaves the rest transparent, so the alpha channel is the
  * mask and nothing has to be recovered from red-on-grey.
@@ -87,8 +87,7 @@ export function padTo(image: DecodedImage, width: number, height: number): Decod
  * before row that shows the same content, on the after image's canvas, and an
  * after row with no partner is marked in full. Otherwise the two are compared
  * position by position on the union box. `alignment` is the caller's, when it
- * computed one already for another policy over the same two images, and `null`
- * when it asked and there was none.
+ * computed one already, and `null` when it asked and there was none.
  */
 export function differencePixels(
   before: DecodedImage,
@@ -99,62 +98,84 @@ export function differencePixels(
     alignment: given,
   }: { readonly diffMask?: boolean; readonly alignment?: AlignedRows | null } = {},
 ): PixelDifference {
+  const judged = judgeImages(before, after, [policy], given, { picture: { policy: 0, diffMask } });
+  const { width, height, changed, picture, alignment } = judged;
+  return { width, height, data: picture!, changed: changed[0]!, ...(alignment === undefined ? {} : { alignment }) };
+}
+
+/** Every policy's verdict on two images, and the canvas it was reached on. */
+export interface JudgedImages {
+  readonly width: number;
+  readonly height: number;
+  readonly changed: number[];
+  readonly mask?: Uint8Array;
+  readonly picture?: Uint8Array;
+  readonly alignment?: RowAlignment;
+}
+
+/**
+ * Two images under every policy at once: {@link differencePixels}' rule, in
+ * one scan rather than one per policy.
+ *
+ * The pairing is a fact about the two images and the policies differ only in
+ * what they call a different pixel, so the rows are aligned once, each pixel is
+ * read once, and anti-aliasing is asked about once however many policies
+ * forgive it.
+ */
+export function judgeImages(
+  before: DecodedImage,
+  after: DecodedImage,
+  policies: readonly DiffPolicy[],
+  given: AlignedRows | null | undefined,
+  output: JudgeOutput,
+): JudgedImages {
   // `null` is a caller that already asked and found no alignment.
   const alignment = given === undefined ? alignRows(before, after) : (given ?? undefined);
-  const options = { threshold: policy.threshold, includeAA: policy.includeAA, diffMask };
 
   if (alignment === undefined || unmoved(alignment, before, after)) {
     const width = Math.max(before.width, after.width);
     const height = Math.max(before.height, after.height);
-    const data = new Uint8Array(width * height * 4);
-    const changed = pixelmatch(
-      padTo(before, width, height).data,
-      padTo(after, width, height).data,
-      data,
-      width,
-      height,
-      options,
-    );
-    return { width, height, data, changed, ...(alignment === undefined ? {} : { alignment: spans(alignment) }) };
+    const judged = judgeRows(padTo(before, width, height), padTo(after, width, height), undefined, policies, output);
+    return { width, height, ...judged, ...(alignment === undefined ? {} : { alignment: spans(alignment) }) };
   }
 
   const { width, height } = after;
+  // An inserted row is compared with itself, so it counts nothing there and is
+  // marked here, in full, rather than against an invented background.
+  const { changed, mask, picture } = judgeRows(before, after, alignment.source, policies, output);
   const row = width * 4;
-  // The before image, rearranged into the after image's rows. An inserted row
-  // gets the after row itself, so `pixelmatch` counts nothing there and the row
-  // is marked below, in full, rather than against an invented background.
-  const warped = new Uint8Array(height * row);
-  for (let y = 0; y < height; y += 1) {
-    const from = alignment.source[y]!;
-    warped.set(
-      from < 0 ? after.data.subarray(y * row, (y + 1) * row) : before.data.subarray(from * row, (from + 1) * row),
-      y * row,
-    );
-  }
-
-  const data = new Uint8Array(height * row);
-  let changed = pixelmatch(warped, after.data, data, width, height, options);
+  const diffMask = output.picture?.diffMask;
 
   for (const span of alignment.inserted) {
+    const pixels = (span.to - span.from) * width;
+    for (let index = 0; index < changed.length; index += 1) changed[index]! += pixels;
+    mask?.fill(1, span.from * width, span.to * width);
+    if (picture === undefined) continue;
     for (let index = span.from * row; index < span.to * row; index += 4) {
-      changed += 1;
-      if (diffMask) data.set(INSERTED, index);
+      if (diffMask) picture.set(INSERTED, index);
       else {
         // The dimmed after pixel, tinted, so the inserted content stays legible.
         for (let channel = 0; channel < 3; channel += 1) {
-          data[index + channel] = Math.round(data[index + channel]! * 0.6 + INSERTED[channel]! * 0.4);
+          picture[index + channel] = Math.round(picture[index + channel]! * 0.6 + INSERTED[channel]! * 0.4);
         }
       }
     }
   }
 
-  return { width, height, data, changed, alignment: spans(alignment) };
+  return {
+    width,
+    height,
+    changed,
+    ...(mask === undefined ? {} : { mask }),
+    ...(picture === undefined ? {} : { picture }),
+    alignment: spans(alignment),
+  };
 }
 
 /** The colour `pixelmatch` marks a difference in, used for rows it never compared. */
 const INSERTED = [255, 0, 0, 255] as const;
 
-/** Every row paired with itself: the positional comparison, without a copy. */
+/** Every row paired with itself: the positional comparison, without a table. */
 function unmoved(alignment: AlignedRows, before: DecodedImage, after: DecodedImage): boolean {
   return (
     before.height === after.height &&

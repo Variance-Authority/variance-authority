@@ -8,10 +8,9 @@ import {
   type DiffPolicy,
   type RasterComparison,
 } from '@variance-authority/raster';
-import { alignRows } from './align.js';
 import { changeImages } from './change.js';
 import { decodePortable } from './format.js';
-import { differencePixels, type DecodedImage } from './mask.js';
+import { judgeImages, type DecodedImage } from './mask.js';
 
 /**
  * Comparison — phase three: two images become a mask.
@@ -23,7 +22,8 @@ import { differencePixels, type DecodedImage } from './mask.js';
  * that still has *positions* in it, and the phases that turn positions into
  * places and places into files come after.
  *
- * `pixelmatch` does the per-pixel work. It is the differ behind most of the
+ * The per-pixel work is `pixelmatch`'s, reproduced exactly in `judge.ts` so
+ * every policy is judged in one scan. It is the differ behind most of the
  * ecosystem — Playwright's `toHaveScreenshot`, jest-image-snapshot — so its
  * metric is the one every pixel tool's numbers are in. Its default threshold is
  * not this project's: {@link DEFAULT_POLICY} says why. The pixel arm a
@@ -112,36 +112,22 @@ export function comparePixels(
 
   const policies = options.policies ?? [DEFAULT_POLICY, STRICT_POLICY];
   const isolateWith = options.isolateWith ?? DEFAULT_POLICY;
-  // Once for every policy: the pairing is a fact about the two images, and the
-  // policies differ only in what they call a different pixel.
-  const rows = alignRows(left, right) ?? null;
-
-  const changed: Record<string, number> = {};
-  let mask: ChangeMask | undefined;
-  // The canvas the comparison ran on: the after image's when the rows were
-  // aligned, the union box when they were not.
-  let width = Math.max(left.width, right.width);
-  let height = Math.max(left.height, right.height);
-  let alignment: RasterComparison['alignment'];
-
-  for (const policy of policies) {
-    // `diffMask` makes pixelmatch write *only* the differing pixels and leave
-    // everything else transparent — so the alpha channel is already the mask,
-    // and deriving one from a rendered red-on-grey diff image is unnecessary.
-    const out = differencePixels(left, right, policy, { diffMask: true, alignment: rows });
-
-    ({ width, height, alignment } = out);
-    changed[policy.id] = out.changed;
-    if (policy.id === isolateWith.id) mask = maskOf(out.data, width, height, out.changed);
-  }
-
-  if (mask === undefined) {
+  const isolated = policies.findIndex((policy) => policy.id === isolateWith.id);
+  if (isolated < 0) {
     throw new Error(
       `isolation policy "${isolateWith.id}" was not among the compared policies ` +
         `(${policies.map((p) => p.id).join(', ')}); the mask would describe a different ` +
         'comparison from the counts beside it',
     );
   }
+
+  // One scan for every policy: the pairing is a fact about the two images, and
+  // the policies differ only in what they call a different pixel.
+  const judged = judgeImages(left, right, policies, undefined, { mask: isolated });
+  const { width, height, alignment } = judged;
+  const changed: Record<string, number> = {};
+  for (const [index, policy] of policies.entries()) changed[policy.id] = judged.changed[index]!;
+  const mask: ChangeMask = { width, height, data: judged.mask!, changed: judged.changed[isolated]! };
 
   return {
     width,
@@ -154,19 +140,6 @@ export function comparePixels(
     mask,
     ...(alignment === undefined ? {} : { alignment }),
   };
-}
-
-function maskOf(
-  pixels: Uint8Array,
-  width: number,
-  height: number,
-  changed: number,
-): ChangeMask {
-  const data = new Uint8Array(width * height);
-  for (let index = 0; index < data.length; index += 1) {
-    if (pixels[index * 4 + 3] !== 0) data[index] = 1;
-  }
-  return { width, height, data, changed };
 }
 
 export function decode(base64: string): Buffer {
