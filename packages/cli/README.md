@@ -2692,7 +2692,7 @@ were rewritten to agree. `variance janus` answers whether the tests as they stoo
 before the change still pass on the code after it:
 
 ```bash
-variance janus --since origin/main -- npx vitest run
+variance janus --since origin/main -- <test command>
 ```
 
 Every test file the diff since `<ref>` changed is served to the command as the

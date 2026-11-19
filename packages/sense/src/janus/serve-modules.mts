@@ -7,8 +7,9 @@
  */
 
 import { closeSync, fstatSync, openSync, readFileSync } from 'node:fs';
-import { findPackageJSON, registerHooks, type ModuleFormat } from 'node:module';
-import { dirname, extname, resolve } from 'node:path';
+import Module, { findPackageJSON, registerHooks, stripTypeScriptTypes, type ModuleFormat } from 'node:module';
+import { dirname, extname, join, resolve } from 'node:path';
+import { compileFunction } from 'node:vm';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import served from './served.cjs';
 
@@ -31,28 +32,50 @@ const onDisk = (file: string): boolean => {
   }
 };
 
-const probed = ['.js', '.cjs', '.mjs', '.json', '.ts', '.cts', '.mts'];
+/** Each directory holding a path the manifest serves or hides: a `require` probes the disk only for a candidate in one. */
+const near = new Set(Object.keys(files).map((file) => dirname(file)));
+
 /**
  * The manifest's key a specifier names: itself, or, for a `require`, the file
- * CommonJS would probe for, an extension and then `index`, in Node's order
- * across the disk and the manifest: a file the disk holds first is Node's. An
- * import names its file.
+ * CommonJS would probe for, in Node's order across the disk and the manifest:
+ * each extension the CommonJS loader registers, a directory's `main`, then its
+ * `index`. A file the disk holds first is Node's, and so is a directory whose
+ * `package.json` names a `main`. An import names its file.
  */
 const servedAs = (candidate: string, probes: boolean): string | undefined => {
   if (Object.hasOwn(files, candidate)) return candidate;
   if (!probes) return undefined;
-  for (const file of [...probed.map((extension) => candidate + extension), ...probed.map((extension) => `${candidate}/index${extension}`)]) {
+  // Read per call: a TypeScript loader registers its extensions after this preload.
+  const extensions = Object.keys((Module as unknown as { _extensions: Record<string, unknown> })._extensions).filter((extension) => extension !== '.node');
+  const tries = near.has(dirname(candidate)) ? extensions.map((extension) => candidate + extension) : [];
+  if (near.has(candidate) && mainOf(candidate) === undefined) tries.push(...extensions.map((extension) => join(candidate, `index${extension}`)));
+  for (const file of tries) {
     if (typeof files[file] === 'string') return file;
     if (files[file] !== null && onDisk(file)) return undefined;
   }
   return undefined;
 };
 
+/** A directory's `main`, read from its `package.json` as this run holds it. */
+const mainOf = (directory: string): string | undefined => {
+  const manifest = join(directory, 'package.json');
+  const served = files[manifest];
+  const text = typeof served === 'string' ? served : served === null || !onDisk(manifest) ? undefined : readFileSync(manifest, 'utf8');
+  if (text === undefined) return undefined;
+  try {
+    return (JSON.parse(text) as { main?: string }).main;
+  } catch {
+    return undefined;
+  }
+};
+
 const pathOf = (url: string): string | undefined => (url.startsWith('file:') ? fileURLToPath(url) : undefined);
 
 /**
- * The format of a file only the base holds, which Node's resolver cannot see:
- * its own rule, the extension and then the nearest package's `type`.
+ * The format of a file only the base holds, which Node's resolver cannot see,
+ * by Node's rule: the extension, then the nearest package's `type`, and with
+ * neither, CommonJS unless the engine's compiler refuses the source as a
+ * CommonJS body, which is Node's syntax detection.
  */
 const formatOf = (file: string): ModuleFormat => {
   const extension = extname(file);
@@ -63,9 +86,21 @@ const formatOf = (file: string): ModuleFormat => {
   // From its directory: Node's lookup resolves a file it is given, and this one is not on the disk.
   // With no manifest above it, the lookup answers the directory it was given.
   const manifest = findPackageJSON(pathToFileURL(`${dirname(file)}/`));
-  const module = manifest !== undefined && manifest.endsWith('package.json') && (JSON.parse(readFileSync(manifest, 'utf8')) as { type?: string }).type === 'module';
+  const type = manifest !== undefined && manifest.endsWith('package.json') ? (JSON.parse(readFileSync(manifest, 'utf8')) as { type?: string }).type : undefined;
+  const module = type === 'module' || (type === undefined && !compilesAsCommonJs(file));
   if (module) return typescript ? 'module-typescript' : 'module';
   return typescript ? 'commonjs-typescript' : 'commonjs';
+};
+
+/** Whether the engine compiles a served file's source as a CommonJS module body. */
+const compilesAsCommonJs = (file: string): boolean => {
+  const source = files[file] ?? '';
+  try {
+    compileFunction(/\.[cm]?ts$/.test(file) ? stripTypeScriptTypes(source) : source, ['exports', 'require', 'module', '__filename', '__dirname']);
+    return true;
+  } catch {
+    return false;
+  }
 };
 
 registerHooks({

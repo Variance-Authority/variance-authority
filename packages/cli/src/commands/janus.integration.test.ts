@@ -153,4 +153,21 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
     expect(report).not.toContain('value is two');
     expect(exit).toBe(1);
   });
+
+  it('loads a base-only test written as a module where no `type` says so, as Node detects it', async () => {
+    git(root, 'checkout', '-q', 'base');
+    writeFileSync(join(root, 'src', 'module.test.js'), "import { test } from 'node:test';\ntest('a module only the base has', () => {});\n");
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'base with a module');
+    const based = git(root, 'rev-parse', 'HEAD');
+    git(root, 'checkout', '-q', '-');
+    git(root, 'merge', '-q', '--no-edit', based);
+    git(root, 'rm', '-q', 'src/module.test.js');
+    git(root, 'commit', '-qm', 'module gone');
+    git(root, 'tag', '-f', 'base', based);
+    const exit = await janus(process.execPath, 'run.mjs', out, 'src/module.test.js', 'src/value.test.js', 'src/gone.test.js');
+    expect(readFileSync(out, 'utf8')).toMatch(/✔ a module only the base has/);
+    expect(notes.join('')).toBe('');
+    expect(exit).toBe(1);
+  });
 });
