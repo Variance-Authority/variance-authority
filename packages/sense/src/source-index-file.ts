@@ -1,18 +1,17 @@
 import { isDeepStrictEqual } from 'node:util';
 import type { Digest } from '@variance-authority/core/format';
-import { OtherSegmentVersion } from '@variance-authority/core/segment';
 import type { Parsed, ParseKey } from './cache.js';
 import { native as addon, nativeRefusal } from './addon.js';
 import { BadLogPath, emptyImmutableLog, openImmutableLog, type ImmutableLog } from './immutable-log.js';
-import { differenceLayer, orderedMap, type MapLayer } from './ordered-map.js';
+import { differenceLayer, type MapLayer } from './ordered-map.js';
 import {
-  decodeSourceIndex,
   encodeSourceIndex,
   sourceIndexDocuments,
   type IndexedRecord,
   type StoredSourceIndex,
 } from './source-index-format.js';
 import type { NativeIndexGraph } from './native-index-graph.js';
+import { readSourceIndexChain } from './source-index-reader.js';
 import type { NativeScanner } from './native.js';
 
 const EMPTY: StoredSourceIndex = { parses: new Map(), records: new Map(), directories: new Map() };
@@ -70,8 +69,10 @@ export async function readSourceIndex(path: string): Promise<StoredSourceIndex> 
  * and the answer is the chain this call already read. Asking the file system for
  * it a second time buys one thing — a segment another writer published in the
  * meantime — and it is the manifest that carries that, not the segment bytes. So
- * the save re-reads the manifest, which is one small file, and decodes again only
- * on the run where the chain actually moved underneath it.
+ * the save re-reads the manifest, which is one small file, and reads the chain
+ * again only on the run where it actually moved underneath it. The addon reads
+ * the chain ([`source-index-reader.ts`](./source-index-reader.ts)), and a row of
+ * it is decoded only when a caller asks for that row.
  */
 export async function openSourceIndexFile(path: string): Promise<SourceIndexFile> {
   const opened = await opening(path);
@@ -238,58 +239,16 @@ function same(left: readonly Digest[], right: readonly Digest[]): boolean {
 }
 
 async function load(read: ImmutableLog): Promise<Opened> {
-  // Newest first, so a layer decodes only the rows no later one decided: an
-  // update that read every file again would otherwise hold the graph once per
-  // layer. A segment that does not read still ends the chain there, so what was
-  // decoded above it is dropped and the layers below are read as the last.
-  let decoded: StoredSourceIndex[] = [];
-  let decided = { parses: new Set<ParseKey>(), records: new Set<string>(), directories: new Set<string>() };
-  // The segment that stopped the read, when it is one another release wrote:
-  // the same rebuild as a damaged one, for a reason the reader is told apart.
-  let written: number | undefined;
-  for (let at = read.segments.length - 1; at >= 0; at -= 1) {
-    try {
-      const part = decodeSourceIndex(read.segments[at]!, decided);
-      decoded.unshift(part);
-      decide(decided.parses, part.parses, part.deletedParses);
-      decide(decided.records, part.records, part.deletedRecords);
-      decide(decided.directories, part.directories, part.deletedDirectories);
-    } catch (error) {
-      written = error instanceof OtherSegmentVersion ? error.written : undefined;
-      decoded = [];
-      decided = { parses: new Set(), records: new Set(), directories: new Set() };
-    }
-  }
-  const log = read.keep(decoded.length);
-  const parseLayers: MapLayer<ParseKey, Parsed>[] = decoded.map((part) => ({
-    puts: part.parses,
-    deletes: part.deletedParses ?? new Set(),
-  }));
-  const recordLayers: MapLayer<string, IndexedRecord>[] = decoded.map((part) => ({
-    puts: part.records,
-    deletes: part.deletedRecords ?? new Set(),
-  }));
-  const directoryLayers: MapLayer<string, Digest>[] = decoded.map((part) => ({
-    puts: part.directories,
-    deletes: part.deletedDirectories ?? new Set(),
-  }));
-  const config = decoded.at(-1)?.config;
+  // The addon reads the chain newest first and keeps its oldest segments that
+  // read; a row crosses only when a caller asks for it.
+  const { kept, written, stored } = readSourceIndexChain(read.segments);
+  const log = read.keep(kept);
   return {
     log,
     state: !log.committed ? 'missing' : log.damaged === 0 ? 'published' : written === undefined ? 'damaged' : 'other-version',
     ...(written === undefined ? {} : { written }),
-    stored: {
-      parses: orderedMap(parseLayers),
-      ...(config === undefined ? {} : { config }),
-      directories: orderedMap(directoryLayers),
-      records: orderedMap(recordLayers),
-    },
+    stored,
   };
-}
-
-function decide<K>(decided: Set<K>, puts: ReadonlyMap<K, unknown>, deletes: ReadonlySet<K> | undefined): void {
-  for (const key of puts.keys()) decided.add(key);
-  for (const key of deletes ?? []) decided.add(key);
 }
 
 function segment(

@@ -6,8 +6,8 @@ import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed, ParseKey } from './cache.js';
 import { BadLogPath, openImmutableLog } from './immutable-log.js';
-import { materializeLayers } from './ordered-map.js';
-import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
+import { encodeSourceIndex, type StoredSourceIndex } from './source-index-format.js';
+import { readSourceIndexChain, readSourceIndexSegment } from './source-index-reader.js';
 import { native } from './addon.js';
 import { readPublishedSources } from './published.js';
 import { readySourceIndex } from './ready-index.js';
@@ -185,7 +185,7 @@ describe('the binary source index', () => {
     second.reuse.set(RECORD, WITNESSES); // The full scan rebuilt the same logical value.
     await second.save();
 
-    const changes = decodeSourceIndex((await openImmutableLog(file)).segments[1]!);
+    const changes = readSourceIndexSegment((await openImmutableLog(file)).segments[1]!);
     expect(changes.config).toBe(OTHER_CONFIG);
     expect(changes.records.size).toBe(0);
     const third = await openSourceIndex(file);
@@ -209,9 +209,10 @@ describe('the binary source index', () => {
     await second.save();
 
     expect(await readdir(`${file}.segments`)).toHaveLength(2);
-    const changes = decodeSourceIndex((await openImmutableLog(file)).segments[1]!);
+    const { segments } = await openImmutableLog(file);
+    const changes = readSourceIndexSegment(segments[1]!);
     expect([...changes.parses]).toEqual([[OTHER, { requests: [] }]]);
-    expect([...changes.deletedParses ?? []]).toEqual([DIGEST]);
+    expect(readSourceIndexChain(segments).stored.parses.has(DIGEST)).toBe(false);
     expect([...changes.records]).toEqual([
       [RECORD.file, { record: replacement, witnesses: WITNESSES }],
     ]);
@@ -327,7 +328,7 @@ describe('the binary source index', () => {
     );
     digests[1] = digests[0]!;
 
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
   it('rejects member declarations whose offsets run past their columns', () => {
@@ -346,7 +347,7 @@ describe('the binary source index', () => {
     const offsets = new Uint32Array(encoded.buffer, encoded.byteOffset + 4 + headerLength + section!.offset, 2);
     offsets[1] = PARSED.memberDeclarations!.length + 1;
 
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
   it('rejects member uses whose offsets run past their columns', () => {
@@ -365,7 +366,7 @@ describe('the binary source index', () => {
     const offsets = new Uint32Array(encoded.buffer, encoded.byteOffset + 4 + headerLength + section!.offset, 2);
     offsets[1] = PARSED.memberUses!.length + 1;
 
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
   it('keeps a package name that nothing else in the segment names', () => {
@@ -373,7 +374,7 @@ describe('the binary source index', () => {
     // other column. A dictionary that missed it wrote row 0 — whatever sorted
     // first — and a relative specifier sorts before every package.
     const record: FileRecord = { file: 'src/card.tsx', digest: DIGEST, unresolved: ['../exit.js'], packages: [{ to: '@scope/only-here', kind: 'type' }] };
-    const decoded = decodeSourceIndex(encodeSourceIndex({
+    const decoded = readSourceIndexSegment(encodeSourceIndex({
       parses: new Map(),
       directories: new Map(),
       records: new Map([[record.file, { record, witnesses: WITNESSES }]]),
@@ -392,7 +393,7 @@ describe('the binary source index', () => {
     const at = encoded.indexOf('zzzzzzzzzz');
     encoded.write('../exit.js', at);
 
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
   it('rejects a key that one segment both writes and deletes', () => {
@@ -403,11 +404,11 @@ describe('the binary source index', () => {
       records: new Map(),
     });
 
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
   it('keeps each side of a mock diff apart, and a parse with none has no diff', () => {
-    const decoded = decodeSourceIndex(encodeSourceIndex({
+    const decoded = readSourceIndexSegment(encodeSourceIndex({
       parses: new Map([[DIGEST, { requests: [], mocks: { plus: ['./real.js'] } }], [OTHER, { requests: [] }]]),
       directories: new Map(),
       records: new Map(),
@@ -423,7 +424,7 @@ describe('the binary source index', () => {
       { value: 'crate::graph::Limits', kind: 'imports', line: 2, bindings: [], guessed: true },
       { value: 'crate::graph', kind: 'imports', line: 3, bindings: [], guessed: true, item: true },
     ];
-    const decoded = decodeSourceIndex(encodeSourceIndex({
+    const decoded = readSourceIndexSegment(encodeSourceIndex({
       parses: new Map([[DIGEST, { requests }]]),
       directories: new Map(),
       records: new Map(),
@@ -450,7 +451,7 @@ describe('the binary source index', () => {
       deletedDirectories: new Set(['lib']),
       records: new Map([['src/button.tsx', { record: { file: 'src/button.tsx', edges: [] }, witnesses: [] }]]),
     });
-    const layers = [first, second].map((bytes) => decodeSourceIndex(bytes));
+    const layers = readSourceIndexChain([first, second]).stored;
     const file = await path();
     expect(native()!.appendSourceIndex(file, [], false, [first])).toBeNull();
     expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [second])).toBeNull();
@@ -458,14 +459,7 @@ describe('the binary source index', () => {
 
     // The later layer names no configuration, and the fold keeps its absence.
     const [whole] = (await openImmutableLog(file)).segments;
-    expect(decodeSourceIndex(whole!)).toEqual({
-      parses: materializeLayers(layers.map((layer) => ({ puts: layer.parses, deletes: layer.deletedParses ?? new Set() }))),
-      directories: materializeLayers(layers.map((layer) => ({
-        puts: layer.directories,
-        deletes: layer.deletedDirectories ?? new Set(),
-      }))),
-      records: materializeLayers(layers.map((layer) => ({ puts: layer.records, deletes: layer.deletedRecords ?? new Set() }))),
-    });
+    expect(plain(readSourceIndexSegment(whole!))).toEqual(plain(layers));
   });
 
   it('writes a save that puts again what the base holds as a working layer of what changed', async () => {
@@ -489,7 +483,7 @@ describe('the binary source index', () => {
     expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [again])).toBeNull();
 
     const [, working] = (await openImmutableLog(file)).segments;
-    const layer = decodeSourceIndex(working!);
+    const layer = readSourceIndexSegment(working!);
     expect(layer.config).toBe(CONFIG);
     expect([...layer.parses.keys()]).toEqual([]);
     expect([...layer.directories.keys()]).toEqual([]);
@@ -497,3 +491,8 @@ describe('the binary source index', () => {
     expect((await readPublishedSources(file)).records.map((record) => record.file)).toEqual(['src/button.tsx', RECORD.file]);
   });
 });
+
+/** `stored` as plain maps, each row read. */
+function plain({ config, parses, directories, records }: StoredSourceIndex): object {
+  return { config, parses: new Map(parses), directories: new Map(directories), records: new Map(records) };
+}

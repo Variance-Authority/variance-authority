@@ -3,7 +3,7 @@
 //!
 //! Two encoders write this framing — the parse half the graph walk produces
 //! (`index.rs`) and the whole generation a cold build publishes
-//! (`generation.rs`) — and the TypeScript reader is the one that decides
+//! (`generation.rs`) — and `index_reader.rs` is the one that decides
 //! whether either is believed. So the framing lives once, here, mirroring
 //! `encodeSegment` in `core/segment`: the header is the same JSON in the same
 //! key order, its length is padded so the first column starts on the

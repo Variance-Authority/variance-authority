@@ -2,13 +2,14 @@
 //! opened again for the one reader on this side, the compaction
 //! (`compact.rs`).
 //!
-//! What a column *means* is `decodeSourceIndex`'s to say, in
-//! `source-index-format.ts`, and this side refuses what it refuses. A segment
-//! is opened by its length, not its digest, so a damaged segment of the right
-//! length reaches here. This checks framing and bounds — enough that a bad
-//! offset is a refusal with a name rather than a read past the end — and the
-//! range of every one-byte code column, so a damaged flag is refused rather
-//! than read as false.
+//! What a column *means* is this side's to say: the addon is the one reader of
+//! the format (`index_reader.rs`), and JavaScript reads only the rows it asks
+//! that reader for. A segment is opened by its length, not its digest, so a
+//! damaged segment of the right length reaches here. This checks framing and
+//! bounds — enough that a bad offset is a refusal with a name rather than a
+//! read past the end — and the range of every one-byte code column, so a
+//! damaged flag is refused rather than read as false. Every column is
+//! little-endian, as `to_le_bytes` writes it.
 
 // compass: variance-authority.reach.source-index
 
@@ -105,7 +106,7 @@ impl<'a> Stored<'a> {
         if header.format != format {
             return Err(format!("{} version {}, not {format} version {version}", header.format, header.version));
         }
-        // Another release wrote it: told apart from bytes that do not read, as the TypeScript reader tells them.
+        // Another release wrote it: told apart from bytes that do not read.
         let Some(written) = u8::try_from(header.version).ok().filter(|written| (oldest..=version).contains(written)) else {
             return Err(format!(
                 "a {format} written in format version {}, and this release reads version {version}; `variance index` rebuilds it",
@@ -175,9 +176,8 @@ impl<'a> Stored<'a> {
     }
 
     /// A one-byte column of codes from zero to `most`, as a flag (`most` one)
-    /// or an enumeration: the TypeScript reader refuses the segment for one
-    /// code past it anywhere, so this side refuses it at open, not when a row
-    /// is read. A segment is read by its length, not its digest, so a damaged
+    /// or an enumeration: a segment with one code past it anywhere is refused
+    /// at open, not when a row is read. A segment is read by its length, not its digest, so a damaged
     /// byte reaches here. One pass of a byte maximum, which vectorises.
     pub fn codes(&self, name: &str, most: u8) -> Result<&'a [u8], String> {
         let column = self.u8s(name)?;
@@ -213,6 +213,23 @@ impl<'a> Stored<'a> {
             Some(value) => value,
             None => panic!("source index: string {id} is past a dictionary of {}", self.strings.len()),
         }
+    }
+
+    /// Whether the dictionary holds a string under `id`, so [`Self::text`] reads it.
+    pub fn holds(&self, id: u32) -> bool {
+        (id as usize) < self.strings.len()
+    }
+
+    /// Whether the segment carries a text heap: the reader of the format refuses one that does not.
+    pub fn has_texts(&self) -> bool {
+        self.texts.is_some()
+    }
+
+    /// Whether [`Self::kept`] reads `id`: none, or a whole text the heap holds.
+    pub fn keeps(&self, id: u32) -> bool {
+        let at = id as usize;
+        id == NONE
+            || self.texts.is_some_and(|(blob, off)| at + 1 < off.len() && blob.get(off.at(at) as usize..off.at(at + 1) as usize).is_some())
     }
 
     pub fn optional(&self, id: u32) -> Option<&'a str> {

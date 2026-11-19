@@ -97,7 +97,7 @@ pub(crate) fn parse(layers: &[Layer], digest: &str, way: &str) -> Option<At> {
 }
 
 /// The parse keys the chain holds under `digests`, as `(digest, way)`: the last
-/// layer to put or delete a key decides, as `orderedMap` folds it.
+/// layer to put or delete a key decides, as `index_reader.rs` folds it.
 pub(crate) fn held_parses(layers: &[Layer], digests: &HashSet<&str>) -> HashSet<(String, String)> {
     let per_layer: Vec<Vec<(bool, &str, &str)>> = layers
         .par_iter()

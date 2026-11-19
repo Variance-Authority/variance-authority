@@ -12,7 +12,8 @@ import { nativeGraph } from './native.js';
 import { shapeOf } from './reuse.js';
 import { LARGEST_FILE, scanRelations } from './scan.js';
 import { openSourceIndexFile } from './source-index-file.js';
-import { decodeSourceIndex, encodeSourceIndex, SOURCE_INDEX_VERSION } from './source-index-format.js';
+import { encodeSourceIndex, SOURCE_INDEX_VERSION } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 import { openSourceIndex, sourceIndexPath } from './source-index.js';
 import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
 import { gitTreeOf } from './tree.js';
@@ -443,7 +444,7 @@ describe('the parse store a cache keeps', () => {
       stores: [parseStorePath(cache)],
     }, true);
     expect(built.filter((answer) => answer.kept === true).map((answer) => answer.record.file)).toEqual(files.slice(1));
-    expect([...parseLayer!.keys]).toEqual([...decodeSourceIndex(parseLayer!.bytes).parses.keys()]);
+    expect([...parseLayer!.keys]).toEqual([...readSourceIndexSegment(parseLayer!.bytes).parses.keys()]);
     expect(parseLayer!.keys.size).toBe(1);
   });
 

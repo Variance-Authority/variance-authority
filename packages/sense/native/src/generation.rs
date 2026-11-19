@@ -10,8 +10,8 @@
 //! compaction's whole generation cross the same way
 //! (`encode_source_index` in `graph_index.rs`), so the layout has one author.
 //!
-//! The reader is `decodeSourceIndex` in `source-index-format.ts`, and a warm
-//! run compares what it decodes against what it rebuilt: a generation laid
+//! The reader is `index_reader.rs`, and a warm run compares what it reads
+//! against what it rebuilt: a generation laid
 //! out differently is one that never answers a warm run.
 
 // compass: variance-authority.reach.source-index

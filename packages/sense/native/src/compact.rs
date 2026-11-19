@@ -13,9 +13,9 @@
 //! layout this side wrote, so the compaction reads each layer in place
 //! (`stored.rs`) and copies the newest row for every key into one generation.
 //!
-//! The fold is `orderedMap` in `ordered-map.ts`: oldest layer first, each
+//! The fold is the one `index_reader.rs` reads by: oldest layer first, each
 //! layer's deletes and then its puts, and the configuration is the last
-//! layer's, absent included. The rows are copied as the decoder would read them
+//! layer's, absent included. The rows are copied as the reader would read them
 //! — an export list the row marks absent is not written, a span is a span only
 //! when it has both ends — so a compaction encodes the same bytes an encode of
 //! the decoded index would.
@@ -134,7 +134,7 @@ fn folded(base: &[Layer], layers_bytes: &[&[u8]], over: bool) -> Result<Vec<u8>,
     }))
 }
 
-/// The newest row for every key, as `orderedMap` folds layers: oldest first,
+/// The newest row for every key, as `index_reader.rs` folds layers: oldest first,
 /// each layer's deletes and then its puts. Over a base, a key deleted and not
 /// put again is kept as gone, since the base beneath still holds it.
 #[derive(Default)]
@@ -198,7 +198,7 @@ fn fold<'b>(layers: &'b [Layer<'b>], over: bool, only: Option<&Fold>) -> Fold<'b
 }
 
 /// `joinedKey` in `source-index-format.ts`: the default way adds nothing.
-fn joined(digest: &str, way: &str) -> String {
+pub(crate) fn joined(digest: &str, way: &str) -> String {
     if way.is_empty() { digest.to_owned() } else { format!("{digest}\0{way}") }
 }
 
@@ -217,7 +217,14 @@ impl<'a> Layer<'a> {
     pub(crate) fn open(bytes: &'a [u8]) -> Result<Self, String> {
         let stored = Stored::open(bytes)?;
         let config = stored.u32s("index.config")?;
-        let config = if config.len() == 1 { stored.optional(config.at(0)) } else { return Err("no configuration row".to_owned()) };
+        if config.len() != 1 {
+            return Err("no configuration row".to_owned());
+        }
+        let id = config.at(0);
+        if id != NONE && !stored.holds(id) {
+            return Err("a configuration the dictionary does not hold".to_owned());
+        }
+        let config = stored.optional(id);
         let parses = Parses::open(&stored)?;
         let records = Records::open(&stored)?;
         let directories = Directories::open(&stored)?;
@@ -240,19 +247,22 @@ impl<'a> Directories<'a> {
 }
 
 /// A flag column's entry; `Stored::codes` refused anything but zero and one at open.
-fn flag(column: &[u8], row: usize) -> bool {
+pub(crate) fn flag(column: &[u8], row: usize) -> bool {
     column[row] == 1
 }
 
-/// A span with both ends and its text, or none: `span` in `source-index-harvest.ts`.
-fn span<'a>(stored: &Stored<'a>, [starts, ends, texts]: [U32s; 3], row: usize) -> Option<(u32, u32, Option<&'a str>)> {
+/// A span with both ends and its text, or none, as `index_reader.rs` reads one.
+pub(crate) fn span<'a>(stored: &Stored<'a>, [starts, ends, texts]: [U32s; 3], row: usize) -> Option<(u32, u32, Option<&'a str>)> {
     let (start, end) = (starts.at(row), ends.at(row));
     (start != NONE || end != NONE).then(|| (start, end, stored.kept(texts.at(row))))
 }
 
+#[path = "compact_check.rs"]
+pub(crate) mod check;
+
 #[path = "compact_parses.rs"]
 mod parses;
-use parses::Parses;
+pub(crate) use parses::Parses;
 
 #[path = "compact_parse_view.rs"]
 mod parse_view;
@@ -260,7 +270,7 @@ pub(crate) use parse_view::ParseView;
 
 #[path = "compact_records.rs"]
 mod records;
-use records::Records;
+pub(crate) use records::Records;
 
 #[cfg(all(test, unix))]
 #[path = "compact_tests.rs"]

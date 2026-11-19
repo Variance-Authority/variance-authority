@@ -1,34 +1,21 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { Parsed } from './cache.js';
 import { native } from './addon.js';
 import { openImmutableLog } from './immutable-log.js';
 import { readPublishedSources } from './published.js';
-import { decodeSourceIndex, encodeSourceIndex, type StoredSourceIndex } from './source-index-format.js';
+import { encodeSourceIndex } from './source-index-format.js';
+import { readSourceRecords } from './source-index.js';
+import { readSourceIndexChain } from './source-index-reader.js';
 
-/** Every layer the chain reader decoded, in the order it decoded them: all a read can go on to hold. */
-const decodedLayers = vi.hoisted((): StoredSourceIndex[] => []);
-
-vi.mock('./source-index-format.js', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./source-index-format.js')>();
-  return {
-    ...actual,
-    decodeSourceIndex: (...args: Parameters<typeof actual.decodeSourceIndex>) => {
-      const layer = actual.decodeSourceIndex(...args);
-      decodedLayers.push(layer);
-      return layer;
-    },
-  };
-});
-
-/** How many rows one read of `file` decoded, by layer, newest first. */
-async function rowsDecoded(file: string): Promise<number[]> {
-  decodedLayers.length = 0;
-  await readPublishedSources(file);
-  return decodedLayers.map((layer) => layer.parses.size + layer.records.size + layer.directories.size);
+/** How many parse rows `read` decoded: a row is held only once it is, so this is all a read can go on to hold. */
+async function rowsDecoded(read: () => unknown): Promise<number> {
+  const before = native()!.sourceIndexParseRowsRead();
+  await read();
+  return native()!.sourceIndexParseRowsRead() - before;
 }
 
 /**
@@ -77,30 +64,34 @@ describe('a chain whose later layer puts every key again', () => {
     return file;
   }
 
-  it('decodes no row a later layer already decided', () => {
-    const decoded = decodeSourceIndex(generation('old', 3), {
-      parses: new Set([`git:${'0'.repeat(40)}`, `git:${'0'.repeat(39)}2`]),
-      records: new Set(['src/1.ts']),
-      directories: new Set(),
+  it('answers each key from the layer that decided it last, decoding one row per key', async () => {
+    const zero = `git:${'0'.repeat(40)}` as Digest;
+    const over = encodeSourceIndex({
+      parses: new Map([[zero, { requests: [] }], [`git:${'0'.repeat(39)}2` as Digest, { requests: [] }]]),
+      directories: new Map(),
+      records: new Map([['src/1.ts', { record: { file: 'src/1.ts' }, witnesses: [] }]]),
     });
+    const read = readSourceIndexChain([generation('old', 3), over]);
 
-    expect([...decoded.parses.keys()]).toEqual([`git:${'0'.repeat(39)}1`]);
-    expect([...decoded.records.keys()]).toEqual(['src/0.ts', 'src/2.ts']);
+    expect(read.kept).toBe(2);
+    expect(await rowsDecoded(() => [...read.stored.parses])).toBe(3);
+    expect(read.stored.parses.get(zero)).toEqual({ requests: [] });
+    expect(read.stored.parses.get(`git:${'0'.repeat(39)}1` as Digest)?.requests[0]?.value).toBe('./old-1-0.js');
+    expect(read.stored.records.get('src/1.ts')).toEqual({ record: { file: 'src/1.ts' }, witnesses: [] });
   });
 
   it('refuses a layer that puts and deletes one key, though a later layer decided it', () => {
     const key = `git:${'0'.repeat(40)}` as Digest;
     const none = { parses: new Map(), directories: new Map(), records: new Map() };
-    const decided = { parses: new Set([key]), records: new Set(['src/0.ts']), directories: new Set(['src']) };
+    const later = encodeSourceIndex({ ...none, parses: new Map([[key, { requests: [] }]]), directories: new Map([['src', key]]) });
     // The encoder writes no record deletes, so a record cannot be both here.
     const layers = [
       { ...none, parses: new Map([[key, { requests: [] }]]), deletedParses: new Set([key]) },
       { ...none, directories: new Map([['src', key]]), deletedDirectories: new Set(['src']) },
     ];
 
-    for (const layer of layers) {
-      expect(() => decodeSourceIndex(encodeSourceIndex(layer), decided)).toThrow('not a variance-authority source index');
-    }
+    // A segment that does not read ends the chain there, and what was read above it is dropped.
+    for (const layer of layers) expect(readSourceIndexChain([encodeSourceIndex(layer), later]).kept).toBe(0);
   });
 
   it('reads up to a damaged segment as though no layer above it decided anything', async () => {
@@ -120,8 +111,8 @@ describe('a chain whose later layer puts every key again', () => {
   });
 
   it('answers from the later layer, and decodes no row of the layer it shadows', async () => {
-    // A row is held only once it is decoded, so the rows each layer decoded are what the read
-    // can hold: a count, where the heap around a collection moves with whatever else the worker did.
+    // A row is held only once it is decoded, so the rows a read decoded are what it can hold:
+    // a count, where the heap around a collection moves with whatever else the worker did.
     const count = 100;
     const later = generation('new', count);
     const alone = await chain([[later]]);
@@ -131,8 +122,15 @@ describe('a chain whose later layer puts every key again', () => {
     expect(read.records).toHaveLength(count);
     expect(read.cache.get(`git:${'0'.repeat(40)}`)?.requests[0]?.value).toBe('./new-0-0.js');
     expect(read.records[0]?.edges).toEqual([{ to: 'src/new-0.ts', kind: 'imports' }]);
-    // One parse and one record per file, and no directories.
-    expect(await rowsDecoded(alone)).toEqual([count * 2]);
-    expect(await rowsDecoded(layered)).toEqual([count * 2, 0]);
+    // A read of the records and one parse decodes that parse alone, whatever the layer below holds.
+    const one = async (file: string) => (await readPublishedSources(file)).cache.get(`git:${'0'.repeat(40)}`);
+    expect(await rowsDecoded(() => one(alone))).toBe(1);
+    expect(await rowsDecoded(() => one(layered))).toBe(1);
+  });
+
+  it('reads the records alone without decoding a parse row', async () => {
+    const file = await chain([[generation('old', 10)], [generation('new', 10)]]);
+    expect(await rowsDecoded(async () => expect(await readSourceRecords(file)).toHaveLength(10))).toBe(0);
+    expect(await rowsDecoded(async () => expect((await readPublishedSources(file)).records).toHaveLength(10))).toBe(0);
   });
 });

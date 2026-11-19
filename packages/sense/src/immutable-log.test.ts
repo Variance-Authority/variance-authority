@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { native } from './addon.js';
 import { BadLogPath, openImmutableLog } from './immutable-log.js';
-import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
+import { encodeSourceIndex } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 
 /**
  * Segments written as the addon writes them. With nothing read, a save's layers
@@ -46,13 +47,13 @@ describe('the immutable segment log', () => {
     await writeFile(join(`${file}.segments`, `${second!.replace(':', '-')}.bin`), 'changed');
 
     const opened = await openImmutableLog(file);
-    expect(opened.segments.map((segment) => decodeSourceIndex(segment).config)).toEqual(['one']);
+    expect(opened.segments.map((segment) => readSourceIndexSegment(segment).config)).toEqual(['one']);
     expect(opened.dropped).toBe(2);
 
     // A save over the prefix it read replaces what the manifest named past it.
     expect(native()!.appendSourceIndex(file, [...opened.digests], false, [index('four')])).toBeNull();
     const next = await openImmutableLog(file);
-    expect(next.segments.map((segment) => decodeSourceIndex(segment).config)).toEqual(['one', 'four']);
+    expect(next.segments.map((segment) => readSourceIndexSegment(segment).config)).toEqual(['one', 'four']);
     expect(next.dropped).toBe(0);
   });
 

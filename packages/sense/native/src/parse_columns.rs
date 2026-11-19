@@ -1,9 +1,7 @@
-//! The parse half of a source-index segment, as columns: the part of
-//! `encodeSourceIndex` from `parses.key` to `declares.name`, with the harvest,
-//! mock, member, member-declaration, member-use, own-use, nested and
-//! binding-member columns `source-index-harvest.ts`, `-mocks.ts`,
-//! `-members.ts`, `-member-declarations.ts`, `-member-uses.ts`,
-//! `-own-uses.ts`, `-nested.ts` and `-binding-members.ts` add.
+//! The parse half of a source-index segment, as columns: `parses.key` to
+//! `declares.name`, with the harvest, mock, member, member-declaration,
+//! member-use, own-use, nested and binding-member columns, as
+//! `index_reader.rs` reads them back.
 //!
 //! Two kinds of row are written into it. The graph walk's own reads
 //! (`index.rs`), whose absences are empty lists, and the parses JavaScript

@@ -4,11 +4,15 @@
 //! A record is read into owned values rather than viewed in place: it is a
 //! handful of short lists, `RecordColumns` already takes it in that shape, and
 //! a second row trait for it would be a second layout to keep in step. A list
-//! the row marks absent is absent, as `decodeSourceIndex` reads it.
+//! the row marks absent is absent, as `index_reader.rs` reads it.
 
 // compass: variance-authority.reach.source-index
 
+use std::collections::HashSet;
+
 use crate::record::{Edge, FileRecord, Indexed};
+use crate::segment::NONE;
+use crate::specifier::package_of;
 use crate::stored::{same_length, Stored, U32s};
 
 use super::flag;
@@ -121,6 +125,31 @@ impl<'a> Records<'a> {
     /// Why the file at `row` could not be read, when it could not.
     pub fn unknown_of<'s>(&self, stored: &'s Stored<'a>, row: usize) -> Option<&'s str> {
         stored.optional(self.unknown.at(row))
+    }
+
+    /// Whether the record at `row` reads: every id it names is one the
+    /// dictionary holds, absent where the column allows it, and every package
+    /// it names is the package `packageOf` makes of it. A list the row marks
+    /// absent is checked all the same.
+    pub fn check(&self, stored: &Stored<'a>, row: usize, builtins: &HashSet<String>) -> Result<(), String> {
+        let held = |column: U32s, at: usize| stored.holds(column.at(at));
+        let maybe = |column: U32s, at: usize| column.at(at) == NONE || stored.holds(column.at(at));
+        let all = |offsets: U32s, columns: &[U32s]| offsets.range(row).all(|at| columns.iter().all(|&column| held(column, at)));
+        let packages = all(self.packages, &[self.package_to, self.package_kind])
+            && self.packages.range(row).all(|at| {
+                let to = stored.text(self.package_to.at(at));
+                package_of(to, builtins) == Some(to)
+            });
+        let reads = held(self.file, row)
+            && maybe(self.digest, row)
+            && maybe(self.unknown, row)
+            && all(self.edges, &[self.edge_to, self.edge_kind])
+            && all(self.declares, &[self.declare_name])
+            && all(self.unresolved, &[self.unresolved_value])
+            && all(self.witnesses, &[self.witness_directory])
+            && self.targets.range(row).all(|at| maybe(self.target_path, at))
+            && packages;
+        if reads { Ok(()) } else { Err(format!("record {row} names a string the segment does not hold")) }
     }
 
     /// The record at `row`, its absent lists absent.
