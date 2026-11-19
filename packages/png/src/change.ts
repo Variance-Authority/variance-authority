@@ -1,7 +1,7 @@
 import { PNG } from 'pngjs';
 import type { DiffRegion } from '@variance-authority/core/attribute';
 import { DEFAULT_POLICY, type DiffPolicy, type RowSpan } from '@variance-authority/raster';
-import { alignRows, type AlignedRows } from './align.js';
+import { alignRows, type AlignedRows, type PairedRows } from './align.js';
 import { blankColumns, inked, inkOf, spacingRow, texted } from './change-ink.js';
 import { composeSheet, drawWindow, type ChangeLabels, type Gap, type Mark, type Moved, type SheetRow } from './change-draw.js';
 import { differencePixels, type DecodedImage } from './mask.js';
@@ -94,12 +94,19 @@ export function changeImages(
   policy: DiffPolicy = DEFAULT_POLICY,
   /** What the sheet says about itself: the subject, and where each side came from. */
   labels: ChangeLabels = {},
+  /**
+   * How the comparison paired the rows, when it already asked: `null` where it
+   * found no pairing. Left out, the rows are aligned here.
+   */
+  aligned?: AlignedRows | null,
 ): ChangeImages {
-  const alignment = alignRows(was, now);
+  const alignment = aligned === undefined ? alignRows(was, now) : (aligned ?? undefined);
   const difference = differencePixels(was, now, policy, { alignment: alignment ?? null });
   const diff = encode(difference);
   // The comparison's canvas is the after image's only when it used the alignment.
-  const rows = difference.alignment === undefined ? undefined : alignment;
+  // A sheet reads one pairing across its width, so a page aligned in strips is
+  // read through its widest, where the content that moved most often is.
+  const rows = difference.alignment === undefined ? undefined : alignment && widest(alignment);
 
   const changed = regions.filter((region) => !displacement(region, rows));
   const spacing = (span: RowSpan) => span.to - span.from > ROUNDING_ROWS;
@@ -178,7 +185,7 @@ function widened([left, right]: [number, number], panel: number, width: number, 
  * A cut that starts and ends between two lines rather than through one: each
  * end moves out to the nearest row that runs through no text on either side.
  */
-function between(window: Window, rows: AlignedRows | undefined, was: DecodedImage, now: DecodedImage): Window {
+function between(window: Window, rows: PairedRows | undefined, was: DecodedImage, now: DecodedImage): Window {
   const busy = (y: number) => {
     const before = rows === undefined ? y : (rows.source[y] ?? -1);
     return (
@@ -201,8 +208,12 @@ function between(window: Window, rows: AlignedRows | undefined, was: DecodedImag
   return { ...window, top, bottom };
 }
 
+function widest({ strips }: AlignedRows): PairedRows {
+  return strips.reduce((wide, strip) => (strip.to - strip.from > wide.to - wide.from ? strip : wide));
+}
+
 /** A region that is only rows a run of identical rows grew by: it moved what follows and changed nothing. */
-function displacement(region: DiffRegion, rows: AlignedRows | undefined): boolean {
+function displacement(region: DiffRegion, rows: PairedRows | undefined): boolean {
   if (rows === undefined || rows.grown.length === 0) return false;
   for (let y = region.y; y < region.y + region.height; y += 1) {
     if (!rows.grown.some((span) => y >= span.from && y < span.to)) return false;
@@ -284,7 +295,7 @@ interface PlannedRow extends SheetRow {
  */
 function sheetRows(
   window: Window,
-  rows: AlignedRows | undefined,
+  rows: PairedRows | undefined,
   spaced: (span: RowSpan & { readonly at: number }) => boolean,
   beforeHeight: number,
   afterHeight: number,
@@ -433,7 +444,7 @@ function merge(marks: readonly Mark[]): Mark[] {
  * outlines: content that only moved. A row inside an outline or beside filler
  * is the change itself, even where it also moved.
  */
-function movedFor(sheet: readonly PlannedRow[], rows: AlignedRows | undefined, marks: readonly Mark[]): Moved[] {
+function movedFor(sheet: readonly PlannedRow[], rows: PairedRows | undefined, marks: readonly Mark[]): Moved[] {
   if (rows === undefined) return [];
   const out: Moved[] = [];
   sheet.forEach((row, index) => {

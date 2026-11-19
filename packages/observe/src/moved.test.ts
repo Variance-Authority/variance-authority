@@ -52,7 +52,34 @@ describe('content that moved', () => {
         `and the subject resized from ${WIDTH}×5 to ${WIDTH}×8`,
     );
   });
+
+  it('counts the rows a column gained, not the sum over columns that each gained them', async () => {
+    // A sidebar beside a main column: three rows go into the main column, and
+    // the sidebar, which stayed, only runs three rows longer at the foot.
+    const side = (y: number) => 20 + ((y * 37) % 200);
+    const main = (y: number) => 230 - ((y * 23) % 200);
+    const before = painted(40, 10, (x, y) => (x < 20 ? side(y) : main(y)));
+    const after = painted(40, 13, (x, y) =>
+      x < 20 ? side(Math.min(y, 9)) : y < 2 ? main(y) : y < 5 ? 5 + y : main(y - 3),
+    );
+
+    const result = await observeRasters('page', before, after);
+
+    expect(result.because).toContain('3 pixel rows inserted in 2 places');
+  });
 });
+
+/** An image painted one grey per pixel. */
+function painted(width: number, height: number, grey: (x: number, y: number) => number): Raster {
+  const png = new PNG({ width, height });
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const value = grey(x, y);
+      png.data.set([value, value, value, 255], (y * width + x) * 4);
+    }
+  }
+  return { ...raster([]), width, height, bytes: PNG.sync.write(png).toString('base64') };
+}
 
 /** An image whose rows are solid greys, one per value: equal values are equal rows, `0` is white. */
 function raster(rows: readonly number[]): Raster {

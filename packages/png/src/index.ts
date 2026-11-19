@@ -1,7 +1,7 @@
 /**
  * `@variance-authority/png` — the only package that decodes an image.
  *
- * `pixelmatch` and `pngjs` are installed here and nowhere else, which is the
+ * The codecs are installed here and nowhere else, which is the
  * whole reason this is a package rather than a folder. A team extending their own
  * Playwright tests takes comparison, isolation and attribution and never renders
  * anything; a team whose images arrive from elsewhere takes only the reading end.
@@ -22,7 +22,7 @@ export {
   diffImage,
   pngjsDecoder,
 } from './compare.js';
-export type { PngDecoder } from './compare.js';
+export type { ComparedPixels, PngDecoder } from './compare.js';
 export type { DecodedImage } from './mask.js';
 
 export { changeImages } from './change.js';

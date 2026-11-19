@@ -14,7 +14,7 @@ export type Edit = readonly ['=', number, number] | readonly ['-', number] | rea
  * stretch between two of them is diffed alone, where runs once repeated may
  * occur once. A stretch with no such run and no shortest edit within `limit` is
  * one band, every run of it removed and added, which `pairing` compares by
- * position within the band and `explainsMore` weighs against position.
+ * position within the band and `explains` weighs against position.
  *
  * The split spends at most what the failed search could have: `limit` steps
  * for each run of the two columns, counting a diagonal Myers visits, a run it

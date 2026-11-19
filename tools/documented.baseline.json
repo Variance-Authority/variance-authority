@@ -150,12 +150,6 @@
     "packages": 4
   },
   {
-    "name": "Observation",
-    "kind": "interface",
-    "at": "packages/observe/src/observe.ts",
-    "packages": 4
-  },
-  {
     "name": "ObservationRecord",
     "kind": "interface",
     "at": "packages/report/src/format.ts",

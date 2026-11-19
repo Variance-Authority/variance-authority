@@ -26,7 +26,7 @@ export type {
   ObserveOptions,
   RasterVerdict,
   IgnoredPixels,
-} from './observe.js';
+} from './observation.js';
 export { packSnapshot, unpackSnapshot } from './packed.js';
 export { observeCaptureAgainstBaseline } from './capture.js';
 export type { ObserveCaptureOptions } from './capture.js';

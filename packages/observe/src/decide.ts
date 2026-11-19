@@ -15,7 +15,7 @@ import { attributionOf } from './attribution.js';
 import { count, describeChange, forgiveness, reshaped, unjoined, unrecorded, type BeforeSide } from './because.js';
 import { unpackSnapshot } from './packed.js';
 import { frameDiagnostics } from './frame.js';
-import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
+import type { CompareInputs, IgnoredPixels, Observation } from './observation.js';
 
 /**
  * Two rasters become a verdict.
@@ -55,6 +55,7 @@ export async function decide(
   const comparison = await compareRasters(before, after, {
     ...options.compare,
     ...(options.decoder !== undefined ? { decoder: options.decoder } : {}),
+    ...(options.keep !== undefined ? { keep: options.keep } : {}),
     ...(options.steps !== undefined ? { steps: options.steps } : {}),
   });
   const missingFonts = [...new Set([...before.missingFonts, ...after.missingFonts])];

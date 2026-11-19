@@ -8,14 +8,8 @@ import {
   type Renderer,
 } from '@variance-authority/raster';
 import { declaredIgnores } from './decide.js';
-import {
-  documentMoved,
-  observeAgainstBaseline,
-  type CompareInputs,
-  type Observation,
-  withCause,
-  withRelocation,
-} from './observe.js';
+import type { CompareInputs, Observation } from './observation.js';
+import { documentMoved, observeAgainstBaseline, withCause, withRelocation } from './observe.js';
 import { decideRasters } from './unpictured.js';
 
 /** A stored-baseline observation whose candidate may already be a raster. */

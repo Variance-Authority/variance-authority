@@ -211,10 +211,25 @@ inserted, as the rows it lost are removed, so the place it grew is a region. Row
 kept runs are paired from the band's top or its bottom, whichever leaves fewer
 pixels differing, so a block drawn into the middle of a gap marks the block and
 not the gap under it. Where two paired runs meet, the before rows on either
-side were not neighbours, and the anti-aliasing test, which reads neighbours,
-may count a pixel on that seam differently. Only whole rows are matched:
-content that moves in one column beside a column that stays put is compared
-where it sits.
+side were not neighbours, so a before pixel's anti-aliasing is read from the
+rows around the one it came from, not from the rows the pairing set beside it.
+
+Content that moves in one column beside a column that stays put, such as a page
+that grew under a fixed sidebar, has no whole row that moved. When the
+whole-width pairing still leaves pixels differing, the width is split into
+strips at the columns that differ by position, joining a still gap narrower
+than 16 pixels to the strip beside it, and each strip that moved is aligned on
+its own. The split is kept only when it leaves fewer pixels differing than the
+whole-width pairing does. Every span it reports then carries `columns`, the
+half-open run of columns its strip covers:
+
+```js
+alignment: {
+  inserted: [{ from: 2, to: 5, columns: { from: 20, to: 40 } }],
+  removed: [],
+  shifted: [{ from: 5, to: 13, by: 3, columns: { from: 20, to: 40 } }]
+}
+```
 
 When the widths differ there is no row of one image in the other. Both are then
 copied onto the union box, top-left aligned, and compared position by position,

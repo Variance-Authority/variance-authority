@@ -4,8 +4,9 @@ import {
   STRICT_POLICY,
   type DiffPolicy,
   type RasterComparison,
+  type RowSpan,
 } from '@variance-authority/raster';
-import type { CompareInputs } from './observe.js';
+import type { CompareInputs } from './observation.js';
 
 /**
  * The clauses a verdict's reason is built from.
@@ -164,8 +165,16 @@ function movement(comparison: RasterComparison): string {
   const rows = comparison.alignment;
   if (rows === undefined) return '';
 
-  const span = (list: readonly { from: number; to: number }[]): number =>
-    list.reduce((sum, run) => sum + run.to - run.from, 0);
+  // Each strip of columns gains or loses its own rows, so a column gained the
+  // rows of its strip, not those of every strip: the most any strip moved.
+  const span = (list: readonly RowSpan[]): number => {
+    const strips = new Map<number, number>();
+    for (const run of list) {
+      const key = run.columns?.from ?? -1;
+      strips.set(key, (strips.get(key) ?? 0) + run.to - run.from);
+    }
+    return Math.max(0, ...strips.values());
+  };
   const edits = [
     ...(rows.inserted.length === 0
       ? []
