@@ -116,9 +116,10 @@ export async function updateNatively(
   // Asked of git while it listed: the stores are needed only now.
   const read = await stores;
   const beside = await others ?? [];
-  const seeded = published !== undefined && beside.length > 0 && await published.over
-    ? addon.sourceIndexSeed([...beside], config) ?? undefined
-    : undefined;
+  // Asked once, before the download is waited on: the addon is then handed the answer, the one that fits or none.
+  const asked = published !== undefined && beside.length > 0 && await published.over;
+  const seeded = asked ? addon.sourceIndexSeed([...beside], config) ?? undefined : undefined;
+  const starts = asked ? (seeded === undefined ? [] : [seeded]) : beside;
   if (seeded !== undefined) published?.drop();
   const fetched = seeded === undefined ? await published?.placed : undefined;
   const done = await stepped(progress, reading, () => held.updateIndex({
@@ -133,7 +134,7 @@ export async function updateNatively(
     readable: [...READABLE],
     ...(read === undefined ? {} : { stores: [...read] }),
     ...(packs === undefined ? {} : { packs }),
-    ...(beside.length === 0 ? {} : { others: [...beside] }),
+    ...(starts.length === 0 ? {} : { others: [...starts] }),
     ...(fetched === undefined ? {} : { published: [fetched] }),
   }));
   return {
