@@ -1,23 +1,24 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, readFile, rm, truncate, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   fetchedSourceIndexPath,
-  placeSourceIndex,
   readPublishedSources,
+  type SourceFetch,
   SOURCE_INDEX_VERSION,
   sourceIndexChain,
   sourceIndexPath,
   sourceIndexWrittenIn,
   updateSourceIndex,
 } from '@variance-authority/sense';
+import { memoryLineCell, publishLine } from '@variance-authority/core/share';
 import { testCoverageFile } from '@variance-authority/sense/test-selection';
 import { indexOutput } from './index-command.js';
 import { BEFORE, DISCOUNTS, PUSH, cloneOf, collectedBoth, git, originAndCi, ranWhole, recordIn } from './mainline-fixture.js';
 import { suiteBase } from './suite-base.js';
-import { fetchFromMainline, sourceIndexEntryOf } from './source-index-share.js';
+import { fetchFromMainline, placeSourceIndexEntry, SOURCE_INDEX_PIECE, sourceIndexEntryOf } from './source-index-share.js';
 import { publishSuite } from './suite-share.js';
 
 /**
@@ -210,15 +211,33 @@ describe('`variance index` over an index another release wrote', () => {
     expect(await sourceIndexChain(`${path}.fetched`)).toBeUndefined();
   });
 
-  it('publishes the record, and says why the index is left out, when a segment is past what one image carries', async () => {
+  it('publishes an index whose segment is past what Node reads whole, as images no larger than a piece', async () => {
     const { written, unpublished } = await mainlinePublished(true, async (ci) => {
       const chain = await sourceIndexChain(sourceIndexPath(ci));
       // Sparse: the length a large repository's segment reaches, without writing it.
       await truncate(chain?.segments[0]?.path ?? '', 2 ** 31);
     });
 
-    expect(written).toEqual(['suite-v1/unit']);
-    expect(unpublished).toEqual([expect.stringMatching(/^the source index: its segment .* is 2147483648 bytes, past the 2147483647 one image can carry$/)]);
+    expect(unpublished).toEqual([]);
+    expect(written).toEqual(['suite-v1/unit', `source-index-v${String(SOURCE_INDEX_VERSION)}`]);
+    const images = join(home, 'share', 'images');
+    for (const image of await readdir(images)) expect((await stat(join(images, image))).size).toBeLessThanOrEqual(SOURCE_INDEX_PIECE);
+  });
+
+  it('starts from a sibling checkout of this release, and starts no download', async () => {
+    const { origin } = await mainlinePublished(true);
+    const clone = await laptopOnOlderRelease(origin);
+    const sibling = join(home, 'sibling');
+    await git(clone, 'worktree', 'add', '--quiet', sibling);
+    await updateSourceIndex(sibling);
+    const fetch = vi.fn<SourceFetch>(() => Promise.resolve(undefined));
+
+    const update = await updateSourceIndex(clone, { fetch });
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(update).toMatchObject({ was: 'other-version', files: Object.keys(SOURCES).length, reread: 1 });
+    expect(update.from).toMatch(/source-index\.bin$/);
+    expect(update.fetched).toBeUndefined();
   });
 
   it('says why nothing was fetched for an opted-in checkout whose share holds no index, and reads every file', async () => {
@@ -354,12 +373,12 @@ describe('the index a publish carries, read off its segments', () => {
     return { root, path, segment };
   }
 
-  it('carries no index from a checkout that has none, or one another release wrote, and names no segment it does not hold', async () => {
+  it('carries no index from a checkout that has none, or one another release wrote, and names no piece it does not hold', async () => {
     const { root, path } = await indexed();
     const at = { commit: 'a'.repeat(40) };
     const carried = await sourceIndexEntryOf(root, at);
     if (!('entry' in carried)) throw new Error(carried.unpublished);
-    await expect(carried.image('0'.repeat(64))).rejects.toThrow(`the source index names no segment ${'0'.repeat(64)}`);
+    await expect(carried.image('0'.repeat(64))).rejects.toThrow(`the source index names no piece ${'0'.repeat(64)}`);
 
     await asOlderRelease(path);
     expect(await sourceIndexEntryOf(root, at)).toEqual({
@@ -380,11 +399,78 @@ describe('the index a publish carries, read off its segments', () => {
     expect(await sourceIndexWrittenIn(path)).toBeUndefined();
   });
 
+  it('carries a segment longer than a piece as several images, and places it back as it was', async () => {
+    const { root, path } = await indexed();
+    const carried = await sourceIndexEntryOf(root, { commit: 'a'.repeat(40) }, 1024);
+    if (!('entry' in carried)) throw new Error(carried.unpublished);
+    const images = carried.entry.images ?? [];
+    const segment = (await sourceIndexChain(path))?.segments[0]?.path ?? '';
+    expect(images.length).toBeGreaterThanOrEqual(Math.ceil((await stat(segment)).size / 1024));
+    for (const image of images) expect((await carried.image(image)).length).toBeLessThanOrEqual(1024);
+
+    const into = fetchedSourceIndexPath(path);
+    expect(await placeSourceIndexEntry(into, carried.entry.bytes, carried.image)).toBe(true);
+
+    const placed = await sourceIndexChain(into);
+    const original = await sourceIndexChain(path);
+    expect(placed?.manifest).toEqual(original?.manifest);
+    for (const [at, held] of (original?.segments ?? []).entries()) {
+      expect(await readFile(placed?.segments[at]?.path ?? '')).toEqual(await readFile(held.path));
+    }
+  });
+
+  it('places nothing when a piece is missing, and leaves no part of a segment behind', async () => {
+    const { root, path } = await indexed();
+    const carried = await sourceIndexEntryOf(root, { commit: 'a'.repeat(40) }, 1024);
+    if (!('entry' in carried)) throw new Error(carried.unpublished);
+    const gone = carried.entry.images?.at(-1);
+    const into = fetchedSourceIndexPath(path);
+
+    const placed = await placeSourceIndexEntry(into, carried.entry.bytes, (digest) =>
+      digest === gone ? Promise.resolve(undefined) : carried.image(digest),
+    );
+
+    expect(placed).toBe(false);
+    expect(await sourceIndexChain(into)).toBeUndefined();
+    expect(await readdir(`${into}.segments`).catch(() => [])).toEqual([]);
+  });
+
+  it('sends a mainline only the pieces of the segments its next commit wrote', async () => {
+    const { root, path } = await indexed();
+    const cell = memoryLineCell();
+    const line = { kind: 'mainline', name: 'main' } as const;
+    const sent: number[] = [];
+    const publish = async (commit: string) => {
+      const carried = await sourceIndexEntryOf(root, { commit }, 1024);
+      if (!('entry' in carried)) throw new Error(carried.unpublished);
+      const image = async (digest: string) => {
+        const bytes = await carried.image(digest);
+        sent.push(bytes.length);
+        return bytes;
+      };
+      await publishLine(cell, line, [carried.entry], { descends: async () => false, image });
+    };
+    await publish('a'.repeat(40));
+    const before = new Set((await sourceIndexChain(path))?.segments.map((segment) => segment.digest));
+    sent.length = 0;
+
+    await writeFile(join(root, 'src/c.ts'), "import { b } from './b';\nexport const c = b + 2;\n");
+    await updateSourceIndex(root);
+    await publish('b'.repeat(40));
+
+    const after = (await sourceIndexChain(path))?.segments ?? [];
+    expect(after.filter((segment) => before.has(segment.digest))).not.toEqual([]);
+    let added = 0;
+    for (const segment of after) if (!before.has(segment.digest)) added += (await stat(segment.path)).size;
+    expect(sent.reduce((sum, size) => sum + size, 0)).toBeLessThanOrEqual(added);
+    expect(sent.length).toBeGreaterThan(0);
+  });
+
   it('places nothing from bytes that are not a manifest', async () => {
     const { path } = await indexed();
     const into = fetchedSourceIndexPath(path);
 
-    expect(await placeSourceIndex(into, Buffer.from('not a manifest'), () => Promise.resolve(undefined))).toBe(false);
+    expect(await placeSourceIndexEntry(into, Buffer.from('not a manifest'), () => Promise.resolve(undefined))).toBe(false);
     expect(await sourceIndexChain(into)).toBeUndefined();
   });
 });

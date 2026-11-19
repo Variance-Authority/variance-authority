@@ -16,10 +16,11 @@
 
 // compass: variance-authority.reach.source-index
 
-import { open, readFile, rm } from 'node:fs/promises';
-import type { Digest } from '@variance-authority/core/format';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdir, open, readFile, rename, rm } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { digestOfSha256, type Digest } from '@variance-authority/core/format';
 import { SegmentCutShort } from '@variance-authority/core/segment';
-import { digestBytes } from './digest.js';
 import { decodeManifest, segmentDirectory, segmentPath, type SegmentReference } from './immutable-log.js';
 import { SOURCE_INDEX_VERSION, sourceIndexVersionOf } from './source-index-format.js';
 import { writeCoverageBytes } from './test-selection/record-location.js';
@@ -64,24 +65,63 @@ export function fetchedSourceIndexPath(path: string): string {
 }
 
 /**
- * Place the chain `manifest` names at `into`, each segment's bytes from `read`.
- * False, with no manifest written, when a segment is missing or not what its
- * digest says. Whether the chain opens under this release is the addon's to say.
+ * Place the chain `manifest` names at `into`, each segment's bytes from `read`
+ * in the pieces it carries them in, in order: a segment can be past what one
+ * buffer holds, so none is held whole. False, with nothing left at `into`,
+ * when a segment is missing, or a piece is, or the
+ * bytes are not what its digest says. Whether the chain opens under this
+ * release is the addon's to say.
  */
 export async function placeSourceIndex(
   into: string,
   manifest: Uint8Array,
-  read: (digest: Digest) => Promise<Uint8Array | undefined>,
+  read: (digest: Digest) => AsyncIterable<Uint8Array | undefined> | undefined,
 ): Promise<boolean> {
   const segments = manifestOf(Buffer.from(manifest));
   if (segments === undefined || segments.length === 0) return false;
   for (const { digest, length } of segments) {
-    const bytes = await read(digest);
-    if (bytes === undefined || bytes.length !== length || digestBytes(bytes) !== digest) return false;
-    await writeCoverageBytes(segmentPath(into, digest), bytes);
+    const pieces = read(digest);
+    if (pieces === undefined || !(await placeSegment(segmentPath(into, digest), pieces, digest, length))) {
+      await dropSourceIndex(into);
+      return false;
+    }
   }
   await writeCoverageBytes(into, manifest);
   return true;
+}
+
+/** One segment written from its pieces beside `file`, and moved there only once its length and digest are its own. */
+async function placeSegment(
+  file: string,
+  pieces: AsyncIterable<Uint8Array | undefined>,
+  digest: Digest,
+  length: number,
+): Promise<boolean> {
+  await mkdir(dirname(file), { recursive: true });
+  const part = `${file}.${String(process.pid)}-${randomUUID()}.part`;
+  const handle = await open(part, 'w');
+  const hash = createHash('sha256');
+  let written = 0;
+  let whole = true;
+  try {
+    for await (const piece of pieces) {
+      if (piece === undefined || written + piece.length > length) {
+        whole = false;
+        break;
+      }
+      hash.update(piece);
+      await handle.write(piece, 0, piece.length, written);
+      written += piece.length;
+    }
+  } finally {
+    await handle.close();
+  }
+  if (whole && written === length && digestOfSha256(hash.digest('hex')) === digest) {
+    await rename(part, file);
+    return true;
+  }
+  await rm(part, { force: true });
+  return false;
 }
 
 /** Remove the chain at `path`, manifest and segments. */

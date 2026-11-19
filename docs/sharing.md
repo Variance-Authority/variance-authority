@@ -775,12 +775,16 @@ every checkout those minutes:
 - **An update over an index a release in another format wrote fetches it** as
   it starts, while it lists the checkout; the mainline's record never waits for
   it. The update reads only the files that differ from CI's index. An index in
-  this release's format is never replaced.
-- **The index is large.** On Firefox, about 200,000 files, it is about 2 GB, or
-  0.7 GB compressed. A publish uploads only the segments the line does not
-  hold yet. A directory and an HTTP store keep the latest only. A git
-  share keeps one at every mainline commit until `--purge-older-than` deletes
-  it.
+  this release's format is never replaced. Nothing is fetched while another
+  checkout on the machine has an index in this release's format: the update
+  starts from that one.
+- **The index is large, and stored once.** On Firefox, about 200,000 files, it
+  is about 2 GB, or 0.7 GB compressed. It is published in pieces of 32 MiB, and
+  the share stores each piece once by its content, however many commits name
+  it. A commit uploads only the pieces of the segments its update wrote: little
+  while CI keeps its index between runs, and all of it when a CI job builds the
+  index from nothing. A git share keeps the pieces in each kept commit's tree,
+  where git stores an object once, until `--purge-older-than` deletes them.
 - **A checkout that updates `variance` before CI publishes** an index in the new
   format finds none, and reads every file.
 

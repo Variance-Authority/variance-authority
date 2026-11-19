@@ -161,6 +161,36 @@ describe('publishLine', () => {
     expect(await read.image(IMAGE)).toEqual(ascii('png'));
   });
 
+  it('sends an image once to a mainline and the commit it keeps it at, when the store shares images across lines', async () => {
+    const cell = memoryLineCell();
+    const asked: string[] = [];
+    const image = async (digest: string): Promise<Uint8Array> => {
+      asked.push(digest);
+      return ascii('png');
+    };
+    const published = await publishLine(cell, MAIN, [entry('report-v1', 'aaaa', 'one', [IMAGE])], {
+      descends: linear,
+      image,
+    });
+    if ('kind' in published) throw new Error(published.kind);
+    expect(published.atCommit).toEqual({ kept: ['aaaa'] });
+    expect(asked).toEqual([IMAGE]);
+    const kept = await readLine(cell, { ...MAIN, at: 'aaaa' });
+    if ('kind' in kept) throw new Error(kept.kind);
+    expect(await kept.image(IMAGE)).toEqual(ascii('png'));
+  });
+
+  it('sends an image again for the commit a mainline keeps it at, when each line holds its own', async () => {
+    const { imagesShared: _shared, ...cell } = memoryLineCell();
+    const asked: string[] = [];
+    const image = async (digest: string): Promise<Uint8Array> => {
+      asked.push(digest);
+      return ascii('png');
+    };
+    await publishLine(cell, MAIN, [entry('report-v1', 'aaaa', 'one', [IMAGE])], { descends: linear, image });
+    expect(asked).toEqual([IMAGE, IMAGE]);
+  });
+
   it('leaves a line a newer writer owns alone', async () => {
     const cell = memoryLineCell();
     await cell.store(MAIN, { manifest: ascii('{"format":2,"entries":[]}'), blobs: new Map() });

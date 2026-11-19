@@ -195,9 +195,6 @@ export async function updateSourceIndex(
   // The addon answers from the chain in place, and rebuilds one it cannot stand on.
   const dirs = options.dirs ?? ['.'];
   const missing = !existsSync(path);
-  // Started first: a fetch is the slowest thing an update can wait on, and the listing does not need it.
-  const into = fetchedSourceIndexPath(path);
-  const fetching = options.fetch === undefined || missing ? undefined : fetchFor(path, () => options.fetch?.(where, into));
   // An index kept in the checkout's own cache, its own or one beside it, reads the cache's parse store before it opens a file.
   // Asked now, answered while git lists: every route below awaits it.
   const cached = dirname(path) === dirname(sourceIndexPath(where));
@@ -207,6 +204,10 @@ export async function updateSourceIndex(
   // Asked while the tree is listed, as the stores are: only the addon knows whether this checkout's own chain stands.
   // A missing index waits for the answer before the listing, to say what it will read; only the addon knows whether one fits.
   const beside = cached ? indexesBeside(where, basename(path)) : undefined;
+  // Started before the listing: a fetch is the slowest thing an update can wait on, and the listing does not need it.
+  // Not started when another checkout of this release has an index: the update starts from that one, and waits on no download.
+  const into = fetchedSourceIndexPath(path);
+  const fetching = options.fetch === undefined || missing ? undefined : fetchFor(path, beside, () => options.fetch?.(where, into));
   const reading = !missing ? undefined : (await beside ?? []).length > 0
     ? `reading the files of ${placesOf(where, dirs)} that differ from another checkout's index, or every file if none of theirs fits`
     : `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;
@@ -234,14 +235,24 @@ export async function updateSourceIndex(
 }
 
 /**
- * `fetch`, asked only over an index another release wrote. One this release
+ * `fetch`, asked only over an index another release wrote, and only when no
+ * checkout `beside` this one has an index this release wrote. One this release
  * wrote updates by what changed, which is cheaper than any fetch; one that is
- * damaged is the primary checkout's to stand in for, by `others`.
+ * damaged is the primary checkout's to stand in for, by `others`; and another
+ * checkout's of this release is on this machine, where the update starts from
+ * it without waiting on a download.
  */
-async function fetchFor(path: string, fetch: () => Promise<string | undefined> | undefined): Promise<string | undefined> {
+async function fetchFor(
+  path: string,
+  beside: Promise<readonly string[]> | undefined,
+  fetch: () => Promise<string | undefined> | undefined,
+): Promise<string | undefined> {
   try {
     const written = await sourceIndexWrittenIn(path);
     if (written === undefined || written === SOURCE_INDEX_VERSION) return undefined;
+    for (const other of await beside ?? []) {
+      if (await sourceIndexWrittenIn(other) === SOURCE_INDEX_VERSION) return undefined;
+    }
     return await fetch();
   } catch {
     return undefined;
