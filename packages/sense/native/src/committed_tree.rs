@@ -2,8 +2,8 @@
 //! reads only the trees on the paths that moved.
 //!
 //! The record keeps every blob below the root, the tree ids from the top of
-//! the checkout down to the root, and the tree id of every package below it: a directory holding a
-//! `package.json` the package owner would read
+//! the checkout down to the root, and the tree id of every package below it:
+//! a directory holding a `package.json` the package owner would read
 //! (`crate::package_owners::is_manifest`), a nested one a key of its own. No
 //! other directory is kept, as a monorepo's directories outnumber its packages
 //! by twenty to a hundred to one.
@@ -14,8 +14,8 @@
 //! from the record, not read, so only the trees on the paths that moved are
 //! read, on both sides, whatever history lies between the two. Where the store
 //! no longer holds an old tree, gc having dropped it, a package below it is
-//! diffed from the id the record keys it by, and a package or directory whose
-//! own old tree is gone too is read whole.
+//! diffed from the id the record keys it by; a package whose own old tree is
+//! gone too, and any other directory below the dropped tree, is read whole.
 //!
 //! A package is cut by its manifest's path, not by the name inside it: the
 //! walk reads trees and nothing else, and the owner learns a name by reading
