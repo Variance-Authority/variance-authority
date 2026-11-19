@@ -54,6 +54,14 @@ describe('the share section', () => {
       .toMatchObject({ field: 'share.token.env' });
   });
 
+  it('carries the source index only when the share opts in, and refuses a setting that is not true or false', () => {
+    expect(parseConfig({ ...VALID, share: { kind: 'directory', root: 'shared', sourceIndex: true } }, OPTIONS).share)
+      .toEqual({ kind: 'directory', root: '/repo/shared', sourceIndex: true });
+    expect(parseConfig({ ...VALID, share: { kind: 'directory', root: 'shared', sourceIndex: false } }, OPTIONS).share)
+      .toEqual({ kind: 'directory', root: '/repo/shared' });
+    expect(attempt({ kind: 'directory', root: 'shared', sourceIndex: 'yes' })).toMatchObject({ field: 'share.sourceIndex' });
+  });
+
   it('refuses an empty mainline list, a namespace outside refs/, and the keys it replaced', () => {
     expect(attempt({ kind: 'git', mainlines: [] })).toMatchObject({ field: 'share.mainlines' });
     expect(attempt({ kind: 'git', namespace: 'variance' })).toMatchObject({ field: 'share.namespace' });

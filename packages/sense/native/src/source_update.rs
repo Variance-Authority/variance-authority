@@ -10,9 +10,8 @@
 //! walk (`batch.rs`) opens only the files past them, and one delta is written.
 //!
 //! What stays JavaScript's is what it owns: the configuration digest, which
-//! `reuse.ts` derives from the resolver options. Every index is made here: one
-//! with no chain to stand on starts from another checkout's (`source_update_seed.rs`),
-//! or from the tree where none fits; what it cannot do is an error.
+//! `reuse.ts` derives from the resolver options. Every index is made here: one with no chain to stand on starts from
+//! another checkout's or CI's (`source_update_seed.rs`), or the tree where none fits; what it cannot do is an error.
 //!
 //! Nothing changed, no record is written; a listing the tree carries (spec
 //! 0107) is written with the segment it stands beside.
@@ -81,6 +80,8 @@ pub struct UpdateOptions {
     /// another release's — starts from the first of them that reads whole under
     /// the same configuration, and reads only what differs from it.
     pub others: Option<Vec<String>>,
+    /// This index as CI published it, tried after `others`: a row stands where the tree names its digest.
+    pub published: Option<Vec<String>>,
 }
 
 /// What an update did.
@@ -162,8 +163,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
         _ => (None, None),
     };
     let chain = if opened.is_some() { read.as_ref() } else { None };
-    // With no chain of its own, it stands on another checkout's, and writes what differs over it.
-    let other = if opened.is_none() && trusted { seed::other(o.others.as_deref().unwrap_or_default(), &o.config) } else { None };
+    let (other, clean) = if opened.is_none() && trusted { seed::chosen(&o) } else { (None, false) }; // and writes what differs over it
     let seeded = other.is_some();
     // `base`: how many of `segments` are the base, the rest the working layer.
     let (layers, segments, base): (Vec<Layer>, &[Vec<u8>], usize) = match (opened, chain, &other) {
@@ -207,7 +207,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             let Some(digest) = stored.optional(records.digest.at(row)) else { return false };
             let Some(&index) = tree.at.get(**file) else { return false };
             names_object(digest, &tree.oids[index as usize])
-                && (!seeded || seed::proven(&layers, &store, file, digest))
+                && (!seeded || clean || seed::proven(&layers, &store, file, digest))
                 && (moved.is_empty() || !records.witnesses_of(stored, row).any(|directory| moved.contains(directory)))
                 // Git's object is the cleaned bytes and a decline was decided on
                 // the checked-out ones, so it holds while those are still over.

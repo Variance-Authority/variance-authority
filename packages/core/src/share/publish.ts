@@ -77,40 +77,46 @@ export async function publishLine(
   options: PublishOptions,
 ): Promise<Published | ShareMiss> {
   const latest = await publishOne(cell, line, entries, options);
-  if ('kind' in latest || line.kind !== 'mainline') return latest;
-  const kept = await keepAtCommits(cell, line, entries, options);
-  return kept === undefined ? latest : { ...latest, atCommit: kept };
+  if ('kind' in latest) return latest;
+  if (line.kind !== 'mainline') return latest.published;
+  const known = cell.imagesShared === true ? latest.images : new Set<string>();
+  const kept = await keepAtCommits(cell, line, entries, options, known);
+  return kept === undefined ? latest.published : { ...latest.published, atCommit: kept };
 }
 
 /**
  * A mainline's entries kept at the commits they were derived at, the same rules
  * deciding on each, when the store can list lines (`at-commit.ts`). The latest
- * is written first and stands whatever happens to those.
+ * is written first and stands whatever happens to those. `known` are images
+ * the store already holds for every line, which none of those is sent again.
  */
 async function keepAtCommits(
   cell: LineCell,
   line: ShareLine,
   entries: readonly ShareEntry[],
   options: PublishOptions,
+  known: ReadonlySet<string>,
 ): Promise<KeptCommits | undefined> {
   if (cell.commits === undefined) return undefined;
   const byCommit = new Map<string, ShareEntry[]>();
   for (const entry of entries) byCommit.set(entry.commit, [...(byCommit.get(entry.commit) ?? []), entry]);
   const kept: string[] = [];
   for (const [commit, group] of byCommit) {
-    const written = await publishOne(cell, atCommit(line, commit), group, options);
+    const written = await publishOne(cell, atCommit(line, commit), group, options, known);
     if ('kind' in written) return { kept, miss: written };
     kept.push(commit);
   }
   return { kept };
 }
 
+/** One line's publish, and the images that line holds once it is done. */
 async function publishOne(
   cell: LineCell,
   line: ShareLine,
   entries: readonly ShareEntry[],
   options: PublishOptions,
-): Promise<Published | ShareMiss> {
+  known: ReadonlySet<string> = new Set(),
+): Promise<{ readonly published: Published; readonly images: ReadonlySet<string> } | ShareMiss> {
   for (const entry of entries) {
     const problem = entryProblem(entry);
     if (problem !== undefined) throw new Error(`cannot publish ${problem}`);
@@ -140,11 +146,14 @@ async function publishOne(
 
     const plan = await decide(line, held, entries, options.descends);
     if (plan.write.length === 0) {
-      return { written: [], kept: plan.kept, unanswered: [], attempts: attempt };
+      return {
+        published: { written: [], kept: plan.kept, unanswered: [], attempts: attempt },
+        images: imagesOf(held),
+      };
     }
 
     const next = nextManifest(held, plan.write);
-    const blobs = await blobsFor(held, next, plan.write, options.image);
+    const blobs = await blobsFor(held, next, plan.write, options.image, known);
     const outcome = await cell.store(line, {
       manifest: encodeManifest(next),
       blobs,
@@ -152,10 +161,13 @@ async function publishOne(
     });
     if (outcome === 'written') {
       return {
-        written: plan.write.map((entry) => entry.name),
-        kept: plan.kept,
-        unanswered: plan.unanswered,
-        attempts: attempt,
+        published: {
+          written: plan.write.map((entry) => entry.name),
+          kept: plan.kept,
+          unanswered: plan.unanswered,
+          attempts: attempt,
+        },
+        images: imagesOf(next),
       };
     }
     if (outcome !== 'conflict') return outcome;
@@ -234,12 +246,20 @@ function nextManifest(held: LineManifest, write: readonly ShareEntry[]): LineMan
   return { format: 1, entries: [...survivors, ...added] };
 }
 
-/** Only what the held line lacks: entry bytes are new by construction, images often are not. */
+function imagesOf(manifest: LineManifest): Set<string> {
+  return new Set(manifest.entries.flatMap((entry) => entry.images ?? []));
+}
+
+/**
+ * Only what the held line lacks and the store does not hold already: entry
+ * bytes are new by construction, images often are not.
+ */
 async function blobsFor(
   held: LineManifest,
   next: LineManifest,
   write: readonly ShareEntry[],
   image: (digest: string) => Promise<Uint8Array>,
+  known: ReadonlySet<string>,
 ): Promise<Map<BlobPath, Uint8Array>> {
   const blobs = new Map<BlobPath, Uint8Array>();
   const heldDigests = new Set(held.entries.map((entry) => entry.digest));
@@ -247,9 +267,9 @@ async function blobsFor(
     const digest = entryDigest(entry.bytes);
     if (!heldDigests.has(digest)) blobs.set(`entries/${digest}`, entry.bytes);
   }
-  const heldImages = new Set(held.entries.flatMap((entry) => entry.images ?? []));
-  for (const digest of new Set(next.entries.flatMap((entry) => entry.images ?? []))) {
-    if (!heldImages.has(digest)) blobs.set(`images/${digest}`, await image(digest));
+  const heldImages = imagesOf(held);
+  for (const digest of imagesOf(next)) {
+    if (!heldImages.has(digest) && !known.has(digest)) blobs.set(`images/${digest}`, await image(digest));
   }
   return blobs;
 }
@@ -322,6 +342,7 @@ export function memoryLineCell(
   const key = (line: ShareLine): string => `${line.kind}\u0000${line.name}\u0000${line.at ?? ''}`;
   return {
     held,
+    imagesShared: true,
     async load(line) {
       const manifest = held.get(`${key(line)}\u0000manifest`);
       if (manifest === undefined) return { kind: 'absent' };

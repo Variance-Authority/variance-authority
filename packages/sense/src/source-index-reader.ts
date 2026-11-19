@@ -90,6 +90,15 @@ export class SourceIndexUnreadable extends Error {
   override readonly name = 'SourceIndexUnreadable';
 }
 
+/**
+ * The format version the segment at `path` names in its header, read off its
+ * first bytes alone; undefined when it does not open or starts with no whole
+ * header of a source index segment.
+ */
+export function segmentVersionAt(path: string): number | undefined {
+  return opened().sourceIndexSegmentVersion(path) ?? undefined;
+}
+
 function opened(): NonNullable<ReturnType<typeof native>> {
   const addon = native();
   if (addon === undefined) {

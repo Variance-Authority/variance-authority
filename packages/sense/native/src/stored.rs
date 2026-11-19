@@ -98,10 +98,16 @@ pub struct Stored<'a> {
 /// The format version another release wrote these bytes in: none when they are
 /// this release's, or do not read as a segment at all.
 pub fn written(bytes: &[u8]) -> Option<u32> {
+    version_of(bytes).filter(|version| *version != u32::from(VERSION))
+}
+
+/// The format version a source index segment's header names, any release's:
+/// none when `bytes` do not start with a whole header of one.
+pub fn version_of(bytes: &[u8]) -> Option<u32> {
     let length = u32::from_le_bytes(bytes.get(..4)?.try_into().ok()?) as usize;
     let header = std::str::from_utf8(bytes.get(4..4 + length)?).ok()?;
     let header: Header = serde_json::from_str(header.trim_end_matches('\0')).ok()?;
-    (header.format == FORMAT && header.version != u32::from(VERSION)).then_some(header.version)
+    (header.format == FORMAT).then_some(header.version)
 }
 
 impl<'a> Stored<'a> {

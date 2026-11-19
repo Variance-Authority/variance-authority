@@ -27,6 +27,7 @@ fn options(root: &Path, index: &Path) -> UpdateOptions {
         stores: None,
         packs: Some(false),
         others: None,
+        published: None,
     }
 }
 

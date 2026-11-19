@@ -1736,7 +1736,29 @@ primary checkout's first, and reads only the files that differ from it; `from`
 names that index. A record of it that holds a parse stands only where the
 cache's parse store holds the same parse of the blob, so a file the other
 checkout edited without telling git is read again. With no such index, it reads
-every file, and the parse store is what a second checkout reuses. An `index` you name in the checkout's
+every file, and the parse store is what a second checkout reuses. Pass
+`fetch` to start from an index somebody else built, such as the one CI
+published: it is asked only when the index is another release's, as the update
+starts, and places that index at the path it is given while the checkout is
+listed. When another checkout's index of this release opens, the update starts
+from that one, aborts the `signal` it gave `fetch`, and does not wait for it.
+The addon tries a fetched index after every other checkout's, and trusts a record
+of it without the parse store wherever the tree names the record's digest: the
+index keys a file git calls changed by the bytes it read, so an edit CI made
+before indexing never matches a checkout's tree. The result names
+whose it was as `fetched`, and the placed copy is removed.
+`carriedSourceIndex(chain)` carries a chain from `sourceIndexChain` as bytes
+that name its manifest and each segment's pieces of `SOURCE_INDEX_PIECE` bytes
+by their SHA-256, the names of those pieces once in `pieces`, and `piece(name)`
+to read one. A segment never changes under its digest, so the names of its
+pieces are kept beside the chain, and a carry hashes only the segments no carry
+before it hashed. `placeSourceIndex(into, bytes, piece)` places such an index from
+those bytes and a reader of each piece by name; no segment is held whole, and
+one whose length or digest is not its own leaves nothing placed; `fetchedSourceIndexPath(path)` names a place beside
+`path` for one update to have it placed, another on every call, so a download an
+update dropped without waiting removes only its own when it ends, and the next
+update that fetches removes those of a process `processAlive(pid)` says has ended; and
+`sourceIndexChain(path)` lists the files of one to publish. An `index` you name in the checkout's
 own cache directory reads that store as the checkout's own index does. `progress` is told each step's name as it starts, the git listing
 and then the read of what changed, and returns the function to call when that
 step ends.

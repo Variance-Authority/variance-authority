@@ -87,6 +87,7 @@ export function createDirectoryLineCell(root: string): LineCell {
   }
 
   return {
+    imagesShared: true,
     async load(line) {
       const held = await read(lineDir(line));
       return 'manifest' in held ? own(line, held) : held;

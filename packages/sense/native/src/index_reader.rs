@@ -29,7 +29,7 @@ use crate::compact::{joined, Layer, ParseView};
 use crate::generation::key_parts;
 use crate::held::HeldParse;
 use crate::order::code_unit;
-use crate::stored::written;
+use crate::stored::{version_of, written};
 
 struct Chain<'a> {
     /// Oldest first.
@@ -260,6 +260,27 @@ impl SourceIndexReader {
     }
 }
 
+/// The format version the segment at `path` names in its header, read off its
+/// first bytes alone: an index another release wrote is told apart without
+/// reading the gigabytes behind the header. None when the file does not open,
+/// or does not start with a whole header of a source index segment.
+#[napi(js_name = "sourceIndexSegmentVersion", catch_unwind)]
+pub fn segment_version(path: String) -> Option<u32> {
+    use std::io::Read;
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut head = [0u8; 4];
+    file.read_exact(&mut head).ok()?;
+    let length = u32::from_le_bytes(head) as u64;
+    // A length past the file is no header: nothing past the file is read for it.
+    if length > file.metadata().ok()?.len().saturating_sub(4) {
+        return None;
+    }
+    let mut bytes = head.to_vec();
+    file.take(length).read_to_end(&mut bytes).ok()?;
+    version_of(&bytes)
+}
+
 #[cfg(test)]
 #[path = "index_reader_test.rs"]
 mod tests;
+

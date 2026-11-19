@@ -29,7 +29,7 @@
 
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { sourceIndexPath } from '@variance-authority/sense';
+import { processAlive, sourceIndexPath } from '@variance-authority/sense';
 import type { Parsed } from '../parse.js';
 import { logHeartbeat } from './step-progress.js';
 
@@ -126,21 +126,11 @@ export async function awaitFollowUps(index: string, waiting: (lock: FollowUpsLoc
     if (lock === undefined) return waited === undefined ? { held: false } : { held: true, lock: waited, finished: true };
     // A lock marked failed is the last thing its process writes: it is done.
     if (lock.failed !== undefined) return { held: true, lock, finished: true };
-    if (!alive(lock.pid)) return { held: true, lock, finished: false };
+    if (!processAlive(lock.pid)) return { held: true, lock, finished: false };
     if (until === 'readied' && lock.readied === true) return { held: true, lock, finished: true };
     if (waited === undefined) waiting(lock);
     waited = lock;
     await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-}
-
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    // Somebody else's process under a reused id is still a process.
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
   }
 }
 

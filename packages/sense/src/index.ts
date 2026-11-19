@@ -77,14 +77,27 @@ export {
   SourceIndexUnpublished,
   type PublishedSources,
   type PublishedSourcesOptions,
+  type SourceFetch,
   type SourceUpdate,
   type SourceUpdateOptions,
 } from './published.js';
+export {
+  carriedSourceIndex,
+  type CarriedSourceIndex,
+  fetchedSourceIndexPath,
+  placeSourceIndex,
+  SOURCE_INDEX_PIECE,
+  sourceIndexChain,
+  sourceIndexWrittenIn,
+  type SourceIndexChain,
+} from './source-index-copy.js';
+export { processAlive } from './process-alive.js';
 export { publishedNames, readPublishedNames, type PublishedNames } from './published-names.js';
 export { placesOf, stepped, type Progress } from './progress.js';
 export { readySourceIndex } from './ready-index.js';
 export { inIndexTurn, indexTurnPath, type IndexTurnHolder } from './index-turn.js';
 export type { SourceIndexState } from './source-index-file.js';
+export { SOURCE_INDEX_VERSION } from './source-index-format.js';
 
 export { firstParentChanges, firstParentChangesBetween, trackedFiles, type CommitChange, type CommitChanges } from './commit-changes.js';
 export { packageOwner } from './package-owner.js';

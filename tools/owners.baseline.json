@@ -781,6 +781,11 @@
   },
   {
     "idiom": "timer",
+    "at": "packages/cli/src/commands/source-index-share.test.ts",
+    "count": 1
+  },
+  {
+    "idiom": "timer",
     "at": "packages/cli/src/commands/workers.test.ts",
     "count": 1
   },

@@ -142,3 +142,23 @@ fn a_segment_whose_text_heap_is_not_utf8_ends_the_chain_there() {
     assert_eq!(chain.parse_at("a"), None);
     assert_eq!(read_back(&chain, "b"), empty());
 }
+
+#[test]
+fn a_segments_version_is_read_off_its_header_alone() {
+    let dir = std::env::temp_dir().join(format!("variance-segment-version-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let at = |name: &str, bytes: &[u8]| {
+        let path = dir.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        path.to_string_lossy().into_owned()
+    };
+    let whole = segment(None, &[], &[], Deleted::default());
+    let length = u32::from_le_bytes(whole[..4].try_into().unwrap()) as usize;
+    // The header alone, everything behind it cut off, still names its version.
+    assert_eq!(super::segment_version(at("header", &whole[..4 + length])), Some(u32::from(crate::segment::VERSION)));
+    assert_eq!(super::segment_version(at("cut", &whole[..4 + length - 1])), None);
+    assert_eq!(super::segment_version(at("junk", &[7; 64])), None);
+    assert_eq!(super::segment_version(dir.to_string_lossy().into_owned()), None);
+    assert_eq!(super::segment_version(dir.join("missing").to_string_lossy().into_owned()), None);
+    std::fs::remove_dir_all(&dir).unwrap();
+}

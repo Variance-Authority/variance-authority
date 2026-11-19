@@ -75,7 +75,10 @@ checkouts, does not hold.
 | `source.dirs` — the directories scanned | nothing. Which directories a scan visits decides which records it produces, never what any record contains, so a narrow scan reuses a wide scan's work and neither invalidates the other |
 
 Two more, neither of them yours to change: upgrading to a release that changes
-what a record includes rebuilds the index once, and a type-only import is not a
+what a record includes rebuilds the index once, unless the share sets
+[`sourceIndex`](sharing.md#configuring-one): then the checkout fetches the index
+CI published beside the mainline's record and reads only the files that differ
+from it. A type-only import is not a
 rebuild trigger for anything downstream — see [edge kinds](#can-you-choose-the-edge-kinds).
 
 How many records one added file rebuilds depends on the directory it lands in.
