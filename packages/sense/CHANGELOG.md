@@ -1,5 +1,310 @@
 # @variance-authority/sense
 
+## 0.33.0
+
+### Minor Changes
+
+- 8d67263: A runner's seam can cut its selection to a ceiling of recorded test time, taking the changed files' own tests first and the importers in order only when a distance is asked. It only ever skips more, names what it left, and cuts nothing from a selection that declined to narrow. This repository's edit loop sets it; it is not yet offered to adopters.
+- 90114df: A case times its statements under Vitest, Jest and Rstest: every line of the
+  test its body ran keeps its time in microseconds on the real clock, with a
+  loop's runs summed and hooks left out. `variance ask slowest-tests` prints the
+  slowest of them under each case it lists, with its share of the case.
+  `cadence: false` turns it off, and a record written before it reads every case
+  as untimed.
+- d1cd0c7: A selected Jest run transforms, before its workers start, the files the record
+  says its selected tests load late: inside a case or a hook, after their first
+  case began, as a `require` in a test body or SWC's `module.lazy` does. It runs
+  them through the project's own transformer, in parallel across `maxWorkers`, so
+  the case that requires one reads it from Jest's cache instead of transforming it
+  on its own time. A file a test loads at import is left alone, and a run whose
+  tests load nothing late starts no worker. A project that treats files as ES
+  modules, an `.mjs` test, coverage over only the changed files, a run with no
+  selection or no record, and a file the record does not name are transformed as
+  Jest transforms them.
+- ae9262c: `ask symbol --line <file>:<line>` ranks the declarations of a name by how closely the tests that entered each match the tests that ran the line. The ranking is overlap of recorded tests and does not establish which declaration the line called. Declarations entered by the same tests are marked tied. A line no recorded test ran, and a recording that cannot place the lines at the commit it ran at, say so and answer as without `--line`.
+- 2dbcebe: A story recorded under a document says what each test line did to the page
+
+  With `VARIANCE_AUTHORITY_STORY=1` and a `document`, as under jsdom, in the browser modes of Vitest and Rstest, or in the page a Playwright spec drives, the story watches the page and writes one note on each test line that changed it: `page +1 −0 nodes, 2 attributes, 0 text`, counted since the line opened. A line that changed nothing has no note, so a `findBy` or `waitFor` that passed on such a line waited on no change to the markup, unless it waited on a property such as an input's `value`. React commits stay with Eyes, which already writes each one under its step. A hook's line and the end of the test close the watch until the next test line, so what hooks and a testing library's cleanup change has no note. A run without a document, and any run that records no story, starts no watch. Under Playwright, a hook declared in a helper file closes the watch too, a fixture's teardown after `use` lands on the last line, and a document a statement loads is counted from the statement after it.
+- 08f6331: `variance ask ran --story` shows what each function of a live execution was handed
+
+  A server head started with `VARIANCE_AUTHORITY_STORY=1`, beside `VARIANCE_AUTHORITY_JOURNEYS` and a watcher, now tapes each execution it reports to the watcher and sends its story with the account: the functions entered in order, their branches, and `» handed name=value` for the arguments each was handed, spelled as a test story spells them. It shows arguments only, never a local or module variable. Two requests that run at once are taped apart, and a request whose promises run on after it settled is told again with only what it ran since. Without the variable nothing is taped and nothing changes.
+
+  `variance ask ran --story` (`variance_ran` with `story: true`) prints those stories in place of each execution's regions, a step drawn as `variance story` draws it, with what the tape lost said above it. Asked of heads that told none, it says no head was started with `VARIANCE_AUTHORITY_STORY=1` and lists the regions as before.
+
+  `variance ask` takes a true-or-false tool argument as a bare flag. The watcher keeps the first 8 stories a head sent of an execution, up to 1 MiB, as `stories` on that head, and counts the rest as `untold`. `@variance-authority/sense/story` exports the reading `variance story` draws a route by, so both draw a step the same way.
+- f2ae917: A page that calls `reportPage` tells its story under Vantage when its build ran with `VARIANCE_AUTHORITY_STORY=1`: the Vite plugin and the webpack and Rspack rule read the variable as they are made and serve the collector with the page's tape and a teller beside it. Each load, click or submit is told once the page runs nothing more for it, at the next click, or as the page leaves, and told again with what it ran since if it runs on before the next click, so `variance ask ran --story` prints a `head page` with the functions it entered, what each was handed, its `console` lines and the notes a browser test's story carries. A story told as a click or leaving ends it holds what a beacon carries, about 32 KiB, and counts the rest. The requests it sent are not in it. Without the variable the collector is served as before.
+
+  The probes loader then answers the collector later, so `ProbesLoaderContext` requires `async`, which webpack and Rspack provide; a context built by hand adds it. The Vite plugin's `load` may return a promise, which Vite awaits.
+- 615030d: `select --ran-at` runs a test a change the mainline landed and took back reaches
+
+  A pull request's check ran on its head merged with the mainline of its day, which may have held a change the mainline landed after the fork. When the mainline then reverted a change, in whole or in part, the net diff from the fork no longer showed it, so a test both the pull request and that change reached was skipped as one only the pull request reached. The mainline's side now also reads every file two or more of its commits since the fork changed as it stood after each of those commits, by its lines or, for an install file, by its packages.
+
+  `firstParentChangesBetween(root, from, to)` lists what each commit on `to`'s first-parent line that `from` does not hold changed.
+- 6fcac83: `variance coverage --session <name>=<path>` sets V8 coverage you exported from your own browser or Node run beside the record, function by function, and lists the functions a session ran that no recorded case entered. `--served <dir>` places a page's scripts.
+- a51c08d: `variance carry restore --transform jest [--shard <k>/<n>]` also names Jest's transform cache for each declared suite whose project resolves `jest-config`: `transform-<suite>-path` is Jest's default `cacheDirectory`, and the key holds the suite, the shard and the ISO week, so a new week starts from an empty cache. A restore without `--transform` prints what it did before. `Variance-Authority/action/jest-cache` is that restore as one step before a shard's tests, and the cache action saves it on the week's first green run of that shard.
+- 5147428: A story run keeps each change a test line made to the page as one line of text: the node added, removed or changed, with its role, id and name, the component that rendered it and the React commit that wrote it. `variance story --page <text>` answers when something appeared or went with one row per change that holds the text, however large the page, and `--compare` sets apart a change that lands at another commit on the failing runs. What a field holds is never written.
+- 5425c82: A story recorded in a Chromium page says what the browser painted, held and moved
+
+  With `VARIANCE_AUTHORITY_STORY=1`, a page Chromium runs, under Playwright, Storybook or the browser modes of Vitest and Rstest, notes what the browser reported of its frames after the step it followed: `first paint`, `largest paint: h1.title`, `held a frame (121 ms)` for a frame a script held past 50 ms, and `layout moved 0.25`. Each is placed by the time the browser gives it, after the step running then; only a report delivered after that line's story was already read is told on the next line. A browser that reports some of these types but not others names the rest once, as `unseen here: long-animation-frame`. The notes are for reading: `variance story --compare` leaves them out, since their timings and place change from run to run.
+- f48cf4c: `variance story --name` explains a test no story was recorded for from the
+  record every run keeps: each line of its body in the order first reached, with
+  its source, its time and its share of the test, and the functions it was the
+  first to run, grouped by package, a hook's apart. It says when the test file
+  changed since the record was written. A test with a story recorded still
+  prints the story, as does an ask that names a `--project`.
+
+  `ask slowest-tests` gives a statement's share of its case as `variance story`
+  does, from the statement's microseconds, and prints its time to the nearest
+  millisecond.
+- 9d0c27e: `variance select --format explain` prints the selection by import hops, nearest first: each hop count's test files, their recorded seconds, the trail from the changed file to each, and the `--at-distance` command that runs that block; beside a leg, the hops it left are laid out too, marked as left. A selection that runs the whole suite says why, naming the `before` entry a changed file matched, and counts the suite, saying how many of its test files the record holds no time for. A changed file nothing reaches is named, with where to declare it: `/// <depends>` or `before`. `recordedTimes` now lists the test files it holds no time for as `untimed`.
+- 5493b83: `ask grep`, `docs_grep` and `discover --text` answer with no `rg` on PATH
+
+  They ran the `rg` binary over the files a start point reaches, and a machine without it got an instruction to install ripgrep instead of an answer. The search now runs inside the native addon on ripgrep's own crates, so the pattern language, the BOM-sniffed encodings and the binary rules are ripgrep's as before. A ripgrep config file named by `RIPGREP_CONFIG_PATH` no longer applies, and a line that is not UTF-8 shows its text with replacement characters rather than `(not UTF-8)`.
+
+  `ripgrepNative(root, pattern, files)` returns the matching lines of the files, as columns, in the order the files were given, and one complaint per file it could not read.
+- b6f75d6: `ask grep --from` and `--to` walk the imports `variance index` resolved
+
+  A scoped `ask grep` drew the import graph of the whole checkout at question time: every tsconfig and manifest read, every specifier resolved, every mock of every test resolved, to search the few thousand files a start point reaches. It now walks the source tree `variance index` publishes, and only ripgrep's search costs the area. On Kibana a search from one file whose area holds 14,686 files went from 10 s to 0.6 s.
+
+  The published tree carries the modules a test loads for real beside its mocks (`vi.importActual`, `jest.requireActual`, a factory's `require`), resolved when the tree is published, so `ask uses`, `ask symbol` and `docs_search` with a start point reach them too, as `ask grep` did. Its format version moves to 2, and a tree published by an earlier version is read again.
+
+  A `grep` answer now names the generation it was read from, and is asked again of the checkout as it is when a file of its area changed since; a file that just began importing into its area, or was written under a folder it starts from, waits for `variance index` or the hour.
+- 734e044: `variance ask grep --test <file> [--name <words>]` searches only the files one recorded test entered, and marks each matching line as ran, or not taken with the branch or function the test did not enter. `testsRan` in `@variance-authority/sense` reads the same answer from the recording.
+- 2e0e535: The questions `variance index` publishes are one binary store
+
+  `variance index` and every question that publishes a generation now write one
+  file beside the source index, `source-index.bin.help.bin`, in place of the JSON
+  value `source-index.bin.help.json` and the search `source-index.bin.help-search.bin`
+  beside it. `ask symbol`, `uses`, `search`, `packages`, `entrypoint`, `gaps`, the
+  help server and `variance serve` open it in place and decode a name only when a
+  question reads it. A generation published before this release is not read: the
+  next question reads the checkout and publishes the store, and `--just-answer`
+  refuses until `variance index` runs.
+
+  A store that is there and does not open is named with the answer, as
+  `The published value at … did not open (…); the checkout was read instead.`
+  There is no longer a second file to fall back on, so the counts a search shows
+  then are the checkout's, not the counts by published path.
+
+  Breaking for code that reads the files itself. `@variance-authority/sense` drops
+  `encodeSearch`, `exportedDigest`, `EncodedSearch`, `PublishedRows` and
+  `SearchGeneration`, and exports `encodeHelpStore`, `restampHelpStore` and the
+  `HelpStore`, `StoreMeta` and `EncodedStore` shapes. `HelpReading.publish` takes
+  `packagesDigest`, and its usage no longer carries the imports by path, which
+  the addon writes. `@variance-authority/help` exports `publishedHead`, the
+  generation read off the store's head alone, and its `StoreHead`; an `Unopened`
+  is always `published: 'value'`. A package's
+  `Documented` in `@variance-authority/package/help` no longer carries `declared`:
+  whether the manifests moved is compared by the digest the store keeps.
+
+  `@variance-authority/core/segment` opens a segment's first bytes alone with
+  `openSegment(…, { prefix: true })`: a header or column past them throws
+  `SegmentCutShort` with the length that holds it. The store is a segment in that
+  framing, so its head is read off its first bytes without reading the rest.
+- 80bea52: The edit loop's budget takes a changed file's own tests first, and a test is now a file's own only when it enters it: a test that imports the file beside another module that imports it too is ranked as an importer. `TestDistance` names the changed files a test enters as `enters`, and `select --json` carries it.
+- a6b7aea: The record keeps how each attempt of a retried case ended. A runner that retries a failing case reports the last attempt, so a case that failed and then passed read as a pass. A recorded run under Vitest, Jest, Rstest or Playwright now writes one row per attempt of every case its runner reported more than one attempt of: how the attempt ended, in the runner's own word, and where the runner says them how long it ran and, for one that did not pass, the failure's message and its frame inside the checkout. Vitest 4.1 and Playwright say all of it; Jest and Rstest time no single attempt, and Jest names what an earlier attempt failed with only under `logErrorsBeforeRetry`. A case that ran once adds nothing, and its `stopped`, duration and limit are unchanged.
+
+  `variance ask retried-tests` (`docs_retried_tests`) lists the cases whose attempts ended differently in the recorded run, each with its attempts and its limit, under the record's origin, commit and age. A record whose run kept no attempts says that they were not kept, not that no case was retried.
+
+  A build older than this one refuses a record that holds the new `cases.attempts` section, as it refuses any section it does not know. No selection reads the section.
+- cd199ee: Rstest leaves out the test files a change did not reach
+
+  `withTestSelection` from `@variance-authority/sense/rstest` now reads `VARIANCE_AUTHORITY_SINCE` and `VARIANCE_AUTHORITY_AT_DISTANCE` as the Vitest and Jest wraps do: the files the selection skips join the project's `exclude` before Rstest plans its entries, stderr says `selected N of M`, and a selection that keeps no file runs none and passes. `VARIANCE_AUTHORITY_GRAIN=case` fails the run, since Rstest runs a kept file whole.
+- be24c9e: `ask symbol` reads who imports a name once for all the files that declare it
+  and that no entry publishes, default exports included, rather than once per
+  declaration, with the same answer.
+
+  `importersOf` in `@variance-authority/sense` now takes groups of
+  `{ file, name }` pairs in place of files and one name, and follows each group
+  as one question: its `uses` and `through` are in `groups`, one entry per group
+  in the order asked, where they were at the top of the answer. A caller that
+  passed `(root, files, name)` passes `(root, [files.map((file) => ({ file, name }))])`
+  and reads `groups[0]`.
+- c19d8a4: The documented surface is read off the index by one native producer
+
+  Every publish of the questions — `variance index`, a first reading with nothing
+  published, a reading with `--changed-file` or taints — now reads the names each
+  entry hands out, the kinds they are declared as and the text of each
+  declaration from the source index, in the native addon, beside the uses and
+  the source tree. No parse row crosses into JavaScript, and the checkout is no
+  longer scanned a second time when nothing was published before. An index that
+  did not move still publishes nothing.
+
+  A reading now always saves the index it scanned, because the value is read from
+  it: `readWorkspace` drops its `save` and `saveIndex` options, and an index that
+  cannot be saved is thrown as an `UnsavedRead` rather than answered from memory.
+  `refreshWorkspace` reads the whole value again from the updated index instead
+  of keeping the signatures and comments of the reading it was handed.
+  `@variance-authority/sense` drops `sourceTreeOf` and `forwardsDigest`, and
+  `readHelp` takes the entries to document and whether to draw the tree; the
+  reading it returns hands over `names()` and encodes the store with `encode()`.
+  The unreadable files are listed as the manifests' first, then the index's, each
+  in path order.
+
+  A scan of a directory git cannot list now keeps a record of each file it read in
+  the index it is handed, under a shape no listed scan reuses, so the questions
+  and the code map are read off its index as off any other; `digests: false`
+  still keeps none.
+- 68df956: `ask uses` answers from the imports the index resolved, and guesses nothing else
+
+  `variance ask uses`, `ask symbol` and `docs_uses` no longer end with the files
+  whose import the source index resolved to no file and that "could take the
+  name", nor, for a name no file here declares, with the packages outside the
+  workspace it is imported from and a `discover --imports` question. An import
+  the index resolved to no file resolves to none when the question is asked
+  either, so both lines were a guess at question time; the answer now lists the
+  resolved uses alone. Breaking: `outsideSourcesOf` is gone from
+  `@variance-authority/sense`, and `importersOf` no longer returns `unresolved`.
+
+### Patch Changes
+
+- 8c0e649: `variance index` reads a `tsconfig`'s `extends` base whatever it is named and wherever it lies — `./generated/tspaths.json`, a package config such as `@tsconfig/node22` under `node_modules` — and uses the `paths` it declares. Adding or removing an unrelated file no longer re-resolves every stored record in such a repository, so a branch switch rebuilds only the records the change can reach. A base that is not there yet — a `.nuxt/tsconfig.json` a build generates, a package not installed — declares nothing until it arrives. Editing a base, generating one or a reinstall that changes one still re-resolves every record. Only a configuration that is not JSON, or a base the resolver cannot answer, leaves the aliases unknown.
+- 13ce34a: A cold index encodes its segment once, with its listing, rather than encoding it and then carrying the listing into a copy. A listing carried into a segment keeps the segment's column order, so the same segment carried twice is the same bytes. The listing names the symlinked directories it could not hash in code-unit order, so two listings of the same tree write the same bytes.
+- adb1fc8: A source index segment holding a flag byte other than 0 or 1, or a symbol reach the format does not know, is now refused by the native reader as the TypeScript reader refuses it, so a damaged index is rebuilt instead of read with its dependencies silently dropped.
+- 792fd53: `variance select --local`, and `VARIANCE_AUTHORITY_LOCAL=1` at a runner's seam,
+  no longer run every test file, or every test file in a package, when the record
+  cannot narrow. They run only the test files that import a changed file, by the
+  source index, and name the doubt on the first line; a changed file the index
+  does not hold, such as a lockfile, selects none and is named. A test file the runner
+  finds that neither the index nor the record holds does not run; `--format json`
+  names the files that run under `only`. With no diff from
+  any base, `--local` exits non-zero. A change to a file the suite declares in
+  `before` runs the whole suite. Without `--local`, every doubt still runs every
+  test file.
+- c30c345: `variance ask symbol` lists the members of an interface or class by looking its
+  one file up in each layer of the source index, where it merged every file record
+  of the index first, and looks up the files a member's uses may sit in the same
+  way. Finding a member's declarations, and the extensions beside them, still
+  merges the index. On a workspace of 107,000 files, the ten member lookups of
+  `ask symbol --name mount --just-answer` took about 75 ms and now take under
+  1 ms. No answer changes.
+- 3728688: A recorded test file starts faster. An instrumented module no longer carries
+  its own copy of the probe: the header asks the recording for the probes of its
+  row on the first call, so a fresh realm compiles and warms one probe for all of
+  its modules, and each module's header shrinks from 618 bytes to 278.
+- dde7805: `variance ask search` and `ask symbol` now find a declaration by its name, or
+  by the words of its doc comment, without reading every file. The source index
+  now stores each declaration's name and the words of its doc comment. On Kibana,
+  `ask search --query mount` drops from 2.4 s to 1.1 s, the declarations it finds
+  from 1.8 s to 0.14 s of it. The larger index costs every question about 14 ms
+  more to open on Kibana, so `ask symbol` on a name with many declarations, which
+  opens it once per declaration, is about 10% slower.
+
+  A doc comment now matches even when its file has been deleted since the last
+  `variance index`. An index written by an earlier version is built again on
+  first use.
+- 90503d7: A relative import is resolved from git's listing, and a failed tsconfig no longer drops imports
+
+  A cold index resolves a relative import, such as `./button` or `../util.js`, by looking up its candidates in the listing the walk already holds, in the order the module resolver tries them. The resolver now runs only for what the listing cannot settle: built output, a directory with a `package.json`, a symbolic link, or a request no listed file answers. Files that share a directory and a governing `tsconfig.json` share their answers, so a request is resolved once per directory.
+
+  A `tsconfig.json` that failed to load, for example one that extends a package not yet installed, made every relative import in the files it governed resolve to nothing. Those files now resolve with no tsconfig: their relative imports are found, though the failed file's `paths` still are not, and a tsconfig further up is not read in its place. On a large monorepo, tens of thousands of imports came back.
+- 50ff742: A Rust file is read with less work per node: the reader looks a node's kind up by its id, walks children with cursors it reuses, finds paths in one pass over one cursor, and converts spans to UTF-16 once per file. What the index records is unchanged.
+- 4dca025: An index or an update opens git's object store once, when the files its scans
+  have read reach 3,000, and every later file it reads comes from the store. It
+  used to open the store again for every wave of 160 files or more, about 15 ms
+  each time on Kibana, and read every smaller wave from disk.
+- a4007df: A cold index of a large tree holds about 2.4 GB less while it encodes, and encodes faster. The text heap that signatures, docs and line texts are written into is kept in the parts its runs wrote and copied once, into the segment, instead of being joined into one buffer and copied again. Each part is freed as soon as it is copied, so the segment and its columns are never both held whole. The bytes written are unchanged. The whole run's peak is now set by the steps after the write, so it drops by less.
+- ecb67d4: A Python, Rust, Swift, Java or Kotlin file the reader has something to say about is named once in its record's reason, as `<file> — <reason>`, rather than twice. The parse, which every file holding the same bytes shares, now names none of them, so two byte-identical files no longer report each other's path, and indexing the same tree twice writes the same index. An index written by an earlier version is read afresh rather than reused, so the reasons it stored are replaced too.
+- bafb60b: A source file is read once, by the parse that indexes it
+
+  The source index keeps the text of every doc comment, declaration head and
+  member and export line an answer prints, cut from the source the parse already
+  held, so reading a workspace and answering about it no longer open each file a
+  second and third time to cut those lines out. The doc and head rules run in one
+  place, the native index, and `@variance-authority/sense` exports `exportLine`
+  for the line an export is written on.
+  A file the parse could not read is recorded as unreadable rather than read again
+  from JavaScript.
+
+  An answer now prints a file's text as the index read it, also when the file was
+  written since: the date line still says the checkout was not compared, and
+  nothing of what the file holds today is mixed into it. The source index format
+  moves to version 47, so the first command after upgrading reads the checkout
+  once more.
+- b1c0730: A branch switch builds the indexes imports resolve through — the Rust module
+  tree and crates, the Java and Kotlin source roots, and the Python and Swift
+  indexes — at the same time, and the Rust and JVM ones on every core, with the
+  same answers. On a large Rust and Java checkout the walk of a switch takes
+  about 40% of the time it did. With `VARIANCE_AUTHORITY_INDEX_STAGES=1` set,
+  the walk's line now ends with `wall: index`, the time spent building those
+  indexes, which no stage named before.
+- 2d3d067: A warm `variance index` stays native when a change reaches a stylesheet, Python, Rust, Swift, Java or Kotlin file
+
+  The addon's warm update used to hand the whole update back to the slower JavaScript path whenever a changed file was not JavaScript or TypeScript. It now reads those files and resolves their imports itself, and the index it publishes is the same, record for record, as the one the JavaScript update writes.
+
+  `variance index` now builds every index in the addon, cold or warm. The JavaScript path that took over when the addon declined is gone. A damaged index, or one written by another version, is rebuilt from scratch. A directory git does not track is indexed from a walk of the disk, and each update reads all its files again, as before. The parses an update reads are kept for the next checkout as they are read, not encoded a second time after the save.
+
+  `scanRelations` now reads and resolves every language in the addon as well, so a scan and an update give one answer from one implementation. Where the two used to differ, the addon's answer is kept: a Python import that only guessed at a file and missed is no longer reported as unresolved, and a request that reaches more than one file records an edge to each.
+
+  A cold `variance index` takes about half the time it did on a large TypeScript monorepo: parsing and resolving use every core, a file's existence is answered from git's listing where git lists it, and from one read of each other directory, and a `tsconfig` that fails to load is read once rather than once per file.
+- 62ceab9: `variance index` resolves the files it has read while it reads the rest
+
+  The walk that builds the source index read and parsed every file of a wave before it resolved any of their imports, so a cold index waited for the whole read and then for the whole resolution. It now reads a wave in slices and resolves each slice while it reads the next. The index it publishes is unchanged, byte for byte. On Kibana, a cold `variance index` (115k files) is about a second sooner, 9.1 s against 10.2 s at the median of eight interleaved runs, with the same peak memory.
+- 5e7c162: With `VARIANCE_AUTHORITY_INDEX_STAGES=1` set, a native index run writes one
+  line per stage to stderr — listing, open, walk, records, encode and write — each
+  with its wall time and the process's peak resident memory. The walk's line adds
+  the thread time spent reading, parsing and resolving, summed over every core.
+  The listing's line names each of its parts that ran, in a fixed order — head,
+  held, tree, worktree, compare, overlay, hash-object, merge, seeds and assemble,
+  and ls-tree or git status when git does the work — each with its wall time.
+  Unset, nothing is timed or printed.
+- 0b1fd87: Opening the source index no longer hashes every segment: a segment is checked
+  against the length its manifest names, and the digest is computed once, when it
+  is written. On Kibana an open falls from 79 ms to 24; a question that
+  refreshes the index pays about 14 ms of that back in syncs. The writer now
+  syncs each segment, the segments' directory and the manifest to disk before the
+  rename that publishes them, so a power loss cannot leave a manifest naming bytes
+  the disk did not keep.
+  A segment of the right length whose bytes were damaged is refused with an error
+  naming the index, never a crash of the process, and the next update rebuilds it.
+- 4417f78: `variance index` says when it kept the code map and the questions because the index and the manifests did not move, as it already did for the journeys and the dependency lexicon: `questions: kept at <time>, because …`. Each keep is checked before the read it would spare: the code map against the index's manifest alone, before any segment of the index is read, and the questions against the head of the store they were published to, before the store is opened. `publishWorkspaceFromIndex` returns `{ generation, kept }`, where it returned the generation. A store whose file is not the length its head declares, such as one cut short, is published again rather than kept. `publishedHead` takes the checkout's root before the index, and answers only for a store that root published and whose file is whole. An opened segment says the length its header declares.
+- b457dec: A cold scan reads and parses each TypeScript configuration once. The native scan read a configuration again for every package that extends it and for every setting asked of it, so a monorepo whose packages share one base paid for the base thousands of times. On Kibana (about 107,000 files, 1,529 configurations) the scan's own reader made 20,755 reads and now makes 1,529; a cold `variance index` spends about 5 s less CPU and its `reading every file` step is about 1.4 s shorter. The index holds the same rows.
+- b8eb2c1: The READMEs and the `variance-authority` skill say that the source index does
+  not yet read framework file formats or bundler-only aliases: Vue and Svelte
+  single-file components are not indexed, the files an Angular component names in
+  `templateUrl` and `styleUrls` are not linked to it, and an import alias declared
+  only in a bundler's configuration does not resolve, where one declared as
+  `paths` in a `tsconfig` does.
+- 3c762cf: `ask grep` and `ask discover` search their files at the read width, not on every core
+
+  The search behind `ask grep --from/--to` and `ask discover` opened its files on every core of the machine. Opening a file costs the kernel more the more threads open files at once, so it now opens them with the same few threads `variance index` reads with. The answer is unchanged, line for line. On Kibana, a search over the 14,686 files one start point reaches spends about a third of the kernel time it did.
+- 55522fa: `ask grep` reads tracked, unchanged files from git's object store
+
+  `ask grep`, `docs_grep` and `ask discover --text` opened every file a start point reaches. A search over three thousand files or more now reads each tracked file that git's index holds as unchanged straight out of the object store, in the addon's own process, and opens only the rest. The answer is unchanged, line for line. On Kibana, a search over `x-pack`'s 94,000 files takes about 220 ms where it took about 990, and `rg` over the same folder takes about 1,030; over `src`'s 38,000 files it takes about 100 ms where it took 350. A smaller search is the one it was.
+
+  A repository whose blobs may not be the bytes on disk is searched from disk whole: one with a replace ref, a clean, smudge or process filter other than git-lfs's, a `working-tree-encoding` in any attributes file, tracked or not, an untracked attributes file naming `ident`, an object format other than SHA-1, or more than fifty packs and no multi-pack index. A file whose checkout git rewrote to another length, by line endings or `ident`, is opened, and so is a file holding `$Id` where an attributes file names `ident`. A file an encoding or filter rewrote at its length, before that attribute was removed, is searched as its blob: `git status` calls it unchanged too, until it is checked out again.
+
+  The scan reads committed blobs through the same in-process reader and starts no `git cat-file` process. In a repository with a replace ref, it parsed the replacement's bytes for a file whose checkout was the original; it now parses the file on disk.
+- ed7665f: `variance ask symbol` and `ask uses` find the files importing a name from the
+  imports `variance index` recorded backwards, by the file they import, rather
+  than by reading every file's imports on every step of the walk; indexing takes
+  as long as before. An index written by an earlier version is built again on
+  first use.
+- 9458c77: A Java, Kotlin or Python import is resolved against only the source roots that hold its top-level name, in the same order as before. On a cold index of Firefox, resolve takes about a fifth of the thread time it did, with the same answers.
+- d1cd471: One question opens the source index once. `variance ask symbol` and `variance
+  ask search` about a name declared in many files read, checked and opened every
+  segment of the index again for each declaration they followed; they now do so
+  once per answer, however many readers the answer asks. On Kibana, `ask symbol
+  --name mount` drops from 5.3 s to 2.9 s, `ask search --query mount` from 1.1 s
+  to 0.56 s, and `docs_symbol` to a warm help server from 4.1 s to 2.0 s.
+- 11d8458: The sense addon now lays a run's case readings over the record in one native call, and the JavaScript lay is gone. On TanStack Query's suite, the lay took about 1.5 s of the main process's time and now takes about 130 ms. A machine without the addon now gets an error naming why the addon is missing, where before it fell back to the slower JavaScript lay.
+- 2cd359b: The listing of every tracked path compares the working tree in-process instead of asking `git status`. It reads HEAD's tree from the object store and compares the index with HEAD and with the disk, then walks the untracked files on four threads under the repository's ignore rules. On Kibana (about 135,000 paths) the listing takes about 0.6 s where it took about 1.05 s. The answer is the one `status` gave. A repository that uses `core.fsmonitor` or a sparse index, holds a submodule or a skip-worktree path under the root, as a sparse checkout does, or is not SHA-1 is still asked through `git status`, and so is an index holding git's untracked cache, which `status` reads faster than a fresh walk; `feature.manyFiles` turns that cache on, so most large repositories that set it keep `git status`.
+- 3c350c9: The case index a run lays into its record is folded by the native addon: the
+  addon reads the run's case journals, joins a case written twice, and lays each
+  case's regions, lines, statement times, durations and limits in one pass. On a
+  4,500-case Vitest run the fold falls from about 300 ms to 140, so the process
+  exits that much sooner after the run summary. The JavaScript fold is gone:
+  without the addon, recording a run's cases throws and names why the addon is
+  absent.
+- 9e1857d: A run's case index is laid over the record's by the native addon: the addon
+  replaces the files the run finished, retires the ones the checkout lost, lands
+  every other case on the regions an edit left alone, and lays what the run
+  replaced over what earlier runs at the commit retired. A module's text is read
+  only when a held case lands through it. On a 4,500-case Vitest run the process
+  exits about 200 ms sooner after the run summary, about 780 ms where it took
+  about 1,000. The JavaScript layering is gone: without the addon, recording a
+  run throws and names why the addon is absent.
+
 ## 0.32.1
 
 ### Patch Changes
