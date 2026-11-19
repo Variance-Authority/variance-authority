@@ -1,6 +1,7 @@
 import type { RowAlignment, RowSpan } from '@variance-authority/raster';
 import type { DecodedImage } from './mask.js';
 import { edits, type Edit } from './edit-script.js';
+import { straddled } from './straddle.js';
 
 /**
  * Which row of the before image each row of the after image shows.
@@ -101,7 +102,8 @@ export function alignRows(
   const right = runsOf(hashRows(now, width, after.height, head, tail));
   const script = edits(left.hash, right.hash, limit);
 
-  const rows = pairing(left, right, script, after.height, (from, to) => differing(was, from, now, to, width));
+  const cost = (from: number, to: number): number => differing(was, from, now, to, width);
+  const rows = straddled(pairing(left, right, script, after.height, cost), was, now, before.height, width, cost);
   return explainsMore(rows, was, now, before.height, after.height, width, head) ? rows : undefined;
 }
 
