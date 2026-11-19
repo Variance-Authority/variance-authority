@@ -547,10 +547,10 @@ navigated, the story marks where it moves into each. Where the page went to
 another document of the same origin, or reloaded, the step it happened during
 says so before what the new document ran: `page navigated
 http://shop.test/checkout`, or `page navigated http://shop.test/ (reload)`
-where the browser reports a reload. The address drops its query and fragment. A ref is its own
-document's, and what two documents did under one statement is in the order it
-reached the test, not the order it ran, so a comparison does not count that
-order as a difference.
+where the browser reports a reload; a move back or forward has no suffix. The
+address drops its query and fragment. A ref is its own document's, and what two
+documents did under one statement is in the order it reached the test, not the
+order it ran, so a comparison does not count that order as a difference.
 
 - **Where stories are kept.** In [the cache](cache.md), under
   `coverage.stories/`. A story is removed 14 days after it was written, with
