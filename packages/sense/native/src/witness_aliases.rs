@@ -1,6 +1,7 @@
 //! `aliasesIn` in `packages/sense/src/witness.ts`: the `paths` and `baseUrl`
 //! every `tsconfig` and `jsconfig` the tree tracks declares, placed as
-//! repository paths, or nothing when one of them cannot be read.
+//! repository paths, with every base their `extends` chains read past the
+//! listing and its digest, or nothing when one of them cannot be read.
 //!
 //! The module comment of `witness.ts` states the rule; this is its one
 //! implementation. A large workspace holds thousands of configurations, and
@@ -10,7 +11,7 @@
 // compass: variance-authority.reach.source-index
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use napi_derive::napi;
@@ -18,7 +19,10 @@ use oxc_resolver::{ResolveOptions, Resolver};
 use rayon::prelude::*;
 use regex::Regex;
 use serde_json::{Map, Value};
+use sha2::{Digest as _, Sha256};
 
+use crate::digest;
+use crate::order::code_unit;
 use crate::witness::{dirname, join, normalize};
 
 /// One `paths` pattern, placed: `Mapping` in `witness.ts`.
@@ -30,11 +34,21 @@ pub struct AliasMapping {
     pub targets: Vec<String>,
 }
 
-/// `AliasTable` in `witness.ts`.
+/// A configuration an `extends` reached that the listing passed in does not
+/// hold, named from the root, and the digest of the bytes read.
+#[napi(object)]
+pub struct ConfigRead {
+    pub path: String,
+    pub digest: String,
+}
+
+/// `AliasTable` in `witness.ts`, and every configuration read past the listing.
 #[napi(object)]
 pub struct AliasesRead {
     pub bases: Vec<String>,
     pub mappings: Vec<AliasMapping>,
+    /// In code-unit order of their paths.
+    pub read: Vec<ConfigRead>,
 }
 
 /// The alias table the configurations among `paths` declare, read from
@@ -54,7 +68,8 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
     for (path, value) in configs.iter().zip(read) {
         parsed.insert(path, value?);
     }
-    let mut extended = Extended { root, parsed: &parsed, resolver: None, real: None, answers: HashMap::new() };
+    let mut extended =
+        Extended { root, parsed: &parsed, beyond: HashMap::new(), resolver: None, real: None, answers: HashMap::new() };
 
     let mut mappings = Vec::new();
     let mut bases: Vec<String> = Vec::new();
@@ -64,13 +79,14 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
     let mut placed_from = HashSet::new();
     for &path in &configs {
         let options = compiler_options(path, &mut extended, &HashSet::new())?;
-        let declared = options.values.get("paths").copied();
+        let declared = options.values.get("paths");
         let base_url = options.values.get("baseUrl").and_then(|value| value.as_str());
+        let paths_from = options.from.get("paths").map_or(path, String::as_str);
         // Each option is placed against the file that wrote it rather than
         // the file that inherited it, which is what TypeScript does.
         let base = match base_url {
-            Some(base_url) => within(&join(&[dirname(options.from.get("baseUrl").copied().unwrap_or(path)), base_url])),
-            None => within(dirname(options.from.get("paths").copied().unwrap_or(path))),
+            Some(base_url) => within(&join(&[dirname(options.from.get("baseUrl").map_or(path, String::as_str)), base_url])),
+            None => within(dirname(paths_from)),
         };
         let Some(base) = base else { continue };
         if base_url.is_some() && !bases.contains(&base) {
@@ -79,7 +95,7 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
         if !matches!(declared, Some(Value::Object(_) | Value::Array(_))) {
             continue;
         }
-        if !placed_from.insert(format!("{}\u{0}{base}", options.from.get("paths").copied().unwrap_or(path))) {
+        if !placed_from.insert(format!("{paths_from}\u{0}{base}")) {
             continue;
         }
         let entries: Vec<(String, &Value)> = match declared {
@@ -103,7 +119,13 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
             });
         }
     }
-    Some(AliasesRead { bases, mappings })
+    let mut read: Vec<ConfigRead> = extended
+        .beyond
+        .into_iter()
+        .filter_map(|(path, held)| held.map(|(_, digest)| ConfigRead { path, digest }))
+        .collect();
+    read.sort_unstable_by(|a, b| code_unit(&a.path, &b.path));
+    Some(AliasesRead { bases, mappings, read })
 }
 
 /// Configuration files whose `paths` decide where a bare specifier can land.
@@ -121,69 +143,112 @@ fn within(path: &str) -> Option<String> {
     (!(normalized.starts_with("../") || normalized == "..")).then_some(normalized)
 }
 
-/// One configuration's options, and which file in its chain wrote each.
-struct Options<'a> {
-    values: HashMap<&'a str, &'a Value>,
-    from: HashMap<&'a str, &'a str>,
+/// The two options that place an alias, and which file in a chain wrote each.
+const PLACING: [&str; 2] = ["paths", "baseUrl"];
+
+/// One configuration's placing options, and which file in its chain wrote each.
+#[derive(Default)]
+struct Options {
+    values: HashMap<&'static str, Value>,
+    from: HashMap<&'static str, String>,
 }
 
 /// One configuration's options with everything it extends folded in; an
-/// `extends` entry not answered as a tracked configuration abandons the chain.
-fn compiler_options<'a>(path: &'a str, extended: &mut Extended<'a>, seen: &HashSet<&'a str>) -> Option<Options<'a>> {
+/// `extends` entry that cannot be read abandons the chain.
+fn compiler_options(path: &str, extended: &mut Extended<'_>, seen: &HashSet<String>) -> Option<Options> {
     if seen.contains(path) {
-        return Some(Options { values: HashMap::new(), from: HashMap::new() });
+        return Some(Options::default());
     }
-    let config = extended.parsed.get(path)?;
-    let named: Vec<&Value> = match config.get("extends") {
-        None => Vec::new(),
-        Some(Value::Array(items)) => items.iter().collect(),
-        Some(one) => vec![one],
+    let (named, own) = {
+        let config = extended.config(path)?;
+        let named: Vec<String> = match config.get("extends") {
+            None => Vec::new(),
+            Some(Value::Array(items)) => items.iter().map(|item| item.as_str().map(str::to_owned)).collect::<Option<_>>()?,
+            Some(one) => vec![one.as_str()?.to_owned()],
+        };
+        let own: Vec<(&'static str, Value)> = match config.get("compilerOptions") {
+            Some(Value::Object(own)) => {
+                PLACING.iter().filter_map(|&key| own.get(key).map(|value| (key, value.clone()))).collect()
+            }
+            _ => Vec::new(),
+        };
+        (named, own)
     };
-    let mut values = HashMap::new();
-    let mut from = HashMap::new();
-    for one in named {
-        let resolved = one.as_str().and_then(|specifier| extended.answer(path, specifier))?;
+    let mut options = Options::default();
+    for specifier in named {
+        let resolved = extended.answer(path, &specifier)?;
         let mut deeper = seen.clone();
-        deeper.insert(path);
-        let base = compiler_options(resolved, extended, &deeper)?;
-        values.extend(base.values);
-        from.extend(base.from);
+        deeper.insert(path.to_owned());
+        let base = compiler_options(&resolved, extended, &deeper)?;
+        options.values.extend(base.values);
+        options.from.extend(base.from);
     }
     // `paths` and `baseUrl` are read together, so an inherited `paths` under
     // an overridden `baseUrl` is the overriding file's answer.
-    if let Some(Value::Object(own)) = config.get("compilerOptions") {
-        for (key, value) in own {
-            from.insert(key.as_str(), path);
-            values.insert(key.as_str(), value);
-        }
+    for (key, value) in own {
+        options.from.insert(key, path.to_owned());
+        options.values.insert(key, value);
     }
-    Some(Options { values, from })
+    Some(options)
 }
 
-/// Every `extends` entry answered as a configuration this read holds:
+/// A configuration read from disk past the listing, and the digest of its bytes.
+type Beyond = Option<(Map<String, Value>, String)>;
+
+/// Every `extends` entry answered as a configuration this read can open:
 /// `extendedIn` in `witness.ts`.
 struct Extended<'a> {
     root: &'a str,
     parsed: &'a HashMap<&'a str, Map<String, Value>>,
+    /// What an `extends` reached that `parsed` does not hold, by its path from
+    /// the root; `None` for a file that is there and is not a configuration.
+    beyond: HashMap<String, Beyond>,
     resolver: Option<Resolver>,
-    real: Option<Option<std::path::PathBuf>>,
-    answers: HashMap<(String, String), Option<&'a str>>,
+    real: Option<Option<PathBuf>>,
+    answers: HashMap<(String, String), Option<String>>,
 }
 
-impl<'a> Extended<'a> {
-    fn answer(&mut self, config: &str, specifier: &str) -> Option<&'a str> {
+impl Extended<'_> {
+    /// The configuration at `path`, read and digested on first ask when the
+    /// listing did not hold it.
+    fn config(&mut self, path: &str) -> Option<&Map<String, Value>> {
+        if let Some(held) = self.parsed.get(path) {
+            return Some(held);
+        }
+        let root = self.root;
+        self.beyond
+            .entry(path.to_owned())
+            .or_insert_with(|| {
+                let bytes = std::fs::read(Path::new(root).join(path)).ok()?;
+                let parsed = parse_config(&String::from_utf8_lossy(&bytes))?;
+                Some((parsed, digest::of_sha256(Sha256::digest(&bytes).as_slice())))
+            })
+            .as_ref()
+            .map(|(parsed, _)| parsed)
+    }
+
+    /// Whether `path` names a file this read can open.
+    fn exists(&self, path: &str) -> bool {
+        self.parsed.contains_key(path) || Path::new(self.root).join(path).is_file()
+    }
+
+    fn answer(&mut self, config: &str, specifier: &str) -> Option<String> {
         let from = dirname(config);
         if specifier.starts_with("./") || specifier.starts_with("../") {
+            // TypeScript's rule: the path as written, then with `.json` appended.
             let at = normalize(&join(&[from, specifier]));
-            let held = |key: &str| self.parsed.get_key_value(key).map(|(key, _)| *key);
-            return held(&at).or_else(|| held(&format!("{at}.json")));
+            if self.exists(&at) {
+                return Some(at);
+            }
+            let json = format!("{at}.json");
+            return (!at.ends_with(".json") && self.exists(&json)).then_some(json);
         }
         if specifier.is_empty() || specifier.starts_with('.') || specifier.starts_with('/') {
             return None;
         }
         let key = (from.to_owned(), specifier.to_owned());
         if let Some(answer) = self.answers.get(&key) {
-            return *answer;
+            return answer.clone();
         }
         let anchor = self.real.get_or_insert_with(|| std::fs::canonicalize(self.root).ok()).clone();
         // The rule `oxc_resolver` follows an `extends` by, which is not the
@@ -198,12 +263,24 @@ impl<'a> Extended<'a> {
         });
         let answer = anchor.and_then(|anchor| {
             let found = resolver.resolve(Path::new(&join(&[self.root, from])), specifier).ok()?;
-            let tracked = found.path().strip_prefix(&anchor).ok()?.to_str()?.replace(std::path::MAIN_SEPARATOR, "/");
-            self.parsed.get_key_value(tracked.as_str()).map(|(key, _)| *key)
+            relative(&anchor, found.path())
         });
-        self.answers.insert(key, answer);
+        self.answers.insert(key, answer.clone());
         answer
     }
+}
+
+/// `to` from the directory `from`, in `/` segments, climbing with `..` where
+/// it lies outside: a name `within` refuses, so nothing is placed there.
+fn relative(from: &Path, to: &Path) -> Option<String> {
+    let from: Vec<_> = from.components().collect();
+    let to: Vec<_> = to.components().collect();
+    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    let mut segments: Vec<&str> = vec![".."; from.len() - common];
+    for segment in &to[common..] {
+        segments.push(segment.as_os_str().to_str()?);
+    }
+    Some(segments.join("/"))
 }
 
 /// A configuration file's text as an object, with the comments and trailing

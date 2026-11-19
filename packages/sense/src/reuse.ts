@@ -38,7 +38,10 @@
  * ## Where it gives up
  *
  * A bare specifier is bounded by the `paths` a `tsconfig` declares, and a
- * configuration that cannot be read is no bound at all. When
+ * configuration that cannot be read is no bound at all. A base an `extends`
+ * reaches is read whatever it is named and wherever it lies, and its contents
+ * join the config digest, so only a base that is missing or is not JSON leaves
+ * the bound unknown. When
  * [`aliasesIn`](./witness.ts) comes back empty-handed the whole path set goes
  * into the config digest instead, which is the old rule, applied on purpose and
  * only where nothing better is available.
@@ -240,6 +243,10 @@ export async function configOf(input: {
     // Named only when a caller names it, so every run at the default keeps
     // the digest it had before a limit was part of it.
     ...(options?.largestFile === undefined ? [] : [`largest ${options.largestFile}`]),
+    // A base an `extends` reached that the listing does not name — `tspaths.json`,
+    // a package's config under `node_modules` — decides the aliases as much as
+    // a `tsconfig.json` does, so its contents are configuration too.
+    ...[...(aliases?.read ?? [])].map(([path, digest]) => `extends ${path} ${digest}`),
   ];
 
   return {
