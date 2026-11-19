@@ -75,7 +75,7 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
                     kind,
                     line: line_of(node),
                     signature: Some(head(node, source)),
-                    doc: docstring(node, source),
+                    doc: docstring(node),
                     reach: None,
                 });
             }
@@ -112,14 +112,14 @@ pub fn declarations(tree: &tree_sitter::Tree, source: &str) -> Vec<SourceSymbol>
 }
 
 /// The string a definition's body opens with, inside its quotes.
-fn docstring(node: Node, source: &str) -> Option<TextSpan> {
+fn docstring(node: Node) -> Option<TextSpan> {
     let first = named_children(node.child_by_field_name("body")?).into_iter().next()?;
     if first.kind() != "expression_statement" {
         return None;
     }
     let string = named_children(first).into_iter().next().filter(|part| part.kind() == "string")?;
     let content = named_children(string).into_iter().find(|part| part.kind() == "string_content")?;
-    Some(span_of(source, content.start_byte(), content.end_byte()))
+    Some(span_of(content.start_byte(), content.end_byte()))
 }
 
 #[derive(Default)]

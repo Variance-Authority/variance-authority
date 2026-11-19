@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 
 use tree_sitter::Node;
 
-use super::{line_of, named_children, text_of};
+use super::{line_of, text_of, RustKind};
 
 /// What a block of items can start a path with: the inline modules it sits
 /// inside, the modules it declares, and the names its `use` lines bind to a
@@ -78,21 +78,43 @@ fn folded(path: &[String], prefix: &[String]) -> Vec<String> {
 /// first. A `use`, a `mod`, an attribute and a visibility are read elsewhere
 /// or name no item.
 pub(super) fn qualified(node: Node, source: &str, scope: &Scope, found: &mut Vec<Named>) {
-    match node.kind() {
+    // One cursor, in pre-order: a `Vec` of children per node visited was most
+    // of what reading a file's paths cost.
+    let mut cursor = node.walk();
+    // Counted here: the cursor's own `depth` counts its stack on every call.
+    let mut depth = 0usize;
+    let mut descend = entered(node, source, scope, found);
+    loop {
+        if descend && cursor.goto_first_child() {
+            depth += 1;
+        } else {
+            while !cursor.goto_next_sibling() {
+                if depth == 0 || !cursor.goto_parent() {
+                    return;
+                }
+                depth -= 1;
+            }
+        }
+        let current = cursor.node();
+        descend = current.is_named() && entered(current, source, scope, found);
+    }
+}
+
+/// Whether the paths under `node` are still to read, after reading its own.
+fn entered(node: Node, source: &str, scope: &Scope, found: &mut Vec<Named>) -> bool {
+    match node.rust_kind() {
         "use_declaration" | "mod_item" | "attribute_item" | "inner_attribute_item" | "visibility_modifier"
-        | "macro_definition" | "extern_crate_declaration" => return,
-        "scoped_identifier" | "scoped_type_identifier" => {
-            if let Some(path) = simple(node, source) {
+        | "macro_definition" | "extern_crate_declaration" => false,
+        "scoped_identifier" | "scoped_type_identifier" => match simple(node, source) {
+            Some(path) => {
                 if let Some(full) = anchored(&path, scope) {
                     named(full, line_of(node), found);
                 }
-                return;
+                false
             }
-        }
-        _ => {}
-    }
-    for child in named_children(node) {
-        qualified(child, source, scope, found);
+            None => true,
+        },
+        _ => true,
     }
 }
 
@@ -114,11 +136,11 @@ fn named(full: Vec<String>, line: u32, found: &mut Vec<Named>) {
 /// nothing for one that carries generic arguments, a leading `::`, a
 /// qualified `<T as Trait>` or a macro variable, which name no module.
 fn simple(node: Node, source: &str) -> Option<Vec<String>> {
-    match node.kind() {
+    match node.rust_kind() {
         "scoped_identifier" | "scoped_type_identifier" => {
             let mut held = simple(node.child_by_field_name("path")?, source)?;
             let name = node.child_by_field_name("name")?;
-            if !matches!(name.kind(), "identifier" | "type_identifier" | "super" | "self") {
+            if !matches!(name.rust_kind(), "identifier" | "type_identifier" | "super" | "self") {
                 return None;
             }
             held.push(text_of(name, source).to_string());

@@ -1,6 +1,8 @@
 //! The tree-sitter grammars this build carries, and the parser one language gets.
 
-use tree_sitter::{Language, Parser, Tree};
+use std::sync::OnceLock;
+
+use tree_sitter::{Language, Node, Parser, Tree};
 
 /// Every language read through tree-sitter here.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -36,6 +38,25 @@ impl Grammar {
         }
     }
 
+    /// Every node kind this grammar names, by id, so a walk reads a node's
+    /// kind from the table: `Node::kind` measures the name's C string and
+    /// checks it is UTF-8 on every call, and a reader asks it of every node.
+    pub fn kinds(self) -> Kinds {
+        static KINDS: [OnceLock<Vec<String>>; 5] = [const { OnceLock::new() }; 5];
+        Kinds(KINDS[self as usize].get_or_init(|| {
+            let language = self.language();
+            (0..language.node_kind_count())
+                .map(|id| u16::try_from(id).ok().and_then(|id| language.node_kind_for_id(id)).unwrap_or_default().to_string())
+                .collect()
+        }))
+    }
+
+    /// Whether each node kind, by id, is one of [`Grammar::comments`].
+    pub fn comment_kinds(self) -> &'static [bool] {
+        static COMMENTS: [OnceLock<Vec<bool>>; 5] = [const { OnceLock::new() }; 5];
+        COMMENTS[self as usize].get_or_init(|| self.kinds().0.iter().map(|kind| self.comments().contains(&kind.as_str())).collect())
+    }
+
     fn language(self) -> Language {
         match self {
             Self::Python => tree_sitter_python::LANGUAGE.into(),
@@ -43,6 +64,21 @@ impl Grammar {
             Self::Java => tree_sitter_java::LANGUAGE.into(),
             Self::Kotlin => tree_sitter_kotlin_ng::LANGUAGE.into(),
             Self::Swift => tree_sitter_swift::LANGUAGE.into(),
+        }
+    }
+}
+
+/// A grammar's node kinds by id, from [`Grammar::kinds`].
+#[derive(Clone, Copy)]
+pub struct Kinds(&'static [String]);
+
+impl Kinds {
+    /// The kind of `node`, as `Node::kind` names it. An id past the table is
+    /// one the parser makes rather than the grammar, such as `ERROR`.
+    pub fn of<'tree>(self, node: Node<'tree>) -> &'tree str {
+        match self.0.get(usize::from(node.kind_id())) {
+            Some(kind) => kind,
+            None => node.kind(),
         }
     }
 }
