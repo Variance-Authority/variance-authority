@@ -127,7 +127,7 @@ export interface SourceUpdateOptions {
   readonly dirs?: readonly string[];
   /**
    * Asked only when the index is another release's: places at `into` one CI
-   * published for an ancestor of the checkout, and says whose it is. The update
+   * published, such as the mainline's, and says whose it is. The update
    * asks it as it starts, lists the checkout meanwhile, and offers the addon what
    * it placed to start from; the addon writes the index, and `into` is removed.
    */

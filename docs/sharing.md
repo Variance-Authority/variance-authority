@@ -772,9 +772,9 @@ every checkout those minutes:
 
 - **A mainline's publish adds the index CI built** as one more entry beside the
   record, at the same commit.
-- **A checkout whose index a release in another format wrote fetches it** while
-  it fetches the mainline's record, and the record does not wait for it. The
-  next update reads only the files that differ from CI's index. An index in
+- **An update over an index a release in another format wrote fetches it** as
+  it starts, while it lists the checkout; the mainline's record never waits for
+  it. The update reads only the files that differ from CI's index. An index in
   this release's format is never replaced.
 - **The index is large.** On Firefox, about 200,000 files, it is about 2 GB, or
   0.7 GB compressed. A publish uploads only the segments the line does not

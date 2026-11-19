@@ -22,14 +22,16 @@ import { publishSuite } from './suite-share.js';
  * repository opted in to carrying CI's index beside the mainline's record.
  */
 
-const hang = vi.hoisted(() => ({ index: false }));
+const asked = vi.hoisted(() => ({ names: [] as string[] }));
 vi.mock('./mainline-entry.js', async (actual) => {
   const real = await actual<typeof import('./mainline-entry.js')>();
   return {
     ...real,
-    // A share that never answers for the index, and answers for everything else.
-    mainlineEntry: (...args: Parameters<typeof real.mainlineEntry>) =>
-      hang.index && String(args[1]).startsWith('source-index-') ? new Promise(() => undefined) : real.mainlineEntry(...args),
+    // The share as it is, with every entry it is asked for written down.
+    mainlineEntry: (...args: Parameters<typeof real.mainlineEntry>) => {
+      asked.names.push(String(args[1]));
+      return real.mainlineEntry(...args);
+    },
   };
 });
 
@@ -39,7 +41,7 @@ const OLDER = SOURCE_INDEX_VERSION - 1;
 
 beforeEach(async () => {
   home = await mkdtemp(join(tmpdir(), 'variance-source-index-share-'));
-  hang.index = false;
+  asked.names = [];
 });
 
 afterEach(async () => {
@@ -172,9 +174,11 @@ describe('`variance index` over an index another release wrote', () => {
       delete config.share.sourceIndex;
       await writeFile(join(at, 'variance.config.json'), JSON.stringify(config));
     });
+    asked.names = [];
 
     const out = await indexOutput({ cwd: clone });
 
+    expect(asked.names.filter((name) => name.startsWith('source-index-'))).toEqual([]);
     const path = sourceIndexPath(clone);
     const files = Object.keys(SOURCES).length;
     expect(out.split('\n')[0]).toBe(
@@ -183,14 +187,15 @@ describe('`variance index` over an index another release wrote', () => {
     expect(await sourceIndexChain(`${path}.fetched`)).toBeUndefined();
   });
 
-  it('reads the mainline record without waiting on the index it fetches beside it', async () => {
+  it('reads the mainline record without asking the share for the index, which only an update fetches', async () => {
     const { origin, first } = await mainlinePublished(true);
     const clone = await laptopOnOlderRelease(origin);
-    hang.index = true;
+    asked.names = [];
 
     const base = await suiteBase(clone, { env: {} });
 
     expect(base).toMatchObject({ mainline: { mainline: 'main', commit: first } });
+    expect(asked.names.filter((name) => name.startsWith('source-index-'))).toEqual([]);
     expect(await sourceIndexWrittenIn(sourceIndexPath(clone))).toBe(OLDER);
   });
 });
