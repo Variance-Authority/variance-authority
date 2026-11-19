@@ -329,7 +329,7 @@ function unknownAmong(relations: Relations, among: Iterable<string>): readonly s
   return found.sort();
 }
 
-/** What a scan needs to be told, beyond where the repository is. */
+/** What reading the tree needs to be told, beyond where the repository is. */
 export interface TreeOptions {
   /** The repository root. Every coordinate comes back relative to it. */
   readonly root: string;
@@ -340,15 +340,16 @@ export interface TreeOptions {
    */
   readonly dirs?: readonly string[];
   /**
-   * The persistent scan index, when the caller keeps one.
+   * The source index, when the caller keeps one somewhere other than the
+   * checkout's own.
    *
-   * The same file a run's own scan uses, so a reader asking a question after a
-   * run pays a map lookup per unchanged file rather than a parse.
+   * It is updated before it is read, so a question asked after a one-file edit
+   * re-reads that file and holds every other record as it was.
    */
   readonly index?: string;
   /**
-   * Receives every file's names, read off the parses that drew the tree, once
-   * the scan is done. Asked for only by a question that names a name: holding
+   * Receives every file's names, read off the parses the index holds, once
+   * the tree is read. Asked for only by a question that names a name: holding
    * them costs a map the size of the tree, which a question about paths would
    * pay for nothing.
    */
@@ -376,27 +377,28 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
     );
   }
 
-  const source = options.index === undefined ? undefined : await scanner.openSourceIndex(options.index);
-  const names = options.names === undefined ? undefined : new Map<string, FileNames>();
-  const records = await scanner.scanRelations({
-    root: options.root,
-    dirs: options.dirs ?? ['.'],
-    ...(source === undefined ? {} : { cache: source.cache, reuse: source.reuse }),
-    ...(names === undefined ? {} : {
+  // The addon brings the index up to date over what git says moved; the tree
+  // and the names are read off what it wrote, so no file is read on this side.
+  const updated = await scanner.updateSourceIndex(
+    options.root,
+    options.index === undefined ? {} : { index: options.index },
+  );
+  if (updated.refused !== undefined) throw new Error(updated.refused);
+  const read = await scanner.readPublishedSources(updated.path);
+  const records = options.dirs === undefined ? read.records : scanner.sourcesWithin(read.records, options.root, options.dirs);
+  let names: Map<string, FileNames> | undefined;
+  if (options.names !== undefined) {
+    names = new Map();
+    for (const record of records) {
+      const held = read.indexed(record.file);
       // A parse that holds no declarations is left out of the names, which
       // counts its file as unread rather than declaring nothing.
-      indexed: (file, parsed, targets) => {
-        if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
-      },
-    }),
-  });
+      if (held?.parsed?.harvested === true) names.set(record.file, namesOf(held.parsed, held.targets));
+    }
+  }
   // The graph every reader of the checkout walks, with the mocks read off
   // what the parse recorded, so it is the graph `variance covering --since` cuts by.
-  const relations = await scanner.runGraphOf(records, {
-    root: options.root,
-    ...(source === undefined ? {} : { cache: source.cache }),
-  });
-  await source?.save();
+  const relations = await scanner.runGraphOf(records, { root: options.root, cache: read.cache });
   if (names !== undefined) options.names?.(names);
 
   return treeFromRelations(relations, options.root);

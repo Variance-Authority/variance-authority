@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 import { nativeAvailable, nativeRefusal, refusal } from './addon.js';
 import { seedPaths } from './files.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 import { gitDigests, gitTreeOf, treeOf, type Tree } from './tree.js';
 
 /**

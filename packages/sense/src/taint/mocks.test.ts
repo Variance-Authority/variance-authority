@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { parseSync } from 'oxc-parser';
 import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { readModule } from '../read.js';
-import { scanRelations } from '../scan.js';
+import { scanRelations } from '../test-support/scan.js';
 import { taintRecords, type Node } from './index.js';
 import { mockDiff, mockTaint } from './mocks.js';
 

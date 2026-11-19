@@ -41,54 +41,14 @@ From the repository root:
 yarn workspace @variance-authority/example-selection-reuse demo
 ```
 
-It prints, in full:
+It prints the selected subjects, elapsed times for all three updates, and the
+native updater's work counters. The warm update reports 304 files, zero files
+reread and zero files parsed. After the token edit, one file is reread. All
+three updates select `story:catalog` and skip `story:account`.
 
-```text
-CACHED SOURCE SELECTION — one changed token
-  changed:  src/tokens.css
-  collect:  story:catalog (reaches Button)
-  skip:     story:account (does not reach Badge)
-
-  cold scan:       56.7 ms
-  warm scan:       24.5 ms
-  after token edit: 33.5 ms
-  speedup:         2.3×
-  warm reuse:      304 records reused, 0 rebuilt
-  selection agrees: yes
-```
-
-Those milliseconds are 304 files on an Apple M4 Max under Node 26.7; yours will
-differ, and the ratio changes less than the absolute numbers do. A second run
-here gave 64.8 ms cold and 28.8 ms warm — the same 2.3×.
-
-Three hundred files is a demo, not a repository. At real scale,
-`packages/sense/scripts/source-index.mjs` runs the same scan, and the table
-below is that script on two public checkouts:
-[Material UI](https://github.com/mui/material-ui) at `8f19b1009b`, scanning
-`packages` and `docs/src`, and [Kibana](https://github.com/elastic/kibana) at
-`df0daaddcc`, a monorepo of 1,488 packages, scanning `src`, `x-pack` and
-`packages`. Both ran on the same Apple M4 Max as the demo, and each time is the
-median of three runs. The pages under `docs/` quote the same Kibana runs and
-time Material UI in runs of their own, which differ from these by up to 15% on a
-cold scan and 6% on a warm run.
-
-| Checkout | Tracked paths | Records | Index on disk | Cold | Warm, nothing changed | Speedup |
-| --- | --- | --- | --- | --- | --- | --- |
-| Material UI | 41,171 | 25,117 | 11.0 MB | 671 ms | 283 ms | 2.4× |
-| Kibana | 125,804 | 106,219 | 81.5 MB | 6,344 ms | 2,117 ms | 3.0× |
-
-The larger repository changes where a warm run spends its time. On Material UI
-the warm run splits about evenly between opening the index and scanning the
-working tree, 137 ms and 146 ms. On Kibana, opening the 81.5 MB index takes
-1,275 ms and the scan 841 ms, each the median of its own three timings.
-[What a source scan costs](../../docs/performance.md) prices each part of the
-scan on both checkouts.
-
-The line to read is `304 records reused, 0 rebuilt`: the warm scan rebuilt
-nothing and still gave the same two-subject answer as the cold one. After the
-token edit it rebuilds only what the edit invalidated and answers the same way
-again. The warm run on Kibana prints the same line at its own scale:
-`106219 records reused, 0 rebuilt`.
+Reading the source bytes, parsing them and persisting the records happen in
+Rust. JavaScript reads the published records back and asks the
+affected-components question of them.
 
 ## Scope
 
@@ -105,9 +65,9 @@ scan are in [the source index](../../docs/source-index.md).
 ## The files
 
 - `package.json` — one script, `demo`.
-- `scripts/demo.mjs` — runs the demo and prints the block above.
-- `src/demo.js` — builds the fixture checkout, scans it three times, and counts
-  reused against rebuilt records.
+- `scripts/demo.mjs` — runs the demo and prints the selection, timings and work counters.
+- `src/demo.js` — builds the fixture checkout, updates the native index three times, and reports
+  files reread and parsed.
 - `src/demo.test.ts` — asserts the three scans agree and that the warm scan
-  rebuilds nothing. Run it from the repository root with
+  reads and parses nothing. Run it from the repository root with
   `yarn vitest run examples/selection-reuse/src/demo.test.ts`.

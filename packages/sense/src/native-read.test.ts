@@ -11,7 +11,7 @@ import { nativeFrontier, nativeGraph } from './native.js';
 import { native, nativeAvailable } from './addon.js';
 import { MODULE_EXTENSIONS } from './read.js';
 import { resolveTo, resolversFor } from './resolve.js';
-import { LARGEST_FILE } from './scan.js';
+import { LARGEST_FILE } from './record.js';
 import { openSourceIndexFile, readSourceIndex } from './source-index-file.js';
 import { requestOf } from './specifier.js';
 
@@ -100,7 +100,7 @@ describe('the native scanner over this repository', () => {
     const directory = await mkdtemp(join(tmpdir(), 'variance-native-index-'));
     const file = join(directory, 'source-index.bin');
     const record: FileRecord = {
-      file: 'packages/sense/src/scan.ts',
+      file: 'packages/sense/src/test-support/scan.ts',
       digest: 'git:4444444444444444444444444444444444444444' as Digest,
       edges: [{ to: 'packages/sense/src/native.ts', kind: 'imports' }],
     };

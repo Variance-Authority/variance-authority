@@ -13,7 +13,7 @@ import {
   updateSourceIndex,
   SourceIndexUnpublished,
 } from './published.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 import { sourceIndexPath } from './source-index.js';
 import { SOURCE_INDEX_VERSION } from './source-index-format.js';
 

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { readModule } from './read.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * Two halves, and only one of them fails loudly.

@@ -34,11 +34,11 @@
 import { resolve } from 'node:path';
 import { encodeSourceTree, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import {
-  openSourceIndex,
   placesOf,
-  scanRelations,
+  readSourceRecords,
   sourceIndexPath,
   stepped,
+  updateSourceIndex,
   type Progress,
 } from '@variance-authority/sense';
 import { mockTaint, taintRecords, type Taint } from '@variance-authority/sense/taint';
@@ -144,8 +144,9 @@ export interface IndexedUsageOptions {
   /** Read each file's bytes from Git's object store, as `variance index --no-git` turns off. On when absent. */
   readonly packs?: boolean;
   /**
-   * Authoritative changed file paths, relative to the scan root.
-   * Present skips Git status discovery; renames name both paths.
+   * Changed file paths, relative to the scan root: present, the reading is
+   * refreshed now whatever its age, and an empty list republishes it as it
+   * stands. The index finds what moved from git, so the list names no file.
    */
   readonly changed?: readonly string[];
   /**
@@ -230,16 +231,20 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
   const scope = scanScope(where, offerings);
   const own = options.index ?? sourceIndexPath(where);
   const at = scopeSourceIndexPath(own, scope.dirs);
-  const index = await openSourceIndex(at);
-  const records = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(scope.root, scope.dirs)}`, () => scanRelations({
-    root: scope.root,
+  // The addon brings the index up to date over what git says moved, and writes
+  // it: no file is read again on this side, and an edit costs the files it touched.
+  const update = await stepped(options.progress, `reading what each file imports and exports, under ${placesOf(scope.root, scope.dirs)}`, () => updateSourceIndex(scope.root, {
+    index: at,
     dirs: scope.dirs,
-    cache: index.cache,
-    reuse: index.reuse,
-    ...(options.changed === undefined ? {} : { changed: options.changed }),
     ...(options.packs === undefined ? {} : { packs: options.packs }),
   }));
-  const given = await taintRecords(records, options.taints ?? [], { root: scope.root, cache: index.cache });
+  // A tool reads lines out of the index on disk, so the value is read off the index this update wrote, or not at all.
+  if (update.refused !== undefined) throw new UnsavedRead(update.refused);
+  // The records are read back only for a caller that takes them or joins taints
+  // the index never holds; the published tree is otherwise the addon's own.
+  const wanted = options.taints !== undefined || options.records !== undefined;
+  const records = wanted ? await readSourceRecords(at) : [];
+  const given = await taintRecords(records, options.taints ?? [], { root: scope.root });
   if (given.shadows.size > 0) {
     throw new Error(
       `Help source areas cannot apply subtractive taints: ${given.shadows.size} file(s) shadow a module. ` +
@@ -250,12 +255,9 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
   // addon draws it off the saved index; only a caller's taints, which the index
   // never holds, keep the published tree on this side, and then this side joins
   // the mocks the same way. A mock's cut is one test's run and stays out of either.
-  const tainted = options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root, cache: index.cache });
-  options.records?.(tainted.records, scope.root);
+  const tainted = options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root });
+  if (wanted) options.records?.(tainted.records, scope.root);
 
-  // A tool reads lines out of the index on disk, so the value is read off the index this scan saved, or not at all.
-  const refused = await stepped(options.progress, 'saving the source index', () => index.save());
-  if (refused !== undefined) throw new UnsavedRead(refused);
   const published = await publishHelp({
     workspace: where,
     root: scope.root,

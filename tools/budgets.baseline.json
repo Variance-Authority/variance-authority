@@ -2320,17 +2320,11 @@
   "packages/sense/scripts/native.mjs overview": [
     24
   ],
-  "packages/sense/scripts/overhead.mjs overview": [
-    28
-  ],
   "packages/sense/scripts/probe-write.mjs overview": [
     23
   ],
   "packages/sense/scripts/published-index.mjs overview": [
-    20
-  ],
-  "packages/sense/scripts/reach-probe.mjs overview": [
-    20
+    18
   ],
   "packages/sense/scripts/read-width.mjs overview": [
     27
@@ -2359,9 +2353,6 @@
   ],
   "packages/sense/scripts/snapshot-scale.mjs overview": [
     28
-  ],
-  "packages/sense/scripts/source-index.mjs block": [
-    11
   ],
   "packages/sense/scripts/source-index.mjs overview": [
     22
@@ -2495,18 +2486,6 @@
   ],
   "packages/sense/src/restrictions-transitive.ts overview": [
     17
-  ],
-  "packages/sense/src/scan.ts block": [
-    8
-  ],
-  "packages/sense/src/scan.ts docblock": [
-    13,
-    12,
-    11,
-    11
-  ],
-  "packages/sense/src/scan.ts overview": [
-    34
   ],
   "packages/sense/src/sense.test.ts block": [
     6,

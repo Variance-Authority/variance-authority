@@ -8,7 +8,7 @@
 
 import { rm } from 'node:fs/promises';
 import { relationsOfFiles } from '@variance-authority/core/relate';
-import { scanRelations } from '../../scan.js';
+import { scanRelations } from '../../test-support/scan.js';
 import { layeredFiles, repositoryLayers } from '../cache-layers.js';
 import { changedLines } from '../diff-lines.js';
 import { keptDigests, keptTexts, narrowByExecution } from '../index.js';

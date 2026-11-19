@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { beforeReach, changedBefore, relationsOfFiles, type Relations } from '@variance-authority/core/relate';
-import { scanRelations } from '@variance-authority/sense';
+import { readPublishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
 import { beforeOf } from '@variance-authority/sense/test-selection';
 import { AGENTS, ROOT, inputsOf } from './page-agents.mjs';
 
@@ -18,7 +18,7 @@ import { AGENTS, ROOT, inputsOf } from './page-agents.mjs';
  *
  * The list each bundle is held to is esbuild's, asked with the options the
  * build uses (`tools/page-agents.mjs`), so a bundle that gains an input the walk
- * does not reach — a file it reads through a plugin, a path the scan cannot
+ * does not reach — a file it reads through a plugin, a path the index cannot
  * resolve — fails here rather than in a run that skipped the suite.
  */
 describe('the page-agent bundles rest under the chromium suite', () => {
@@ -28,7 +28,9 @@ describe('the page-agent bundles rest under the chromium suite', () => {
 
   beforeAll(async () => {
     bundles = await Promise.all(AGENTS.map(inputsOf));
-    relations = relationsOfFiles(await scanRelations({ root: ROOT, dirs: ['packages'] }));
+    const update = await updateSourceIndex(ROOT);
+    if (update.refused !== undefined) throw new Error(update.refused);
+    relations = relationsOfFiles(sourcesWithin((await readPublishedSources(update.path)).records, ROOT, ['packages']));
   });
 
   it('declares the entry of every bundle the build writes', () => {

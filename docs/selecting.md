@@ -1007,8 +1007,7 @@ nothing else.
 There is one bounded exception to that invalidation rule. Git-ignored generated
 files are not in the digest map, so one can appear or disappear and shadow a
 resolution without changing the recorded directory membership. Track the file
-when it participates in source resolution, or set `digests: false` to disable
-record reuse for a scan that must observe that generated layout directly.
+when it participates in source resolution.
 
 That is the scan, which reasons about the source. What the *record* costs is a
 separate arithmetic — how large the snapshot is at two hundred thousand modules,

@@ -35,8 +35,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { parseSync, rawTransferSupported } from 'oxc-parser';
-import { scanRelations } from '../dist/scan.js';
-import { openSourceIndex } from '../dist/source-index.js';
+import { updateSourceIndex } from '../dist/published.js';
 import { readSourceIndex } from '../dist/source-index-file.js';
 
 const run = promisify(execFile);
@@ -136,42 +135,14 @@ const held = () => {
  * merely walked again.
  */
 async function scan(label) {
-  const [opening, session] = await took(() => openSourceIndex(index));
-  const counted = { reused: 0, rebuilt: 0, parsed: 0 };
-  // Counted on the session's own objects, in place, because the parse cache is
-  // a WeakMap key. `adoptNativeParses` registers the native parse generation
-  // against the object the scan was handed, and `save` looks it up against the
-  // one the session closed over. An `Object.create` delegate answers every call
-  // correctly and is a different key, so the generation was registered against
-  // the wrapper and never published: this script reported a 4.9 MB index for a
-  // repository whose index is 10.5 MB, and nothing failed to make it say so. A
-  // delegate is not the object, and a wrapper is only safe where identity is
-  // not the interface.
-  //
-  // Only the rare doors are counted. A counter on `get` sits on the hottest path
-  // there is and reads 130 ms onto the row it is there to explain.
-  const { cache, reuse } = session;
-  const store = cache.set.bind(cache);
-  cache.set = (key, parsed) => {
-    counted.parsed += 1;
-    store(key, parsed);
-  };
-  const indexed = reuse.getIndexed.bind(reuse);
-  reuse.getIndexed = (file, digest) => {
-    const record = indexed(file, digest);
-    counted[record === undefined ? 'rebuilt' : 'reused'] += 1;
-
-    return record;
-  };
-  const [scanning, records] = await took(() => scanRelations({ root: REPO, dirs: DIRS, cache, reuse }));
-  const [saving] = await took(() => session.save());
+  const [elapsed, update] = await took(() => updateSourceIndex(REPO, { index, dirs: DIRS }));
+  if (update.refused !== undefined) throw new Error(update.refused);
   console.log(
-    `  ${label.padEnd(31)}${(opening + scanning + saving).toFixed(0).padStart(5)} ms` +
-      `   = open ${opening.toFixed(0)} + scan ${scanning.toFixed(0)} + publish ${saving.toFixed(0)}` +
-      `\n  ${' '.repeat(31)}      ${counted.reused} records reused, ${counted.rebuilt} rebuilt,` +
-      ` of which ${counted.parsed} opened the file`,
+    `  ${label.padEnd(31)}${elapsed.toFixed(0).padStart(5)} ms` +
+      `\n  ${' '.repeat(31)}      ${update.files - update.reread} records reused, ${update.reread} rebuilt,` +
+      ` of which ${update.parsed} parsed their bytes`,
   );
-  return records.length;
+  return update.files;
 }
 
 console.log('\none whole run: open the index, scan, publish');

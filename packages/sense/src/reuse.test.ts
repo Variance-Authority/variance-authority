@@ -7,7 +7,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { memoryRecordCache, openRecordCache, treeShapeOf, type RecordCache, type TreeShape } from './reuse.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 import { directoriesOf } from './witness.js';
 
 /**

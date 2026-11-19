@@ -18,7 +18,7 @@ import { native, nativeRefusal } from './addon.js';
 import type { NativeGitTree } from './native.js';
 import { CODE_EXTENSIONS } from './language.js';
 import { BUILTINS } from './native-index-graph.js';
-import { LARGEST_FILE } from './scan.js';
+import { LARGEST_FILE } from './record.js';
 import { READABLE } from './language.js';
 import { stepped, type Progress } from './progress.js';
 import type { ResolveOptions } from './resolve.js';

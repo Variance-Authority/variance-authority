@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { afterAll, describe, expect, it } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import { memoryRecordCache, treeShapeOf, type RecordCache, type TreeShape } from './reuse.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * A `tsconfig` whose `paths` come from a base it `extends`: a file named
