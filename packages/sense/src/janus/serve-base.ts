@@ -26,15 +26,10 @@ export interface ServedRun {
 /**
  * Run `command` in `cwd` with `files` — the absolute path of a file the
  * checkout holds, to the base text it reads for this run — served in every
- * Node process it starts. Undefined when there is no such command. An empty
- * manifest runs the command as it is, with no preload.
+ * Node process it starts. Undefined when there is no such command.
  */
 export async function serveBase(files: Readonly<Record<string, string>>, command: readonly [string, ...string[]], cwd: string): Promise<ServedRun | undefined> {
   const [program, ...args] = command;
-  if (Object.keys(files).length === 0) {
-    const exit = await started(program, args, cwd);
-    return exit === undefined ? undefined : { exit, unread: [] };
-  }
   const scratch = await mkdtemp(join(tmpdir(), 'variance-janus-'));
   try {
     const manifest = join(scratch, 'manifest.json');

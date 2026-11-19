@@ -3349,7 +3349,6 @@
         "Seeded": "type",
         "SelectionCause": "interface",
         "SelectionReason": "type",
-        "ServedRun": "interface",
         "SessionFunction": "interface",
         "SessionMap": "interface",
         "SessionRead": "interface",

@@ -95,6 +95,14 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
     expect(exit).toBe(1);
   });
 
+  it('rolls back a file named through a symlink, at the path its runner reads', async () => {
+    symlinkSync(join(root, 'src'), join(root, 'linked'));
+    const exit = await janusOn(['linked/value.test.js'], process.execPath, 'run.mjs', out, 'src/value.test.js');
+    expect(readFileSync(out, 'utf8')).toMatch(/✖ value is one/);
+    expect(notes.join('')).toBe('');
+    expect(exit).toBe(1);
+  });
+
   it('fails a run that never read a file it was served, and names it', async () => {
     const exit = await janus(process.execPath, '-e', '');
     expect(exit).toBe(1);

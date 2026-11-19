@@ -15,7 +15,7 @@
  * fails and names it: a green that read the head's text is not the base's.
  */
 
-import { stat } from 'node:fs/promises';
+import { realpath, stat } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { serveBase } from '@variance-authority/sense/test-selection';
 import { OperatorError } from '../exit.js';
@@ -38,14 +38,14 @@ export async function runJanus({ since, files, run }: ParsedJanus, streams: Pick
   return exit === 0 ? 1 : exit;
 }
 
-/** Each file by absolute path, with its text at the merge base with `since`; refused when either side lacks it. */
+/** Each file by real path, the spelling git's top level and Node's resolver use, with its text at the merge base with `since`; refused when either side lacks it. */
 async function baseTexts(since: string, files: readonly string[], cwd: string): Promise<Record<string, string>> {
   const point = await diffPoint(since, [], cwd);
   if (point === undefined) throw new OperatorError(`\`--since ${since}\` could not be read at its merge base`);
   const texts: Record<string, string> = {};
   for (const file of files) {
-    const path = resolve(cwd, file);
-    const held = await stat(path).then((entry) => entry.isFile(), () => false);
+    const path = await realpath(resolve(cwd, file)).catch(() => undefined);
+    const held = path !== undefined && (await stat(path)).isFile();
     if (!held) throw new OperatorError(`\`${file}\` is not a file in the checkout: janus rolls back changes to files that exist`);
     const base = await point.at(relative(point.repository, path));
     if (base === undefined) throw new OperatorError(`\`${file}\` did not exist at \`${since}\`: janus rolls back changes to files that exist on both sides`);
