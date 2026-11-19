@@ -93,12 +93,9 @@ export function judgeRows(
       first32.push(words.subarray(at * width, (at + 1) * width));
     }
 
-    // The rows around a pixel, two each way, as each image has them: the after
-    // image's on the canvas, and the before image's around the row it came from,
-    // to the before image's own edge rather than the canvas's.
-    // Where two paired runs meet, the canvas sets before rows side by side that
-    // never were, and anti-aliasing read across that seam is a fact about
-    // neither image.
+    // The rows two each way around a pixel, read in the image the row came
+    // from and to that image's edge: across a seam of paired runs, the canvas
+    // sets before rows side by side that never were.
     const near = (y: number): Window => {
       const from = source === undefined ? y : source[y]!;
       const first: Window = { bytes: [], words: [] };
