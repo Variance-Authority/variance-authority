@@ -120,4 +120,37 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
     expect(report.testResults.flatMap((file) => file.assertionResults.map(({ title, status }) => `${status} ${title}`))).toEqual(['failed value is 1']);
     expect(exit).not.toBe(0);
   });
+
+  it('serves Jest when its crawler reads through Node', async () => {
+    const jest = dirname(createRequire(import.meta.url).resolve('jest/package.json'));
+    for (const file of ['value.test.js', 'gone.test.js', 'new.test.js']) rmSync(join(root, 'src', file), { force: true });
+    rmSync(join(root, 'run.mjs'));
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'jest');
+    git(root, 'tag', '-f', 'base');
+    writeFileSync(join(root, 'src', 'value.test.js'), "const { value } = require('./value');\ntest('value is one', () => expect(value).toBe(1));\n");
+    writeFileSync(join(root, 'src', 'gone.test.js'), "test('only the base has me', () => {});\n");
+    git(root, 'add', '-A');
+    git(root, 'commit', '-qm', 'base for jest');
+    git(root, 'tag', '-f', 'base');
+    rmSync(join(root, 'src', 'gone.test.js'));
+    writeFileSync(join(root, 'src', 'value.test.js'), "const { value } = require('./value');\ntest('value is two', () => expect(value).toBe(2));\n");
+    git(root, 'commit', '-qam', 'head for jest');
+    // Jest's default crawler lists files with `find`, below `fs`; a base-only test is then never found.
+    const config = JSON.stringify({ rootDir: root, haste: { forceNodeFilesystemAPI: true } });
+    const exit = await janus(process.execPath, join(jest, 'bin', 'jest.js'), `--config=${config}`, '--no-watchman', '--no-cache', '--ci', '--json', `--outputFile=${out}`);
+    const report = JSON.parse(readFileSync(out, 'utf8')) as { testResults: { assertionResults: { title: string; status: string }[] }[] };
+    expect(report.testResults.flatMap((file) => file.assertionResults.map(({ title, status }) => `${status} ${title}`)).sort()).toEqual(['failed value is one', 'passed only the base has me']);
+    expect(exit).not.toBe(0);
+  });
+
+  it('serves a test the change moved at the path the base had it', async () => {
+    git(root, 'mv', 'src/value.test.js', 'src/moved.test.js');
+    git(root, 'commit', '-qm', 'moved');
+    const exit = await janus(process.execPath, 'run.mjs', out, 'src/value.test.js', 'src/gone.test.js', 'src/moved.test.js');
+    const report = readFileSync(out, 'utf8');
+    expect(report).toMatch(/✖ value is one/);
+    expect(report).not.toContain('value is two');
+    expect(exit).toBe(1);
+  });
 });

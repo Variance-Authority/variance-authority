@@ -173,9 +173,13 @@ const NEW_AT_ONCE = 8;
  */
 const tops = new Map<string, Promise<string | undefined>>();
 
-/** Files a diff from `base` to the working tree names, one per record. */
+/**
+ * Files a diff from `base` to the working tree names, one per record. A moved
+ * file names both its paths: rename detection would list only the new one, and
+ * what read or ran the old path would never be asked about.
+ */
 async function changedFiles(run: Run, repository: string, base: string): Promise<readonly string[]> {
-  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '-z', base], {
+  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '--no-renames', '-z', base], {
     cwd: repository,
     maxBuffer: 32 * 1024 * 1024,
   });

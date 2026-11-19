@@ -2700,14 +2700,21 @@ base held it: a rewritten test reads its old text, a deleted one is found again,
 and one the change added is not there. Every other file is the checkout's. Nothing
 is written: no checkout, no copy and no worktree, so the run starts as fast as the
 command does. Two preloads in `NODE_OPTIONS` serve the files through `fs` and
-Node's module loader, in every process and worker the command starts.
+Node's module loader, in every Node process the command starts. A moved test is
+served at the path the base had it.
 
-The exit is the command's. A run that never read a file it was served did not run
-the base, so it fails and names the files: a runner reaching them below `fs` and
-the module loader, or a command that names fewer tests than the diff changed. The
-`node --test` CLI is one: its glob reads the disk before any preload runs, so a
-test only the base has is not found. Run it through `run({ files })` from
-`node:test` instead.
+The exit is the command's. A run in which no process read a file it was served
+cannot have run that file's base, so it fails and names the files: a runner
+reaching them below `fs` and the module loader, or a command that names fewer
+tests than the diff changed. Two runners do so by default:
+
+- The `node --test` CLI globs the disk before any preload runs, so a test only
+  the base has is not found. Run it through `run({ files })` from `node:test`.
+- Jest lists files with `find`. Set `haste.forceNodeFilesystemAPI` and pass
+  `--no-watchman`.
+
+A runner that caches transformed files by path and modification time can answer
+from the head's cache entry: run it with its cache off, as Jest's `--no-cache`.
 
 A failure is a test the change broke or a test the change was right to rewrite;
 the run does not tell them apart.

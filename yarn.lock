@@ -5254,6 +5254,7 @@ __metadata:
     "@variance-authority/storybook": "workspace:^"
     "@variance-authority/vantage": "workspace:^"
     ci-info: "npm:^4.4.0"
+    jest: "npm:^30.5.2"
   bin:
     variance: ./dist/bin.js
   languageName: unknown
