@@ -1,23 +1,10 @@
 /**
- * Every policy's verdict on two images, in one scan.
- *
- * `pixelmatch` takes two equally sized images and writes a third, so a
- * comparison that aligned its rows had to copy the before image into the after
- * image's rows first, and a comparison under two policies ran it twice, each
- * time into a full RGBA buffer whose alpha channel was the only thing read
- * back. This is the same arithmetic — `pixelmatch` 7's colour delta, its
- * anti-aliasing detector and its drawing, line for line — over a table of rows
- * instead of a copy, judging each differing pixel once for every policy.
- *
- * Parity with `pixelmatch` is the contract, not an approximation of it: the
- * verdict is the product, and a verdict that moved with the kernel would be a
- * difference this package invented. `judge.test.ts` holds the two to the same
- * counts and the same pixels. The one departure is a seam, where two paired
- * runs meet: the copy set before rows side by side that never were, and its
- * anti-aliasing test read across them, so a pixel was forgiven or counted on
- * neighbours it never had. Here a before pixel's neighbours are the rows
- * around the one it came from, and so they are at a strip's edge, where the
- * column beside it was paired with another before row.
+ * Every policy's verdict on two images, in one scan: `pixelmatch` 7's colour
+ * delta, anti-aliasing detector and drawing, line for line, over a table of
+ * rows rather than a copy of the before image in the after image's order.
+ * Parity with `pixelmatch` is the contract, held by `judge.test.ts`; the one
+ * departure is a seam, where a before pixel's anti-aliasing is read from the
+ * rows around the one it came from, not the rows the alignment set beside it.
  */
 
 import type { DiffPolicy } from '@variance-authority/raster';
@@ -255,27 +242,10 @@ function manySiblings(rows: readonly (Uint32Array | undefined)[], x1: number, y1
  * `pixelmatch`'s checkerboard is read, whichever row the first pixel came from.
  */
 function colorDelta(first: Uint8Array, second: Uint8Array, at: number, pos: number): number {
-  const r1 = first[at]!;
-  const g1 = first[at + 1]!;
-  const b1 = first[at + 2]!;
-  const a1 = first[at + 3]!;
-  const r2 = second[at]!;
-  const g2 = second[at + 1]!;
-  const b2 = second[at + 2]!;
-  const a2 = second[at + 3]!;
-
-  let dr = r1 - r2;
-  let dg = g1 - g2;
-  let db = b1 - b2;
-  const da = a1 - a2;
-
-  if (a1 < 255 || a2 < 255) {
-    const [rb, gb, bb] = checkerboard(pos);
-    dr = (r1 * a1 - r2 * a2 - rb * da) / 255;
-    dg = (g1 * a1 - g2 * a2 - gb * da) / 255;
-    db = (b1 * a1 - b2 * a2 - bb * da) / 255;
-  }
-
+  rgbDelta(first[at]!, first[at + 1]!, first[at + 2]!, first[at + 3]!, second, at, pos);
+  const dr = DELTA[0]!;
+  const dg = DELTA[1]!;
+  const db = DELTA[2]!;
   const y = dr * 0.29889531 + dg * 0.58662247 + db * 0.11448223;
   const i = dr * 0.59597799 - dg * 0.2741761 - db * 0.32180189;
   const q = dr * 0.21147017 - dg * 0.52261711 + db * 0.31114694;
@@ -292,24 +262,31 @@ function brightnessDelta(
   b1: number,
   a1: number,
 ): number {
+  if (r1 === row[at] && g1 === row[at + 1] && b1 === row[at + 2] && a1 === row[at + 3]) return 0;
+  rgbDelta(r1, g1, b1, a1, row, at, pos);
+  return DELTA[0]! * 0.29889531 + DELTA[1]! * 0.58662247 + DELTA[2]! * 0.11448223;
+}
+
+/** The channel differences {@link rgbDelta} writes, reused so a pixel allocates nothing. */
+const DELTA = new Float64Array(3);
+
+/** One pixel's difference from another's, blended onto the checkerboard where either is translucent. */
+function rgbDelta(r1: number, g1: number, b1: number, a1: number, row: Uint8Array, at: number, pos: number): void {
   const r2 = row[at]!;
   const g2 = row[at + 1]!;
   const b2 = row[at + 2]!;
   const a2 = row[at + 3]!;
-
-  let dr = r1 - r2;
-  let dg = g1 - g2;
-  let db = b1 - b2;
-  const da = a1 - a2;
-  if (!dr && !dg && !db && !da) return 0;
-
   if (a1 < 255 || a2 < 255) {
+    const da = a1 - a2;
     const [rb, gb, bb] = checkerboard(pos);
-    dr = (r1 * a1 - r2 * a2 - rb * da) / 255;
-    dg = (g1 * a1 - g2 * a2 - gb * da) / 255;
-    db = (b1 * a1 - b2 * a2 - bb * da) / 255;
+    DELTA[0] = (r1 * a1 - r2 * a2 - rb * da) / 255;
+    DELTA[1] = (g1 * a1 - g2 * a2 - gb * da) / 255;
+    DELTA[2] = (b1 * a1 - b2 * a2 - bb * da) / 255;
+  } else {
+    DELTA[0] = r1 - r2;
+    DELTA[1] = g1 - g2;
+    DELTA[2] = b1 - b2;
   }
-  return dr * 0.29889531 + dg * 0.58662247 + db * 0.11448223;
 }
 
 /** The background `pixelmatch` blends a translucent pixel onto, by offset. */

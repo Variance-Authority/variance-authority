@@ -4,28 +4,12 @@ import type { PairedRows } from './align.js';
 /**
  * The rows content pushed down by a height that is not whole rows straddles.
  *
- * A banner 23.5 rows tall moves what follows by 23.5 rows, and no row of the
- * after image is a row of the before image moved. A browser snaps each line of
- * text to a whole row, so lines pair exactly, some 23 rows down and some 24.
- * An edge, a gradient or a shadow it draws across the two rows its half-row
- * position covers, so those rows match no row, and the shortest edit leaves
- * them inserted and removed, one shift per line between them.
- *
- * Between two exactly paired rows whose moves are the same or one row apart is
- * a stretch, read as a move by `low` rows and a fraction: each row of one image
- * against the two rows of the other it would fall across. Drawing an edge a
- * fraction of a row off spreads it over both, so where every row of one image
- * lies between its two, one of them blending them, and every row of the other
- * is one of them or lies between its own two in turn, the stretch is that move:
- * each after row is paired with the closer of its two, and no before row in it
- * was removed. A row of new content lies between no two rows, a removed one is
- * neither, and a line with a pixel rewritten blends nothing, so each is left as
- * the edit made it.
- *
- * A stretch whose rows are all copies of a neighbour — a gap a row taller or
- * shorter — reads the same as a run that grew or shrank, so it joins the move
- * only beside a stretch that blends rows by the same `low`. Shifts the move
- * joins are one, at the distance most of their rows moved.
+ * A banner 23.5 rows tall moves text by 23 or 24 rows and draws an edge across
+ * the two rows it half covers, which then match no row. Between two exactly
+ * paired rows whose moves are `low` and `low + 1`, a stretch whose rows each
+ * lie between their two counterparts is that move: each after row is paired
+ * with the closer one. A stretch of copies, a gap a row taller, joins only
+ * beside a blending stretch of the same `low`.
  */
 export function straddled(
   rows: PairedRows,

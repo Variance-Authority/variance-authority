@@ -6,7 +6,7 @@ import {
   type RasterComparison,
   type RowSpan,
 } from '@variance-authority/raster';
-import type { CompareInputs } from './observe.js';
+import type { CompareInputs } from './observation.js';
 
 /**
  * The clauses a verdict's reason is built from.

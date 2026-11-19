@@ -15,7 +15,7 @@ import { attributionOf } from './attribution.js';
 import { count, describeChange, forgiveness, reshaped, unjoined, unrecorded, type BeforeSide } from './because.js';
 import { unpackSnapshot } from './packed.js';
 import { frameDiagnostics } from './frame.js';
-import type { CompareInputs, IgnoredPixels, Observation } from './observe.js';
+import type { CompareInputs, IgnoredPixels, Observation } from './observation.js';
 
 /**
  * Two rasters become a verdict.

@@ -1,6 +1,5 @@
-import { PNG } from 'pngjs';
 import { describe, expect, it, vi } from 'vitest';
-import { pngjsDecoder, type ComparedPixels } from '@variance-authority/png';
+import { decodePortable, pngjsDecoder, type ComparedPixels } from '@variance-authority/png';
 import { keepImage } from '@variance-authority/png-sharp';
 import type { RenderDocument } from '@variance-authority/core/format';
 import type { Found, RasterStore } from '@variance-authority/raster';
@@ -182,12 +181,12 @@ describe('which verdicts get a pair', () => {
 
 describe('the pixels the comparison already decoded', () => {
   it('draws the diff from them, decoding neither side again', async () => {
-    const decode = vi.spyOn(pngjsDecoder, 'decode');
     const compared: ComparedPixels = {
-      before: PNG.sync.read(Buffer.from(BLACK, 'base64')),
-      after: PNG.sync.read(Buffer.from(WHITE, 'base64')),
+      before: await decodePortable(Buffer.from(BLACK, 'base64')),
+      after: await decodePortable(Buffer.from(WHITE, 'base64')),
       aligned: null,
     };
+    const decode = vi.spyOn(pngjsDecoder, 'decode');
     try {
       const { written } = await writtenFor('changed', { compared });
       expect(written).toContain('/repo/out/images/fixture%3Aa.diff.png');

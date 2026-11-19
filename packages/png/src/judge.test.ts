@@ -55,12 +55,8 @@ describe('a byte view that cannot hold words', () => {
 
 describe('a row on a seam', () => {
   it('is judged for anti-aliasing against its own before neighbours, not the rows the alignment set beside it', () => {
-    // Rows 5 to 8 are drawn twice in the after image, so the alignment pairs
-    // rows 0 to 4 with themselves and leaves the copies unpaired. Above the
-    // seam every row's after neighbours are the after image's own, and its
-    // before neighbours should be the before image's own: the verdict there
-    // is the one the two images give unaligned. Flat greys at a few levels
-    // make pixels whose neighbourhood decides whether they are anti-aliasing.
+    // Rows 5 to 8 are drawn twice, so above the seam the verdict is the one
+    // the two images give unaligned; flat greys make anti-aliasing decide.
     const random = seeded(SEAM_SEED);
     const width = 12;
     const height = 12;

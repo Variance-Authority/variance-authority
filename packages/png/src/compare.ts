@@ -11,7 +11,8 @@ import {
 import { alignRows, type AlignedRows } from './align.js';
 import { changeImages } from './change.js';
 import { decodePortable } from './format.js';
-import { judgeImages, type DecodedImage } from './mask.js';
+import { judgeImages } from './images.js';
+import type { DecodedImage } from './mask.js';
 
 /**
  * Comparison — phase three: two images become a mask.

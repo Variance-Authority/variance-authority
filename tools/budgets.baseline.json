@@ -1674,9 +1674,6 @@
     7,
     6
   ],
-  "packages/observe/src/observe.ts block": [
-    7
-  ],
   "packages/observe/src/observe.ts docblock": [
     18
   ],
@@ -1902,11 +1899,6 @@
   "packages/png-sharp/src/index.ts docblock": [
     26
   ],
-  "packages/png/src/align.ts docblock": [
-    28,
-    15,
-    15
-  ],
   "packages/png/src/change.ts docblock": [
     19
   ],
@@ -1923,7 +1915,7 @@
     26
   ],
   "packages/png/src/mask.ts docblock": [
-    12
+    11
   ],
   "packages/presentation/src/analyze.ts docblock": [
     13
