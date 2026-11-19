@@ -58,25 +58,25 @@ pub(crate) fn read_file(file: &str, source: &str, allocator: &Allocator, symbols
     match language_of(file) {
         Some(Language::Style) => crate::style::read_style(source),
         Some(Language::Module) | None => read_module(file, source, allocator, symbols),
-        Some(language) => read_language(language, file, source),
+        Some(language) => read_language(language, source),
     }
 }
 
 /// A tree-sitter language's read: the reader's answer, or *unknown* without grammars.
 #[cfg(feature = "grammars")]
-fn read_language(language: Language, file: &str, source: &str) -> Read {
-    crate::languages::read(language.name(), file, source).map_or_else(|| without_grammars(language, file), from_shape)
+fn read_language(language: Language, source: &str) -> Read {
+    crate::languages::read(language.name(), source).map_or_else(|| without_grammars(language), from_shape)
 }
 
 #[cfg(not(feature = "grammars"))]
-fn read_language(language: Language, file: &str, _source: &str) -> Read {
-    without_grammars(language, file)
+fn read_language(language: Language, _source: &str) -> Read {
+    without_grammars(language)
 }
 
-fn without_grammars(language: Language, file: &str) -> Read {
+fn without_grammars(language: Language) -> Read {
     let name = language.name();
     Read {
-        unknown: Some(format!("{file} is {name}, and the native addon on this machine was built without the tree-sitter grammars, so what it asks for is unknown.")),
+        unknown: Some(format!("the native addon on this machine was built without the tree-sitter grammars that read {name}, so what it asks for is unknown.")),
         ..Read::default()
     }
 }
@@ -135,6 +135,15 @@ fn from_shape(read: crate::languages::shape::Read) -> Read {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_read_without_grammars_names_the_language_and_no_file() {
+        let unknown = without_grammars(Language::Kotlin).unknown;
+        assert_eq!(
+            unknown.as_deref(),
+            Some("the native addon on this machine was built without the tree-sitter grammars that read kotlin, so what it asks for is unknown."),
+        );
+    }
 
     #[test]
     fn a_name_takes_the_language_of_its_last_extension() {

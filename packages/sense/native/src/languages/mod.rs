@@ -140,27 +140,30 @@ pub fn children_for_field<'tree>(node: Node<'tree>, field: &str) -> Vec<Node<'tr
     node.children_by_field_name(field, &mut cursor).collect()
 }
 
-/// Read one file in the language named, or nothing when no reader here claims it.
-pub fn read(language: &str, file: &str, source: &str) -> Option<Read> {
+/// Read one file's bytes in the language named, or nothing when no reader here
+/// claims it. It is not told the file's path: a read is stored by its bytes and
+/// shared by every file holding them, so what it says names none of them, and
+/// the record prefixes its own (`built` in `record.rs`).
+pub fn read(language: &str, source: &str) -> Option<Read> {
     let grammar = Grammar::of(language)?;
     let Some(tree) = grammar::parse(grammar, source) else {
         // Worded per language, because this string is the whole answer for a
         // file nothing could read.
         return Some(Read::unreadable(match grammar {
-            Grammar::Python => format!("{file} could not be parsed."),
-            Grammar::Rust => format!("{file} could not be parsed as Rust."),
-            Grammar::Swift => format!("{file} could not be parsed as Swift."),
-            Grammar::Java => format!("{file} could not be parsed as java."),
-            Grammar::Kotlin => format!("{file} could not be parsed as kotlin."),
-        }));
+            Grammar::Python => "could not be parsed.",
+            Grammar::Rust => "could not be parsed as Rust.",
+            Grammar::Swift => "could not be parsed as Swift.",
+            Grammar::Java => "could not be parsed as java.",
+            Grammar::Kotlin => "could not be parsed as kotlin.",
+        }.to_owned()));
     };
 
     let (read, symbols) = match grammar {
-        Grammar::Python => (python::read(file, source, &tree), python::declarations(&tree, source)),
-        Grammar::Rust => (rust::read(file, source, &tree), rust::declarations(&tree, source)),
-        Grammar::Swift => (swift::read(file, source, &tree), swift::declarations(&tree, source)),
-        Grammar::Java => (jvm::read(file, source, &tree, "java"), jvm::declarations(&tree, source)),
-        Grammar::Kotlin => (jvm::read(file, source, &tree, "kotlin"), jvm::declarations(&tree, source)),
+        Grammar::Python => (python::read(source, &tree), python::declarations(&tree, source)),
+        Grammar::Rust => (rust::read(source, &tree), rust::declarations(&tree, source)),
+        Grammar::Swift => (swift::read(source, &tree), swift::declarations(&tree, source)),
+        Grammar::Java => (jvm::read(source, &tree, "java"), jvm::declarations(&tree, source)),
+        Grammar::Kotlin => (jvm::read(source, &tree, "kotlin"), jvm::declarations(&tree, source)),
     };
     // FIXME: only Rust reads its own uses; Python, Swift and the JVM languages
     // answer `ask uses` with what other files import alone.

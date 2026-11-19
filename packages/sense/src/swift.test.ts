@@ -15,24 +15,24 @@ import type { Read } from './read.js';
 
 describe('what a Swift file asks for', () => {
   it('asks for the files beside it, which it imports nothing to see', () => {
-    expect(readSwift('Sources/Core/Lens.swift', 'struct Lens {}\n').requests[0]?.value).toBe('*');
+    expect(readSwift('struct Lens {}\n').requests[0]?.value).toBe('*');
   });
 
   it('takes the module from an import that names a symbol inside it', () => {
     // `import struct Answer.Lens` depends on `Answer`; there is no grain below.
-    const read = readSwift('a.swift', 'import Foundation\nimport struct Answer.Lens\n');
+    const read = readSwift('import Foundation\nimport struct Answer.Lens\n');
 
     expect(read.requests.map((request) => request.value)).toEqual(['*', 'Foundation', 'Answer']);
   });
 
   it('marks every import a guess, because a module name is not a path', () => {
-    const read = readSwift('a.swift', 'import Core\n');
+    const read = readSwift('import Core\n');
 
     expect(read.requests.every((request) => request.guessed === true)).toBe(true);
   });
 
   it('publishes the types, functions and values declared at the top level', () => {
-    const read = readSwift('a.swift', 'struct Lens {}\nprotocol Seen {}\nfunc read() {}\nlet version = 1\n');
+    const read = readSwift('struct Lens {}\nprotocol Seen {}\nfunc read() {}\nlet version = 1\n');
 
     expect((read.exports ?? []).map((entry) => entry.exported))
       .toEqual(['Lens', 'Seen', 'read', 'version']);
@@ -40,7 +40,6 @@ describe('what a Swift file asks for', () => {
 
   it('keeps a `private` or `fileprivate` declaration to its file, and publishes one whose setter alone is private', () => {
     const read = readSwift(
-      'a.swift',
       'private func helper() {}\nfileprivate struct Cache {}\nprivate (set) var count = 0\npublic let version = 1\n',
     );
 
@@ -54,11 +53,11 @@ describe('what a Swift file asks for', () => {
   });
 
   it('says so when the parser stopped where an import could have been', () => {
-    expect(readSwift('a.swift', 'import Core\n@ ~ !\n').unknown).toContain('did not parse cleanly');
+    expect(readSwift('import Core\n@ ~ !\n').unknown).toBe('did not parse cleanly as Swift, so what it imports may be incomplete.');
   });
 
   it('reads a file whose only error is inside a body, rather than marking it unknown', () => {
-    const read = readSwift('a.swift', 'import Core\nstruct Lens { func ( }\n');
+    const read = readSwift('import Core\nstruct Lens { func ( }\n');
 
     expect(read.requests.map((request) => request.value)).toEqual(['*', 'Core']);
     expect(read.unknown).toBeUndefined();
@@ -85,7 +84,7 @@ describe('what a Swift file declares', () => {
       'struct Lens {}',
       '',
     ].join('\n');
-    const read = readSwift('Sources/App/main.swift', contents);
+    const read = readSwift(contents);
 
     expect(spelled(contents, read)).toEqual([
       { name: 'relaunch', kind: 'function', line: 4, signature: 'func relaunch(argv: [String]) -> Int', doc: '/// Start again.' },
@@ -101,8 +100,8 @@ function spelled(contents: string, read: Read) {
 }
 
 /** What the addon's Swift reader answers, which is the only reader there is. */
-function readSwift(file: string, contents: string): Read {
-  const answer = native()?.readLanguage('swift', file, contents);
+function readSwift(contents: string): Read {
+  const answer = native()?.readLanguage('swift', contents);
   if (answer == null) throw new Error('these tests read Swift through the native addon, built with its grammars');
   return JSON.parse(answer) as Read;
 }

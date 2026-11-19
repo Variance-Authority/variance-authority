@@ -123,6 +123,48 @@ describe('a Rust crate whose paths climb the module tree', () => {
   });
 });
 
+describe('two files holding the same bytes', () => {
+  // A parse is keyed by its bytes and shared by every file holding them, so it
+  // names none of them; the record is where a file is named, once (#1499).
+  const sources: Readonly<Record<string, string>> = {
+    'gyp/__init__.py': 'mod = __import__(name)\n',
+    'src/a.rs': 'use self::b::C;\n@ ~ !\n',
+    'a/Thing.java': 'import a.B;\n@ ~ !\n',
+    'a/Thing.kt': 'import a.B\n@ ~ !\n',
+    'Sources/Core/a.swift': 'import Core\n@ ~ !\n',
+  };
+
+  it('names each file once in its own record, and neither in the parse they share', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-twins-'));
+    for (const [path, contents] of Object.entries(sources)) {
+      await write(root, `one/${path}`, contents);
+      await write(root, `two/${path}`, contents);
+    }
+    const held = new Map<ParseKey, Parsed>();
+    const cache: ParseCache = { get: () => undefined, set: (key, parsed) => void held.set(key, parsed) };
+    try {
+      const records = await scanRelations({ root, dirs: ['.'], cache });
+      const unknownOf = (file: string) => records.find((record) => record.file === file)?.unknown;
+
+      expect(unknownOf('one/gyp/__init__.py')).toBe('one/gyp/__init__.py — __import__(…) on line 1 names a module this cannot read');
+      expect(unknownOf('two/gyp/__init__.py')).toBe('two/gyp/__init__.py — __import__(…) on line 1 names a module this cannot read');
+      for (const path of Object.keys(sources)) {
+        for (const [own, other] of [['one', 'two'], ['two', 'one']] as const) {
+          const unknown = unknownOf(`${own}/${path}`) ?? '';
+          expect(unknown.startsWith(`${own}/${path} — `)).toBe(true);
+          expect(unknown.split(`${own}/`)).toHaveLength(2);
+          expect(unknown).not.toContain(`${other}/`);
+        }
+      }
+      const stored = [...held.values()].map((parsed) => parsed.unknown).filter((unknown) => unknown !== undefined);
+      expect(stored).toHaveLength(Object.keys(sources).length);
+      for (const unknown of stored) expect(unknown).not.toMatch(/(one|two)\//);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
 async function write(root: string, path: string, contents: string): Promise<void> {
   const absolute = join(root, path);
   await mkdir(dirname(absolute), { recursive: true });
