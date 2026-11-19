@@ -1,3 +1,4 @@
+import { STRICT_POLICY } from "@variance-authority/raster";
 import { describe, expect, it } from "vitest";
 import { alignRows } from "./align.js";
 import { comparePixels } from "./compare.js";
@@ -32,6 +33,17 @@ describe("a band repainted in place", () => {
     // What the pairing leaves differing is read anew for the rows paired in place.
     const paired = pairWords(wordsOf(before), wordsOf(after), before.height, after.height, WIDTH, 2000, 0.01).paired;
     expect(paired).toBe(12 * WIDTH);
+  });
+
+  it("keeps the detour when no compared policy forgives the repaint", () => {
+    // Under the strict policy alone a level is a change, so the band's exact
+    // copies one row off leave less differing than the band in place.
+    const before = distinct([A, B, C, ...range(200, 210), D, E, F, G]);
+    const after = distinct([A, B, C, ...range(201, 211), D, E, X, Y, F, G]);
+
+    const comparison = comparePixels(before, after, { policies: [STRICT_POLICY], isolateWith: STRICT_POLICY });
+
+    expect(comparison.alignment?.shifted).toContainEqual({ from: 3, to: 12, by: -1 });
   });
 
   it("pairs the band at the move of the page around it, below an earlier insertion", () => {

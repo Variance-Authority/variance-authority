@@ -18,17 +18,17 @@ const after = file('after');
 describe("a site header repainted by one level beside a real insertion", () => {
   it("pairs the header in place and shifts only what the insertion pushed down", () => {
     const alignment = alignRows(PNG.sync.read(before), PNG.sync.read(after));
-    expect(alignment?.inserted).toEqual([
-      { from: 155, to: 202 },
-      { from: 214, to: 220 },
-    ]);
     expect(alignment?.shifted).toEqual([
       { from: 202, to: 214, by: 47 },
       { from: 220, to: 273, by: 53 },
     ]);
+    expect(alignment?.inserted).toEqual([
+      { from: 155, to: 202 },
+      { from: 214, to: 220 },
+    ]);
   });
 
-  it("marks one region, the insertion", async () => {
+  it("marks the insertion, not the rows it pushed down", async () => {
     const raster = (bytes: Buffer, height: number) => ({ bytes: bytes.toString('base64'), width: 1280, height }) as Raster;
     const comparison = await compareRasters(raster(before, 220), raster(after, 273));
     const regions = isolateRegions(comparison.mask).regions;
