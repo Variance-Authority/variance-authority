@@ -180,10 +180,11 @@ lands:
 When the change rewrote tests as well as code, run the old tests on the new code:
 
 ```bash
-variance janus --since main -- <the test command>
+variance janus   --since <ref> -- <command>...
 ```
 
-It serves the test files the diff changed as `main` held them, with nothing
+With `<ref>` the branch point and `<command>` the test command, it serves the
+test files the diff changed as `<ref>` held them, with nothing
 checked out, and exits as the command does. Read each failure: the change broke
 the behaviour it pinned, or the rewrite was the change's point and belongs in the
 pull request's body. A run that names files it was served and never read did not
