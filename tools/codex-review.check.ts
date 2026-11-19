@@ -61,7 +61,7 @@ describe('the Codex run', () => {
     expect(invocation('https://github.com/o/r/pull/1', '/tmp/r/out.md').at(-1)).toBe('review https://github.com/o/r/pull/1');
   });
 
-  it('asks for sol', () => {
+  it('asks for terra', () => {
     const args = invocation('u', 'o');
     expect(args[args.indexOf('-m') + 1]).toBe('gpt-6.1-terra');
   });
