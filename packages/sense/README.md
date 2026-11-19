@@ -1736,7 +1736,13 @@ primary checkout's first, and reads only the files that differ from it; `from`
 names that index. A record of it that holds a parse stands only where the
 cache's parse store holds the same parse of the blob, so a file the other
 checkout edited without telling git is read again. With no such index, it reads
-every file, and the parse store is what a second checkout reuses. An `index` you name in the checkout's
+every file, and the parse store is what a second checkout reuses. Pass
+`restore` to put an index somebody else built, such as the one CI published, in
+place of another release's: it is asked as the update starts, runs while the
+checkout is listed, and returns whose index it put, which the result names as
+`fetched`; `restoreSourceIndex(path, manifest, read)` places such an index from
+its manifest and a reader of its segments, and `sourceIndexChain(path)` lists
+the files of one to publish. An `index` you name in the checkout's
 own cache directory reads that store as the checkout's own index does. `progress` is told each step's name as it starts, the git listing
 and then the read of what changed, and returns the function to call when that
 step ends.

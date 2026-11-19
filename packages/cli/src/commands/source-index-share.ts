@@ -16,12 +16,11 @@
  * new format finds none, and reads every file, as it does without the setting.
  */
 
-import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { digestOfSha256 } from '@variance-authority/core/format';
-import type { ShareEntry } from '@variance-authority/core/share';
+import { entryDigest, type ShareEntry } from '@variance-authority/core/share';
 import type { SourceRestore, SourceRestored } from '@variance-authority/sense';
 import type { Config } from '../config.js';
 import type { Env } from '../share-lines.js';
@@ -51,7 +50,7 @@ export async function sourceIndexEntryOf(
   const segments = new Map<string, Uint8Array>();
   for (const segment of chain.segments) {
     const bytes = await readFile(segment.path);
-    segments.set(createHash('sha256').update(bytes).digest('hex'), bytes);
+    segments.set(entryDigest(bytes), bytes);
   }
   const entry: ShareEntry = {
     name: await sourceIndexEntryName(),
@@ -98,6 +97,9 @@ export const restoreFromMainline: SourceRestore = async (root, path) => {
     started.delete(key);
     return fetching;
   }
+  // An index this release wrote, or none, fetches nothing: no mainline is selected for it.
+  const written = await sense.sourceIndexWrittenIn(path);
+  if (written === undefined || written === sense.SOURCE_INDEX_VERSION) return undefined;
   // Loaded here: every reader of the index imports this, and most never fetch.
   const { selectMainline } = await import('./mainline-selected.js');
   const chosen = await selectMainline(root);
