@@ -190,7 +190,7 @@ export async function updateSourceIndex(
   // A checkout with none to stand on — missing, damaged, another release's — starts from another checkout's, and reads what differs from it.
   // Asked while the tree is listed, as the stores are: only the addon knows whether this checkout's own chain stands.
   // A missing index waits for the answer before the listing, to say what it will read; only the addon knows whether one fits.
-  const beside = cached ? indexesBeside(where, basename(path)).catch(() => []) : undefined;
+  const beside = cached ? indexesBeside(where, basename(path)) : undefined;
   const reading = !missing ? undefined : (await beside ?? []).length > 0
     ? `reading the files of ${placesOf(where, dirs)} that differ from another checkout's index, or every file if none of theirs fits`
     : `reading every file of ${placesOf(where, dirs)}, because there is no index to update`;

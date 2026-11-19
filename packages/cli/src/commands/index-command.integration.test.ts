@@ -262,15 +262,20 @@ describe('variance index', () => {
     expect((await run(['ask', 'search', '--query', 'widget'])).code).toBe(EXIT_CLEAN);
   });
 
-  it("builds a worktree's index from its primary checkout's, naming the one it started from", async () => {
+  it("builds or repairs a worktree's index from its primary checkout's, naming the one it started from", async () => {
     const root = checkout();
     await indexOutput({ cwd: root });
-    const worktree = join(realpathSync(mkdtempSync(join(tmpdir(), 'va-index-worktree-'))), 'worktree');
-    execFileSync('git', ['worktree', 'add', '--quiet', '--detach', worktree], { cwd: root, stdio: 'pipe' });
-    writeFileSync(join(worktree, 'src/unit.ts'), 'export const unit = 2;\n');
+    const [worktree, damaged] = ['worktree', 'damaged'].map((name) => join(realpathSync(mkdtempSync(join(tmpdir(), 'va-index-worktree-'))), name));
+    for (const at of [worktree!, damaged!]) execFileSync('git', ['worktree', 'add', '--quiet', '--detach', at], { cwd: root, stdio: 'pipe' });
+    writeFileSync(join(worktree!, 'src/unit.ts'), 'export const unit = 2;\n');
+    mkdirSync(dirname(sourceIndexPath(damaged!)), { recursive: true });
+    writeFileSync(sourceIndexPath(damaged!), 'not an index');
 
-    expect(await indexOutput({ cwd: worktree })).toBe(
-      `source index built from the one at ${sourceIndexPath(root)}: 2 files, 1 read again, at ${sourceIndexPath(worktree)}\n${unprepared(worktree)}`,
+    expect(await indexOutput({ cwd: worktree! })).toBe(
+      `source index built from the one at ${sourceIndexPath(root)}: 2 files, 1 read again, at ${sourceIndexPath(worktree!)}\n${unprepared(worktree!)}`,
+    );
+    expect((await indexOutput({ cwd: damaged! })).split('\n')[0]).toBe(
+      `source index repaired from the one at ${sourceIndexPath(root)}: 2 files, 0 read again, at ${sourceIndexPath(damaged!)}`,
     );
   });
 
