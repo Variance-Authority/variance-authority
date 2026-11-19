@@ -2,21 +2,14 @@
 //! `source-index-file.ts` hands the segments here, and what crosses back is
 //! the answer to each question asked, never the whole index.
 //!
-//! The chain is read newest first, and a segment reads when its framing does
-//! (`Layer::open`), its dictionary and text heap read, each key column names
-//! strings the dictionary holds and ascends, as the lookups that answer from it
-//! search it, and each directory names a digest it holds. That is what deciding
-//! which segments are kept, and finding a key in them, needs, and it costs the
-//! keys, not the rows. A segment that does not read ends the chain there: what
-//! was read above it is dropped and the layers below are read as the last, so
-//! the kept layers are always the chain's oldest ones. The segment that
-//! stopped the read says which release wrote it when it is one of another
-//! format version.
-//!
-//! A row is checked when it is asked for (`check::parse`, `Records::check`):
-//! one that names what its segment does not hold reads as absent, from a
-//! lookup, a membership and a walk alike. Everything a read can fail at is a
-//! cache miss, so a scan derives that row again and the save writes it over.
+//! The chain is read newest first, and a segment reads when `Layer::open` says
+//! it does — the one rule every reader of a segment shares, every row of it
+//! checked. A segment that does not read ends the chain there: what was read
+//! above it is dropped and the layers below are read as the last, so the kept
+//! layers are always the chain's oldest ones, and a chain that keeps fewer
+//! than it holds is a damaged index. The segment that stopped the read says
+//! which release wrote it when it is one of another format version. A row of a
+//! kept layer reads, so a key the chain counts is one it answers.
 //!
 //! Which row answers for a key is `chain_lookup.rs`'s to say, for one key and
 //! for a walk of them all; a walk goes in code-unit order of its keys. A row
@@ -32,11 +25,11 @@ use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
 use crate::chain_lookup::{self, At};
-use crate::compact::{check, joined, Layer, ParseView};
+use crate::compact::{joined, Layer, ParseView};
 use crate::generation::key_parts;
 use crate::held::HeldParse;
 use crate::order::code_unit;
-use crate::stored::{written, Stored};
+use crate::stored::written;
 
 struct Chain<'a> {
     /// Oldest first.
@@ -60,50 +53,10 @@ self_cell::self_cell!(
     }
 );
 
-fn need(reads: bool, what: &str) -> Result<(), String> {
-    if reads { Ok(()) } else { Err(format!("a segment whose {what} does not read")) }
-}
-
-/// Whether `len` keys, read by `key`, name strings the dictionary holds and
-/// ascend with no key twice: a binary search over them finds every one.
-fn ascending(stored: &Stored, len: usize, key: impl Fn(usize) -> (u32, u32), what: &str) -> Result<(), String> {
-    let mut before = None;
-    for row in 0..len {
-        let (first, second) = key(row);
-        need(stored.holds(first) && stored.holds(second) && before < Some((first, second)), what)?;
-        before = Some((first, second));
-    }
-    Ok(())
-}
-
-/// The layer `bytes` holds, its keys checked before it is kept; its rows are checked when asked for.
-fn read_layer(bytes: &[u8]) -> Result<Layer<'_>, String> {
-    // Every text a row names is checked with `keeps` before the row is read.
-    let layer = Layer::open_texts_on_read(bytes)?;
-    let stored = &layer.stored;
-    need(stored.has_texts(), "text heap")?;
-    let (parses, records, directories) = (&layer.parses, &layer.records, &layer.directories);
-    ascending(stored, parses.key.len(), |row| (parses.key.at(row), parses.way.at(row)), "parse keys")?;
-    ascending(stored, parses.deleted.len(), |row| (parses.deleted.at(row), parses.deleted_way.at(row)), "deleted parse keys")?;
-    for (column, what) in [
-        (&records.file, "record files"),
-        (&records.deleted, "deleted record files"),
-        (&directories.path, "directory paths"),
-        (&directories.deleted, "deleted directory paths"),
-    ] {
-        // A key of one column pairs with the first id, which every dictionary holds.
-        ascending(stored, column.len(), |row| (column.at(row), 0), what)?;
-    }
-    for row in 0..directories.path.len() {
-        need(stored.holds(directories.digest.at(row)), "directory digest")?;
-    }
-    Ok(layer)
-}
-
 fn chain<B: std::ops::Deref<Target = [u8]>>(segments: &[B]) -> Chain<'_> {
     let (mut layers, mut written_by) = (Vec::new(), None);
     for bytes in segments.iter().rev() {
-        match read_layer(bytes) {
+        match Layer::open(bytes) {
             Ok(layer) => layers.push(layer),
             Err(_) => {
                 written_by = written(bytes);
@@ -156,32 +109,16 @@ impl<'a> Chain<'a> {
         chain_lookup::record(&self.layers, file).map(|(_, at)| at)
     }
 
-    /// Whether the parse row at `at` names only what its segment holds.
-    fn parse_reads(&self, (layer, row): At) -> bool {
-        let layer = &self.layers[layer];
-        check::parse(&layer.stored, &layer.parses, row).is_ok()
+    /// The parse row at `at`, as JSON.
+    fn parse_json(&self, at: At) -> String {
+        let held = HeldParse::of(&ParseView::of(&self.layers[at.0], at.1));
+        serde_json::to_string(&held).expect("a parse row serializes")
     }
 
-    /// Whether the record row at `at` names only what its segment holds.
-    fn record_reads(&self, (layer, row): At) -> bool {
-        let layer = &self.layers[layer];
-        layer.records.check(&layer.stored, row).is_ok()
-    }
-
-    /// The parse row at `at`, as JSON; none when it does not read.
-    fn parse_json(&self, at: At) -> Option<String> {
-        self.parse_reads(at).then(|| {
-            let held = HeldParse::of(&ParseView::of(&self.layers[at.0], at.1));
-            serde_json::to_string(&held).expect("a parse row serializes")
-        })
-    }
-
-    /// The record row at `at`, as JSON; none when it does not read.
-    fn record_json(&self, at: At) -> Option<String> {
-        self.record_reads(at).then(|| {
-            let layer = &self.layers[at.0];
-            serde_json::to_string(&layer.records.indexed(&layer.stored, at.1)).expect("a record serializes")
-        })
+    /// The record row at `at`, as JSON.
+    fn record_json(&self, at: At) -> String {
+        let layer = &self.layers[at.0];
+        serde_json::to_string(&layer.records.indexed(&layer.stored, at.1)).expect("a record serializes")
     }
 }
 
@@ -207,20 +144,19 @@ impl SourceIndexReader {
     }
 }
 
-/// `[key, row]` pairs of `rows[start..start + count]`, as one JSON array; a row that does not read is left out.
-fn page(rows: &[At], start: u32, count: u32, key: impl Fn(At) -> String, row: impl Fn(At) -> Option<String>) -> String {
+/// `[key, row]` pairs of `rows[start..start + count]`, as one JSON array.
+fn page(rows: &[At], start: u32, count: u32, key: impl Fn(At) -> String, row: impl Fn(At) -> String) -> String {
     let start = (start as usize).min(rows.len());
     let end = start.saturating_add(count as usize).min(rows.len());
     let mut json = String::from("[");
     for at in &rows[start..end] {
-        let Some(row) = row(*at) else { continue };
         if json.len() > 1 {
             json.push(',');
         }
         json.push('[');
         json.push_str(&serde_json::to_string(&key(*at)).expect("a key serializes"));
         json.push(',');
-        json.push_str(&row);
+        json.push_str(&row(*at));
         json.push(']');
     }
     json.push(']');
@@ -260,8 +196,7 @@ impl SourceIndexReader {
         Ok(self.chain()?.directories.iter().flat_map(|(path, digest)| [path.to_string(), digest.to_string()]).collect())
     }
 
-    /// How many parse keys the chain answers for, read from the keys: a row
-    /// that turns out not to read when asked is counted.
+    /// How many parse keys the chain answers for, read from the keys.
     #[napi(catch_unwind)]
     pub fn parse_count(&self) -> napi::Result<u32> {
         Ok(self.chain()?.parses().len() as u32)
@@ -276,14 +211,14 @@ impl SourceIndexReader {
     #[napi(catch_unwind)]
     pub fn has_parse(&self, key: String) -> napi::Result<bool> {
         let chain = self.chain()?;
-        Ok(chain.parse_at(&key).is_some_and(|at| chain.parse_reads(at)))
+        Ok(chain.parse_at(&key).is_some())
     }
 
     /// The parse `key` names, as JSON; none when the chain holds none.
     #[napi(catch_unwind)]
     pub fn parse(&self, key: String) -> napi::Result<Option<String>> {
         let chain = self.chain()?;
-        Ok(chain.parse_at(&key).and_then(|at| chain.parse_json(at)))
+        Ok(chain.parse_at(&key).map(|at| chain.parse_json(at)))
     }
 
     /// `[key, parse]` pairs from `start`, at most `count` of them, as one JSON array.
@@ -307,14 +242,14 @@ impl SourceIndexReader {
     #[napi(catch_unwind)]
     pub fn has_record(&self, file: String) -> napi::Result<bool> {
         let chain = self.chain()?;
-        Ok(chain.record_at(&file).is_some_and(|at| chain.record_reads(at)))
+        Ok(chain.record_at(&file).is_some())
     }
 
     /// The record of `file`, as JSON; none when the chain holds none.
     #[napi(catch_unwind)]
     pub fn record(&self, file: String) -> napi::Result<Option<String>> {
         let chain = self.chain()?;
-        Ok(chain.record_at(&file).and_then(|at| chain.record_json(at)))
+        Ok(chain.record_at(&file).map(|at| chain.record_json(at)))
     }
 
     /// `[file, record]` pairs from `start`, at most `count` of them, as one JSON array.

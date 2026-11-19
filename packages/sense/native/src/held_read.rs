@@ -1,11 +1,11 @@
 //! A parse row of a stored layer read back as the [`HeldParse`] JavaScript
-//! holds — what `decodeSourceIndex` made of it — so the index reader
+//! holds, so the index reader
 //! (`index_reader.rs`) hands JavaScript one row as JSON it reads with
 //! `JSON.parse`.
 //!
 //! Absence keeps JavaScript's meaning: an export or declare list the row marks
 //! present is present when empty, a span is present when it has ends, and a
-//! zero line is a line. The row is one [`crate::compact::check::parse`] passed.
+//! zero line is a line. The row is one of a layer [`crate::compact::Layer::open`] read, every row of which was checked there.
 
 // compass: variance-authority.reach.source-index
 

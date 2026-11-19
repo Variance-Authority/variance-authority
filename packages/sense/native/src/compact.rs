@@ -214,17 +214,10 @@ pub(crate) struct Layer<'a> {
 }
 
 impl<'a> Layer<'a> {
+    /// The layer `bytes` holds, when it reads: whether a segment reads is
+    /// decided here, once, for every reader ([`check`]).
     pub(crate) fn open(bytes: &'a [u8]) -> Result<Self, String> {
-        Self::over(Stored::open(bytes)?)
-    }
-
-    /// As [`Self::open`], its text heap checked text by text rather than whole:
-    /// see [`Stored::open_texts_on_read`].
-    pub(crate) fn open_texts_on_read(bytes: &'a [u8]) -> Result<Self, String> {
-        Self::over(Stored::open_texts_on_read(bytes)?)
-    }
-
-    fn over(stored: Stored<'a>) -> Result<Self, String> {
+        let stored = Stored::open(bytes)?;
         let config = stored.u32s("index.config")?;
         if config.len() != 1 {
             return Err("no configuration row".to_owned());
@@ -237,6 +230,7 @@ impl<'a> Layer<'a> {
         let parses = Parses::open(&stored)?;
         let records = Records::open(&stored)?;
         let directories = Directories::open(&stored)?;
+        check::layer(&stored, &parses, &records, &directories)?;
         Ok(Layer { stored, config, parses, records, directories })
     }
 }

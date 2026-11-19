@@ -116,8 +116,42 @@ fn with_byte_of(document: &str, name: &str, value: u8) -> Vec<u8> {
     crate::segment::encode(columns.collect())
 }
 
+/// `document` encoded, with the first entry of the four-byte column `name` set to `value`.
+fn with_u32_of(document: &str, name: &str, value: u32) -> Vec<u8> {
+    let good = encoded(document);
+    let stored = crate::stored::Stored::open(&good).unwrap();
+    let columns = stored.columns().into_iter().map(|(column, width, bytes)| {
+        let mut bytes = bytes.to_vec();
+        if column == name { bytes[..4].copy_from_slice(&value.to_le_bytes()); }
+        crate::segment::column(column.to_owned(), width, bytes)
+    });
+    crate::segment::encode(columns.collect())
+}
+
+// Whether a segment reads is `Layer::open`'s to say, for every reader alike:
+// the source-index reader keeps no rule of its own.
 #[test]
-fn a_layer_whose_flag_is_neither_zero_nor_one_is_refused_as_the_typescript_reader_refuses_it() {
+fn a_layer_whose_row_names_a_string_its_dictionary_does_not_hold_is_refused_at_open() {
+    for name in ["symbols.name", "members.name", "records.file", "edges.to", "targets.path"] {
+        assert!(crate::compact::Layer::open(&with_u32_of(FULL, name, 999_999)).is_err(), "{name} = 999999 was read");
+    }
+}
+
+#[test]
+fn a_layer_whose_member_names_a_request_its_parse_does_not_hold_is_refused_at_open() {
+    assert!(crate::compact::Layer::open(&with_u32_of(FULL, "members.request", 1)).is_err());
+    assert!(crate::compact::Layer::open(&with_u32_of(FULL, "members.request", 0)).is_ok());
+}
+
+#[test]
+fn a_layer_whose_record_files_do_not_ascend_is_refused_at_open() {
+    let good = encoded(FULL);
+    let second = crate::compact::Layer::open(&good).unwrap().records.file.at(1);
+    assert!(crate::compact::Layer::open(&with_u32_of(FULL, "records.file", second)).is_err());
+}
+
+#[test]
+fn a_layer_whose_flag_is_neither_zero_nor_one_is_refused() {
     for name in ["records.edges-present", "parses.harvested", "bindings.type"] {
         let error = compacted(&[&with_byte(name, 3)]).err().unwrap_or_else(|| panic!("{name} = 3 was read"));
         assert!(error.contains(name), "{error}");
@@ -138,7 +172,7 @@ fn a_layer_whose_text_heap_is_not_utf8_is_refused_rather_than_read() {
 }
 
 #[test]
-fn a_layer_whose_reach_is_past_the_reaches_known_is_refused_as_the_typescript_reader_refuses_it() {
+fn a_layer_whose_reach_is_past_the_reaches_known_is_refused() {
     let past = crate::harvest::REACHES.len() as u8 + 1;
     let error = compacted(&[&with_byte("symbols.reach", past)]).err().unwrap_or_else(|| panic!("reach {past} was read"));
     assert!(error.contains("symbols.reach"), "{error}");

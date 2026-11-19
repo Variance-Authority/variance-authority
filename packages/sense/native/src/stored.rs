@@ -57,6 +57,13 @@ impl U32s<'_> {
         (at < self.len() && self.at(at) == value).then_some(at)
     }
 
+    /// Whether `test` holds of every entry. One pass without an early exit or
+    /// a bounds check per entry, so a test of a comparison or two vectorises:
+    /// every id column of a segment is checked this way at open.
+    pub fn every(&self, test: impl Fn(u32) -> bool) -> bool {
+        self.0.chunks_exact(4).fold(true, |every, word| every & test(u32::from_le_bytes([word[0], word[1], word[2], word[3]])))
+    }
+
     /// Whether no entry is below the one before it. One pass without an
     /// early exit or a bounds check per entry, so it vectorises: every
     /// segment's offset columns are checked at open.
@@ -83,18 +90,9 @@ pub struct Stored<'a> {
     /// Each section's start, length, width and place in the header.
     sections: HashMap<String, (usize, usize, u8, usize)>,
     strings: Vec<&'a str>,
-    /// The text heap, `texts.blob` and `texts.off`, when the segment has one.
-    texts: Option<(Heap<'a>, U32s<'a>)>,
-}
-
-/// A text heap, checked to be UTF-8 whole at open, or each text as it is read.
-#[derive(Clone, Copy)]
-enum Heap<'a> {
-    /// Checked at open: a text that cuts a character is all that is left to refuse.
-    Whole(&'a str),
-    /// Checked per text, for a reader of a few rows of a heap that runs to
-    /// megabytes: [`Stored::open_texts_on_read`].
-    OnRead(&'a [u8]),
+    /// The text heap, `texts.blob` and `texts.off`, when the segment has one:
+    /// UTF-8, its offsets running forward and each on a character boundary.
+    texts: Option<(&'a str, U32s<'a>)>,
 }
 
 /// The format version another release wrote these bytes in: none when they are
@@ -119,18 +117,6 @@ impl<'a> Stored<'a> {
 
     /// The same framing written at any version from `oldest` to `version`, with the version it was written at.
     pub fn open_since(bytes: &'a [u8], format: &str, oldest: u8, version: u8) -> Result<(Self, u8), String> {
-        Self::framed(bytes, format, oldest, version, true)
-    }
-
-    /// As [`Self::open`], with the text heap's UTF-8 checked text by text when
-    /// [`Self::keeps`] asks rather than whole at open, for a reader that checks
-    /// every text with `keeps` before [`Self::kept`] reads it: `kept` panics on
-    /// one that is not UTF-8.
-    pub fn open_texts_on_read(bytes: &'a [u8]) -> Result<Self, String> {
-        Self::framed(bytes, FORMAT, VERSION, VERSION, false).map(|(stored, _)| stored)
-    }
-
-    fn framed(bytes: &'a [u8], format: &str, oldest: u8, version: u8, whole: bool) -> Result<(Self, u8), String> {
         let length = bytes
             .get(..4)
             .map(|head| u32::from_le_bytes([head[0], head[1], head[2], head[3]]) as usize)
@@ -175,10 +161,15 @@ impl<'a> Stored<'a> {
             .ok_or("a dictionary entry that is not a string")?;
         if let Some(blob) = stored.section("texts.blob", 1)? {
             let off = stored.u32s("texts.off")?;
-            if off.len() == 0 || off.at(0) != 0 || off.at(off.len() - 1) as usize != blob.len() {
+            if off.len() == 0 || off.at(0) != 0 || off.at(off.len() - 1) as usize != blob.len() || !off.never_back() {
                 return Err("a text heap whose offsets do not span it".to_owned());
             }
-            let heap = if whole { Heap::Whole(std::str::from_utf8(blob).map_err(|_| "a text heap that is not UTF-8")?) } else { Heap::OnRead(blob) };
+            // Whole, once: measured at 0.3 ms on a 24 MB segment, against a
+            // check per text that every reader would then have to make.
+            let heap = std::str::from_utf8(blob).map_err(|_| "a text heap that is not UTF-8")?;
+            if !off.every(|at| heap.is_char_boundary(at as usize)) {
+                return Err("a text heap whose offsets cut a character".to_owned());
+            }
             stored.texts = Some((heap, off));
         }
         Ok((stored, written))
@@ -253,26 +244,26 @@ impl<'a> Stored<'a> {
         (id as usize) < self.strings.len()
     }
 
+    /// How many strings the dictionary holds.
+    pub fn string_count(&self) -> usize {
+        self.strings.len()
+    }
+
     /// Whether the segment carries a text heap: the reader of the format refuses one that does not.
     pub fn has_texts(&self) -> bool {
         self.texts.is_some()
     }
 
-    /// Whether [`Self::kept`] reads `id`: none, or a whole text the heap holds.
-    pub fn keeps(&self, id: u32) -> bool {
-        id == NONE || self.heap_text(id).is_some()
+    /// How many texts the heap holds; none without a heap.
+    pub fn text_count(&self) -> usize {
+        self.texts.map_or(0, |(_, off)| off.len() - 1)
     }
 
-    /// The text the heap holds under `id`: its offsets in order, within the
-    /// heap, and the bytes between them UTF-8.
+    /// The text the heap holds under `id`, its offsets checked at open.
     fn heap_text(&self, id: u32) -> Option<&'a str> {
         let (heap, off) = self.texts?;
         let at = id as usize;
-        let span = (at + 1 < off.len()).then(|| off.at(at) as usize..off.at(at + 1) as usize)?;
-        match heap {
-            Heap::Whole(blob) => blob.get(span),
-            Heap::OnRead(blob) => std::str::from_utf8(blob.get(span)?).ok(),
-        }
+        (at + 1 < off.len()).then(|| &heap[off.at(at) as usize..off.at(at + 1) as usize])
     }
 
     pub fn optional(&self, id: u32) -> Option<&'a str> {
@@ -280,9 +271,7 @@ impl<'a> Stored<'a> {
     }
 
     /// A text the heap keeps under `id`, absent for `NONE`. An id past the
-    /// heap, offsets that cut a character, or — opened with
-    /// [`Self::open_texts_on_read`] — bytes that are not UTF-8, panic as
-    /// [`Self::text`] does.
+    /// heap panics as [`Self::text`] does.
     pub fn kept(&self, id: u32) -> Option<&'a str> {
         if id == NONE {
             return None;

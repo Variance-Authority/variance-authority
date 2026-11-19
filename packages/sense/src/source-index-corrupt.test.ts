@@ -42,11 +42,10 @@ describe('a source index whose binding members or nested declarations are damage
     expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
-  // A row is checked when it is asked for, so a damaged one is a miss and the segment is kept.
-  it('reads a parse with a binding member read through a request it does not hold as absent', () => {
+  it('rejects a binding member read through a request its parse does not hold', () => {
     const { encoded, values } = column('binding-members.request', 1);
     values[0] = PARSED.requests.length;
-    expect(readSourceIndexSegment(encoded).parses.get(DIGEST)).toBeUndefined();
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
   it('rejects nested declarations whose offsets run past their columns', () => {
@@ -55,9 +54,9 @@ describe('a source index whose binding members or nested declarations are damage
     expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 
-  it('reads a parse with a nested signature that has a start and no end as absent', () => {
+  it('rejects a nested signature that has a start and no end', () => {
     const { encoded, values } = column('nested.signature-end', 1);
     values[0] = NONE;
-    expect(readSourceIndexSegment(encoded).parses.get(DIGEST)).toBeUndefined();
+    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
   });
 });

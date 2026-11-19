@@ -198,23 +198,21 @@ describe('the source index the addon reads', () => {
     expect(() => read.stored.records.get('src/b.ts')).toThrow('the source index reader is closed');
   });
 
-  it('reads a row that names what its segment does not hold as absent, and keeps the segment', () => {
+  it('ends the chain at a segment one row of which names what the segment does not hold', () => {
     const parses = parsesOnly([[A, FULL], [B, EMPTY]]);
     // A's first request names a string past the dictionary.
     column(parses, 'requests.value', 1)[0] = 0x7fffffff;
     const records = encodeSourceIndex({ ...WHOLE, parses: new Map() });
-    // src/a.ts is the first record, and its digest names a string past the dictionary.
-    column(records, 'records.digest', 1)[0] = 0x7fffffff;
 
     const read = readSourceIndexChain([records, parses]);
-    expect(read.kept).toBe(2);
-    expect(read.stored.parses.has(A)).toBe(false);
-    expect(read.stored.parses.get(A)).toBeUndefined();
-    expect([...read.stored.parses]).toStrictEqual([[B, EMPTY]]);
-    expect(read.stored.records.has('src/a.ts')).toBe(false);
-    expect(read.stored.records.get('src/a.ts')).toBeUndefined();
-    expect([...read.stored.records.keys()]).toContain('src/a.ts');
-    expect([...read.stored.records.values()].map((value) => value.record.file)).toEqual(['src/b.ts', 'src/c.ts']);
+    expect(read.kept).toBe(1);
+    expect(read.stored.parses.size).toBe(0);
+    expect(read.stored.parses.has(B)).toBe(false);
+    expect([...read.stored.records.keys()]).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts']);
+
+    // src/a.ts is the first record, and its digest names a string past the dictionary.
+    column(records, 'records.digest', 1)[0] = 0x7fffffff;
+    expect(readSourceIndexChain([records, parses]).kept).toBe(0);
   });
 
   it('keeps a package name that nothing else in the segment names', () => {

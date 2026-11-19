@@ -2,6 +2,10 @@
  * A source-index chain as the addon reads it (`native/src/index_reader.rs`),
  * the one reader of the format.
  *
+ * Every row of a segment the chain keeps was checked when the segment opened: a
+ * segment one row of which does not read is not kept, and the chain stops
+ * there. So a key the chain counts is one it answers.
+ *
  * The chain is opened once and asked questions: a key, a count or a membership
  * crosses without a row being decoded, and a row crosses only when it is asked
  * for, as JSON shaped as {@link StoredSourceIndex} holds it. A row asked twice
@@ -86,7 +90,11 @@ function opened(): NonNullable<ReturnType<typeof native>> {
   return addon;
 }
 
-/** A stored target the record names no file for crosses as `null`, and is held as absent. */
+/**
+ * A record as {@link IndexedRecord} holds it. A target the record names no file
+ * for is held as `undefined`, which JSON cannot spell: it crosses as `null`, and
+ * is put back here, in place, so the row is the one object the map keeps.
+ */
 function record(row: unknown): IndexedRecord {
   const held = row as { targets?: (string | null)[] };
   if (held.targets !== undefined) {

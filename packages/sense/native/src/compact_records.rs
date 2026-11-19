@@ -9,9 +9,9 @@
 // compass: variance-authority.reach.source-index
 
 use crate::record::{Edge, FileRecord, Indexed};
-use crate::segment::NONE;
 use crate::stored::{same_length, Stored, U32s};
 
+use super::check::{held, maybe};
 use super::flag;
 
 pub(crate) struct Records<'a> {
@@ -124,23 +124,25 @@ impl<'a> Records<'a> {
         stored.optional(self.unknown.at(row))
     }
 
-    /// Whether the record at `row` reads: every id it names is one the
-    /// dictionary holds, absent where the column allows it. A list the row
-    /// marks absent is checked all the same.
-    pub fn check(&self, stored: &Stored<'a>, row: usize) -> Result<(), String> {
-        let held = |column: U32s, at: usize| stored.holds(column.at(at));
-        let maybe = |column: U32s, at: usize| column.at(at) == NONE || stored.holds(column.at(at));
-        let all = |offsets: U32s, columns: &[U32s]| offsets.range(row).all(|at| columns.iter().all(|&column| held(column, at)));
-        let reads = held(self.file, row)
-            && maybe(self.digest, row)
-            && maybe(self.unknown, row)
-            && all(self.edges, &[self.edge_to, self.edge_kind])
-            && all(self.declares, &[self.declare_name])
-            && all(self.unresolved, &[self.unresolved_value])
-            && all(self.witnesses, &[self.witness_directory])
-            && self.targets.range(row).all(|at| maybe(self.target_path, at))
-            && all(self.packages, &[self.package_to, self.package_kind]);
-        if reads { Ok(()) } else { Err(format!("record {row} names a string the segment does not hold")) }
+    /// Whether every record reads: every id it names is one the dictionary
+    /// holds, absent where the column allows it, checked a column at a time by
+    /// [`super::check`]. A list a row marks absent is checked all the same.
+    pub fn check(&self, stored: &Stored<'a>) -> Result<(), String> {
+        for (column, what) in [
+            (self.edge_to, "edge targets"),
+            (self.edge_kind, "edge kinds"),
+            (self.declare_name, "record declarations"),
+            (self.unresolved_value, "unresolved requests"),
+            (self.witness_directory, "witnesses"),
+            (self.package_to, "package targets"),
+            (self.package_kind, "package kinds"),
+        ] {
+            held(stored, column, what)?;
+        }
+        for (column, what) in [(self.digest, "record digests"), (self.unknown, "record unknowns"), (self.target_path, "targets")] {
+            maybe(stored, column, what)?;
+        }
+        Ok(())
     }
 
     /// The record at `row`, its absent lists absent.

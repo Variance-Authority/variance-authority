@@ -61,7 +61,7 @@ fn segment(config: Option<&str>, parses: &[(&str, Value)], records: &[(&str, Val
 }
 
 fn read_back(chain: &super::Chain, key: &str) -> Value {
-    serde_json::from_str(&chain.parse_json(chain.parse_at(key).unwrap()).unwrap()).unwrap()
+    serde_json::from_str(&chain.parse_json(chain.parse_at(key).unwrap())).unwrap()
 }
 
 fn keys(chain: &super::Chain) -> Vec<String> {
@@ -77,7 +77,7 @@ fn a_parse_crosses_back_as_it_was_held() {
     assert_eq!(read_back(&chain, "b"), empty());
     assert_eq!(read_back(&chain, "c\0way"), bare());
     let record_at = chain.records()[0];
-    assert_eq!(serde_json::from_str::<Value>(&chain.record_json(record_at).unwrap()).unwrap(), record("src/a.ts"));
+    assert_eq!(serde_json::from_str::<Value>(&chain.record_json(record_at)).unwrap(), record("src/a.ts"));
     assert_eq!(chain.directories, vec![("src", "dd")]);
 }
 
@@ -124,8 +124,9 @@ fn a_walk_goes_in_code_unit_order_of_its_keys() {
 
 
 #[test]
-fn a_parse_whose_text_is_not_utf8_reads_as_absent_and_its_segment_is_kept() {
-    let good = segment(None, &[("a", full()), ("b", empty())], &[], Deleted::default());
+fn a_segment_whose_text_heap_is_not_utf8_ends_the_chain_there() {
+    let base = segment(None, &[("b", empty())], &[], Deleted::default());
+    let good = segment(None, &[("a", full())], &[], Deleted::default());
     let stored = crate::stored::Stored::open(&good).unwrap();
     let columns = stored.columns().into_iter().map(|(name, width, bytes)| {
         let mut bytes = bytes.to_vec();
@@ -134,9 +135,10 @@ fn a_parse_whose_text_is_not_utf8_reads_as_absent_and_its_segment_is_kept() {
         }
         crate::segment::column(name.to_owned(), width, bytes)
     });
-    let segments = vec![crate::segment::encode(columns.collect())];
+    let segments = vec![base, crate::segment::encode(columns.collect())];
     let chain = chain(&segments);
     assert_eq!(chain.layers.len(), 1);
-    assert_eq!(chain.parse_at("a").and_then(|at| chain.parse_json(at)), None);
+    assert_eq!(chain.written, None);
+    assert_eq!(chain.parse_at("a"), None);
     assert_eq!(read_back(&chain, "b"), empty());
 }

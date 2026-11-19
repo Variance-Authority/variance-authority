@@ -406,9 +406,13 @@ an offset range cannot distinguish a fact that is absent from a list that is
 known to be empty.
 
 Rows are sorted and the dictionary is sorted, so two logically equal segments
-encode to equal bytes. The reader rejects duplicate section names, overlapping
-or out-of-bounds sections, invalid widths, unaligned offsets, malformed column
-lengths and invalid references.
+encode to equal bytes. The reader checks a segment whole when
+it opens it, before any row is read: it rejects duplicate section names,
+overlapping or out-of-bounds sections, invalid widths, unaligned offsets,
+malformed column lengths, a text heap that is not UTF-8, keys that do not
+ascend, and any row that names a string, a text or a request the segment does
+not hold. A segment it rejects ends the chain there: the index is damaged, and
+`variance index` rebuilds it.
 
 ### Byte order
 

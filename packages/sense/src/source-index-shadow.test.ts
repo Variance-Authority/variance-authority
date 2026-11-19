@@ -111,7 +111,7 @@ describe('a chain whose later layer puts every key again', () => {
     ]);
   });
 
-  it('answers from the later layer, and decodes no row of the layer it shadows', async () => {
+  it('answers from the later layer, and hands over no row of the layer it shadows', async () => {
     // A row is held only once it is decoded, so the rows a read decoded are what it can hold:
     // a count, where the heap around a collection moves with whatever else the worker did.
     const count = 100;
@@ -123,7 +123,8 @@ describe('a chain whose later layer puts every key again', () => {
     expect(read.records).toHaveLength(count);
     expect(read.cache.get(`git:${'0'.repeat(40)}`)?.requests[0]?.value).toBe('./new-0-0.js');
     expect(read.records[0]?.edges).toEqual([{ to: 'src/new-0.ts', kind: 'imports' }]);
-    // A read of the records and one parse decodes that parse alone, whatever the layer below holds.
+    // A read of the records and one parse hands over that parse alone, whatever the layer below holds:
+    // the addon checked every row of both layers at open, and decodes none it is not asked for.
     const one = async (file: string) => (await readPublishedSources(file)).cache.get(`git:${'0'.repeat(40)}`);
     expect(await rowsDecoded(() => one(alone))).toBe(1);
     expect(await rowsDecoded(() => one(layered))).toBe(1);
