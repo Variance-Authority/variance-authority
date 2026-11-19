@@ -114,6 +114,32 @@ now, another package is one the commit changed no source in, and a test-only
 tree is a package or a top folder holding tests and no source. With none listed
 there are no figures.
 
+## `variance layers`: dependencies of entry packages
+
+Use `variance layers` for every repository package, or select exact package
+names with repeatable `--package` flags:
+
+```bash
+variance layers --package @app/spa
+variance layers --package @app/spa --package @app/ssr --package @app/dev-tools
+```
+
+The answer includes each selected package and all its transitive repository
+dependencies, including shared code outside the entry packages' directories.
+Shared dependencies and repeated roots appear once. An unknown or empty name
+is refused. Installed packages are excluded.
+
+The heading names the roots and counts packages and dependency layers. A package
+with no dependencies is in layer 1; each dependent package is one layer above
+its deepest dependency. Packages in a dependency cycle share a layer. These
+are dependency layers, not the recursive areas `orient` groups packages into.
+Selecting roots keeps each package's layer number.
+
+`--root <path>` selects the checkout. `--format text|markdown|json` selects the
+output; JSON adds `scope` with roots, package and layer counts, and the
+`repository` boundary when roots are given. `--against <index>` compares the
+whole repository with a saved base index and cannot be combined with `--package`.
+
 ## `stack`
 
 Every third-party package the manifest that owns `--from` lets that place use,
