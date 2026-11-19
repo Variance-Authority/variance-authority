@@ -1,10 +1,10 @@
 //! Rows written in runs side by side and joined give the bytes one pass in
-//! order gives.
+//! order gives, and a text heap held in parts the bytes of one buffer.
 
-use super::ParseColumns;
+use super::{Heap, ParseColumns, PART};
 use crate::generation::key_parts;
 use crate::held::HeldParse;
-use crate::segment::{encode, u32s, Collected, Strings};
+use crate::segment::{encode, u32s, u8s, Collected, Strings};
 
 /// Row `n`: every list a parse holds, kept texts among them, or nothing at all
 /// every third row, so runs start and end on empty lists too.
@@ -47,4 +47,39 @@ fn rows_written_in_runs_join_to_the_bytes_of_one_pass() {
     for run in [1, 2, 3, 4, 7] {
         assert!(bytes(run) == whole, "runs of {run} differ from one pass");
     }
+}
+
+#[test]
+fn a_text_heap_past_one_part_gives_the_bytes_of_one_buffer() {
+    let texts: Vec<String> = (b'a'..b'f').map(|letter| char::from(letter).to_string().repeat(PART / 3)).collect();
+    let mut heap = Heap::default();
+    let ids: Vec<u32> = texts.iter().map(|text| heap.push(Some(text))).collect();
+    assert_eq!(ids, [0, 1, 2, 3, 4]);
+    assert!(!heap.parts.is_empty(), "the texts fit one part, so no part was closed");
+    let ends = texts.iter().scan(0, |end, text| {
+        *end += text.len() as u32;
+        Some(*end)
+    });
+    let one = [u8s("texts.blob", texts.concat().into_bytes()), u32s("texts.off", std::iter::once(0).chain(ends).collect())];
+    assert!(encode(heap.columns().into()) == encode(one.into()), "the parts differ from one buffer");
+}
+
+#[test]
+fn heaps_past_one_part_joined_give_the_bytes_of_one_heap() {
+    let texts: Vec<String> = (b'a'..b's').map(|letter| char::from(letter).to_string().repeat(PART / 3)).collect();
+    let heap_of = |texts: &[String]| {
+        let mut heap = Heap::default();
+        texts.iter().for_each(|text| {
+            heap.push(Some(text));
+        });
+        heap
+    };
+    let mut runs = texts.chunks(6).map(heap_of);
+    let mut joined = runs.next().unwrap();
+    for (run, heap) in runs.enumerate() {
+        assert!(!heap.parts.is_empty(), "a run fits one part, so its held bytes are not exercised");
+        assert_eq!(joined.append(heap) as usize, 6 * (run + 1));
+    }
+    let whole = heap_of(&texts);
+    assert!(encode(joined.columns().into()) == encode(whole.columns().into()), "the joined heaps differ from one heap");
 }
