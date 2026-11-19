@@ -38,10 +38,7 @@
  * ## Where it gives up
  *
  * A bare specifier is bounded by the `paths` a `tsconfig` declares, and a
- * configuration that cannot be read is no bound at all. A base an `extends`
- * reaches is read whatever it is named and wherever it lies, and its contents
- * join the config digest, so only a base that is missing or is not JSON leaves
- * the bound unknown. When
+ * configuration that cannot be read is no bound at all. When
  * [`aliasesIn`](./witness.ts) comes back empty-handed the whole path set goes
  * into the config digest instead, which is the old rule, applied on purpose and
  * only where nothing better is available.

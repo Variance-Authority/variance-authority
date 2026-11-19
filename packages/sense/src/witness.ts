@@ -33,27 +33,21 @@
  * inherited from a base is the base's answer. A base named by a path is read
  * where the path points, with `.json` appended when the name as written is not
  * there, as TypeScript reads it. A base named by a package — `@tsconfig/node22`,
- * or `@org/tsconfig/base`, the shape of a workspace that keeps its shared
- * configuration in a package — is asked of `oxc-resolver` under the rule it
- * follows `extends` by, so the file read here is the file the resolver itself
- * inherits from: the package's `exports`, then its `tsconfig.json`. The
- * manifests and the lockfile that decide where a package lands are already in
- * the config digest.
+ * or `@org/tsconfig/base` in a workspace that shares its configuration — is
+ * asked of `oxc-resolver` under the rule it follows `extends` by: the
+ * package's `exports`, then its `tsconfig.json`.
  *
- * A base is read whatever it is named and wherever it lies: `tspaths.json`
- * beside the `tsconfig` that names it, a package installed under
- * `node_modules`, a workspace package reached through its link. The listing
- * names only `tsconfig*.json` and `jsconfig.json`, so each base read past it is
- * handed back in `read` with the digest of its bytes, and the config digest
- * names it as it names a listed one: an edit to the base, or a reinstall that
- * changes it, moves every record's configuration. A pattern placed outside the
- * checkout bounds no path of it, and is dropped.
+ * A base is read whatever it is named and wherever it lies — `tspaths.json`
+ * beside its `tsconfig`, a package under `node_modules`. Each one the listing
+ * does not hold is handed back in `read` with the digest of its bytes, so the
+ * config digest names it, and an edit or a reinstall moves every record's
+ * configuration. A pattern placed outside the checkout bounds no path of it,
+ * and is dropped.
  *
  * So when a configuration cannot be read — invalid JSON, or an `extends` that
  * resolves to nothing — there is no honest bound on where a bare specifier
- * could land. Aliases are then **unknown**, and the caller that asks for them
- * is expected to fall back to treating the whole path set as one witness
- * ([`reuse.ts`](./reuse.ts)).
+ * could land. Aliases are then **unknown**, and the caller falls back to
+ * treating the whole path set as one witness ([`reuse.ts`](./reuse.ts)).
  */
 
 import { dirname, join, normalize } from 'node:path/posix';
