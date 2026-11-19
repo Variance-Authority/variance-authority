@@ -13,7 +13,7 @@
 //! layout this side wrote, so the compaction reads each layer in place
 //! (`stored.rs`) and copies the newest row for every key into one generation.
 //!
-//! The fold is `chain_lookup.rs`'s, which every reader of a chain answers by:
+//! The fold keeps the rule `chain_lookup.rs` answers every reader of a chain by:
 //! oldest layer first, each layer's deletes and then its puts, and the configuration is the last
 //! layer's, absent included. The rows are copied as the reader would read them
 //! — an export list the row marks absent is not written, a span is a span only
@@ -134,7 +134,7 @@ fn folded(base: &[Layer], layers_bytes: &[&[u8]], over: bool) -> Result<Vec<u8>,
     }))
 }
 
-/// The newest row for every key, as `chain_lookup.rs` folds layers: oldest first,
+/// The newest row for every key, by the rule `chain_lookup.rs` folds by: oldest first,
 /// each layer's deletes and then its puts. Over a base, a key deleted and not
 /// put again is kept as gone, since the base beneath still holds it.
 #[derive(Default)]
@@ -197,7 +197,7 @@ fn fold<'b>(layers: &'b [Layer<'b>], over: bool, only: Option<&Fold>) -> Fold<'b
     fold
 }
 
-/// `joinedKey` in `source-index-format.ts`: the default way adds nothing.
+/// A parse key and the way it was read, as one string: the default way adds nothing.
 pub(crate) fn joined(digest: &str, way: &str) -> String {
     if way.is_empty() { digest.to_owned() } else { format!("{digest}\0{way}") }
 }

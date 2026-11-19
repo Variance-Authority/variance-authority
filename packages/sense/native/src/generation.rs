@@ -33,9 +33,8 @@ pub fn directory_columns(directories: &[(String, String)], deleted: &[String], s
     ]
 }
 
-/// A parse key's content digest and the way it was read, which `joinedKey` in
-/// `source-index-format.ts` joins again. A key read the default way has no
-/// second part.
+/// A parse key's content digest and the way it was read, which `joined` in
+/// `compact.rs` joins again. A key read the default way has no second part.
 pub fn key_parts(key: &str) -> (&str, &str) {
     key.split_once('\0').unwrap_or((key, ""))
 }

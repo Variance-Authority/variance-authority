@@ -23,7 +23,8 @@ export interface NativeSourceIndexes {
   /**
    * The source-index chain `segments` holds, oldest first, opened once
    * (`native/src/index_reader.rs`): the one reader of the format. The reader
-   * holds the buffers rather than copying them, so none may change while it is open.
+   * holds the buffers rather than copying them, so none may change or be
+   * transferred while it is open.
    */
   openSourceIndexReader(segments: Uint8Array[]): NativeSourceIndexReader;
   /** Drop what no chain in `chains` names from the parse store at `store`, past `graceMs`; how many parses went (`native/src/parse_store.rs`). */

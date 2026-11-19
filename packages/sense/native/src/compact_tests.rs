@@ -143,6 +143,31 @@ fn a_layer_whose_member_names_a_request_its_parse_does_not_hold_is_refused_at_op
     assert!(crate::compact::Layer::open(&with_u32_of(FULL, "members.request", 0)).is_ok());
 }
 
+/// `FULL` with its first two dictionary strings swapped: every row still names
+/// an id the dictionary holds, and the ids still ascend.
+fn with_dictionary_out_of_order() -> Vec<u8> {
+    let good = encoded(FULL);
+    let stored = crate::stored::Stored::open(&good).unwrap();
+    let mut strings: Vec<&str> = (0..stored.string_count() as u32).map(|id| stored.text(id)).collect();
+    strings.swap(0, 1);
+    let mut off = vec![0u32];
+    for string in &strings { off.push(off.last().unwrap() + string.len() as u32); }
+    let columns = stored.columns().into_iter().map(|(column, width, bytes)| match column {
+        "strings.blob" => crate::segment::column(column.to_owned(), width, strings.concat().into_bytes()),
+        "strings.off" => crate::segment::column(column.to_owned(), width, off.iter().flat_map(|at| at.to_le_bytes()).collect()),
+        _ => crate::segment::column(column.to_owned(), width, bytes.to_vec()),
+    });
+    crate::segment::encode(columns.collect())
+}
+
+// A key is found by binary search over the dictionary's text, so a dictionary
+// out of code-unit order holds keys a lookup misses.
+#[test]
+fn a_layer_whose_dictionary_does_not_ascend_is_refused_at_open() {
+    assert!(crate::stored::Stored::open(&with_dictionary_out_of_order()).is_ok(), "the swap broke the framing, not the order");
+    assert!(crate::compact::Layer::open(&with_dictionary_out_of_order()).is_err(), "a dictionary out of order was read");
+}
+
 #[test]
 fn a_layer_whose_record_files_do_not_ascend_is_refused_at_open() {
     let good = encoded(FULL);

@@ -28,6 +28,13 @@ use super::{Directories, Records};
 /// Whether the layer whose columns these are reads.
 pub(super) fn layer(stored: &Stored, parses: &Parses, records: &Records, directories: &Directories) -> Result<(), String> {
     need(stored.has_texts(), "a text heap")?;
+    // Every key is found by binary search over the dictionary's text: one walk
+    // says the search finds each string it holds.
+    let strictly = (1..stored.string_count() as u32)
+        .all(|id| crate::order::code_unit(stored.text(id - 1), stored.text(id)).is_lt());
+    if !strictly {
+        return Err("a dictionary out of code-unit order".to_owned());
+    }
     ascending(stored, parses.key.len(), |row| (parses.key.at(row), parses.way.at(row)), "parse keys")?;
     ascending(stored, parses.deleted.len(), |row| (parses.deleted.at(row), parses.deleted_way.at(row)), "deleted parse keys")?;
     for (column, what) in [

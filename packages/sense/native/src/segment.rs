@@ -22,10 +22,10 @@ use serde::Serialize;
 /// The id an optional string column writes for "absent".
 pub const NONE: u32 = u32::MAX;
 pub(crate) const ALIGNMENT: usize = 8;
-/// `FORMAT` in `source-index-format.ts`.
+/// The format the source index's segments name in their header.
 pub(crate) const FORMAT: &str = "variance-authority-source-index";
-/// `VERSION` in `source-index-format.ts`: a layer the reader refuses is a layer
-/// thrown away, which `native-read.test.ts` catches.
+/// `SOURCE_INDEX_VERSION` in `source-index-format.ts`: a layer the reader
+/// refuses is a layer thrown away, which `native-read.test.ts` catches.
 pub(crate) const VERSION: u8 = 48;
 
 /// One section's bytes, held in the parts they were written in: a column
