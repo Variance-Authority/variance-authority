@@ -99,7 +99,7 @@ fn compared(root: &Path) -> bool {
 /// The snapshot compared in-process is the one `status` answers, path for path.
 fn agrees(root: &Path) {
     let root = root.to_str().unwrap();
-    let (known, printed) = (snapshot_of(root, true, None).unwrap(), snapshot_of(root, false, None).unwrap());
+    let (known, printed) = (snapshot_of(root, true, None, None).unwrap().0, snapshot_of(root, false, None, None).unwrap().0);
     let digests = |tree: &super::Snapshot| -> Vec<(String, String, bool)> {
         tree.paths.iter().zip(&tree.oids).zip(&tree.regular).map(|((path, oid), regular)| (path.clone(), hex(oid), *regular)).collect()
     };

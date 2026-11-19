@@ -281,6 +281,48 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     }
   });
 
+  it('lists a switch under a watch as git would, comparing only what Watchman reports moved', async () => {
+    const at = execFileSync('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+    git('switch', '--quiet', '-c', 'side');
+    await write('app/index.ts', 'export const app = 2;\n');
+    await write('lib/added.ts', 'export const added = 1;\n');
+    await write('lib/.gitignore', '*.log\n');
+    git('rm', '--quiet', 'cache/kept.ts');
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'side');
+    git('switch', '--quiet', at);
+    try {
+      // An edit the switch carries, and a file git does not track, both listed before it.
+      await write('lib/unit.ts', 'export const unit = 3;\n', 30_000);
+      await write('notes.ts', 'export const notes = 1;\n');
+      // Untracked here, and ignored by the rule the switch brings.
+      await write('lib/debug.log', 'started\n');
+      await tell({ clock: 'c:14:1', files: ['lib/unit.ts', 'notes.ts', 'lib/debug.log'] });
+      await updateNatively(root, index);
+
+      git('switch', '--quiet', 'side');
+      await tell({ clock: 'c:14:2', files: ['app/index.ts', 'lib/added.ts', 'lib/.gitignore', 'cache/kept.ts'] });
+      const told: string[] = [];
+      const switched = await updateNatively(root, index, (step) => void told.push(step));
+      expect(told).toContain('Watchman reports what moved since the listing the index holds, so only that was compared');
+
+      const fresh = join(dirname(index), 'fresh.bin');
+      await tell({ clock: 'c:14:3', fresh: true });
+      const listed = await updateNatively(root, fresh);
+      const paths = listed.listing!.paths();
+      expect(paths).not.toContain('lib/debug.log');
+      expect(switched.listing!.paths()).toEqual(paths);
+      expect(switched.listing!.digestsFor(paths)).toEqual(listed.listing!.digestsFor(paths));
+      expect(switched.files).toBe(listed.files);
+    } finally {
+      git('switch', '--quiet', at);
+      git('branch', '--quiet', '-D', 'side');
+      await write('lib/unit.ts', 'export const unit = 1;\n');
+      await rm(join(root, 'notes.ts'));
+      await rm(join(root, 'lib/debug.log'));
+    }
+  });
+
   it('runs no git when the watch ignores directories', async () => {
     // A real watch leaves out `node_modules`, `dist` and caches: what it ignores is out of the source.
     // A fresh clock makes git list under the watch as it is configured now.

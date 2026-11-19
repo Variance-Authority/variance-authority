@@ -20,8 +20,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use crate::git::git_porcelain::{configured, porcelain, settings_of, untracked_question};
-use crate::stages::{part, summed, Sum};
+use crate::git::git_porcelain::{configured, porcelain, settings_of, untracked_question};use crate::stages::{part, summed, Sum};
 
 /// A git object name, unformatted. Twenty bytes rather than forty characters.
 pub type Oid = [u8; 20];
@@ -46,18 +45,24 @@ pub struct Snapshot {
 /// outside a repository would be useless in exactly the tarball and sandbox
 /// cases it should handle quietly.
 pub fn snapshot(root: &str) -> Option<Snapshot> {
-    snapshot_of(root, true, None)
+    snapshot_of(root, true, None, None).map(|(snapshot, _)| snapshot)
 }
 
 /// `snapshot`, with `HEAD`'s tree read from the record at `held` and only the
 /// trees it does not hold by id read from the store (`committed_tree.rs`).
 pub(crate) fn snapshot_against(root: &str, held: &std::path::Path) -> Option<Snapshot> {
-    snapshot_of(root, true, Some(held))
+    snapshot_of(root, true, Some(held), None).map(|(snapshot, _)| snapshot)
+}
+
+/// `snapshot_against`, with the working tree compared only where `before`
+/// cannot say (`worktree_moved.rs`), and whether it was.
+pub(crate) fn snapshot_since(root: &str, held: &std::path::Path, before: &worktree_moved::Before) -> Option<(Snapshot, bool)> {
+    snapshot_of(root, true, Some(held), Some(before))
 }
 
 /// `snapshot`, with the working tree compared in-process only when `compared`
 /// asks for it: the tests hold the two answers side by side.
-fn snapshot_of(root: &str, compared: bool, held: Option<&std::path::Path>) -> Option<Snapshot> {
+fn snapshot_of(root: &str, compared: bool, held: Option<&std::path::Path>, before: Option<&worktree_moved::Before>) -> Option<(Snapshot, bool)> {
     // One call names the root's place and `HEAD`'s tree, and the object store
     // lists the tree in-process; `ls-tree` answers where it will not, as under a
     // replace ref or on an unborn branch.
@@ -89,7 +94,10 @@ fn snapshot_of(root: &str, compared: bool, held: Option<&std::path::Path>) -> Op
             // `git status`, as one that declines does.
             let walked = match (compared, &head) {
                 (true, Some(head)) => std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    crate::git::worktree_status::walk(head, &crate::git::worktree_status::config_of(&listed))
+                    let config = worktree_status::config_of(&listed);
+                    let moved = before.and_then(|before| worktree_moved::walk(head, &config, before));
+                    let followed = moved.is_some();
+                    moved.or_else(|| worktree_status::walk(head, &config)).map(|walked| (walked, followed))
                 }))
                 .ok()
                 .flatten(),
@@ -107,10 +115,10 @@ fn snapshot_of(root: &str, compared: bool, held: Option<&std::path::Path>) -> Op
     });
     // The index and `HEAD`'s blobs, both held, are compared in-process; a tree
     // the store will not list is `git status`'s to compare.
-    let status = match (walked, &listing) {
-        (Ok(walked), Some(Listing::Held(blobs))) => Some(Status::Known(summed(Sum::Compare, || walked.against(blobs)))),
-        (Ok(_), _) => status(&listed).map(Status::Printed),
-        (Err(printed), _) => printed.map(Status::Printed),
+    let (status, followed) = match (walked, &listing) {
+        (Ok((walked, followed)), Some(Listing::Held(blobs))) => (Some(Status::Known(summed(Sum::Compare, || walked.against(blobs)))), followed),
+        (Ok(_), _) => (status(&listed).map(Status::Printed), false),
+        (Err(printed), _) => (printed.map(Status::Printed), false),
     };
     // A repository with no commit yet has no tree to list, and that is an empty
     // listing rather than an unanswerable one: `status` names every file as
@@ -209,7 +217,7 @@ fn snapshot_of(root: &str, compared: bool, held: Option<&std::path::Path>) -> Op
         regular.push(vouched);
     }
 
-    Some(Snapshot { paths, oids, regular, unhashed })
+    Some((Snapshot { paths, oids, regular, unhashed }, followed))
 }
 
 /// What the working tree says instead of `HEAD`: compared in-process, or printed by `status`.
@@ -453,6 +461,8 @@ pub(crate) fn answer(root: &str, args: &[&str], stdin: Option<Vec<u8>>) -> Resul
 // What `status` asks git, and the comparison that answers in its place.
 #[path = "git_porcelain.rs"]
 pub(crate) mod git_porcelain;
+#[path = "worktree_moved.rs"]
+pub(crate) mod worktree_moved;
 #[path = "worktree_status.rs"]
 pub(crate) mod worktree_status;
 #[path = "worktree_untracked.rs"]

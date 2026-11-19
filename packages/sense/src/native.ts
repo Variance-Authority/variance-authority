@@ -41,6 +41,8 @@ export interface NativeGitTree extends NativeOrientMapListing, NativeJourneysLis
   readonly size: number;
   /** Watchman vouched for the listing the index held, and git listed nothing (`native/src/change_tree.rs`). */
   readonly vouched: boolean;
+  /** Git compared only what Watchman reports moved since the listing the index held (`native/src/held_listing.rs`). */
+  readonly followed: boolean;
   seeds(): string[];
   has(path: string): boolean;
   digest(path: string): string | null;
