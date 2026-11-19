@@ -351,13 +351,6 @@
   },
   {
     "files": [
-      "packages/sense/src/source-index-mocks.ts",
-      "packages/sense/src/taint/mocks.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/sense/src/source-index.ts",
       "packages/sense/src/source-index.ts"
     ],

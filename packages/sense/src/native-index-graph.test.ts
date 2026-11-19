@@ -15,7 +15,8 @@ import { MODULE_EXTENSIONS } from './read.js';
 import { shapeOf } from './reuse.js';
 import { LARGEST_FILE } from './scan.js';
 import { openSourceIndexFile } from './source-index-file.js';
-import { type IndexedRecord, type StoredSourceIndex, decodeSourceIndex } from './source-index-format.js';
+import type { IndexedRecord, StoredSourceIndex } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 import { CACHE_VARIABLE } from './test-selection/cache-layers.js';
 import { gitTreeOf } from './tree.js';
 
@@ -140,7 +141,7 @@ describe('a cold closure held by the addon', () => {
       directories: shape.directories,
     })!;
     const read = graphRecords(held).find((record) => record.file === seeds[0])!;
-    const { parses } = decodeSourceIndex(held.parseSegment());
+    const { parses } = readSourceIndexSegment(held.parseSegment());
     const parsed = parses.get(keyFor(read.digest!, parseWay(read.file)));
     expect(parsed?.harvested).toBe(true);
     expect(parsed?.symbols?.map((symbol) => symbol.name)).toContain('nativeParses');
@@ -162,7 +163,7 @@ describe('a cold closure held by the addon', () => {
     expect(declined.size).toBe(1);
     expect(declined.parsed).toBe(0);
     const read = closure(LARGEST_FILE);
-    expect(read.parsed).toBe(decodeSourceIndex(read.parseSegment()).parses.size);
+    expect(read.parsed).toBe(readSourceIndexSegment(read.parseSegment()).parses.size);
   });
 
   // Ten thousand modules is where a scan hands its closure to the addon to hold.

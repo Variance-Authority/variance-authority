@@ -16,7 +16,7 @@ import { native as addon } from './addon.js';
 import type { ParseCache, Parsed } from './cache.js';
 import { READABLE } from './language.js';
 import type { NativeBuilt, NativeGitTree } from './native.js';
-import { decodeSourceIndex } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 import { cacheRootFor, directoriesIn, primaryCacheRoot, workDirectory } from './test-selection/cache-layers.js';
 import { repositoryRoot } from './test-selection/repository-root.js';
 
@@ -132,7 +132,7 @@ export function handOverKept(
 ): void {
   if (rows.length === 0 || stores === undefined) return;
   const digests = rows.map((row) => row.fresh.record.digest!);
-  const parses = decodeSourceIndex(tree.keptParses([...stores], rows.map((row) => row.file), digests)).parses;
+  const parses = readSourceIndexSegment(tree.keptParses([...stores], rows.map((row) => row.file), digests)).parses;
   for (const { file, key, fresh } of rows) {
     const parse = parses.get(key);
     if (parse !== undefined) cache.set(key, parse);

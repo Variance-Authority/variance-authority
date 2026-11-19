@@ -6,8 +6,8 @@ import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { Parsed, ParseKey } from './cache.js';
 import { BadLogPath, openImmutableLog } from './immutable-log.js';
-import { materializeLayers } from './ordered-map.js';
-import { decodeSourceIndex, encodeSourceIndex } from './source-index-format.js';
+import { encodeSourceIndex, type StoredSourceIndex } from './source-index-format.js';
+import { readSourceIndexChain, readSourceIndexSegment } from './source-index-reader.js';
 import { native } from './addon.js';
 import { readPublishedSources } from './published.js';
 import { readySourceIndex } from './ready-index.js';
@@ -15,6 +15,7 @@ import { adoptNativeParses, openSourceIndex, readSourceRecords } from './source-
 import type { EncodedParseLayer } from './source-index-file.js';
 import type { TreeShape } from './reuse.js';
 import { directoriesOf } from './witness.js';
+import { decodedParseRows } from './__fixtures__/decoded-parse-rows.js';
 
 const CONFIG: Digest = 'sha256:1111111111111111111111111111111111111111111111111111111111111111';
 const OTHER_CONFIG: Digest = 'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
@@ -155,6 +156,26 @@ describe('the binary source index', () => {
     expect(await readSourceRecords(file)).toEqual([RECORD]);
   });
 
+  it('saves over an unchanged index without decoding a parse row or writing a segment', async () => {
+    const file = await path();
+    const first = await openSourceIndex(file);
+    first.cache.set(DIGEST, PARSED);
+    first.reuse.under(SHAPE);
+    first.reuse.set(RECORD, WITNESSES);
+    await first.save();
+    const bytes = await readFile(file);
+
+    // A warm scan reuses every record, so it asks for no parse.
+    const rows = await decodedParseRows(async () => {
+      const warm = await openSourceIndex(file);
+      warm.reuse.under(SHAPE);
+      expect(warm.reuse.getIndexed(RECORD.file, DIGEST)?.record).toEqual(RECORD);
+      expect(await warm.save()).toBeUndefined();
+    });
+    expect(rows).toBe(0);
+    expect(await readFile(file)).toEqual(bytes);
+  });
+
   it('discards the resolved half when the configuration changes without discarding parses', async () => {
     const file = await path();
     const first = await openSourceIndex(file);
@@ -185,7 +206,7 @@ describe('the binary source index', () => {
     second.reuse.set(RECORD, WITNESSES); // The full scan rebuilt the same logical value.
     await second.save();
 
-    const changes = decodeSourceIndex((await openImmutableLog(file)).segments[1]!);
+    const changes = readSourceIndexSegment((await openImmutableLog(file)).segments[1]!);
     expect(changes.config).toBe(OTHER_CONFIG);
     expect(changes.records.size).toBe(0);
     const third = await openSourceIndex(file);
@@ -209,9 +230,10 @@ describe('the binary source index', () => {
     await second.save();
 
     expect(await readdir(`${file}.segments`)).toHaveLength(2);
-    const changes = decodeSourceIndex((await openImmutableLog(file)).segments[1]!);
+    const { segments } = await openImmutableLog(file);
+    const changes = readSourceIndexSegment(segments[1]!);
     expect([...changes.parses]).toEqual([[OTHER, { requests: [] }]]);
-    expect([...changes.deletedParses ?? []]).toEqual([DIGEST]);
+    expect(readSourceIndexChain(segments).stored.parses.has(DIGEST)).toBe(false);
     expect([...changes.records]).toEqual([
       [RECORD.file, { record: replacement, witnesses: WITNESSES }],
     ]);
@@ -241,6 +263,13 @@ describe('the binary source index', () => {
     const third = await openSourceIndex(file);
     expect(third.cache.get(DIGEST)).toEqual(PARSED);
     expect(third.cache.get(OTHER)).toEqual({ requests: [] });
+  });
+
+  it('answers a parse the adopted native layer holds before the save, and none it does not', async () => {
+    const opened = await openSourceIndex(await path());
+    adoptNativeParses(opened.cache, nativeLayer([[DIGEST, PARSED]]));
+    expect(opened.cache.get(DIGEST)).toEqual(PARSED);
+    expect(opened.cache.get(OTHER)).toBeUndefined();
   });
 
   it('rewrites one working layer over the base, a native parse layer included, and readying folds it in', async () => {
@@ -308,130 +337,6 @@ describe('the binary source index', () => {
     await expect(openSourceIndex(notAPath)).rejects.toBeInstanceOf(BadLogPath);
   });
 
-  it('rejects duplicate logical keys instead of accepting a partial generation', () => {
-    const encoded = encodeSourceIndex({
-      parses: new Map([[DIGEST, PARSED], [OTHER, { requests: [] }]]),
-      directories: new Map(),
-      records: new Map(),
-    });
-    const headerLength = encoded.readUInt32LE(0);
-    const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
-      sections: { name: string; offset: number }[];
-    };
-    const section = header.sections.find((value) => value.name === 'parses.key');
-    expect(section).toBeDefined();
-    const digests = new Uint32Array(
-      encoded.buffer,
-      encoded.byteOffset + 4 + headerLength + section!.offset,
-      2,
-    );
-    digests[1] = digests[0]!;
-
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
-  });
-
-  it('rejects member declarations whose offsets run past their columns', () => {
-    const encoded = encodeSourceIndex({
-      parses: new Map([[DIGEST, PARSED]]),
-      directories: new Map(),
-      records: new Map(),
-    });
-    const headerLength = encoded.readUInt32LE(0);
-    const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
-      sections: { name: string; offset: number }[];
-    };
-    const section = header.sections.find((value) => value.name === 'parses.member-declarations');
-    expect(section).toBeDefined();
-    // One parse, so two offsets: the start of its range and its end.
-    const offsets = new Uint32Array(encoded.buffer, encoded.byteOffset + 4 + headerLength + section!.offset, 2);
-    offsets[1] = PARSED.memberDeclarations!.length + 1;
-
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
-  });
-
-  it('rejects member uses whose offsets run past their columns', () => {
-    const encoded = encodeSourceIndex({
-      parses: new Map([[DIGEST, PARSED]]),
-      directories: new Map(),
-      records: new Map(),
-    });
-    const headerLength = encoded.readUInt32LE(0);
-    const header = JSON.parse(encoded.toString('utf8', 4, 4 + headerLength).replace(/\0+$/, '')) as {
-      sections: { name: string; offset: number }[];
-    };
-    const section = header.sections.find((value) => value.name === 'parses.member-uses');
-    expect(section).toBeDefined();
-    // One parse, so two offsets: the start of its range and its end.
-    const offsets = new Uint32Array(encoded.buffer, encoded.byteOffset + 4 + headerLength + section!.offset, 2);
-    offsets[1] = PARSED.memberUses!.length + 1;
-
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
-  });
-
-  it('keeps a package name that nothing else in the segment names', () => {
-    // Only a subpath import reaches `@scope/only-here`, so the bare name is in no
-    // other column. A dictionary that missed it wrote row 0 — whatever sorted
-    // first — and a relative specifier sorts before every package.
-    const record: FileRecord = { file: 'src/card.tsx', digest: DIGEST, unresolved: ['../exit.js'], packages: [{ to: '@scope/only-here', kind: 'type' }] };
-    const decoded = decodeSourceIndex(encodeSourceIndex({
-      parses: new Map(),
-      directories: new Map(),
-      records: new Map([[record.file, { record, witnesses: WITNESSES }]]),
-    }));
-
-    expect(decoded.records.get(record.file)?.record.packages).toEqual([{ to: '@scope/only-here', kind: 'type' }]);
-  });
-
-  it('refuses a package column that names a relative specifier', () => {
-    const record: FileRecord = { file: 'src/card.tsx', digest: DIGEST, packages: [{ to: 'zzzzzzzzzz', kind: 'imports' }] };
-    const encoded = encodeSourceIndex({
-      parses: new Map(),
-      directories: new Map(),
-      records: new Map([[record.file, { record, witnesses: WITNESSES }]]),
-    });
-    const at = encoded.indexOf('zzzzzzzzzz');
-    encoded.write('../exit.js', at);
-
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
-  });
-
-  it('rejects a key that one segment both writes and deletes', () => {
-    const encoded = encodeSourceIndex({
-      parses: new Map([[DIGEST, PARSED]]),
-      deletedParses: new Set([DIGEST]),
-      directories: new Map(),
-      records: new Map(),
-    });
-
-    expect(() => decodeSourceIndex(encoded)).toThrow('not a variance-authority source index');
-  });
-
-  it('keeps each side of a mock diff apart, and a parse with none has no diff', () => {
-    const decoded = decodeSourceIndex(encodeSourceIndex({
-      parses: new Map([[DIGEST, { requests: [], mocks: { plus: ['./real.js'] } }], [OTHER, { requests: [] }]]),
-      directories: new Map(),
-      records: new Map(),
-    }));
-
-    expect(decoded.parses.get(DIGEST)?.mocks).toEqual({ plus: ['./real.js'] });
-    expect(decoded.parses.get(OTHER)).toEqual({ requests: [] });
-  });
-
-  it('keeps whether a reader guessed a request, and whether it asked for it as an item', () => {
-    const requests: Parsed['requests'] = [
-      { value: 'self::graph', kind: 'imports', line: 1, bindings: [] },
-      { value: 'crate::graph::Limits', kind: 'imports', line: 2, bindings: [], guessed: true },
-      { value: 'crate::graph', kind: 'imports', line: 3, bindings: [], guessed: true, item: true },
-    ];
-    const decoded = decodeSourceIndex(encodeSourceIndex({
-      parses: new Map([[DIGEST, { requests }]]),
-      directories: new Map(),
-      records: new Map(),
-    }));
-
-    expect(decoded.parses.get(DIGEST)?.requests).toEqual(requests);
-  });
-
   it('readies a chain into the generation its layers read as, oldest first', async () => {
     const styled = `${OTHER}\0.css\0+` as ParseKey;
     const first = encodeSourceIndex({
@@ -450,7 +355,7 @@ describe('the binary source index', () => {
       deletedDirectories: new Set(['lib']),
       records: new Map([['src/button.tsx', { record: { file: 'src/button.tsx', edges: [] }, witnesses: [] }]]),
     });
-    const layers = [first, second].map((bytes) => decodeSourceIndex(bytes));
+    const layers = readSourceIndexChain([first, second]).stored;
     const file = await path();
     expect(native()!.appendSourceIndex(file, [], false, [first])).toBeNull();
     expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [second])).toBeNull();
@@ -458,14 +363,7 @@ describe('the binary source index', () => {
 
     // The later layer names no configuration, and the fold keeps its absence.
     const [whole] = (await openImmutableLog(file)).segments;
-    expect(decodeSourceIndex(whole!)).toEqual({
-      parses: materializeLayers(layers.map((layer) => ({ puts: layer.parses, deletes: layer.deletedParses ?? new Set() }))),
-      directories: materializeLayers(layers.map((layer) => ({
-        puts: layer.directories,
-        deletes: layer.deletedDirectories ?? new Set(),
-      }))),
-      records: materializeLayers(layers.map((layer) => ({ puts: layer.records, deletes: layer.deletedRecords ?? new Set() }))),
-    });
+    expect(plain(readSourceIndexSegment(whole!))).toEqual(plain(layers));
   });
 
   it('writes a save that puts again what the base holds as a working layer of what changed', async () => {
@@ -489,7 +387,7 @@ describe('the binary source index', () => {
     expect(native()!.appendSourceIndex(file, [...(await openImmutableLog(file)).digests], false, [again])).toBeNull();
 
     const [, working] = (await openImmutableLog(file)).segments;
-    const layer = decodeSourceIndex(working!);
+    const layer = readSourceIndexSegment(working!);
     expect(layer.config).toBe(CONFIG);
     expect([...layer.parses.keys()]).toEqual([]);
     expect([...layer.directories.keys()]).toEqual([]);
@@ -497,3 +395,8 @@ describe('the binary source index', () => {
     expect((await readPublishedSources(file)).records.map((record) => record.file)).toEqual(['src/button.tsx', RECORD.file]);
   });
 });
+
+/** `stored` as plain maps, each row read. */
+function plain({ config, parses, directories, records }: StoredSourceIndex): object {
+  return { config, parses: new Map(parses), directories: new Map(directories), records: new Map(records) };
+}

@@ -1,7 +1,7 @@
 //! One row of one layer's parse columns (`compact_parses.rs`), written again
 //! into the compacted generation (`compact.rs`).
 //!
-//! A row is copied as `decodeSourceIndex` reads it rather than as it lies: the
+//! A row is copied as `index_reader.rs` reads it rather than as it lies: the
 //! export and declare lists only where the row marks them present, and a span
 //! only where it has an end. Everything else is the row's own ids, looked up in
 //! the new dictionary.

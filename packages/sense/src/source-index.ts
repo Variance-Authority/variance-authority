@@ -13,10 +13,12 @@ import type { FileRecord } from '@variance-authority/core/relate';
 import { codeUnitOrder } from '@variance-authority/core/segment';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { cacheLayers } from './test-selection/cache-layers.js';
+import { prunable } from './ordered-map.js';
 import { realPath } from './resolve.js';
 import { prune, type RecordCache, type TreeShape } from './reuse.js';
 import { openSourceIndexFile, type EncodedParseLayer, type SourceIndexState } from './source-index-file.js';
-import { type IndexedRecord, decodeSourceIndex } from './source-index-format.js';
+import type { IndexedRecord } from './source-index-format.js';
+import { readSourceIndexSegment } from './source-index-reader.js';
 import type { NativeIndexGraph } from './native-index-graph.js';
 
 const nativeParses = new WeakMap<ParseCache, EncodedParseLayer>();
@@ -81,7 +83,7 @@ export async function openSourceIndex(path: string, options: SourceIndexOptions 
   const file = await openSourceIndexFile(path);
   const stored = file.stored;
   const kept = await Promise.all((options.stores ?? []).map(async (store) => (await openSourceIndexFile(store)).stored.parses));
-  const available = new Map(stored.records);
+  const available = prunable(stored.records);
   const held: TreeShape | undefined = stored.config === undefined
     ? undefined
     : { config: stored.config, directories: stored.directories };
@@ -100,7 +102,7 @@ export async function openSourceIndex(path: string, options: SourceIndexOptions 
   const fromNative = (key: ParseKey): Parsed | undefined => {
     const layer = nativeParses.get(cache);
     if (layer === undefined || !layer.keys.has(key)) return undefined;
-    decodedNative ??= decodeSourceIndex(layer.bytes).parses;
+    decodedNative ??= readSourceIndexSegment(layer.bytes).parses;
     return decodedNative.get(key);
   };
 

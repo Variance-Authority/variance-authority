@@ -17,6 +17,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { digestString, type Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { NativeIndexGraph } from './native-index-graph.js';
+import { prunable } from './ordered-map.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import type { IndexedRecord } from './source-index-format.js';
@@ -233,7 +234,7 @@ export function memoryRecordCache(): RecordCache {
 export async function openRecordCache(path: string): Promise<PersistentRecordCache> {
   const file = await openSourceIndexFile(path);
   const generation = file.stored;
-  const entries = new Map(generation.records);
+  const entries = prunable(generation.records);
   const held: TreeShape | undefined = generation.config === undefined
     ? undefined
     : { config: generation.config, directories: generation.directories };
@@ -288,7 +289,7 @@ export async function openRecordCache(path: string): Promise<PersistentRecordCac
  * can distinguish an unchanged scan from one that must publish new identity.
  */
 export function prune(
-  entries: Map<string, IndexedRecord>,
+  entries: Pick<Map<string, IndexedRecord>, 'clear' | 'delete' | typeof Symbol.iterator>,
   before: TreeShape | undefined,
   after: TreeShape,
 ): boolean {

@@ -44,6 +44,28 @@ describe('an index without the addon', () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+  it('refuses to read a published index, naming why the addon did not load, rather than call it damaged', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'variance-without-addon-'));
+    try {
+      await writeFile(join(root, 'a.ts'), 'export const a = 1;\n');
+      for (const args of [['init', '--quiet'], ['add', '.'], ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture']]) {
+        execFileSync('git', args, { cwd: root });
+      }
+      const index = join(root, 'source-index.bin');
+      await (await import('./published.js')).updateSourceIndex(root, { index });
+      vi.resetModules();
+      vi.doMock('./addon.js', async (original) => ({
+        ...await original<typeof import('./addon.js')>(),
+        native: () => undefined,
+        nativeRefusal: () => '@variance-authority/sense-linux-x64-gnu is not installed',
+      }));
+      const { readPublishedSources } = await import('./published.js');
+
+      await expect(readPublishedSources(index)).rejects.toThrow('the source index is read by the native addon, which did not load: @variance-authority/sense-linux-x64-gnu is not installed');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('a native batch', () => {

@@ -16,7 +16,7 @@
   pinned by [select-unread.test.ts](src/test-selection/select-unread.test.ts).
 - **What cannot be read is charged, never dropped.** Pinned by
   [index.test.ts](src/test-selection/index.test.ts).
-- **The TypeScript reader is the native side's oracle.** Written in
+- **The native side is the one reader and writer of the source index.** Written in
   [ADR-0065](../../docs/context/adr/0065-source-scanning-is-one-native-side.md);
   pinned by [native-update.test.ts](src/native-update.test.ts).
 - **Only `knownAs` relates names.** Pinned by
