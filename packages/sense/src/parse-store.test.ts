@@ -429,7 +429,7 @@ describe('the parse store a cache keeps', () => {
     git(root, 'add', '.');
     git(root, 'commit', '--quiet', '-m', 'fresh');
     const tree = (await gitTreeOf(root, ['packages/a']))!;
-    const { shape, aliases } = await shapeOf({ root, tree });
+    const { shape } = await shapeOf({ root, tree });
     const files = ['packages/a/src/fresh.ts', 'packages/a/src/index.ts', 'packages/a/src/lens.ts'];
     const { built, parseLayer } = nativeGraph({
       addon: native()!,
@@ -439,7 +439,6 @@ describe('the parse store a cache keeps', () => {
       digests: files.map(() => undefined),
       largestFile: LARGEST_FILE,
       remembering: true,
-      aliases,
       directories: shape.directories,
       stores: [parseStorePath(cache)],
     }, true);

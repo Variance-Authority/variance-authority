@@ -190,7 +190,6 @@ mod tree;
 #[cfg(unix)]
 mod watchman;
 mod witness;
-mod witness_aliases;
 mod world;
 
 pub use seed::seed_files;

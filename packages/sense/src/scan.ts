@@ -376,7 +376,6 @@ async function scanning(asked: ScanOptions): Promise<Scanned> {
         files: pending,
         largestFile,
         digests: pendingDigests,
-        aliases: shape?.aliases,
         directories: shape?.shape.directories ?? new Map(),
         remembering: reuse !== undefined,
         ...(options.stores === undefined ? {} : { stores: options.stores }),

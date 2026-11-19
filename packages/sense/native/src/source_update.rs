@@ -42,7 +42,6 @@ use crate::package_graph::names_object;
 use crate::parse_store::{self, Parse, Stores};
 use crate::read::Read;
 use crate::record::{built, Indexed, Settling};
-use crate::witness::AliasTable;
 use crate::world::World;
 
 #[path = "source_update_reach.rs"]
@@ -63,8 +62,6 @@ pub struct UpdateOptions {
     pub readers: Option<u32>,
     pub tsconfig: Option<napi::Either<String, bool>>,
     pub condition_names: Option<Vec<String>>,
-    /// `Aliases.table` as JSON, when a configuration maps specifiers.
-    pub aliases: Option<String>,
     pub builtins: Vec<String>,
     pub code_extensions: Vec<String>,
     /// `READABLE`: the extensions an edge is followed for.
@@ -176,7 +173,6 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
     let stores = Stores::read(o.stores.as_deref().unwrap_or_default());
     let store = stores.open();
     let kept = |identity: &str, file: &str| store.view(identity, &way(file))?.read();
-    let aliases = o.aliases.as_deref().map(serde_json::from_str::<AliasTable>).transpose().map_err(|error| fail(format!("its aliases: {error}")))?;
 
     let mut held_directories: HashMap<&str, &str> = HashMap::new();
     for layer in &layers {
@@ -263,7 +259,7 @@ pub(crate) fn update(o: UpdateOptions, tree: Tree, trusted: bool, opening: crate
             tree.from_blob,
             tree.store,
         );
-        let settling = Settling { builtins, code, remembering: true, directories: dirs, aliases: aliases.as_ref() };
+        let settling = Settling { builtins, code, remembering: true, directories: dirs };
         let before = walked.len();
         let rows: Vec<Row> = files
             .par_iter()

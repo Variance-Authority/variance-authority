@@ -20,7 +20,7 @@ fn options(root: &Path, index: &Path) -> UpdateOptions {
         readers: None,
         tsconfig: None,
         condition_names: None,
-        aliases: None,
+
         builtins: Vec::new(),
         code_extensions: extensions.clone(),
         readable: extensions,

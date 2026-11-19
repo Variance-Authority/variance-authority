@@ -22,7 +22,7 @@ import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import type { IndexedRecord } from './source-index-format.js';
 import { isNamed, treeOf, type Tree } from './tree.js';
-import { aliasesIn, movedDirectories, type Aliases } from './witness.js';
+import { movedDirectories } from './witness.js';
 
 /**
  * What decides a record besides the files: how specifiers resolve, and the
@@ -85,7 +85,7 @@ export interface PersistentRecordCache extends RecordCache {
 }
 
 /** Bumped when what a `FileRecord` holds or the config inputs change, so record keys move. */
-const VERSION = 13;
+const VERSION = 14;
 
 /**
  * Files whose contents configure where other files resolve to. Not part of any
@@ -119,7 +119,7 @@ export async function treeShapeOf(input: {
   readonly root: string;
   readonly digests: ReadonlyMap<string, Digest>;
   readonly options?: ShapeOptions;
-}): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases }> {
+}): Promise<{ readonly shape: TreeShape }> {
   const { digests, ...rest } = input;
 
   return shapeOf({ ...rest, tree: treeOf(digests) });
@@ -136,9 +136,10 @@ export async function shapeOf(input: {
   readonly root: string;
   readonly tree: Tree;
   readonly options?: ShapeOptions;
-}): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases }> {
-  const { config, aliases } = await configOf(input);
-  return { shape: { config, directories: input.tree.directories() }, aliases };
+}): Promise<{ readonly shape: TreeShape }> {
+  const { tree, ...configuration } = input;
+  const { config } = configOf(configuration);
+  return { shape: { config, directories: tree.directories() } };
 }
 
 /**
@@ -148,7 +149,7 @@ export async function shapeOf(input: {
  * clears the records kept under it, as it would another configuration's.
  */
 export async function unlistedShapeOf(input: { readonly root: string; readonly options?: ShapeOptions }): Promise<TreeShape> {
-  const { config } = await configOf({ ...input, tree: treeOf(new Map()) });
+  const { config } = configOf(input);
   return { config: digestString(`not listed by git\n${config}`), directories: new Map() };
 }
 
@@ -165,7 +166,7 @@ function tsconfigNamed(root: string, tsconfig: string | false | undefined): stri
 }
 
 /**
- * The configuration half of {@link shapeOf}: the digest and the aliases,
+ * The configuration half of {@link shapeOf}: the resolver-options digest,
  * without the directory digests, which the addon's update derives from its own
  * listing and a caller that hands it only the digest would build for nothing.
  *
@@ -177,15 +178,11 @@ function tsconfigNamed(root: string, tsconfig: string | false | undefined): stri
  * edited alone, to redirect code nobody edited, is not followed; nor is a
  * mapping in a `tsconfig` that cannot be read, which declares nothing.
  */
-export async function configOf(input: {
+export function configOf(input: {
   readonly root: string;
-  readonly tree: Tree;
   readonly options?: ShapeOptions;
-}): Promise<{ readonly config: Digest; readonly aliases: Aliases }> {
-  const { root, tree, options } = input;
-  // Disabled tsconfig resolution uses no aliases, so unrelated configurations
-  // must not multiply every bare import's directory witnesses.
-  const aliases = await aliasesIn(root, options?.tsconfig === false ? [] : tree.named(['jsconfig.json']));
+}): { readonly config: Digest } {
+  const { root, options } = input;
 
   // No `root`: a record names files relative to the checkout it was scanned
   // from and holds no absolute path, so a worktree adopts the primary
@@ -203,7 +200,7 @@ export async function configOf(input: {
     ...(options?.largestFile === undefined ? [] : [`largest ${options.largestFile}`]),
   ];
 
-  return { config: digestString(header.join('\n')), aliases };
+  return { config: digestString(header.join('\n')) };
 }
 
 /** A cache that keeps everything and remembers nothing between processes. */

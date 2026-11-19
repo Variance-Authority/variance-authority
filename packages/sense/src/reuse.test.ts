@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -8,7 +8,7 @@ import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { memoryRecordCache, openRecordCache, treeShapeOf, type RecordCache, type TreeShape } from './reuse.js';
 import { scanRelations } from './scan.js';
-import { directoriesOf, witnessesOf } from './witness.js';
+import { directoriesOf } from './witness.js';
 
 /**
  * Reusing an edge is the one saving here that can be *wrong*.
@@ -122,26 +122,6 @@ describe('naming the shape of a tree', () => {
       .toBe((await shapeOf(files, { tsconfig: 'tsconfig.build.json' })).config);
     // A declined record names its bytes, so a raised limit has to let it go.
     expect((await shapeOf(files, { largestFile: 8 })).config).not.toBe(before.config);
-  });
-
-  it('keeps no alias candidates or witnesses when tsconfig resolution is disabled', async () => {
-    const at = await mkdtemp(join(tmpdir(), 'variance-reuse-disabled-'));
-    made.push(at);
-    const digests = new Map(files);
-    for (let index = 0; index < 32; index += 1) {
-      const config = `packages/unrelated-${index}/tsconfig.json`;
-      await mkdir(dirname(join(at, config)), { recursive: true });
-      await writeFile(join(at, config), JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@app/*': ['src/*'] } } }));
-      digests.set(config, A);
-    }
-    const disabled = await treeShapeOf({ root: at, digests, options: { tsconfig: false } });
-    expect(disabled.aliases.table).toEqual({ bases: [], mappings: [] });
-    expect(disabled.aliases.candidatesFor('@app/button')).toEqual([]);
-    expect(witnessesOf({ file: 'src/Button.tsx', requests: ['react', '@app/button', './button.css'], edges: ['src/button.css'], directories: directoriesOf(['src/Button.tsx', 'src/button.css']), aliases: disabled.aliases }))
-      .toEqual(['src']);
-    const enabled = await treeShapeOf({ root: at, digests });
-    expect(enabled.aliases.table.bases).toHaveLength(32);
-    expect(enabled.aliases.candidatesFor('@app/button')).toContain('packages/unrelated-0/src/button');
   });
 
   it('keeps the configuration when the config the caller names is edited', async () => {
@@ -405,6 +385,31 @@ describe('a scan that remembers the last one', () => {
     const button = after.find((record) => record.file === 'src/Button.tsx');
     expect(button?.unknown).toBeUndefined();
     expect(button?.edges).toEqual([{ to: 'src/later.ts', kind: 'imports' }]);
+  });
+
+  it.each([
+    ['paths', { paths: { '@alias/*': ['mapped/*'] } }, 'mapped'],
+    ['baseUrl fallback', { baseUrl: 'base', paths: { '@alias/*': ['missing/*'] } }, 'base/@alias'],
+    ['stylesheet fallback', { paths: { '@alias/*': ['mapped/*'] } }, 'mapped'],
+  ] as const)('re-resolves a missing %s target when it appears under default settings', async (name, compilerOptions, target) => {
+    const root = await realpath(await repository());
+    const importer = name === 'stylesheet fallback' ? 'src/theme.scss' : 'src/Clock.tsx';
+    await write(root, 'tsconfig.json', JSON.stringify({ compilerOptions, files: [importer] }));
+    await write(root, importer, name === 'stylesheet fallback' ? '@use "@alias/later";\n' : 'import "@alias/later";\n');
+    await write(root, `${target}/marker.ts`, 'export const marker = 1;\n');
+    const reuse = memoryRecordCache();
+    const scan = () => scanRelations({ root, dirs: ['src'], reuse });
+    const before = await scan();
+    expect(before.find((record) => record.file === importer)?.edges).toBeUndefined();
+
+    await write(root, `${target}/later.ts`, 'export const later = 1;\n');
+    const cold = await scanRelations({ root, dirs: ['src'] });
+    expect(cold.find((record) => record.file === importer)?.edges)
+      .toEqual([{ to: `${target}/later.ts`, kind: name === 'stylesheet fallback' ? 'asset' : 'imports' }]);
+    const after = await scan();
+    expect(after.find((record) => record.file === importer)?.edges)
+      .toEqual([{ to: `${target}/later.ts`, kind: name === 'stylesheet fallback' ? 'asset' : 'imports' }]);
+    expect(after).toEqual(cold);
   });
 
   it('re-resolves a file that did not move, when a file it names is deleted', async () => {

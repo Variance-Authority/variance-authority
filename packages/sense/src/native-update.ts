@@ -34,7 +34,6 @@ export interface NativeUpdateOptions {
   readonly largestFile?: number;
   readonly tsconfig?: string | false;
   readonly conditionNames?: string[];
-  readonly aliases?: string;
   readonly builtins: string[];
   readonly codeExtensions: string[];
   readonly readable: string[];
@@ -115,9 +114,9 @@ export async function updateNatively(
   // it compares against the chain is the one that scan wrote.
   const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
   const options = tsconfig === undefined ? {} : { tsconfig };
-  const { config, aliases } = tree === undefined
-    ? { config: (await unlistedShapeOf({ root, options })).config, aliases: undefined }
-    : await configOf({ root, tree, options });
+  const { config } = tree === undefined
+    ? { config: (await unlistedShapeOf({ root, options })).config }
+    : configOf({ root, options });
   // Asked of git while it listed: the stores are needed only now.
   const read = await stores;
   const beside = await others ?? [];
@@ -133,7 +132,6 @@ export async function updateNatively(
     config,
     largestFile: LARGEST_FILE,
     ...(tsconfig === undefined ? {} : { tsconfig }),
-    ...(aliases === undefined ? {} : { aliases: JSON.stringify(aliases.table) }),
     builtins: BUILTINS,
     codeExtensions: CODE_EXTENSIONS,
     readable: [...READABLE],

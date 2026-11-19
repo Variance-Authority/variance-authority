@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use dashmap::DashMap;
 use oxc_resolver::{
-    ResolveOptions, ResolverGeneric, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
+    ResolveOptions, ResolverGeneric, TsConfig, TsconfigDiscovery, TsconfigOptions, TsconfigReferences,
 };
 
 use napi::Either;
@@ -28,6 +28,7 @@ type Answers = DashMap<String, Option<String>>;
 pub(crate) struct Governing {
     modules: Arc<Resolver>,
     answers: Arc<Answers>,
+    tsconfig: Option<Arc<TsConfig>>,
 }
 
 pub(crate) const MODULE_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"];
@@ -161,17 +162,17 @@ impl Resolvers {
 
     /// The `tsconfig` that governs `from`, when one is read, and the module
     /// resolver it selects.
-    fn governed_by(&self, from: &Path) -> (Option<PathBuf>, Arc<Resolver>) {
+    fn governed_by(&self, from: &Path) -> (Option<Arc<TsConfig>>, Arc<Resolver>) {
         let found = self.modules.find_tsconfig(from);
         let Ok(Some(tsconfig)) = found else {
             return (None, Arc::clone(&self.modules));
         };
         let path = tsconfig.path();
         if !self.governs {
-            return (Some(path.to_owned()), Arc::clone(&self.modules));
+            return (Some(tsconfig), Arc::clone(&self.modules));
         }
         if let Some(found) = self.governed.read().ok().and_then(|held| held.get(path).cloned()) {
-            return (Some(path.to_owned()), found);
+            return (Some(tsconfig), found);
         }
         let resolver = match self.emitted.configs.custom_conditions(path) {
             Some(custom) if !custom.is_empty() => self.with_conditions(custom),
@@ -180,15 +181,15 @@ impl Resolvers {
         if let Ok(mut held) = self.governed.write() {
             held.insert(path.to_owned(), Arc::clone(&resolver));
         }
-        (Some(path.to_owned()), resolver)
+        (Some(tsconfig), resolver)
     }
 
     /// What every request written in `from` resolves under, found once per file.
     pub(crate) fn governing(&self, from: &Path) -> Governing {
         let (tsconfig, modules) = self.governed_by(from);
         let directory = from.parent().unwrap_or(from).to_owned();
-        let answers = Arc::clone(&self.answers.entry((tsconfig, directory)).or_default());
-        Governing { modules, answers }
+        let answers = Arc::clone(&self.answers.entry((tsconfig.as_ref().map(|config| config.path().to_owned()), directory)).or_default());
+        Governing { modules, answers, tsconfig }
     }
 
     fn with_conditions(&self, custom: Vec<String>) -> Arc<Resolver> {
@@ -477,3 +478,6 @@ mod tsconfig_tests;
 #[cfg(test)]
 #[path = "resolve_tests.rs"]
 mod tests;
+
+#[path = "resolve_witness.rs"]
+mod witness;
