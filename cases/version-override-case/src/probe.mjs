@@ -21,7 +21,7 @@ const snapshot = (dir) =>
       .filter((entry) => entry.isFile() && !join(entry.parentPath, entry.name).includes('/node_modules/'))
       .map((entry) => join(entry.parentPath, entry.name))
       .sort()
-      .map((file) => [file, createHash('sha1').update(readFileSync(file)).digest('hex')]),
+      .map((file) => [file, createHash('sha256').update(readFileSync(file)).digest('hex')]),
   );
 
 const jestConfig = (dir, flavor) =>

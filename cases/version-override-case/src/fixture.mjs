@@ -1,7 +1,8 @@
 // One suite at two versions, written to a temporary directory: the disk holds
 // the head, and the manifest the base of every test-side file that differs.
 //
-//   src/value      source, head only on disk, never overridden: old tests run on new code
+//   src/value      source, head only on disk, never overridden: old tests run on new code,
+//                  which changed 2 to 3, so gone.test's old assertion fails and deep.test's holds
 //   helper         test-only, head on disk, base in the manifest
 //   kept.test      head on disk, base in the manifest
 //   gone.test      base only: in the manifest, not on disk
@@ -36,12 +37,12 @@ export const writeFixture = (runner, flavor) => {
 
   mkdirSync(join(dir, 'src'));
   writeFileSync(join(dir, 'package.json'), JSON.stringify({ type: esm ? 'module' : 'commonjs' }));
-  writeFileSync(file('src/value'), exports('value', 2));
+  writeFileSync(file('src/value'), exports('value', 3));
   writeFileSync(file('helper'), exports('helper', "()" + typed + " => 'head-helper'"));
   writeFileSync(file('added-helper'), exports('added', 'true'));
   const head = (name, body) => `${prelude}${assert}${body}`.replace('NAME', name);
   writeFileSync(file('kept.test'), head('kept head', `${imports('helper', './helper')}it('NAME', () => assert.strictEqual(helper(), 'head-helper'));\n`));
-  writeFileSync(file('added.test'), head('added', `${imports('value', './src/value')}it('NAME', () => assert.strictEqual(value, 2));\n`));
+  writeFileSync(file('added.test'), head('added', `${imports('value', './src/value')}it('NAME', () => assert.strictEqual(value, 3));\n`));
 
   const manifest = {
     [file('helper')]: exports('helper', "()" + typed + " => 'base-helper'"),
@@ -51,7 +52,7 @@ export const writeFixture = (runner, flavor) => {
       `it('hides added helper', async () => { await assert.rejects(async () => ${loads('./added-helper')}); });\n` +
       `it('base helper', async () => assert.strictEqual((${loads('./new-helper')}).n, 7));\n`,
     [file('new-helper')]: exports('n', 7),
-    [file('old/deep.test')]: `${prelude}${assert}${imports('value', '../src/value')}it('deep', () => assert.strictEqual(value, 2));\n`,
+    [file('old/deep.test')]: `${prelude}${assert}${imports('value', '../src/value')}it('deep', () => assert.ok(value > 0));\n`,
     [file('gone.test')]: `${prelude}${assert}${imports('value', './src/value')}it('gone', () => assert.strictEqual(value, 2));\n`,
     [file('added.test')]: null,
     [file('added-helper')]: null,

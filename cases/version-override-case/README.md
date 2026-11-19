@@ -34,6 +34,8 @@ themselves; `node:test` is handed the list.
   directory only the base had, a helper only the base had that a `require`
   names without its extension; a file only the head has fails to load, and the
   head-only test is not found.
+- The base tests run on the head source, which changed: an old test whose
+  assertion the change broke fails, and one whose assertion still holds passes.
 - The head run after the base run reports the head again: neither Jest's
   transform cache nor Vitest 5's module cache hands the base to it.
 - No file in the fixture changes. The runners write their own caches under
@@ -45,8 +47,9 @@ A reader that resolves or lists below `fs` and the module loader does not see
 a file only the base holds. The probe pins each one it found:
 
 - Jest resolves every import through its own native resolver, so a helper only
-  the base has is not found in any module system. Its `resolver` option is the
-  seam.
+  the base has is not found in any module system. Its file crawl does see the
+  file; the resolver's lookup, an extensionless `require` included, does not.
+  Its `resolver` option is the seam.
 - Vitest resolves an import through Vite's resolver, so an ESM or TypeScript
   import of such a helper is not found; a `require` is. A Vite plugin is the
   seam.
@@ -57,7 +60,8 @@ a file only the base holds. The probe pins each one it found:
 
 A file or directory only the base holds has no stat of its own: it takes the
 manifest's, or its directory's, with the size of its content, and its realpath
-is the path asked for. `open`, `read`, streams, `opendir` and `copyFile` read
+is the path asked for, so a caller that reaches it through a symlink misses
+it. `open`, `read`, streams, `opendir` and `copyFile` read
 the disk.
 
 ## What it does not show

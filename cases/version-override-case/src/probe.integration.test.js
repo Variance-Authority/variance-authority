@@ -3,7 +3,7 @@ import { probe } from './probe.mjs';
 
 // The disk holds the head; the manifest holds the base of every test-side file.
 const head = { 'kept head': 'passed', added: 'passed' };
-const base = { 'kept base': 'passed', 'hides added helper': 'passed', 'base helper': 'passed', gone: 'passed', deep: 'passed' };
+const base = { 'kept base': 'passed', 'hides added helper': 'passed', 'base helper': 'passed', gone: 'failed', deep: 'passed' };
 
 // A runner that resolves an import itself, below `fs` and the module loader,
 // does not see a file only the base holds: Jest through its native resolver,
