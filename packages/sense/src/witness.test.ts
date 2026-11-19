@@ -151,8 +151,8 @@ describe('where a configuration says a bare request can land', () => {
     });
     const aliases = await aliasesIn(root, ['tsconfig.json']);
 
-    expect(aliases?.candidatesFor('@app/button')).toEqual(['src/button', 'vendor/button']);
-    expect(aliases?.candidatesFor('other/button')).toEqual([]);
+    expect(aliases.candidatesFor('@app/button')).toEqual(['src/button', 'vendor/button']);
+    expect(aliases.candidatesFor('other/button')).toEqual([]);
   });
 
   it('reads an exact pattern, and a `baseUrl` that makes every request relative', async () => {
@@ -162,7 +162,7 @@ describe('where a configuration says a bare request can land', () => {
     });
     const aliases = await aliasesIn(root, ['tsconfig.json']);
 
-    expect(aliases?.candidatesFor('shim')).toEqual(['src/shim', 'src/compat/shim.ts']);
+    expect(aliases.candidatesFor('shim')).toEqual(['src/shim', 'src/compat/shim.ts']);
   });
 
   it('reads the comments and trailing commas a `tsconfig` is allowed to carry', async () => {
@@ -187,8 +187,8 @@ describe('where a configuration says a bare request can land', () => {
 
     // `paths` are resolved against the file that declared them, so the base's
     // pattern is still the base's, and the app's overrides rather than merges.
-    expect(aliases?.candidatesFor('@base/x')).toEqual(['base/x']);
-    expect(aliases?.candidatesFor('@app/x')).toEqual(['app/src/x']);
+    expect(aliases.candidatesFor('@base/x')).toEqual(['base/x']);
+    expect(aliases.candidatesFor('@app/x')).toEqual(['app/src/x']);
   });
 
   it('places a `paths` it inherited at the file that wrote it', async () => {
@@ -202,7 +202,7 @@ describe('where a configuration says a bare request can land', () => {
     // root's answer. Re-basing it at the package would name
     // `packages/lab/packages/mui/src`, a directory no repository has, and every
     // record whose specifier matched would carry a witness for it.
-    expect(aliases?.candidatesFor('@mui/Button')).toEqual(['packages/mui/src/Button']);
+    expect(aliases.candidatesFor('@mui/Button')).toEqual(['packages/mui/src/Button']);
   });
 
   it('places one inherited `paths` once for every `baseUrl` it is read under', async () => {
@@ -218,19 +218,23 @@ describe('where a configuration says a bare request can land', () => {
     // they add nothing. `a` reads the same patterns against its own `baseUrl`,
     // which is a second table, and a record whose request matched must watch
     // both.
-    expect(aliases?.table.mappings).toEqual([
+    expect(aliases.table.mappings).toEqual([
       { prefix: '@x/', suffix: '', targets: ['x/*'] },
       { prefix: '@x/', suffix: '', targets: ['a/x/*'] },
     ]);
-    expect(aliases?.candidatesFor('@x/y')).toEqual(['a/@x/y', 'x/y', 'a/x/y']);
+    expect(aliases.candidatesFor('@x/y')).toEqual(['a/@x/y', 'x/y', 'a/x/y']);
   });
 
-  it('gives up on a configuration it cannot read', async () => {
-    const root = await fixture({ 'tsconfig.json': '{ this is not JSON' });
+  it('reads every other configuration past one it cannot read', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ this is not JSON',
+      'app/tsconfig.json': JSON.stringify({ compilerOptions: { paths: { '@app/*': ['./src/*'] } } }),
+    });
 
-    // Not a bound it can weaken — a bound it does not have. The caller turns
-    // this into the whole path set rather than into an empty answer.
-    expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
+    // The unreadable one declares nothing; the other keeps its own patterns.
+    const aliases = await aliasesIn(root, ['tsconfig.json', 'app/tsconfig.json']);
+    expect(aliases.candidatesFor('@app/x')).toEqual(['app/src/x']);
+    expect(aliases.table.mappings).toHaveLength(1);
   });
 
   it('follows an `extends` that names a workspace package back into the tree', async () => {
@@ -240,20 +244,15 @@ describe('where a configuration says a bare request can land', () => {
     // The package's `exports` send `./base` to a file its link leads back to,
     // and the `paths` it declares are placed at that file, as the resolver
     // places them: `../../src/*` from `packages/tsconfig` is `src/*`.
-    expect(aliases?.candidatesFor('@app/x')).toEqual(['src/x']);
-    // The listing holds the base, so the config digest names it already.
-    expect(aliases?.read.size).toBe(0);
+    expect(aliases.candidatesFor('@app/x')).toEqual(['src/x']);
   });
 
-  it('reads a workspace base the listing does not hold, and names the file it read', async () => {
+  it('reads a workspace base the listing does not hold', async () => {
     const root = await workspace();
     const aliases = await aliasesIn(root, ['tsconfig.json']);
 
-    // The same link and the same file, read where the link leads. Its contents
-    // go to the config digest by the name `read` gives it, so an edit to it
-    // still moves the configuration every record is kept under.
-    expect(aliases?.candidatesFor('@app/x')).toEqual(['src/x']);
-    expect([...(aliases?.read.keys() ?? [])]).toEqual(['packages/tsconfig/tsconfig.base.json']);
+    // The same link and the same file, read where the link leads.
+    expect(aliases.candidatesFor('@app/x')).toEqual(['src/x']);
   });
 
   it('reads the `paths` of an `extends` target not named like a `tsconfig`', async () => {
@@ -265,8 +264,7 @@ describe('where a configuration says a bare request can land', () => {
 
     // The file is placed where it was written, as TypeScript places it, and
     // `.json` is appended to a name that does not hold one.
-    expect(aliases?.candidatesFor('@x/y')).toEqual(['x/y']);
-    expect([...(aliases?.read.keys() ?? [])]).toEqual(['generated/tspaths.json']);
+    expect(aliases.candidatesFor('@x/y')).toEqual(['x/y']);
   });
 
   it('reads an `extends` that lands in a package installed from a registry', async () => {
@@ -276,10 +274,7 @@ describe('where a configuration says a bare request can land', () => {
     });
     const aliases = await aliasesIn(root, ['tsconfig.json']);
 
-    // Git does not track `node_modules`, so the file is digested as it was
-    // read, and a reinstall that changes it moves the configuration.
-    expect(aliases?.candidatesFor('~/a')).toEqual(['src/a']);
-    expect([...(aliases?.read.keys() ?? [])]).toEqual(['node_modules/@tsconfig/node20/tsconfig.json']);
+    expect(aliases.candidatesFor('~/a')).toEqual(['src/a']);
   });
 
   it('reads an `extends` that lands outside the checkout, and places only what climbs back in', async () => {
@@ -292,8 +287,8 @@ describe('where a configuration says a bare request can land', () => {
 
     // A directory outside the checkout holds no path of it, so that pattern
     // bounds nothing; a target placed there that climbs back in lands here.
-    expect(aliases?.candidatesFor('@x/y')).toEqual([]);
-    expect(aliases?.candidatesFor('@app/y')).toEqual(['src/y']);
+    expect(aliases.candidatesFor('@x/y')).toEqual([]);
+    expect(aliases.candidatesFor('@app/y')).toEqual(['src/y']);
   });
 
   it('places a `baseUrl` an outside base points back into the checkout', async () => {
@@ -312,8 +307,8 @@ describe('where a configuration says a bare request can land', () => {
     const aliases = await aliasesIn(root, ['app/tsconfig.json']);
 
     // The `baseUrl` makes the request itself a candidate too, as TypeScript reads it.
-    expect(aliases?.candidatesFor('@/y')).toEqual(['app/@/y', 'app/src/y']);
-    expect(aliases?.table.bases).toEqual(['app']);
+    expect(aliases.candidatesFor('@/y')).toEqual(['app/@/y', 'app/src/y']);
+    expect(aliases.table.bases).toEqual(['app']);
   });
 
   it('reads a relative `extends` that names a directory as its `tsconfig.json`', async () => {
@@ -323,8 +318,7 @@ describe('where a configuration says a bare request can land', () => {
     });
     const aliases = await aliasesIn(root, ['tsconfig.json']);
 
-    expect(aliases?.candidatesFor('@x/y')).toEqual(['x/y']);
-    expect(aliases?.missing).toEqual([]);
+    expect(aliases.candidatesFor('@x/y')).toEqual(['x/y']);
   });
 
   it('places what a linked base declares at the file the link reaches, as the resolver does', async () => {
@@ -345,26 +339,24 @@ describe('where a configuration says a bare request can land', () => {
     expect((await aliasesIn(root, ['tsconfig.json']))?.candidatesFor('@app/x')).toEqual(['src/x']);
   });
 
-  it('bounds by what the configuration declares itself, when its `extends` reaches nothing, and names what it missed', async () => {
+  it('bounds by what the configuration declares itself, when its `extends` reaches nothing', async () => {
     const root = await fixture({
       'tsconfig.json': '{ "extends": ["./.nuxt/tsconfig.json", "@tsconfig/node20/tsconfig.json"], "compilerOptions": { "paths": { "@x/*": ["x/*"] } } }',
     });
     const aliases = await aliasesIn(root, ['tsconfig.json']);
 
-    // A base that is not there declares nothing yet. Its absence is named, so
-    // the config digest moves when it is generated or installed.
-    expect(aliases?.candidatesFor('@x/y')).toEqual(['x/y']);
-    expect(aliases?.missing).toEqual(['tsconfig.json ./.nuxt/tsconfig.json', 'tsconfig.json @tsconfig/node20/tsconfig.json']);
+    // A base that is not there declares nothing yet.
+    expect(aliases.candidatesFor('@x/y')).toEqual(['x/y']);
   });
 
-  it('gives up on a configuration that is not there', async () => {
-    expect(await aliasesIn(await fixture({}), ['tsconfig.json'])).toBeUndefined();
+  it('reads nothing from a configuration that is not there', async () => {
+    expect((await aliasesIn(await fixture({}), ['tsconfig.json'])).table.mappings).toEqual([]);
   });
 
   it('answers nothing, rather than giving up, for a tree that configures nothing', async () => {
     const aliases = await aliasesIn(await fixture({}), ['package.json', 'src/app.ts']);
 
-    expect(aliases?.candidatesFor('react')).toEqual([]);
+    expect(aliases.candidatesFor('react')).toEqual([]);
   });
 });
 

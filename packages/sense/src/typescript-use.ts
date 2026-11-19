@@ -33,8 +33,7 @@ export interface TsconfigUse {
  * `typescript.tsconfig` can see what turning it off would lose.
  *
  * The setting reaches the whole repository, so every `tsconfig*.json` the
- * listing holds is read ([`tree.ts`](./tree.ts) names them, as it does for the
- * config digest). A file answers to a config in its own directory or one above
+ * listing holds is read ([`tree.ts`](./tree.ts) names them). A file answers to a config in its own directory or one above
  * it, so the ones that can govern the directory asked are named apart: a
  * monorepo holds products whose configs ask for different things. Every path is
  * from the repository root, slash-separated. A config is `conditioned` when it

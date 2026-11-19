@@ -972,9 +972,9 @@ known, and each removes a layer:
 - **A digest plus resolution configuration and witness directories names the
   whole record, edges and all.** Edges are not a function of bytes alone: they
   also depend on resolver settings and on the directories that could have
-  answered that file's specifiers. A configuration change rebuilds every record;
-  a path appearing, disappearing or moving rebuilds the records watching its
-  directory. An unreadable configuration falls back to the whole path set.
+  answered that file's specifiers. A configuration file is keyed like any other
+  file and rebuilds only its own record; a path appearing, disappearing or
+  moving rebuilds the records watching its directory.
 
 30,500 files and 40,479 edges, one Mac:
 

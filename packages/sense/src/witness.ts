@@ -38,16 +38,15 @@
  * package's `exports`, then its `tsconfig.json`.
  *
  * A base is read whatever it is named and wherever it lies — `tspaths.json`
- * beside its `tsconfig`, a package under `node_modules`. Each one the listing
- * does not hold is handed back in `read` with the digest of its bytes, and each
- * that is not there yet in `missing`, so the config digest names both and an
- * edit, a build or an install moves every record's configuration. A target
- * placed outside the checkout bounds no path of it, and is dropped.
+ * beside its `tsconfig`, a package under `node_modules` — and one that is not
+ * there yet declares nothing. A target placed outside the checkout bounds no
+ * path of it, and is dropped.
  *
- * So only when a configuration cannot be read — invalid JSON, a base that is
- * there and is not one, or one the resolver cannot answer — is there no honest
- * bound on where a bare specifier could land. Aliases are then **unknown**, and
- * the caller falls back to the whole path set as one witness ([`reuse.ts`](./reuse.ts)).
+ * When a configuration cannot be read — invalid JSON, a base that is there and
+ * is not one, or one the resolver cannot answer — it declares nothing, and
+ * every other configuration still declares its own. A configuration's bytes are no
+ * part of any record's key ([`reuse.ts`](./reuse.ts)): its edit reaches the
+ * imports that use it through the source edits that come with it.
  */
 
 import { dirname, join, normalize } from 'node:path/posix';
@@ -66,18 +65,6 @@ export interface Aliases {
    * the same table rather than reading the configurations a second time.
    */
   readonly table: AliasTable;
-  /**
-   * Every configuration an `extends` chain read that the paths handed in do
-   * not hold, from the root, with the digest of the bytes read. They decide
-   * the table as much as the listed ones do, so the config digest names them.
-   */
-  readonly read: ReadonlyMap<string, Digest>;
-  /**
-   * Every `extends` entry that reached no file, as the configuration naming it
-   * and the name as written. It declares nothing yet, and the config digest
-   * names it, so the base appearing moves every record's configuration.
-   */
-  readonly missing: readonly string[];
 }
 
 /** The placed `baseUrl` directories, in the order declared, and every mapping. */
@@ -96,7 +83,7 @@ export interface Mapping {
 }
 
 /**
- * The alias patterns the tree declares, or nothing when one of them cannot be read.
+ * The alias patterns the tree declares, leaving out a configuration that cannot be read.
  *
  * Every configuration is read, not only the one a scan was pointed at: `'auto'`
  * discovers the nearest one per file, so the bound has to hold for all of them.
@@ -108,11 +95,10 @@ export interface Mapping {
 export async function aliasesIn(
   root: string,
   paths: Iterable<string>,
-): Promise<Aliases | undefined> {
+): Promise<Aliases> {
   const read = native();
   if (read === undefined) throw new Error(`aliases are read by the native scanner, and ${nativeRefusal() ?? 'it did not load'}`);
   const held = read.aliasesIn(root, [...paths]);
-  if (held === null) return undefined;
   const mappings: Mapping[] = held.mappings.map((mapping) =>
     mapping.suffix === undefined || mapping.suffix === null
       ? { prefix: mapping.prefix, targets: mapping.targets }
@@ -121,8 +107,6 @@ export async function aliasesIn(
 
   return {
     table: { bases, mappings },
-    read: new Map(held.read.map(({ path, digest }) => [path, digest as Digest])),
-    missing: held.missing,
     candidatesFor(request) {
       const found: string[] = [];
       for (const base of bases) found.push(join(base, request));

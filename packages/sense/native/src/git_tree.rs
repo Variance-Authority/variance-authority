@@ -359,28 +359,6 @@ impl GitTree {
     pub fn directories(&self) -> HashMap<String, String> {
         tree::directories(&self.paths)
     }
-
-    /// The configuration digest: the caller's header, then the tree's own part.
-    ///
-    /// `aliasesUnknown` is the case `reuse.ts` gives up on — no configuration
-    /// bounds where a bare specifier could land, so the honest expression is the
-    /// whole path set. That is the fold most worth doing here, because it is the
-    /// one whose input is every path there is.
-    #[napi(catch_unwind)]
-    pub fn config_digest(
-        &self,
-        header: Vec<String>,
-        names: Vec<String>,
-        aliases_unknown: bool,
-    ) -> String {
-        tree::config_digest(
-            &header,
-            &self.paths,
-            &self.digests(),
-            &names,
-            aliases_unknown,
-        )
-    }
 }
 
 #[cfg(all(test, unix))]

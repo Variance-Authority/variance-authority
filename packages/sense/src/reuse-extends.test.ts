@@ -13,7 +13,8 @@ import { scanRelations } from './scan.js';
  * neither `tsconfig*.json` nor `jsconfig.json`, a package's config under
  * `node_modules`, a workspace package's export. The base bounds where an alias
  * lands as much as the `tsconfig` does, so a path appearing elsewhere keeps
- * every record, and an edit to the base re-resolves every one.
+ * every record. Its bytes are no part of any key (#1523), so its edit keeps
+ * every record too: the source edits that come with it are what is read again.
  */
 
 const run = promisify(execFile);
@@ -42,33 +43,31 @@ describe('a configuration an `extends` reads that the listing does not name', ()
     return { at, shapes: async (digests) => (await treeShapeOf({ root: at, digests })).shape };
   }
 
-  it('moves the configuration when a package config it extends is edited, and not when a path appears', async () => {
+  it('keeps the configuration when a package config it extends is edited, or a path appears', async () => {
     const { at, shapes } = await extending('node_modules/@fixture/base/tsconfig.json', '@fixture/base/tsconfig.json');
     const held = tree([['tsconfig.json', A], ['src/Button.tsx', A]]);
     const before = (await shapes(held)).config;
 
     expect((await shapes(tree([...held, ['docs/page.md', B]]))).config).toBe(before);
     await write(at, 'node_modules/@fixture/base/tsconfig.json', '{ "compilerOptions": { "paths": { "@app/*": ["lib/*"] } } }');
-    expect((await shapes(held)).config).not.toBe(before);
+    expect((await shapes(held)).config).toBe(before);
   });
 
-  it('moves the configuration when the listing moves the digest of a tracked base it extends', async () => {
+  it('keeps the configuration when the listing moves the digest of a tracked base it extends', async () => {
     const { shapes } = await extending('base.json', './base.json');
     const held = tree([['tsconfig.json', A], ['base.json', A], ['src/Button.tsx', A]]);
     const before = (await shapes(held)).config;
 
-    // The listing owns a tracked file's digest; the base is not read again for it.
-    expect((await shapes(tree([...held, ['base.json', B]]))).config).not.toBe(before);
+    expect((await shapes(tree([...held, ['base.json', B]]))).config).toBe(before);
   });
 
-  it('keeps the configuration when a path appears, and moves it when the base it extends is generated', async () => {
+  it('keeps the configuration when the base it extends is generated', async () => {
     const { at, shapes } = await extending('ignored.json', './.nuxt/tsconfig.json');
     const held = tree([['tsconfig.json', A], ['src/Button.tsx', A]]);
     const before = (await shapes(held)).config;
 
-    expect((await shapes(tree([...held, ['docs/page.md', B]]))).config).toBe(before);
     await write(at, '.nuxt/tsconfig.json', '{ "compilerOptions": { "paths": { "@app/*": ["../lib/*"] } } }');
-    expect((await shapes(held)).config).not.toBe(before);
+    expect((await shapes(held)).config).toBe(before);
   });
 });
 
@@ -124,7 +123,7 @@ describe('a scan under a base an `extends` reaches', () => {
     expect(JSON.stringify(after)).toBe(JSON.stringify(await scanRelations({ root, dirs: ['src'] })));
   });
 
-  it('keeps every record when a path appears elsewhere, and re-resolves every one when the base it extends is edited', async () => {
+  it('keeps every record when a path appears elsewhere, and when the base it extends is edited', async () => {
     const root = await mkdtemp(join(tmpdir(), 'variance-reuse-'));
     made.push(root);
     await write(root, 'package.json', '{ "name": "fixture", "type": "module" }');
@@ -155,10 +154,10 @@ describe('a scan under a base an `extends` reaches', () => {
     // and a page under `docs/` is nowhere near it.
     expect(rebuilt).toEqual([]);
 
-    await write(root, 'generated/paths.json', '{ "compilerOptions": { "paths": { "@app/*": ["../lib/*"] } } }');
+    await write(root, 'generated/paths.json', '{ "compilerOptions": { "paths": { "@app/*": ["../src/*"] }, "noEmit": true } }');
     const after = await scanRelations({ root, dirs: ['src'], reuse });
-    // The base is configuration, so editing it rebuilds every record.
-    expect(rebuilt.toSorted()).toEqual(['src/Clock.tsx', 'src/time.ts']);
+    // The base is a file like any other, and no record is of it.
+    expect(rebuilt).toEqual([]);
     expect(JSON.stringify(after)).toBe(JSON.stringify(await scanRelations({ root, dirs: ['src'] })));
   });
 });

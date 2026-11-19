@@ -469,7 +469,7 @@ A resolved record depends on four things:
 |---|---|
 | File bytes | Content digest. |
 | File position | Repository-relative path. |
-| Resolution configuration | Digest of manifests, lockfiles, `tsconfig` and `jsconfig` contents, requested `tsconfig`, and condition names. |
+| Resolution configuration | Digest of the resolver options the caller chose: the requested `tsconfig`, condition names and the size limit. No file's contents. |
 | Paths that could have answered this file's requests | The directories a request looked in, answered or not. |
 
 The fourth input counts directories a request looked in even when nothing
@@ -477,10 +477,12 @@ answered. A request for `./button` counts the importing directory and a possible
 `button` directory while both are empty, because adding a file there turns that
 absence into an edge without changing the importing file's bytes.
 
-So: change a `tsconfig`, a manifest or a lockfile and every resolved record is
-rebuilt, while the content-keyed parses stay reusable. Add or remove a file and
-only the records that looked in that directory are rebuilt. When the
-configuration cannot be read, every record is rebuilt on any path change.
+So: a `tsconfig`, a manifest or a lockfile is a file, and its edit rebuilds its
+own record. The code a configuration edit redirects is edited with it — a new
+`paths` entry arrives with the files refactored to use it — and those files are
+rebuilt as edits. Add or remove a file and only the records that looked in that
+directory are rebuilt. A configuration that cannot be read rebuilds nothing
+beyond its own record either.
 
 The configured seed directories are not part of either reuse key. They decide
 which records a scan requests, not what any one record means, so a narrow scan

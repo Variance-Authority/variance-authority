@@ -1,14 +1,11 @@
 //! What the path set says, without the path set crossing the boundary.
 //!
-//! `reuse.ts` asks a repository's paths three questions before a file is opened:
-//! which of them decide how resolution is configured, what each directory holds,
-//! and — when no configuration bounds where a bare specifier could land — the
-//! digest of the whole listing. All three are folds over strings, and a fold
-//! whose input is four hundred thousand paths is a fold that should happen where
-//! the paths already are.
+//! `reuse.ts` asks a repository's paths two questions before a file is opened:
+//! which of them are configuration files, and what each directory holds. Both
+//! are folds over strings, and a fold whose input is four hundred thousand paths
+//! is a fold that should happen where the paths already are.
 
 use rayon::prelude::*;
-use sha2::{Digest as _, Sha256};
 use std::collections::HashMap;
 
 use crate::digest;
@@ -73,45 +70,4 @@ pub fn directories(paths: &[String]) -> HashMap<String, String> {
             (directory.to_string(), digest::of_string(&held.join("\n")))
         })
         .collect()
-}
-
-/// The configuration digest, over lines that never become JavaScript strings.
-///
-/// The header is the caller's — version, root, the resolver options — because
-/// those are its decisions. What is folded here is the part that is the size of
-/// the repository: the digest of every path whose name decides configuration,
-/// and, when aliases are unknown, every path there is.
-pub fn config_digest(
-    header: &[String],
-    paths: &[String],
-    digests: &[String],
-    names: &[String],
-    aliases_unknown: bool,
-) -> String {
-    let mut hasher = Sha256::new();
-    let mut first = true;
-    let mut line = |hasher: &mut Sha256, text: &str| {
-        if !first {
-            hasher.update(b"\n");
-        }
-        first = false;
-        hasher.update(text.as_bytes());
-    };
-
-    for entry in header {
-        line(&mut hasher, entry);
-    }
-    for (path, spelled) in paths.iter().zip(digests) {
-        if named(path, names) {
-            line(&mut hasher, &format!("{path} {spelled}"));
-        }
-    }
-    if aliases_unknown {
-        line(&mut hasher, "aliases unknown");
-        for path in paths {
-            line(&mut hasher, path);
-        }
-    }
-
-    digest::of_sha256(hasher.finalize().as_slice())
 }

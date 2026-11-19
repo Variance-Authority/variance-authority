@@ -69,8 +69,6 @@ describe('the native tree against the JavaScript one', () => {
       digests: paths.map((path) => tree.get(path)),
       named: [...tree.named(['package.json', 'jsconfig.json', 'yarn.lock'])],
       directories: [...tree.directories()].sort((a, b) => (a[0] < b[0] ? -1 : 1)),
-      bounded: tree.configDigest(['version 2', `root x`], ['package.json'], false),
-      unbounded: tree.configDigest(['version 2', `root x`], ['package.json'], true),
     };
   }
 
