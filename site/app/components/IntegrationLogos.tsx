@@ -27,8 +27,8 @@ const LANGUAGES = [
 ] as const;
 
 /**
- * What a reader can do with it, between the tools it runs in and the languages
- * it reads. Each opens the page that starts that task.
+ * What a reader can do with it, one line above the wall of marks. Each opens
+ * the page that starts that task.
  */
 const CAPABILITIES = [
   { name: "Coverage", href: "/docs/test-level-coverage" },
@@ -43,6 +43,22 @@ const CAPABILITIES = [
 export default function IntegrationLogos() {
   return (
     <div className="mx-auto mt-12 max-w-4xl">
+      <nav
+        aria-label="Capabilities"
+        className="mb-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 font-mono text-xs tracking-widest text-quiet uppercase"
+      >
+        {CAPABILITIES.map((capability, index) => (
+          <span key={capability.name} className="flex items-center gap-x-3">
+            {index > 0 && <span aria-hidden="true" className="text-hairline">·</span>}
+            <a
+              href={capability.href}
+              className="rounded-sm transition-colors hover:text-orange focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange"
+            >
+              {capability.name}
+            </a>
+          </span>
+        ))}
+      </nav>
       <nav
         aria-label="Supported tools and agent integrations"
         className="grid grid-cols-8 items-center gap-2 sm:gap-6"
@@ -62,20 +78,6 @@ export default function IntegrationLogos() {
               height={36}
               className={`h-6 w-6 object-contain sm:h-9 sm:w-9 ${tool.light ? "invert" : ""}`}
             />
-          </a>
-        ))}
-      </nav>
-      <nav
-        aria-label="Capabilities"
-        className="my-3 grid grid-cols-3 gap-px overflow-hidden rounded-sm border border-hairline bg-hairline sm:grid-cols-6"
-      >
-        {CAPABILITIES.map((capability) => (
-          <a
-            key={capability.name}
-            href={capability.href}
-            className="bg-deep px-2 py-1.5 text-center font-mono text-[10px] tracking-widest text-quiet uppercase transition-colors hover:text-orange focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-orange"
-          >
-            {capability.name}
           </a>
         ))}
       </nav>
