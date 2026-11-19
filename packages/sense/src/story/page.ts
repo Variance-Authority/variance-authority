@@ -56,6 +56,20 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
   watchPage({ note: (text) => tap.note(text), notePage: (text) => tap.notePage(text), drainWith: (given) => { tap.drainWith(given); turn = given; } }, realm);
   realm[NOTE] = (text) => tap.note(String(text));
   const frames = watchFrames(tap, realm);
+  // The engine's entry for the navigation that loaded this document, read once:
+  // it never changes. Its address drops the query and fragment, and is cut a
+  // character past what a note holds, so the runner still sees it was cut.
+  let loaded;
+  const loadedBy = () => {
+    if (loaded !== undefined) return loaded;
+    let top = false;
+    try { top = realm.top === realm; } catch {}
+    const entry = top ? realm.performance?.getEntriesByType?.('navigation')?.[0] : undefined;
+    loaded = entry !== undefined && typeof entry.name === 'string'
+      ? { url: entry.name.split(/[?#]/)[0].slice(0, NOTE_LENGTH + 1), reload: entry.type === 'reload' }
+      : null;
+    return loaded;
+  };
   // The runner takes a case's tape after its hooks and before the next case:
   // settled first, so the last line hears what it changed. A runner that drains
   // before each statement says whether the next one is a test line.
@@ -78,9 +92,12 @@ realm[Symbol.for(${JSON.stringify(PAGE_STORY)})] = (engine) => {
         held: Array.from(read.held),
         rows: { ids: read.rows.ids.slice(), counts: read.rows.counts.slice(), bases: read.rows.bases.slice() },
       };
-      // Where the document is, so a runner that lays one after the document it replaced can name the navigation.
-      const at = realm.location;
-      if (at !== undefined && typeof at.href === 'string') story.url = at.href.split(/[?#]/)[0];
+      // The navigation that loaded the top document, so a runner that lays it after the one it replaced can name it.
+      const by = loadedBy();
+      if (by !== null) {
+        story.url = by.url;
+        if (by.reload) story.reload = true;
+      }
       tap.reset();
       return story;
   };
@@ -174,6 +191,9 @@ export interface PageStories {
   readonly write: (subject: StoryCase, stopped: boolean, lost?: boolean) => void;
 }
 
+// What opens the note that names a navigation.
+const NAVIGATED = 'page navigated ';
+
 /** Assemble page stories per case and write each one into `directory`. */
 export function pageStories(directory: string): PageStories {
   const writer = format.storyWriter(directory);
@@ -216,10 +236,13 @@ export function pageStories(directory: string): PageStories {
     }
     tape.notes.push([tape.entries.length, text.length > storyTap.NOTE_LENGTH ? `${text.slice(0, storyTap.NOTE_LENGTH - 1)}…` : text]);
   };
-  // The navigation from the document `left` to the one `loaded`, named where the second begins.
-  const navigated = (tape: CaseTape, left: PageStory, loaded: PageStory): void => {
+  // The navigation that loaded a document, named where it begins: its address
+  // cut to fit, so a long one keeps the reload it says.
+  const navigated = (tape: CaseTape, loaded: PageStory): void => {
     if (loaded.url === undefined) return;
-    say(tape, `page navigated ${loaded.url}${loaded.url === left.url ? ' (reload)' : ''}`);
+    const said = loaded.reload === true ? ' (reload)' : '';
+    const room = storyTap.NOTE_LENGTH - NAVIGATED.length - said.length;
+    say(tape, `${NAVIGATED}${loaded.url.length > room ? `${loaded.url.slice(0, room - 1)}…` : loaded.url}${said}`);
   };
   const stories: PageStories = {
     // FIXME: a drain that reaches the runner after the next line is cut lays
@@ -236,17 +259,16 @@ export function pageStories(directory: string): PageStories {
     },
     add(subject, story, frame) {
       // What the documents this page replaced ran comes first, as they ran it,
-      // each a document of its own in the same frame, and each one after the
-      // first opens on the navigation that loaded it.
+      // each a document of its own in the same frame; the document after them
+      // opens on the navigation that loaded it.
       const replaced = story.before ?? [];
       for (const [index, before] of replaced.entries()) {
         if (frame !== undefined) enter(tapeOf(subject), ...documentOf(tapeOf(subject), frame, index > 0));
-        if (index > 0) navigated(tapeOf(subject), replaced[index - 1]!, before);
         stories.add(subject, before);
       }
       const tape = tapeOf(subject);
       if (frame !== undefined) enter(tape, ...documentOf(tape, frame, replaced.length > 0));
-      if (replaced.length > 0) navigated(tape, replaced.at(-1)!, story);
+      if (replaced.length > 0) navigated(tape, story);
       const offset = tape.entries.length;
       const { bases } = story.rows;
       // A page's row is the story's row for the same module and count: two

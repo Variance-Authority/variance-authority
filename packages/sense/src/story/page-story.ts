@@ -22,8 +22,10 @@ export interface PageStory {
   /** What each module held when it ran, kept from the first drain on. */
   readonly held: readonly (readonly [ModuleId, string])[];
   readonly rows: { readonly ids: readonly ModuleId[]; readonly counts: readonly number[]; readonly bases: readonly number[] };
-  /** The document's address, without its query or fragment; absent where the realm has no location. */
+  /** The address the top document was loaded at, without its query or fragment; absent in a frame, or where the engine keeps no navigation entry. */
   readonly url?: string;
+  /** Present where the engine says the navigation that loaded the document was a reload. */
+  readonly reload?: true;
   /** What the documents this page's frame replaced ran since the drain before, oldest first. */
   readonly before?: readonly PageStory[];
 }

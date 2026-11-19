@@ -73,22 +73,39 @@ describe('page stories', () => {
     expect(story.lines).toEqual([[0, 5, 0]]);
   });
 
-  it('names each navigation on the document it loaded, and a reload by the address it kept', () => {
+  it('names each navigation on the document it loaded, and a reload where the engine says so', () => {
     const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
     directories.push(directory);
     const stories = pageStories(directory);
     const rows = { ids: ['a'], counts: [2], bases: [0] };
 
     stories.line(subject, 5);
-    const first = drained({ tape: [0], rows, url: 'http://shop.test/' });
-    const second = drained({ tape: [1], rows, url: 'http://shop.test/checkout' });
-    stories.add(subject, drained({ tape: [0], rows, url: 'http://shop.test/checkout', before: [first, second] }));
+    // A chain arrives nested: each document carries the one it replaced. The
+    // second loaded the address the first had, by a link and not a reload.
+    const first = drained({ tape: [0], rows, url: 'http://shop.test/checkout' });
+    const second = drained({ tape: [1], rows, url: 'http://shop.test/checkout', before: [first] });
+    stories.add(subject, drained({ tape: [0], rows, url: 'http://shop.test/checkout', reload: true, before: [second] }));
     stories.write(subject, false);
 
     expect(written(directory).notes).toEqual([
       [1, 'page navigated http://shop.test/checkout'],
       [2, 'page navigated http://shop.test/checkout (reload)'],
     ]);
+  });
+
+  it('cuts a long address and keeps the reload it says', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
+    directories.push(directory);
+    const stories = pageStories(directory);
+    const rows = { ids: ['a'], counts: [2], bases: [0] };
+    const url = `data:text/html,${'x'.repeat(2000)}`;
+
+    stories.add(subject, drained({ tape: [0], rows, url, reload: true, before: [drained({ tape: [0], rows, url })] }));
+    stories.write(subject, false);
+
+    const [[, note]] = written(directory).notes;
+    expect(note).toMatch(/^page navigated data:text\/html,x+… \(reload\)$/);
+    expect(note.length).toBeLessThan(url.length);
   });
 
   it('says which frame and document each part ran in, and where the runner spoke between them', () => {
