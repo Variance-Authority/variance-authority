@@ -6,6 +6,7 @@
 import type { RowSpan } from '@variance-authority/raster';
 import type { PairedRows } from './align.js';
 import { edits, type Edit } from './edit-script.js';
+import { inPlace } from './in-place.js';
 import type { DecodedImage } from './mask.js';
 import { straddled } from './straddle.js';
 
@@ -81,7 +82,7 @@ export function pairWords(
     const copied = (y < head && from === y) || (y >= afterHeight - tail && from === y - lift);
     costs[y] = from < 0 ? width : copied ? 0 : cost(from, y);
   }
-  const rows = straddled(initial, was, now, beforeHeight, width, cost, costs);
+  const rows = inPlace(straddled(initial, was, now, beforeHeight, width, cost, costs), was, now, beforeHeight, width, cost, costs);
 
   let paired = 0;
   for (let y = head; y < afterHeight; y += 1) paired += costs[y]!;
@@ -105,9 +106,12 @@ export function pairWords(
  * from beside two lines of text becomes two whole lines compared against their
  * neighbours. So the pairing is weighed by what it leaves for the comparison
  * ({@link Weighed}). A tie goes to whichever moved nothing: the pairing when it
- * shifted no row and only says where rows came or went, else position.
+ * shifted no row and only says where rows came or went, else position. A
+ * pairing that moved nothing and says nothing came or went is position, and
+ * stands for it only where nothing differs: two equal captures.
  */
 export function explains({ rows, paired, positional }: Weighed): boolean {
+  if (paired > 0 && rows.shifted.length === 0 && rows.inserted.length === 0 && rows.removed.length === 0) return false;
   return paired < positional || (paired === positional && rows.shifted.length === 0);
 }
 

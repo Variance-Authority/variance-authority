@@ -239,7 +239,7 @@ function manySiblings(rows: readonly (Uint32Array | undefined)[], x1: number, y1
  * pixel is darker. `pos` is the pixel's offset on the canvas, which is where
  * `pixelmatch`'s checkerboard is read, whichever row the first pixel came from.
  */
-function colorDelta(first: Uint8Array, second: Uint8Array, at: number, pos: number): number {
+export function colorDelta(first: Uint8Array, second: Uint8Array, at: number, pos: number): number {
   rgbDelta(first[at]!, first[at + 1]!, first[at + 2]!, first[at + 3]!, second, at, pos);
   const dr = DELTA[0]!;
   const dg = DELTA[1]!;
