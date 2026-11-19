@@ -8,7 +8,7 @@ import type { Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import { memoryRecordCache, openRecordCache, treeShapeOf, type RecordCache, type TreeShape } from './reuse.js';
 import { scanRelations } from './scan.js';
-import { directoriesOf } from './witness.js';
+import { directoriesOf, witnessesOf } from './witness.js';
 
 /**
  * Reusing an edge is the one saving here that can be *wrong*.
@@ -122,6 +122,26 @@ describe('naming the shape of a tree', () => {
       .toBe((await shapeOf(files, { tsconfig: 'tsconfig.build.json' })).config);
     // A declined record names its bytes, so a raised limit has to let it go.
     expect((await shapeOf(files, { largestFile: 8 })).config).not.toBe(before.config);
+  });
+
+  it('keeps no alias candidates or witnesses when tsconfig resolution is disabled', async () => {
+    const at = await mkdtemp(join(tmpdir(), 'variance-reuse-disabled-'));
+    made.push(at);
+    const digests = new Map(files);
+    for (let index = 0; index < 32; index += 1) {
+      const config = `packages/unrelated-${index}/tsconfig.json`;
+      await mkdir(dirname(join(at, config)), { recursive: true });
+      await writeFile(join(at, config), JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@app/*': ['src/*'] } } }));
+      digests.set(config, A);
+    }
+    const disabled = await treeShapeOf({ root: at, digests, options: { tsconfig: false } });
+    expect(disabled.aliases.table).toEqual({ bases: [], mappings: [] });
+    expect(disabled.aliases.candidatesFor('@app/button')).toEqual([]);
+    expect(witnessesOf({ file: 'src/Button.tsx', requests: ['react', '@app/button', './button.css'], edges: ['src/button.css'], directories: directoriesOf(['src/Button.tsx', 'src/button.css']), aliases: disabled.aliases }))
+      .toEqual(['src']);
+    const enabled = await treeShapeOf({ root: at, digests });
+    expect(enabled.aliases.table.bases).toHaveLength(32);
+    expect(enabled.aliases.candidatesFor('@app/button')).toContain('packages/unrelated-0/src/button');
   });
 
   it('keeps the configuration when the config the caller names is edited', async () => {

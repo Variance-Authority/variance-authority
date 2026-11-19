@@ -183,9 +183,9 @@ export async function configOf(input: {
   readonly options?: ShapeOptions;
 }): Promise<{ readonly config: Digest; readonly aliases: Aliases }> {
   const { root, tree, options } = input;
-  // The aliases bound which directories a bare specifier's record witnesses;
-  // they are no part of the digest.
-  const aliases = await aliasesIn(root, tree.named(['jsconfig.json']));
+  // Disabled tsconfig resolution uses no aliases, so unrelated configurations
+  // must not multiply every bare import's directory witnesses.
+  const aliases = await aliasesIn(root, options?.tsconfig === false ? [] : tree.named(['jsconfig.json']));
 
   // No `root`: a record names files relative to the checkout it was scanned
   // from and holds no absolute path, so a worktree adopts the primary
