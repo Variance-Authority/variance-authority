@@ -159,7 +159,7 @@ describe.runIf(BROWSER_AVAILABLE)('a Playwright case run in a page', () => {
       'console.log server connection lost',
       'test line reads',
       'console.log reloading now',
-      'page navigated http://reloading.test/ (reload)',
+      'page reloaded http://reloading.test/',
       'holds open=ref1 function open, choose=ref2 function choose, pay=ref3 function pay',
       'test line says',
       'console.log lost: Error: page.evaluate: Execution context was destroyed, most likely because of a navigation.',

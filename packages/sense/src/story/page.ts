@@ -15,6 +15,7 @@
  * runner's to say, and a runner that drains between cases says it exactly.
  */
 
+import { navigationNote } from '@variance-authority/core/format';
 import storyFrames from '../instrument/story-frames.cjs';
 import storyListen from '../instrument/story-listen.cjs';
 import storyParts from '../instrument/story-parts.cjs';
@@ -191,9 +192,6 @@ export interface PageStories {
   readonly write: (subject: StoryCase, stopped: boolean, lost?: boolean) => void;
 }
 
-// What opens the note that names a navigation.
-const NAVIGATED = 'page navigated ';
-
 /** Assemble page stories per case and write each one into `directory`. */
 export function pageStories(directory: string): PageStories {
   const writer = format.storyWriter(directory);
@@ -236,13 +234,9 @@ export function pageStories(directory: string): PageStories {
     }
     tape.notes.push([tape.entries.length, text.length > storyTap.NOTE_LENGTH ? `${text.slice(0, storyTap.NOTE_LENGTH - 1)}…` : text]);
   };
-  // The navigation that loaded a document, named where it begins: its address
-  // cut to fit, so a long one keeps the reload it says.
+  // The navigation that loaded a document, named where it begins.
   const navigated = (tape: CaseTape, loaded: PageStory): void => {
-    if (loaded.url === undefined) return;
-    const said = loaded.reload === true ? ' (reload)' : '';
-    const room = storyTap.NOTE_LENGTH - NAVIGATED.length - said.length;
-    say(tape, `${NAVIGATED}${loaded.url.length > room ? `${loaded.url.slice(0, room - 1)}…` : loaded.url}${said}`);
+    if (loaded.url !== undefined) say(tape, navigationNote(loaded.url, loaded.reload === true));
   };
   const stories: PageStories = {
     // FIXME: a drain that reaches the runner after the next line is cut lays

@@ -283,8 +283,9 @@ not show, it names in the header:
   its own document's, and what two documents did within one test line is in the
   order it reached the runner, so `--compare` counts no order between them.
   A top document that replaced one of the same origin opens on a note naming
-  the navigation: `page navigated <address>`, with ` (reload)` where the
-  browser reports a reload; the address drops its query and fragment. A
+  the navigation: `page navigated <address>`, or `page reloaded <address>`
+  where the browser reports a reload; the address drops its query and
+  fragment. A
   navigation to another origin carries no tape across, so it is not named.
 
 A story covers the test's own process under Vitest, Jest, Rstest and a runner

@@ -89,11 +89,11 @@ describe('page stories', () => {
 
     expect(written(directory).notes).toEqual([
       [1, 'page navigated http://shop.test/checkout'],
-      [2, 'page navigated http://shop.test/checkout (reload)'],
+      [2, 'page reloaded http://shop.test/checkout'],
     ]);
   });
 
-  it('cuts a long address and keeps the reload it says', () => {
+  it('cuts a long address after the reload it says', () => {
     const directory = mkdtempSync(join(tmpdir(), 'page-stories-'));
     directories.push(directory);
     const stories = pageStories(directory);
@@ -104,7 +104,7 @@ describe('page stories', () => {
     stories.write(subject, false);
 
     const [[, note]] = written(directory).notes;
-    expect(note).toMatch(/^page navigated data:text\/html,x+… \(reload\)$/);
+    expect(note).toMatch(/^page reloaded data:text\/html,x+…$/);
     expect(note.length).toBeLessThan(url.length);
   });
 

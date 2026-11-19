@@ -31,6 +31,8 @@ export { JSDOM_PROFILE, CHROMIUM_PROFILE, profileById, tierOfProfile } from './p
 
 export { assetUrl, pageOrigin, withoutOrigin } from './origin.js';
 
+export { navigationNote } from './navigation.js';
+
 export type { Tier } from './tier.js';
 export { tierReaches } from './tier.js';
 
