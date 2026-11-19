@@ -128,13 +128,11 @@ async function build(config: string, lead: readonly string[], react: 18 | 19): P
   await server.listen();
   servers.push(server);
 
-  // Warmed before a browser is pointed at it, because Vite discovers an
-  // application's dependencies by transforming its modules and reloads the page
-  // once it has prebundled them. A first load therefore navigates twice, and a
-  // reader arriving mid-flight finds its execution context destroyed under it.
-  // This is a fixture concern — a developer's dev server was warmed by the last
-  // time they opened it — but a test that hits a cold one every run has to say
-  // so somewhere, and this is the somewhere.
+  // Warmed before a browser is pointed at it: Vite finds an application's
+  // dependencies by transforming its modules, and with no HMR client a
+  // dependency found on the first load is refused as an outdated prebundle. A
+  // developer's dev server was warmed the last time they opened it; a fixture's
+  // is cold every run.
   await server.warmupRequest('/src/main.jsx');
   await server.warmupRequest('/src/App.jsx');
   await server.waitForRequestsIdle();

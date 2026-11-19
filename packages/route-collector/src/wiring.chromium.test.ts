@@ -137,11 +137,7 @@ beforeAll(async () => {
   server = await createServer({
     root,
     configFile: join(root, 'vite.config.mjs'),
-    // Nothing watched and no HMR client: the files above were written just
-    // before the server started, and a watcher can report them late. A late
-    // change to the config restarts the server, and the client reloads the page
-    // under a read in progress.
-    server: { port: 0, host: '127.0.0.1', fs: { allow: [root, REPO] }, watch: null, hmr: false },
+    server: { port: 0, host: '127.0.0.1', fs: { allow: [root, REPO] } },
     cacheDir: join(root, '.vite-cache'),
     logLevel: 'silent',
   });
