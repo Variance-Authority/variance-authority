@@ -1,7 +1,5 @@
 // compass: variance-authority.reach.source-index
 
-use std::collections::HashSet;
-
 use serde_json::{json, Value};
 
 use super::chain;
@@ -63,20 +61,23 @@ fn segment(config: Option<&str>, parses: &[(&str, Value)], records: &[(&str, Val
 }
 
 fn read_back(chain: &super::Chain, key: &str) -> Value {
-    let index = chain.parses.at[key];
-    serde_json::from_str(&super::parse_json(chain, chain.parses.order[index].1)).unwrap()
+    serde_json::from_str(&chain.parse_json(chain.parse_at(key).unwrap())).unwrap()
+}
+
+fn keys(chain: &super::Chain) -> Vec<String> {
+    chain.parses().iter().map(|&at| chain.parse_key(at)).collect()
 }
 
 #[test]
 fn a_parse_crosses_back_as_it_was_held() {
     let segments = vec![segment(Some("c"), &[("a", full()), ("b", empty()), ("c\0way", bare())], &[("src/a.ts", record("src/a.ts"))], Deleted::default())];
-    let chain = chain(&segments, &HashSet::new());
+    let chain = chain(&segments);
     assert_eq!(chain.layers.len(), 1);
     assert_eq!(read_back(&chain, "a"), full());
     assert_eq!(read_back(&chain, "b"), empty());
     assert_eq!(read_back(&chain, "c\0way"), bare());
-    let record_at = chain.records.order[0].1;
-    assert_eq!(serde_json::from_str::<Value>(&super::record_json(&chain, record_at)).unwrap(), record("src/a.ts"));
+    let record_at = chain.records()[0];
+    assert_eq!(serde_json::from_str::<Value>(&chain.record_json(record_at)).unwrap(), record("src/a.ts"));
     assert_eq!(chain.directories, vec![("src", "dd")]);
 }
 
@@ -86,15 +87,37 @@ fn a_newer_layer_answers_and_a_damaged_one_ends_the_chain() {
     let base = segment(Some("old"), &[("a", bare()), ("b", bare())], &[("x", record("x"))], Deleted::default());
     let over = segment(None, &[("a", empty()), ("z", bare())], &[], Deleted { parses: &deletes, ..Deleted::default() });
     let segments = vec![base.clone(), over.clone()];
-    let read = chain(&segments, &HashSet::new());
+    let read = chain(&segments);
     assert_eq!(read.layers.len(), 2);
-    let keys: Vec<&str> = read.parses.order.iter().map(|(key, _)| key.as_ref()).collect();
-    assert_eq!(keys, ["a", "z"]);
+    assert_eq!(keys(&read), ["a", "z"]);
     assert_eq!(read_back(&read, "a"), empty());
     assert!(read.layers.last().unwrap().config.is_none());
     let segments = vec![base, b"damaged".to_vec(), over];
-    let read = chain(&segments, &HashSet::new());
+    let read = chain(&segments);
     assert_eq!(read.layers.len(), 1);
     assert_eq!(read.written, None);
     assert_eq!(read_back(&read, "b"), bare());
+}
+
+#[test]
+fn a_layer_that_puts_and_deletes_one_key_answers_with_its_put() {
+    let deletes = ["a".to_owned()];
+    let base = segment(None, &[("a", bare())], &[], Deleted::default());
+    let both = segment(None, &[("a", empty())], &[], Deleted { parses: &deletes, ..Deleted::default() });
+    let segments = vec![base, both];
+    let read = chain(&segments);
+    assert_eq!(read.layers.len(), 2);
+    assert_eq!(keys(&read), ["a"]);
+    assert_eq!(read_back(&read, "a"), empty());
+}
+
+#[test]
+fn a_walk_goes_in_code_unit_order_of_its_keys() {
+    // U+FF61 sorts before U+1F600 by code point, after it by UTF-16 code unit;
+    // the encoder takes its keys sorted, and a walk across layers answers in that order.
+    let base = segment(None, &[("b", bare()), ("\u{1F600}", bare())], &[], Deleted::default());
+    let over = segment(None, &[("b\0w", bare()), ("\u{FF61}", bare())], &[], Deleted::default());
+    let segments = vec![base, over];
+    let read = chain(&segments);
+    assert_eq!(keys(&read), ["b", "b\0w", "\u{1F600}", "\u{FF61}"]);
 }

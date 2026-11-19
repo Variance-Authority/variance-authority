@@ -14,7 +14,6 @@
 import type { Digest } from '@variance-authority/core/format';
 import type { Parsed, ParseKey } from './cache.js';
 import { native, nativeRefusal } from './addon.js';
-import { BUILTINS } from './native-index-graph.js';
 import { readonlyMap } from './ordered-map.js';
 import type { IndexedRecord, StoredSourceIndex } from './source-index-format.js';
 
@@ -33,7 +32,7 @@ export interface ReadSourceIndexChain {
 
 /** Read the chain `segments` holds, oldest first, up to the first segment that does not read. */
 export function readSourceIndexChain(segments: readonly Uint8Array[]): ReadSourceIndexChain {
-  const reader = opened().openSourceIndexReader([...segments], BUILTINS);
+  const reader = opened().openSourceIndexReader([...segments]);
   const config = reader.config() ?? undefined;
   const written = reader.written() ?? undefined;
   const flat = reader.directories();

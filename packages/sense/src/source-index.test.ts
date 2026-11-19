@@ -15,6 +15,7 @@ import { adoptNativeParses, openSourceIndex, readSourceRecords } from './source-
 import type { EncodedParseLayer } from './source-index-file.js';
 import type { TreeShape } from './reuse.js';
 import { directoriesOf } from './witness.js';
+import { decodedParseRows } from './__fixtures__/decoded-parse-rows.js';
 
 const CONFIG: Digest = 'sha256:1111111111111111111111111111111111111111111111111111111111111111';
 const OTHER_CONFIG: Digest = 'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff';
@@ -153,6 +154,26 @@ describe('the binary source index', () => {
     await second.save();
     expect(await readFile(file)).toEqual(bytes);
     expect(await readSourceRecords(file)).toEqual([RECORD]);
+  });
+
+  it('saves over an unchanged index without decoding a parse row or writing a segment', async () => {
+    const file = await path();
+    const first = await openSourceIndex(file);
+    first.cache.set(DIGEST, PARSED);
+    first.reuse.under(SHAPE);
+    first.reuse.set(RECORD, WITNESSES);
+    await first.save();
+    const bytes = await readFile(file);
+
+    // A warm scan reuses every record, so it asks for no parse.
+    const rows = await decodedParseRows(async () => {
+      const warm = await openSourceIndex(file);
+      warm.reuse.under(SHAPE);
+      expect(warm.reuse.getIndexed(RECORD.file, DIGEST)?.record).toEqual(RECORD);
+      expect(await warm.save()).toBeUndefined();
+    });
+    expect(rows).toBe(0);
+    expect(await readFile(file)).toEqual(bytes);
   });
 
   it('discards the resolved half when the configuration changes without discarding parses', async () => {
@@ -383,7 +404,7 @@ describe('the binary source index', () => {
     expect(decoded.records.get(record.file)?.record.packages).toEqual([{ to: '@scope/only-here', kind: 'type' }]);
   });
 
-  it('refuses a package column that names a relative specifier', () => {
+  it('reads a package column as written: the one encoder names packages, the reader does not judge them', () => {
     const record: FileRecord = { file: 'src/card.tsx', digest: DIGEST, packages: [{ to: 'zzzzzzzzzz', kind: 'imports' }] };
     const encoded = encodeSourceIndex({
       parses: new Map(),
@@ -393,10 +414,12 @@ describe('the binary source index', () => {
     const at = encoded.indexOf('zzzzzzzzzz');
     encoded.write('../exit.js', at);
 
-    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
+    // The write leaves the dictionary out of code-unit order, so the record is walked to, not looked up.
+    const [read] = readSourceIndexSegment(encoded).records.values();
+    expect(read?.record.packages).toEqual([{ to: '../exit.js', kind: 'imports' }]);
   });
 
-  it('rejects a key that one segment both writes and deletes', () => {
+  it('answers a key that one segment both writes and deletes with what it writes', () => {
     const encoded = encodeSourceIndex({
       parses: new Map([[DIGEST, PARSED]]),
       deletedParses: new Set([DIGEST]),
@@ -404,7 +427,7 @@ describe('the binary source index', () => {
       records: new Map(),
     });
 
-    expect(() => readSourceIndexSegment(encoded)).toThrow('not a variance-authority source index');
+    expect(readSourceIndexSegment(encoded).parses.get(DIGEST)).toEqual(PARSED);
   });
 
   it('keeps each side of a mock diff apart, and a parse with none has no diff', () => {

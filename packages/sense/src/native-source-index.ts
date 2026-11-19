@@ -22,12 +22,9 @@ export interface NativeSourceIndexes {
   appendSourceIndex(path: string, read: string[], legacy: boolean, layers: Uint8Array[]): string | null;
   /**
    * The source-index chain `segments` holds, oldest first, opened once
-   * (`native/src/index_reader.rs`): the one reader of the format. A package
-   * name a record stores is checked against `builtins`, the runtime's.
+   * (`native/src/index_reader.rs`): the one reader of the format.
    */
-  openSourceIndexReader(segments: Uint8Array[], builtins: string[]): NativeSourceIndexReader;
-  /** Parse rows the reader decoded since the addon loaded: what a test reads to prove a question decoded none. */
-  sourceIndexParseRowsRead(): number;
+  openSourceIndexReader(segments: Uint8Array[]): NativeSourceIndexReader;
   /** Drop what no chain in `chains` names from the parse store at `store`, past `graceMs`; how many parses went (`native/src/parse_store.rs`). */
   pruneParseStore(store: string, chains: string[], graceMs: number): number;
   /** The index turn at `path`, `holder` written beside it; `null` while another process holds it (`native/src/index_turn.rs`). */

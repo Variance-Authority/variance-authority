@@ -13,8 +13,8 @@
 //! layout this side wrote, so the compaction reads each layer in place
 //! (`stored.rs`) and copies the newest row for every key into one generation.
 //!
-//! The fold is the one `index_reader.rs` reads by: oldest layer first, each
-//! layer's deletes and then its puts, and the configuration is the last
+//! The fold is `chain_lookup.rs`'s, which every reader of a chain answers by:
+//! oldest layer first, each layer's deletes and then its puts, and the configuration is the last
 //! layer's, absent included. The rows are copied as the reader would read them
 //! — an export list the row marks absent is not written, a span is a span only
 //! when it has both ends — so a compaction encodes the same bytes an encode of
@@ -134,7 +134,7 @@ fn folded(base: &[Layer], layers_bytes: &[&[u8]], over: bool) -> Result<Vec<u8>,
     }))
 }
 
-/// The newest row for every key, as `index_reader.rs` folds layers: oldest first,
+/// The newest row for every key, as `chain_lookup.rs` folds layers: oldest first,
 /// each layer's deletes and then its puts. Over a base, a key deleted and not
 /// put again is kept as gone, since the base beneath still holds it.
 #[derive(Default)]
@@ -251,7 +251,7 @@ pub(crate) fn flag(column: &[u8], row: usize) -> bool {
     column[row] == 1
 }
 
-/// A span with both ends and its text, or none, as `index_reader.rs` reads one.
+/// A span with both ends and its text, or none.
 pub(crate) fn span<'a>(stored: &Stored<'a>, [starts, ends, texts]: [U32s; 3], row: usize) -> Option<(u32, u32, Option<&'a str>)> {
     let (start, end) = (starts.at(row), ends.at(row));
     (start != NONE || end != NONE).then(|| (start, end, stored.kept(texts.at(row))))

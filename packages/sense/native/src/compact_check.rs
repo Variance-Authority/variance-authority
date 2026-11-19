@@ -2,11 +2,11 @@
 //! dictionary or the text heap holds, every span has both ends or neither and
 //! runs forward, and every member names a request of its own row.
 //!
-//! The index reader (`index_reader.rs`) checks a row only when no newer layer
-//! decided its key, so a row nothing reads costs nothing, and a row it hands to
-//! JavaScript is one [`super::ParseView`] reads without a panic. A list a row
-//! marks absent is checked all the same: it lies in the segment, and a damaged
-//! one says the segment is damaged.
+//! The index reader (`index_reader.rs`) checks every row of a layer before it
+//! keeps the layer, so whether a segment reads depends on its bytes alone, and
+//! a row it hands to JavaScript is one [`super::ParseView`] reads without a
+//! panic. A list a row marks absent is checked all the same: it lies in the
+//! segment, and a damaged one says the segment is damaged.
 
 // compass: variance-authority.reach.source-index
 
@@ -98,7 +98,7 @@ pub(crate) fn parse(stored: &Stored, columns: &Parses, row: usize) -> Result<(),
 
 /// A span that reads: `Some(None)` when both ends are absent, `Some(Some(()))`
 /// when both are present, run forward and name a text the heap keeps, and
-/// `None` otherwise — as `index_reader.rs` reads a span.
+/// `None` otherwise.
 fn reads(stored: &Stored, [starts, ends, texts]: Ends, at: usize) -> Option<Option<()>> {
     let (start, end) = (starts.at(at), ends.at(at));
     match (start == NONE, end == NONE) {

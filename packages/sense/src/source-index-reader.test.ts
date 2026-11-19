@@ -1,8 +1,8 @@
 import { isDeepStrictEqual } from 'node:util';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Digest } from '@variance-authority/core/format';
 import type { Parsed, ParseKey } from './cache.js';
-import { native } from './addon.js';
+import { countDecodedParseRows } from './__fixtures__/decoded-parse-rows.js';
 import { encodeSourceIndex, SOURCE_INDEX_VERSION, type IndexedRecord, type StoredSourceIndex } from './source-index-format.js';
 import { readSourceIndexChain, readSourceIndexSegment } from './source-index-reader.js';
 
@@ -77,6 +77,10 @@ function plain(stored: StoredSourceIndex): object {
 }
 
 describe('the source index the addon reads', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('reads every family back as it was written, absent apart from empty and a zero line kept', () => {
     const read = readSourceIndexSegment(encodeSourceIndex(WHOLE));
 
@@ -91,17 +95,17 @@ describe('the source index the addon reads', () => {
   });
 
   it('answers a key, a count and a membership without decoding a row, and one row for one asked', () => {
-    const before = native()!.sourceIndexParseRowsRead();
+    const decoded = countDecodedParseRows();
     const read = readSourceIndexSegment(encodeSourceIndex(WHOLE));
     expect(read.parses.size).toBe(3);
     expect(read.parses.has(WAY)).toBe(true);
     expect(read.parses.has('git:missing' as ParseKey)).toBe(false);
     expect([...read.records.values()]).toHaveLength(3);
-    expect(native()!.sourceIndexParseRowsRead()).toBe(before);
+    expect(decoded()).toBe(0);
 
     // One row asked twice is read once and is the same object both times.
     expect(read.parses.get(A)).toBe(read.parses.get(A));
-    expect(native()!.sourceIndexParseRowsRead()).toBe(before + 1);
+    expect(decoded()).toBe(1);
   });
 
   it('answers a key from the newest layer that decided it, and a deleted one from none', () => {
