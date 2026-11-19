@@ -1,28 +1,14 @@
 //! Runs of parse rows written side by side and joined in order: every list
-//! of offsets, and every text id, moved past the rows before it, so the
-//! joined columns are the bytes one pass in order writes.
+//! of offsets moved past the rows before it, and every text id to the one the
+//! joined heap gives its text, so the joined columns are the bytes one pass in
+//! order writes.
 
 // compass: variance-authority.reach.source-index
 
 use rayon::prelude::*;
 
-use super::{Heap, ParseColumns, ParseRow};
+use super::{ParseColumns, ParseRow};
 use crate::segment::{Strings, NONE};
-
-impl Heap {
-    /// `other` after these, each id it gave moved past the ones these hold,
-    /// and its bytes kept as the parts they are rather than copied.
-    pub(super) fn append(&mut self, other: Heap) -> u32 {
-        let (ids, bytes) = (self.ends.len() as u32, (self.held + self.blob.len()) as u32);
-        let Heap { parts, held, blob, ends } = other;
-        self.parts.push(std::mem::take(&mut self.blob));
-        self.parts.extend(parts);
-        self.held = bytes as usize + held;
-        self.blob = blob;
-        self.ends.extend(ends.into_iter().map(|end| end + bytes));
-        ids
-    }
-}
 
 impl ParseColumns {
     pub(crate) fn in_runs<P: ParseRow>(rows: &[(&str, &P)], strings: &Strings, run: usize) -> Self {
@@ -36,7 +22,7 @@ impl ParseColumns {
 
     /// `next`'s rows after these. Every list of offsets runs from 0 to its
     /// list's length, so `next`'s first is this one's last, and every text
-    /// id `next` gave moves past the texts these rows hold.
+    /// id `next` gave becomes the id the joined heap gives its text.
     fn append(&mut self, next: Self) {
         fn values<T>(into: &mut Vec<T>, from: Vec<T>) {
             into.extend(from);
@@ -45,14 +31,14 @@ impl ParseColumns {
             let base = into.pop().unwrap_or(0);
             into.extend(from.into_iter().map(|offset| offset + base));
         }
-        fn texts(into: &mut Vec<u32>, from: Vec<u32>, base: u32) {
-            into.extend(from.into_iter().map(|id| if id == NONE { NONE } else { id + base }));
+        fn texts(into: &mut Vec<u32>, from: Vec<u32>, ids: &[u32]) {
+            into.extend(from.into_iter().map(|id| if id == NONE { NONE } else { ids[id as usize] }));
         }
-        fn spans(into: &mut [Vec<u32>; 3], from: [Vec<u32>; 3], base: u32) {
+        fn spans(into: &mut [Vec<u32>; 3], from: [Vec<u32>; 3], ids: &[u32]) {
             let [start, end, text] = from;
             values(&mut into[0], start);
             values(&mut into[1], end);
-            texts(&mut into[2], text, base);
+            texts(&mut into[2], text, ids);
         }
         let Self {
             digest, way, requests, exports, exports_present, declares, declares_present, unknown, harvested, bytes, lines, blocks, doc,
@@ -69,7 +55,7 @@ impl ParseColumns {
             binding_members, binding_member_request, binding_member_binding, binding_member_name, binding_member_line, binding_member_within, binding_within_name,
             declare_name, names, texts: heap,
         } = next;
-        let base = self.texts.append(heap);
+        let ids = self.texts.append(heap);
         for (into, from) in [
             (&mut self.requests, requests), (&mut self.exports, exports), (&mut self.declares, declares), (&mut self.symbols, symbols),
             (&mut self.mocks_minus, mocks_minus), (&mut self.mocks_plus, mocks_plus), (&mut self.members, members),
@@ -108,14 +94,14 @@ impl ParseColumns {
         ] {
             values(into, from);
         }
-        texts(&mut self.export_line_text, export_line_text, base);
-        texts(&mut self.member_declaration_line_text, member_declaration_line_text, base);
+        texts(&mut self.export_line_text, export_line_text, &ids);
+        texts(&mut self.member_declaration_line_text, member_declaration_line_text, &ids);
         for (into, from) in [
             (&mut self.doc, doc), (&mut self.export_signature, export_signature), (&mut self.export_doc, export_doc),
             (&mut self.symbol_signature, symbol_signature), (&mut self.symbol_doc, symbol_doc), (&mut self.member_declaration_doc, member_declaration_doc),
             (&mut self.nested_signature, nested_signature), (&mut self.nested_doc, nested_doc),
         ] {
-            spans(into, from, base);
+            spans(into, from, &ids);
         }
         for (into, from) in self.names.iter_mut().zip(names) {
             into.append(from);

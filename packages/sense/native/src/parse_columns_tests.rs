@@ -78,8 +78,23 @@ fn heaps_past_one_part_joined_give_the_bytes_of_one_heap() {
     let mut joined = runs.next().unwrap();
     for (run, heap) in runs.enumerate() {
         assert!(!heap.parts.is_empty(), "a run fits one part, so its held bytes are not exercised");
-        assert_eq!(joined.append(heap) as usize, 6 * (run + 1));
+        let first = 6 * (run + 1) as u32;
+        assert_eq!(joined.append(heap), (first..first + 6).collect::<Vec<_>>());
     }
     let whole = heap_of(&texts);
     assert!(encode(joined.columns().into()) == encode(whole.columns().into()), "the joined heaps differ from one heap");
+}
+
+#[test]
+fn a_text_kept_twice_is_written_once_and_read_under_both_ids() {
+    let line = "x".repeat(300);
+    let mut first = Heap::default();
+    let ids = [first.push(Some(&line)), first.push(Some("other")), first.push(Some(&line))];
+    assert_eq!(ids, [0, 1, 0]);
+    let mut second = Heap::default();
+    let next = [second.push(Some("other")), second.push(Some("new")), second.push(Some(&line))];
+    let remap = first.append(second);
+    assert_eq!(next.map(|id| remap[id as usize]), [1, 2, 0]);
+    let one = [u8s("texts.blob", format!("{line}othernew").into_bytes()), u32s("texts.off", vec![0, 300, 305, 308])];
+    assert!(encode(first.columns().into()) == encode(one.into()), "a text is written more than once");
 }
