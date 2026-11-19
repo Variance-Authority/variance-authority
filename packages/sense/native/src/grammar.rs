@@ -42,11 +42,13 @@ impl Grammar {
     /// kind from the table: `Node::kind` measures the name's C string and
     /// checks it is UTF-8 on every call, and a reader asks it of every node.
     pub fn kinds(self) -> Kinds {
-        static KINDS: [OnceLock<Vec<String>>; 5] = [const { OnceLock::new() }; 5];
+        static KINDS: [OnceLock<Vec<&'static str>>; 5] = [const { OnceLock::new() }; 5];
         Kinds(KINDS[self as usize].get_or_init(|| {
-            let language = self.language();
+            // Held for the process, as the table is: `node_kind_for_id` lends
+            // its names for as long as the language it is asked of.
+            let language: &'static Language = Box::leak(Box::new(self.language()));
             (0..language.node_kind_count())
-                .map(|id| u16::try_from(id).ok().and_then(|id| language.node_kind_for_id(id)).unwrap_or_default().to_string())
+                .map(|id| u16::try_from(id).ok().and_then(|id| language.node_kind_for_id(id)).unwrap_or_default())
                 .collect()
         }))
     }
@@ -54,7 +56,7 @@ impl Grammar {
     /// Whether each node kind, by id, is one of [`Grammar::comments`].
     pub fn comment_kinds(self) -> &'static [bool] {
         static COMMENTS: [OnceLock<Vec<bool>>; 5] = [const { OnceLock::new() }; 5];
-        COMMENTS[self as usize].get_or_init(|| self.kinds().0.iter().map(|kind| self.comments().contains(&kind.as_str())).collect())
+        COMMENTS[self as usize].get_or_init(|| self.kinds().0.iter().map(|kind| self.comments().contains(kind)).collect())
     }
 
     fn language(self) -> Language {
@@ -70,7 +72,7 @@ impl Grammar {
 
 /// A grammar's node kinds by id, from [`Grammar::kinds`].
 #[derive(Clone, Copy)]
-pub struct Kinds(&'static [String]);
+pub struct Kinds(&'static [&'static str]);
 
 impl Kinds {
     /// The kind of `node`, as `Node::kind` names it. An id past the table is

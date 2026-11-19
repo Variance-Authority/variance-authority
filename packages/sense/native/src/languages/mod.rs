@@ -23,7 +23,7 @@ pub mod swift;
 use tree_sitter::{Node, TreeCursor};
 
 use crate::grammar::{self, Grammar};
-use crate::harvest::{SourceSymbol, TextSpan};
+use crate::harvest::{Offsets, SourceSymbol, TextSpan};
 use shape::Read;
 
 /// The 1-based line a node starts on.
@@ -102,35 +102,10 @@ pub fn doc_above(children: &[Node], at: usize, source: &str, between: fn(Node) -
 }
 
 /// The bytes `start..end` as a span. A reader spans in bytes, which a node
-/// gives without counting; [`in_utf16`] counts them once the read is whole.
+/// gives without counting; [`read`] converts them through
+/// [`Offsets`](crate::harvest::Offsets) once the read is whole.
 pub fn span_of(start: usize, end: usize) -> TextSpan {
     TextSpan { start: start as u32, end: end as u32, text: None }
-}
-
-/// The byte spans of `symbols` as the UTF-16 units every reader writes, in one
-/// pass over `source`, however many spans: counted span by span from the
-/// file's start, a file of many declarations read its own text once per span.
-/// An offset that is not a character's start, or past the end, is 0.
-fn in_utf16(symbols: &mut [SourceSymbol], source: &str) {
-    if source.is_ascii() {
-        return;
-    }
-    let mut offsets: Vec<&mut u32> = symbols
-        .iter_mut()
-        .flat_map(|symbol| [symbol.signature.as_mut(), symbol.doc.as_mut()])
-        .flatten()
-        .flat_map(|span| [&mut span.start, &mut span.end])
-        .collect();
-    offsets.sort_unstable_by_key(|offset| **offset);
-    let mut characters = source.char_indices().peekable();
-    let mut units = 0u32;
-    for offset in offsets {
-        let byte = *offset as usize;
-        while let Some((_, character)) = characters.next_if(|(at, _)| *at < byte) {
-            units += character.len_utf16() as u32;
-        }
-        *offset = if source.is_char_boundary(byte) { units } else { 0 };
-    }
 }
 
 /// A visibility modifier as written, with the whitespace taken out, so
@@ -151,10 +126,27 @@ pub fn file_private(node: Node, source: &str, keywords: &[&str]) -> bool {
         .any(|modifier| keywords.contains(&visibility(modifier, source).as_str()))
 }
 
-/// Every named child of a node, in order.
+/// Every named child of a node, in order, walked by [`Children`].
 pub fn named_children(node: Node) -> Vec<Node> {
+    Children::of(node, &mut Vec::new()).map(|(child, _)| child).filter(Node::is_named).collect()
+}
+
+/// Every node under `node`, itself first, in pre-order, walked by one cursor.
+/// `enter` reads each node and says whether to walk the nodes under it. The
+/// cursor is rooted at `node`, so its walk ends there: neither a sibling nor a
+/// parent of `node` is visited.
+pub fn preorder<'tree>(node: Node<'tree>, mut enter: impl FnMut(Node<'tree>) -> bool) {
     let mut cursor = node.walk();
-    node.named_children(&mut cursor).collect()
+    loop {
+        if enter(cursor.node()) && cursor.goto_first_child() {
+            continue;
+        }
+        while !cursor.goto_next_sibling() {
+            if !cursor.goto_parent() {
+                return;
+            }
+        }
+    }
 }
 
 /// A Rust node's kind, read from the grammar's table ([`Grammar::kinds`]).
@@ -240,7 +232,11 @@ pub fn read(language: &str, source: &str) -> Option<Read> {
         Grammar::Java => (jvm::read(source, &tree, "java"), jvm::declarations(&tree, source)),
         Grammar::Kotlin => (jvm::read(source, &tree, "kotlin"), jvm::declarations(&tree, source)),
     };
-    in_utf16(&mut symbols, source);
+    let offsets = Offsets::new(source);
+    for span in symbols.iter_mut().flat_map(|symbol| [symbol.signature.as_mut(), symbol.doc.as_mut()]).flatten() {
+        span.start = offsets.at(span.start);
+        span.end = offsets.at(span.end);
+    }
     // FIXME: only Rust reads its own uses; Python, Swift and the JVM languages
     // answer `ask uses` with what other files import alone.
     let own_uses = match grammar {

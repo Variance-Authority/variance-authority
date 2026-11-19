@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 
 use tree_sitter::Node;
 
-use super::{line_of, text_of, RustKind};
+use super::{line_of, preorder, text_of, RustKind};
 
 /// What a block of items can start a path with: the inline modules it sits
 /// inside, the modules it declares, and the names its `use` lines bind to a
@@ -78,26 +78,7 @@ fn folded(path: &[String], prefix: &[String]) -> Vec<String> {
 /// first. A `use`, a `mod`, an attribute and a visibility are read elsewhere
 /// or name no item.
 pub(super) fn qualified(node: Node, source: &str, scope: &Scope, found: &mut Vec<Named>) {
-    // One cursor, in pre-order: a `Vec` of children per node visited was most
-    // of what reading a file's paths cost.
-    let mut cursor = node.walk();
-    // Counted here: the cursor's own `depth` counts its stack on every call.
-    let mut depth = 0usize;
-    let mut descend = entered(node, source, scope, found);
-    loop {
-        if descend && cursor.goto_first_child() {
-            depth += 1;
-        } else {
-            while !cursor.goto_next_sibling() {
-                if depth == 0 || !cursor.goto_parent() {
-                    return;
-                }
-                depth -= 1;
-            }
-        }
-        let current = cursor.node();
-        descend = current.is_named() && entered(current, source, scope, found);
-    }
+    preorder(node, |current| current.is_named() && entered(current, source, scope, found));
 }
 
 /// Whether the paths under `node` are still to read, after reading its own.

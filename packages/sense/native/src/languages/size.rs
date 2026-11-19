@@ -17,6 +17,7 @@
 
 use tree_sitter::Tree;
 
+use super::preorder;
 use crate::grammar::Grammar;
 use crate::source_size::{code_lines, Size};
 
@@ -34,22 +35,14 @@ pub fn size_of(source: &str, tree: &Tree, grammar: Grammar) -> Size {
 /// second range inside the first.
 fn comments(tree: &Tree, comment: &[bool]) -> Vec<(usize, usize)> {
     let mut ranges = Vec::new();
-    let mut cursor = tree.walk();
-    loop {
-        let node = cursor.node();
+    preorder(tree.root_node(), |node| {
         let comment = comment.get(usize::from(node.kind_id())).copied().unwrap_or(false);
         if comment {
             ranges.push((node.start_byte(), node.end_byte()));
         }
-        if !comment && cursor.goto_first_child() {
-            continue;
-        }
-        while !cursor.goto_next_sibling() {
-            if !cursor.goto_parent() {
-                return ranges;
-            }
-        }
-    }
+        !comment
+    });
+    ranges
 }
 
 #[cfg(test)]
