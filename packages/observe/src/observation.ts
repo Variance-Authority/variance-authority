@@ -22,23 +22,20 @@ import type {
 
 /** What one comparison found, and the inputs every way of reaching it shares. */
 
+/** A subject's verdict against its baseline. */
 export type RasterVerdict =
   | 'unchanged'
   | 'changed'
   /** No baseline for this subject. Not a pass, and not a failure. */
   | 'new'
   /**
-   * Pixels differed, and every one of them fell inside something the operator
-   * excluded (spec 0024).
-   *
-   * A word of its own rather than `unchanged`, and the distinction is the whole
-   * reason ignores are safe to have. It exits `0` — the operator declared this is
-   * not the subject, and nothing needs review — while remaining countable, so a
-   * suite can be asked how many of its green subjects are green because nobody
-   * looked. `unchanged` cannot answer that question and would never be asked it.
+   * Pixels differed, all inside what the operator excluded (spec 0024): exits
+   * `0` like `unchanged`, yet countable, so a suite can say how many of its
+   * green subjects are green because nobody looked.
    */
   | 'ignored';
 
+/** What one comparison of a subject against its baseline found. */
 export interface Observation {
   readonly subject: string;
   readonly verdict: RasterVerdict;
