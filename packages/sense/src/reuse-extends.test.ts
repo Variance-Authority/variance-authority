@@ -60,6 +60,15 @@ describe('a configuration an `extends` reads that the listing does not name', ()
     await write(at, 'base.json', '{ "compilerOptions": { "paths": { "@app/*": ["lib/*"] } } }');
     expect((await shapes(held)).config).not.toBe(before);
   });
+  it('keeps the configuration when a path appears, and moves it when the base it extends is generated', async () => {
+    const { at, shapes } = await extending('ignored.json', './.nuxt/tsconfig.json');
+    const held = tree([['tsconfig.json', A], ['src/Button.tsx', A]]);
+    const before = (await shapes(held)).config;
+
+    expect((await shapes(tree([...held, ['docs/page.md', B]]))).config).toBe(before);
+    await write(at, '.nuxt/tsconfig.json', '{ "compilerOptions": { "paths": { "@app/*": ["../lib/*"] } } }');
+    expect((await shapes(held)).config).not.toBe(before);
+  });
 });
 
 describe('a scan under a base an `extends` reaches', () => {

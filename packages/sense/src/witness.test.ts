@@ -292,14 +292,16 @@ describe('where a configuration says a bare request can land', () => {
     expect(await aliasesIn(root, ['tsconfig.json'])).toMatchObject({ table: { bases: [], mappings: [] } });
   });
 
-  it('gives up on an `extends` that nothing resolves', async () => {
+  it('bounds by what the configuration declares itself, when its `extends` reaches nothing, and names what it missed', async () => {
     const root = await fixture({
-      'tsconfig.json': '{ "extends": "@tsconfig/node20/tsconfig.json" }',
+      'tsconfig.json': '{ "extends": ["./.nuxt/tsconfig.json", "@tsconfig/node20/tsconfig.json"], "compilerOptions": { "paths": { "@x/*": ["x/*"] } } }',
     });
+    const aliases = await aliasesIn(root, ['tsconfig.json']);
 
-    // Nothing is installed, so what the base declares cannot be read and must
-    // not be guessed at.
-    expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
+    // A base that is not there declares nothing yet. Its absence is named, so
+    // the config digest moves when it is generated or installed.
+    expect(aliases?.candidatesFor('@x/y')).toEqual(['x/y']);
+    expect(aliases?.missing).toEqual(['tsconfig.json ./.nuxt/tsconfig.json', 'tsconfig.json @tsconfig/node20/tsconfig.json']);
   });
 
   it('gives up on a configuration that is not there', async () => {

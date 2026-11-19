@@ -39,13 +39,13 @@
  *
  * A base is read whatever it is named and wherever it lies — `tspaths.json`
  * beside its `tsconfig`, a package under `node_modules`. Each one the listing
- * does not hold is handed back in `read` with the digest of its bytes, so the
- * config digest names it, and an edit or a reinstall moves every record's
- * configuration. A pattern placed outside the checkout bounds no path of it,
- * and is dropped.
+ * does not hold is handed back in `read` with the digest of its bytes, and each
+ * that is not there yet in `missing`, so the config digest names both and an
+ * edit, a build or an install moves every record's configuration. A pattern
+ * placed outside the checkout bounds no path of it, and is dropped.
  *
- * So when a configuration cannot be read — invalid JSON, or an `extends` that
- * resolves to nothing — there is no honest bound on where a bare specifier
+ * So only when a configuration cannot be read — invalid JSON, or a base that
+ * is there and is not one — is there no honest bound on where a bare specifier
  * could land. Aliases are then **unknown**, and the caller falls back to
  * treating the whole path set as one witness ([`reuse.ts`](./reuse.ts)).
  */
@@ -72,6 +72,12 @@ export interface Aliases {
    * the table as much as the listed ones do, so the config digest names them.
    */
   readonly read: ReadonlyMap<string, Digest>;
+  /**
+   * Every `extends` entry that reached no file, as the configuration naming it
+   * and the name as written. It declares nothing yet, and the config digest
+   * names it, so the base appearing moves every record's configuration.
+   */
+  readonly missing: readonly string[];
 }
 
 /** The placed `baseUrl` directories, in the order declared, and every mapping. */
@@ -116,6 +122,7 @@ export async function aliasesIn(
   return {
     table: { bases, mappings },
     read: new Map(held.read.map(({ path, digest }) => [path, digest as Digest])),
+    missing: held.missing,
     candidatesFor(request) {
       const found: string[] = [];
       for (const base of bases) found.push(join(base, request));

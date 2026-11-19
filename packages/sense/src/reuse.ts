@@ -244,6 +244,8 @@ export async function configOf(input: {
     // a package's config under `node_modules` — decides the aliases as much as
     // a `tsconfig.json` does, so its contents are configuration too.
     ...[...(aliases?.read ?? [])].map(([path, digest]) => `extends ${path} ${digest}`),
+    // One that reached nothing declares nothing until it arrives.
+    ...(aliases?.missing ?? []).map((entry) => `extends-missing ${entry}`),
   ];
 
   return {

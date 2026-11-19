@@ -164,7 +164,10 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
    * with the digest of its bytes: `native/src/witness_aliases.rs`. `null` when
    * one of them cannot be read.
    */
-  aliasesIn(root: string, paths: string[]): (AliasTable & { read: { path: string; digest: string }[] }) | null;
+  aliasesIn(
+    root: string,
+    paths: string[],
+  ): (AliasTable & { read: { path: string; digest: string }[]; missing: string[] }) | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */
   changeTree(root: string, index: string, dirs: string[]): NativeGitTree | null;

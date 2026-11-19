@@ -1,7 +1,8 @@
 //! `aliasesIn` in `packages/sense/src/witness.ts`: the `paths` and `baseUrl`
 //! every `tsconfig` and `jsconfig` the tree tracks declares, placed as
 //! repository paths, with every base their `extends` chains read past the
-//! listing and its digest, or nothing when one of them cannot be read.
+//! listing and its digest, and every one they reach no file at; or nothing
+//! when one of them cannot be read.
 //!
 //! The module comment of `witness.ts` states the rule; this is its one
 //! implementation. A large workspace holds thousands of configurations, and
@@ -15,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
 use napi_derive::napi;
-use oxc_resolver::{ResolveOptions, Resolver};
+use oxc_resolver::{ResolveError, ResolveOptions, Resolver};
 use rayon::prelude::*;
 use regex::Regex;
 use serde_json::{Map, Value};
@@ -49,6 +50,9 @@ pub struct AliasesRead {
     pub mappings: Vec<AliasMapping>,
     /// In code-unit order of their paths.
     pub read: Vec<ConfigRead>,
+    /// Every `extends` entry that reached no file, as the configuration that
+    /// names it and the name as written, joined by a space, in code-unit order.
+    pub missing: Vec<String>,
 }
 
 /// The alias table the configurations among `paths` declare, read from
@@ -69,7 +73,7 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
         parsed.insert(path, value?);
     }
     let mut extended =
-        Extended { root, parsed: &parsed, beyond: HashMap::new(), resolver: None, real: None, answers: HashMap::new() };
+        Extended { root, parsed: &parsed, beyond: HashMap::new(), resolver: None, real: None, answers: HashMap::new(), missing: Vec::new() };
 
     let mut mappings = Vec::new();
     let mut bases: Vec<String> = Vec::new();
@@ -125,7 +129,10 @@ pub(crate) fn read(root: &str, paths: &[String]) -> Option<AliasesRead> {
         .filter_map(|(path, held)| held.map(|(_, digest)| ConfigRead { path, digest }))
         .collect();
     read.sort_unstable_by(|a, b| code_unit(&a.path, &b.path));
-    Some(AliasesRead { bases, mappings, read })
+    let mut missing = extended.missing;
+    missing.sort_unstable_by(|a, b| code_unit(a, b));
+    missing.dedup();
+    Some(AliasesRead { bases, mappings, read, missing })
 }
 
 /// Configuration files whose `paths` decide where a bare specifier can land.
@@ -153,8 +160,9 @@ struct Options {
     from: HashMap<&'static str, String>,
 }
 
-/// One configuration's options with everything it extends folded in; an
-/// `extends` entry that cannot be read abandons the chain.
+/// One configuration's options with everything it extends folded in. An
+/// `extends` entry that reaches no file declares nothing, and is named in
+/// `missing`; one that reaches a file that cannot be read abandons the chain.
 fn compiler_options(path: &str, extended: &mut Extended<'_>, seen: &HashSet<String>) -> Option<Options> {
     if seen.contains(path) {
         return Some(Options::default());
@@ -176,7 +184,10 @@ fn compiler_options(path: &str, extended: &mut Extended<'_>, seen: &HashSet<Stri
     };
     let mut options = Options::default();
     for specifier in named {
-        let resolved = extended.answer(path, &specifier)?;
+        let Some(resolved) = extended.answer(path, &specifier)? else {
+            extended.missing.push(format!("{path} {specifier}"));
+            continue;
+        };
         let mut deeper = seen.clone();
         deeper.insert(path.to_owned());
         let base = compiler_options(&resolved, extended, &deeper)?;
@@ -205,7 +216,8 @@ struct Extended<'a> {
     beyond: HashMap<String, Beyond>,
     resolver: Option<Resolver>,
     real: Option<Option<PathBuf>>,
-    answers: HashMap<(String, String), Option<String>>,
+    answers: HashMap<(String, String), Option<Option<String>>>,
+    missing: Vec<String>,
 }
 
 impl Extended<'_> {
@@ -232,16 +244,18 @@ impl Extended<'_> {
         self.parsed.contains_key(path) || Path::new(self.root).join(path).is_file()
     }
 
-    fn answer(&mut self, config: &str, specifier: &str) -> Option<String> {
+    /// The file an `extends` entry reaches: `Some(None)` when it reaches no
+    /// file, and `None` when this read cannot tell.
+    fn answer(&mut self, config: &str, specifier: &str) -> Option<Option<String>> {
         let from = dirname(config);
         if specifier.starts_with("./") || specifier.starts_with("../") {
             // TypeScript's rule: the path as written, then with `.json` appended.
             let at = normalize(&join(&[from, specifier]));
             if self.exists(&at) {
-                return Some(at);
+                return Some(Some(at));
             }
             let json = format!("{at}.json");
-            return (!at.ends_with(".json") && self.exists(&json)).then_some(json);
+            return Some((!at.ends_with(".json") && self.exists(&json)).then_some(json));
         }
         if specifier.is_empty() || specifier.starts_with('.') || specifier.starts_with('/') {
             return None;
@@ -261,9 +275,10 @@ impl Extended<'_> {
                 ..ResolveOptions::default()
             })
         });
-        let answer = anchor.and_then(|anchor| {
-            let found = resolver.resolve(Path::new(&join(&[self.root, from])), specifier).ok()?;
-            relative(&anchor, found.path())
+        let answer = anchor.and_then(|anchor| match resolver.resolve(Path::new(&join(&[self.root, from])), specifier) {
+            Ok(found) => relative(&anchor, found.path()).map(Some),
+            Err(ResolveError::NotFound(_)) => Some(None),
+            Err(_) => None,
         });
         self.answers.insert(key, answer.clone());
         answer
