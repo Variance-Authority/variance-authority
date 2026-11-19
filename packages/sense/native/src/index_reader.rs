@@ -78,7 +78,8 @@ fn ascending(stored: &Stored, len: usize, key: impl Fn(usize) -> (u32, u32), wha
 
 /// The layer `bytes` holds, its keys checked before it is kept; its rows are checked when asked for.
 fn read_layer(bytes: &[u8]) -> Result<Layer<'_>, String> {
-    let layer = Layer::open(bytes)?;
+    // Every text a row names is checked with `keeps` before the row is read.
+    let layer = Layer::open_texts_on_read(bytes)?;
     let stored = &layer.stored;
     need(stored.has_texts(), "text heap")?;
     let (parses, records, directories) = (&layer.parses, &layer.records, &layer.directories);

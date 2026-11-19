@@ -215,7 +215,16 @@ pub(crate) struct Layer<'a> {
 
 impl<'a> Layer<'a> {
     pub(crate) fn open(bytes: &'a [u8]) -> Result<Self, String> {
-        let stored = Stored::open(bytes)?;
+        Self::over(Stored::open(bytes)?)
+    }
+
+    /// As [`Self::open`], its text heap checked text by text rather than whole:
+    /// see [`Stored::open_texts_on_read`].
+    pub(crate) fn open_texts_on_read(bytes: &'a [u8]) -> Result<Self, String> {
+        Self::over(Stored::open_texts_on_read(bytes)?)
+    }
+
+    fn over(stored: Stored<'a>) -> Result<Self, String> {
         let config = stored.u32s("index.config")?;
         if config.len() != 1 {
             return Err("no configuration row".to_owned());

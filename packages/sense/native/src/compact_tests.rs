@@ -101,7 +101,12 @@ fn a_layer_whose_reverse_edge_names_a_row_it_does_not_hold_is_refused() {
 
 /// `FULL` with the first byte of the one-byte column `name` set to `value`.
 fn with_byte(name: &str, value: u8) -> Vec<u8> {
-    let good = encoded(FULL);
+    with_byte_of(FULL, name, value)
+}
+
+/// `document` encoded, with the first byte of the one-byte column `name` set to `value`.
+fn with_byte_of(document: &str, name: &str, value: u8) -> Vec<u8> {
+    let good = encoded(document);
     let stored = crate::stored::Stored::open(&good).unwrap();
     let columns = stored.columns().into_iter().map(|(column, width, bytes)| {
         let mut bytes = bytes.to_vec();
@@ -117,6 +122,19 @@ fn a_layer_whose_flag_is_neither_zero_nor_one_is_refused_as_the_typescript_reade
         let error = compacted(&[&with_byte(name, 3)]).err().unwrap_or_else(|| panic!("{name} = 3 was read"));
         assert!(error.contains(name), "{error}");
     }
+}
+
+#[test]
+fn a_layer_whose_text_heap_is_not_utf8_is_refused_rather_than_read() {
+    // A span's text is one the heap keeps.
+    let document = FULL.replace(r#""line": 5, "signature": {"start": 10, "end": 20}}]"#, r#""line": 5, "signature": {"start": 10, "end": 20, "text": "a()"}}]"#);
+    assert_ne!(document, FULL);
+    let damaged = with_byte_of(&document, "texts.blob", 0xff);
+    let error = std::panic::catch_unwind(|| compacted(&[&damaged]))
+        .unwrap_or_else(|_| panic!("a heap that is not UTF-8 panicked the fold"))
+        .err()
+        .unwrap_or_else(|| panic!("a heap that is not UTF-8 was read"));
+    assert!(error.contains("not UTF-8"), "{error}");
 }
 
 #[test]
