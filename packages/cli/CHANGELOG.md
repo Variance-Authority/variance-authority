@@ -1,5 +1,150 @@
 # @variance-authority/cli
 
+## 0.33.0
+
+### Minor Changes
+
+- 8d67263: A runner's seam can cut its selection to a ceiling of recorded test time, taking the changed files' own tests first and the importers in order only when a distance is asked. It only ever skips more, names what it left, and cuts nothing from a selection that declined to narrow. This repository's edit loop sets it; it is not yet offered to adopters.
+- 90114df: A case times its statements under Vitest, Jest and Rstest: every line of the
+  test its body ran keeps its time in microseconds on the real clock, with a
+  loop's runs summed and hooks left out. `variance ask slowest-tests` prints the
+  slowest of them under each case it lists, with its share of the case.
+  `cadence: false` turns it off, and a record written before it reads every case
+  as untimed.
+- ae9262c: `ask symbol --line <file>:<line>` ranks the declarations of a name by how closely the tests that entered each match the tests that ran the line. The ranking is overlap of recorded tests and does not establish which declaration the line called. Declarations entered by the same tests are marked tied. A line no recorded test ran, and a recording that cannot place the lines at the commit it ran at, say so and answer as without `--line`.
+- 08f6331: `variance ask ran --story` shows what each function of a live execution was handed
+
+  A server head started with `VARIANCE_AUTHORITY_STORY=1`, beside `VARIANCE_AUTHORITY_JOURNEYS` and a watcher, now tapes each execution it reports to the watcher and sends its story with the account: the functions entered in order, their branches, and `» handed name=value` for the arguments each was handed, spelled as a test story spells them. It shows arguments only, never a local or module variable. Two requests that run at once are taped apart, and a request whose promises run on after it settled is told again with only what it ran since. Without the variable nothing is taped and nothing changes.
+
+  `variance ask ran --story` (`variance_ran` with `story: true`) prints those stories in place of each execution's regions, a step drawn as `variance story` draws it, with what the tape lost said above it. Asked of heads that told none, it says no head was started with `VARIANCE_AUTHORITY_STORY=1` and lists the regions as before.
+
+  `variance ask` takes a true-or-false tool argument as a bare flag. The watcher keeps the first 8 stories a head sent of an execution, up to 1 MiB, as `stories` on that head, and counts the rest as `untold`. `@variance-authority/sense/story` exports the reading `variance story` draws a route by, so both draw a step the same way.
+- 77bdb72: A name not found, and every other refusal of a source question, is answered from the generation the question read. It no longer rescans the checkout, rebuilds the dependency lexicon, or publishes a new snapshot first. Before this change, `variance ask symbol` or `ask uses` for an absent name took about ten seconds on a checkout of a hundred thousand files, and now takes about as long as a name it finds. When that generation was made before the question, the answer's last line says the checkout was not compared with it. A function written since then is reported missing until `variance index` runs or `--changed-file` names its file. A found answer whose files changed since its generation is still asked again of one made now, as before. This holds on `variance ask`, `variance serve`, `variance-authority-help` and its server. A server holding a generation, `variance serve` or `variance-authority-help`'s, reads the generation `variance index` published since on its next call, on the same connection and under `--just-answer` too, so the name is found without restarting it; seeing that one was published costs a read of the published value's head.
+
+  `caughtUp` no longer takes a lexicon root, and its `again` reads a generation made now with no argument. `madeBefore` says whether a refusal's generation predates the question, and `readAgain` whether a server reads the workspace again before a call: when it holds nothing, a newer generation was published, or, without `justAnswer`, the one it holds has expired. In `@variance-authority/mcp`, `serve` hands `again` only an answer that `outlived` flags, never a refused call, and `answered` receives when the request started.
+- 6fcac83: `variance coverage --session <name>=<path>` sets V8 coverage you exported from your own browser or Node run beside the record, function by function, and lists the functions a session ran that no recorded case entered. `--served <dir>` places a page's scripts.
+- a51c08d: `variance carry restore --transform jest [--shard <k>/<n>]` also names Jest's transform cache for each declared suite whose project resolves `jest-config`: `transform-<suite>-path` is Jest's default `cacheDirectory`, and the key holds the suite, the shard and the ISO week, so a new week starts from an empty cache. A restore without `--transform` prints what it did before. `Variance-Authority/action/jest-cache` is that restore as one step before a shard's tests, and the cache action saves it on the week's first green run of that shard.
+- 5147428: A story run keeps each change a test line made to the page as one line of text: the node added, removed or changed, with its role, id and name, the component that rendered it and the React commit that wrote it. `variance story --page <text>` answers when something appeared or went with one row per change that holds the text, however large the page, and `--compare` sets apart a change that lands at another commit on the failing runs. What a field holds is never written.
+- f48cf4c: `variance story --name` explains a test no story was recorded for from the
+  record every run keeps: each line of its body in the order first reached, with
+  its source, its time and its share of the test, and the functions it was the
+  first to run, grouped by package, a hook's apart. It says when the test file
+  changed since the record was written. A test with a story recorded still
+  prints the story, as does an ask that names a `--project`.
+
+  `ask slowest-tests` gives a statement's share of its case as `variance story`
+  does, from the statement's microseconds, and prints its time to the nearest
+  millisecond.
+- 9d0c27e: `variance select --format explain` prints the selection by import hops, nearest first: each hop count's test files, their recorded seconds, the trail from the changed file to each, and the `--at-distance` command that runs that block; beside a leg, the hops it left are laid out too, marked as left. A selection that runs the whole suite says why, naming the `before` entry a changed file matched, and counts the suite, saying how many of its test files the record holds no time for. A changed file nothing reaches is named, with where to declare it: `/// <depends>` or `before`. `recordedTimes` now lists the test files it holds no time for as `untimed`.
+- b6f75d6: `ask grep --from` and `--to` walk the imports `variance index` resolved
+
+  A scoped `ask grep` drew the import graph of the whole checkout at question time: every tsconfig and manifest read, every specifier resolved, every mock of every test resolved, to search the few thousand files a start point reaches. It now walks the source tree `variance index` publishes, and only ripgrep's search costs the area. On Kibana a search from one file whose area holds 14,686 files went from 10 s to 0.6 s.
+
+  The published tree carries the modules a test loads for real beside its mocks (`vi.importActual`, `jest.requireActual`, a factory's `require`), resolved when the tree is published, so `ask uses`, `ask symbol` and `docs_search` with a start point reach them too, as `ask grep` did. Its format version moves to 2, and a tree published by an earlier version is read again.
+
+  A `grep` answer now names the generation it was read from, and is asked again of the checkout as it is when a file of its area changed since; a file that just began importing into its area, or was written under a folder it starts from, waits for `variance index` or the hour.
+- 734e044: `variance ask grep --test <file> [--name <words>]` searches only the files one recorded test entered, and marks each matching line as ran, or not taken with the branch or function the test did not enter. `testsRan` in `@variance-authority/sense` reads the same answer from the recording.
+- 33fc032: Use `variance layers --package <name>` to list an entry package and its transitive repository dependencies. Repeat `--package` for several roots; shared dependencies appear once. The answer includes the selected roots and package and layer counts. Without roots, the command lists the whole repository as before. Root selection cannot be combined with `--against`.
+- 2e0e535: The questions `variance index` publishes are one binary store
+
+  `variance index` and every question that publishes a generation now write one
+  file beside the source index, `source-index.bin.help.bin`, in place of the JSON
+  value `source-index.bin.help.json` and the search `source-index.bin.help-search.bin`
+  beside it. `ask symbol`, `uses`, `search`, `packages`, `entrypoint`, `gaps`, the
+  help server and `variance serve` open it in place and decode a name only when a
+  question reads it. A generation published before this release is not read: the
+  next question reads the checkout and publishes the store, and `--just-answer`
+  refuses until `variance index` runs.
+
+  A store that is there and does not open is named with the answer, as
+  `The published value at … did not open (…); the checkout was read instead.`
+  There is no longer a second file to fall back on, so the counts a search shows
+  then are the checkout's, not the counts by published path.
+
+  Breaking for code that reads the files itself. `@variance-authority/sense` drops
+  `encodeSearch`, `exportedDigest`, `EncodedSearch`, `PublishedRows` and
+  `SearchGeneration`, and exports `encodeHelpStore`, `restampHelpStore` and the
+  `HelpStore`, `StoreMeta` and `EncodedStore` shapes. `HelpReading.publish` takes
+  `packagesDigest`, and its usage no longer carries the imports by path, which
+  the addon writes. `@variance-authority/help` exports `publishedHead`, the
+  generation read off the store's head alone, and its `StoreHead`; an `Unopened`
+  is always `published: 'value'`. A package's
+  `Documented` in `@variance-authority/package/help` no longer carries `declared`:
+  whether the manifests moved is compared by the digest the store keeps.
+
+  `@variance-authority/core/segment` opens a segment's first bytes alone with
+  `openSegment(…, { prefix: true })`: a header or column past them throws
+  `SegmentCutShort` with the length that holds it. The store is a segment in that
+  framing, so its head is read off its first bytes without reading the rest.
+- a6b7aea: The record keeps how each attempt of a retried case ended. A runner that retries a failing case reports the last attempt, so a case that failed and then passed read as a pass. A recorded run under Vitest, Jest, Rstest or Playwright now writes one row per attempt of every case its runner reported more than one attempt of: how the attempt ended, in the runner's own word, and where the runner says them how long it ran and, for one that did not pass, the failure's message and its frame inside the checkout. Vitest 4.1 and Playwright say all of it; Jest and Rstest time no single attempt, and Jest names what an earlier attempt failed with only under `logErrorsBeforeRetry`. A case that ran once adds nothing, and its `stopped`, duration and limit are unchanged.
+
+  `variance ask retried-tests` (`docs_retried_tests`) lists the cases whose attempts ended differently in the recorded run, each with its attempts and its limit, under the record's origin, commit and age. A record whose run kept no attempts says that they were not kept, not that no case was retried.
+
+  A build older than this one refuses a record that holds the new `cases.attempts` section, as it refuses any section it does not know. No selection reads the section.
+
+### Patch Changes
+
+- 7cf4bd3: A Playwright story names the requests each line of the spec sent, each answer
+  that came back on it with its status, and what was still out when the line
+  ended, by method and path alone: `sent POST /api/order, GET /api/price`,
+  `POST /api/order 201`, `still out GET /api/price`. The query and the body are
+  never written. `@variance-authority/playwright` exports `awaitedRequest`, the
+  test both its arrival watch and the story apply to what a page sends.
+- 792fd53: `variance select --local`, and `VARIANCE_AUTHORITY_LOCAL=1` at a runner's seam,
+  no longer run every test file, or every test file in a package, when the record
+  cannot narrow. They run only the test files that import a changed file, by the
+  source index, and name the doubt on the first line; a changed file the index
+  does not hold, such as a lockfile, selects none and is named. A test file the runner
+  finds that neither the index nor the record holds does not run; `--format json`
+  names the files that run under `only`. With no diff from
+  any base, `--local` exits non-zero. A change to a file the suite declares in
+  `before` runs the whole suite. Without `--local`, every doubt still runs every
+  test file.
+- 615030d: `select --ran-at` runs a test a change the mainline landed and took back reaches
+
+  A pull request's check ran on its head merged with the mainline of its day, which may have held a change the mainline landed after the fork. When the mainline then reverted a change, in whole or in part, the net diff from the fork no longer showed it, so a test both the pull request and that change reached was skipped as one only the pull request reached. The mainline's side now also reads every file two or more of its commits since the fork changed as it stood after each of those commits, by its lines or, for an install file, by its packages.
+
+  `firstParentChangesBetween(root, from, to)` lists what each commit on `to`'s first-parent line that `from` does not hold changed.
+- bafb60b: A source file is read once, by the parse that indexes it
+
+  The source index keeps the text of every doc comment, declaration head and
+  member and export line an answer prints, cut from the source the parse already
+  held, so reading a workspace and answering about it no longer open each file a
+  second and third time to cut those lines out. The doc and head rules run in one
+  place, the native index, and `@variance-authority/sense` exports `exportLine`
+  for the line an export is written on.
+  A file the parse could not read is recorded as unreadable rather than read again
+  from JavaScript.
+
+  An answer now prints a file's text as the index read it, also when the file was
+  written since: the date line still says the checkout was not compared, and
+  nothing of what the file holds today is mixed into it. The source index format
+  moves to version 47, so the first command after upgrading reads the checkout
+  once more.
+- 4417f78: `variance index` says when it kept the code map and the questions because the index and the manifests did not move, as it already did for the journeys and the dependency lexicon: `questions: kept at <time>, because …`. Each keep is checked before the read it would spare: the code map against the index's manifest alone, before any segment of the index is read, and the questions against the head of the store they were published to, before the store is opened. `publishWorkspaceFromIndex` returns `{ generation, kept }`, where it returned the generation. A store whose file is not the length its head declares, such as one cut short, is published again rather than kept. `publishedHead` takes the checkout's root before the index, and answers only for a store that root published and whose file is whole. An opened segment says the length its header declares.
+- b8eb2c1: The READMEs and the `variance-authority` skill say that the source index does
+  not yet read framework file formats or bundler-only aliases: Vue and Svelte
+  single-file components are not indexed, the files an Angular component names in
+  `templateUrl` and `styleUrls` are not linked to it, and an import alias declared
+  only in a bundler's configuration does not resolve, where one declared as
+  `paths` in a `tsconfig` does.
+- d960d9a: The `variance-authority` skill tells an agent to name code with `search`, `symbol` and `uses` before opening files, and to account in its change for every file `uses` lists for a name it changes.
+- d1cd471: One question opens the source index once. `variance ask symbol` and `variance
+  ask search` about a name declared in many files read, checked and opened every
+  segment of the index again for each declaration they followed; they now do so
+  once per answer, however many readers the answer asks. On Kibana, `ask symbol
+  --name mount` drops from 5.3 s to 2.9 s, `ask search --query mount` from 1.1 s
+  to 0.56 s, and `docs_symbol` to a warm help server from 4.1 s to 2.0 s.
+- 80bea52: The edit loop's budget takes a changed file's own tests first, and a test is now a file's own only when it enters it: a test that imports the file beside another module that imports it too is ranked as an importer. `TestDistance` names the changed files a test enters as `enters`, and `select --json` carries it.
+- 339ac5c: The skill's recording options give what each `mode` adds to a public suite's run, measured against classic coverage on the same suite.
+- fff29dc: The `variance-testing` skill says what to do with each mark of the review a
+  pull request gets: code the change wrote that no case ran gets a test or is
+  deleted, and code nothing can reach is deleted rather than kept untested.
+- d46e8f3: Remind testing agents of differential comparisons, temporary scaffolding tests, white/grey/black box access, and choosing the right signal, boundary and time for an assertion. The testing skill presents these as opportunities with tradeoffs rather than a prescribed test hierarchy.
+- ab53618: The bundled skills name every runner a command works under
+
+  The `variance-authority` and `variance-testing` skills gave their selection, at-distance and story commands for Vitest alone. They now give the Jest and Playwright form beside it, the Rstest form where Rstest reads the variable, and say the mock API is the runner's own.
+
 ## 0.32.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

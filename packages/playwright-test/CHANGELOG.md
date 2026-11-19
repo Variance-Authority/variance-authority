@@ -1,5 +1,24 @@
 # @variance-authority/playwright-test
 
+## 0.33.0
+
+### Minor Changes
+
+- 7cf4bd3: A Playwright story names the requests each line of the spec sent, each answer
+  that came back on it with its status, and what was still out when the line
+  ended, by method and path alone: `sent POST /api/order, GET /api/price`,
+  `POST /api/order 201`, `still out GET /api/price`. The query and the body are
+  never written. `@variance-authority/playwright` exports `awaitedRequest`, the
+  test both its arrival watch and the story apply to what a page sends.
+- 2dbcebe: A story recorded under a document says what each test line did to the page
+
+  With `VARIANCE_AUTHORITY_STORY=1` and a `document`, as under jsdom, in the browser modes of Vitest and Rstest, or in the page a Playwright spec drives, the story watches the page and writes one note on each test line that changed it: `page +1 −0 nodes, 2 attributes, 0 text`, counted since the line opened. A line that changed nothing has no note, so a `findBy` or `waitFor` that passed on such a line waited on no change to the markup, unless it waited on a property such as an input's `value`. React commits stay with Eyes, which already writes each one under its step. A hook's line and the end of the test close the watch until the next test line, so what hooks and a testing library's cleanup change has no note. A run without a document, and any run that records no story, starts no watch. Under Playwright, a hook declared in a helper file closes the watch too, a fixture's teardown after `use` lands on the last line, and a document a statement loads is counted from the statement after it.
+- a6b7aea: The record keeps how each attempt of a retried case ended. A runner that retries a failing case reports the last attempt, so a case that failed and then passed read as a pass. A recorded run under Vitest, Jest, Rstest or Playwright now writes one row per attempt of every case its runner reported more than one attempt of: how the attempt ended, in the runner's own word, and where the runner says them how long it ran and, for one that did not pass, the failure's message and its frame inside the checkout. Vitest 4.1 and Playwright say all of it; Jest and Rstest time no single attempt, and Jest names what an earlier attempt failed with only under `logErrorsBeforeRetry`. A case that ran once adds nothing, and its `stopped`, duration and limit are unchanged.
+
+  `variance ask retried-tests` (`docs_retried_tests`) lists the cases whose attempts ended differently in the recorded run, each with its attempts and its limit, under the record's origin, commit and age. A record whose run kept no attempts says that they were not kept, not that no case was retried.
+
+  A build older than this one refuses a record that holds the new `cases.attempts` section, as it refuses any section it does not know. No selection reads the section.
+
 ## 0.32.1
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.
