@@ -1,6 +1,6 @@
 /**
- * What a reader can do with it, in the hero's first column so it shows above
- * the fold. Each opens the page that starts that task.
+ * What a reader can do with it, in the open space under the hero's call to
+ * action so it shows above the fold. Each opens the page that starts that task.
  */
 const CAPABILITIES = [
   { name: "Coverage", href: "/docs/test-level-coverage" },
@@ -13,21 +13,23 @@ const CAPABILITIES = [
 
 export default function Capabilities() {
   return (
-    <nav
-      aria-label="Capabilities"
-      className="mt-6 flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tracking-widest text-quiet uppercase"
-    >
-      {CAPABILITIES.map((capability, index) => (
-        <span key={capability.name} className="flex items-center gap-x-3">
-          {index > 0 && <span aria-hidden="true" className="text-hairline">·</span>}
-          <a
-            href={capability.href}
-            className="rounded-sm transition-colors hover:text-orange focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange"
-          >
-            {capability.name}
-          </a>
-        </span>
-      ))}
+    <nav aria-label="Capabilities" className="mt-8 max-w-lg">
+      <p className="mb-3 font-mono text-xs uppercase tracking-[0.18em] text-orange">
+        what it does
+      </p>
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+        {CAPABILITIES.map((capability) => (
+          <li key={capability.name}>
+            <a
+              href={capability.href}
+              className="group flex items-center gap-2 rounded-sm text-base font-medium text-ivory transition-colors hover:text-orange focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-orange"
+            >
+              <span aria-hidden="true" className="text-orange transition-transform group-hover:translate-x-0.5">→</span>
+              {capability.name}
+            </a>
+          </li>
+        ))}
+      </ul>
     </nav>
   );
 }
