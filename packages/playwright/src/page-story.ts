@@ -1,3 +1,4 @@
+import { navigationNote } from '@variance-authority/core/format';
 import type { Page } from 'playwright';
 
 /** Where a story recorded in this realm listens: `NOTE` in sense's `story-listen.cts`. */
@@ -14,13 +15,16 @@ const say = (text: string): void => {
 /**
  * Tells a story recorded in this realm what a page did that the test cannot
  * see from Node: what it printed, each document its top frame loaded, what it
- * threw and that it crashed. A note lands on the step it happened during.
+ * threw and that it crashed. A note lands on the step that was running when
+Node heard it.
  *
  * Attaches nothing where no story records as the page opens. The navigation is
  * the engine's: Chromium's `Page.frameNavigated` commits a new document and
  * not a change within one, and `Page.frameStartedNavigating` says whether it
  * was a reload, so a link back to the same address is not called one.
  */
+// TODO: a Playwright Test story hears a page's navigations but not its errors
+// or a crash; this module writes those for the harness alone.
 export async function tellStory(page: Page): Promise<void> {
   if (typeof (globalThis as Realm)[NOTE] !== 'function') return;
   page.on('console', (message) => {
@@ -39,7 +43,7 @@ export async function tellStory(page: Page): Promise<void> {
   });
   session.on('Page.frameNavigated', ({ frame }) => {
     if (frame.id !== top) return;
-    say(`page navigated ${frame.url.split(/[?#]/)[0]}${reload ? ' (reload)' : ''}`);
+    say(navigationNote(frame.url, reload));
     reload = false;
   });
 }

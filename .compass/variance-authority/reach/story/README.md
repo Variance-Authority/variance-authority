@@ -20,6 +20,8 @@ what each test line changed on the realm's document;
 under Playwright, the requests each test line sent and what came back on it;
 what a package's setup
 file tells the realm's note channel as it happens, without importing sense;
+from a page `@variance-authority/playwright`'s harness opened in Node, what it
+printed, threw and loaded, told to the same note channel;
 from a page, each drain's tape, which the runner names with the case and the
 line it was drained under, or, from a page under Vantage, each execution's
 part as `reportPage` names it; and, to name what was visited, the region inventory
@@ -86,6 +88,8 @@ by guess.
   the assembler that lays one case's page drains end to end as one story
 - `packages/sense/src/story/page-story.ts` — one page drain's tape, as the page
   hands it over
+- `packages/playwright/src/page-story.ts` — tells the note channel what a page
+  the Node harness opened printed, threw and loaded
 - `packages/sense/src/story/page-told.ts` — a page under Vantage, built with
   the story switch, taping as a live head does and telling each execution's
   story to `reportPage`

@@ -107,9 +107,10 @@ installed. If you do not own page-side code of that kind, use
 `@variance-authority/playwright-test`.
 
 While a [test story](https://variance-authority.dev/docs/test-stories) records, the harness writes
-what its page printed, threw and loaded into the story, on the step it happened
-during: `page console.log …`, `page error …`, `page crashed`, `page navigated
-<address>`. With no story recording it adds no listener.
+what its page printed, threw and loaded into the story, on the step that was
+running when Node heard it: `page console.log …`, `page error …`, `page
+crashed`, `page navigated <address>` or `page reloaded <address>`, the address
+without its query. With no story recording it adds no listener.
 
 `capture` returns a JSON **string** from the page, which the harness parses. A
 capture that acquires a `Map`, a DOM handle or a cycle fails here rather than

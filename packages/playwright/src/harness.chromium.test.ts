@@ -264,7 +264,7 @@ const NOTE = Symbol.for('variance-authority.story.note');
 const RELOADING = 'http://reloading.test/';
 const RELOADING_PAGE = `<script>console.log('document loaded')</script>
 <button id="choose" onclick="console.log('chose tea')">Choose</button>
-<button id="restart" onclick="console.warn('server connection lost'); setTimeout(() => { location.reload(); }, 100)">Restart</button>
+<button id="restart" onclick="console.warn('server connection lost'); location.reload()">Restart</button>
 <button id="fail" onclick="setTimeout(() => { throw new Error('checkout broke\\nat line 2'); })">Fail</button>
 <iframe src="${RELOADING}frame"></iframe>`;
 
@@ -283,7 +283,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a story recorded in this 
     delete realm[NOTE];
   });
 
-  it("is told what the page printed, where it went and what it threw, on the step each happened during", async () => {
+  it("is told what the page printed, where it went and what it threw, in the order Node heard it", async () => {
     const notes: string[] = [];
     realm[NOTE] = (text) => notes.push(text);
     const harness = await createHarness(reloading);
@@ -302,7 +302,7 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a story recorded in this 
       'page console.log document loaded',
       'page console.log chose tea',
       'page console.warn server connection lost',
-      `page navigated ${RELOADING} (reload)`,
+      `page reloaded ${RELOADING}`,
       'page console.log document loaded',
       'page error Error: checkout broke',
     ]);
@@ -325,9 +325,10 @@ describe.skipIf(!BROWSER_AVAILABLE)('createHarness — a story recorded in this 
     delete realm[NOTE];
     const harness = await createHarness(reloading);
     try {
-      // The harness's own error listeners, and no story's beside them.
+      // The harness's own error listeners and Playwright's own crash one, and no story's beside them.
       expect(harness.page.listenerCount('console')).toBe(1);
       expect(harness.page.listenerCount('pageerror')).toBe(1);
+      expect(harness.page.listenerCount('crash')).toBe(1);
     } finally {
       await harness.close();
     }

@@ -658,8 +658,9 @@ A test in Node that opens its page through
 [`createHarness`](../packages/playwright/README.md) also hears the page: each
 line it printed as `page console.log <text>`, a page error as `page error
 <first line>`, a crash as `page crashed`, and each document its top frame
-loaded as `page navigated <address>`, with ` (reload)` where the browser
-reports a reload.
+loaded as `page navigated <address>`, or `page reloaded <address>` where the
+browser reports a reload; the address drops its query. Each lands on the step
+that was running when Node heard it.
 
 So when you need a value the story does not hold, add a `console.log` that
 prints it, record the test again, and read the line at its step. A step shows
