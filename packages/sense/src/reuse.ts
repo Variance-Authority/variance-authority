@@ -118,7 +118,7 @@ export async function treeShapeOf(input: {
   readonly root: string;
   readonly digests: ReadonlyMap<string, Digest>;
   readonly options?: ShapeOptions;
-}): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases | undefined }> {
+}): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases }> {
   const { digests, ...rest } = input;
 
   return shapeOf({ ...rest, tree: treeOf(digests) });
@@ -135,7 +135,7 @@ export async function shapeOf(input: {
   readonly root: string;
   readonly tree: Tree;
   readonly options?: ShapeOptions;
-}): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases | undefined }> {
+}): Promise<{ readonly shape: TreeShape; readonly aliases: Aliases }> {
   const { config, aliases } = await configOf(input);
   return { shape: { config, directories: input.tree.directories() }, aliases };
 }
@@ -180,7 +180,7 @@ export async function configOf(input: {
   readonly root: string;
   readonly tree: Tree;
   readonly options?: ShapeOptions;
-}): Promise<{ readonly config: Digest; readonly aliases: Aliases | undefined }> {
+}): Promise<{ readonly config: Digest; readonly aliases: Aliases }> {
   const { root, tree, options } = input;
   // The aliases bound which directories a bare specifier's record witnesses;
   // they are no part of the digest.

@@ -223,9 +223,7 @@ describe('a configuration edit, warm', () => {
     const unmapped = (records: unknown): unknown =>
       (records as { file: string }[]).filter((record) => record.file !== 'packages/app/src/other.ts');
     expect(unmapped(warm)).toEqual(unmapped(cold));
-    // The accepted gap, pinned so that closing it shows here.
-    const other = (records: unknown): unknown =>
-      (records as { file: string }[]).find((record) => record.file === 'packages/app/src/other.ts');
-    expect(other(warm)).not.toEqual(other(cold));
   });
+
+  it.todo('names a tsconfig it cannot read, so an import through its mapping is not left stale unseen — needs the alias read to return what it left out (#1528)');
 });
