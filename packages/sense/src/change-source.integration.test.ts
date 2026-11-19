@@ -67,7 +67,7 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     await write('package.json', '{ "name": "fixture" }');
     await write('app/index.ts', "import { unit } from '../lib/unit.js';\nexport const app = unit;\n");
     await write('lib/unit.ts', 'export const unit = 1;\n');
-    await write('.gitignore', 'cache/\n');
+    await write('.gitignore', 'cache/\nnode_modules/\n/dist\n');
     await write('cache/kept.ts', 'export const kept = 1;\n');
     git('init', '--quiet');
     git('add', '.');
@@ -299,6 +299,20 @@ describe.skipIf(process.platform === 'win32')('the update over a watched checkou
     await tell({ clock: 'c:13:4', config: { ignore_dirs: ['cache'] } });
     await updateNatively(root, index);
     expect(listed(await gitRan())).toBe(true);
+  });
+
+  it('asks git when the watch ignores a directory git does not, where a file Watchman never reports may come', async () => {
+    await tell({ clock: 'c:15:1', fresh: true, config: { ignore_dirs: ['node_modules', 'generated'] } });
+    await updateNatively(root, index);
+    await gitRan();
+    await write('generated/new.ts', 'export const made = 1;\n');
+    try {
+      await tell({ clock: 'c:15:2', config: { ignore_dirs: ['node_modules', 'generated'] } });
+      await updateNatively(root, index);
+      expect(listed(await gitRan())).toBe(true);
+    } finally {
+      await rm(join(root, 'generated'), { recursive: true });
+    }
   });
 
   it.each([['cache/'], ['./cache'], ['Cache'], ['../elsewhere'], ['çache']])('asks git when the watch ignores %s, however it spells a directory', async (spelled) => {
