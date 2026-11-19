@@ -216,7 +216,8 @@ describe('`variance index` over an index another release wrote', () => {
 
     const update = await updateSourceIndex(clone, { fetch });
 
-    expect(signals.map((signal) => signal.aborted)).toEqual([true]);
+    // Dropped before it started, it never starts; started, it is told to stop.
+    expect(signals.filter((signal) => !signal.aborted)).toEqual([]);
     expect(update).toMatchObject({ was: 'other-version', files: Object.keys(SOURCES).length, reread: 1 });
     expect(update.from).toMatch(/source-index\.bin$/);
     expect(update.fetched).toBeUndefined();

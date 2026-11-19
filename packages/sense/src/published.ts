@@ -214,7 +214,8 @@ export async function updateSourceIndex(
   const fetching = over?.then(async (yes) => {
     if (!yes) return undefined;
     await sweepFetchedSourceIndexes(path);
-    return options.fetch?.(where, into, dropped.signal);
+    // Dropped while the sweep ran: the download is not started at all.
+    return dropped.signal.aborted ? undefined : options.fetch?.(where, into, dropped.signal);
   }).catch(() => undefined);
   // Removed once the fetch ends, whenever that is: `into` is this update's alone, so a fetch that outlives it removes nothing of another's.
   const removed = fetching?.then(() => dropSourceIndex(into)).catch(() => undefined);
