@@ -667,9 +667,10 @@ Reading the commit's tree does not grow with the checkout, and `variance index`
 reads it only where it changed: it keeps the tree beside the index by the tree
 id of every package, so an unchanged `HEAD` reads no tree. A commit, a pull or a
 branch switch compares each changed package's old tree with its new one in git's
-object store and reads only the trees on the changed paths. On Kibana that part
-falls from about 110 ms to about 25 ms, and the run as a whole does not move,
-because the tree is read while the working tree is walked. `status` reads the
+object store and reads only the trees on the changed paths. With `HEAD`
+unchanged, that part falls from about 80 ms to about 20 ms on Kibana and from
+about 1.1 s to about 50 ms on Firefox, and the run as a whole does not move on
+either, because the tree is read while the working tree is walked. `status` reads the
 working tree and grows with it, so it is the row that matters, and git ships two
 accelerators for it that are off by default:
 

@@ -8,7 +8,10 @@ git's object store. After a commit, a pull or a branch switch it compares each
 changed package's old tree with its new one in the object store and reads only
 the trees on the changed paths, and it reads a package whole only when git has
 pruned its old tree; the working tree is compared on every run, as
-before. On Kibana the tree part of an unchanged run falls from about 110 ms to
-about 25 ms; the run's wall time does not move, because the tree is read while
-the working tree is walked. A Watchman watch that ignores directories, such as `node_modules` or
-`dist`, now vouches for the held listing too, unless a tracked file lies in one.
+before. The tree part of an unchanged run falls from about 80 ms to about 20 ms
+on Kibana, and from about 1.1 s to about 50 ms on Firefox; the run's wall time
+does not move on either, because the tree is read while the working tree is
+walked. A Watchman watch that ignores directories, such as `node_modules` or
+`dist`, now vouches for the held listing too, unless a tracked file lies in one:
+on Firefox, whose own watch ignores its build directories, an unchanged run
+falls from about 6.2 s to about 1.2 s.
