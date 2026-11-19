@@ -63,7 +63,7 @@ describe('the Codex run', () => {
 
   it('asks for sol', () => {
     const args = invocation('u', 'o');
-    expect(args[args.indexOf('-m') + 1]).toBe('gpt-6.1-sol');
+    expect(args[args.indexOf('-m') + 1]).toBe('gpt-6.1-terra');
   });
 
   it('ignores the configuration, rules, plugins and apps of whoever started it', () => {
