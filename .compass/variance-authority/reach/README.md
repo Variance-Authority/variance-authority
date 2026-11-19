@@ -21,8 +21,8 @@ another tool's affected-project answer arrives as a **seed** rather than as a
 selection. It does not gate — a **subject** it
 excluded is stated by name for [report](../report/README.md) to carry.
 
-The one run it starts is `janus`'s, which serves a change's base tests under a
-command on the head's code. It fails that run only when a served file went
+The one run it starts is `janus`'s, which rolls named files back to their base
+text under a command on the head's code. It fails that run only when a served file went
 unread: a proof the run saw the base, not a verdict on what the tests found.
 
 ## Technology

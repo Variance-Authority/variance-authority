@@ -24,12 +24,12 @@ export interface ServedRun {
 }
 
 /**
- * Run `command` in `cwd` with `files` — absolute path to the content it holds
- * for this run, or `null` for a file it does not see — served in every Node
- * process it starts. Undefined when there is no such command. An empty
+ * Run `command` in `cwd` with `files` — the absolute path of a file the
+ * checkout holds, to the base text it reads for this run — served in every
+ * Node process it starts. Undefined when there is no such command. An empty
  * manifest runs the command as it is, with no preload.
  */
-export async function serveBase(files: Readonly<Record<string, string | null>>, command: readonly [string, ...string[]], cwd: string): Promise<ServedRun | undefined> {
+export async function serveBase(files: Readonly<Record<string, string>>, command: readonly [string, ...string[]], cwd: string): Promise<ServedRun | undefined> {
   const [program, ...args] = command;
   if (Object.keys(files).length === 0) {
     const exit = await started(program, args, cwd);
@@ -51,7 +51,7 @@ export async function serveBase(files: Readonly<Record<string, string | null>>, 
     if (exit === undefined) return undefined;
     const read = new Set<string>();
     for (const note of await readdir(notes)) for (const file of (await readFile(join(notes, note), 'utf8')).split('\n')) if (file !== '') read.add(file);
-    return { exit, unread: Object.keys(files).filter((file) => files[file] !== null && !read.has(file)) };
+    return { exit, unread: Object.keys(files).filter((file) => !read.has(file)) };
   } finally {
     await rm(scratch, { recursive: true, force: true });
   }

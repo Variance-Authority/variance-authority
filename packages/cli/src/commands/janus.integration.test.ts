@@ -15,7 +15,7 @@ const snapshot = (root: string) => git(root, 'ls-files', '-co', '--exclude-stand
 
 const nodeTest = (out: string, ...files: string[]) => [process.execPath, '--test', '--test-reporter=spec', `--test-reporter-destination=${out}`, ...files];
 
-/** `node:test` without its CLI, whose glob reads through `fs` functions captured before any preload. */
+/** `node:test` run on the files it is given, reporting to a file. */
 const runner = [
   "import { createWriteStream } from 'node:fs';",
   "import { run } from 'node:test';",
@@ -32,7 +32,8 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
   let notes: string[];
   let out: string;
   const streams = { err: (text: string) => void notes.push(text) };
-  const janus = (...run: [string, ...string[]]) => runJanus({ command: 'janus', since: 'base', run }, streams, root);
+  const janusOn = (files: [string, ...string[]], ...run: [string, ...string[]]) => runJanus({ command: 'janus', since: 'base', files, run }, streams, root);
+  const janus = (...run: [string, ...string[]]) => janusOn(['src/value.test.js'], ...run);
 
   beforeEach(() => {
     root = realpathSync(mkdtempSync(join(tmpdir(), 'va-janus-')));
@@ -57,7 +58,7 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
     git(root, 'add', '.');
     git(root, 'commit', '-qm', 'base');
     git(root, 'tag', 'base');
-    // The head: the code moved, its test was rewritten to agree, one test was deleted and one added.
+    // The head: the code changed, its test was rewritten to agree, one test was deleted and one added.
     writeFileSync(join(root, 'src', 'value.js'), 'module.exports = { value: 2, kept: 7 };\n');
     writeFileSync(join(root, 'src', 'value.test.js'), readFileSync(join(root, 'src', 'value.test.js'), 'utf8').replace("'value is one', () => assert.equal(value, 1)", "'value is two', () => assert.equal(value, 2)"));
     rmSync(join(root, 'src', 'gone.test.js'));
@@ -68,34 +69,36 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
 
   it('runs the base test on the head code, and its exit is the run\'s', async () => {
     const before = snapshot(root);
-    const exit = await janus(process.execPath, 'run.mjs', out, 'src/value.test.js', 'src/gone.test.js');
+    const exit = await janus(process.execPath, 'run.mjs', out, 'src/value.test.js');
     const report = readFileSync(out, 'utf8');
     expect(report).toContain('value is one');
     expect(report).not.toContain('value is two');
     expect(report).toMatch(/✔ kept is seven/);
     expect(report).toMatch(/✖ value is one/);
-    expect(report).toContain('only the base has me');
     expect(exit).toBe(1);
     expect(snapshot(root)).toEqual(before);
   });
 
-  it('fails the `node --test` CLI, whose glob does not see a test only the base has, and names it', async () => {
-    const exit = await janus(...nodeTest(out, 'src/value.test.js', 'src/gone.test.js'));
-    expect(exit).not.toBe(0);
-    expect(notes.join('')).toContain('src/gone.test.js');
+  it('serves the `node --test` CLI, whose files the head holds', async () => {
+    const exit = await janus(...nodeTest(out, 'src/value.test.js'));
+    expect(readFileSync(out, 'utf8')).toMatch(/✖ value is one/);
+    expect(notes.join('')).toBe('');
+    expect(exit).toBe(1);
   });
 
-  it('hides a test only the head has', async () => {
-    const exit = await janus(process.execPath, 'run.mjs', out, 'src/value.test.js', 'src/gone.test.js', 'src/new.test.js');
-    expect(readFileSync(out, 'utf8')).not.toContain('only the head has me');
-    expect(exit).not.toBe(0);
+  it('rolls back only the files it is given: a test the head added runs as the head has it', async () => {
+    const exit = await janus(process.execPath, 'run.mjs', out, 'src/value.test.js', 'src/new.test.js');
+    const report = readFileSync(out, 'utf8');
+    expect(report).toMatch(/✔ only the head has me/);
+    expect(report).toMatch(/✖ value is one/);
+    expect(notes.join('')).toBe('');
+    expect(exit).toBe(1);
   });
 
   it('fails a run that never read a file it was served, and names it', async () => {
-    const exit = await janus(...nodeTest(out, 'src/value.test.js'));
-    expect(exit).not.toBe(0);
-    expect(notes.join('')).toContain('src/gone.test.js');
-    expect(notes.join('')).not.toContain('src/value.test.js');
+    const exit = await janus(process.execPath, '-e', '');
+    expect(exit).toBe(1);
+    expect(notes.join('')).toContain('src/value.test.js');
   });
 
   it('serves a runner that starts its tests in workers: Vitest', async () => {
@@ -117,50 +120,35 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
     writeFileSync(join(root, 'value.js'), 'export const value = 2;\n');
     writeFileSync(join(root, 'value.test.js'), spec(2));
     git(root, 'commit', '-qam', 'head');
-    const exit = await janus(process.execPath, join(vitest, 'vitest.mjs'), 'run', '--root', root, '--reporter=json', `--outputFile=${out}`);
+    const exit = await janusOn(['value.test.js'], process.execPath, join(vitest, 'vitest.mjs'), 'run', '--root', root, '--reporter=json', `--outputFile=${out}`);
     const report = JSON.parse(readFileSync(out, 'utf8')) as { testResults: { assertionResults: { title: string; status: string }[] }[] };
     expect(report.testResults.flatMap((file) => file.assertionResults.map(({ title, status }) => `${status} ${title}`))).toEqual(['failed value is 1']);
     expect(exit).not.toBe(0);
   });
 
-  it('serves Jest when its crawler reads through Node', async () => {
+  it('serves Jest as it runs by default', async () => {
     const jest = dirname(createRequire(import.meta.url).resolve('jest/package.json'));
     for (const file of ['value.test.js', 'gone.test.js', 'new.test.js']) rmSync(join(root, 'src', file), { force: true });
     rmSync(join(root, 'run.mjs'));
+    writeFileSync(join(root, 'package.json'), '{}\n');
     git(root, 'add', '-A');
     git(root, 'commit', '-qm', 'jest');
     git(root, 'tag', '-f', 'base');
     writeFileSync(join(root, 'src', 'value.test.js'), "const { value } = require('./value');\ntest('value is one', () => expect(value).toBe(1));\n");
-    writeFileSync(join(root, 'src', 'gone.test.js'), "test('only the base has me', () => {});\n");
     git(root, 'add', '-A');
     git(root, 'commit', '-qm', 'base for jest');
     git(root, 'tag', '-f', 'base');
-    rmSync(join(root, 'src', 'gone.test.js'));
     writeFileSync(join(root, 'src', 'value.test.js'), "const { value } = require('./value');\ntest('value is two', () => expect(value).toBe(2));\n");
     git(root, 'commit', '-qam', 'head for jest');
-    // Jest's default crawler lists files with `find`, below `fs`; a base-only test is then never found.
-    const config = JSON.stringify({ rootDir: root, haste: { forceNodeFilesystemAPI: true } });
-    const exit = await janus(process.execPath, join(jest, 'bin', 'jest.js'), `--config=${config}`, '--no-watchman', '--no-cache', '--ci', '--json', `--outputFile=${out}`);
+    const exit = await janus(process.execPath, join(jest, 'bin', 'jest.js'), `--rootDir=${root}`, '--ci', '--json', `--outputFile=${out}`);
     const report = JSON.parse(readFileSync(out, 'utf8')) as { testResults: { assertionResults: { title: string; status: string }[] }[] };
-    expect(report.testResults.flatMap((file) => file.assertionResults.map(({ title, status }) => `${status} ${title}`)).sort()).toEqual(['failed value is one', 'passed only the base has me']);
+    expect(report.testResults.flatMap((file) => file.assertionResults.map(({ title, status }) => `${status} ${title}`)).sort()).toEqual(['failed value is one']);
     expect(exit).not.toBe(0);
   });
 
-  it('serves a test the change moved at the path the base had it', async () => {
-    git(root, 'mv', 'src/value.test.js', 'src/moved.test.js');
-    git(root, 'commit', '-qm', 'moved');
-    const exit = await janus(process.execPath, 'run.mjs', out, 'src/value.test.js', 'src/gone.test.js', 'src/moved.test.js');
-    const report = readFileSync(out, 'utf8');
-    expect(report).toMatch(/✖ value is one/);
-    expect(report).not.toContain('value is two');
-    expect(exit).toBe(1);
-  });
-
-  it('runs the command on the tests as they are when the diff changed none, and says so', async () => {
-    const exit = await runJanus({ command: 'janus', since: 'HEAD', run: [process.execPath, 'run.mjs', out, 'src/value.test.js', 'src/new.test.js'] }, streams, root);
-    expect(readFileSync(out, 'utf8')).toMatch(/✔ value is two/);
-    expect(notes.join('')).toContain('Nothing on the test side changed since `HEAD`');
-    expect(exit).toBe(0);
+  it('refuses a file the checkout does not hold, and one the base did not, as the operator\'s error', async () => {
+    await expect(janusOn(['src/gone.test.js'], process.execPath, '-e', '')).rejects.toThrow('`src/gone.test.js` is not a file in the checkout');
+    await expect(janusOn(['src/new.test.js'], process.execPath, '-e', '')).rejects.toThrow('`src/new.test.js` did not exist at `base`');
   });
 
   it('refuses a command that cannot be started, as the operator\'s error', async () => {
@@ -171,7 +159,7 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
     const cwd = process.cwd();
     process.chdir(root);
     try {
-      expect(await main(['janus', '--since', 'HEAD', '--', process.execPath, '-e', 'process.exitCode = 3'], { out: () => {}, err: streams.err })).toBe(3);
+      expect(await main(['janus', '--since', 'HEAD', '--file', 'src/value.test.js', '--', process.execPath, '-e', 'process.exitCode = 3'], { out: () => {}, err: streams.err })).toBe(3);
     } finally {
       process.chdir(cwd);
     }
@@ -179,39 +167,9 @@ describe('`variance janus`: the base tests on the head code, in place', () => {
 
   it('refuses a ref git cannot read, from the command line', async () => {
     const err: string[] = [];
-    const exit = await main(['janus', '--since', 'va-no-such-ref', '--', process.execPath, '-e', ''], { out: () => {}, err: (text: string) => void err.push(text) });
+    const exit = await main(['janus', '--since', 'va-no-such-ref', '--file', 'src/value.test.js', '--', process.execPath, '-e', ''], { out: () => {}, err: (text: string) => void err.push(text) });
     expect(err.join('')).toContain('`--since va-no-such-ref` could not be read');
     expect(exit).toBe(EXIT_OPERATOR);
   });
 
-  it('lists a base-only test to a runner that finds its tests in one recursive listing', async () => {
-    writeFileSync(join(root, 'run.mjs'), runner.replace(
-      'const [out, ...files] = process.argv.slice(2);',
-      "import { readdirSync } from 'node:fs';\nconst [out] = process.argv.slice(2);\nconst files = readdirSync('.', { recursive: true }).filter((file) => file.endsWith('.test.js'));",
-    ));
-    git(root, 'commit', '-qam', 'recursive runner');
-    const exit = await janus(process.execPath, 'run.mjs', out);
-    const report = readFileSync(out, 'utf8');
-    expect(report).toContain('only the base has me');
-    expect(report).not.toContain('only the head has me');
-    expect(notes.join('')).toBe('');
-    expect(exit).toBe(1);
-  });
-
-  it('loads a base-only test written as a module where no `type` says so, as Node detects it', async () => {
-    git(root, 'checkout', '-q', 'base');
-    writeFileSync(join(root, 'src', 'module.test.js'), "import { test } from 'node:test';\ntest('a module only the base has', () => {});\n");
-    git(root, 'add', '-A');
-    git(root, 'commit', '-qm', 'base with a module');
-    const based = git(root, 'rev-parse', 'HEAD');
-    git(root, 'checkout', '-q', '-');
-    git(root, 'merge', '-q', '--no-edit', based);
-    git(root, 'rm', '-q', 'src/module.test.js');
-    git(root, 'commit', '-qm', 'module gone');
-    git(root, 'tag', '-f', 'base', based);
-    const exit = await janus(process.execPath, 'run.mjs', out, 'src/module.test.js', 'src/value.test.js', 'src/gone.test.js');
-    expect(readFileSync(out, 'utf8')).toMatch(/✔ a module only the base has/);
-    expect(notes.join('')).toBe('');
-    expect(exit).toBe(1);
-  });
 });

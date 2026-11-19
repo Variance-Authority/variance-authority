@@ -4,9 +4,8 @@
  * `VARIANCE_JANUS_MANIFEST` names, and the note of each served file this
  * process read.
  *
- * The manifest is `{ "<absolute path>": "<content>" | null }`: a string is the
- * content the path holds for this run, whether or not the disk holds the file,
- * and `null` is a file the disk holds that this run does not see.
+ * The manifest is `{ "<absolute path>": "<content>" }`: the base text of a file
+ * the checkout holds, which this run reads in place of the disk's.
  *
  * A read is noted under `VARIANCE_JANUS_READS`, one file per process and
  * thread, appended at the first read of each path rather than at exit: a test
@@ -24,8 +23,8 @@ import workers = require('node:worker_threads');
 const manifest = process.env.VARIANCE_JANUS_MANIFEST;
 const notes = process.env.VARIANCE_JANUS_READS;
 
-/** Each path this run serves or hides, keyed by its absolute path. */
-const files: Readonly<Record<string, string | null>> = manifest === undefined ? {} : (JSON.parse(fs.readFileSync(manifest, 'utf8')) as Record<string, string | null>);
+/** The base text of each served file, keyed by its absolute path. */
+const files: Readonly<Record<string, string>> = manifest === undefined ? {} : (JSON.parse(fs.readFileSync(manifest, 'utf8')) as Record<string, string>);
 
 const noted = new Set<string>();
 

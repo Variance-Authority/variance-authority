@@ -34,13 +34,14 @@ export interface Flags {
  * their repetitions do not contradict: each `--where` and `--read` of
  * `covering` is a condition, and all of them hold; each `--name` of `story` is a case, and
  * all of them are compared; each `--session` of `coverage` is one more run set beside
- * the record.
+ * the record; each `--file` of `janus` is one more file rolled back.
  */
 export const REPEATABLE: Readonly<Record<string, ReadonlySet<string>>> = {
   coverage: new Set(['--session']),
   covering: new Set(['--read', '--where']),
   story: new Set(['--name']),
   layers: new Set(['--package']),
+  janus: new Set(['--file']),
 };
 
 /**

@@ -152,7 +152,7 @@ export const PER_COMMAND: Record<(typeof COMMANDS)[number], readonly string[]> =
   doctor: ['--baselines'],
   prune: [],
   job: ['--suite', '--complete-on'],
-  janus: ['--since'],
+  janus: ['--since', '--file'],
   share: ['--mainline', '--publish', '--suite', '--collected', '--from-queue', '--format', '--purge-older-than'],
   // `--config` by name: `carry` reads a project only when one is named, so it
   // is configless for the table below and still takes the flag.
@@ -185,7 +185,7 @@ export const USAGE = [
   'variance doctor  [--config <path>] [--baselines]',
   'variance prune',
   'variance job     --suite <name> [--complete-on <exit>] -- <command>...',
-  'variance janus   --since <ref> -- <command>...',
+  'variance janus   --since <ref> --file <path>... -- <command>...',
   'variance share   [--config <path>] [--mainline <branch>] [--publish] [<report>...] | [--suite <name>] [--publish [--collected <path>] [--from-queue <artifact pattern>] | --format text|github] [<record>...] | --purge-older-than <days> [--mainline <branch>]',
   'variance collect [--config <path>] [--subjects <glob>] [--shard <k>/<n>] [--workers <n>] --out <part.json> | merge <part.json>... --out <suite.index>',
   'variance carry   restore [--transform jest [--shard <k>/<n>]] | save | take [<dir>] [--as-base] | keep [<dir>] | hand <dir> | receive <dir> | merge <commit> [--head <sha>] [--on-conflict stay|fail] [--expect <sha>] [--config <path>] [--format text|github]',

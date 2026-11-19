@@ -57,8 +57,9 @@ import { suiteRecord } from './suite-record.js';
  * *this diff touched nothing*, and answering a broken `git` with it would narrow
  * a run to nothing while reporting success.
  */
-export async function changedSince(ref: string, roots: readonly string[] = [], here = process.cwd()): Promise<readonly string[]> {
+export async function changedSince(ref: string, roots: readonly string[] = []): Promise<readonly string[]> {
   const run = promisify(execFile);
+  const here = process.cwd();
 
   try {
     const asked = roots[0] === undefined ? here : join(here, roots[0]);
@@ -173,13 +174,9 @@ const NEW_AT_ONCE = 8;
  */
 const tops = new Map<string, Promise<string | undefined>>();
 
-/**
- * Files a diff from `base` to the working tree names, one per record. A moved
- * file names both its paths: rename detection would list only the new one, and
- * what read or ran the old path would never be asked about.
- */
+/** Files a diff from `base` to the working tree names, one per record. */
 async function changedFiles(run: Run, repository: string, base: string): Promise<readonly string[]> {
-  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '--no-renames', '-z', base], {
+  const { stdout } = await run('git', [...PLAIN, 'diff', '--name-only', '-z', base], {
     cwd: repository,
     maxBuffer: 32 * 1024 * 1024,
   });
