@@ -5,7 +5,9 @@
 //! A sequential stage (listing, walk, records, encode, write) is wall time, so
 //! those lines sum to the run's. Read, parse and resolve overlap inside the
 //! walk, on every core, so each is the thread time summed over the files, and
-//! the walk's line carries them. The listing's line names the wall time of each
+//! the walk's line carries them. It also carries the wall time it waited on the
+//! language indexes a wave builds before it resolves, which no thread time
+//! names. The listing's line names the wall time of each
 //! of its parts.
 //! The sums are the process's: a start drops what they held before it, but two
 //! stages running at once in one process would share them, and the index runs
@@ -30,6 +32,7 @@ pub(crate) enum Sum {
     Read,
     Parse,
     Resolve,
+    Index,
     Head,
     Held,
     Tree,
@@ -59,12 +62,14 @@ pub(crate) struct Shown {
     less: Option<Sum>,
 }
 
-/// What a stage's line names after its time: its own sums, opened by `lead`.
+/// What a stage's line names after its time: its own sums, opened by `lead`,
+/// then the wall times in `wall`, opened by `; wall: `.
 /// With `zeros`, a sum that stayed zero prints too; without, it is left out,
 /// and a line with none left adds nothing.
 pub(crate) struct Sums {
     lead: &'static str,
     shown: &'static [Shown],
+    wall: &'static [Shown],
     zeros: bool,
 }
 
@@ -73,14 +78,17 @@ const fn shown(label: &'static str, sum: Sum) -> Shown {
 }
 
 /// A stage that names no sums.
-pub(crate) const NONE: Sums = Sums { lead: "", shown: &[], zeros: false };
+pub(crate) const NONE: Sums = Sums { lead: "", shown: &[], wall: &[], zeros: false };
 
 /// The walk: read, parse and resolve overlap on every core, so each is thread
 /// time summed over the files. Reading a file parses it, so `read` is the
-/// read sum less the parse sum.
+/// read sum less the parse sum. `index` is the wall time the waves waited on
+/// the language indexes they build before resolving; what those read is in
+/// `read` and `parse` too.
 pub(crate) const WALK: Sums = Sums {
     lead: "thread time: ",
     shown: &[Shown { label: "read", sum: Sum::Read, less: Some(Sum::Parse) }, shown("parse", Sum::Parse), shown("resolve", Sum::Resolve)],
+    wall: &[shown("index", Sum::Index)],
     zeros: true,
 };
 
@@ -103,13 +111,14 @@ pub(crate) const LISTING: Sums = Sums {
         shown("seeds", Sum::Seeds),
         shown("assemble", Sum::Assemble),
     ],
+    wall: &[],
     zeros: false,
 };
 
 impl Sums {
     /// Each sum this stage owns: the ones it shows and the ones it takes out of them.
     fn owned(&self) -> impl Iterator<Item = Sum> + '_ {
-        self.shown.iter().flat_map(|shown| std::iter::once(shown.sum).chain(shown.less))
+        self.shown.iter().chain(self.wall).flat_map(|shown| std::iter::once(shown.sum).chain(shown.less))
     }
 }
 
@@ -127,18 +136,27 @@ fn taken(table: &Table, sums: &Sums) -> String {
     for sum in sums.owned() {
         nanos[sum as usize] += table[sum as usize].swap(0, Ordering::Relaxed);
     }
-    let named: Vec<String> = sums
-        .shown
-        .iter()
-        .filter_map(|shown| {
-            let time = nanos[shown.sum as usize].saturating_sub(shown.less.map_or(0, |less| nanos[less as usize]));
-            (sums.zeros || time != 0).then(|| format!("{} {}", shown.label, seconds(Duration::from_nanos(time))))
-        })
-        .collect();
-    if named.is_empty() {
+    let named = |group: &[Shown]| -> Vec<String> {
+        group
+            .iter()
+            .filter_map(|shown| {
+                let time = nanos[shown.sum as usize].saturating_sub(shown.less.map_or(0, |less| nanos[less as usize]));
+                (sums.zeros || time != 0).then(|| format!("{} {}", shown.label, seconds(Duration::from_nanos(time))))
+            })
+            .collect()
+    };
+    let (threads, wall) = (named(sums.shown), named(sums.wall));
+    let mut groups: Vec<String> = Vec::new();
+    if !threads.is_empty() {
+        groups.push(format!("{}{}", sums.lead, threads.join(", ")));
+    }
+    if !wall.is_empty() {
+        groups.push(format!("wall: {}", wall.join(", ")));
+    }
+    if groups.is_empty() {
         String::new()
     } else {
-        format!(" ({}{})", sums.lead, named.join(", "))
+        format!(" ({})", groups.join("; "))
     }
 }
 

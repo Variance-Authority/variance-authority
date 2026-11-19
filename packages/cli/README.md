@@ -2311,10 +2311,12 @@ Set `VARIANCE_AUTHORITY_INDEX_STAGES=1` to see where an update's time and memory
 go. Each stage of the update writes one line to stderr — listing, open, walk,
 records, encode and write — with its wall time and the process's peak resident
 memory at its end. Reading, parsing and resolving overlap inside the walk, so
-its line adds the time each took summed over every core:
+its line adds the time each took summed over every core. After them, `index`
+is the wall time the walk spent building the indexes Rust, Python, Swift, Java
+and Kotlin resolve through, before it resolved anything:
 
 ```
-variance stage walk: 1.644 s, peak 2.13 GB (thread time: read 2.310 s, parse 15.255 s, resolve 12.482 s)
+variance stage walk: 1.644 s, peak 2.13 GB (thread time: read 2.310 s, parse 15.255 s, resolve 12.482 s; wall: index 0.083 s)
 ```
 
 The listing's line names its parts, each with its wall time, always in the

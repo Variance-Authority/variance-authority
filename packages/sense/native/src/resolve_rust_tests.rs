@@ -213,3 +213,55 @@ fn reaches_a_crate_by_the_name_its_manifest_gives() {
     assert_eq!(super::manifest_name("[workspace]\nmembers = []\n[package]\nname = 'a-b'\n[dependencies]\nname = \"c\"\n"), Some("a-b"));
     assert_eq!(super::manifest_name("[workspace]\nname = \"w\"\n"), None);
 }
+
+/// The index read on one thread, rendered so two can be compared: every map
+/// and set sorted.
+#[cfg(feature = "grammars")]
+fn rendered(index: &super::Index) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    lines.extend(index.parent.iter().map(|(file, place)| format!("parent {file} {} {:?}", place.file, place.inline)));
+    for (file, children) in &index.children {
+        lines.push(format!("children {file}"));
+        lines.extend(children.iter().map(|(key, child)| format!("child {file} {key} {child}")));
+    }
+    lines.extend(index.spelled.iter().map(|file| format!("spelled {file}")));
+    for (file, items) in &index.items {
+        let mut declared: Vec<&String> = items.declared.iter().collect();
+        let mut inline: Vec<&String> = items.inline.iter().collect();
+        declared.sort_unstable();
+        inline.sort_unstable();
+        lines.push(format!("items {file} {declared:?} {inline:?}"));
+    }
+    lines.extend(index.crates.iter().map(|(name, directory)| format!("crate {name} {directory}")));
+    lines.sort_unstable();
+    lines
+}
+
+/// The index is the one a single thread reading the tree in path order
+/// builds, however many threads build it: a crate name two manifests claim
+/// goes to the later path, and every module lands where its `mod` line says.
+#[cfg(feature = "grammars")]
+#[test]
+fn builds_the_same_index_on_one_thread_as_on_many() {
+    let mut files: Vec<(String, String)> = Vec::new();
+    for crate_at in 0..48 {
+        let at = format!("c{crate_at:02}");
+        files.push((format!("{at}/Cargo.toml"), format!("[package]\nname = \"{}\"\n", if crate_at % 2 == 0 { "twin" } else { "single-name" })));
+        files.push((format!("{at}/src/lib.rs"), "mod a;\n#[path = \"b.rs\"]\nmod c;\nmod d { mod e; }\npub struct Lib;\n".to_owned()));
+        files.push((format!("{at}/src/a.rs"), "pub struct A;\nmod inner {}\n".to_owned()));
+        files.push((format!("{at}/src/b.rs"), "use crate::a::A;\n".to_owned()));
+        files.push((format!("{at}/src/d/e.rs"), "use super::super::Lib;\n".to_owned()));
+    }
+    files.sort_by(|left, right| crate::order::code_unit(&left.0, &right.0));
+    let borrowed: Vec<(&str, &str)> = files.iter().map(|(path, text)| (path.as_str(), text.as_str())).collect();
+    let built = |threads: usize| {
+        let pool = rayon::ThreadPoolBuilder::new().num_threads(threads).build().unwrap();
+        pool.install(|| written(&borrowed, |world| rendered(&super::Index::of(world))))
+    };
+    let alone = built(1);
+    assert!(alone.contains(&"crate twin c46".to_owned()), "the later manifest names the crate");
+    assert!(alone.contains(&"child c00/src/lib.rs c c00/src/b.rs".to_owned()));
+    for round in 0..16 {
+        assert_eq!(built(8), alone, "round {round}");
+    }
+}

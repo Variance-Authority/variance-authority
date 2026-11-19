@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { aliasesIn, directoriesOf, movedDirectories, witnessesOf } from './witness.js';
 
@@ -241,44 +241,120 @@ describe('where a configuration says a bare request can land', () => {
     // and the `paths` it declares are placed at that file, as the resolver
     // places them: `../../src/*` from `packages/tsconfig` is `src/*`.
     expect(aliases?.candidatesFor('@app/x')).toEqual(['src/x']);
+    // The listing holds the base, so the config digest names it already.
+    expect(aliases?.read.size).toBe(0);
   });
 
-  it('gives up on a workspace base the tree does not track', async () => {
+  it('reads a workspace base the listing does not hold, and names the file it read', async () => {
     const root = await workspace();
+    const aliases = await aliasesIn(root, ['tsconfig.json']);
 
-    // The same link and the same file, but not one git vouches for. The config
-    // digest names only tracked contents, so a base outside it could change
-    // its `paths` without moving anything a record is kept under.
-    expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
+    // The same link and the same file, read where the link leads. Its contents
+    // go to the config digest by the name `read` gives it, so an edit to it
+    // still moves the configuration every record is kept under.
+    expect(aliases?.candidatesFor('@app/x')).toEqual(['src/x']);
+    expect([...(aliases?.read.keys() ?? [])]).toEqual(['packages/tsconfig/tsconfig.base.json']);
   });
 
-  it('gives up on an `extends` that lands in a package installed from a registry', async () => {
+  it('reads the `paths` of an `extends` target not named like a `tsconfig`', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ "extends": "./generated/tspaths", "compilerOptions": { "strict": true } }',
+      'generated/tspaths.json': '{ "compilerOptions": { "paths": { "@x/*": ["../x/*"] } } }',
+    });
+    const aliases = await aliasesIn(root, ['tsconfig.json']);
+
+    // The file is placed where it was written, as TypeScript places it, and
+    // `.json` is appended to a name that does not hold one.
+    expect(aliases?.candidatesFor('@x/y')).toEqual(['x/y']);
+    expect([...(aliases?.read.keys() ?? [])]).toEqual(['generated/tspaths.json']);
+  });
+
+  it('reads an `extends` that lands in a package installed from a registry', async () => {
     const root = await fixture({
       'tsconfig.json': '{ "extends": "@tsconfig/node20/tsconfig.json" }',
-      'node_modules/@tsconfig/node20/tsconfig.json': '{ "compilerOptions": { "strict": true } }',
+      'node_modules/@tsconfig/node20/tsconfig.json': '{ "compilerOptions": { "paths": { "~/*": ["../../../src/*"] } } }',
     });
+    const aliases = await aliasesIn(root, ['tsconfig.json']);
 
-    // Resolved, and to a file git does not track: `node_modules` is the
-    // installer's, and nothing in the tree says what it holds.
-    expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
+    // Git does not track `node_modules`, so the file is digested as it was
+    // read, and a reinstall that changes it moves the configuration.
+    expect(aliases?.candidatesFor('~/a')).toEqual(['src/a']);
+    expect([...(aliases?.read.keys() ?? [])]).toEqual(['node_modules/@tsconfig/node20/tsconfig.json']);
   });
 
-  it('gives up on an `extends` that lands outside the checkout', async () => {
-    const outside = await fixture({ 'tsconfig.json': '{ "compilerOptions": { "paths": { "@x/*": ["x/*"] } } }' });
+  it('reads an `extends` that lands outside the checkout, and places only what climbs back in', async () => {
     const root = await fixture({ 'tsconfig.json': '{ "extends": "@shared/tsconfig" }' });
+    const outside = await fixture({
+      'tsconfig.json': `{ "compilerOptions": { "paths": { "@x/*": ["x/*"], "@app/*": ["../${basename(root)}/src/*"] } } }`,
+    });
+    await link(root, 'node_modules/@shared/tsconfig', outside);
+    const aliases = await aliasesIn(root, ['tsconfig.json']);
+
+    // A directory outside the checkout holds no path of it, so that pattern
+    // bounds nothing; a target placed there that climbs back in lands here.
+    expect(aliases?.candidatesFor('@x/y')).toEqual([]);
+    expect(aliases?.candidatesFor('@app/y')).toEqual(['src/y']);
+  });
+
+  it('places a `baseUrl` an outside base points back into the checkout', async () => {
+    const root = await fixture({ 'tsconfig.json': '{ "extends": "@shared/tsconfig" }' });
+    const outside = await fixture({ 'tsconfig.json': `{ "compilerOptions": { "baseUrl": "../${basename(root)}/src" } }` });
     await link(root, 'node_modules/@shared/tsconfig', outside);
 
-    expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
+    expect((await aliasesIn(root, ['tsconfig.json']))?.table.bases).toEqual(['src']);
   });
 
-  it('gives up on an `extends` that nothing resolves', async () => {
+  it('places `${configDir}` at the configuration that inherits it, not the base that wrote it', async () => {
     const root = await fixture({
-      'tsconfig.json': '{ "extends": "@tsconfig/node20/tsconfig.json" }',
+      'app/tsconfig.json': '{ "extends": "../shared/tsconfig.json" }',
+      'shared/tsconfig.json': '{ "compilerOptions": { "baseUrl": "${configDir}", "paths": { "@/*": ["${configDir}/src/*"] } } }',
     });
+    const aliases = await aliasesIn(root, ['app/tsconfig.json']);
 
-    // Nothing is installed, so what the base declares cannot be read and must
-    // not be guessed at.
-    expect(await aliasesIn(root, ['tsconfig.json'])).toBeUndefined();
+    // The `baseUrl` makes the request itself a candidate too, as TypeScript reads it.
+    expect(aliases?.candidatesFor('@/y')).toEqual(['app/@/y', 'app/src/y']);
+    expect(aliases?.table.bases).toEqual(['app']);
+  });
+
+  it('reads a relative `extends` that names a directory as its `tsconfig.json`', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ "extends": "./configs" }',
+      'configs/tsconfig.json': '{ "compilerOptions": { "paths": { "@x/*": ["../x/*"] } } }',
+    });
+    const aliases = await aliasesIn(root, ['tsconfig.json']);
+
+    expect(aliases?.candidatesFor('@x/y')).toEqual(['x/y']);
+    expect(aliases?.missing).toEqual([]);
+  });
+
+  it('places what a linked base declares at the file the link reaches, as the resolver does', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ "extends": "./base.json" }',
+      'configs/paths.json': '{ "compilerOptions": { "paths": { "@app/*": ["../src/*"] } } }',
+    });
+    await symlink('configs/paths.json', join(root, 'base.json'), 'file');
+
+    expect((await aliasesIn(root, ['tsconfig.json']))?.candidatesFor('@app/time')).toEqual(['src/time']);
+  });
+
+  it('places an absolute target a base declares where it points, not under the base', async () => {
+    const root = await fixture({ 'tsconfig.json': '{ "extends": "./configs/base.json" }' });
+    await mkdir(join(root, 'configs'));
+    await writeFile(join(root, 'configs/base.json'), `{ "compilerOptions": { "paths": { "@app/*": ["${root}/src/*"] } } }`);
+
+    expect((await aliasesIn(root, ['tsconfig.json']))?.candidatesFor('@app/x')).toEqual(['src/x']);
+  });
+
+  it('bounds by what the configuration declares itself, when its `extends` reaches nothing, and names what it missed', async () => {
+    const root = await fixture({
+      'tsconfig.json': '{ "extends": ["./.nuxt/tsconfig.json", "@tsconfig/node20/tsconfig.json"], "compilerOptions": { "paths": { "@x/*": ["x/*"] } } }',
+    });
+    const aliases = await aliasesIn(root, ['tsconfig.json']);
+
+    // A base that is not there declares nothing yet. Its absence is named, so
+    // the config digest moves when it is generated or installed.
+    expect(aliases?.candidatesFor('@x/y')).toEqual(['x/y']);
+    expect(aliases?.missing).toEqual(['tsconfig.json ./.nuxt/tsconfig.json', 'tsconfig.json @tsconfig/node20/tsconfig.json']);
   });
 
   it('gives up on a configuration that is not there', async () => {

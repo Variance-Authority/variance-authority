@@ -125,7 +125,7 @@ fn extended(directory: &Path, specifier: &str) -> Option<PathBuf> {
 
 /// The order `oxc_resolver` loads an extended config in: the file, a
 /// directory's `tsconfig.json`, then the name with `.json` added.
-fn config_file(path: &Path) -> Option<PathBuf> {
+pub(crate) fn config_file(path: &Path) -> Option<PathBuf> {
     if path.is_file() {
         return Some(path.to_owned());
     }
