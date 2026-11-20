@@ -93,6 +93,7 @@ describe('the same search alone and as an intersection operand', () => {
     ['conect soket', 'src/loose-private/l31.ts', 'line 1'],
     ['exportNeedle', 'src/exported/e30.ts', 'line 1'],
     ['publicNeedle', 'packages/published/src/p41.ts', 'the file'],
+    ['publc nedle', 'packages/published/src/p41.ts', 'the file'],
     ['archive safely', 'packages/published/src/p41.ts', 'line 2'],
   ])('keeps %s candidates beyond the displayed section', async (query, path, lines) => {
     const alone = await search(query);
