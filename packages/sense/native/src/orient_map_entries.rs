@@ -36,28 +36,31 @@ use std::path::PathBuf;
 use rayon::prelude::*;
 
 use crate::package_owners::Package;
-use crate::resolve::{Resolvers, Tsconfig};
+use crate::resolve::Resolvers;
 
 /// Each package's declared entries, as indices into the counted files, by the
 /// package's index in `packages`: the files its manifest offers that resolve to
 /// a counted file it owns. Empty when it offers nothing that does, which is the
 /// caller's to fall back from and to say so. `owner` is each counted file's
-/// package. `tsconfig` is the config the scan that built the index resolved
-/// under.
-pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str, usize>, owner: &[u32], tsconfig: Tsconfig) -> Vec<Vec<usize>> {
+/// package. `resolvers` carries the listing the scan used, under the default
+/// conditions.
+pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str, usize>, owner: &[u32], resolvers: &Resolvers) -> Vec<Vec<usize>> {
     if packages.iter().all(|package| package.offers.is_empty()) {
         return vec![Vec::new(); packages.len()];
     }
     // The resolver answers with the path a symlink leads to, and a repository
     // path is cut from the root that path lies under.
     let root = std::fs::canonicalize(root).unwrap_or_else(|_| PathBuf::from(root));
-    let resolvers = Resolvers::new(tsconfig, None);
     // A counted file under a directory the disk alone declines, such as a
     // tracked `build/`, is one git listed, and that is the word `resolve` takes.
     let known: HashMap<String, u32> = counted.keys().map(|&path| (path.to_owned(), 0)).collect();
     let mut path_of = vec![""; counted.len()];
     for (&path, &at) in counted {
         path_of[at] = path;
+    }
+    let mut owned = vec![Vec::new(); packages.len()];
+    for (file, &package) in owner.iter().enumerate() {
+        owned[package as usize].push(file);
     }
     packages
         .par_iter()
@@ -76,7 +79,7 @@ pub(crate) fn declared(root: &str, packages: &[&Package], counted: &HashMap<&str
             let mut entries: Vec<usize> = targets.iter().filter_map(|target| reaches(target)).filter(|&file| owner[file] as usize == at).collect();
             let prefix = if package.directory.is_empty() { String::new() } else { format!("{}/", package.directory) };
             for pattern in patterns.iter().filter_map(|pattern| pattern.split_once('*')).filter(|(_, tail)| !tail.contains('*')) {
-                entries.extend((0..path_of.len()).filter(|&file| owner[file] as usize == at).filter(|&file| {
+                entries.extend(owned[at].iter().copied().filter(|&file| {
                     let Some(inside) = path_of[file].strip_prefix(&prefix) else { return false };
                     substitutions(inside, pattern.1).any(|x| reaches(&format!("{}{x}{}", pattern.0, pattern.1)) == Some(file))
                 }));

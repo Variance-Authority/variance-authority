@@ -93,7 +93,7 @@ fn stored(name: &str) -> (Fixture, String, super::Stored) {
     publish(&index);
     let chain = read_chain(&index).unwrap().expect("a published chain");
     let layers: Vec<Layer> = chain.segments.iter().map(|bytes| Layer::open(bytes).unwrap()).collect();
-    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.0.to_string_lossy(), &layers, Some(&paths), &crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None), HashSet::new);
     let (made, pages, placed) = fold(&read, false).ok().expect("named packages to fold");
     let digest = super::manifest_digest(&index).unwrap();
     let stored = super::Stored { format: super::FORMAT, index: digest, listed: None, workspaces: false, unmarked: false, made: Some(made), unmade: None, pages, placed };
@@ -322,7 +322,7 @@ fn a_package_is_taken_for_what_its_importers_take_and_not_what_an_export_type_pa
     let layers = [Layer::open(&segment).unwrap()];
     let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
 
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), &crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None), HashSet::new);
 
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["make"]);
@@ -350,8 +350,30 @@ fn a_package_held_whole_is_taken_for_the_names_read_off_it_and_not_off_its_defau
     let layers = [Layer::open(&segment).unwrap()];
     let paths: Vec<String> = ["package.json", "packages/a/package.json", a, "packages/b/package.json", b].iter().map(|path| (*path).to_owned()).collect();
 
-    let read = read(&root.to_string_lossy(), &layers, Some(&paths), crate::resolve::Tsconfig::Auto, HashSet::new);
+    let read = read(&root.to_string_lossy(), &layers, Some(&paths), &crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None), HashSet::new);
 
     let at = read.packages.iter().position(|package| package.name == "@t/a").unwrap();
     assert_eq!(read.head[at], ["default", "make"]);
+}
+
+#[test]
+fn in_git_a_config_git_ignores_in_a_listed_directory_declares_no_output_for_the_map() {
+    // `@t/ui-0` offers its build output, which only its `tsconfig.json` maps back to the source.
+    let declares = |name: &str, ignored: bool| {
+        let (fixture, root, index) = indexed(name);
+        let package = fixture.0.join("packages/ui/ui0");
+        std::fs::write(package.join("package.json"), r#"{"name": "@t/ui-0", "exports": {"./*": "./dist/*.js"}}"#).unwrap();
+        std::fs::write(package.join("tsconfig.json"), r#"{"compilerOptions": {"rootDir": "src", "outDir": "dist"}}"#).unwrap();
+        if ignored {
+            std::fs::write(package.join(".gitignore"), "tsconfig.json\n").unwrap();
+        }
+        git(&root, &["init", "-q"]);
+        git(&root, &["add", "-A"]);
+        carried(&crate::git_tree(root.clone()).unwrap(), &root, &index).unwrap().unwrap();
+        let packages = crate::orient_map_layers::orient_layers(index).unwrap().unwrap().packages.unwrap();
+        !packages.iter().find(|package| package.package == "@t/ui-0").unwrap().undeclared
+    };
+    assert!(declares("config-listed", false));
+    // The scan reads the same directory from the listing, so the map agrees with it.
+    assert!(!declares("config-ignored", true));
 }
