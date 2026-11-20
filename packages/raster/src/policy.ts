@@ -55,11 +55,11 @@ export const STRICT_POLICY: DiffPolicy = { id: 'strict', threshold: 0, includeAA
 /**
  * How strongly a counted pixel differs, on the threshold scale: a pixel's grade
  * is how many of these its colour distance passes, at least 1 once a policy
- * counted it, and the last for a row with no partner. The policy decides
+ * counted it, and the last for a row the alignment found no partner for. The policy decides
  * whether a pixel differs; the grade only says how much, so it never changes a
  * count.
  */
-export const SEVERITY_LEVELS: readonly number[] = [0.01, 0.05, 0.1, 0.2];
+export const SEVERITY_LEVELS: readonly number[] = [DEFAULT_POLICY.threshold, 0.05, 0.1, 0.2];
 
 /**
  * The grade from which a region is strong: a pixel past 0.2, the threshold

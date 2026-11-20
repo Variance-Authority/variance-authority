@@ -141,9 +141,10 @@ export function isolateRegions(mask: ChangeMask, options: IsolationOptions = {})
     found.push(tighten(mask, cells, cell, columns));
   }
 
-  found.sort((a, b) => b.pixels - a.pixels || a.y - b.y || a.x - b.x);
+  // The cap drops the faintest first, so a small strong region outlives a large faint one.
+  found.sort((a, b) => b.grade - a.grade || b.pixels - a.pixels || a.y - b.y || a.x - b.x);
 
-  const kept = found.slice(0, limit);
+  const kept = found.slice(0, limit).sort((a, b) => b.pixels - a.pixels || a.y - b.y || a.x - b.x);
   const dropped = found.slice(limit);
 
   return {

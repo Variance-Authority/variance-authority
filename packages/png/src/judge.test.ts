@@ -177,7 +177,7 @@ describe("a pixel whose neighbour has no row in the other image", () => {
       { mask: 0 },
     );
 
-    expect([...mask!.subarray(0, width)].every((grade) => grade > 0)).toBe(true);
+    expect([...mask!.subarray(0, width)]).toEqual([4, 4, 4, 4, 4]);
     // The third row differs too, as 200 against 255.
     expect(changed).toEqual([2 * width]);
   });

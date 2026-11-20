@@ -47,7 +47,8 @@ tightened back onto the actual changed pixels afterwards, so a region's box is
 exact. Each region has a pixel count and a density — `pixels / area` — which is
 what tells a scattered text change from a solid block of repaint.
 
-Regions come back largest first, capped at 32, and the cap is *reported*:
+Regions come back largest first, capped at 32 with the [faintest](#how-strongly-it-changed)
+dropped first, and the cap is *reported*:
 `truncated` counts the regions dropped and `truncatedPixels` the change in them.
 A capped list that does not report its cap reads as complete coverage, and the
 reader has no way to know the difference.
@@ -74,8 +75,9 @@ default policy's own threshold, so every pixel it counts has passed it:
 | past 0.05 | 2 |
 | any other counted pixel | 1 |
 
-A pixel row the after image added, with no row of the before image to compare
-it with, gets grade 4. A region's grade, `DiffRegion.grade`, is the highest
+A pixel row the after image added, which the row alignment pairs with no row
+of the before image, gets grade 4. When the width changed there is no
+alignment, and each row is graded by its colour against white padding. A region's grade, `DiffRegion.grade`, is the highest
 grade among its pixels.
 
 A region at `STRONG_GRADE`, grade 4, is **strong**: added content, or a colour

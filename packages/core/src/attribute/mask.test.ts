@@ -91,6 +91,19 @@ describe('isolating a change', () => {
     expect(isolation.truncatedPixels).toBe(5);
   });
 
+  it('drops a faint region before a strong one when it caps the list', () => {
+    // Three faint pairs and one strong pixel, smaller than any of them.
+    const graded = mask([
+      '##.##.##.#',
+    ]);
+    graded.data[9] = 4;
+
+    const isolation = isolateRegions(graded, { cell: 1, limit: 3 });
+
+    expect(isolation.regions.map((region) => region.grade)).toEqual([1, 1, 4]);
+    expect(isolation.truncatedPixels).toBe(2);
+  });
+
   it('survives a mask that changed everywhere', () => {
     // One component covering every cell. A recursive flood fill overflows here.
     const rows = Array.from({ length: 200 }, () => '#'.repeat(200));
