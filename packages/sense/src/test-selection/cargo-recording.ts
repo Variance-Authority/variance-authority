@@ -306,9 +306,8 @@ function included(artifacts: readonly string[], workspace: Workspace): { sources
     if (info === undefined) continue;
     const rule = readFileSync(info, 'utf8').split('\n')[0] ?? '';
     // The rule is `<artifact>: <dependency> ...`, a space in a path escaped as `\ `.
-    const dependencies = rule.slice(rule.indexOf(': ') + 2).split(/(?<!\\) /).map((path) => path.replaceAll('\\ ', ' '));
+    const dependencies = rule.slice(rule.indexOf(': ') + 2).trim().split(/(?<!\\) +/).map((path) => path.replaceAll('\\ ', ' '));
     for (const dependency of dependencies) {
-      if (dependency === '') continue;
       const path = resolve(workspace.root, dependency);
       if (!existsSync(path) || !relative(workspace.target, path).startsWith('..')) continue;
       (path.endsWith('.rs') ? sources : others).push(path);
