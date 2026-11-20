@@ -73,7 +73,10 @@ export function regionChange({ before, after, aligned }: ComparedPixels, region:
     // 1 ink, 0 ground, -1 between them: an anti-aliased edge says nothing either way.
     const marks = new Int8Array(offsets.length);
     if (far * far < FLAT) return marks;
-    distance.forEach((value, index) => (marks[index] = value <= far / 4 ? 0 : value >= (far * 3) / 4 ? 1 : -1));
+    distance.forEach((value, index) => {
+      if (value >= (far * 3) / 4) marks[index] = 1;
+      else if (value > far / 4) marks[index] = -1;
+    });
     return marks;
   };
   const first = ink(before.data, was);

@@ -543,6 +543,7 @@
         "OriginalPosition": "interface",
         "PropsClass": "interface",
         "RankedRegion": "interface",
+        "RegionChange": "type",
         "Rendering": "interface",
         "Residue": "interface",
         "Resolution": "interface",
@@ -1995,7 +1996,8 @@
         "isLosslessWebp": "function",
         "pngjsDecoder": "const",
         "refuseOversize": "function",
-        "refuseUnkept": "function"
+        "refuseUnkept": "function",
+        "regionChange": "function"
       },
       "./difference": {
         "ObservePngDifferenceInput": "interface",
