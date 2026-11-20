@@ -12,6 +12,7 @@ import { AGENT_GLOBAL, type CaptureRequest, type PageAgent } from './agent.js';
 import { watchArrivals } from './arrivals.js';
 import { leaseBrowser, leaseContext, ownBrowser, ownContext, type Launch } from './browsers.js';
 import { observeNetwork, type NetworkObservation, type NetworkOptions } from './network.js';
+import { tellStory } from './page-story.js';
 import { CHROMIUM_RASTER_ARGS } from './renderer.js';
 import { pinnedRegion } from './viewport.js';
 
@@ -188,6 +189,7 @@ export async function createHarness(options: HarnessOptions): Promise<Harness> {
     opened.on('console', (message) => {
       if (message.type() === 'error') errors.push(message.text());
     });
+    await tellStory(opened);
 
     // Before `prepare` and the first navigation, because all three driver
     // tricks survive one and the page's first script already reads the clock
