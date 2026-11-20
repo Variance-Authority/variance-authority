@@ -7,11 +7,11 @@ import { fileURLToPath } from 'node:url';
 import { encodeSegment } from '@variance-authority/core/segment';
 import { publishedHead } from '@variance-authority/help';
 import { prepareCodeMap, sourceIndexPath, updateSourceIndex } from '@variance-authority/sense';
-import { encodeAsSetExecutionIndex, encodeTestCoverage, testCoverageFile, withCaseSections } from '@variance-authority/sense/test-selection';
 import { afterEach, beforeEach, describe, expect, it, onTestFailed, onTestFinished, vi } from 'vitest';
 import '../bin.fixture.js';
 import { main } from '../bin.js';
 import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { checkout, unprepared, unwalkable } from './index-checkout.fixture.js';
 import { indexOutput } from './index-command.js';
 import { awaitFollowUps, followUpsLockPath, followUpsLogPath, heldBy, holdFollowUps, readiedFollowUps, reserveFollowUps } from './index-follow-ups.js';
 
@@ -38,49 +38,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** The lines after the index's own: no manifest names a package, no dependency, and nothing is recorded. `kept` is the generation of the questions a run that found the index where the last one left it keeps, with the map, reading no lexicon. */
-function unprepared(root: string, kept?: string): string {
-  const unchanged = kept !== undefined;
-  return `code map: none, because no manifest names a package${unchanged ? '; kept, because the index and the manifests are the ones it was folded from' : ''}\n` +
-    `journeys: not prepared: nothing is recorded at ${testCoverageFile(root)}\n` +
-    `dependency lexicon: ${unchanged ? 'unchanged, nothing read: ' : ''}0 workspace-dependency pairs, 0 public entrypoints, ${unchanged ? '' : '0 reused, '}0 unavailable, at ${join(dirname(sourceIndexPath(root)), 'dependency-lexicon.bin')}\n` +
-    (unchanged ? `questions: kept at ${kept}, because the index and the manifests are the ones it was published from\n` : `questions: published at ${sourceIndexPath(root)}.help.bin\n`);
-}
-
-function checkout(): string {
-  const root = mkdtempSync(join(tmpdir(), 'va-index-'));
-  const git = (args: readonly string[]): void => {
-    execFileSync('git', args, { cwd: root, stdio: 'pipe' });
-  };
-  git(['init', '--quiet', '--initial-branch', 'main']);
-  git(['config', 'user.email', 'fixture@example.test']);
-  git(['config', 'user.name', 'Fixture']);
-  mkdirSync(join(root, 'src'), { recursive: true });
-  writeFileSync(join(root, 'src/widget.ts'), "import { unit } from './unit.js';\nexport const widget = unit;\n");
-  writeFileSync(join(root, 'src/unit.ts'), 'export const unit = 1;\n');
-  git(['add', '-A']);
-  git(['commit', '--quiet', '-m', 'the checkout']);
-  process.chdir(root);
-  // The path the process sees, which is the one a recording is keyed by: the temporary directory is a symlink on macOS.
-  return realpathSync(root);
-}
-
-/** A recording at a commit this checkout's object store does not hold, which no walk can read. */
-function unwalkable(root: string): void {
-  const at = testCoverageFile(root);
-  mkdirSync(dirname(at), { recursive: true });
-  const coverage = encodeTestCoverage({
-    version: 3, instrumentation: 'fixture', tests: [], modules: [], commit: '0123456789abcdef0123456789abcdef01234567',
-  });
-  const block = { kind: 'function', name: 'unit', path: 'unit', startLine: 1, endLine: 1, source: true };
-  writeFileSync(at, withCaseSections(coverage, {
-    index: encodeAsSetExecutionIndex({
-      tests: [{ id: 'test/unit.test.ts > one', file: 'test/unit.test.ts', name: 'one', stopped: false }],
-      modules: [{ file: 'src/unit.ts', blocks: [{ ...block, crossings: [{ test: 0, distance: 0 }] }] }],
-    }),
-  }));
-}
-
 async function run(argv: readonly string[]): Promise<{ code: number; out: string; err: string }> {
   let out = '';
   let err = '';
@@ -93,7 +50,7 @@ const STEPS_ONLY = /^(  [^\n]+\n)*$/u;
 
 describe('variance index', () => {
   it('names each step on stderr as it starts, and again with how long it took, so stdout stays the answer', async () => {
-    const root = checkout();
+    const root = await checkout();
 
     const { out, err } = await run(['index']);
 
@@ -113,7 +70,7 @@ describe('variance index', () => {
   });
 
   it('builds, then updates in place, naming how many files it read again', async () => {
-    const root = checkout();
+    const root = await checkout();
     const at = sourceIndexPath(root);
 
     expect(await run(['index'])).toEqual({
@@ -132,7 +89,7 @@ describe('variance index', () => {
   });
 
   it("waits while another checkout's index holds the repository's index turn, and names that process and its checkout once", async () => {
-    const root = checkout();
+    const root = await checkout();
     const elsewhere = `${root}-beside`;
     execFileSync('git', ['worktree', 'add', '--quiet', '-b', 'beside', elsewhere], { cwd: root, stdio: 'pipe' });
     // The holder says so from inside its turn, and lets go on the first line it reads.
@@ -171,7 +128,7 @@ describe('variance index', () => {
 
   // Windows has no owner, group and other bits.
   it.skipIf(process.platform === 'win32')('indexes on a machine whose temporary directory holds a turn directory others may write in, and leaves that directory as it found it', async () => {
-    const root = checkout();
+    const root = await checkout();
     // A temporary directory of the test's own: the machine's is not this test's to change.
     const temporary = mkdtempSync(join(tmpdir(), 'va-index-machine-'));
     vi.stubEnv('TMPDIR', temporary);
@@ -186,7 +143,7 @@ describe('variance index', () => {
   });
 
   it("carries the scan's listing to the code map, and a map prepared with no scan says git listed the checkout again", async () => {
-    const root = checkout();
+    const root = await checkout();
     const update = await updateSourceIndex(root);
     expect(update.listing).toBeDefined();
     expect((await prepareCodeMap(root, update.path, update)).prepared).toMatchObject({ relisted: false, walked: false });
@@ -194,7 +151,7 @@ describe('variance index', () => {
   });
 
   it('says an index another release wrote in its own format version was rebuilt, not repaired', async () => {
-    const root = checkout();
+    const root = await checkout();
     const at = sourceIndexPath(root);
     mkdirSync(dirname(at), { recursive: true });
     writeFileSync(at, encodeSegment('variance-authority-source-index', 15, {}));
@@ -205,7 +162,7 @@ describe('variance index', () => {
   });
 
   it('reads from the working tree under `--no-git`, into the same index', async () => {
-    const root = checkout();
+    const root = await checkout();
     const at = sourceIndexPath(root);
 
     expect((await run(['index', '--no-git'])).out).toBe(`source index built: 2 files, at ${at}\n${unprepared(root)}`);
@@ -215,7 +172,7 @@ describe('variance index', () => {
   });
 
   it('keeps the index it published when the code map cannot be written, and says why there is no map', async () => {
-    const root = checkout();
+    const root = await checkout();
     const at = sourceIndexPath(root);
     mkdirSync(`${at}.map`, { recursive: true });
 
@@ -229,7 +186,7 @@ describe('variance index', () => {
   // Nothing recorded is an absence and exits clean; a recording git cannot walk
   // is a fault, and a pipeline that reads only the exit code must see it.
   it('exits as the operator\'s when git cannot read the commit the recording ran at, after every line', async () => {
-    const root = checkout();
+    const root = await checkout();
     unwalkable(root);
 
     const { code, out } = await run(['index']);
@@ -242,7 +199,7 @@ describe('variance index', () => {
   // A detached walk exits after the command that started it, so its failure is
   // kept in its lock and told by the next command that reads the follow-ups.
   it('keeps a detached walk git cannot read in its lock, and the next reader of the follow-ups names it and exits as the operator\'s', async () => {
-    const root = checkout();
+    const root = await checkout();
     unwalkable(root);
     const index = sourceIndexPath(root);
     holdFollowUps(index, { pid: process.pid, log: followUpsLogPath(index) });
@@ -263,7 +220,7 @@ describe('variance index', () => {
   });
 
   it("builds or repairs a worktree's index from its primary checkout's, naming the one it started from", async () => {
-    const root = checkout();
+    const root = await checkout();
     await indexOutput({ cwd: root });
     const [worktree, damaged] = ['worktree', 'damaged'].map((name) => join(realpathSync(mkdtempSync(join(tmpdir(), 'va-index-worktree-'))), name));
     for (const at of [worktree!, damaged!]) execFileSync('git', ['worktree', 'add', '--quiet', '--detach', at], { cwd: root, stdio: 'pipe' });
@@ -281,8 +238,8 @@ describe('variance index', () => {
 
   // Spawned, because CI is the runner's answer and `ci-info` reads it once, when
   // the process loads it: an environment stubbed inside this one is never asked.
-  it('is the step a reader in CI names when nothing is published, and the refusal is the operator\'s', () => {
-    const root = checkout();
+  it('is the step a reader in CI names when nothing is published, and the refusal is the operator\'s', async () => {
+    const root = await checkout();
     const env = { ...process.env, CI: 'true' };
     writeFileSync(join(root, 'src/unit.ts'), 'export const unit = 2;\n');
 
@@ -304,7 +261,7 @@ describe('variance index', () => {
   });
 
   it('publishes the questions with the time its update began reading, before the index it read was written', async () => {
-    const root = checkout();
+    const root = await checkout();
 
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
 
@@ -317,7 +274,7 @@ describe('variance index', () => {
   });
 
   it('leaves a fresh checkout answering `ask search` from what `index` published', async () => {
-    const root = checkout();
+    const root = await checkout();
     // A workstation, whatever runs this suite: `CI=false` is the one answer every vendor's variable yields to.
     const env = { ...process.env, CI: 'false' };
     const indexed = spawnSync(process.execPath, [BIN, 'index'], { cwd: root, env, encoding: 'utf8' });
@@ -333,7 +290,7 @@ describe('variance index', () => {
   });
 
   it('makes the follow-ups itself, and says so, when the process `index` left them to is gone', async () => {
-    const root = checkout();
+    const root = await checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const index = sourceIndexPath(root);
     const gone = spawnSync(process.execPath, ['-e', '']).pid!;
@@ -395,7 +352,7 @@ describe('variance index', () => {
   });
 
   it('runs `select` past a live holder that has readied the index, while a command that reads the follow-ups waits it out', async () => {
-    const root = checkout();
+    const root = await checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const index = sourceIndexPath(root);
     const lock = followUpsLockPath(index);
@@ -416,7 +373,7 @@ describe('variance index', () => {
   });
 
   it('leaves the follow-ups of a process that is gone to the next command that reads them, when `select` finds it', async () => {
-    const root = checkout();
+    const root = await checkout();
     expect((await run(['index'])).code).toBe(EXIT_CLEAN);
     const index = sourceIndexPath(root);
     const gone = spawnSync(process.execPath, ['-e', '']).pid!;
@@ -457,7 +414,7 @@ describe('variance index', () => {
   });
 
   it('refuses `--wait` beside `--follow-ups`', async () => {
-    checkout();
+    await checkout();
 
     const both = await run(['index', '--wait', '--follow-ups']);
     expect(both.code).toBe(EXIT_OPERATOR);
@@ -467,7 +424,7 @@ describe('variance index', () => {
   // A file where the cache directory should be, rather than a mode: a mode is
   // no refusal to root, and this has to refuse on every runner.
   it('refuses, naming what the file system refused, when the index cannot be written', async () => {
-    const root = checkout();
+    const root = await checkout();
     const cache = join(mkdtempSync(join(tmpdir(), 'va-index-unwritable-')), 'cache');
     writeFileSync(cache, 'not a directory\n');
     vi.stubEnv('VARIANCE_AUTHORITY_CACHE', cache);
@@ -481,7 +438,7 @@ describe('variance index', () => {
   });
 
   it('takes no argument', async () => {
-    checkout();
+    await checkout();
 
     const positional = await run(['index', 'src']);
     expect(positional.code).toBe(EXIT_OPERATOR);

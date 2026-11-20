@@ -37,9 +37,9 @@ export function fileNamed(written: string, files: ReadonlySet<string>): { readon
 }
 
 /**
- * Whether a call names an operand read off the names. A question about paths
- * alone reads the tree and nothing else: on a large checkout the names cost a
- * second read of every file for its declarations. An import of a name out of
+ * Whether a call names an operand asked of the source index's names, so a host
+ * names the index it read the tree from. A question about paths alone reads the
+ * tree and nothing else. An import of a name out of
  * one of `files`, the tree's, is answered off the source index as `importsOf`
  * routes it, so it reads no names; without the tree, every import is taken to.
  */

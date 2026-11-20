@@ -42,14 +42,42 @@ export interface FollowUpsLock {
   readonly readied?: true;
   /**
    * The process finished, and git could not read what these walks needed. Its
-   * exit reaches nobody, so the next command that reads the follow-ups tells
-   * each reason and exits as the operator's; `--wait` carries the walk in its own exit.
+   * exit reaches nobody but a run that waits on it, so the next command that
+   * reads the follow-ups tells each reason and exits as the operator's. A
+   * process a run waits on writes them here too: its channel reaches that run
+   * alone, and a command waiting beside it would read a release as whole.
    */
   readonly failed?: readonly string[];
 }
 
 /** Relaunch this program with `argv`, its output written to `log`; the process id. */
 export type Detach = (argv: readonly string[], log: string) => number | undefined;
+
+/**
+ * Relaunch this program with `argv` as a process this one waits for, its lines
+ * written to `log` as a detached one's are; undefined when it could not start.
+ */
+export type Apart = (argv: readonly string[], log: string) => Running | undefined;
+
+/**
+ * What a process `Apart` started hands back to the run waiting on it, over a
+ * channel only that run reads: the follow-ups' lines, the index turns it went
+ * without, and the walks git could not read.
+ */
+export interface Handed {
+  readonly lines: readonly string[];
+  readonly alone: readonly string[];
+  readonly failed: readonly string[];
+}
+
+/** Hand the follow-ups back to the run waiting on this process. */
+export type HandBack = (handed: Handed) => Promise<void>;
+
+/** A process `Apart` started, and how it ended: what it handed back, if it got that far, then its exit code or the signal that ended it. */
+export interface Running {
+  readonly pid: number;
+  readonly ended: Promise<{ readonly handed?: Handed; readonly code: number | null; readonly signal: NodeJS.Signals | null }>;
+}
 
 export const followUpsLockPath = (index: string): string => `${index}.follow-ups`;
 export const followUpsLogPath = (index: string): string => `${index}.follow-ups.log`;

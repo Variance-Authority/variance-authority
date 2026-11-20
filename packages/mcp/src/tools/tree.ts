@@ -13,10 +13,8 @@ import {
   type NodeId,
   type Relations,
 } from '@variance-authority/core/relate';
-import type { Parsed } from '@variance-authority/sense';
 import { relative } from 'node:path';
 import { costsFrom } from './hops.js';
-import { namesOf, type FileNames, type SourceNames } from './names.js';
 
 /**
  * The source tree, as the one thing allowed to say whether a path exists.
@@ -68,6 +66,8 @@ export interface Tree {
   readonly graphRoot?: string;
   /** Every file the scan holds a coordinate for, repo-relative, forward slashes. */
   readonly files: ReadonlySet<string>;
+  /** The source index the tree was read off, where it was read off one: a name question reads it there. */
+  readonly index?: string;
   /**
    * Every file reachable from these along the imports, at any depth. The seeds
    * themselves are in it. Seeds the tree does not hold reach nothing and
@@ -350,13 +350,6 @@ export interface TreeOptions {
    * re-reads that file and holds every other record as it was.
    */
   readonly index?: string;
-  /**
-   * Receives every file's names, read off the parses the index holds, once
-   * the tree is read. Asked for only by a question that names a name: holding
-   * them costs a map the size of the tree, which a question about paths would
-   * pay for nothing.
-   */
-  readonly names?: (names: SourceNames) => void;
 }
 
 /**
@@ -383,7 +376,7 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
   }
 
   // The addon brings the index up to date over what git says moved; the tree
-  // and the names are read off what it wrote, so no file is read on this side.
+  // is read off what it wrote, so no file is read on this side.
   const updated = await scanner.updateSourceIndex(
     options.root,
     options.index === undefined ? {} : { index: options.index },
@@ -391,41 +384,11 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
   if (updated.refused !== undefined) throw new Error(updated.refused);
   const read = await scanner.readPublishedSources(updated.path);
   const records = options.dirs === undefined ? read.records : scanner.sourcesWithin(read.records, options.root, options.dirs);
-  let names: Map<string, FileNames> | undefined;
-  if (options.names !== undefined) {
-    names = new Map();
-    for (const record of records) {
-      const held = read.indexed(record.file);
-      // A parse that holds no declarations is left out of the names, which
-      // counts its file as unread rather than declaring nothing.
-      if (held?.parsed?.harvested === true) names.set(record.file, namesOf(held.parsed, held.targets));
-    }
-  }
   // The graph every reader of the checkout walks, with the mocks read off
   // what the parse recorded, so it is the graph `variance covering --since` cuts by.
   const relations = await scanner.runGraphOf(records, { root: options.root, cache: read.cache });
-  if (names !== undefined) options.names?.(names);
 
-  return treeFromRelations(relations, options.root);
-}
-
-/**
- * Every file's names, read off the parses the source index at `index` holds:
- * what a question that names a name reads when it answers from the generation
- * `variance index` published, so the checkout is neither scanned nor compared
- * and the index is not written. Keyed as the index keys its files, which is
- * how a walk over the published tree answers.
- */
-export async function readIndexedNames(index: string): Promise<SourceNames> {
-  const { readSourceParses } = await import('@variance-authority/sense');
-  const names = new Map<string, FileNames>();
-  for (const { file, parsed, targets } of await readSourceParses(index)) nameInto(names, file, parsed, targets);
-  return names;
-}
-
-/** One file's names, for the scan and the published read alike: a parse that holds no declarations is left out, which counts its file as unread rather than declaring nothing. */
-function nameInto(names: Map<string, FileNames>, file: string, parsed: Parsed, targets: readonly (string | undefined)[]): void {
-  if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
+  return { ...treeFromRelations(relations, options.root), index: updated.path };
 }
 
 function messageOf(error: unknown): string {

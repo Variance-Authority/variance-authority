@@ -342,7 +342,6 @@ read the tree itself and hand it to a call:
 | `root` | the repository. Every coordinate comes back relative to it |
 | `dirs` | where to start walking, relative to the root. The index covers the whole repository either way; these narrow it to what they hold and reach. The whole repository by default, because a start point may name any path in it and a narrower walk answers *not found* about a file that is plainly there |
 | `index` | the source index, as above. An index that could not be written throws, rather than answering from the tree before the edit |
-| `names` | called once the walk ends, with what each file declares and what it imports, by name, read off the parses the index holds. Without it no names are kept |
 
 The walk happens once per session and only when a call needs it: most
 questions do not name a path, and a repository is not a thing to read before

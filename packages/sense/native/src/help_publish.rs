@@ -29,6 +29,7 @@ use crate::help_join::{join, mentions, OpeningSkeleton, Skeleton};
 use crate::help_store::{encode, DeepRef, StoreDeep, StoreMeta, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_names::{published_names, HelpEntry, PublishedName};
+use crate::help_names_filter::{names_filter, ImportAsked, NamesFound};
 use crate::help_origin::{declaration_exported, export_line, ExportedDeclaration};
 use crate::help_usage::{importers, usage, Asked, DeepRequest, Importers, NameUse, NamedExport};
 use crate::index_chain::read_chain;
@@ -225,6 +226,15 @@ pub fn declared_of(root: String, index: &OpenedIndex, query: String, containing:
 pub fn declared_described_of(root: String, index: &OpenedIndex, query: String, stems: Vec<String>, files: Option<Vec<String>>) -> napi::Result<Option<Declared>> {
     let matching = Matching::Described { stems, query };
     opened_chain(index, |layers| declared(&root, layers, "", matching, files.as_deref()))
+}
+
+/// The lines of every file the chain at `index` holds that answer each of
+/// `discover`'s name sets — `imports`, then `declares`, each a case-insensitive
+/// pattern — and the files with an extension in `readable` whose names it does
+/// not hold. `None` when there is no index.
+#[napi(catch_unwind)]
+pub fn names_filter_of(index: &OpenedIndex, imports: Vec<ImportAsked>, declares: Vec<String>, readable: Vec<String>) -> napi::Result<Option<NamesFound>> {
+    opened_chain(index, |layers| names_filter(layers, &imports, &declares, &readable))
 }
 
 /// The distinct search terms of the top-level names the chain at `index`

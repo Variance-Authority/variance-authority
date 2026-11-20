@@ -56,10 +56,8 @@ export {
 } from './reuse.js';
 
 export {
-  readSourceParses,
   readSourceRecords,
   sourceIndexPath,
-  type IndexedParse,
 } from './source-index.js';
 
 export {
@@ -256,6 +254,7 @@ export {
   importersOf,
   memberDeclarationsOf,
   membersOn,
+  namesFilterOf,
   readHelp,
   restampHelpStore,
   ripgrepNative,
@@ -268,8 +267,11 @@ export {
   type HelpPublish,
   type HelpEntry,
   type HelpReading,
+  type ImportAsked,
   type MemberDeclarations,
   type MemberSite,
+  type NameHit,
+  type NamesFound,
   type PublishOpening,
   type PublishPackage,
   type HelpStore,
