@@ -73,10 +73,6 @@ const intersection = intersectionOf<Help>(ALONE);
  * question will guess, and a wrong guess costs a turn and reads exactly like a
  * workspace that does not publish the thing.
  *
- * `docs_classify` is that first step for a model holding a request rather than
- * a name: it says which of the request's words are, whole, a package, an
- * entrypoint or an exported name, so the next question names one.
- *
  * `docs_uses` follows `docs_symbol` because it is the other half of one
  * question. A signature says what a name is *supposed* to be; where the
  * repository already writes it says what using it actually looks like here, and
