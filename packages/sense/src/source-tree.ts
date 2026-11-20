@@ -11,8 +11,12 @@
 
 // compass: variance-authority.reach.source-index
 
-import { entry, mocking } from './help-reading.js';
+import { native, nativeRefusal } from './addon.js';
+import { CODE_EXTENSIONS } from './language.js';
+import type { NativeScanner } from './native.js';
+import type { ResolveOptions } from './resolve.js';
 import { sourceIndexPath } from './source-index.js';
+import { withDeclaredTsconfig } from './typescript.js';
 
 /** One file on a chain, and the kind of import it takes towards the seed; absent on the seed. */
 export interface SourceLink {
@@ -52,10 +56,22 @@ export interface SourceTree {
 
 /** The tree in `bytes`, as a workspace `workspace` below its root sees it; `''` for the root. */
 export function openSourceTree(bytes: Uint8Array, workspace = ''): SourceTree {
-  return entry('openSourceTree')(bytes, workspace);
+  return addon().openSourceTree(bytes, workspace);
 }
 
 /** The tree drawn from the source index at `index`, the graph `variance covering --since` cuts by; `null` when none was published. */
 export function sourceTreeOf(root: string, index: string = sourceIndexPath(root)): Promise<SourceTree | null> {
-  return entry('sourceTreeOf')(root, index, ...mocking(root));
+  return addon().sourceTreeOf(root, index, ...mocking(root));
+}
+
+/** How a test's loads beside its mocks resolve: the `tsconfig` the repository declares, and the extensions read as code. */
+export function mocking(root: string): [string | boolean | null, string[]] {
+  const { tsconfig } = withDeclaredTsconfig<ResolveOptions>(root, {});
+  return [tsconfig ?? null, [...CODE_EXTENSIONS]];
+}
+
+function addon(): NativeScanner {
+  const loaded = native();
+  if (loaded === undefined) throw new Error(`the source tree is read by the native addon, which did not load: ${nativeRefusal()}`);
+  return loaded;
 }
