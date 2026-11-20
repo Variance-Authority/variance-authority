@@ -394,10 +394,11 @@ object store — packed, for everything that arrived with the clone.
 
 So stop asking the filesystem for them and ask git.
 
-The address is already in hand. A scan takes its digests from `ls-tree` — a
-blob's name is the hash of its contents, which is what spares it hashing the
-repository itself — and that name is also where the bytes sit in the pack. The
-key carried to decide whether a file needs reading is the key that fetches it.
+The address is already in hand. Git's index supplies each tracked path and its
+blob id; the scan overlays local changes. A blob's name is the hash of its
+contents, which spares the scan hashing unchanged files, and that name is also
+where the bytes sit in the pack. The key used to decide whether a file needs
+reading is the key that fetches it.
 Every `open` in the sections above took the long way round to bytes that a
 process one pipe away had indexed under an id the scan was already holding.
 

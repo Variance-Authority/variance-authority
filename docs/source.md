@@ -444,9 +444,11 @@ answer it.
 ### Content digests
 
 Git can name tracked and unignored untracked contents without the scan opening
-every file. The committed tree supplies blob ids; working-tree status identifies
-paths that must be re-hashed from disk. A file edited back to its committed
-contents returns to the committed digest.
+every file. Git's index supplies tracked paths and blob ids; local changes are
+compared against the same loaded index to identify paths that need hashing from
+disk. Git handles monitors, untracked caches and sparse checkouts, and expands
+sparse indexes with `ls-files`. A file edited back to its indexed contents
+returns to the indexed digest.
 
 Git object ids start with `git:` and scan-computed digests with `v1:`. They are
 different schemes and never compare as though they were interchangeable.

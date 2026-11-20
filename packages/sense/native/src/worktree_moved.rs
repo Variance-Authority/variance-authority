@@ -25,9 +25,9 @@ use std::process::{Command, Stdio};
 use bstr::ByteSlice;
 use gix_index::entry::{Flags, Mode, Stage};
 
-use super::worktree_status::{indexed, worktree, Config, Paths, Walked};
+use super::worktree_status::{can_compare, changes, worktree, Changes, Config, Paths};
 use crate::git::Snapshot;
-use crate::git_store::Head;
+use crate::git_store::Checkout;
 
 /// A listing held since a Watchman clock, and every file below the root
 /// Watchman reports moved since it.
@@ -38,7 +38,8 @@ pub(crate) struct Before<'a> {
 
 /// The working tree walked against the index where `before` cannot say, or
 /// `None` where the walk of the whole tree must answer.
-pub(crate) fn walk(head: &Head, config: &Config, before: &Before) -> Option<Walked> {
+pub(crate) fn walk(head: &Checkout, config: &Config, before: &Before, index: &gix_index::File) -> Option<Changes> {
+    if !can_compare(head, config, index) { return None; }
     let (prefix, top) = (head.prefix.as_bytes(), head.top.as_path());
     let moved: HashSet<&[u8]> = before.moved.iter().map(|path| path.as_bytes()).collect();
     if moved.iter().any(|path| path.split(|byte| *byte == b'/').any(|part| part == b".git")) {
@@ -50,7 +51,6 @@ pub(crate) fn walk(head: &Head, config: &Config, before: &Before) -> Option<Walk
         return None;
     }
     let held: HashMap<&[u8], (&[u8; 20], bool)> = listing.paths.iter().zip(&listing.oids).zip(&listing.regular).map(|((path, oid), regular)| (path.as_bytes(), (oid, *regular))).collect();
-    let index = indexed(head, config)?;
 
     // The entries the listing speaks for leave the index the comparison reads.
     let mut dirty = Paths::new();
@@ -114,7 +114,7 @@ pub(crate) fn walk(head: &Head, config: &Config, before: &Before) -> Option<Walk
     let ignored = ignored?;
     let mut untracked = walked?;
     untracked.extend(candidates.into_iter().filter(|path| !ignored.contains(*path)).map(<[u8]>::to_vec));
-    Some(Walked { prefix: prefix.to_vec(), index, removed, dirty, untracked })
+    Some(changes(removed, dirty, untracked))
 }
 
 fn join(prefix: &[u8], path: &[u8]) -> Vec<u8> {
