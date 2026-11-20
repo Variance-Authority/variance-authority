@@ -94,13 +94,14 @@ export const varianceDocumentFixtures: Fixtures<
         await use();
         return;
       }
+      const instrumentation = (playwright as unknown as Instrumented)._instrumentation;
+      // Before the test's prints are heard: the warning is ours, not the spec's.
+      if (instrumentation === undefined) unheard();
       const documents = testDocuments(varianceRecorder, testInfo);
       const listener: ContextListener = {
         runAfterCreateBrowserContext: (context) => documents.adopt(context),
         runBeforeCloseBrowserContext: (context) => documents.settle(context),
       };
-      const instrumentation = (playwright as unknown as Instrumented)._instrumentation;
-      if (instrumentation === undefined) unheard();
       instrumentation?.addListener(listener);
       byTest.set(testInfo, documents);
       try {
