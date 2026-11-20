@@ -1,6 +1,5 @@
 import type { RunReport } from '@variance-authority/report';
 import type { Tree } from './tree.js';
-import type { SourceNames } from './names.js';
 import type { BlockKind } from '@variance-authority/sense/instrument';
 
 /**
@@ -129,11 +128,12 @@ export interface ToolInvocation<Subject> {
    */
   readonly tree?: Tree;
   /**
-   * Every file's declared and imported names, read off the same scan as the
-   * tree, where the host read them. Absent means none were read, and a question
-   * that names a name is refused rather than answered as though no file had one.
+   * The source index the tree was read from, and the workspace directory the
+   * tree drops from the files under it, where the host read a generation other
+   * than the checkout's own. A question that names a name reads it there.
+   * Absent means the index the tree names, and none when it names none.
    */
-  readonly names?: SourceNames;
+  readonly sourceIndex?: { readonly index: string; readonly within: string };
   /**
    * The modules the call asked to have cut, where the host had a checkout to
    * cut them from. Absent means none was read, and a region is then listed by

@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { readNamedTree } from '@variance-authority/help';
+import { discover } from '@variance-authority/help/tools';
+import { readTree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { run } from './ask-packages.fixture.js';
@@ -113,16 +114,31 @@ describe('ask discover over a checkout', () => {
     expect(text).not.toContain('src/old/selectors.ts');
   });
 
-  it('reads the names only for a question with a set read off them', async () => {
-    expect((await readNamedTree(root, { from: ['src/Wallet.ts'], path: '^src/store/' })).names).toBeUndefined();
-    expect((await readNamedTree(root, { declares: '^selectBalance$' })).names?.get('src/old/selectors.ts')?.declared).toEqual([{ name: 'selectBalance', line: 1 }]);
+  it('answers a name set for a host that hands it the tree and the checkout alone, as the MCP server does', async () => {
+    const tree = await readTree({ root });
+    const asked = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, root });
+    expect(asked({ declares: '^selectBalance$' })).toContain('src/old/selectors.ts:1  declares selectBalance');
+    const text = asked({ imports: ['node:module'], exceptImports: ['./legacy.cjs'] });
+    expect(text).toContain('3 files importing `node:module`');
+    expect(text).toContain('3 files importing `./legacy.cjs`, taken out');
+    expect(text).toContain('No file is in all of them.');
   });
 
-  it('reads no names when every import set names a name out of a repository file, which the source index answers', async () => {
-    const asked = { imports: ['src/store/selectors.ts#selectBalance'], exceptImports: ['src/lib/greet.ts#wave'] };
-    expect((await readNamedTree(root, asked)).names).toBeUndefined();
-    expect((await readNamedTree(root, { ...asked, imports: [...asked.imports, './store'] })).names).toBeDefined();
-    expect((await readNamedTree(root, { ...asked, exceptImports: ['react'] })).names).toBeDefined();
+  it('answers a name set from the files of a tree read under one directory, as `dirs` narrows it', async () => {
+    const tree = await readTree({ root, dirs: ['src/store'] });
+    const text = discover.run(undefined, { declares: '^selectBalance$' }, { tree, root });
+    expect(text).toContain('src/store/selectors.ts:1  declares selectBalance');
+    expect(text).not.toContain('src/old/');
+  });
+
+  it('asks the source index for no names when every import set names a name out of a repository file, which its edges answer', async () => {
+    // A tree that names no index refuses any set the names filter answers, so a set it answers asked none.
+    const { index: _, ...tree } = await readTree({ root });
+    const asked = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, root });
+    const named = { imports: ['src/store/selectors.ts#selectBalance'], exceptImports: ['src/lib/greet.ts#wave'] };
+    expect(asked(named)).toContain('importing `selectBalance` from `src/store/selectors.ts`');
+    expect(() => asked({ ...named, imports: [...named.imports, './store'] })).toThrow('names no source index');
+    expect(() => asked({ ...named, exceptImports: ['react'] })).toThrow('names no source index');
   });
 
   it('finds a declaration the file does not export, which is where a context is made', async () => {

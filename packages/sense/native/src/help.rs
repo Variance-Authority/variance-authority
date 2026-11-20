@@ -27,6 +27,8 @@ pub(crate) mod help_mention;
 pub(crate) mod help_readme;
 #[path = "help_names.rs"]
 pub(crate) mod help_names;
+#[path = "help_names_filter.rs"]
+pub(crate) mod help_names_filter;
 #[path = "help_origin.rs"]
 pub(crate) mod help_origin;
 #[path = "help_own_uses.rs"]

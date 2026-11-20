@@ -12,7 +12,7 @@ import {
 } from '@variance-authority/mcp/tools';
 import type { RunReport } from '@variance-authority/report';
 import { readRunReport } from '@variance-authority/report/file';
-import { caughtUp, foundNothingAnswer, madeBefore, outlived, readAgain, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
+import { caughtUp, foundNothingAnswer, generationSourceIndex, madeBefore, outlived, readAgain, readWorkspaceForAnswer, workspaceGeneration } from '@variance-authority/help';
 import { HELP, HELP_TOOLS, UNCOMPARED_HELP, type Help } from '@variance-authority/help/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import type { Config } from '../config.js';
@@ -197,10 +197,6 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
   // should not pay for a scan it never uses.
   let report = await readRunReport(path);
   let help: Help | undefined;
-  // FIXME: no names are handed to `discover` here. The reading may come
-  // from the published snapshot, which holds no parses, so its `declares`, and
-  // `imports` of anything but a name out of a repository file, are refused over
-  // MCP and answered by `variance ask`.
   let tree: Tree | undefined;
 
   const readHelp = async (refreshAfterMs?: number): Promise<Help> => {
@@ -223,6 +219,8 @@ export async function serve(config: Config, options: ServeOptions = {}): Promise
     output: process.stdout,
     served: options.justAnswer === true ? UNCOMPARED_BENCH : BENCH,
     tree: () => tree,
+    // The index the reading opened, so a question that names a name reads the generation it answers from.
+    sourceIndex: (subject: Bench) => subject.help === undefined ? undefined : generationSourceIndex(subject.help, root, index),
     root,
     // A source question answered from a reused generation its named files
     // changed since, asked again of one read now. A refusal answers from the
