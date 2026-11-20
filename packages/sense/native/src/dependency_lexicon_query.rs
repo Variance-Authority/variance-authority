@@ -163,6 +163,11 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
     }
     let total = found.len() as u32;
     let mut shown: Vec<Match> = found.into_values().collect();
+    // A door that declares nothing is no fallback when its installed copy declares the name
+    // through another: decided over every match, before the limit cuts them.
+    let answered: BTreeSet<&str> = shown.iter().filter_map(|hit| hit.installed.as_deref()).collect();
+    let silent: Vec<Silent> = silent.into_values()
+        .filter(|one| one.installed.as_deref().is_none_or(|installed| !answered.contains(installed))).collect();
     shown.sort_by(|a, b| b.imported.cmp(&a.imported)
         .then_with(|| (&a.specifier, &a.name, &a.kind).cmp(&(&b.specifier, &b.name, &b.kind))));
     shown.truncate(limit as usize);
@@ -171,7 +176,7 @@ pub fn query_dependency_lexicon(path: String, sites: String, query: String, file
         .map(|version| format!("The dependency lexicon was written at version {version}, whose stems this release does not compare"));
     let words = if exact || older.is_some() { None } else { described(&query, read.iter().copied(), limit as usize) };
     let (described_total, described) = match words { Some((total, shown)) => (Some(total), Some(shown)), None => (None, None) };
-    let answer = serde_json::to_string(&Matches { total, shown, silent: silent.into_values().collect(), described, described_total, described_unread,
+    let answer = serde_json::to_string(&Matches { total, shown, silent, described, described_total, described_unread,
         scope: Scope { owners: looked.0.into_iter().map(str::to_owned).collect(), packages: looked.1.len() as u32,
             location: allowed.map(|allowed| { let mut held: Vec<String> = allowed.into_iter().map(str::to_owned).collect(); held.sort_unstable(); held }) } })
         .map_err(|error| napi::Error::from_reason(error.to_string()))?;

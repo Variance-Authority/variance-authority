@@ -133,3 +133,26 @@ it('keeps the README of another installed copy of the same version, whose declar
   expect(text).toContain('README: legacy/node_modules/door-kit/README.md');
   expect(text).toContain('legacy/node_modules/door-kit/README.md:3 names `wake`:');
 });
+
+it('keeps a package that declares the name out of the README fallbacks when a limit cuts its declaration', async () => {
+  // `alarm-kit` sorts first, so `--limit 1` shows it alone; `door-kit` still declares `wake`, and its doors that declare nothing are no fallback.
+  const cut = await build(mkdtempSync(join(tmpdir(), 'va-readme-cut-')), {
+    'package.json': JSON.stringify({ name: 'cut', dependencies: { 'alarm-kit': '1.0.0', 'door-kit': '3.0.0' } }),
+    'src/boot.ts': "import { wake } from 'alarm-kit';\nimport { wake as start } from 'door-kit';\nimport 'door-kit/boot';\nwake(); start();\n",
+    'node_modules/alarm-kit/package.json': JSON.stringify({ name: 'alarm-kit', version: '1.0.0', types: './index.d.ts', main: './index.js' }),
+    'node_modules/alarm-kit/index.js': 'exports.wake = () => {};\n',
+    'node_modules/alarm-kit/index.d.ts': 'export declare function wake(): void;\n',
+    'node_modules/door-kit/package.json': JSON.stringify({
+      name: 'door-kit', version: '3.0.0', exports: { '.': { types: './index.d.ts', default: './index.js' }, './boot': './boot.js' },
+    }),
+    'node_modules/door-kit/index.js': 'exports.wake = () => {};\n',
+    'node_modules/door-kit/index.d.ts': 'export declare function wake(): void;\n',
+    'node_modules/door-kit/boot.js': "require('./index.js').wake();\n",
+    'node_modules/door-kit/README.md': '# door-kit\n\nCall `wake` first.\n',
+  });
+  const text = ask({ name: 'wake', limit: 1 }, cut);
+  expect(text.startsWith('alarm-kit · wake [function] · alarm-kit@1.0.0')).toBe(true);
+  expect(text).toContain('1 more match not shown');
+  expect(text).not.toContain('door-kit/boot');
+  expect(text).not.toContain('README');
+});

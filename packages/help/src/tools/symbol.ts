@@ -5,7 +5,7 @@ import { how, sitesByPath, type PathSite } from './by-path.js';
 import { FoundNothing, nowhere, specifierOf } from './find.js';
 import { memberRows } from './container.js';
 import { block, plural } from './format.js';
-import { queryDependencyLexicon, type LexiconMatches, type SilentPackage } from '../dependency-lexicon.js';
+import { queryDependencyLexicon, type LexiconMatches } from '../dependency-lexicon.js';
 import { silentBlocks } from './silent.js';
 import { thirdBlock } from './third-party.js';
 import { DECLARED_CAP, declarationsNamed, declaredAt, declaredBlocks, isNested, textRows, unreadLine } from './declared.js';
@@ -149,11 +149,9 @@ export const symbol: Tool<Help> = {
       const here = paths === undefined ? everywhere : queryDependencyLexicon(invocation.root, name, paths, true, wanted, installed);
       const shown = here ?? everywhere;
       // A door that declares nothing is a fallback for a package silent about
-      // the name; one whose installed copy declares the name elsewhere has
-      // answered it. Another copy of the same version answers nothing for it.
-      const answered = (one: SilentPackage): boolean =>
-        one.installed !== undefined && shown.shown.some((match) => match.installed === one.installed);
-      const silent = silentBlocks(invocation.root, name, (shown.silent ?? []).filter((one) => !answered(one)), wanted !== undefined);
+      // the name; the lexicon leaves out one whose installed copy declares it
+      // elsewhere. Another copy of the same version answers nothing for it.
+      const silent = silentBlocks(invocation.root, name, shown.silent ?? [], wanted !== undefined);
       const cut = (matches: LexiconMatches): readonly string[] =>
         notShownPast(matches.total, matches.shown.length, spell, { one: 'match', many: 'matches' });
       if (paths !== undefined && here !== undefined && here.total === 0 && everywhere.total > 0) {
