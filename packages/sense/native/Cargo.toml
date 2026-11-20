@@ -39,6 +39,9 @@ grammars = [
 ]
 
 [dependencies]
+# rustc's coverage map and a `.profraw`'s counters, read in-process for a Rust
+# suite's recording (`rust_coverage.rs`) instead of through `llvm-cov`.
+llvm_profparser = { version = "0.16", default-features = false }
 napi = { version = "3", default-features = false, features = ["napi8"] }
 napi-derive = "3"
 # The sharded map and the hasher `oxc_resolver` caches paths with, so the

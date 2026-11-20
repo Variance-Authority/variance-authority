@@ -37,6 +37,12 @@ pub struct Instrumented {
 /// the text has only the probes, which is what the walk's golden answers hold.
 #[napi(js_name = "instrument", catch_unwind)]
 pub fn instrument_module(source: String, file: String, entries: bool, module: Option<String>) -> Option<Instrumented> {
+    // rustc counts a Rust file's regions, so its cut is the same under either
+    // mode and carries no probe and no header.
+    #[cfg(feature = "grammars")]
+    if file.ends_with(".rs") {
+        return crate::rust_cut::cut(&source).map(columns);
+    }
     let mut out = cut(&source, &file, entries)?;
     if let Some(module) = module {
         out.code.insert_str(out.header_byte, &header(&module, out.blocks.len()));

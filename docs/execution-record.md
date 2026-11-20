@@ -108,7 +108,7 @@ walked and your visual suite never loaded reads as exactly that. `--suite
 
 ## What each host records
 
-Six hosts write this file, and they write the same structures into it. What
+Seven hosts write this file, and they write the same structures into it. What
 differs is the owner of an observation — the key a crossing joins, which is
 whatever that host schedules — and where the bracket goes that separates one
 case from the next.
@@ -121,6 +121,7 @@ case from the next.
 | Playwright | the spec file | the test, which is already the window the driver closes |
 | Storybook | the story | the story, which is already the unit the preview shows |
 | [A JVM on the JUnit Platform](jvm.md) | the test class's source file | the top-level test class, which the listener closes as the next one starts |
+| [Cargo](rust.md) | the `.rs` file the tests are declared in | the test, which runs alone in its own process |
 | [Any other runner](../packages/sense/README.md#record-a-runner-this-package-has-no-seam-for) | the test file it observes | the body it hands to `observer.case` |
 
 None of the Node seams asks you to change a runner option to record cases, and the
