@@ -15,7 +15,8 @@ use std::path::Path;
 
 use rayon::prelude::*;
 
-use crate::help_mention::{mention, nearest, readmes, Mention};
+use crate::help_mention::{mention, Mention};
+use crate::help_readme::{nearest, readmes};
 use crate::help_names::PublishedName;
 use crate::help_store::{EntryRef, MentionRef, OpeningRef, PackageRef, UseRef};
 use crate::help_usage::NameUse;

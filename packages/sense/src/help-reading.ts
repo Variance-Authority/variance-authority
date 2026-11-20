@@ -21,7 +21,8 @@ import type { ResolveOptions } from './resolve.js';
 import { withDeclaredTsconfig } from './typescript.js';
 import type { Mention, WalkedHelp } from './help-walked.js';
 
-type NamedExport = NativeIndexedUsage['exported'][number];
+/** One name the export list holds, as the store's encoder takes it. */
+export type NamedExport = NativeIndexedUsage['exported'][number];
 
 /** One place a name is used, its `through` laid flat: `Use`, and `Taken`'s `name` for an import by path. */
 export interface StoreUse {

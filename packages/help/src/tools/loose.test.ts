@@ -3,10 +3,10 @@ import { fileURLToPath } from 'node:url';
 import MiniSearch from 'minisearch';
 import { describe, expect, it } from 'vitest';
 import type { Help, Named } from '@variance-authority/package/help';
-import { everyEntry } from '@variance-authority/package/help';
+import { everyEntry, readOfferings, readUsage } from '@variance-authority/package/help';
 import { readHelp } from '../walk.js';
-import { SPACE_OR_PUNCTUATION, openSearchIndex } from '../search-index.js';
-import { encodeStore } from '../store-encode.js';
+import { SPACE_OR_PUNCTUATION } from '../search-index.js';
+import { searchIndexOf } from '../snapshot.js';
 import { looseNames } from './loose.js';
 
 /**
@@ -87,13 +87,15 @@ const odd = (name: string): Named => ({
 /** A doc writes a name in a code span, and the span's backticks are not part of a word. */
 const SPANNED: Named = { ...odd('declaredRoles'), doc: 'The roles docs declare with `@testOnly` and `@production`.' };
 
+/** The fixture's own reading, with the odd names added to its export list before the addon encodes it. */
 const HELP: Help = (() => {
-  const read = readHelp(WORKSPACE);
+  const opened = readOfferings(WORKSPACE).flatMap((offering) => offering.entrypoints.map((entry) => `${offering.name} ${entry.subpath}`));
+  const usage = readUsage(WORKSPACE, new Set(opened));
   const extra = ['größe', 'Größenordnung', 'naïveCache', 'x', 'a_b', 'emoji😀Name', 'measureAll', 'mesure', 'ÅngströmUnit', 'parseHTTPResponse2', 'v8Flags', 'ΣύνολοΤιμών'];
-  return { ...read, exported: [...read.exported, ...extra.map(odd), SPANNED] };
+  return readHelp(WORKSPACE, { usage: { ...usage, exported: [...usage.exported, ...extra.map(odd), SPANNED] } });
 })();
 
-const INDEX = openSearchIndex(encodeStore(HELP).bytes);
+const INDEX = searchIndexOf(HELP);
 
 /** Every name with its docs, as the pass held them before it asked MiniSearch. */
 function reference(query: string): ReadonlySet<string> {

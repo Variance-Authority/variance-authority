@@ -14,7 +14,6 @@ import type { Help } from '@variance-authority/package/help';
 import { readSourceRecords, restampHelpStore, sourceIndexPath } from '@variance-authority/sense';
 import { scopeSourceIndexPath } from './scan-scope.js';
 import { openHelpStore, openSearchIndex, type SearchIndex } from './search-index.js';
-import { encodeStore } from './store-encode.js';
 import { storeHeadOf, type StoreHead } from './store-layout.js';
 
 export interface SnapshotOptions {
@@ -250,9 +249,17 @@ export async function publishStore(index: string, store: Uint8Array, tree: Uint8
  * memory, once per value.
  */
 export function searchIndexOf(help: Help): SearchIndex {
-  let index = searches.get(help);
-  if (index === undefined) searches.set(help, (index = openSearchIndex(encodeStore(help).bytes)));
+  const index = searches.get(help);
+  if (index === undefined) throw new Error('this help value was not read from a store, so it has no search');
   return index;
+}
+
+/** The value one store holds, with the store and its search held beside it. */
+export function heldStore(store: Uint8Array): Help {
+  const opened = openHelpStore(store);
+  stores.set(opened.help, store);
+  searches.set(opened.help, opened.search);
+  return opened.help;
 }
 
 async function writeReplacing(at: string, bytes: Uint8Array): Promise<void> {

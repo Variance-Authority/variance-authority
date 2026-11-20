@@ -23,6 +23,8 @@ pub(crate) mod help_join;
 pub(crate) mod help_members;
 #[path = "help_mention.rs"]
 pub(crate) mod help_mention;
+#[path = "help_readme.rs"]
+pub(crate) mod help_readme;
 #[path = "help_names.rs"]
 pub(crate) mod help_names;
 #[path = "help_origin.rs"]

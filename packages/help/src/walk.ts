@@ -1,10 +1,8 @@
 import { relative, resolve } from 'node:path';
 import { createReader, namesReachedBy, readOfferings, type Names, type Offering } from '@variance-authority/package';
-import { readUsage, type Help, type HelpOptions } from '@variance-authority/package/help';
-import { joinWalkedHelp, type NameUse, type PublishedName, type PublishPackage } from '@variance-authority/sense';
-import { flatUseOf } from './store-encode.js';
-import { sectionsOf } from './store-layout.js';
-import { helpOf } from './store-value.js';
+import { readUsage, type Deep, type Help, type HelpOptions, type Taken, type Use } from '@variance-authority/package/help';
+import { joinWalkedHelp, type NameUse, type PublishedName, type PublishPackage, type StoreDeep, type StoreUse } from '@variance-authority/sense';
+import { heldStore } from './snapshot.js';
 import { specifierOf } from './tools/find.js';
 
 // compass: variance-authority.report.agent-surface
@@ -34,24 +32,20 @@ export function readHelp(root: string, options: HelpOptions = {}): Help {
   const uses: NameUse[] = [];
   for (const [key, byName] of usage.names) {
     for (const [name, held] of byName) {
-      for (const use of held) uses.push({ key, name, ...flatUseOf(use) });
+      for (const use of held) uses.push({ key, ...flatUseOf(use), name });
     }
   }
-  const joined = joinWalkedHelp({
+  return heldStore(joinWalkedHelp({
     readmeRoot: where,
     packages: publishedPackages(where, offerings),
     names: offerings.flatMap((offering) => offering.entrypoints.map((entry) => publishedNames(namesReachedBy(reader, entry.source)))),
     uses,
-  });
-
-  return {
-    packages: helpOf(sectionsOf(joined)).packages,
-    deep: usage.deep,
-    byPath: usage.byPath,
-    unfollowed: usage.unfollowed,
-    exported: usage.exported,
+    deep: usage.deep.map(flatDeepOf),
+    byPath: usage.byPath.map(flatDeepOf),
+    unfollowed: usage.unfollowed.map(flatDeepOf),
+    exported: [...usage.exported],
     unreadable: [...offerings.flatMap((offering) => offering.unreadable ?? []), ...usage.unreadable],
-  };
+  }));
 }
 
 /**
@@ -73,4 +67,32 @@ export function publishedPackages(where: string, offerings: readonly Offering[])
 
 function publishedNames(names: Names): PublishedName[] {
   return [...names].map(([name, kinds]) => ({ name, kinds: [...kinds.values()] }));
+}
+
+/** A use with its `through` laid flat, as the addon takes it. */
+function flatUseOf(use: Use | Taken): StoreUse {
+  return {
+    by: use.by,
+    at: use.at,
+    line: use.line,
+    type: use.type,
+    kind: use.kind,
+    ...(use.local === undefined ? {} : { local: use.local }),
+    ...(use.through === undefined ? {} : { through: use.through.kind }),
+    throughLine: use.through?.line ?? 0,
+    throughDefault: use.through?.throughDefault === true,
+    whole: use.through?.whole === true,
+    ...('name' in use ? { name: use.name } : {}),
+  };
+}
+
+function flatDeepOf(deep: Deep): StoreDeep {
+  return {
+    specifier: deep.specifier,
+    by: deep.by,
+    at: deep.at,
+    line: deep.line,
+    ...(deep.to === undefined ? {} : { to: deep.to }),
+    names: deep.names.map(flatUseOf),
+  };
 }

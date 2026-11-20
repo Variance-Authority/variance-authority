@@ -26,7 +26,7 @@ use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
 use crate::help_join::{join, mentions, OpeningSkeleton, Skeleton};
-use crate::help_store::{encode, DeepRef, StoreMeta, StoreRef};
+use crate::help_store::{encode, DeepRef, StoreDeep, StoreMeta, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_names::{published_names, HelpEntry, PublishedName};
 use crate::help_origin::{declaration_exported, export_line, ExportedDeclaration};
@@ -329,7 +329,9 @@ impl HelpReading {
 }
 
 /// What the walk with no index read: the manifests' packages, each opening's
-/// names flat in their order, and every use through an opened key.
+/// names flat in their order, every use through an opened key, the imports
+/// past an entry, by path and unfollowed, the export list, and what did not
+/// read.
 #[napi(object)]
 pub struct WalkedHelp {
     /// Where the READMEs the mentions come from are read.
@@ -337,17 +339,23 @@ pub struct WalkedHelp {
     pub packages: Vec<PublishPackage>,
     pub names: Vec<Vec<PublishedName>>,
     pub uses: Vec<NameUse>,
+    pub deep: Vec<StoreDeep>,
+    pub by_path: Vec<StoreDeep>,
+    pub unfollowed: Vec<StoreDeep>,
+    pub exported: Vec<NamedExport>,
+    pub unreadable: Vec<String>,
 }
 
-/// The walk's packages joined as the publish joins them, mentions read, as a
-/// store holding them alone: the walk decodes its packages from it.
+/// The walk's whole store: its packages joined as the publish joins them,
+/// mentions read, beside its imports and export list, with no generation.
 #[napi(catch_unwind)]
 pub fn join_walked_help(walked: WalkedHelp) -> napi::Result<Buffer> {
     let skeleton = skeleton_of(&walked.packages);
     let mentions = mentions(Path::new(&walked.readme_root), &walked.names).map_err(napi::Error::from_reason)?;
     let packages = join(&skeleton, &walked.names, &walked.uses, &mentions).map_err(napi::Error::from_reason)?;
-    let input = StoreRef { packages: &packages, deep: [vec![], vec![], vec![]], unreadable: &[] };
-    let (store, _) = encode(&input, &[], None, None);
+    let deep = [&walked.deep, &walked.by_path, &walked.unfollowed].map(|held| held.iter().map(DeepRef::from).collect());
+    let input = StoreRef { packages: &packages, deep, unreadable: &walked.unreadable };
+    let (store, _) = encode(&input, &walked.exported, None, None);
     Ok(store.into())
 }
 
