@@ -617,8 +617,10 @@ name only loosely — a word typed wrong, or two words its documentation writes
 but not beside each other — those names follow under a heading of their own,
 after that answer and never inside it. So do the names holding most of your
 words, matched by stem, a rare word counting for more than a common one, the
-ones holding the most first, each labelled with
-the words it holds; both come
+ones holding the most first, each labelled with the words it holds, under a
+heading that calls them near matches, not exact ones. When a question of two
+words or more is matched as written, at most five of them still follow the
+answer, so you learn the repository's own wording for it. Both sections come
 before any installed package.
 
 An answer from `docs_search` names candidates, so a row missing from it does not

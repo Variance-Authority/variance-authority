@@ -9,7 +9,7 @@ import type { PublishedMatch } from './published-match.js';
 import type { DeclaredMatch, DescribedMatch, ExportedMatch, FileMatch, Matches, RecordedTests, Searched, SearchQuestion, TestMatch } from './search-matches.js';
 import { aliasLine, declaredLine, heldLine, unreadLine } from './declared.js';
 import { unreadStop } from './members.js';
-import { CAP, ELSEWHERE_CAP, LOOSE_CAP, searched, searchedFiles } from './search-answer.js';
+import { CAP, ELSEWHERE_CAP, LOOSE_CAP, NEAR_CAP, searched, searchedFiles } from './search-answer.js';
 import { type ImportingOf, importingOf } from './published-match.js';
 import { byPublishedPath, plural } from './format.js';
 
@@ -83,7 +83,11 @@ import { byPublishedPath, plural } from './format.js';
  * first, then the one whose doc writes more of the question's adjacent word
  * pairs adjacent. Every word one of them holds is held by a row shown, so a name
  * holding the one rare word is shown however many holding a common one sort
- * before it. It prints first, so a name holding at least half the stems
+ * before it. It is headed as near matches, not exact ones, and it is read after
+ * a direct answer too, when the question has two words or more: at most
+ * {@link NEAR_CAP} of its rows follow the answer, minus what the answer shows,
+ * so an asker whose words are not the repository's learns its wording. On an
+ * empty answer it prints first, so a name holding at least half the stems
  * is not offered again by the loose pass. A name holding fewer is the loose
  * pass's when that pass reaches it, by every word, so on three words or more a
  * long list of names holding one stem cannot sort it past the rows shown.
@@ -252,7 +256,7 @@ function spoken({ answer, area }: Searched, root: string | undefined, spell: Spe
       ? []
       : [
           '',
-          `${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} most of \`${query}\`, ` +
+          `Near matches, not exact: ${held.total} ${held.total === 1 ? 'name or file in this repository holds' : 'names and files in this repository hold'} most of \`${query}\`, ` +
             'the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.',
           '',
           ...held.shown.map(describedRow),
@@ -367,11 +371,13 @@ export const search: Tool<Help> = {
     'functions inside a function under what holds them, the recorded test cases whose names hold every word, as each suite\'s last run wrote them, so a case added since is not among them and one removed since still is, and the imports that bind the name as a local one. Installed third-party ' +
     'names appear separately when the third-party API catalogue is published, followed by the installed ' +
     'packages that describe your words — in their own description, keywords and README headings, or in ' +
-    'the words of their names — so a job reaches a package by what it does. When nothing in this ' +
-    'repository holds the query as written, its own names and files holding any of your words, ' +
-    'read by stem, come before any installed package, a file by its name and the doc it opens with, best ' +
+    'the words of their names — so a job reaches a package by what it does. Near matches follow, ' +
+    'headed as near, not exact: this repository\'s own names and files holding most of your words, the rarer ' +
+    'counting for more, read by stem, before any installed package, a file by its name and the doc it opens with, best ' +
     'first by the words held, then by the words in the name, then by how much of your phrase its doc writes, ' +
-    'each labelled with the words it holds; names that match loosely — your words apart, or within a ' +
+    `each labelled with the words it holds. After a question of two words or more answered as written, at most ${NEAR_CAP} ` +
+    'of them follow the answer, so you learn the repository\'s own wording; when nothing holds the question ' +
+    'as written they lead, and names that match loosely — your words apart, or within a ' +
     'character of the ones written, exported or kept to their file — follow them. Neither is mixed into the sections above. On a large ' +
     'repository a substring alone matches everywhere a product says its own name, so say where ' +
     'you are standing. Carry a path the editor, ticket or stack trace already supplied: `from` ' +
@@ -410,7 +416,7 @@ export const search: Tool<Help> = {
       },
       limit: {
         type: 'integer',
-        description: `Rows to show in each list of the answer. Each list's own cap when not said: ${CAP} published, 20 installed, ${ELSEWHERE_CAP} of each other kind, ${LOOSE_CAP} loose or described; the rest are counted.`,
+        description: `Rows to show in each list of the answer. Each list's own cap when not said: ${CAP} published, 20 installed, ${ELSEWHERE_CAP} of each other kind, ${LOOSE_CAP} loose or described, ${NEAR_CAP} near after a direct answer; the rest are counted.`,
       },
     },
     required: ['query'],

@@ -54,7 +54,7 @@ describe('a question whose words are not equally rare', () => {
 
   it('neither shows nor counts a row holding only the common word, beside a row holding the rare one', async () => {
     const said = await ask(FIXTURE, 'xylophone file');
-    expect(said).toMatch(/^2 names and files in this repository hold most of `xylophone file`/mu);
+    expect(said).toMatch(/^Near matches, not exact: 2 names and files in this repository hold most of `xylophone file`/mu);
     expect(said).toMatch(/^tuned .*\[holds: file, xylophone\]/mu);
     expect(said).toMatch(/^played .*\[holds: xylophone\]/mu);
     expect(said).not.toMatch(/fileAt\d/u);

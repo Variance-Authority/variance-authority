@@ -547,18 +547,21 @@ matches installed third-party declarations from the same lexicon, which is
 `search` and `symbol` for what it holds.
 
 Nothing back means nothing matched, not that a ranking left it out. In a
-checkout that publishes nothing, that is the final answer. The two sections that
-follow an empty answer — names and files holding most of your words
-by stem, the rarer words counting for more, in any order, in the name or its doc, whether published, exported,
-declared and not exported, or a file by its name and the doc it opens with, the
-ones holding the most of your words first, then the ones holding more of them
-in the name, then the ones whose doc writes your phrase, every word any of
-them holds held by a row shown; then names your words
-reach loosely, exported or not, which takes a name holding less than most of your
-words when it reaches it by every one — are
-suggestions, printed before the installed
-packages: they never change the sections above them, and they do not find a word
-the repository never writes. For that, expand the query as
+checkout that publishes nothing, that is the final answer. Near matches follow
+the answer, under a heading that opens `Near matches, not exact:`. They are
+names and files holding most of your words by stem, the rarer words counting for
+more, in any order, in the name or its doc, whether published, exported,
+declared and not exported, or a file by its name and the doc it opens with. The
+ones holding the most of your words come first, then the ones holding more of
+them in the name, then the ones whose doc writes your phrase, and every word any
+of them holds is held by a row shown. Each is labelled with the words it holds.
+After a question of two words or more that matched as written, at most five of
+them follow, leaving out what the answer shows, so you learn the repository's
+own wording. After an empty answer they lead, and the names your words reach
+loosely follow them, exported or not; that section takes a name holding less
+than most of your words when it reaches it by every one. Both are suggestions,
+printed before the installed packages: they never change the sections above
+them, and they do not find a word the repository never writes. For that, expand the query as
 `SKILL.md` describes under *Matching is lexical*.
 
 **A start point removes names; it does not rank them down.** A path that

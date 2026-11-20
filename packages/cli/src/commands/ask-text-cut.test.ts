@@ -126,7 +126,7 @@ describe('ask symbol, the text it prints of a doc, a signature and a member', ()
 
       No recorded case was read: no run kept its cases there.
 
-      1 name or file in this repository holds most of \`marks pair\`, the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.
+      Near matches, not exact: 1 name or file in this repository holds most of \`marks pair\`, the rarer words counting for more, read by stem as the packages are, best first: the words held, each counted by how few rows hold it and more in the name than in a doc, more in a doc than in a signature, then the words in the name, then the phrase its doc writes; a row for each word these rows hold is shown however it sorts.
 
       opened — @acme/kit · packages/kit/src/cut.ts:8 — Opens the door. door.open() * Led by two marks Wears 😀 a pair [holds: marks, pair]
 
