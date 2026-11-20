@@ -541,36 +541,37 @@ which is the composition a query language gives for free and a fixed set of
 questions has to name.
 
 **Grouping a search answer by structure** answers the step before reading:
-which part of the codebase do these words land in? CodeScaleBench's first
-failure, lost in the codebase, is an agent without that step. Its Kubernetes
-baseline got hundreds of hits across dozens of directories and followed imports
-until it timed out, and the post says the agent lacked tools to narrow the
-search space. Its second failure, wrong file or wrong symbol, is the same flat
-list from the other side. The post narrows by package and by a hand-written
-scope, and says nothing of layers. The field has three ways to group results:
+which part of the codebase do these words land in? CodeScaleBench's first two
+failures, above, are an agent without that step: a flat list of hits across
+dozens of directories, followed import by import, or the wrong one of them
+picked. The post names the gap as tools to narrow the search space, narrows by
+package and by a hand-written scope, and says nothing of layers. The field has
+three ways to group results:
 
 - **By path or declaration.** IntelliJ IDEA's Find Usages groups usages by
-  module, package, directory and usage type. Sourcegraph's and GitHub's
-  `repo:`, `file:` and `path:` filters narrow by path, but only to a scope the
-  asker already wrote.
+  module, package, directory and usage type. Sourcegraph's `repo:` and `file:`
+  filters and GitHub's `repo:` and `path:` qualifiers narrow by path, but only
+  to a scope the asker already wrote.
 - **By vertical.** Aggregated web search picks which verticals a query belongs
   to before it ranks inside one (Arguello, Diaz, Callan & Crespo, *Sources of
   evidence for vertical selection*, SIGIR 2009).
-- **By cluster.** Scatter/Gather (Cutting, Karger, Pedersen & Tukey, SIGIR
-  1992) clusters the result set by text, and the reader picks a cluster and
-  searches again inside it. Information foraging (Pirolli & Card, Psychological
-  Review, 1999) names that choice: a reader picks a patch by its scent, then
-  reads inside it.
+- **By cluster.** Scatter/Gather clustered a whole collection by text, and the
+  reader picked clusters to gather and cluster again (Cutting, Karger, Pedersen
+  & Tukey, SIGIR 1992); Hearst & Pedersen (SIGIR 1996) applied it to a query's
+  results. Information foraging (Pirolli & Card, Psychological Review, 1999)
+  names that choice: a reader picks a patch by its scent, then reads inside it.
 
 Conway (*How do committees invent?*, Datamation, 1968) is why a codebase has
-such groups at all: a system's structure follows the organisation that built it.
-None of the three ways groups by the import graph. Here, the
-code map already computes an area, its dependency layer and its foundation or
-application role (ADR-0082). Placing a search hit on that map gives groups that
-are the same on every run and that no model drew, and an agent can enter a
-group with `--from`. Whether this saves the calls CodeScaleBench counted is
-measured the way it measured them: on large public repositories, never on this
-one ([#1652](https://github.com/Variance-Authority/variance-authority/issues/1652)).
+such groups at all: a system's structure follows the organisation that built
+it. The layer is Lakos's levelization ([`on-dependencies.md`](../on-dependencies.md)).
+None of the three ways groups by the import graph, and here the code map
+already computes each area, its dependency layer and its foundation or
+application role (ADR-0082). Placing a search hit on that map would give groups
+that are the same on every run and that no model drew, each one a scope a
+follow-up search can enter; that is what
+[#1652](https://github.com/Variance-Authority/variance-authority/issues/1652)
+proposes. Whether it saves the calls CodeScaleBench counted is measured the
+way it measured them: on large public repositories, never on this one.
 
 ## Architecture that keeps what matters
 
