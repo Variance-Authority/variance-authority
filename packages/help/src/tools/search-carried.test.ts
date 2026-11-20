@@ -54,7 +54,7 @@ describe('a question whose words are not equally rare', () => {
 
   it('neither shows nor counts a row holding only the common word, beside a row holding the rare one', async () => {
     const said = await ask(FIXTURE, 'xylophone file');
-    expect(said).toMatch(/^2 names and files in this repository hold most of `xylophone file`/mu);
+    expect(said).toMatch(/^Near matches, not exact: 2 names and files in this repository hold most of `xylophone file`/mu);
     expect(said).toMatch(/^tuned .*\[holds: file, xylophone\]/mu);
     expect(said).toMatch(/^played .*\[holds: xylophone\]/mu);
     expect(said).not.toMatch(/fileAt\d/u);
@@ -147,5 +147,41 @@ describe('a name written in two rows', () => {
       'src/short.ts': '/** Holds violet. */\nexport const pigment = 2;\n',
     }, 'amber cobalt violet quantum');
     expect(said).toMatch(/^pigment .*\[holds: (?=.*amber)(?=.*cobalt)(?=.*violet)/mu);
+  });
+});
+
+describe('a wider area that adds a direct match', () => {
+  // `sweep`'s doc holds both words in separate clauses; `cacheEntries` is the question as written, and
+  // `listing`'s doc writes it as a phrase. From `app.ts` the area reaches all three, from `store.ts` only `sweep`.
+  const AREA = {
+    'src/store.ts': '/** Sweeps the cache. Keeps the newest entries. */\nexport function sweep(): void {}\n',
+    'src/named.ts': 'export const cacheEntries = 1;\n\n/** Lists the cache entries. */\nexport const listing = 2;\n',
+    'src/app.ts': "import { sweep } from './store.ts';\nimport { cacheEntries, listing } from './named.ts';\nexport const app = [sweep, cacheEntries, listing];\n",
+  };
+  const askFrom = async (from: string): Promise<string> => {
+    const root = await inventedWorkspace(INVENTED_PACKAGES, ['react'], AREA);
+    const edges = from === 'src/app.ts' ? [{ to: 'src/store.ts', kind: 'imports' as const }, { to: 'src/named.ts', kind: 'imports' as const }] : [];
+    const tree = treeOf([{ file: from, edges }, { file: 'src/store.ts' }, { file: 'src/named.ts' }], root);
+    return answerSearch(searchIndexOf(readHelp(root)), { query: 'cache entries', from }, tree, root);
+  };
+
+  it('keeps the documented function the narrow area finds, as a near match after the direct ones', async () => {
+    expect(await askFrom('src/store.ts')).toMatch(/^sweep .*\[holds: cache, entries\]/mu);
+    const wide = await askFrom('src/app.ts');
+    expect(wide).toMatch(/^cacheEntries\b/mu);
+    expect(wide).toMatch(/^Near matches, not exact: \d+ .* most of `cache entries`/mu);
+    expect(wide).toMatch(/^sweep .*\[holds: cache, entries\]/mu);
+  });
+
+  it('offers no name the direct answer shows again as near', async () => {
+    const wide = await askFrom('src/app.ts');
+    expect(wide.match(/^listing\b/gmu)).toHaveLength(1);
+    expect(wide.match(/^cacheEntries\b/gmu)).toHaveLength(1);
+  });
+
+  it('shows five near names after a direct answer, and counts the rest', async () => {
+    const said = await ask({ ...AREA, 'src/more.ts': each(7, (at) => `/** Drops stale entries, then the cache. */\nexport const drop${at} = ${at};\n`) }, 'cache entries');
+    expect(said.match(/\[holds: cache, entries\]$/gmu)).toHaveLength(5);
+    expect(said).toMatch(/^Near matches, not exact: 8 names /mu);
   });
 });

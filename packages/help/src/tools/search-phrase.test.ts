@@ -67,7 +67,24 @@ describe('a doc that writes the question as a phrase', () => {
   it('holds the words in order by stem, a possessive between them, and answers with it first', () => {
     // `sinkOf` writes the words the other way round and `pages` writes `and its` between them.
     expect(publishedFirst('page sink')).toEqual(['eventCollectorSource']);
-    expect(ask('page sink').described).toBeUndefined();
+  });
+
+  it('follows a question it answers with the names holding its words in other wording, the answer itself not offered again', () => {
+    // `sinkOf` and `pages` hold both words without writing the phrase: the repository's own wording for it.
+    const near = (ask('page sink').described?.shown ?? []).map((one) => ('name' in one ? one.name : one.at));
+    expect(near).toEqual(expect.arrayContaining(['sinkOf', 'pages']));
+    expect(near).not.toContain('eventCollectorSource');
+    expect(ask('page sink').loose).toBeUndefined();
+  });
+
+  it('shows at most five near names after a question it answers', () => {
+    const answered = ask('page sink').described;
+    expect(answered?.shown.length).toBeLessThanOrEqual(5);
+    expect(answered?.total).toBeGreaterThanOrEqual(answered?.shown.length ?? 0);
+  });
+
+  it('offers no near names beside a single word it answers', () => {
+    expect(ask('textOf').described).toBeUndefined();
   });
 
   it('holds an inflected word by its stem', () => {
