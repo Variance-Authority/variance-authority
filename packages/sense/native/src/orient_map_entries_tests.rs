@@ -159,3 +159,33 @@ fn a_wildcard_through_a_directory_symlink_keeps_the_counted_source_entry() {
     let resolvers = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None);
     assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], &resolvers), vec![vec![0]]);
 }
+
+#[test]
+fn a_wildcard_keeps_a_directory_symlink_inside_its_substitution() {
+    let root = std::env::temp_dir().join(format!("sense-orient-inner-link-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("src")).unwrap();
+    std::fs::create_dir_all(root.join("links")).unwrap();
+    let fixture = Fixture(root.clone());
+    std::fs::write(root.join("package.json"), r#"{"name":"linked"}"#).unwrap();
+    std::fs::write(root.join("src/entry.ts"), "export const value = 1;").unwrap();
+    std::os::unix::fs::symlink("../src", root.join("links/src")).unwrap();
+    let package = crate::package_owners::Package { directory: String::new(), name: "linked".to_owned(), depends: Vec::new(), develops: Vec::new(), offers: vec!["./links/*/entry.ts".to_owned()] };
+    let counted = std::collections::HashMap::from([("src/entry.ts", 0)]);
+    let resolvers = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None);
+    assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], &resolvers), vec![vec![0]]);
+}
+
+#[test]
+fn a_wildcard_keeps_output_declared_above_its_package() {
+    let root = std::env::temp_dir().join(format!("sense-orient-ancestor-output-{}", std::process::id()));
+    std::fs::create_dir_all(root.join("packages/a/src")).unwrap();
+    let fixture = Fixture(root.clone());
+    std::fs::write(root.join("package.json"), r#"{"private":true}"#).unwrap();
+    std::fs::write(root.join("tsconfig.json"), r#"{"compilerOptions":{"rootDir":"./packages/a/src","outDir":"./packages/a/dist"}}"#).unwrap();
+    std::fs::write(root.join("packages/a/package.json"), r#"{"name":"a"}"#).unwrap();
+    std::fs::write(root.join("packages/a/src/foo.ts"), "export const value = 1;").unwrap();
+    let package = crate::package_owners::Package { directory: "packages/a".to_owned(), name: "a".to_owned(), depends: Vec::new(), develops: Vec::new(), offers: vec!["./dist/*.js".to_owned()] };
+    let counted = std::collections::HashMap::from([("packages/a/src/foo.ts", 0)]);
+    let resolvers = crate::resolve::Resolvers::new(crate::resolve::Tsconfig::Auto, None);
+    assert_eq!(super::declared(&fixture.0.to_string_lossy(), &[&package], &counted, &[0], &resolvers), vec![vec![0]]);
+}

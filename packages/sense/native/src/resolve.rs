@@ -153,11 +153,6 @@ impl Resolvers {
         }
     }
 
-    /// A counted source's own path and outputs its declared layouts write.
-    pub(crate) fn spellings(&self, directory: &Path, path: &Path) -> Vec<String> {
-        self.emitted.spellings(directory, path, true)
-    }
-
     /// The module resolver for a request written in `from`: the default
     /// conditions plus the `customConditions` of the `tsconfig` that governs
     /// `from` — the config `oxc_resolver` already picked for its `paths`.

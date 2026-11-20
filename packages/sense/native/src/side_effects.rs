@@ -20,12 +20,13 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
 use napi_derive::napi;
 use serde_json::Value;
 
-use crate::emitted::Emitted;
+use crate::emitted::{Emitted, EMITTED};
 use crate::resolve::{Resolvers, Tsconfig};
 
 /// Where each source a file imports from lands: the repository path, the
@@ -82,7 +83,7 @@ fn declared(manifests: &mut HashMap<PathBuf, Option<Value>>, emitted: &Emitted, 
             Some(serde_json::from_str::<Value>(&text).unwrap_or(Value::Null))
         });
         let Some(manifest) = manifest else { continue };
-        let spelled = emitted.spellings(directory, path, false);
+        let spelled = spellings(emitted, directory, path);
         let matched = |pattern: &str| spelled.iter().any(|path| matches(pattern, path));
         return match manifest.get("sideEffects") {
             Some(Value::Bool(declared)) => *declared,
@@ -92,6 +93,28 @@ fn declared(manifests: &mut HashMap<PathBuf, Option<Value>>, emitted: &Emitted, 
         };
     }
     false
+}
+
+/// A file's path relative to its package, then every path the package's
+/// `tsconfig` writes it to as code.
+fn spellings(emitted: &Emitted, directory: &Path, path: &Path) -> Vec<String> {
+    let relative = |path: &Path| path.strip_prefix(directory).unwrap_or(path).to_string_lossy().replace('\\', "/");
+    let mut spelled = vec![relative(path)];
+    let name = path.file_name().and_then(OsStr::to_str).unwrap_or_default();
+    let code = EMITTED.iter().filter(|(output, _)| !output.starts_with(".d."));
+    for layout in emitted.declared(directory).iter() {
+        for mirror in layout.sources.iter().filter(|mirror| mirror.code) {
+            let Ok(rest) = path.strip_prefix(&mirror.root) else { continue };
+            for (output, sources) in code.clone() {
+                let from = sources.iter().find(|extension| name.len() > extension.len() && name.ends_with(*extension));
+                if let Some(extension) = from {
+                    let out = layout.out.join(rest).with_file_name(format!("{}{output}", &name[..name.len() - extension.len()]));
+                    spelled.push(relative(&out));
+                }
+            }
+        }
+    }
+    spelled
 }
 
 /// A `sideEffects` pattern against a path relative to its package: a pattern
