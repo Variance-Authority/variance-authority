@@ -41,10 +41,10 @@ a diff mattered. Both bills are driven by one quantity — how many comparisons
 are shown to a person — and an architecture fixes that quantity long before a
 report does.
 
+## 1. Compare the responsibilities that matter
+
 Vendor documentation is authoritative for vendor behaviour. Verify pricing and
 hosted-service features there before buying; both change independently.
-
-## 1. Compare the responsibilities that matter
 
 | Dimension | `toHaveScreenshot` | Percy | Chromatic | Argos | Applitools | Variance Authority |
 | --- | --- | --- | --- | --- | --- | --- |
