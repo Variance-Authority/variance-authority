@@ -29,6 +29,7 @@ export function stripped(
   limit: number,
   kept: PairedRows | undefined,
   whole: number,
+  threshold: number,
 ): AlignedStrip[] | undefined {
   const shorter = Math.min(beforeHeight, afterHeight);
   const flags = movedColumns(was, now, shorter, width);
@@ -62,7 +63,7 @@ export function stripped(
       else {
         const left = columnsOf(was, beforeHeight, width, from, to);
         const right = columnsOf(now, afterHeight, width, from, to);
-        ({ rows, paired } = pairWords(left, right, beforeHeight, afterHeight, columns, limit));
+        ({ rows, paired } = pairWords(left, right, beforeHeight, afterHeight, columns, limit, threshold));
       }
       placed += placedIn(was, now, shorter, width, from, to, paired - placed);
     }
