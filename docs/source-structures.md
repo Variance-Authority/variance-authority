@@ -187,29 +187,34 @@ process. The graph is what a run derives from the records and never persists.
 
 ## The digest map
 
-One content digest per path git lists, tracked or untracked but not ignored,
-with only the dirty ones opened. It runs `git ls-tree -r -z HEAD` for the
-committed blobs and overlays `git status --porcelain=v1 -z`. At the top of a
-checkout the status is run with `--untracked-files=normal` and no pathspec,
-the one shape git's untracked cache answers, and any directory it reports whole
-is listed with `git ls-files --others --exclude-standard`. Below the top it is
-run with `--untracked-files=all -- .`. Every path the status names is
-re-hashed in one `git hash-object --stdin-paths` call, except a path that is not
-a file on disk: a submodule, or a link to a directory or to nothing, has no bytes
-to hash and would fail the call for every file in it. Deleted and renamed-away
-paths are dropped. An ignored path, one that is not a file, or one in a call the
-hash failed on gets no entry, and the scan hashes any file among them itself on
-read.
+One content digest per tracked path and per unignored untracked path Git lists.
+The native reader uses git-oxide to read tracked paths and blob ids from Git's
+index, then compares local changes against that same loaded index. A sparse
+index is expanded by `git ls-files --stage`. Working bytes are hashed for
+changed paths, untracked files and symbolic-link targets.
+
+Git answers the comparison with `status --porcelain=v1 -z` when the repository
+uses a filesystem monitor, an untracked cache, a sparse checkout, a submodule or
+an `assume-unchanged` index entry. With an untracked cache and a configured
+untracked mode of `normal` or `all`, status uses that mode and no pathspec, even
+when the scan root is below the checkout root. Otherwise it uses
+`--untracked-files=normal` at the checkout root and
+`--untracked-files=all -- .` below it. Directories status reports whole are
+expanded with `git ls-files --others --exclude-standard`.
+
+Changed files are re-hashed in one `git hash-object --stdin-paths` call. Deleted
+and renamed-away paths are dropped. An ignored untracked path, a path that is not a file,
+or one whose hash call fails gets no entry; the scan hashes any file among them
+itself when reading it.
 
 **Key.** The repository-relative path, forward-slashed.
 
 **Lookup.** One map read, O(1).
 
-**Cost to build.** Three subprocesses, or four when the status collapsed a new
-directory, the last hashing every dirty file in one batch: O(n) to parse the tree listing and O(d) to hash. Outside a git checkout
-none of this is available, nothing is reused, and every file is read and hashed —
-so a run in an exported tarball or a non-git checkout pays the cold column every
-time.
+**Cost to build.** O(n) to read the index and compare the working tree, and O(d)
+to hash changed files. Watchman can reuse a listing or limit the comparison to
+reported changes. Outside a Git checkout, or when Git cannot answer, the scan
+reads and hashes files itself.
 
 **Trace.** A digest starting with `git:` is the blob's own object name, so
 `git cat-file -p <sha>` prints the exact bytes that were scanned. A `v1:` digest

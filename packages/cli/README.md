@@ -2309,29 +2309,27 @@ variance stage walk: 1.644 s, peak 2.13 GB (thread time: read 2.310 s, parse 15.
 The listing's line names its parts, each with its wall time, always in the
 order below, and leaves out a part that did not run:
 
-- `head` resolves the commit and HEAD's tree.
+- `locate` finds the checkout, its root and its index.
 - `held` reads the listing kept from the last update, asks Watchman whether it
   still stands, and takes Watchman's clock and the stamps of git's inputs for
   the next one. Each question it asks Watchman waits about a second at most. A
   watch that has not answered by then is no answer, and git lists.
-- `tree` reads HEAD's tree into the file list, and `ls-tree` asks git for it,
-  and reads what git prints, where the in-process reader cannot.
-- `worktree` walks the working tree, and `git status` asks git for its changes
-  where the walk cannot. Under a watch, it compares only the files Watchman
-  reports moved since the kept listing, which answers for the rest.
-- `compare` checks the walk against the tree.
+- `inventory` reads tracked paths and blob ids from Git's index through
+  git-oxide. `git ls-files`, part of it, asks Git to expand a sparse index or
+  read an index the native reader cannot decode.
+- `worktree` compares local changes against the same loaded index. `git status`
+  asks Git for its changes when a monitor, untracked cache, sparse checkout,
+  submodule or `assume-unchanged` index entry requires Git's comparison. Under a
+  watch, it compares only the files Watchman reports moved since the kept
+  listing, which answers for the rest.
 - `overlay` reads the changes and checks which are files, and `hash-object`,
   part of it, hashes the files that changed.
-- `merge` puts the changes into the tree's file list and sorts it.
+- `merge` puts the changes into the indexed file list and sorts it.
 - `seeds` and `assemble` build the list the update reads.
 
-`tree` and `worktree` run at the same time, and `overlay` holds `hash-object`,
-so the parts can add up to more than the line; a little work no part names,
-such as starting the walk's thread, is in the line alone:
-
-```
-variance stage listing: 0.654 s, peak 0.24 GB (head 0.009 s, held 0.126 s, tree 0.089 s, worktree 0.437 s, compare 0.040 s, overlay 0.009 s, hash-object 0.009 s, merge 0.021 s, seeds 0.004 s, assemble 0.007 s)
-```
+`inventory` includes `git ls-files`, and `overlay` includes `hash-object`, so
+nested times can add up to more than the line. Work no part names is counted
+only in the line's wall time.
 
 A directory git does not list prints a listing line with no parts. Each stage
 starts its sums from zero, so time spent before it is not counted, but the sums
