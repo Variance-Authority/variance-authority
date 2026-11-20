@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EdgeKind, FileRecord } from '@variance-authority/core/relate';
-import { treeAtWorkspace, treeOf } from './tree.js';
+import { treeOf } from './tree.js';
 
 /**
  * The walk against the imports, with the evidence for each file it reached.
@@ -61,8 +61,8 @@ describe('chainsTo', () => {
     const nested = treeOf(RECORDS.map((record) => ({
       file: `app/${record.file}`,
       edges: (record.edges ?? []).map((edge) => ({ ...edge, to: `app/${edge.to}` })),
-    })), '/repo');
-    const chains = treeAtWorkspace(nested, '/repo/app').chainsTo(['src/subject.ts']);
+    })), '/repo', '/repo/app');
+    const chains = nested.chainsTo(['src/subject.ts']);
     expect(chains.distance.get('app/src/c.ts')).toBe(2);
   });
 });

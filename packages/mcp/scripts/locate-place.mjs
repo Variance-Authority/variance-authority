@@ -66,7 +66,7 @@ const tree = root === undefined ? undefined : await readTree({ root });
 function hereOf(path) {
   for (let at = 0; at >= 0; at = path.indexOf('/', at + 1)) {
     const tail = path.slice(at + 1);
-    if (tree.files.has(tail)) return tail;
+    if (tree.has(tail)) return tail;
   }
   return undefined;
 }
@@ -141,7 +141,7 @@ const row = (name, key) =>
 const share = (of, key) => (of.asked === 0 ? '—' : `${((100 * of[key]) / of.asked).toFixed(1)}%`);
 
 console.log(`# ${reportPath}`);
-console.log(tree === undefined ? 'no source tree given' : `tree ${root} · ${tree.files.size} file(s)`);
+console.log(tree === undefined ? 'no source tree given' : `tree ${root} · ${tree.size} file(s)`);
 console.log();
 console.log('## the set');
 console.log(`${set.length} question(s) of ${asks.length} askable · ${subjects.length} subject(s)`);

@@ -2,13 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { closeSync, fstatSync, openSync, readSync, realpathSync } from 'node:fs';
 import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, relative, resolve } from 'node:path';
-import {
-  decodeSourceTree,
-  treeAtWorkspace,
-  treeOf,
-  type FileRecord,
-  type Tree,
-} from '@variance-authority/mcp/tools';
+import { publishedTreeOf, treeOf, type FileRecord, type Tree } from '@variance-authority/mcp/tools';
 import { SegmentCutShort } from '@variance-authority/core/segment';
 import type { Help } from '@variance-authority/package/help';
 import { readSourceRecords, restampHelpStore, sourceIndexPath } from '@variance-authority/sense';
@@ -172,7 +166,7 @@ export async function workspaceTreeOpens(held: StoreHead, index: string): Promis
   try {
     const tree = await readFile(workspaceTreePath(index, held.graphDigest));
     if (hexDigestOf(tree) !== held.graphDigest) return false;
-    decodeSourceTree(tree, held.graphRoot, held.root);
+    publishedTreeOf(tree, held.graphRoot, held.root);
     return true;
   } catch {
     return false;
@@ -212,7 +206,7 @@ export async function republishWorkspaceSnapshot(help: Help, index: string): Pro
 
 /** The tree published from `graph`, drawn over `graphRoot` and answered for `root`: the encoded bytes, or the records they encode. */
 export function publishedTree(graph: readonly FileRecord[] | Uint8Array, graphRoot: string, root: string): Tree {
-  return graph instanceof Uint8Array ? decodeSourceTree(graph, graphRoot, root) : treeAtWorkspace(treeOf(graph, graphRoot), root);
+  return graph instanceof Uint8Array ? publishedTreeOf(graph, graphRoot, root) : treeOf(graph, graphRoot, root);
 }
 
 /**

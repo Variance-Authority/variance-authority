@@ -112,6 +112,8 @@ export interface SearchIndex {
   exportedKind(row: number): number;
   /** The file of one exported row, without decoding the rest of it. */
   exportedAt(row: number): string;
+  /** The line of one exported row, without decoding its documentation. */
+  exportedLine(row: number): number;
   /** The file of one published row. */
   publishedAt(row: number): string;
   /** The rows a question names, by name, by file and by specifier, without the lists they are rows of. */
@@ -251,6 +253,7 @@ export function openHelpStore(bytes: Uint8Array): OpenedStore {
     exportedDocLength: (row) => docLength(exp.doc, expDocLowerOff, row),
     exportedKind: (row) => expKind[row] ?? 0,
     exportedAt: (row) => string(exp.at[row] ?? NONE),
+    exportedLine: (row) => exp.line[row] ?? 0,
     publishedAt: (row) => string(pub.at[row] ?? NONE),
     rows,
     nameCount: nameString.length,

@@ -58,8 +58,8 @@ describe('search from its published store', () => {
     let searchTree: Tree | undefined;
     const { index: search } = await readSearchForAnswer(root, { index: at, justAnswer: true, tree: (drawn) => { searchTree = drawn; } });
 
-    expect([...(tree?.files ?? [])].length).toBeGreaterThan(0);
-    expect([...(searchTree?.files ?? [])]).toEqual([...(tree?.files ?? [])]);
+    expect([...(tree?.files() ?? [])].length).toBeGreaterThan(0);
+    expect([...(searchTree?.files() ?? [])]).toEqual([...(tree?.files() ?? [])]);
     expect(QUESTIONS.map((args) => askSearch(search, args, () => searchTree, false, undefined, importingOf(help, undefined)))).toEqual(expected);
     expect(expected[0]).toContain('\nSnapshot ');
   });

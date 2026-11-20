@@ -93,7 +93,7 @@ export async function intersectionSource(
 ): Promise<Answering> {
   const sourced = await readSource(root, reading);
   const tree = sourced.tree?.();
-  const sourceIndex = namesWanted(input, tree?.files) ? generationSourceIndex(sourced.help, root, sourceIndexPath(root)) : undefined;
+  const sourceIndex = namesWanted(input, tree) ? generationSourceIndex(sourced.help, root, sourceIndexPath(root)) : undefined;
   const drawn = { ...(tree === undefined ? {} : { tree }), ...(sourceIndex === undefined ? {} : { sourceIndex }) };
   return {
     answer: () => intersection.run(sourced.help, input, invocationOf({ ...drawn, root })),

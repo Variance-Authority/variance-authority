@@ -318,7 +318,7 @@ fn refused(index: &str, error: String) -> napi::Error {
 }
 
 /// The layers `opened` holds, handed to `read`; `None` when there is no index.
-fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {
+pub(crate) fn opened_chain<T>(opened: &OpenedIndex, read: impl FnOnce(&[Layer]) -> T) -> napi::Result<Option<T>> {
     if opened.closed {
         return Err(napi::Error::from_reason(format!("the source index at {} was opened for a question that has ended", opened.index)));
     }

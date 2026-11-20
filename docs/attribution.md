@@ -4,7 +4,7 @@ A pixel differ answers one question — how many pixels differ — and *5482*
 cannot be read, cannot be assigned, and leaves you opening the image to look,
 which is the expensive act the tool was supposed to replace. Attribution turns
 the count into **this region, inside `Toggle`, in
-`main → region "Todos" → item 2 of 3`, written at
+`main → region "Todos" → list item 2 of 3`, written at
 `examples/todomvc/src/ds/components.tsx:107`.**
 
 Read this page to find out how a changed region is graded strong or faint, how
@@ -247,10 +247,14 @@ describes this build and no other.
 
 `locate` builds a phrase from the things a person would use to say where they
 are: the landmark they are in, the named region or dialog, and their position in
-a list. `main → region "Todos" → list → item 2 of 3` is a sentence somebody can
+a list. `main → region "Todos" → list item 2 of 3` is a sentence somebody can
 follow without opening a screenshot, and it stays true while the layout moves
-under it. A path that does not resolve produces an empty location rather than an
-exception; losing the phrase is not worth losing the finding.
+under it. Every node on the way down that has both a role and a name is a step
+of its own, the region's own node included: the [visual-review
+example](../examples/visual-review-case/README.md) places the Team card's
+repainted button at `main → region "Plans" → list item 2 of 3 → button
+"Choose"`. A path that does not resolve produces an empty location rather than
+an exception; losing the phrase is not worth losing the finding.
 
 ## Which line
 
@@ -409,6 +413,15 @@ takes the ordering from the tier that can, promoting `Toggle` above `Stack` whil
 leaving every attribution untouched. A region matches a cause under either
 namespace, author or enclosure, because a one-sided test finds nothing and
 silently reverts to area.
+
+A region whose component is not one of the causes is **collateral**: only its
+geometry changed, which usually means a cause moved it, though a size declared
+on the component itself counts as geometry too. The [visual-review
+example](../examples/visual-review-case/README.md) inserts a notice above three
+cards, and the plan names and prices under it are reported collateral. The
+label comes from their inputs, which did not change, not from
+their pixels: the row alignment pairs each moved row with the row it was, so
+they leave no differing region at all.
 
 Two limits:
 

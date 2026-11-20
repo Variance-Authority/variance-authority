@@ -31,11 +31,11 @@ use crate::specifier::{is_relative, kind_for, request_of};
 use crate::segment::{encode_as, u32s, u8s, Collected, Strings, NONE};
 use crate::compact::Layer;
 
-const FORMAT: &str = "variance-authority-source-tree";
+pub(crate) const FORMAT: &str = "variance-authority-source-tree";
 /// 2: the tree carries what tests load for real beside their mocks.
-const VERSION: u8 = 2;
+pub(crate) const VERSION: u8 = 2;
 /// `EDGE_KINDS` in `core/relate/graph.ts`, in its order.
-const EDGE_KINDS: [&str; 8] = ["imports", "reexports", "dynamic", "type", "asset", "declared-in", "depends-on", "depends"];
+pub(crate) const EDGE_KINDS: [&str; 8] = ["imports", "reexports", "dynamic", "type", "asset", "declared-in", "depends-on", "depends"];
 
 /// How a test's loads beside its mocks are resolved: from the checkout at
 /// `root`, by `resolvers`, with `code` the extensions read as code.

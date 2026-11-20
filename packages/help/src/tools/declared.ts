@@ -248,7 +248,8 @@ export function declaredAt(help: Help, root: string | undefined, name: string, w
  * that is the query as written comes first, the same name in another case
  * second, every name only holding it after them, and a doc alone saying it last. Members and functions
  * inside a function are `held`, every one, ordered the same way, and `exact`
- * counts the ones at its head that are the question.
+ * counts the ones at its head that are the question. `file` receives each
+ * top-level match's coordinates before the display cap.
  */
 export function declaredMatches(
   root: string | undefined,
@@ -256,6 +257,7 @@ export function declaredMatches(
   files: Iterable<string> | undefined,
   cap: number,
   told: (one: DeclaredRead) => DeclaredMatch,
+  file?: (at: string, line?: number) => void,
 ): { readonly declared: Matches<DeclaredMatch> & { readonly unread: readonly string[] }; readonly held: readonly HeldMatch[]; readonly exact: number } | undefined {
   const read = declarations(root, query, files === undefined ? { containing: true } : { containing: true, files });
   if ('refused' in read) return undefined;
@@ -266,6 +268,7 @@ export function declaredMatches(
   const names = [...read.names].sort((left, right) => written(left) - written(right));
   const top = names.filter((one) => !isNested(one) && !isMember(one));
   const held = names.filter((one) => isNested(one) || isMember(one));
+  if (file !== undefined) for (const one of top) file(one.at, one.line);
   return {
     declared: { total: top.length, shown: top.slice(0, cap).map(declaredMatch).map(told), unread: read.unread },
     held: held.map(heldMatch),

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { FileRecord } from '@variance-authority/core/relate';
-import { decodeSourceTree, encodeSourceTree } from './source-tree-format.js';
-import { treeOf } from './tree.js';
+import { encodeSourceTree } from './source-tree-format.js';
+import { publishedTreeOf } from './tree.js';
 
 const records: readonly FileRecord[] = [
   { file: 'src/a.ts', edges: [{ to: 'src/b.ts', kind: 'imports' }] },
@@ -17,21 +17,28 @@ const records: readonly FileRecord[] = [
 ];
 
 describe('published source tree', () => {
-  it('answers the same path questions as the record fold', () => {
-    const expected = treeOf(records, '/repo');
-    const decoded = decodeSourceTree(encodeSourceTree(records), '/repo');
+  it('answers path questions from the published bytes', () => {
+    const decoded = publishedTreeOf(encodeSourceTree(records), '/repo');
 
     expect(decoded.root).toBe('/repo');
-    expect([...decoded.files]).toEqual([...expected.files]);
-    expect([...decoded.reachedFrom(['src/a.ts'])]).toEqual([...expected.reachedFrom(['src/a.ts'])]);
-    expect([...decoded.reaching(['src/c.ts'])]).toEqual([...expected.reaching(['src/c.ts'])]);
-    expect([...decoded.distanceFrom(['src/a.ts'])]).toEqual([...expected.distanceFrom(['src/a.ts'])]);
-    expect([...decoded.distanceTo(['src/c.ts'])]).toEqual([...expected.distanceTo(['src/c.ts'])]);
-    expect(decoded.unknownAmong(decoded.files)).toEqual(expected.unknownAmong(expected.files));
+    expect([...decoded.files()]).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts', 'src/lone.ts']);
+    expect([...decoded.reachedFrom(['src/a.ts'])]).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts']);
+    expect([...decoded.reaching(['src/c.ts'])]).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts']);
+    expect([...decoded.distanceFrom(['src/a.ts'])]).toEqual([
+      ['src/a.ts', 0],
+      ['src/b.ts', 1],
+      ['src/c.ts', 2],
+    ]);
+    expect([...decoded.distanceTo(['src/c.ts'])]).toEqual([
+      ['src/a.ts', 2],
+      ['src/b.ts', 1],
+      ['src/c.ts', 0],
+    ]);
+    expect(decoded.unknownFiles()).toEqual(['src/c.ts']);
   });
 
   it('retains a target that has no record of its own', () => {
-    const decoded = decodeSourceTree(
+    const decoded = publishedTreeOf(
       encodeSourceTree([{ file: 'src/a.ts', edges: [{ to: 'src/missing.ts', kind: 'imports' }] }]),
       '/repo',
     );
@@ -39,11 +46,11 @@ describe('published source tree', () => {
   });
 
   it('accepts paths relative to a workspace inside the graph root', () => {
-    const decoded = decodeSourceTree(encodeSourceTree(records), '/repo', '/repo/product');
+    const decoded = publishedTreeOf(encodeSourceTree(records), '/repo', '/repo/product');
     expect(decoded.root).toBe('/repo/product');
-    expect([...decoded.files]).toEqual([]);
+    expect([...decoded.files()]).toEqual([]);
 
-    const nested = decodeSourceTree(
+    const nested = publishedTreeOf(
       encodeSourceTree([
         { file: 'product/src/a.ts', edges: [{ to: 'shared/b.ts', kind: 'imports' }] },
         { file: 'shared/b.ts' },
@@ -51,7 +58,7 @@ describe('published source tree', () => {
       '/repo',
       '/repo/product',
     );
-    expect([...nested.files]).toEqual(['src/a.ts']);
+    expect([...nested.files()]).toEqual(['src/a.ts']);
     expect([...nested.reachedFrom(['src/a.ts'])]).toEqual(['product/src/a.ts', 'shared/b.ts']);
   });
 });
