@@ -5,6 +5,11 @@ description: How to use `variance`, the Variance Authority CLI. Read it before y
 
 # Variance Authority
 
+Choose the evidence before a command: text outside the source graph, such as
+workflow YAML, goes to the text search you already use, and source to the
+[workspace API](references/workspace-api.md#names-then-relations), which says
+where one ends and the other begins.
+
 Every command here reads. It reads a file a run left, a watcher that is still
 listening, the test-selection recording, or the checkout's source. None of them
 renders, navigates, clicks, replays an event or starts a suite. Never drive the
@@ -132,7 +137,7 @@ when its condition holds, not before.
 | Where does this one test, or the few I am looking into, go, and in what order? What was each function handed, and where did this object come from? | [story](references/story.md) | |
 | Which tests does this edit need, and which first? What does a distance or a `bearing` mean? | [test selection](references/test-selection.md) | you are writing a suite's `before` or `relations`, the selection came back whole, missed a config file, or a recorded run times out: [selection wiring](references/selection-wiring.md); you need distances, the `because` trail or a diff that is not a ref: [selection API](references/selection-api.md) |
 | What can this test be reduced to? How much of what each test file loads does it use, as percentiles across a suite? | [distill](references/distill.md) | an input file is missing: [producers](references/producers.md) |
-| What does this workspace publish? Where is a name declared, and who imports it? Where are the words of a task, and which packages are they in? | [workspace API](references/workspace-api.md) | you need why a name exists or what it connects to: [what is written about a name](references/written-about-a-name.md) |
+| What does this workspace publish? Where is a source name declared, and who imports it? Which source declarations match the words of a task? | [workspace API](references/workspace-api.md) | you need why a name exists or what it connects to: [what is written about a name](references/written-about-a-name.md) |
 | Where am I in this codebase, what runs here, what can this file import, and which tests are slowest? | [orient](references/orient.md) | |
 | The client holds an MCP connection, or you are writing its config | [MCP](references/mcp.md) | then the row for the question itself |
 | A Cloudflare tribunal needs setting up, a token, or its Access values; CI says the ingest token is not set | [deploy a tribunal](references/deploy-a-tribunal.md) | |
