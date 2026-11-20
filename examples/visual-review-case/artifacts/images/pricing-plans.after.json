@@ -1,0 +1,418 @@
+{
+  "documentDigest": "v1:8020fcab3254df175ef4e62da56a4807",
+  "identity": {
+    "renderer": "playwright-chromium",
+    "engine": "chromium@156.0.8078.4",
+    "platform": "darwin/arm64",
+    "deviceScaleFactor": 1,
+    "fonts": [
+      "Arial/400/normal/system",
+      "Arial/600/normal/system"
+    ],
+    "stabilization": "v1:80024b1adabdaed86c9f1578cedb626a",
+    "rasterization": "v1:66ea57e507094ae95afd1ad467e8cc84"
+  },
+  "width": 480,
+  "height": 332,
+  "missingFonts": [],
+  "components": [
+    {
+      "component": "ChooseButton",
+      "instances": 3,
+      "structure": "v1:0420d437dbc9b7a5193ef41ff7ce353f",
+      "semantics": "v1:1ab8470a7412cc0813551795528c4fe1",
+      "text": "v1:09a58bf04e74f69d1f8291e54fa75f8d",
+      "style": "v1:9e66a85abe427bbe2bd205b4bbf14be0",
+      "geometry": "v1:11a7b2945f6caf1a387187690bc048a0",
+      "boxes": [
+        {
+          "x": 360,
+          "y": 60,
+          "width": 104,
+          "height": 40
+        },
+        {
+          "x": 360,
+          "y": 156,
+          "width": 104,
+          "height": 40
+        },
+        {
+          "x": 360,
+          "y": 252,
+          "width": 104,
+          "height": 40
+        }
+      ],
+      "values": {
+        "background-color": [
+          "rgb(255 74 25 / 1)",
+          "rgb(36 40 42 / 1)"
+        ],
+        "border-bottom-color": [
+          "rgb(255 255 255 / 1)"
+        ],
+        "border-bottom-left-radius": [
+          "6px"
+        ],
+        "border-bottom-right-radius": [
+          "6px"
+        ],
+        "border-bottom-style": [
+          "none"
+        ],
+        "border-bottom-width": [
+          "0"
+        ],
+        "border-left-color": [
+          "rgb(255 255 255 / 1)"
+        ],
+        "border-left-style": [
+          "none"
+        ],
+        "border-left-width": [
+          "0"
+        ],
+        "border-right-color": [
+          "rgb(255 255 255 / 1)"
+        ],
+        "border-right-style": [
+          "none"
+        ],
+        "border-right-width": [
+          "0"
+        ],
+        "border-top-color": [
+          "rgb(255 255 255 / 1)"
+        ],
+        "border-top-left-radius": [
+          "6px"
+        ],
+        "border-top-right-radius": [
+          "6px"
+        ],
+        "border-top-style": [
+          "none"
+        ],
+        "border-top-width": [
+          "0"
+        ],
+        "color": [
+          "rgb(255 255 255 / 1)"
+        ],
+        "font-family": [
+          "arial, sans-serif"
+        ],
+        "font-size": [
+          "16px"
+        ],
+        "font-stretch": [
+          "100%"
+        ],
+        "font-style": [
+          "normal"
+        ],
+        "font-weight": [
+          "600"
+        ],
+        "line-height": [
+          "normal"
+        ]
+      }
+    },
+    {
+      "component": "Notice",
+      "instances": 1,
+      "structure": "v1:5b01ee69696ac13fa57fb08ea7151b86",
+      "semantics": "v1:483faa4b1bef25b062dfb242b3413be6",
+      "text": "v1:d8aea2069a35bb09360dae88354ec408",
+      "style": "v1:8e6c087c9b9fe061ea7a607bf70ff163",
+      "geometry": "v1:28b9ec5df43ede55703195bc0a3c48da",
+      "boxes": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 480,
+          "height": 44
+        }
+      ],
+      "values": {
+        "background-clip": [
+          "border-box"
+        ],
+        "background-color": [
+          "rgb(255 244 214 / 1)"
+        ],
+        "background-image": [
+          "none"
+        ],
+        "background-origin": [
+          "padding-box"
+        ],
+        "background-repeat": [
+          "repeat"
+        ],
+        "background-size": [
+          "auto"
+        ],
+        "color": [
+          "rgb(36 40 42 / 1)"
+        ],
+        "font-family": [
+          "arial, sans-serif"
+        ],
+        "font-size": [
+          "16px"
+        ],
+        "font-stretch": [
+          "100%"
+        ],
+        "font-style": [
+          "normal"
+        ],
+        "font-weight": [
+          "400"
+        ],
+        "line-height": [
+          "20px"
+        ],
+        "margin-bottom": [
+          "0"
+        ],
+        "margin-left": [
+          "0"
+        ],
+        "margin-right": [
+          "0"
+        ],
+        "margin-top": [
+          "0"
+        ],
+        "padding-bottom": [
+          "12px"
+        ],
+        "padding-left": [
+          "16px"
+        ],
+        "padding-right": [
+          "16px"
+        ],
+        "padding-top": [
+          "12px"
+        ]
+      }
+    },
+    {
+      "component": "PlanCard",
+      "instances": 3,
+      "structure": "v1:74d87a14036abf06d397c054976e5e93",
+      "semantics": "v1:6ece67b3143ae3316b7f4774b1ca7f68",
+      "text": "v1:e5dc9fe4bb6fc272ccedbb70701c09a2",
+      "style": "v1:1501dc031b449b2d00b397b7184ebf38",
+      "geometry": "v1:8eafa5454f134361027b8f98af382437",
+      "boxes": [
+        {
+          "x": 0,
+          "y": 44,
+          "width": 480,
+          "height": 96
+        },
+        {
+          "x": 0,
+          "y": 140,
+          "width": 480,
+          "height": 96
+        },
+        {
+          "x": 0,
+          "y": 236,
+          "width": 480,
+          "height": 96
+        }
+      ],
+      "values": {
+        "align-items": [
+          "flex-start"
+        ],
+        "border-bottom-color": [
+          "rgb(216 216 216 / 1)"
+        ],
+        "border-bottom-style": [
+          "solid"
+        ],
+        "border-bottom-width": [
+          "1px"
+        ],
+        "box-sizing": [
+          "border-box"
+        ],
+        "display": [
+          "flex"
+        ],
+        "justify-content": [
+          "space-between"
+        ],
+        "padding-bottom": [
+          "16px"
+        ],
+        "padding-left": [
+          "16px"
+        ],
+        "padding-right": [
+          "16px"
+        ],
+        "padding-top": [
+          "16px"
+        ]
+      }
+    },
+    {
+      "component": "PlanName",
+      "instances": 3,
+      "structure": "v1:286afa027897a651d141cbc4a18d99a4",
+      "semantics": "v1:cf3fc8ef0628d2263a742c1da764c190",
+      "text": "v1:6842aadf6af519e243e59edcb52ac101",
+      "style": "v1:f2b3fd6540964ad47b01410274fd8de4",
+      "geometry": "v1:b0d2b4cd2f98486dbf2fcb1a9d925c1a",
+      "boxes": [
+        {
+          "x": 16,
+          "y": 60,
+          "width": 200,
+          "height": 20
+        },
+        {
+          "x": 16,
+          "y": 156,
+          "width": 200,
+          "height": 20
+        },
+        {
+          "x": 16,
+          "y": 252,
+          "width": 200,
+          "height": 20
+        }
+      ],
+      "values": {
+        "color": [
+          "rgb(36 40 42 / 1)"
+        ],
+        "font-family": [
+          "arial, sans-serif"
+        ],
+        "font-size": [
+          "16px"
+        ],
+        "font-stretch": [
+          "100%"
+        ],
+        "font-style": [
+          "normal"
+        ],
+        "font-weight": [
+          "600"
+        ],
+        "line-height": [
+          "20px"
+        ]
+      }
+    },
+    {
+      "component": "Plans",
+      "instances": 1,
+      "structure": "v1:9ef3e3112ff5d632e0d11c7db6ecb224",
+      "semantics": "v1:81119164addb51b54f61f8cdbeb6ec9f",
+      "text": "v1:ea9c81c9e6979a72d07bdb73293e73f0",
+      "style": "v1:e4e573b0e50239333e629a4718b3f1b3",
+      "geometry": "v1:9bd8c405599e746c2b65ccf17151ec17",
+      "boxes": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 480,
+          "height": 332
+        }
+      ],
+      "values": {
+        "background-clip": [
+          "border-box"
+        ],
+        "background-color": [
+          "rgb(255 255 255 / 1)"
+        ],
+        "background-image": [
+          "none"
+        ],
+        "background-origin": [
+          "padding-box"
+        ],
+        "background-repeat": [
+          "repeat"
+        ],
+        "background-size": [
+          "auto"
+        ],
+        "display": [
+          "block"
+        ],
+        "margin-bottom": [
+          "0"
+        ],
+        "margin-left": [
+          "0"
+        ],
+        "margin-right": [
+          "0"
+        ],
+        "margin-top": [
+          "0"
+        ],
+        "padding-bottom": [
+          "0"
+        ],
+        "padding-left": [
+          "0"
+        ],
+        "padding-right": [
+          "0"
+        ],
+        "padding-top": [
+          "0"
+        ]
+      }
+    },
+    {
+      "component": "Price",
+      "instances": 3,
+      "structure": "v1:9e17b50cb13d205b1f88f91fbb6d6805",
+      "semantics": "v1:4d837355e50511cccd6c69a0bbbb6cf9",
+      "text": "v1:1cf7ed9cec54e9911993026a8549f3b0",
+      "style": "v1:bf86443b84fae3195a8b9c78abc848e3",
+      "geometry": "v1:5c87cb108d4d7469914f573b32f8dde9",
+      "boxes": [
+        {
+          "x": 16,
+          "y": 88,
+          "width": 200,
+          "height": 20
+        },
+        {
+          "x": 16,
+          "y": 184,
+          "width": 200,
+          "height": 20
+        },
+        {
+          "x": 16,
+          "y": 280,
+          "width": 200,
+          "height": 20
+        }
+      ],
+      "values": {}
+    }
+  ],
+  "snapshot": "v1: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",
+  "findingMarks": []
+}

@@ -10,6 +10,29 @@ A **subject** is one named UI state you asked for and can ask for again,
 identified by a stable id like `story:checkout--empty`. Every question here is
 asked about one.
 
+## Start from the report
+
+Some of the explanation is already on the report. `variance ask describe`
+lists each component as a cause, whose own inputs changed, or collateral, whose
+box alone moved, and each region with its component, its place in the
+page and its source line. In the
+[visual-review example](../examples/visual-review-case/README.md), a notice
+inserted above three cards pushes the plan names and prices down, and the
+report labels them collateral beside the causes (an excerpt):
+
+```text
+  cause      Notice — added
+  collateral PlanName — geometry
+  collateral Price — geometry
+```
+
+For a collateral component, start from the causes the report names, as
+[Review a visual change](path-visual-review.md#a-shift-is-told-from-a-change)
+does for the whole report. The label says only that the component's own
+box is all that moved, not which cause moved it; when no cause accounts
+for the move, the table below is for it, as for any region the report leaves
+unexplained.
+
 ## Ask what kind of explanation is missing
 
 | Question | Route |

@@ -1,0 +1,746 @@
+{
+  "runVersion": 1,
+  "at": "2026-11-20T10:45:49.960Z",
+  "identity": {
+    "renderer": "playwright-chromium",
+    "engine": "chromium@156.0.8078.4",
+    "platform": "darwin/arm64",
+    "deviceScaleFactor": 1,
+    "fonts": [
+      "Arial/400/normal/system",
+      "Arial/600/normal/system"
+    ],
+    "stabilization": "v1:80024b1adabdaed86c9f1578cedb626a",
+    "rasterization": "v1:66ea57e507094ae95afd1ad467e8cc84"
+  },
+  "retention": "durable",
+  "observations": [
+    {
+      "subject": "pricing-plans",
+      "verdict": "changed",
+      "because": "26,230 pixels differ across 2 strong regions in Notice, ChooseButton, and 3 faint regions, 1 changed in shape and 4 only in colour; 44 pixel rows inserted in 1 place, moving the content under them by up to 44 rows, and the subject resized from 480×288 to 480×332",
+      "changedPixels": 26230,
+      "signals": {
+        "document": "changed",
+        "pixels": "changed"
+      },
+      "moved": [
+        {
+          "component": "ChooseButton",
+          "bands": [
+            "geometry",
+            "token"
+          ],
+          "cause": true,
+          "changed": [
+            {
+              "property": "background-color",
+              "from": [],
+              "to": [
+                "rgb(255 74 25 / 1)"
+              ]
+            }
+          ]
+        },
+        {
+          "component": "Notice",
+          "bands": [
+            "geometry"
+          ],
+          "cause": true,
+          "presence": "added"
+        },
+        {
+          "component": "PlanCard",
+          "bands": [
+            "geometry",
+            "token"
+          ],
+          "cause": true,
+          "changed": [
+            {
+              "property": "border-bottom-color",
+              "from": [
+                "rgb(226 226 226 / 1)"
+              ],
+              "to": [
+                "rgb(216 216 216 / 1)"
+              ]
+            }
+          ]
+        },
+        {
+          "component": "PlanName",
+          "bands": [
+            "geometry"
+          ],
+          "cause": false
+        },
+        {
+          "component": "Plans",
+          "bands": [
+            "geometry"
+          ],
+          "cause": true,
+          "grew": {
+            "width": 0,
+            "height": 44
+          }
+        },
+        {
+          "component": "Price",
+          "bands": [
+            "geometry"
+          ],
+          "cause": false
+        }
+      ],
+      "regions": [
+        {
+          "x": 0,
+          "y": 0,
+          "width": 480,
+          "height": 44,
+          "pixels": 21120,
+          "grade": 4,
+          "cause": true,
+          "component": "Notice",
+          "path": "0/0/0",
+          "where": "main → region \"Plans\"",
+          "file": "examples/visual-review-case/src/plans.js:78",
+          "fingerprint": "v1:f1c4133d51a5f6a29ef2b9be9149875d"
+        },
+        {
+          "x": 360,
+          "y": 156,
+          "width": 104,
+          "height": 40,
+          "pixels": 3670,
+          "grade": 4,
+          "cause": true,
+          "component": "ChooseButton",
+          "path": "0/0/1/1/2",
+          "where": "main → region \"Plans\" → list item 2 of 3 → button \"Choose\"",
+          "file": "examples/visual-review-case/src/plans.js:64",
+          "fingerprint": "v1:f0ceae0539be67e3c965076afb3829ee"
+        },
+        {
+          "x": 0,
+          "y": 139,
+          "width": 480,
+          "height": 1,
+          "pixels": 480,
+          "grade": 1,
+          "cause": true,
+          "component": "PlanCard",
+          "path": "0/0/1/1",
+          "where": "main → region \"Plans\" → list item 2 of 3",
+          "file": "examples/visual-review-case/src/plans.js:91",
+          "fingerprint": "v1:2d5eb4341f37d8dc61f20526efaf0df4"
+        },
+        {
+          "x": 0,
+          "y": 235,
+          "width": 480,
+          "height": 1,
+          "pixels": 480,
+          "grade": 1,
+          "cause": true,
+          "component": "PlanCard",
+          "path": "0/0/1/2",
+          "where": "main → region \"Plans\" → list item 3 of 3",
+          "file": "examples/visual-review-case/src/plans.js:91",
+          "fingerprint": "v1:2d5eb4341f37d8dc61f20526efaf0df4"
+        },
+        {
+          "x": 0,
+          "y": 331,
+          "width": 480,
+          "height": 1,
+          "pixels": 480,
+          "grade": 1,
+          "cause": true,
+          "component": "PlanCard",
+          "path": "0/0/1/2",
+          "where": "main → region \"Plans\" → list item 3 of 3",
+          "file": "examples/visual-review-case/src/plans.js:91",
+          "fingerprint": "v1:2d5eb4341f37d8dc61f20526efaf0df4"
+        }
+      ],
+      "findings": [],
+      "images": {
+        "record": "images/pricing-plans.after.json",
+        "before": "images/pricing-plans.before.webp",
+        "after": "images/pricing-plans.after.png",
+        "diff": "images/pricing-plans.diff.png",
+        "change": "images/pricing-plans.change.png"
+      },
+      "alone": {
+        "reproduced": true,
+        "because": "not re-run alone: collector has no `collectAlone`"
+      },
+      "costMs": 123.98416600000002,
+      "steps": [
+        {
+          "step": "compose",
+          "ms": 3.4
+        },
+        {
+          "step": "inspect",
+          "ms": 0.3
+        },
+        {
+          "step": "settle",
+          "ms": 0.9
+        },
+        {
+          "step": "baseline",
+          "ms": 0.7
+        },
+        {
+          "step": "cache.get",
+          "ms": 0.5
+        },
+        {
+          "step": "decode",
+          "ms": 2.7
+        },
+        {
+          "step": "compare",
+          "ms": 10.8
+        },
+        {
+          "step": "write",
+          "ms": 60.6
+        },
+        {
+          "step": "again.collect",
+          "ms": 9
+        }
+      ]
+    }
+  ],
+  "notObserved": [],
+  "workers": 1,
+  "steps": [
+    {
+      "step": "again.collect",
+      "ms": 9,
+      "subjects": 1
+    },
+    {
+      "step": "baseline",
+      "ms": 0.7,
+      "subjects": 1
+    },
+    {
+      "step": "cache.get",
+      "ms": 0.5,
+      "subjects": 1
+    },
+    {
+      "step": "compare",
+      "ms": 10.8,
+      "subjects": 1
+    },
+    {
+      "step": "compose",
+      "ms": 3.4,
+      "subjects": 1
+    },
+    {
+      "step": "decode",
+      "ms": 2.7,
+      "subjects": 1
+    },
+    {
+      "step": "inspect",
+      "ms": 0.3,
+      "subjects": 1
+    },
+    {
+      "step": "settle",
+      "ms": 0.9,
+      "subjects": 1
+    },
+    {
+      "step": "write",
+      "ms": 60.6,
+      "subjects": 1
+    }
+  ],
+  "composition": {
+    "subjects": [
+      "pricing-plans"
+    ],
+    "components": [
+      {
+        "component": "ChooseButton",
+        "subjects": [
+          "pricing-plans"
+        ],
+        "instances": 3,
+        "examples": [],
+        "within": [
+          "PlanCard"
+        ],
+        "createdBy": [],
+        "renders": [],
+        "tokens": [],
+        "variants": 2,
+        "renderings": 2
+      },
+      {
+        "component": "Notice",
+        "subjects": [
+          "pricing-plans"
+        ],
+        "instances": 1,
+        "examples": [],
+        "within": [
+          "Plans"
+        ],
+        "createdBy": [],
+        "renders": [],
+        "tokens": [],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "PlanCard",
+        "subjects": [
+          "pricing-plans"
+        ],
+        "instances": 3,
+        "examples": [],
+        "within": [
+          "Plans"
+        ],
+        "createdBy": [],
+        "renders": [
+          "ChooseButton",
+          "PlanName",
+          "Price"
+        ],
+        "tokens": [],
+        "variants": 3,
+        "renderings": 3
+      },
+      {
+        "component": "PlanName",
+        "subjects": [
+          "pricing-plans"
+        ],
+        "instances": 3,
+        "examples": [],
+        "within": [
+          "PlanCard"
+        ],
+        "createdBy": [],
+        "renders": [],
+        "tokens": [],
+        "variants": 3,
+        "renderings": 3
+      },
+      {
+        "component": "Plans",
+        "subjects": [
+          "pricing-plans"
+        ],
+        "instances": 1,
+        "examples": [
+          "pricing-plans"
+        ],
+        "within": [],
+        "createdBy": [],
+        "renders": [
+          "Notice",
+          "PlanCard"
+        ],
+        "tokens": [],
+        "variants": 1,
+        "renderings": 1
+      },
+      {
+        "component": "Price",
+        "subjects": [
+          "pricing-plans"
+        ],
+        "instances": 3,
+        "examples": [],
+        "within": [
+          "PlanCard"
+        ],
+        "createdBy": [],
+        "renders": [],
+        "tokens": [],
+        "variants": 3,
+        "renderings": 3
+      }
+    ],
+    "echoes": [],
+    "divergences": [],
+    "movements": [
+      {
+        "subject": "pricing-plans",
+        "component": "Notice",
+        "bands": [],
+        "cause": "unexplained",
+        "because": "nothing was asked about what changed, so nothing here explains it — run with `--against` to reach the first rung",
+        "alsoIn": [],
+        "held": [],
+        "compared": 0,
+        "standing": "suspect"
+      },
+      {
+        "subject": "pricing-plans",
+        "component": "ChooseButton",
+        "bands": [],
+        "cause": "unexplained",
+        "because": "nothing was asked about what changed, so nothing here explains it — run with `--against` to reach the first rung",
+        "alsoIn": [],
+        "held": [],
+        "compared": 0,
+        "standing": "suspect"
+      },
+      {
+        "subject": "pricing-plans",
+        "component": "PlanCard",
+        "bands": [],
+        "cause": "unexplained",
+        "because": "nothing was asked about what changed, so nothing here explains it — run with `--against` to reach the first rung",
+        "alsoIn": [],
+        "held": [],
+        "compared": 0,
+        "standing": "suspect"
+      }
+    ],
+    "structure": [
+      {
+        "subject": "pricing-plans",
+        "rows": [
+          {
+            "component": "Plans",
+            "depth": 0,
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "Notice",
+            "depth": 1,
+            "within": "Plans",
+            "count": 1,
+            "variants": 1
+          },
+          {
+            "component": "PlanCard",
+            "depth": 1,
+            "within": "Plans",
+            "count": 3,
+            "variants": 3
+          },
+          {
+            "component": "PlanName",
+            "depth": 2,
+            "within": "PlanCard",
+            "count": 3,
+            "variants": 3
+          },
+          {
+            "component": "Price",
+            "depth": 2,
+            "within": "PlanCard",
+            "count": 3,
+            "variants": 3
+          },
+          {
+            "component": "ChooseButton",
+            "depth": 2,
+            "within": "PlanCard",
+            "count": 3,
+            "variants": 2
+          }
+        ],
+        "pieces": {
+          "footprint": 0,
+          "structure": 6,
+          "alike": [],
+          "pieces": [],
+          "wholes": [],
+          "explained": 0,
+          "own": [],
+          "inContext": []
+        }
+      }
+    ]
+  },
+  "lexicon": {
+    "version": 1,
+    "fields": [
+      "example",
+      "names",
+      "text",
+      "components",
+      "createdBy",
+      "files",
+      "roles",
+      "tokens"
+    ],
+    "declaredIn": {
+      "ACCENT": [
+        "examples/visual-review-case/src/plans.js"
+      ],
+      "ChooseButton": [
+        "examples/visual-review-case/src/plans.js"
+      ],
+      "FONT": [
+        "examples/visual-review-case/src/plans.js"
+      ],
+      "NOTICE": [
+        "examples/visual-review-case/src/plans.js"
+      ],
+      "Notice": [
+        "examples/visual-review-case/src/plans.js"
+      ],
+      "PLANS": [
+        "examples/visual-review-case/src/plans.js"
+      ],
+      "PlanCard": [
+        "examples/visual-review-case/src/plans.js"
+      ],
+      "PlanName": [
+        "examples/visual-review-case/src/plans.js"
+      ],
+      "Plans": [
+        "examples/visual-review-case/src/plans.js"
+      ],
+      "Price": [
+        "examples/visual-review-case/src/plans.js"
+      ],
+      "RULE": [
+        "examples/visual-review-case/src/plans.js"
+      ]
+    },
+    "subjects": [
+      {
+        "subject": "pricing-plans",
+        "boundaries": 14,
+        "terms": {
+          "example": [
+            "Plans"
+          ],
+          "names": [
+            "Choose",
+            "Plans",
+            "Scale",
+            "Starter",
+            "Team"
+          ],
+          "text": [
+            "$0 a month",
+            "$12 a month",
+            "$40 a month",
+            "Choose",
+            "Prices change on 1 March.",
+            "Scale",
+            "Starter",
+            "Team"
+          ],
+          "components": [
+            "ChooseButton",
+            "Notice",
+            "PlanCard",
+            "PlanName",
+            "Plans",
+            "Price"
+          ],
+          "files": [
+            "examples/visual-review-case/src/plans.js"
+          ],
+          "roles": [
+            "button",
+            "heading",
+            "list",
+            "main",
+            "paragraph",
+            "region"
+          ]
+        },
+        "landmarks": [
+          {
+            "role": "main",
+            "box": [
+              0,
+              0,
+              480,
+              332
+            ],
+            "component": "Plans",
+            "createdBy": "Plans"
+          },
+          {
+            "role": "region",
+            "name": "Plans",
+            "within": 0,
+            "box": [
+              0,
+              0,
+              480,
+              332
+            ],
+            "component": "Plans",
+            "createdBy": "Plans"
+          },
+          {
+            "role": "paragraph",
+            "text": "Prices change on 1 March.",
+            "within": 1,
+            "box": [
+              0,
+              0,
+              480,
+              44
+            ],
+            "component": "Notice",
+            "createdBy": "Notice"
+          },
+          {
+            "role": "list",
+            "within": 1,
+            "box": [
+              0,
+              44,
+              480,
+              288
+            ],
+            "component": "Plans",
+            "createdBy": "Plans"
+          },
+          {
+            "role": "heading",
+            "name": "Starter",
+            "text": "Starter",
+            "within": 3,
+            "box": [
+              16,
+              60,
+              200,
+              20
+            ],
+            "component": "PlanName",
+            "createdBy": "PlanName"
+          },
+          {
+            "role": "paragraph",
+            "text": "$0 a month",
+            "within": 3,
+            "box": [
+              16,
+              88,
+              200,
+              20
+            ],
+            "component": "Price",
+            "createdBy": "Price"
+          },
+          {
+            "role": "button",
+            "name": "Choose",
+            "text": "Choose",
+            "within": 3,
+            "box": [
+              360,
+              60,
+              104,
+              40
+            ],
+            "component": "ChooseButton",
+            "createdBy": "ChooseButton"
+          },
+          {
+            "role": "heading",
+            "name": "Team",
+            "text": "Team",
+            "within": 3,
+            "box": [
+              16,
+              156,
+              200,
+              20
+            ],
+            "component": "PlanName",
+            "createdBy": "PlanName"
+          },
+          {
+            "role": "paragraph",
+            "text": "$12 a month",
+            "within": 3,
+            "box": [
+              16,
+              184,
+              200,
+              20
+            ],
+            "component": "Price",
+            "createdBy": "Price"
+          },
+          {
+            "role": "button",
+            "name": "Choose",
+            "text": "Choose",
+            "within": 3,
+            "box": [
+              360,
+              156,
+              104,
+              40
+            ],
+            "component": "ChooseButton",
+            "createdBy": "ChooseButton"
+          },
+          {
+            "role": "heading",
+            "name": "Scale",
+            "text": "Scale",
+            "within": 3,
+            "box": [
+              16,
+              252,
+              200,
+              20
+            ],
+            "component": "PlanName",
+            "createdBy": "PlanName"
+          },
+          {
+            "role": "paragraph",
+            "text": "$40 a month",
+            "within": 3,
+            "box": [
+              16,
+              280,
+              200,
+              20
+            ],
+            "component": "Price",
+            "createdBy": "Price"
+          },
+          {
+            "role": "button",
+            "name": "Choose",
+            "text": "Choose",
+            "within": 3,
+            "box": [
+              360,
+              252,
+              104,
+              40
+            ],
+            "component": "ChooseButton",
+            "createdBy": "ChooseButton"
+          }
+        ]
+      }
+    ]
+  }
+}
