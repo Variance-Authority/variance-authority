@@ -15,6 +15,7 @@ use std::sync::Arc;
 use napi::bindgen_prelude::{AsyncTask, Buffer};
 use napi_derive::napi;
 
+use crate::breadth_first::breadth_first;
 use crate::help_publish::{open_index, opened_chain};
 use crate::off_thread::{off_thread, OffThread};
 use crate::order::code_unit;
@@ -163,64 +164,41 @@ impl Graph {
             }
             found = Some(held);
         }
-        found.unwrap_or("imports")
+        found.expect("a chain steps only along an import the tree holds")
     }
 
-    /// One breadth-first search from every seed at once. A seed or a file in
-    /// `avoid` is never entered; each file keeps the one it was entered from,
-    /// so the way back is a shortest chain, and the first row wins a tie.
-    pub(crate) fn walk(&self, seeds: &[u32], backward: bool, avoid: &[u32]) -> Walked {
-        let nodes = self.nodes();
+    /// One breadth-first search from every seed at once. Each file keeps the
+    /// one it was entered from, so the way back is a shortest chain, and the
+    /// first row wins a tie.
+    pub(crate) fn walk(&self, seeds: &[u32], backward: bool) -> Walked {
         let rows = if backward { &self.backward } else { &self.forward };
-        let (mut depth, mut via) = (vec![NONE; nodes], vec![NONE; nodes]);
-        for &node in avoid {
-            depth[node as usize] = NONE - 1;
-        }
-        let mut queue = Vec::new();
-        for &seed in seeds {
-            if depth[seed as usize] == NONE {
-                depth[seed as usize] = 0;
-                queue.push(seed);
+        let (mut depth, mut via) = (vec![NONE; self.nodes()], vec![NONE; self.nodes()]);
+        breadth_first(&rows.offset, &rows.target, seeds, |from, next| {
+            if depth[next as usize] != NONE {
+                return false;
             }
-        }
-        let mut head = 0;
-        while head < queue.len() {
-            let node = queue[head];
-            head += 1;
-            for edge in rows.of(node) {
-                let next = rows.target[edge] as usize;
-                if depth[next] != NONE {
-                    continue;
-                }
-                depth[next] = depth[node as usize] + 1;
-                via[next] = node;
-                queue.push(next as u32);
-            }
-        }
-        for &node in avoid {
-            if depth[node as usize] == NONE - 1 {
-                depth[node as usize] = NONE;
-            }
-        }
-        Walked { count: queue.len() as u32, depth, via, backward }
+            depth[next as usize] = from.map_or(0, |(node, _)| depth[node as usize] + 1);
+            via[next as usize] = from.map_or(NONE, |(node, _)| node);
+            true
+        });
+        Walked { depth, via, backward }
     }
 }
 
 /// What one walk reached: each file's distance from the seeds and the file it was entered from.
 pub(crate) struct Walked {
-    count: u32,
     depth: Vec<u32>,
     via: Vec<u32>,
     backward: bool,
 }
 
-/// The segments of a path, empty ones dropped: `segmentsOf` in `mcp/src/tools/start-point.ts`.
+/// The segments of a path, empty ones dropped, as the start point splits them.
 fn segments(path: &str) -> impl Iterator<Item = &str> {
     path.split('/').filter(|segment| !segment.is_empty())
 }
 
 /// Whether `path` starts with the segments `named` and holds between `least`
-/// and `most` segments: `at` in `mcp/src/tools/start-point.ts`.
+/// and `most` segments.
 fn starts_at(path: &str, named: &[&str], joined: &str, least: usize, most: usize) -> bool {
     let plain = !path.starts_with('/') && !path.contains("//");
     if plain && !(path.starts_with(joined) && path.as_bytes().get(joined.len()) == Some(&b'/')) && path != joined {
@@ -241,13 +219,6 @@ fn starts_at(path: &str, named: &[&str], joined: &str, least: usize, most: usize
 pub struct SourceLink {
     pub file: String,
     pub kind: Option<String>,
-}
-
-/// One import from a file a walk reached into a file asked about.
-#[napi(object)]
-pub struct SourceEdge {
-    pub from: String,
-    pub to: String,
 }
 
 /// The source tree a path question opened, read once.
@@ -340,36 +311,18 @@ impl SourceTree {
         (graph.lo..graph.hi).filter(|&id| graph.unknown[id as usize]).map(|id| graph.path(id).to_owned()).collect()
     }
 
-    /// The files `path`, below the graph root, imports, in id order.
-    #[napi]
-    pub fn targets(&self, path: String) -> Vec<String> {
-        let graph = &self.graph;
-        let Some(id) = graph.id(&path) else { return Vec::new() };
-        let mut found: Vec<u32> = graph.forward.of(id).map(|edge| graph.forward.target[edge]).collect();
-        found.dedup();
-        found.into_iter().map(|to| graph.path(to).to_owned()).collect()
-    }
-
     /// Every file reachable from `seeds` along the imports, or against them
-    /// when `against`, never entering a file of `avoid`. A seed the tree does
-    /// not hold reaches nothing.
+    /// when `against`. A seed the tree does not hold reaches nothing.
     #[napi]
-    pub fn walk(&self, seeds: Vec<String>, against: bool, avoid: Option<Vec<String>>) -> SourceWalk {
+    pub fn walk(&self, seeds: Vec<String>, against: bool) -> SourceWalk {
         let graph = &self.graph;
         let seeds: Vec<u32> = seeds.iter().filter_map(|seed| graph.seed(seed)).collect();
-        let avoid: Vec<u32> = avoid.unwrap_or_default().iter().filter_map(|path| graph.seed(path)).collect();
-        SourceWalk { walked: graph.walk(&seeds, against, &avoid), graph: Arc::clone(graph) }
+        SourceWalk { walked: graph.walk(&seeds, against), graph: Arc::clone(graph) }
     }
 }
 
 #[napi]
 impl SourceWalk {
-    /// How many files the walk reached, seeds included.
-    #[napi(getter)]
-    pub fn count(&self) -> u32 {
-        self.walked.count
-    }
-
     /// Every file reached, below the graph root, in code-unit order.
     #[napi]
     pub fn files(&self) -> Vec<String> {
@@ -380,12 +333,6 @@ impl SourceWalk {
     #[napi]
     pub fn depths(&self) -> Vec<u32> {
         self.reached().map(|id| self.walked.depth[id as usize]).collect()
-    }
-
-    /// The distance of `path`, below the graph root, when the walk reached it.
-    #[napi]
-    pub fn distance(&self, path: String) -> Option<u32> {
-        self.graph.id(&path).map(|id| self.walked.depth[id as usize]).filter(|&depth| depth != NONE)
     }
 
     /// One shortest chain from `path` back to a seed: `path` first, the seed
@@ -405,37 +352,6 @@ impl SourceWalk {
                 SourceLink { file: self.graph.path(at).to_owned(), kind }
             })
             .collect()
-    }
-
-    /// The same chain read from the seed.
-    #[napi]
-    pub fn trail(&self, path: String) -> Vec<String> {
-        self.trail_of(&path).iter().rev().map(|&id| self.graph.path(id).to_owned()).collect()
-    }
-
-    /// Every import from a reached file into one of `paths`, below the graph
-    /// root, once each, in code-unit order of the importer and then the file.
-    #[napi]
-    pub fn edges_into(&self, paths: Vec<String>) -> Vec<SourceEdge> {
-        let graph = &self.graph;
-        let mut into = vec![false; graph.nodes()];
-        for path in &paths {
-            if let Some(id) = graph.id(path) {
-                into[id as usize] = true;
-            }
-        }
-        let mut found = Vec::new();
-        for from in self.reached() {
-            let mut last = NONE;
-            for edge in graph.forward.of(from) {
-                let to = graph.forward.target[edge];
-                if into[to as usize] && to != last {
-                    found.push(SourceEdge { from: graph.path(from).to_owned(), to: graph.path(to).to_owned() });
-                    last = to;
-                }
-            }
-        }
-        found
     }
 }
 

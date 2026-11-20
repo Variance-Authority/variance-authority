@@ -309,7 +309,8 @@ function declaresOf(pattern: string, tree: Tree, names: SourceNames): Operand {
 
 function pathOf(pattern: string, tree: Tree): Operand {
   const matches = regexOf('path', pattern, '');
-  const files = new Set([...tree.files()].filter((file) => matches.test(file)));
+  const files = new Set<string>();
+  for (const file of tree.files()) if (matches.test(file)) files.add(file);
   return { header: `${counted(files.size)} with a path matching /${pattern}/`, files, evidence: none };
 }
 

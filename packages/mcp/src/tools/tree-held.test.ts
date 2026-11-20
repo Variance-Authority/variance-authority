@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { readTree } from './tree.js';
+import { encodeSourceTree } from './source-tree-format.js';
+import { publishedTreeOf, readTree } from './tree.js';
 
 /**
  * A path question over a large checkout is answered by the addon over the
@@ -43,4 +44,11 @@ describe('a tree read from a checkout', () => {
     expect(collections(tree).filter((size) => size >= FILES)).toEqual([]);
     expect([...tree.reachedFrom(['src/entry.ts'])]).toEqual(['src/entry.ts', 'src/many/m0.ts']);
   }, 120_000);
+
+  it('holds none when it opens the tree a workspace published', () => {
+    const records = [{ file: 'src/entry.ts', edges: [{ to: 'src/many/m0.ts', kind: 'imports' as const }] }, ...Array.from({ length: FILES }, (_, n) => ({ file: `src/many/m${n}.ts` }))];
+    const tree = publishedTreeOf(encodeSourceTree(records), root, root);
+    expect(collections(tree).filter((size) => size >= FILES)).toEqual([]);
+    expect([...tree.reaching(['src/many/m0.ts'])]).toEqual(['src/entry.ts', 'src/many/m0.ts']);
+  });
 });

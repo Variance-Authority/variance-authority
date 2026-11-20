@@ -282,7 +282,6 @@ export {
 export {
   openSourceTree,
   sourceTreeOf,
-  type SourceEdge,
   type SourceLink,
   type SourceTree,
   type SourceWalk,

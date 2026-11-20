@@ -2954,7 +2954,6 @@
         "ScopeCounts": "interface",
         "ShadowReach": "interface",
         "ShippedFiles": "interface",
-        "SourceEdge": "interface",
         "SourceFetch": "type",
         "SourceIndexChain": "interface",
         "SourceIndexState": "type",

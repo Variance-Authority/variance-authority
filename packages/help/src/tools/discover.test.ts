@@ -220,6 +220,14 @@ describe('discover says how a file reaches what it was asked of', () => {
     );
   });
 
+  it('names them in a workspace below the graph root too, spelled as the graph spells them', () => {
+    const app = join(root, 'app');
+    const nested = treeOf([reads('app/base.ts'), reads('app/page.ts', 'app/base.ts'), { file: 'app/blind.ts', unknown: 'an import nobody resolved' }], root, app);
+    expect(discover.run(undefined, { to: 'base.ts' }, { tree: nested, names: NAMES, root: app })).toContain(
+      '1 other file imports something the scan could not resolve, and may reach it: app/blind.ts',
+    );
+  });
+
   // Records every file a chain is asked of, so a chain built for a file nobody sees is caught.
   const spied = (asked: string[]): Tree => ({
     ...tree,

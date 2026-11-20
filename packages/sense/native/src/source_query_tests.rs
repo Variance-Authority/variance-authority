@@ -55,30 +55,19 @@ fn sample() -> Vec<u8> {
 #[test]
 fn a_forward_walk_reaches_every_import_once_at_its_shortest_distance() {
     let tree = open(&sample(), "");
-    let walk = tree.walk(strings(&["a.ts"]), false, None);
+    let walk = tree.walk(strings(&["a.ts"]), false);
     assert_eq!(walk.files(), strings(&["a.ts", "b.ts", "c.ts", "d.ts"]));
     assert_eq!(walk.depths(), vec![0, 1, 2, 1]);
-    assert_eq!(walk.count(), 4);
-    assert_eq!(walk.distance("lone.ts".into()), None);
+    assert!(walk.chain("lone.ts".into()).is_empty());
 }
 
 #[test]
 fn a_chain_leads_back_to_the_seed_and_names_the_kind_that_is_not_a_type() {
     let tree = open(&sample(), "");
-    let walk = tree.walk(strings(&["c.ts"]), true, None);
+    let walk = tree.walk(strings(&["c.ts"]), true);
     let chain = walk.chain("a.ts".into());
     let said: Vec<(String, Option<String>)> = chain.into_iter().map(|link| (link.file, link.kind)).collect();
     assert_eq!(said, vec![("a.ts".into(), Some("imports".into())), ("b.ts".into(), Some("reexports".into())), ("c.ts".into(), None)]);
-    assert_eq!(walk.trail("a.ts".into()), strings(&["c.ts", "b.ts", "a.ts"]));
-}
-
-#[test]
-fn an_avoided_file_is_never_entered() {
-    let tree = open(&sample(), "");
-    let walk = tree.walk(strings(&["a.ts"]), false, Some(strings(&["b.ts"])));
-    assert_eq!(walk.files(), strings(&["a.ts", "c.ts", "d.ts"]));
-    let edges: Vec<(String, String)> = walk.edges_into(strings(&["b.ts", "c.ts"])).into_iter().map(|edge| (edge.from, edge.to)).collect();
-    assert_eq!(edges, vec![("a.ts".into(), "b.ts".into()), ("d.ts".into(), "c.ts".into())]);
 }
 
 #[test]
@@ -92,7 +81,7 @@ fn a_workspace_below_the_root_sees_its_own_files_and_walks_the_whole_graph() {
     assert_eq!(tree.paths(1, 10), strings(&["y.ts"]));
     assert_eq!(tree.unknown_files(), strings(&["app/y.ts"]));
     assert_eq!(tree.unknown_among(strings(&["lib/z.ts", "app/x.ts", "gone.ts"])), strings(&["lib/z.ts"]));
-    let walk = tree.walk(strings(&["x.ts"]), false, None);
+    let walk = tree.walk(strings(&["x.ts"]), false);
     assert_eq!(walk.files(), strings(&["app/x.ts", "app/y.ts", "lib/z.ts"]));
 }
 
