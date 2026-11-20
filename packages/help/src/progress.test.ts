@@ -44,7 +44,6 @@ describe('a workspace read with progress', () => {
       expect.stringMatching(/^reading what each file imports and exports, under /),
       'saving the source index',
       'reading what each file imports and exports, from the index',
-      'reading the signatures and comments of the exported names',
       'publishing the questions',
     ]);
     // Each step ends before the next starts: they run one after another.
