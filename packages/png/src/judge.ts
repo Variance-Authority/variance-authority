@@ -23,8 +23,8 @@ export interface JudgeOutput {
   readonly picture?: { readonly policy: number; readonly diffMask: boolean; readonly graded?: boolean };
 }
 
-/** The colour a graded picture draws a faint changed pixel in: red, pale. */
-export const FAINT = [255, 153, 153] as const;
+/** The colour a graded picture draws a faint changed pixel in: red, paler than an inserted row's tint, so the two read apart. */
+export const FAINT = [255, 190, 190] as const;
 
 export interface Judged {
   /** Pixels each policy called different, in the order the policies came. */
