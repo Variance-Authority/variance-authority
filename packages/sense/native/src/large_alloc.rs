@@ -1,5 +1,16 @@
-//! The addon's allocator on macOS and Linux: the system's, except that a block
-//! of [`LARGE`] bytes or more is mapped from the kernel and unmapped when freed.
+//! The addon's allocator on macOS and Linux: jemalloc, told to return the pages
+//! a free empties at once, except that a block of [`LARGE`] bytes or more is
+//! mapped from the kernel and unmapped when freed.
+//!
+//! A cold scan holds tens of millions of small blocks, and the walk frees most
+//! of them on its own thread before the follow-ups allocate on others. The
+//! system allocators kept those pages resident, so the follow-ups peaked on top
+//! of the walk. jemalloc reuses a freed block from any thread, and with no
+//! decay it returns a slab to the kernel as soon as its last block is freed;
+//! its default decay of ten seconds outlasts the scan.
+//!
+//! The large path below predates jemalloc and was measured against the system
+//! allocators only.
 //!
 //! macOS's allocator keeps freed large blocks resident in a cache, and reuses
 //! one only for a request of nearly its size. A fold decodes each shard into
@@ -18,16 +29,26 @@
 //! more than the same landing on macOS. On Linux a mapped block that grows is
 //! moved with `mremap`, which remaps its pages instead of copying them.
 //!
-//! Elsewhere the system allocator is used unchanged.
+//! Only Rust frees what Rust allocates: a buffer handed to V8 from a `Vec` is
+//! freed by its Rust finalizer, on the JS thread, through this allocator; and
+//! the C the grammars compile allocates with the system's `malloc`, which the
+//! prefixed jemalloc does not replace. Elsewhere, on Windows, the system
+//! allocator is used unchanged.
 
-// FIXME: this is a stopgap. Replacing the allocator is what mimalloc and
-// jemalloc were rejected for, and this does it by hand: it bounds the peak only
-// because each shard is decoded whole and freed whole. Folding a shard as a
-// stream of its columns holds one column at a time, and needs no allocator of
-// its own.
-use std::alloc::{GlobalAlloc, Layout, System};
+// FIXME: the mapping is a stopgap: it bounds the fold's peak only because each
+// shard is decoded whole and freed whole. Folding a shard as a stream of its
+// columns holds one column at a time, and needs no path of its own.
+use std::alloc::{GlobalAlloc, Layout};
 
-/// The size from which a block bypasses the system allocator: far above any
+use tikv_jemallocator::Jemalloc;
+
+/// jemalloc's options, read once when it starts. A page a free empties is
+/// returned at once instead of after ten seconds, and nothing is kept as
+/// lazily freed: a scan is over before either delay runs out.
+#[export_name = "_rjem_malloc_conf"]
+static MALLOC_CONF: &[u8; 34] = b"dirty_decay_ms:0,muzzy_decay_ms:0\0";
+
+/// The size from which a block bypasses jemalloc: far above any
 /// per-row allocation, and below a decoded column of a large record.
 const LARGE: usize = 4 << 20;
 
@@ -48,22 +69,22 @@ unsafe fn unmap(at: *mut u8, size: usize) {
 
 unsafe impl GlobalAlloc for Mapped {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        if mapped(&layout) { map(layout.size()) } else { System.alloc(layout) }
+        if mapped(&layout) { map(layout.size()) } else { Jemalloc.alloc(layout) }
     }
 
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         // A fresh mapping is zero-filled by the kernel.
-        if mapped(&layout) { map(layout.size()) } else { System.alloc_zeroed(layout) }
+        if mapped(&layout) { map(layout.size()) } else { Jemalloc.alloc_zeroed(layout) }
     }
 
     unsafe fn dealloc(&self, at: *mut u8, layout: Layout) {
-        if mapped(&layout) { unmap(at, layout.size()) } else { System.dealloc(at, layout) }
+        if mapped(&layout) { unmap(at, layout.size()) } else { Jemalloc.dealloc(at, layout) }
     }
 
     unsafe fn realloc(&self, at: *mut u8, layout: Layout, size: usize) -> *mut u8 {
         let grown = Layout::from_size_align_unchecked(size, layout.align());
         if !mapped(&layout) && !mapped(&grown) {
-            return System.realloc(at, layout, size);
+            return Jemalloc.realloc(at, layout, size);
         }
         #[cfg(target_os = "linux")]
         if mapped(&layout) && mapped(&grown) {
