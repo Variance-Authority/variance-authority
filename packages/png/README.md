@@ -117,8 +117,9 @@ against the same image with a 5×5 black square painted into it:
 
 `changed` is an object keyed by policy `id`, one entry per policy compared —
 neither a scalar nor an array. `total` is the pixel count of the canvas the two
-were compared on. `mask.data` is `width * height` bytes, `1` where the pixel
-differs, and `mask.changed` counts them under the single policy you isolated on.
+were compared on. `mask.data` is `width * height` bytes, `0` where the pixel
+is the same and otherwise its grade, 1 to 4, by how far its colour moved (a row
+with no partner is 4), and `mask.changed` counts them under the single policy you isolated on.
 
 That mask is what `isolateRegions` in `@variance-authority/core/attribute` takes
 to group the changed pixels into rectangles.

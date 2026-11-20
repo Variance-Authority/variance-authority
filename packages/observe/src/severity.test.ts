@@ -47,4 +47,13 @@ describe('a verdict over faint and strong regions', () => {
 
     expect(describeChange(comparison, isolation(regions), regions, 32)).toBe('32 pixels differ across 2 regions in Hero, Card');
   });
+
+  it('does not call the regions the cap dropped smaller, since it drops the faintest first', () => {
+    const regions = [region(0, STRONG_GRADE, 'Hero')];
+    const capped = { ...isolation(regions), truncated: 2, truncatedPixels: 400 };
+
+    expect(describeChange(comparison, capped, regions, 416)).toBe(
+      '416 pixels differ across 1 region in Hero (+2 more regions not listed, 400px)',
+    );
+  });
 });

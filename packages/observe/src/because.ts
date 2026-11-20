@@ -159,7 +159,7 @@ export function describeChange(
 
   const capped =
     isolation.truncated > 0
-      ? ` (+${count(isolation.truncated, 'smaller region')} not listed, ` +
+      ? ` (+${count(isolation.truncated, 'more region')} not listed, ` +
         `${isolation.truncatedPixels.toLocaleString('en-US')}px)`
       : '';
 
