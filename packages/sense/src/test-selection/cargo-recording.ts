@@ -13,11 +13,12 @@
  */
 
 import { execFileSync, spawn } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { native } from '../addon.js';
+import { digestString } from '../digest.js';
 import caseOwner from './case-owner.cjs';
 import { finishedCase } from './case-durations.js';
 import journalFormat from './journal-format.cjs';
@@ -310,7 +311,7 @@ function included(artifacts: readonly string[], workspace: Workspace): { sources
 function instrumenting(target: string): string {
   const windows = process.platform === 'win32';
   const flags = ['-C instrument-coverage', ...(process.platform === 'darwin' ? ['cnts', 'data', 'bits'].map((section) => `-C link-arg=-Wl,-sectalign,__DATA,__llvm_prf_${section},0x4000`) : ['-C llvm-args=-runtime-counter-relocation'])].join(' ');
-  const name = `instrumenting-rustc-${createHash('sha256').update(flags).digest('hex').slice(0, 8)}`;
+  const name = `instrumenting-rustc-${digestString(flags).split(':')[1]!.slice(0, 8)}`;
   const wrapper = join(target, windows ? `${name}.cmd` : name);
   const script = windows ? `@%* ${flags}\r\n` : `#!/bin/sh\nexec "$@" ${flags}\n`;
   if (!existsSync(wrapper) || readFileSync(wrapper, 'utf8') !== script) {
