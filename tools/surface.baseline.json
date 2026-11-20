@@ -1563,7 +1563,7 @@
         "pathsOf": "function",
         "presentationToolByName": "function",
         "rarity": "function",
-        "readPublishedNames": "function",
+        "readIndexedNames": "function",
         "readTree": "function",
         "refusalFor": "function",
         "scenarioToolByName": "function",

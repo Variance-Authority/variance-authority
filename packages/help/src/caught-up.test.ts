@@ -344,13 +344,8 @@ describe('refusalFooter', () => {
   const at = '2026-01-02T03:04:05.000Z';
 
   it('dates a refusal only when the checkout was not compared with what it came from', () => {
-    expect(refusalFooter(undefined, at, false)).toBeUndefined();
-    expect(refusalFooter({ subject: 'read' }, at, false)).toBeUndefined();
-    expect(refusalFooter(undefined, at, true)).toMatch(UNCOMPARED);
-  });
-
-  it('says why when the look found its file moved during the read', () => {
-    expect(refusalFooter({ subject: 'read', unseen: 'it moved' }, at, false)).toBe(snapshotLine(at, 'it moved'));
+    expect(refusalFooter(at, false)).toBeUndefined();
+    expect(refusalFooter(at, true)).toMatch(UNCOMPARED);
   });
 });
 

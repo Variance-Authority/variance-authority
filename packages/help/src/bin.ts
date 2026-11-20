@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
-import { readPublishedNames, type Tree } from '@variance-authority/mcp/tools';
+import { readIndexedNames, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { foundNothingAnswer, refusalFooter, snapshotLine } from './caught-up.js';
@@ -41,7 +41,7 @@ async function crossNamed(root: string, reading: Reading, args: readonly string[
   const input = inputFrom(intersection, args);
   let tree: Tree | undefined;
   const help = await readWorkspaceForAnswer(root, { ...reading, tree: (drawn) => { tree = drawn; } });
-  const names = { ...(tree === undefined ? {} : { tree }), names: await readPublishedNames(sourceIndexPath(root)) };
+  const names = { ...(tree === undefined ? {} : { tree }), names: await readIndexedNames(sourceIndexPath(root)) };
   const at = workspaceGeneration(help);
   return {
     answer: () => {
@@ -194,7 +194,7 @@ if (asking(verb) && verb !== undefined) {
       // other answer; keeping that fresh is `variance index`'s job, not a question's.
       const found = foundNothingAnswer(refusal, undefined, first.at, true);
       if (found === undefined) {
-        const footer = refusalFooter(undefined, first.at, true);
+        const footer = refusalFooter(first.at, true);
         if (footer !== undefined && refusal instanceof Error) refusal.message += `\n\n${footer}`;
         throw refusal;
       }

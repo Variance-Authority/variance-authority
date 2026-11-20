@@ -136,7 +136,7 @@ of `published`, `exported`, `declared` or `file`, and is never repeated in `loos
 a refused
 start point returns `refused` with no sections. Only `search` answers in JSON.
 
-These questions read the checkout the same way `packages` does. `--from` and
+These questions read the published index the same way `packages` does. `--from` and
 `--to` are a path in the source tree, answered from what it reaches or what
 reaches it. `locate` is the run question that finds a subject by the names the
 run saw, and its `--from` and `--to` mean the same thing. Carry the path into

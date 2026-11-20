@@ -1,4 +1,4 @@
-import { readPublishedNames, type SourceNames, type Tree } from '@variance-authority/mcp/tools';
+import { readIndexedNames, type SourceNames, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { readWorkspaceForAnswer } from './read.js';
 import { readsNames } from './tools/discover.js';
@@ -6,7 +6,7 @@ import { namesWanted } from './tools/intersection.js';
 
 /** The tree, and every file's names when the question reads them, off one published generation. */
 export interface NamedTree {
-  readonly tree: Tree;
+  readonly tree?: Tree;
   readonly names?: SourceNames;
 }
 
@@ -20,7 +20,7 @@ export interface NamedTree {
 export async function readNamedTree(root: string, input: Readonly<Record<string, unknown>>): Promise<NamedTree> {
   let tree: Tree | undefined;
   await readWorkspaceForAnswer(root, { justAnswer: true, tree: (drawn) => { tree = drawn; } });
-  if (tree === undefined) throw new Error('the published generation handed no tree');
-  if (!readsNames(input) && !namesWanted(input)) return { tree };
-  return { tree, names: await readPublishedNames(sourceIndexPath(root)) };
+  const drawn = tree === undefined ? {} : { tree };
+  if (!readsNames(input) && !namesWanted(input)) return drawn;
+  return { ...drawn, names: await readIndexedNames(sourceIndexPath(root)) };
 }

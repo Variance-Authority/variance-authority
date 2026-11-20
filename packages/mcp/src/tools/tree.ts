@@ -13,6 +13,7 @@ import {
   type NodeId,
   type Relations,
 } from '@variance-authority/core/relate';
+import type { Parsed } from '@variance-authority/sense';
 import { relative } from 'node:path';
 import { costsFrom } from './hops.js';
 import { namesOf, type FileNames, type SourceNames } from './names.js';
@@ -383,11 +384,7 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
     dirs: options.dirs ?? ['.'],
     ...(source === undefined ? {} : { cache: source.cache, reuse: source.reuse }),
     ...(names === undefined ? {} : {
-      // A parse that holds no declarations is left out of the names, which
-      // counts its file as unread rather than declaring nothing.
-      indexed: (file, parsed, targets) => {
-        if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
-      },
+      indexed: (file, parsed, targets) => nameInto(names, file, parsed, targets),
     }),
   });
   // The graph every reader of the checkout walks, with the mocks read off
@@ -409,14 +406,16 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
  * and the index is not written. Keyed as the index keys its files, which is
  * how a walk over the published tree answers.
  */
-export async function readPublishedNames(index: string): Promise<SourceNames> {
+export async function readIndexedNames(index: string): Promise<SourceNames> {
   const { readSourceParses } = await import('@variance-authority/sense');
   const names = new Map<string, FileNames>();
-  // A parse that holds no declarations is left out, as the scan leaves it out.
-  for (const { file, parsed, targets } of await readSourceParses(index)) {
-    if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
-  }
+  for (const { file, parsed, targets } of await readSourceParses(index)) nameInto(names, file, parsed, targets);
   return names;
+}
+
+/** One file's names, for the scan and the published read alike: a parse that holds no declarations is left out, which counts its file as unread rather than declaring nothing. */
+function nameInto(names: Map<string, FileNames>, file: string, parsed: Parsed, targets: readonly (string | undefined)[]): void {
+  if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
 }
 
 function messageOf(error: unknown): string {

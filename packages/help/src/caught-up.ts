@@ -134,10 +134,10 @@ export function foundNothingFooter(caught: CaughtUp<unknown> | undefined, at: st
 
 /**
  * The line under any other refusal, which carries a date only when the checkout
- * was not compared with what it came from, and then says why as {@link foundNothingFooter} does.
+ * was not compared with what it came from (`unseen`), as {@link foundNothingFooter} words it.
  */
-export function refusalFooter(caught: CaughtUp<unknown> | undefined, at: string | undefined, unseen: boolean): string | undefined {
-  return caught?.unseen === undefined && !unseen ? undefined : foundNothingFooter(caught, at, unseen);
+export function refusalFooter(at: string | undefined, unseen: boolean): string | undefined {
+  return unseen ? foundNothingFooter(undefined, at, true) : undefined;
 }
 
 /**

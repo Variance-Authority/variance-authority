@@ -46,7 +46,7 @@ export function questions(): string {
     '`--config` and sharded reports work as they do on `variance report`.',
     `Live questions need \`--at <address>\`, which defaults to \`${VANTAGE_VARIABLE}\`;`,
     '`variance watch` starts a watcher and prints both.',
-    'Source questions read the checkout under the working directory and need no config.',
+    'Source questions read the index `variance index` published for the working directory, and need no config: after an edit, run `variance index`, then ask.',
     'Costs are the mainline\'s, read from the share, unless report paths are named.',
     'Decisions and concerns are read from the review deployment with the share token, which never decides.',
     '',

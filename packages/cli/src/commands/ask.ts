@@ -226,8 +226,8 @@ export async function ask(request: AskRequest): Promise<string> {
 }
 
 /**
- * One question about the code, answered from the checkout under the working
- * directory. Its own entrance because `dispatch` reaches it before a config is
+ * One question about the code, answered from the index `variance index`
+ * published for the working directory. Its own entrance because `dispatch` reaches it before a config is
  * read: a repository that has never configured a visual suite still has a
  * source tree, and this is the one set of questions that is about nothing else.
  */
@@ -271,7 +271,7 @@ export async function askSource(request: SourceRequest): Promise<string> {
   try {
     return rendered(request, answering, unseen);
   } catch (refusal) {
-    const footer = [refusalFooter(undefined, answering.at, unseen), unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
+    const footer = [refusalFooter(answering.at, unseen), unopenedLine(answering.unopened, !unseen)].filter((line) => line !== undefined).join('\n');
     const found = foundNothingAnswer(refusal, undefined, answering.at, unseen);
     if (found !== undefined) return foundNothing(found, unopenedLine(answering.unopened, !unseen));
     throw refused(refusal, footer === '' ? '' : `\n\n${footer}`);
