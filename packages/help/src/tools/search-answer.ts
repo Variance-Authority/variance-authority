@@ -219,8 +219,7 @@ export function searchedFiles(index: SearchIndex, question: SearchQuestion, tree
 }
 
 /** Matched index rows as file coordinates, without decoding hidden signatures or docs. */
-function indexedFiles(index: SearchIndex, published: Iterable<number>, exported: Iterable<number>, file: ((at: string, line?: number) => void) | undefined): void {
-  if (file === undefined) return;
+function indexedFiles(index: SearchIndex, published: Iterable<number>, exported: Iterable<number>, file: (at: string, line?: number) => void): void {
   for (const row of published) file(index.publishedAt(row));
   for (const row of exported) file(index.exportedAt(row), index.exportedLine(row));
 }
@@ -260,7 +259,10 @@ function searchedBy(index: SearchIndex, question: SearchQuestion, tree: Tree | u
   const others = hits.length > 0 || rest.total > 0 || (declared?.total ?? 0) > 0 || (thirdParty?.total ?? 0) > 0;
   // A row that holds the words adds nothing to an answer; the row that is the question does.
   const inside = read === undefined ? undefined : others ? read.held.slice(0, read.exact) : read.held;
-  if (file !== undefined) for (const one of [...inside ?? [], ...aliases ?? []]) file(one.at, one.line);
+  if (file !== undefined) {
+    for (const one of inside ?? []) file(one.at, one.line);
+    for (const one of aliases ?? []) file(one.at, one.line);
+  }
 
   const answer: SearchAnswer = {
     query,

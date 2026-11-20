@@ -43,7 +43,7 @@ beforeAll(async () => {
   write('src/exported/z-copy.ts', 'export const exportNeedle31 = 2;\n');
   const published = Array.from({ length: 42 }, (_, n) => {
     const id = String(n).padStart(2, '0');
-    write(`packages/published/src/p${id}.ts`, `export const publicNeedle${id} = 1;\n`);
+    write(`packages/published/src/p${id}.ts`, `/** Safely retains a packed archive. */\nexport const publicNeedle${id} = 1;\n`);
     return `export { publicNeedle${id} } from './src/p${id}';`;
   });
   write('packages/published/package.json', JSON.stringify({ name: 'published-fixture', exports: './index.ts' }));
@@ -93,6 +93,7 @@ describe('the same search alone and as an intersection operand', () => {
     ['conect soket', 'src/loose-private/l31.ts', 'line 1'],
     ['exportNeedle', 'src/exported/e30.ts', 'line 1'],
     ['publicNeedle', 'packages/published/src/p41.ts', 'the file'],
+    ['archive safely', 'packages/published/src/p41.ts', 'line 2'],
   ])('keeps %s candidates beyond the displayed section', async (query, path, lines) => {
     const alone = await search(query);
     expect(alone).toContain('more');
