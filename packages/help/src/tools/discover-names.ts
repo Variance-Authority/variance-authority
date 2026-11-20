@@ -1,6 +1,6 @@
 import type { ToolInvocation, Tree } from '@variance-authority/mcp/tools';
-import { namesFilterOf, READABLE, sourceIndexPath, type NamesFound } from '@variance-authority/sense';
-import { listArg, nameOf, regexOf, textArg } from './discover-operands.js';
+import { namesFilterOf, READABLE, type NamesFound } from '@variance-authority/sense';
+import { listArg, nameOf, textArg } from './discover-operands.js';
 
 /**
  * The native answer to every name set of one call, consumed in the order the
@@ -17,7 +17,7 @@ export interface Found {
 /**
  * Every name set the call says, kept and taken out, asked of the source index
  * in one pass, or the refusal when no index answers. `sourceIndex` is the one
- * the host read the tree from; absent, the checkout's own.
+ * the host read the tree from; absent, the one the tree names.
  */
 export function foundOf(input: Readonly<Record<string, unknown>>, tree: Tree, invocation: ToolInvocation<unknown> | undefined): Found {
   const imports: { spec: string; name?: string }[] = [];
@@ -28,15 +28,11 @@ export function foundOf(input: Readonly<Record<string, unknown>>, tree: Tree, in
       if (name === undefined || !tree.files.has(spec)) imports.push({ spec, ...(name === undefined ? {} : { name }) });
     }
     const pattern = textArg(input, prefix === '' ? 'declares' : 'exceptDeclares');
-    if (pattern !== undefined) {
-      regexOf('declares', pattern, 'i');
-      declares.push(pattern);
-    }
+    if (pattern !== undefined) declares.push(pattern);
   }
-  const root = invocation?.root;
-  const at = invocation?.sourceIndex ?? (root === undefined ? undefined : { index: sourceIndexPath(root), within: '' });
+  const at = invocation?.sourceIndex ?? (tree.index === undefined ? undefined : { index: tree.index, within: '' });
   const ran = '`discover` ran nothing: `declares`, and `imports` of anything but a name out of a repository file, are read from the source index, and';
-  if (at === undefined) throw new Error(`${ran} this host named no checkout to read it of.`);
+  if (at === undefined) throw new Error(`${ran} the tree names no source index it was read off.`);
   let read: NamesFound | undefined;
   try {
     read = namesFilterOf(at.index, imports, declares, [...READABLE]);

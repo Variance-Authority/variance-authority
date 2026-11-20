@@ -70,11 +70,18 @@ vi.mock('@variance-authority/sense', async (original) => ({
             .map((entry): NameHit => ({ file, line: entry.line, name: entry.name ?? null, from: entry.from, local: entry.local ?? null, through: null }) as NameHit),
         ),
       ),
-      declares: declares.map((pattern) => ({
+      declares: declares.map((pattern) => {
+        try {
+          new RegExp(pattern);
+        } catch (error) {
+          return { hits: [], refused: String(error) };
+        }
+        return {
         hits: rows.flatMap(([file, held]) =>
           held.declared.filter((entry) => new RegExp(pattern, 'i').test(entry.name)).map((entry) => ({ file, line: entry.line, name: entry.name }) as NameHit),
         ),
-      })),
+        };
+      }),
       unread: index.unread,
     } as NamesFound;
   },
@@ -124,7 +131,9 @@ beforeAll(() => {
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
-const ask = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, root });
+/** Any index: the filter above answers off the table. */
+const sourceIndex = { index: 'index', within: '' };
+const ask = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, sourceIndex, root });
 
 const CONTEXTS = { from: 'src/TopNav.tsx', imports: 'react#createContext', declares: 'theme|user|account' };
 
@@ -261,14 +270,14 @@ describe('discover says how a file reaches what it was asked of', () => {
 
   it('builds a chain only for the files it shows', () => {
     const asked: string[] = [];
-    const text = discover.run(undefined, { to: 'src/chain/base.ts', limit: 3 }, { tree: spied(asked), root });
+    const text = discover.run(undefined, { to: 'src/chain/base.ts', limit: 3 }, { tree: spied(asked), sourceIndex, root });
     expect(text).toContain('2 more not shown');
     expect(asked).toEqual(['src/chain/shell.ts']);
   });
 
   it('answers the files it reached, at no line and with no chain, when asked for the set', () => {
     const asked: string[] = [];
-    const { files } = discover.files!(undefined, { to: 'src/chain/base.ts' }, { tree: spied(asked), root });
+    const { files } = discover.files!(undefined, { to: 'src/chain/base.ts' }, { tree: spied(asked), sourceIndex, root });
     expect(asked).toEqual([]);
     expect([...files]).toEqual([
       ['src/chain/base.ts', []],
@@ -301,7 +310,7 @@ describe('discover refuses', () => {
   });
 
   it('naming the sets as the surface it was asked on takes them', () => {
-    const shell = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, root, shell: 'variance ask' });
+    const shell = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, sourceIndex, root, shell: 'variance ask' });
     expect(() => ask({})).toThrow('`discover` needs at least one set to cross: `from`, `to`, `imports`, `declares` or `path`.');
     expect(() => shell({})).toThrow('`discover` needs at least one set to cross: `--from`, `--to`, `--imports`, `--declares` or `--path`.');
     expect(() => shell({ text: 'dark' })).toThrow('`--text` searches inside the files the other sets kept');
@@ -311,12 +320,12 @@ describe('discover refuses', () => {
     expect(() => ask({ from: 'src/Nope.tsx', declares: 'x' })).toThrow('`src/Nope.tsx` is not found');
   });
 
-  it('a name operand when the host named no checkout to read the source index of', () => {
-    expect(() => discover.run(undefined, CONTEXTS, { tree })).toThrow('are read from the source index, and this host named no checkout to read it of');
+  it('a name operand when neither the host nor the tree names a source index', () => {
+    expect(() => discover.run(undefined, CONTEXTS, { tree })).toThrow('are read from the source index, and the tree names no source index it was read off');
   });
 
   it('a name out of a file for want of a source index, not of names, which it does not read', () => {
-    expect(() => discover.run(undefined, { imports: 'src/store/selectors.ts#selectBalance' }, { tree, root })).toThrow('no source index is published');
+    expect(() => discover.run(undefined, { imports: 'src/store/selectors.ts#selectBalance' }, { tree, sourceIndex, root })).toThrow('no source index is published');
   });
 
   it('a name out of a file when no source index holds who imports it', () => {
@@ -324,7 +333,7 @@ describe('discover refuses', () => {
   });
 
   it('a pattern that is not a regular expression', () => {
-    expect(() => ask({ declares: '(' })).toThrow('`declares` is not a regular expression');
+    expect(() => ask({ declares: '(' })).toThrow('`declares` is not a regular expression the source index reads');
   });
 
   it('a question asked with no source tree read', () => {

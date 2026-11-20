@@ -26,8 +26,7 @@ use regex::{Regex, RegexBuilder};
 
 use crate::chain_lookup::fold;
 use crate::compact::Layer;
-use crate::package_graph::{join_parses, Crossing};
-use crate::package_owners::NO_OWNER;
+use crate::package_graph::Crossing;
 
 /// `import * as x`: the module is taken whole, and its names arrive as members.
 const NAMESPACE: &str = "*";
@@ -93,10 +92,7 @@ pub(crate) fn names_filter(layers: &[Layer], imports: &[ImportAsked], declares: 
     let patterns: Vec<(usize, &Regex)> = compiled.iter().enumerate().filter_map(|(at, one)| one.as_ref().ok().map(|regex| (at, regex))).collect();
     let readable: HashSet<&str> = readable.iter().map(String::as_str).collect();
     let folded = fold(layers);
-    let mut crossings: Vec<Crossing> =
-        folded.iter().map(|(&file, &at)| Crossing { file, owner: NO_OWNER, others: Vec::new(), at, parse: None }).collect();
-    crossings.sort_unstable_by(|a, b| crate::order::code_unit(a.file, b.file));
-    join_parses(layers, &mut crossings);
+    let crossings = crate::help_declared::crossings(layers, &folded, None);
     let found: Vec<FileFound> = crossings
         .par_iter()
         .filter_map(|crossing| {
@@ -138,11 +134,11 @@ fn file_found(layers: &[Layer], crossing: &Crossing, imports: &[ImportAsked], pa
     let hit = |line: u32, name: Option<&str>| NameHit { file: file.to_owned(), line, name: name.map(str::to_owned), from: None, local: None, through: None };
 
     if !imports.is_empty() {
-        let targets: Vec<Option<&str>> = records.targets.range(crossing.at.1).map(|target| stored.optional(records.target_path.at(target))).collect();
         let first = parses.requests.at(row) as usize;
         for request in parses.requests.range(row) {
             let from = text.text(parses.request_value.at(request));
-            let to = targets.get(request - first).copied().flatten();
+            // Read only when a bare comparison of the specifier misses, so a file matching nothing allocates nothing.
+            let to = || records.targets.range(crossing.at.1).nth(request - first).and_then(|target| stored.optional(records.target_path.at(target)));
             let asked: Vec<(usize, &ImportAsked)> = imports.iter().enumerate().filter(|(_, asked)| module_is(&asked.spec, from, to)).collect();
             if asked.is_empty() {
                 continue;
@@ -196,9 +192,9 @@ fn file_found(layers: &[Layer], crossing: &Crossing, imports: &[ImportAsked], pa
 
 /// `react/jsx-runtime` is `react`; `./store/selectors` is not `./store`; a
 /// request is also the file it resolved to.
-fn module_is(spec: &str, from: &str, to: Option<&str>) -> bool {
+fn module_is<'a>(spec: &str, from: &str, to: impl Fn() -> Option<&'a str>) -> bool {
     let bare = !spec.starts_with('.') && !spec.starts_with('/');
-    from == spec || (bare && from.len() > spec.len() && from.starts_with(spec) && from.as_bytes()[spec.len()] == b'/') || to == Some(spec)
+    from == spec || (bare && from.len() > spec.len() && from.starts_with(spec) && from.as_bytes()[spec.len()] == b'/') || to() == Some(spec)
 }
 
 /// What one parse declares, each name once: its symbols, then the names it

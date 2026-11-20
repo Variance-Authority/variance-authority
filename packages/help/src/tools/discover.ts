@@ -268,7 +268,7 @@ function passedOn(through: readonly string[]): string {
 
 function declaresOf(pattern: string, tree: Tree, found: Found): Operand {
   const asked = found.declares.shift()!;
-  if (asked.refused != null) throw new Error(`\`declares\` is not a pattern the source index reads: ${asked.refused}.`);
+  if (asked.refused != null) throw new Error(`\`declares\` is not a regular expression the source index reads: ${asked.refused}.`);
   const lines = linesOf(asked.hits, found, (hit) => `declares ${hit.name}`);
   const unread = unreadOf(tree, found);
   return {
@@ -337,7 +337,7 @@ export const discover: Tool<unknown> = {
       from: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files it reaches along the imports, itself included. Same path forms as `search --from`.' },
       to: { type: 'array', items: { type: 'string' }, description: 'Paths; each is the set of files that reach it along the imports, every kind of import walked, itself included, and each file shown carries one shortest chain of imports to it. `file#name` for a repo-relative file starts at the imports of that name, as `docs_uses` reads them from the source index, so a file importing another name through the same barrel is not reached.' },
       imports: { type: 'array', items: { type: 'string' }, description: '`module#name` or `module`, as written in the import or as the repo-relative file it resolved to; each is the set of files importing it. A subpath of a package matches the package; a relative specifier matches only as written. `file#name` for a repo-relative file is answered as `docs_uses` answers it, from the source index: an import through a barrel that passes the name on counts.' },
-      declares: { type: 'string', description: 'A regular expression, case-insensitive; the set of files declaring a matching name. An export of an imported name, with `from` or without, is declared where it comes from; `export default function make()` declares `make`.' },
+      declares: { type: 'string', description: 'A regular expression in the syntax of Rust\'s `regex` crate (no lookaround or backreferences), case-insensitive; the set of files declaring a matching name. An export of an imported name, with `from` or without, is declared where it comes from; `export default function make()` declares `make`.' },
       path: { type: 'string', description: 'A regular expression over repo-relative paths.' },
       text: { type: 'string', description: 'A ripgrep pattern, run only over the files every other operand kept.' },
       exceptFrom: { type: 'array', items: { type: 'string' }, description: 'As `from`, taken out.' },

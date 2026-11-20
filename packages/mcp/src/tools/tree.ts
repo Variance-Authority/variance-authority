@@ -66,6 +66,8 @@ export interface Tree {
   readonly graphRoot?: string;
   /** Every file the scan holds a coordinate for, repo-relative, forward slashes. */
   readonly files: ReadonlySet<string>;
+  /** The source index the tree was read off, where it was read off one: a name question reads it there. */
+  readonly index?: string;
   /**
    * Every file reachable from these along the imports, at any depth. The seeds
    * themselves are in it. Seeds the tree does not hold reach nothing and
@@ -386,7 +388,7 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
   // what the parse recorded, so it is the graph `variance covering --since` cuts by.
   const relations = await scanner.runGraphOf(records, { root: options.root, cache: read.cache });
 
-  return treeFromRelations(relations, options.root);
+  return { ...treeFromRelations(relations, options.root), index: updated.path };
 }
 
 function messageOf(error: unknown): string {

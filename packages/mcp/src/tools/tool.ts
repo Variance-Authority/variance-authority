@@ -131,7 +131,7 @@ export interface ToolInvocation<Subject> {
    * The source index the tree was read from, and the workspace directory the
    * tree drops from the files under it, where the host read a generation other
    * than the checkout's own. A question that names a name reads it there.
-   * Absent means the checkout's index, spelled from its root.
+   * Absent means the index the tree names, and none when it names none.
    */
   readonly sourceIndex?: { readonly index: string; readonly within: string };
   /**
