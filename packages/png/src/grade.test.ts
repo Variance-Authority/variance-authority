@@ -3,7 +3,8 @@ import { PNG } from 'pngjs';
 import { describe, expect, it } from 'vitest';
 import { isolateRegions } from '@variance-authority/core/attribute';
 import { SEVERITY_LEVELS, STRONG_GRADE } from '@variance-authority/raster';
-import { comparePngs } from './compare.js';
+import { comparePngs, diffImage } from './compare.js';
+import { FAINT } from './judge.js';
 
 /**
  * The site's own page, from a review whose sentence read its faint marks like
@@ -38,5 +39,19 @@ describe('a region graded by how strongly it differs', () => {
     const comparison = comparePngs(image(() => 0), image((row) => levels[row]!), { isolateWith: { id: 'strict', threshold: 0, includeAA: true } });
 
     expect(Array.from(comparison.mask.data)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it('paints a faint pixel in the diff picture paler than a strong one', async () => {
+    const levels = [0, 2, 20, 40, 60];
+    const image = (grey: (row: number) => number): Buffer => {
+      const png = new PNG({ width: 1, height: levels.length });
+      for (const row of levels.keys()) png.data.set([grey(row), grey(row), grey(row), 255], row * 4);
+      return PNG.sync.write(png);
+    };
+
+    const picture = PNG.sync.read(await diffImage(image(() => 0), image((row) => levels[row]!), { id: 'strict', threshold: 0, includeAA: true }));
+    const pixels = levels.map((_, row) => Array.from(picture.data.subarray(row * 4, row * 4 + 4)));
+
+    expect(pixels.slice(1)).toEqual([[...FAINT, 255], [...FAINT, 255], [...FAINT, 255], [255, 0, 0, 255]]);
   });
 });

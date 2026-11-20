@@ -1,3 +1,4 @@
+import { isFaint } from '@variance-authority/raster';
 import {
   AGE_WHY,
   AGE_WORDS,
@@ -247,10 +248,12 @@ function regions(entry: ObservationRecord): string {
   if (entry.regions.length === 0 && entry.truncated === undefined) return '';
 
   const rows = entry.regions
-    .map(
-      (region, index) =>
+    .map((region, index) => {
+      // `cause` leads the table; `faint` draws its box dashed. A record written before grades has none.
+      const classes = [...(region.cause ? ['cause'] : []), ...(region.grade !== undefined && isFaint(region.grade) ? ['faint'] : [])];
+      return (
         `<tr data-region="${index}" data-box="${region.x},${region.y},${region.width},${region.height}"` +
-        `${region.cause ? ' class="cause"' : ''}>` +
+        `${classes.length === 0 ? '' : ` class="${classes.join(' ')}"`}>` +
         `<td>${region.cause ? '<span class="mark cause">cause</span>' : '<span class="mark quiet">collateral</span>'}` +
         (region.unattributed === true
           ? '<span class="mark warn" title="No box contained this region — a wrong scale or origin.">unattributed</span>'
@@ -262,8 +265,9 @@ function regions(entry: ObservationRecord): string {
         `<td class="num">${region.x}×${region.y} ${region.width}·${region.height}</td>` +
         `<td class="num">${px(region.pixels)}</td>` +
         `<td>${region.fingerprint === undefined ? '<span class="nil">—</span>' : copy(region.fingerprint, 12)}</td>` +
-        '</tr>',
-    )
+        '</tr>'
+      );
+    })
     .join('');
 
   const truncated =

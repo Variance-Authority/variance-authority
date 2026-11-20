@@ -1,8 +1,8 @@
 import type { AttributedRegion, Isolation } from '@variance-authority/core/attribute';
 import {
   DEFAULT_POLICY,
+  isFaint,
   STRICT_POLICY,
-  STRONG_GRADE,
   type DiffPolicy,
   type RasterComparison,
   type RowSpan,
@@ -141,8 +141,8 @@ export function describeChange(
   // A faint region is a repaint a reader triages after the rest: beside a
   // strong one it is counted, not named.
   const total = isolation.regions.length;
-  const faint = isolation.regions.filter((region) => region.grade < STRONG_GRADE).length;
-  const shown = faint === 0 || faint === total ? regions : regions.filter(({ region }) => region.grade >= STRONG_GRADE);
+  const faint = isolation.regions.filter((region) => isFaint(region.grade)).length;
+  const shown = faint === 0 || faint === total ? regions : regions.filter(({ region }) => !isFaint(region.grade));
   const across =
     faint === 0
       ? count(total, 'region')

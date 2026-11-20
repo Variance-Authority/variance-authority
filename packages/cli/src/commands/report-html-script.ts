@@ -66,6 +66,7 @@ $('.subject').forEach(function(card){
         b.style.left=(p[0]/img.naturalWidth*100)+'%'; b.style.top=(p[1]/img.naturalHeight*100)+'%';
         b.style.width=(p[2]/img.naturalWidth*100)+'%'; b.style.height=(p[3]/img.naturalHeight*100)+'%';
         if(!row.classList.contains('cause')) b.className='collateral';
+        if(row.classList.contains('faint')) b.classList.add('faint');
         if(i===marked) b.classList.add('asked');
         b.addEventListener('mouseenter',function(){b.classList.add('on');row.classList.add('on')});
         b.addEventListener('mouseleave',function(){b.classList.remove('on');row.classList.remove('on')});

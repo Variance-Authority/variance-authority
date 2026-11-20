@@ -2194,6 +2194,7 @@
         "identityAtScale": "function",
         "identityCause": "function",
         "identityFrom": "function",
+        "isFaint": "const",
         "messageOf": "function",
         "neverFails": "function",
         "rasterFrom": "function",

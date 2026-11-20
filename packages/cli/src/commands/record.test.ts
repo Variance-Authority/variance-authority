@@ -59,6 +59,15 @@ describe('recordOf', () => {
     expect(record.regions[0]?.cause).toBe(true);
   });
 
+  it('carries how strongly each region differs, its grade', () => {
+    const graded = {
+      ...base,
+      regions: base.regions.map((region, index) => ({ ...region, region: { ...region.region, grade: index + 1 } })),
+    };
+
+    expect(recordOf(graded).regions.map((region) => [region.component, region.grade])).toEqual([['Stack', 1], ['Toggle', 2]]);
+  });
+
   it('reports the truncated tail rather than presenting a capped list as complete', () => {
     expect(recordOf(base).truncated).toEqual({ regions: 3, pixels: 42 });
   });
