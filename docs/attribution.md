@@ -414,8 +414,9 @@ leaving every attribution untouched. A region matches a cause under either
 namespace, author or enclosure, because a one-sided test finds nothing and
 silently reverts to area.
 
-A region whose component is not one of the causes is **collateral**: it is in
-the diff because a cause moved it. The [visual-review
+A region whose component is not one of the causes is **collateral**: only its
+geometry changed, which usually means a cause moved it, though a size declared
+on the component itself counts as geometry too. The [visual-review
 example](../examples/visual-review-case/README.md) renames a plan so its name
 wraps, and the price under it is reported collateral, after the two causes.
 Its 524 differing pixels are fewer than the name's 733 and each button's 3670,

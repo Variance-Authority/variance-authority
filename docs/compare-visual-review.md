@@ -230,7 +230,7 @@ result and the missing fields stay absent.
 
 The same report says which components were edited and which were only pushed
 aside. A component is a **cause** when its own inputs changed, and
-**collateral** when it moved because a cause did; the decision is made from
+**collateral** when only its geometry changed; the decision is made from
 the components' inputs, not from pixels. Each component lists the bands it
 changed in, and each declared value that changed, from → to. In the
 [visual-review example](../examples/visual-review-case/README.md), a plan name

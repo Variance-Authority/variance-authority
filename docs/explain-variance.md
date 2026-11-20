@@ -25,9 +25,12 @@ name pushes the price below it down, and the price's region says so:
       examples/visual-review-case/src/plans.js:45
 ```
 
-A collateral region needs no explanation of its own: look at the causes listed
-above it, as [Review a visual change](path-visual-review.md#a-shift-is-told-from-a-change)
-does for the whole report. The table below is for a region the report leaves unexplained.
+For a collateral region, start from the causes listed above it, as
+[Review a visual change](path-visual-review.md#a-shift-is-told-from-a-change)
+does for the whole report. The label says only that the component's own
+geometry is all that changed, not which cause moved it; when no cause accounts
+for the move, the table below is for it, as for any region the report leaves
+unexplained.
 
 ## Ask what kind of explanation is missing
 

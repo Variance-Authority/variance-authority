@@ -31,10 +31,12 @@ command's answer for the run.
 ### A shift is told from a change
 
 The report lists each component the run saw change. A component is a
-**cause** when its own inputs changed — its props, its text, its declared
-styles — and **collateral** when they did not and it is in the diff only
-because a cause pushed it aside. That is decided from the components' inputs,
-read from the page, never from the pixels:
+**cause** when its own inputs changed — its structure, its text, its
+accessible name, its declared styles — and **collateral** when only its
+geometry did: where it sits and how big it is. That is decided from the
+components' inputs, read from the page, never from the pixels. Collateral is
+where to look last, not a verdict that a cause moved it: a size declared on the
+component itself also counts as geometry.
 
 ```text
 components:
@@ -68,8 +70,11 @@ A fifth band, `texture`, is raster residue with no document counterpart, so no
 component changes in it: it is counted on the region and the observation, as
 [Sensitivity](sensitivity.md) says.
 
-Under a component, each declared value that changed is printed as
+Under a component, a declared style value that changed is printed as
 `property from → to`: the buttons' `background-color`, from charcoal to orange.
+Layout values such as `width` belong to `geometry` and get no such line, and
+the values are compared across every instance of the component, so a change to
+one instance whose siblings keep the old value can print none.
 So a recolour, a renamed heading and a pushed price are three kinds, not three
 pixel counts, and a [sensitivity](sensitivity.md) can let a route test pass on
 `token` while it still fails on `geometry`.
