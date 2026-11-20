@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EXIT_CLEAN, EXIT_OPERATOR } from '../exit.js';
+import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from '../exit.js';
 import { checkout, unprepared, unwalkable } from './index-checkout.fixture.js';
 import { indexOutput } from './index-command.js';
 import { followUpsLockPath, followUpsLogPath, heldBy } from './index-follow-ups.js';
@@ -66,7 +66,7 @@ describe('variance index --wait', () => {
     expect(existsSync(followUpsLockPath(index))).toBe(false);
   });
 
-  it('hands that process the lock while it runs, and refuses with its exit when it ended without finishing', async () => {
+  it('hands that process the lock while it runs, and refuses as the operator\'s, with its exit, when it ended without finishing', async () => {
     const root = await checkout();
     const index = sourceIndexPath(root);
     const pid = gone();
@@ -80,6 +80,7 @@ describe('variance index --wait', () => {
       },
     });
 
+    await expect(run).rejects.toBeInstanceOf(OperatorError);
     await expect(run).rejects.toThrow(`process ${pid}, making the follow-ups \`variance index\` waited on, ended with exit code 1 before it finished; what it wrote is in ${followUpsLogPath(index)}`);
     expect(held).toBe(pid);
     expect(existsSync(followUpsLockPath(index))).toBe(false);

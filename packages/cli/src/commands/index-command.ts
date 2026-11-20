@@ -64,9 +64,9 @@ export interface IndexRequest {
  * of their own (`index-follow-ups.ts`), which every later command that reads them
  * waits on, and this returns once the index is written. In CI and under `--wait`
  * they go to the same process and this waits for it to end, so what they hold is
- * never added to what the walk still holds. Only a library caller, which has no
- * program to relaunch, has them made in this process. A walk git could not make
- * is told to `failed`.
+ * never added to what the walk still holds. A library caller, which has no
+ * program to relaunch, and a run whose process could not be started have them
+ * made in this process. A walk git could not make is told to `failed`.
  */
 export async function indexOutput(request: IndexRequest): Promise<string> {
   const index = sourceIndexPath(request.cwd);
@@ -111,7 +111,7 @@ async function waitedOn(request: IndexRequest, { pid, ended }: Running, alone: A
   for (const why of failed ?? []) request.failed?.(why);
   if (code !== 0 && failed === undefined) {
     const how = signal === null ? `exit code ${String(code)}` : `signal ${signal}`;
-    throw new Error(`process ${pid}, making the follow-ups \`variance index\` waited on, ended with ${how} before it finished; what it wrote is in ${followUpsLogPath(index)}`);
+    throw new OperatorError(`process ${pid}, making the follow-ups \`variance index\` waited on, ended with ${how} before it finished; what it wrote is in ${followUpsLogPath(index)}`);
   }
   return out.split('\n').slice(1).filter((line) => line !== '' && !alone.has(line));
 }
@@ -167,15 +167,16 @@ function turnLine({ pid, root }: IndexTurnHolder): string {
 }
 
 /**
- * What a detached `index` runs: the update again, which finds the index it was
- * handed and writes nothing, for the listing of the checkout it carries; then
- * the follow-ups, the lock marked once the index is readied; then the lock is
- * let go. A walk git could not read marks the lock with why instead, for the
- * next command that reads the follow-ups to tell: nobody reads this process's
- * exit. A process that threw keeps the lock unmarked, so that command finds its
- * holder gone and makes them itself.
+ * What the process `index` hands its follow-ups to runs: the update again,
+ * which finds the index it was handed and writes nothing, for the listing of
+ * the checkout it carries; then the follow-ups, the lock marked once the index
+ * is readied; then the lock is let go. A walk git could not read marks the lock
+ * with why instead, for the next command that reads the follow-ups to tell, or
+ * for the run waiting on this process to carry in its exit. A process that
+ * threw keeps the lock unmarked, so that command finds its holder gone and
+ * makes them itself.
  */
-export async function followUpsOutput(request: Omit<IndexRequest, 'detach'>): Promise<string> {
+export async function followUpsOutput(request: Omit<IndexRequest, 'detach' | 'apart'>): Promise<string> {
   const index = sourceIndexPath(request.cwd);
   const failed: string[] = [];
   const output = await inline({ ...request, failed: (why) => { failed.push(why); request.failed?.(why); } }, () => readiedFollowUps(index, process.pid));
