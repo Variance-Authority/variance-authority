@@ -46,7 +46,7 @@ pub(crate) struct Stored {
     /// `unmade` says why.
     pub(crate) made: Option<Made>,
     pub(crate) unmade: Option<String>,
-    pages: Vec<Page>,
+    pub(crate) pages: Vec<Page>,
     /// Every package in code-unit order of name, with the layer it sits in and
     /// the packages it takes, so two maps can be compared package by package.
     pub(crate) placed: Vec<Placed>,

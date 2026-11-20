@@ -6,9 +6,11 @@
  * wording are pure functions of the reading and the placements, and a test
  * holding them should not need a repository and an index to get one.
  *
- * A word is an entity when it is, whole, a package's name or that name without
- * its scope, an entrypoint's specifier with or without the scope (both matched
- * without case), or a published exported name, matched as it is spelled. A word
+ * A word is an entity when it is, whole, the name of a package the code map
+ * holds or that name without its scope, an entrypoint's specifier with or
+ * without the scope (both matched without case), or a published exported name,
+ * matched as it is spelled. The packages are the map's, so one that publishes
+ * nothing is still named; the entrypoints and exports are the reading's. A word
  * that is only part of a name is not one: `check` beside `checkoutPath` names
  * nothing. There is no ranking and no model; the dictionary is the reading.
  */
@@ -16,7 +18,7 @@
 // compass: variance-authority.report.agent-surface
 
 import type { Help } from '@variance-authority/package/help';
-import { unscoped } from './code-map-format.js';
+import { STALE_MAP, unscoped } from './code-map-format.js';
 import { specifierOf } from './find.js';
 import { narrower, plural, shell } from './format.js';
 
@@ -44,10 +46,14 @@ export interface Classified {
 /** Where a package sits on the code map: its innermost area, absent for one no area took, and its dependency layer. */
 export interface Placed {
   readonly area?: { readonly id: string; readonly name: string };
-  readonly layer?: number;
+  readonly layer: number;
 }
 
-export type Placements = ReadonlyMap<string, Placed>;
+/** Every package on the code map, placed, and whether the map was folded from the source index as it stands. */
+export interface CodeMapPlaces {
+  readonly current: boolean;
+  readonly packages: ReadonlyMap<string, Placed>;
+}
 
 const ORDER: readonly Named['kind'][] = ['package', 'entrypoint', 'export'];
 
@@ -59,8 +65,8 @@ function wordsOf(text: string): readonly string[] {
   return (text.match(/@?[\p{L}\p{N}_$][\p{L}\p{N}_$@./-]*/gu) ?? []).map((word) => word.replace(/[./-]+$/u, ''));
 }
 
-/** Every spelling the reading publishes, keyed by how a word is compared with it. */
-function dictionaryOf(help: Help): { readonly folded: ReadonlyMap<string, Named[]>; readonly exact: ReadonlyMap<string, Named[]> } {
+/** Every spelling of the mapped packages and of what the reading publishes, keyed by how a word is compared with it. */
+function dictionaryOf(help: Help, packages: Iterable<string>): { readonly folded: ReadonlyMap<string, Named[]>; readonly exact: ReadonlyMap<string, Named[]> } {
   const folded = new Map<string, Named[]>();
   const exact = new Map<string, Named[]>();
   const add = (into: Map<string, Named[]>, key: string, named: Named): void => {
@@ -68,9 +74,11 @@ function dictionaryOf(help: Help): { readonly folded: ReadonlyMap<string, Named[
     if (!held.some((one) => one.kind === named.kind && one.specifier === named.specifier)) held.push(named);
     into.set(key, held);
   };
+  for (const owner of packages) {
+    for (const spelled of new Set([owner, unscoped(owner)])) add(folded, spelled.toLowerCase(), { kind: 'package', specifier: owner, package: owner });
+  }
   for (const published of help.packages) {
     const owner = published.name;
-    for (const spelled of new Set([owner, unscoped(owner)])) add(folded, spelled.toLowerCase(), { kind: 'package', specifier: owner, package: owner });
     for (const opening of published.openings) {
       const specifier = specifierOf(published, opening);
       if (opening.subpath !== '.') {
@@ -84,9 +92,9 @@ function dictionaryOf(help: Help): { readonly folded: ReadonlyMap<string, Named[
   return { folded, exact };
 }
 
-/** The words of `text` that are, whole, a name `help` publishes, and the words that are not. */
-export function classifyWords(text: string, help: Help): Classified {
-  const { folded, exact } = dictionaryOf(help);
+/** The words of `text` that are, whole, one of `packages` or a name `help` publishes, and the words that are not. */
+export function classifyWords(text: string, help: Help, packages: Iterable<string>): Classified {
+  const { folded, exact } = dictionaryOf(help, packages);
   const entities = new Map<string, Entity>();
   const plain = new Set<string>();
   for (const word of wordsOf(text)) {
@@ -104,19 +112,20 @@ export function classifyWords(text: string, help: Help): Classified {
 }
 
 function where(placed: Placed | undefined): string {
+  // A package published since the map was folded; the stale sentence says why.
   if (placed === undefined) return ' · not on the code map';
   const area = placed.area === undefined ? ' · in no area' : ` · area ${placed.area.id} ${placed.area.name}`;
-  return `${area}${placed.layer === undefined ? '' : ` · layer ${placed.layer}`}`;
+  return `${area} · layer ${placed.layer}`;
 }
 
 /** The entities, one line per thing each names with its place on the code map, then the plain words on one line. */
-export function formatClassified({ entities, plain }: Classified, placements: Placements): string {
+export function formatClassified({ entities, plain }: Classified, { current, packages }: CodeMapPlaces): string {
   const lines = [
     entities.length === 0
       ? 'No word names a package, an entrypoint or an exported name this workspace publishes.'
       : `${plural(entities.length, 'word names', 'words name')} what this workspace publishes:`,
     ...entities.flatMap(({ word, names }) =>
-      names.map((named, at) => `${at === 0 ? word : ' '.repeat(word.length)} — ${named.kind} ${named.specifier}${where(placements.get(named.package))}`),
+      names.map((named, at) => `${at === 0 ? word : ' '.repeat(word.length)} — ${named.kind} ${named.specifier}${where(packages.get(named.package))}`),
     ),
   ];
   if (plain.length > 0) lines.push(`Not entities: ${plain.join(' ')}`);
@@ -127,5 +136,6 @@ export function formatClassified({ entities, plain }: Classified, placements: Pl
     return [first.kind === 'export' ? `variance ask symbol --name ${shell(word)}` : `variance ask entrypoint --package ${shell(first.specifier)}`];
   });
   lines.push(...narrower([...new Set(asks)]));
+  if (!current) lines.push('', STALE_MAP);
   return lines.join('\n');
 }

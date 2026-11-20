@@ -49,6 +49,10 @@ function families(): string {
       symlinkSync(`../../packages/${family}/${name}`, join(root, `node_modules/@t/${name}`));
     }
   }
+  // A private package that publishes nothing is still a package on the map.
+  write('packages/tools/case-runner/package.json', JSON.stringify({ name: '@t/case-runner', private: true, dependencies: { '@t/tools-0': '*' } }));
+  write('packages/tools/case-runner/src/run.ts', "import { tools0 } from '@t/tools-0';\nexport const run = tools0;\n");
+  symlinkSync('../../packages/tools/case-runner', join(root, 'node_modules/@t/case-runner'));
   const git = (args: readonly string[]): void => {
     execFileSync('git', args, { cwd: root, stdio: 'pipe' });
   };
@@ -76,9 +80,19 @@ describe('variance ask classify', () => {
     const asked = await run(['ask', 'classify', '--query', 'why does shop-2 call data1?']);
 
     expect(asked.code).toBe(EXIT_CLEAN);
-    expect(asked.out).toMatch(/^shop-2 — package @t\/shop-2 · area 3 packages\/shop\/ shop · layer 3$/m);
-    expect(asked.out).toMatch(/^data1 — export @t\/data-1 · area 2 packages\/data\/ data · layer 2$/m);
+    expect(asked.out).toMatch(/^shop-2 — package @t\/shop-2 · area 4 packages\/shop\/ shop · layer 3$/m);
+    expect(asked.out).toMatch(/^data1 — export @t\/data-1 · area 3 packages\/data\/ data · layer 2$/m);
     expect(asked.out).toMatch(/^Not entities: why does call$/m);
     expect(asked.out).toContain('variance ask symbol --name data1');
+  });
+
+  it('names a private package that publishes nothing, as the map holds it', async () => {
+    families();
+    expect((await run(['index'])).code).toBe(EXIT_CLEAN);
+
+    const asked = await run(['ask', 'classify', '--query', 'what does case-runner run?']);
+
+    expect(asked.code).toBe(EXIT_CLEAN);
+    expect(asked.out).toMatch(/^case-runner — package @t\/case-runner · (area \S+ .+|in no area) · layer 2$/m);
   });
 });

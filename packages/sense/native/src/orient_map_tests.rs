@@ -185,7 +185,7 @@ fn outside_git_the_map_is_folded_from_the_indexed_files_and_the_manifests_beside
 fn every_package_reads_back_with_its_layer_and_what_it_takes() {
     let (_root, root, index) = indexed("placed");
     prepare_orient_map(&root, &index, Some(true), false, crate::resolve::Tsconfig::Auto).unwrap().expect("an index");
-    let answer = crate::orient_map_layers::orient_layers(index).unwrap().expect("a kept map");
+    let answer = crate::orient_map_layers::orient_layers(index.clone()).unwrap().expect("a kept map");
     assert!(answer.current && answer.unmade.is_none());
     let packages = answer.packages.expect("a folded map");
     let layer = |name: &str| packages.iter().find(|package| package.package == name).unwrap();
@@ -196,6 +196,12 @@ fn every_package_reads_back_with_its_layer_and_what_it_takes() {
     assert_eq!(layer("@t/server-0").takes, ["@t/ui-0"]);
     assert_eq!(layer("@t/server-0").layer, 2);
     assert_eq!(packages.iter().map(|package| package.layer).max(), Some(6));
+    // Each package reads back with the innermost area whose page lists it.
+    let area = |name: &str| layer(name).area.as_ref().map(|area| (area.id.clone(), area.name.clone())).expect("an area");
+    assert_eq!(area("@t/data-0"), area("@t/data-4"));
+    assert_ne!(area("@t/data-0"), area("@t/server-0"));
+    let page = orient_map_page(index, Some(area("@t/data-0").0)).unwrap().unwrap().page.unwrap();
+    assert!(page.list.contains(&"@t/data-0".to_owned()));
 }
 
 #[test]
