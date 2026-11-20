@@ -31,7 +31,8 @@ const FLAT = EDGE / 4;
 
 /**
  * What changed in `region`, from the pixels the comparison decoded and its row
- * pairing, or `undefined` when neither side has an edge in it to tell by. Reads
+ * pairing, or `undefined` when neither side has an edge in it and a pixel is too
+ * faint to call flat, so nothing tells the two apart. Reads
  * only the pixels in its box and {@link REGION_MARGIN} around it, less the
  * pixels any `excluded` box covers, so the cost is the changed area.
  */
@@ -82,13 +83,15 @@ export function regionChange(
   for (let index = 0; index < first.length; index += 1) {
     if (first[index]! >= 0 && second[index]! >= 0 && first[index] !== second[index]) return 'shape';
   }
-  // Flat on both sides, or too faint to mark: nothing says the drawing stayed.
-  return first.includes(1) || second.includes(1) ? 'colour' : undefined;
+  // No edge on either side, and a pixel too faint to call flat: nothing says the drawing stayed.
+  if (first.includes(1) || second.includes(1)) return 'colour';
+  return first.includes(-1) || second.includes(-1) ? undefined : 'colour';
 }
 
 /**
  * Each read pixel marked by its edge in one image, its larger distance to its
- * right and lower neighbours: 1 an edge, 0 flat, -1 between them or unread.
+ * right and lower neighbours: 1 an edge, 0 flat, -1 between them, and -2 unread
+ * or with no neighbour read.
  */
 function edges(data: Uint8Array, offsets: Int32Array, columns: number): Int8Array {
   const words = new Uint32Array(data.buffer, data.byteOffset, data.byteLength >> 2);
@@ -97,7 +100,7 @@ function edges(data: Uint8Array, offsets: Int32Array, columns: number): Int8Arra
     if (words[at >> 2] === words[to >> 2]) return 0;
     return Math.sqrt(Math.abs(colorDeltaAt(data, at, data, to, at)));
   };
-  const marks = new Int8Array(offsets.length).fill(-1);
+  const marks = new Int8Array(offsets.length).fill(-2);
   for (let index = 0; index < offsets.length; index += 1) {
     const at = offsets[index]!;
     if (at < 0) continue;
@@ -105,8 +108,7 @@ function edges(data: Uint8Array, offsets: Int32Array, columns: number): Int8Arra
     const below = index + columns < offsets.length ? offsets[index + columns]! : -1;
     const value = Math.max(towards(at, right), towards(at, below));
     if (value < 0) continue;
-    if (value <= FLAT) marks[index] = 0;
-    else if (value >= EDGE) marks[index] = 1;
+    marks[index] = value <= FLAT ? 0 : value >= EDGE ? 1 : -1;
   }
   return marks;
 }

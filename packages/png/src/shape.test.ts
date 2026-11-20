@@ -102,6 +102,11 @@ describe('what changed in a region', () => {
     expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(regions.map(() => undefined));
   });
 
+  it('reads a flat fill recoloured as colour, with no edge on either side', async () => {
+    const { pixels, regions } = await read(raster(40, 30, () => [0x2f, 0x34, 0x37]), raster(40, 30, () => [0x3a, 0x40, 0x43]));
+    expect(regions.map((region) => regionChange(pixels, region, []))).toEqual(['colour']);
+  });
+
   it('reads none of a box the comparison excluded, rounded out to the pixels it touches', async () => {
     // A recoloured block from x 32, and a dark column at x 30 that goes: under a box from x 30.5, which covers that pixel's half.
     const paint =
