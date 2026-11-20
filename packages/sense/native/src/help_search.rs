@@ -118,18 +118,39 @@ fn words_of(token: &str) -> Vec<&str> {
 /// `joined`: strings as UTF-8 with a separator, and where each one starts.
 pub(crate) fn joined<S: AsRef<str>>(values: impl IntoIterator<Item = S>, separator: &str) -> (Vec<u32>, Vec<u8>) {
     let values = values.into_iter();
-    let mut off = Vec::with_capacity(values.size_hint().0 + 1);
-    let mut blob = Vec::new();
-    for (at, value) in values.enumerate() {
-        if at > 0 {
-            blob.extend_from_slice(separator.as_bytes());
+    let mut runs = Runs::new(separator, values.size_hint().0);
+    for value in values {
+        runs.push(value.as_ref());
+    }
+    runs.done()
+}
+
+/// `joined`, a value at a time: a run of rows met in parts is written as it
+/// would be at once.
+pub(crate) struct Runs<'s> {
+    separator: &'s str,
+    off: Vec<u32>,
+    blob: Vec<u8>,
+}
+
+impl<'s> Runs<'s> {
+    pub(crate) fn new(separator: &'s str, count: usize) -> Self {
+        Runs { separator, off: Vec::with_capacity(count + 1), blob: Vec::new() }
+    }
+
+    pub(crate) fn push(&mut self, value: &str) {
+        if !self.off.is_empty() {
+            self.blob.extend_from_slice(self.separator.as_bytes());
         }
         // Each start counts a separator after every earlier value.
-        off.push((blob.len()) as u32);
-        blob.extend_from_slice(value.as_ref().as_bytes());
+        self.off.push(self.blob.len() as u32);
+        self.blob.extend_from_slice(value.as_bytes());
     }
-    off.push(if off.is_empty() { 0 } else { (blob.len() + separator.len()) as u32 });
-    (off, blob)
+
+    pub(crate) fn done(mut self) -> (Vec<u32>, Vec<u8>) {
+        self.off.push(if self.off.is_empty() { 0 } else { (self.blob.len() + self.separator.len()) as u32 });
+        (self.off, self.blob)
+    }
 }
 
 /// `postings`: for each key, the ascending rows that hold it.

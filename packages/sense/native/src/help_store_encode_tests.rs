@@ -3,7 +3,7 @@
 
 use sha2::{Digest, Sha256};
 
-use crate::help_store::{encode, DeepRef, HelpStore, PackageRef, StoreDeep, StoreEntry, StoreMention, StoreOpening, StorePackage, StoreRef, StoreUse};
+use crate::help_store::{encode, DeepRef, HelpStore, PackageRef, Packages, StoreDeep, StoreEntry, StoreMention, StoreOpening, StorePackage, StoreRef, StoreUse};
 use crate::help_usage::NamedExport;
 
 /// Words a doc or a signature is written in: several words in one token,
@@ -103,13 +103,43 @@ fn store() -> (HelpStore, Vec<NamedExport>) {
     (store, (0..40_000).map(export).collect())
 }
 
+/// The store's length and sha256, encoded from `packages`.
+fn written(packages: impl FnOnce(Vec<PackageRef>) -> Box<dyn Packages + '_>, held: &HelpStore, exported: &[NamedExport]) -> (usize, String) {
+    let deep = [&held.deep, &held.by_path, &held.unfollowed].map(|held| held.iter().map(DeepRef::from).collect());
+    let packages = packages(held.packages.iter().map(PackageRef::from).collect());
+    let input = StoreRef { packages: packages.as_ref(), deep, unreadable: &held.unreadable };
+    let (bytes, _) = encode(&input, exported, None, None).unwrap();
+    (bytes.len(), Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+const PINNED: (usize, &str) = (10_350_440, "41deaa65730da1989362bf1f41673f385bebdd9e0273d0b4aeb8a66d8cf57b2a");
+
 #[test]
 fn the_store_is_written_byte_for_byte_as_before() {
     let (held, exported) = store();
-    let deep = [&held.deep, &held.by_path, &held.unfollowed].map(|held| held.iter().map(DeepRef::from).collect());
-    let packages: Vec<PackageRef> = held.packages.iter().map(PackageRef::from).collect();
-    let input = StoreRef { packages: &packages, deep, unreadable: &held.unreadable };
-    let (bytes, _) = encode(&input, &exported, None, None);
-    let digest: String = Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect();
-    assert_eq!((bytes.len(), digest.as_str()), (10_350_440, "41deaa65730da1989362bf1f41673f385bebdd9e0273d0b4aeb8a66d8cf57b2a"));
+    let (length, digest) = written(|packages| Box::new(packages), &held, &exported);
+    assert_eq!((length, digest.as_str()), PINNED);
+}
+
+/// Packages handed to the encoder `size` at a time.
+struct InRuns<'a>(Vec<PackageRef<'a>>, usize);
+
+impl Packages for InRuns<'_> {
+    fn names(&self) -> Vec<&str> {
+        self.0.names()
+    }
+
+    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>])) -> Result<(), String> {
+        self.0.chunks(self.1).for_each(visit);
+        Ok(())
+    }
+}
+
+#[test]
+fn packages_handed_over_in_runs_write_the_store_they_write_at_once() {
+    let (held, exported) = store();
+    for size in [1, 2, 5] {
+        let (length, digest) = written(|packages| Box::new(InRuns(packages, size)), &held, &exported);
+        assert_eq!((length, digest.as_str()), PINNED, "runs of {size}");
+    }
 }
