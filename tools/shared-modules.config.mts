@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { isolator } from '@variance-authority/isolator/vite';
+import { withTestSelection } from '@variance-authority/sense/vitest';
 import picomatch from 'picomatch';
-import { slice } from '../vitest.config.mjs';
+import { selection, slice } from '../vitest.config.mjs';
 
 /**
  * `yarn test:shared`: the isolator README's Vitest setup over the unit slice,
@@ -14,6 +15,11 @@ import { slice } from '../vitest.config.mjs';
  * isolated, found by what it declares: a `vi.mock` reaches only modules loaded
  * after it, React binds the DOM it finds as it loads, and Playwright's loader
  * hooks `require` and ESM for the process with no way back.
+ *
+ * Wrapped to select and record nothing: with `VARIANCE_AUTHORITY_SINCE` set,
+ * even empty as CI sets it, it runs the files the unit slice's own run would
+ * select from the same record, so a pull request's unit leg runs its selection
+ * here too; unset, every file runs, as on `main`.
  */
 
 const ROOT = import.meta.dirname.replace(/[/\\]tools$/, '');
@@ -44,4 +50,4 @@ config.test.projects = [
   },
 ];
 
-export default config;
+export default withTestSelection(config, { ...selection, record: false });

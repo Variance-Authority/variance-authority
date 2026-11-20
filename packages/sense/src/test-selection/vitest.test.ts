@@ -6,6 +6,7 @@ import { instrumentationId } from '../instrument/index.js';
 import { decodeTestCoverage } from './format.js';
 import { oneRowPerFile, reportedComplete, runnerSkipped, taskComplete, type ReportedModule, type RunnerTask } from './finished-files.js';
 import { laidCoverage } from './__fixtures__/laid.js';
+import { notingRead, takeReadFor } from './record-base.js';
 import { withTestSelection } from './vitest.js';
 import type { CoverageBlock, TestCoverage } from './index.js';
 
@@ -212,6 +213,29 @@ describe('a module named unprobed', () => {
       ]);
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('a run that records nothing', () => {
+  // A recorded run's landing takes the record its selection read; one that
+  // lands nothing takes it when the run ends, so the next run in the process
+  // may read another.
+  it('forgets the record its selection read when the run ends, so a rerun may read another', async () => {
+    const directory = await mkdtemp(resolve(tmpdir(), 'va-unrecorded-'));
+    try {
+      const coverageFile = resolve(directory, 'coverage.bin');
+      const wrapped = withTestSelection({ root: directory }, { root: directory, coverageFile, record: false });
+      const reporters = wrapped.test!.reporters as unknown as { onFinished?: () => unknown; onTestRunEnd?: () => unknown }[];
+      const reading = (read: string) => notingRead(coverageFile, async () => ({ read }));
+
+      await reading('sha256:first')();
+      for (const reporter of reporters) await (reporter.onTestRunEnd ?? reporter.onFinished)?.call(reporter);
+
+      await expect(reading('sha256:second')()).resolves.toEqual({ read: 'sha256:second' });
+    } finally {
+      takeReadFor(resolve(directory, 'coverage.bin'));
+      await rm(directory, { recursive: true, force: true });
     }
   });
 });

@@ -180,6 +180,9 @@ The other recording options:
   the run.
 - `unprobed`: modules that take the `loads` line instead of probes, inside a
   finer recording. Jest takes globs; Vitest and Rstest take a predicate.
+- `record` (on, Vitest only): `false` runs the same selection under a second
+  configuration, such as one that shares modules between files, and writes
+  nothing; a file whose cases the selection cuts runs whole.
 
 Under `'loads'`, `cadence`, `continuations` and stories do not apply. Each
 `mode` records under its own probes, so when you change it the next run
