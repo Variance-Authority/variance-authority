@@ -13,6 +13,8 @@ const fixture = resolve(repository, 'packages/sense/test/fixtures/cargo-crate');
 // Recorded names are relative to the checkout, and the fixture sits inside it.
 const lib = `${relative(repository, fixture)}/src/lib.rs`;
 const negates = `${relative(repository, fixture)}/tests/negates.rs`;
+const custom = `${relative(repository, fixture)}/tests/custom.rs`;
+const exits = `${relative(repository, fixture)}/tests/exits.rs`;
 
 /** A diff that changes one line of `src/lib.rs`. */
 const editing = (source: string, line: string, edited: string): string => {
@@ -44,7 +46,13 @@ describe('a Cargo suite recorded one test per process', () => {
 
   it('writes each file tests are declared in as a row, every test passing', async () => {
     expect(failed).toBe(0);
-    expect(decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort()).toEqual([lib, negates]);
+    expect(decodeTestCoverage(await readFile(coverageFile)).tests.map((test) => test.file).sort()).toEqual([lib, custom, exits, negates].sort());
+  });
+
+  // What ran there is not known, so an edit anywhere selects them.
+  it('records a target that lists no test, and one whose test left no profile, as incomplete', async () => {
+    const rows = decodeTestCoverage(await readFile(coverageFile)).tests;
+    expect(rows.filter((test) => !test.complete).map((test) => test.file).sort()).toEqual([custom, exits]);
   });
 
   it('leaves no profile behind in the crate, from building, listing or running the tests', async () => {
@@ -56,7 +64,7 @@ describe('a Cargo suite recorded one test per process', () => {
     const cases = await caseIndexOf(coverageFile);
     if (cases === undefined) throw new Error('the run wrote no execution index');
     const index = decodeExecutionIndex(cases);
-    expect(index.tests.map((test) => test.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${lib} > tests::negs`, `${negates} > negates`]);
+    expect(index.tests.map((test) => test.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`, `${lib} > tests::negs`, `${exits} > exits`, `${negates} > negates`].sort());
     const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');
     const line = source.split('\n').findIndex((text) => text.startsWith('pub fn add')) + 1;
     const module = index.modules.find((entry) => entry.file === lib);

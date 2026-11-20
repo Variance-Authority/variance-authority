@@ -158,9 +158,10 @@ export interface NativeScanner extends NativeOrientMaps, NativeDependencyLexicon
   /**
    * For each `.profraw` in `profiles`, the files under `root` its run of
    * `binaries` entered: each a module id and the ordinals of the Rust reader's
-   * regions its counters reached (`native/src/rust_coverage.rs`).
+   * regions its counters reached, or `null` for a profile missing, empty or cut
+   * short (`native/src/rust_coverage.rs`).
    */
-  rustCoverage(binaries: string[], profiles: string[], root: string): { id: string; ordinals: Uint32Array }[][];
+  rustCoverage(binaries: string[], profiles: string[], root: string): ({ id: string; ordinals: Uint32Array }[] | null)[];
   gitTree(root: string): NativeGitTree | null;
   gitTreeFor(root: string, dirs: string[]): NativeGitTree | null;
   /** The tree an update of the index at `index` is made against (`native/src/change_tree.rs`). */

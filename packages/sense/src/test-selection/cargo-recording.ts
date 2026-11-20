@@ -79,8 +79,11 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
     let failed = 0;
     for (const [testFile, sharing] of byTestFile(binaries)) {
       const ran: Ran[] = [];
+      // A target with its own `main` answers no listing, so what its run entered is not known.
+      let unlisted = false;
       for (const binary of sharing) {
         const names = await listed(binary, join(profiles, 'listing-%p.profraw'));
+        unlisted ||= names.length === 0;
         const tests: Ran[] = [];
         await pool(availableParallelism(), names, async (name, at) => {
           tests[at] = await alone(binary, name, join(profiles, `${randomUUID()}.profraw`));
@@ -92,7 +95,8 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
       failed += ran.filter((test) => !test.passed).length;
       finished.push({
         filepath: testFile,
-        complete: ran.every((test) => test.passed),
+        // A test that passed without writing its profile, as one that calls `_exit` does, entered what nobody can tell.
+        complete: !unlisted && ran.every((test, at) => test.passed && entered[at] !== null),
         cases: ran.map((test) => finishedCase(test.name, undefined, test.duration)),
       });
     }
@@ -205,7 +209,7 @@ function writeJournals(
   selection: { readonly runDirectory: string; readonly caseDirectory: string },
   testFile: string,
   ran: readonly Ran[],
-  entered: readonly (readonly { readonly id: string; readonly ordinals: Uint32Array }[])[],
+  entered: readonly (readonly { readonly id: string; readonly ordinals: Uint32Array }[] | null)[],
 ): void {
   const stamp = `${process.pid}-${randomUUID()}`;
   const union = new Map<string, Set<number>>();

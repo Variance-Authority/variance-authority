@@ -5,3 +5,8 @@ edition = "2024"
 
 # Its own workspace, not the repository's.
 [workspace]
+
+# A target with its own `main`, which answers no libtest listing.
+[[test]]
+name = "custom"
+harness = false

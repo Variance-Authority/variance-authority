@@ -37,28 +37,29 @@ pub struct RustEntered {
 /// file outside `root` is left out, since it is not the checkout's; one the cut
 /// cannot parse is entered at its root alone, as a module the reader cannot parse
 /// is, so an edit to it selects every test that entered it. A profile that is
-/// missing or cut short entered nothing: its test died before it was written.
+/// missing, empty or cut short answers `None`: its test left before it was
+/// written, so what it entered is not known.
 #[napi(js_name = "rustCoverage", catch_unwind)]
-pub fn rust_coverage(binaries: Vec<String>, profiles: Vec<String>, root: String) -> napi::Result<Vec<Vec<RustEntered>>> {
-    // A test whose process died before it wrote its profile, or while it did, entered nothing anybody can tell.
-    let counted: Vec<Counts> = profiles.par_iter().map(|profile| Counts::read(profile).unwrap_or_default()).collect();
-    let Some(version) = counted.iter().find_map(|counts| counts.version) else {
-        return Ok(profiles.iter().map(|_| Vec::new()).collect());
+pub fn rust_coverage(binaries: Vec<String>, profiles: Vec<String>, root: String) -> napi::Result<Vec<Option<Vec<RustEntered>>>> {
+    let counted: Vec<Option<Counts>> = profiles.par_iter().map(|profile| Counts::read(profile)).collect();
+    let Some(version) = counted.iter().flatten().map(|counts| counts.version).next() else {
+        return Ok(counted.iter().map(|counts| counts.as_ref().map(|_| Vec::new())).collect());
     };
     let map = Map::read(&binaries, version, Path::new(&root))?;
-    Ok(counted.par_iter().map(|counts| map.entered(counts)).collect())
+    Ok(counted.par_iter().map(|counts| counts.as_ref().map(|counts| map.entered(counts))).collect())
 }
 
 /// One profile's counters, by the function they count: its name hash and its hash.
-#[derive(Default)]
 struct Counts {
-    version: Option<u64>,
+    version: u64,
     functions: HashMap<(u64, u64), Vec<u64>>,
 }
 
 impl Counts {
-    fn read(profile: &str) -> std::io::Result<Counts> {
-        let parsed = parse(profile)?;
+    /// None for a profile that was not written whole: one that carries no header has no version.
+    fn read(profile: &str) -> Option<Counts> {
+        let parsed = parse(profile).ok()?;
+        let version = parsed.version()?;
         let mut functions: HashMap<(u64, u64), Vec<u64>> = HashMap::new();
         for record in parsed.records() {
             let (Some(name), Some(hash)) = (record.name_hash, record.hash) else { continue };
@@ -72,7 +73,7 @@ impl Counts {
                 summed.iter_mut().zip(counts).for_each(|(sum, count)| *sum = sum.saturating_add(*count));
             }
         }
-        Ok(Counts { version: parsed.version(), functions })
+        Some(Counts { version, functions })
     }
 }
 
@@ -233,11 +234,17 @@ impl File {
 mod tests {
     use super::*;
 
+    // The profile runtime creates the file as the process starts, so one that left early leaves it empty.
     #[test]
-    fn a_test_that_wrote_no_profile_entered_nothing() {
-        let entered = rust_coverage(Vec::new(), vec!["/nonexistent/aborted.profraw".into()], "/".into()).expect("a missing profile is no error");
-        assert_eq!(entered.len(), 1);
-        assert!(entered[0].is_empty());
+    fn a_profile_missing_or_empty_is_not_known() {
+        let empty = std::env::temp_dir().join(format!("variance-empty-{}.profraw", std::process::id()));
+        std::fs::write(&empty, b"").expect("the file is written");
+        let profiles = vec!["/nonexistent/aborted.profraw".into(), empty.to_string_lossy().into_owned()];
+        let entered = rust_coverage(Vec::new(), profiles, "/".into());
+        std::fs::remove_file(&empty).ok();
+        let entered = entered.expect("an unreadable profile is no error");
+        assert_eq!(entered.len(), 2);
+        assert!(entered.iter().all(Option::is_none));
     }
 
     // As a JavaScript module the reader cannot parse: an edit to it selects every test that entered it.
@@ -254,7 +261,7 @@ mod tests {
             files: vec![file],
             functions: vec![Function { key: (1, 2), expressions: Vec::new(), regions: vec![(Counter::instrumentation(0), 0, 1, 1)] }],
         };
-        let counts = Counts { version: None, functions: HashMap::from([((1, 2), vec![1])]) };
+        let counts = Counts { version: 0, functions: HashMap::from([((1, 2), vec![1])]) };
         let entered = map.entered(&counts);
         assert_eq!(entered.len(), 1);
         assert_eq!(entered[0].id, variance_sense_instrument::module_id("broken.rs", source));
