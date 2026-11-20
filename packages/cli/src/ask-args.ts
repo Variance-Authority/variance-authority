@@ -216,7 +216,10 @@ export function parseAskArgs(flags: Flags, config: string): ParsedAsk {
     command: 'ask',
     config,
     ...(question !== undefined ? { question } : {}),
-    ...(flags.unknown.length > 0 ? { unknown: flags.unknown } : {}),
+    // `next` counts the question among the positionals; here it counts reports.
+    ...(flags.unknown.length > 0
+      ? { unknown: flags.unknown.map((entry) => (entry.next === undefined ? entry : { ...entry, next: entry.next - 1 })) }
+      : {}),
     ...(subject !== undefined ? { subject } : {}),
     ...(subjects.length > 0 ? { subjects } : {}),
     ...(component !== undefined ? { component } : {}),

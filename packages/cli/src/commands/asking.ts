@@ -314,6 +314,24 @@ export function refuseWords(tool: Asked, words: readonly string[] | undefined): 
 }
 
 /**
+ * Refuse the words typed after a question that reads none of them, once each
+ * word typed right after a flag no question takes is given to that flag as its
+ * value. The flags come back named with their values, for `inputFor` to name:
+ * `--limt 5` is one flag answered past, not a flag and a stray `5`.
+ */
+export function wordless(tool: Asked, unknown: readonly Unknown[] = [], words: readonly string[] = []): readonly Unknown[] {
+  const taken = new Set<number>();
+  const valued = unknown.map(({ flag, typed, next }) => {
+    const value = next === undefined ? undefined : words[next];
+    if (value === undefined) return { flag, typed };
+    taken.add(next as number);
+    return { flag, typed: `${typed} ${value}` };
+  });
+  refuseWords(tool, words.filter((_, at) => !taken.has(at)));
+  return valued;
+}
+
+/**
  * Tells `ignore` that a question answered without a flag it does not take, and
  * the nearest of the ones it does. The one sentence for a flag the question
  * lacks and for one no question has, its value included, so either reads alike.

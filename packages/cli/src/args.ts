@@ -29,10 +29,16 @@ export interface Flags {
   readonly unknown: readonly Unknown[];
 }
 
-/** A flag the command does not take, and the words it was typed as, its value among them. */
+/** A flag the command does not take, as it was typed. */
 export interface Unknown {
   readonly flag: string;
+  /** The flag as typed, its value among it when given with `=`. */
   readonly typed: string;
+  /**
+   * Where among the positionals the word typed right after it went, when one
+   * did: its value, or a word of its own, which only the command can tell.
+   */
+  readonly next?: number;
 }
 
 /**
@@ -169,13 +175,12 @@ export function readFlags(
     const name = equals === -1 ? argument : argument.slice(0, equals);
 
     if (!accepted.includes(name) && unknownFlags === 'keep') {
-      // Its value goes with it, unless what follows is the next flag, and is
-      // kept in `typed` so whoever is told of the flag is told of the word too.
-      // Before the first positional the next word is the question, never a value.
+      // The word after it stays a positional, and `next` says which: `--limt 5`
+      // gives `5` as its value, `--verbose report.json` gives no value and a
+      // report. Before the first positional the next word is the question.
       const next = argv[index];
       const valued = equals === -1 && positionals.length > 0 && next !== undefined && !next.startsWith('-');
-      if (valued) index += 1;
-      unknown.push({ flag: name, typed: valued ? `${argument} ${next}` : argument });
+      unknown.push({ flag: name, typed: argument, ...(valued ? { next: positionals.length } : {}) });
       continue;
     }
     if (!accepted.includes(name)) {

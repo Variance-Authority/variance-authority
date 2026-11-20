@@ -52,6 +52,13 @@ describe('a word a question about the code does not take', () => {
     expect(word.err).toContain('`@kbn/does-not-exist` is not an argument `variance ask packages` takes; it takes none.');
   });
 
+  it('is taken as the value of an unknown flag before it, which is named with it', async () => {
+    const { err } = await run(['ask', 'packages', '--limt', '5']);
+
+    expect(err).not.toContain('`5` is not an argument');
+    expect(err).toContain('`--limt 5` is not an argument `variance ask packages` takes, so the answer is what it is without it; it takes none.');
+  });
+
   it('is named beside the list of questions when no question was asked', async () => {
     const { code, out, err } = await run(['ask', '--verbose']);
 

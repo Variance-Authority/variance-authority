@@ -6,7 +6,7 @@ import type { Unknown } from '../args.js';
 import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
-import { ignored, inputFor, invocationOf, questionFor, refuseWords, unasked, type Question } from './asking.js';
+import { argumentsOf, ignored, inputFor, invocationOf, questionFor, unasked, wordless, type Question } from './asking.js';
 import { foundNothingAnswer, readWorkspaceForAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
 import { asOneQuestion } from '@variance-authority/sense';
@@ -203,8 +203,8 @@ export async function ask(request: AskRequest): Promise<string> {
     return `${question.costs.run(await request.costs(), input, invocationOf())}\n`;
   }
   if (question.review !== undefined) {
-    const input = inputFor(question.review, flagged(request), ignore, request.unknown);
-    refuseWords(question.tool, request.reports);
+    const unknown = wordless(question.tool, request.unknown, request.reports);
+    const input = inputFor(question.review, flagged(request), ignore, unknown);
     if (request.review === undefined) {
       throw new OperatorError(
         `\`${request.question}\` needs a config: it names the deployment and the share token that reads it`,
@@ -222,9 +222,9 @@ export async function ask(request: AskRequest): Promise<string> {
 
   // A question only a watcher answers reads no report, with a watcher or
   // without one, so the word is refused before the missing watcher is.
-  if (question.report === undefined) refuseWords(question.tool, request.reports);
+  const unknown = question.report === undefined ? wordless(question.tool, request.unknown, request.reports) : request.unknown ?? [];
 
-  const input = await inputFrom(question, request, ignore);
+  const input = await inputFrom(question, { ...request, unknown }, ignore);
   if (request.at !== undefined && question.live !== undefined) unread(question, request.at, request.reports);
 
   const answer =
@@ -250,17 +250,17 @@ export async function askSource(request: SourceRequest): Promise<string> {
   // is a whole question, in quotes.
   const crossing = tool.name === intersection.name;
   const ignore = ignoring(request);
-  if (!crossing) refuseWords(tool, request.reports);
+  const unknown = crossing ? request.unknown : wordless(tool, request.unknown, request.reports);
 
   // Refused before anything is read: a question that has no shape to give
   // would otherwise answer in prose to a caller about to parse it.
   if (request.format === 'json' && tool.name !== search.name && tool.name !== containment.name) {
     throw new OperatorError(`\`${request.question}\` answers in text only; \`--format json\` is taken by \`search\` and \`containment\``);
   }
-  if (crossing) for (const { flag, typed } of request.unknown ?? []) ignored(tool, flag, typed, ignore);
+  if (crossing) for (const { flag, typed } of unknown ?? []) ignored(tool, flag, typed, ignore);
   const input = crossing
     ? intersectionInput(request.reports ?? [], request.limit, ignore)
-    : inputFor(tool, flagged(request), ignore, request.unknown);
+    : inputFor(tool, flagged(request), ignore, unknown);
   const changed = request.changedFile === undefined ? undefined : await readChanged(request.changedFile);
   const taints = request.taintFile === undefined ? undefined : [await readTaint(request.taintFile)];
   // A question answers from the generation `variance index` published, at any
@@ -452,8 +452,11 @@ async function inputFrom(
       ...flagged(request),
       // The one argument that is a file rather than a word, read through the same
       // validation `variance adjudicate` reads it through — an agent that declared
-      // its intent badly is told so once, in one wording.
-      claims: request.claims === undefined ? undefined : await readClaims(request.claims),
+      // its intent badly is told so once, in one wording. Only where the question
+      // takes it: elsewhere it is a flag answered past, and its path is never read.
+      claims: request.claims === undefined || !argumentsOf(question.tool).some((argument) => argument.property === 'claims')
+        ? request.claims
+        : await readClaims(request.claims),
     },
     ignore,
     request.unknown,

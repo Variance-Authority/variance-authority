@@ -37,12 +37,18 @@ describe('parseArgs', () => {
     expect(error.message).toContain('[--profile jsdom|chromium] [--subjects <glob>] [--shard <k>/<n>] [--intent <text>]');
   });
 
-  it('keeps a flag no question takes, with the value typed after it, for the question to name', () => {
+  it('keeps a flag no question takes, and the word after it among the reports, for the question to read as either', () => {
+    // Only the question knows whether it reads reports: `uses` takes `5` as the
+    // flag's value, `summary` reads `report.json` as the report it is.
     expect(parseArgs(['ask', 'uses', '--name', 'rank', '--limt', '5'])).toMatchObject({
       question: 'uses',
       name: 'rank',
-      reports: [],
-      unknown: [{ flag: '--limt', typed: '--limt 5' }],
+      reports: ['5'],
+      unknown: [{ flag: '--limt', typed: '--limt', next: 0 }],
+    });
+    expect(parseArgs(['ask', 'summary', '--verbose', 'report.json'])).toMatchObject({
+      reports: ['report.json'],
+      unknown: [{ flag: '--verbose', typed: '--verbose', next: 0 }],
     });
     // A value given with `=` is the flag's too, and a flag after it is not.
     expect(parseArgs(['ask', 'uses', '--top=5', '--name', 'rank'])).toMatchObject({ name: 'rank', reports: [], unknown: [{ flag: '--top', typed: '--top=5' }] });

@@ -260,6 +260,30 @@ describe('an answer', () => {
     ]);
   });
 
+  it('reads the word after an unknown flag as the report it is, where the question reads reports', async () => {
+    // `summary --verbose report.json`: the word is the report, not the flag's value.
+    const path = join(await directory(), 'report.json');
+    const warned: string[] = [];
+    const warn = (line: string): void => { warned.push(line); };
+    const unknown = [{ flag: '--verbose', typed: '--verbose', next: 0 }];
+
+    expect(await ask(asking(path, 'summary', { unknown, reports: ['shard.json'], warn }))).toBe(await ask(asking(path, 'summary')));
+    expect(warned).toEqual([
+      'variance: `--verbose` is not an argument `variance ask summary` takes, so the answer is what it is without it; it takes none.',
+    ]);
+  });
+
+  it('answers past `--claims` at a question that takes none, without reading the file', async () => {
+    const path = join(await directory(), 'report.json');
+    const warned: string[] = [];
+    const warn = (line: string): void => { warned.push(line); };
+
+    expect(await ask(asking(path, 'summary', { claims: join(path, '..', 'missing.json'), warn }))).toBe(await ask(asking(path, 'summary')));
+    expect(warned).toEqual([
+      'variance: `--claims` is not an argument `variance ask summary` takes, so the answer is what it is without it; it takes none.',
+    ]);
+  });
+
   it('still refuses a missing required argument, having named the flag it ignored', async () => {
     const path = join(await directory(), 'report.json');
     const warned: string[] = [];
