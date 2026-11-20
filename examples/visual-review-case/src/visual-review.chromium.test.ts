@@ -38,15 +38,24 @@ const QUOTING_PAGES = ['attribution.md', 'compare-visual-review.md', 'explain-va
 
 /**
  * A fenced `text` block quotes the report when it opens the way one of the
- * report's own blocks does: its headline, its `components:` block, or a row
+ * report's own lines does: its headline, its `components:` block, or a row
  * naming a cause or a collateral component.
  */
 const quotedBlocks = (page: string) =>
   [...page.matchAll(/```text\n([\s\S]*?)```/g)]
     .map((block) => block[1]!)
-    .filter((block) =>
-      /^(\[changed\] pricing\/plans|components:|\s*(cause|collateral) +(\d+px at |(ChooseButton|PlanName|Price) —))/.test(block),
-    );
+    .filter((block) => /^(\[changed\] pricing\/plans|[\d,]+ pixels differ|components:|\s*(cause|collateral) +)/.test(block));
+
+/** Whether every line of `excerpt` is a line of `text`, in the same order. */
+const inOrder = (text: string, excerpt: string) => {
+  const lines = text.split('\n');
+  let at = 0;
+  for (const line of excerpt.trimEnd().split('\n')) {
+    at = lines.indexOf(line, at) + 1;
+    if (at === 0) return false;
+  }
+  return true;
+};
 
 const artifact = (name: string) => readFile(join(ARTIFACT_ROOT, name), 'utf8');
 const page = (name: string) => readFile(join(REPOSITORY_ROOT, 'docs', name), 'utf8');
@@ -63,50 +72,85 @@ afterAll(() => {
 });
 
 describe.skipIf(!BROWSER_AVAILABLE)('the visual-review example', () => {
-  it('reports the price the longer name pushed down as collateral, not as a cause', () => {
-    expect(result!.observation.causes).toEqual(['ChooseButton', 'PlanName']);
-    expect(Object.fromEntries((result!.record.moved ?? []).map((entry) => [entry.component, entry.cause]))).toEqual({
-      ChooseButton: true,
-      PlanName: true,
-      Price: false,
-    });
-    expect(result!.record.regions.find((region) => region.component === 'Price')?.cause).toBe(false);
+  const moved = (component: string) => result!.record.moved?.find((entry) => entry.component === component);
+
+  it('inserts the notice rows and compares the cards under them with the rows they were', () => {
+    expect(result!.record.because).toContain('44 pixel rows inserted in 1 place');
+    expect(moved('Notice')?.presence).toBe('added');
+    expect(moved('Plans')?.grew).toEqual({ width: 0, height: 44 });
+    // The names and prices only moved: the alignment pairs their rows, so no region is theirs.
+    expect(result!.record.regions.map((region) => region.component)).toEqual([
+      'Notice',
+      'ChooseButton',
+      'PlanCard',
+      'PlanCard',
+      'PlanCard',
+    ]);
   });
 
-  it('names the bands each moved component changed in, and the value the button changed', () => {
-    const moved = result!.record.moved ?? [];
-    expect(Object.fromEntries(moved.map((entry) => [entry.component, entry.bands]))).toEqual({
-      ChooseButton: ['token'],
-      PlanName: ['a11y', 'geometry', 'content'],
+  it('reports the names and prices the notice pushed down as collateral, not as causes', () => {
+    expect(result!.observation.causes).toEqual(['ChooseButton', 'Notice', 'PlanCard', 'Plans']);
+    expect(Object.fromEntries((result!.record.moved ?? []).map((entry) => [entry.component, entry.cause]))).toEqual({
+      ChooseButton: true,
+      Notice: true,
+      PlanCard: true,
+      PlanName: false,
+      Plans: true,
+      Price: false,
+    });
+  });
+
+  it('names the bands each component changed in, and the values the button and the rules changed', () => {
+    expect(Object.fromEntries((result!.record.moved ?? []).map((entry) => [entry.component, entry.bands]))).toEqual({
+      ChooseButton: ['geometry', 'token'],
+      Notice: ['geometry'],
+      PlanCard: ['geometry', 'token'],
+      PlanName: ['geometry'],
+      Plans: ['geometry'],
       Price: ['geometry'],
     });
-    expect(moved.find((entry) => entry.component === 'ChooseButton')?.changed).toEqual([
-      { property: 'background-color', from: ['rgb(36 40 42 / 1)'], to: ['rgb(255 74 25 / 1)'] },
+    expect(moved('ChooseButton')?.changed).toEqual([
+      { property: 'background-color', from: [], to: ['rgb(255 74 25 / 1)'] },
     ]);
+    expect(moved('PlanCard')?.changed).toEqual([
+      { property: 'border-bottom-color', from: ['rgb(226 226 226 / 1)'], to: ['rgb(216 216 216 / 1)'] },
+    ]);
+  });
+
+  it('grades the notice and the button strong, and the darker rules faint', () => {
+    const strong = result!.record.regions.filter((region) => region.grade >= 3).map((region) => region.component);
+    const faint = result!.record.regions.filter((region) => region.grade < 3).map((region) => region.component);
+    expect(strong).toEqual(['Notice', 'ChooseButton']);
+    expect(faint).toEqual(['PlanCard', 'PlanCard', 'PlanCard']);
   });
 
   it('places every region on a landmark path and the line its component is declared at', () => {
-    const at = result!.record.regions.map((region) => [region.component, region.where, region.file]);
-    const button = (item: number) => [
-      'ChooseButton',
-      `main → region "Plans" → list item ${item} of 3 → button "Choose"`,
-      'examples/visual-review-case/src/plans.js:56',
-    ];
+    const at = result!.record.regions.slice(0, 2).map((region) => [region.component, region.where, region.file]);
     expect(at).toEqual([
-      button(1),
-      button(2),
-      button(3),
+      ['Notice', 'main → region "Plans"', 'examples/visual-review-case/src/plans.js:78'],
       [
-        'PlanName',
-        'main → region "Plans" → list item 2 of 3 → heading "Team, billed yearly for every seat"',
-        'examples/visual-review-case/src/plans.js:33',
+        'ChooseButton',
+        'main → region "Plans" → list item 2 of 3 → button "Choose"',
+        'examples/visual-review-case/src/plans.js:64',
       ],
-      ['Price', 'main → region "Plans" → list item 2 of 3', 'examples/visual-review-case/src/plans.js:45'],
     ]);
+    for (const rule of result!.record.regions.slice(2)) {
+      expect(rule.file).toBe('examples/visual-review-case/src/plans.js:91');
+      expect(rule.where).toMatch(/^main → region "Plans" → list item \d of 3$/);
+    }
   });
 
   it('commits the answer `variance ask describe` gives for this run', async () => {
     expect(shape(await artifact('report.txt'))).toBe(shape(`${result!.report}\n`));
+  });
+
+  it('commits the pull-request comment `variance comment` writes for this run', async () => {
+    // The footer names the machine and the moment that painted the images.
+    const counts = (comment: string) =>
+      shape(comment)
+        .replace(/\d+px/g, 'Npx')
+        .replace(/^.* · durable retention · .*$/m, 'FOOTER');
+    expect(counts(await artifact('comment.md'))).toBe(counts(`${result!.comment}\n`));
   });
 
   it('records which browser produced the artifacts and which components caused the change', async () => {
@@ -163,39 +207,29 @@ describe("the visual-review example's committed artifacts", () => {
     expect(naming.sort()).toEqual(QUOTING_PAGES);
   });
 
-  it('is quoted on those pages as a run of its own lines', async () => {
+  it('is quoted on those pages in its own lines, in order', async () => {
     const report = await artifact('report.txt');
     let quoted = 0;
     for (const name of QUOTING_PAGES) {
-      const text = await page(name);
-      for (const block of quotedBlocks(text)) {
+      for (const block of quotedBlocks(await page(name))) {
         quoted += 1;
-        expect(report, `${name}:\n${block}`).toContain(block);
-      }
-      if (/\d[\d,]* pixels differ/.test(text)) {
-        for (const [line] of text.matchAll(/^.*\d[\d,]* pixels differ.*$/gm)) {
-          if (line.includes('regions in ChooseButton')) expect(report.split('\n'), name).toContain(line);
-        }
+        expect(inOrder(report, block), `${name}:\n${block}`).toBe(true);
       }
     }
-    expect(quoted).toBeGreaterThan(0);
+    expect(quoted).toBeGreaterThan(3);
   });
 
-  it("states the regions' pixel counts and lines as the report has them", async () => {
-    const { observations } = JSON.parse(await artifact('report.json'));
-    const region = Object.fromEntries(
-      observations[0].regions.map((entry: { component: string; pixels: number; file: string }) => [
-        entry.component,
-        entry,
-      ]),
-    );
-    const [path, attribution] = await Promise.all([page('path-visual-review.md'), page('attribution.md')]);
+  it("states the button's region, its line and the comment's cause as the artifacts have them", async () => {
+    const [{ observations }, comment, path] = await Promise.all([
+      artifact('report.json').then(JSON.parse),
+      artifact('comment.md'),
+      page('path-visual-review.md'),
+    ]);
+    const button = observations[0].regions.find((entry: { component: string }) => entry.component === 'ChooseButton');
+    const cause = comment.split('\n').find((line) => line.startsWith('Cause: '))!;
 
-    expect(path).toContain(`The price is ${region.Price.pixels} pixels of red`);
-    expect(path).toContain(`You open \`plans.js\` at line ${region.ChooseButton.file.split(':')[1]}`);
-    expect(attribution).toContain(
-      `Its ${region.Price.pixels} differing pixels are fewer than the name's ${region.PlanName.pixels} ` +
-        `and each button's ${region.ChooseButton.pixels}`,
-    );
+    expect(path).toContain(`${button.pixels}px at ${button.x},${button.y} ${button.width}×${button.height}`);
+    expect(path).toContain(`You open \`plans.js\` at line ${button.file.split(':')[1]}`);
+    expect(path).toContain(`\`\`\`text\n${cause}\n\`\`\``);
   });
 });

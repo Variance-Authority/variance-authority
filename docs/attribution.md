@@ -417,10 +417,11 @@ silently reverts to area.
 A region whose component is not one of the causes is **collateral**: only its
 geometry changed, which usually means a cause moved it, though a size declared
 on the component itself counts as geometry too. The [visual-review
-example](../examples/visual-review-case/README.md) renames a plan so its name
-wraps, and the price under it is reported collateral, after the two causes.
-Its 524 differing pixels are fewer than the name's 733 and each button's 3670,
-but that is not why: the label comes from its inputs, which did not change.
+example](../examples/visual-review-case/README.md) inserts a notice above three
+cards, and the plan names and prices under it are reported collateral, after
+the causes. The label comes from their inputs, which did not change, not from
+their pixels: the row alignment pairs each moved row with the row it was, so
+they leave no differing region at all.
 
 Two limits:
 

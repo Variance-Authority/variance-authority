@@ -9,6 +9,8 @@ await Promise.all([
   writeFile(join(ARTIFACT_ROOT, 'before.png'), result.beforePng),
   writeFile(join(ARTIFACT_ROOT, 'after.png'), result.afterPng),
   writeFile(join(ARTIFACT_ROOT, 'diff.png'), result.diffPng),
+  writeFile(join(ARTIFACT_ROOT, 'change.png'), result.changePng),
+  writeFile(join(ARTIFACT_ROOT, 'comment.md'), `${result.comment}\n`, 'utf8'),
   writeFile(join(ARTIFACT_ROOT, 'report.txt'), `${result.report}\n`, 'utf8'),
   writeFile(join(ARTIFACT_ROOT, 'report.json'), `${JSON.stringify(result.runReport, null, 2)}\n`, 'utf8'),
   writeFile(

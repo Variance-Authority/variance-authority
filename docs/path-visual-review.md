@@ -1,10 +1,10 @@
 # Review a visual change
 
 A screenshot suite tells you that pixels differ. A change report from
-[Variance Authority](README.md) tells you three more things: which components
-your edit changed and which it only pushed aside, what kind of change each is,
-and which component, place in the page and source line each differing region
-comes from. This page shows the three on one recorded run, then orders the steps that
+[Variance Authority](README.md) tells you three more things: which rows content
+only moved down, and which your edit drew; what kind of change each region is,
+strong or faint, shape or colour; and which component, place in the page and
+source line each region comes from. This page shows the three on one recorded run, then orders the steps that
 get the same report out of your own suite and a build that gates on it.
 
 Every step runs on your own build machine, against baselines in your own
@@ -13,71 +13,92 @@ repository, and links the page that owns it.
 ## What a change report gives you
 
 The [visual-review example](../examples/visual-review-case/README.md) renders
-three pricing cards. One edit renames the Team plan to
-`Team, billed yearly for every seat`, so the name wraps onto a second line, and
-moves the accent every `Choose` button is painted in from charcoal to orange.
-Nothing else is edited. A screenshot diff of it is five red patches across the
-three cards. `variance ask describe --subject pricing/plans` answers with this
-headline:
+three pricing cards and makes three edits: a notice is added above them, the
+recommended plan's `Choose` button turns from charcoal to orange, and the rule
+under every card is drawn a few shades darker. The notice pushes all three
+cards 44 pixels down. Compared position by position, every row under the
+notice differs, because each sits against the row that used to be there.
+`variance ask describe --subject pricing/plans` answers with this headline:
 
 ```text
-12,267 pixels differ across 5 regions in ChooseButton, PlanName, Price, 2 changed in shape and 3 only in colour
+26,230 pixels differ across 2 strong regions in Notice, ChooseButton, and 3 faint regions, 1 changed in shape and 4 only in colour; 44 pixel rows inserted in 1 place, moving the content under them by up to 44 rows, and the subject resized from 480×288 to 480×332
 ```
 
 Every line quoted below is from the example's committed
 [`report.txt`](../examples/visual-review-case/artifacts/report.txt), that
-command's answer for the run.
+command's answer for the run, and every picture is a file the run wrote beside
+it.
 
 ### A shift is told from a change
 
-The report lists each component the run saw change. A component is a
-**cause** when its own inputs changed — its structure, its text, its
-accessible name, its declared styles — and **collateral** when only its
-geometry did: where it sits and how big it is. That is decided from the
-components' inputs, read from the page, never from the pixels. Collateral is
-where to look last, not a verdict that a cause moved it: a size declared on the
-component itself also counts as geometry.
+Before any pixel is compared, the two images are aligned row by row, the way a
+text diff aligns lines. The 44 rows of the notice have no partner in the
+baseline, so they are inserted. The cards under them are compared with the rows
+they were, 44 rows higher, and match, so their move costs no region: the
+headline counts it as one insertion that moved the content under it. What still
+differs is what the edits drew.
+
+The run's `change.png` draws the alignment. Each row sits level with the row it
+became, striped filler stands opposite the rows only the after side has, and a
+blue arrow in the gutter runs beside the rows that only moved. What changed is
+washed red on the before and green on the after.
+
+The report then says which components changed by their own inputs and which
+only moved. A component is a **cause** when its structure, text, accessible
+name or declared styles changed, and **collateral** when only its geometry did,
+decided from the page, never from the pixels:
 
 ```text
 components:
-  cause      ChooseButton — token
-      background-color rgb(36 40 42 / 1) → rgb(255 74 25 / 1)
-  cause      PlanName — a11y, geometry, content
+  cause      ChooseButton — geometry, token
+      background-color (not declared) → rgb(255 74 25 / 1)
+  cause      Notice — added
+  cause      PlanCard — geometry, token
+      border-bottom-color rgb(226 226 226 / 1) → rgb(216 216 216 / 1)
+  collateral PlanName — geometry
+  cause      Plans — geometry; box 0 × +44 px
   collateral Price — geometry
 ```
 
-The price is 524 pixels of red in the diff image, the same red as the name.
-The report calls it collateral: its text and its props are the same, and it is
-lower because the name above it wraps. You review two causes, not five
-regions.
+The plan names and prices are collateral: their text and styles are the same,
+and they sit lower. Collateral is where to look last, not proof that a cause
+moved it, since a size declared on the component itself is geometry too.
 
 ### Different changes are reported differently
 
-Each component's line also says what kind of change it is. Its properties are
-split into **bands**, each band is reduced to a short fingerprint, and the line
-names the bands whose fingerprint changed. A component changes in four:
+Each region is graded by how far its pixels moved. The notice and the button
+are **strong**: the headline names their components. The three darker rules
+are **faint**, a colour moved a few shades: the headline counts them after the
+strong ones. The run's `diff.png` draws them apart: the button's changed pixels
+red, the three rules pale red, and the inserted notice tinted so its text stays
+legible. The HTML report draws a faint region's box dashed. [From a pixel to a line](attribution.md#how-strongly-it-changed)
+owns the threshold.
+
+Each region also says whether its drawing changed or only its colour. The
+notice is new drawing, `1 changed in shape`; the button and the three rules kept
+their edges and moved colour, `4 only in colour`.
+
+Each component's line names the **bands** whose fingerprint changed:
 
 - `a11y` — a role, accessible name, description or state changed: what a
-  screen reader announces. The renamed heading is one.
+  screen reader announces.
 - `geometry` — boxes appeared, vanished, moved or resized, or the structure
-  changed: tags, attributes, the boundaries between children. The pushed price
-  changed in this band alone.
-- `token` — declared style values changed, custom properties included, while
-  the structure stayed the same, as the buttons' background did.
-- `content` — the component's text changed. The heading's did.
+  changed: tags, attributes, the boundaries between children. The names and
+  prices changed in this band alone.
+- `token` — declared style values changed, custom properties included, as the
+  button's background and the cards' rule did.
+- `content` — the component's text changed.
 
 A fifth band, `texture`, is raster residue with no document counterpart, so no
 component changes in it: it is counted on the region and the observation, as
-[Sensitivity](sensitivity.md) says.
-
-Under a component, a declared style value that changed is printed as
-`property from → to`: the buttons' `background-color`, from charcoal to orange.
-Layout values such as `width` belong to `geometry` and get no such line, and
-the values are compared across every instance of the component, so a change to
-one instance whose siblings keep the old value can print none.
-So a recolour, a renamed heading and a pushed price are three kinds, not three
-pixel counts, and a [sensitivity](sensitivity.md) can let a route test pass on
-`token` while it still fails on `geometry`.
+[Sensitivity](sensitivity.md) says. Under a component, a declared style value
+that changed is printed as `property from → to`. Layout values such as `width`
+belong to `geometry` and get no such line, and the values are compared across
+every instance of the component, so a change to one instance whose siblings
+keep the old value can print none. So a new notice, a recolour and a darker
+rule are three kinds, not three pixel counts, and a
+[sensitivity](sensitivity.md) can let a route test pass on `token` while it
+still fails on `geometry`.
 
 ### Each region is connected to its component and the page
 
@@ -86,16 +107,27 @@ names the component that rendered it, its landmark path in the page — the
 route a screen reader takes to it — and the line the component is declared at:
 
 ```text
-  cause      3670px at 360,160 104×40 — ChooseButton
+  cause      3670px at 360,156 104×40 — ChooseButton
       in main → region "Plans" → list item 2 of 3 → button "Choose"
-      examples/visual-review-case/src/plans.js:56
+      examples/visual-review-case/src/plans.js:64
 ```
 
-You open `plans.js` at line 56, not the image. The one accent edit repainted
-three identical buttons, so the report lists three such regions, all at that
-line; the landmark path tells them apart — `list item 1 of 3`, `2 of 3`,
-`3 of 3` — without a selector. [From a pixel to a line](attribution.md) owns
-how each hop is made.
+You open `plans.js` at line 64, not the image. The landmark path tells this
+button from the two that did not change without a selector.
+[From a pixel to a line](attribution.md) owns how each hop is made.
+
+The pull request hears the same answer first. `variance comment` writes a
+comment that leads with the cause and its line, and shows the change image
+under it:
+
+```text
+Cause: **`Notice`** at `examples/visual-review-case/src/plans.js:78`
+```
+
+The example's [`comment.md`](../examples/visual-review-case/artifacts/comment.md)
+is that comment for the run, and the
+[`variance comment`](../packages/cli/README.md#run-it-in-ci) reference owns
+its options.
 
 ## 1. Connect the harness that already reaches the state
 

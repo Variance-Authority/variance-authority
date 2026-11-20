@@ -1,6 +1,6 @@
 {
   "runVersion": 1,
-  "at": "2026-11-20T09:36:37.749Z",
+  "at": "2026-11-20T10:12:17.311Z",
   "identity": {
     "renderer": "playwright-chromium",
     "engine": "chromium@156.0.8078.4",
@@ -18,8 +18,8 @@
     {
       "subject": "pricing/plans",
       "verdict": "changed",
-      "because": "12,267 pixels differ across 5 regions in ChooseButton, PlanName, Price, 2 changed in shape and 3 only in colour",
-      "changedPixels": 12267,
+      "because": "26,230 pixels differ across 2 strong regions in Notice, ChooseButton, and 3 faint regions, 1 changed in shape and 4 only in colour; 44 pixel rows inserted in 1 place, moving the content under them by up to 44 rows, and the subject resized from 480×288 to 480×332",
+      "changedPixels": 26230,
       "signals": {
         "document": "changed",
         "pixels": "changed"
@@ -28,15 +28,14 @@
         {
           "component": "ChooseButton",
           "bands": [
+            "geometry",
             "token"
           ],
           "cause": true,
           "changed": [
             {
               "property": "background-color",
-              "from": [
-                "rgb(36 40 42 / 1)"
-              ],
+              "from": [],
               "to": [
                 "rgb(255 74 25 / 1)"
               ]
@@ -44,13 +43,49 @@
           ]
         },
         {
+          "component": "Notice",
+          "bands": [
+            "geometry"
+          ],
+          "cause": true,
+          "presence": "added"
+        },
+        {
+          "component": "PlanCard",
+          "bands": [
+            "geometry",
+            "token"
+          ],
+          "cause": true,
+          "changed": [
+            {
+              "property": "border-bottom-color",
+              "from": [
+                "rgb(226 226 226 / 1)"
+              ],
+              "to": [
+                "rgb(216 216 216 / 1)"
+              ]
+            }
+          ]
+        },
+        {
           "component": "PlanName",
           "bands": [
-            "a11y",
-            "geometry",
-            "content"
+            "geometry"
           ],
-          "cause": true
+          "cause": false
+        },
+        {
+          "component": "Plans",
+          "bands": [
+            "geometry"
+          ],
+          "cause": true,
+          "grew": {
+            "width": 0,
+            "height": 44
+          }
         },
         {
           "component": "Price",
@@ -62,76 +97,82 @@
       ],
       "regions": [
         {
-          "x": 360,
-          "y": 16,
-          "width": 104,
-          "height": 40,
-          "pixels": 3670,
+          "x": 0,
+          "y": 0,
+          "width": 480,
+          "height": 44,
+          "pixels": 21120,
           "grade": 4,
           "cause": true,
-          "component": "ChooseButton",
-          "path": "0/0/0/0/2",
-          "where": "main → region \"Plans\" → list item 1 of 3 → button \"Choose\"",
-          "file": "examples/visual-review-case/src/plans.js:56",
-          "fingerprint": "v1:f0ceae0539be67e3c965076afb3829ee"
+          "component": "Notice",
+          "path": "0/0/0",
+          "where": "main → region \"Plans\"",
+          "file": "examples/visual-review-case/src/plans.js:78",
+          "fingerprint": "v1:f1c4133d51a5f6a29ef2b9be9149875d"
         },
         {
           "x": 360,
-          "y": 160,
+          "y": 156,
           "width": 104,
           "height": 40,
           "pixels": 3670,
           "grade": 4,
           "cause": true,
           "component": "ChooseButton",
-          "path": "0/0/0/1/2",
+          "path": "0/0/1/1/2",
           "where": "main → region \"Plans\" → list item 2 of 3 → button \"Choose\"",
-          "file": "examples/visual-review-case/src/plans.js:56",
+          "file": "examples/visual-review-case/src/plans.js:64",
           "fingerprint": "v1:f0ceae0539be67e3c965076afb3829ee"
         },
         {
-          "x": 360,
-          "y": 304,
-          "width": 104,
-          "height": 40,
-          "pixels": 3670,
-          "grade": 4,
+          "x": 0,
+          "y": 139,
+          "width": 480,
+          "height": 1,
+          "pixels": 480,
+          "grade": 1,
           "cause": true,
-          "component": "ChooseButton",
-          "path": "0/0/0/2/2",
-          "where": "main → region \"Plans\" → list item 3 of 3 → button \"Choose\"",
-          "file": "examples/visual-review-case/src/plans.js:56",
-          "fingerprint": "v1:f0ceae0539be67e3c965076afb3829ee"
-        },
-        {
-          "x": 17,
-          "y": 162,
-          "width": 166,
-          "height": 33,
-          "pixels": 733,
-          "grade": 4,
-          "cause": true,
-          "component": "PlanName",
-          "path": "0/0/0/1/0",
-          "where": "main → region \"Plans\" → list item 2 of 3 → heading \"Team, billed yearly for every seat\"",
-          "file": "examples/visual-review-case/src/plans.js:33",
-          "fingerprint": "v1:78196283bb6fa564632b1bb5f336022a"
-        },
-        {
-          "x": 17,
-          "y": 221,
-          "width": 87,
-          "height": 30,
-          "pixels": 524,
-          "grade": 4,
-          "cause": false,
-          "component": "Price",
-          "path": "0/0/0/1/1",
+          "component": "PlanCard",
+          "path": "0/0/1/1",
           "where": "main → region \"Plans\" → list item 2 of 3",
-          "file": "examples/visual-review-case/src/plans.js:45",
-          "fingerprint": "v1:68d8c76e1da56463c2003912876801d0"
+          "file": "examples/visual-review-case/src/plans.js:91",
+          "fingerprint": "v1:2d5eb4341f37d8dc61f20526efaf0df4"
+        },
+        {
+          "x": 0,
+          "y": 235,
+          "width": 480,
+          "height": 1,
+          "pixels": 480,
+          "grade": 1,
+          "cause": true,
+          "component": "PlanCard",
+          "path": "0/0/1/2",
+          "where": "main → region \"Plans\" → list item 3 of 3",
+          "file": "examples/visual-review-case/src/plans.js:91",
+          "fingerprint": "v1:2d5eb4341f37d8dc61f20526efaf0df4"
+        },
+        {
+          "x": 0,
+          "y": 331,
+          "width": 480,
+          "height": 1,
+          "pixels": 480,
+          "grade": 1,
+          "cause": true,
+          "component": "PlanCard",
+          "path": "0/0/1/2",
+          "where": "main → region \"Plans\" → list item 3 of 3",
+          "file": "examples/visual-review-case/src/plans.js:91",
+          "fingerprint": "v1:2d5eb4341f37d8dc61f20526efaf0df4"
         }
-      ]
+      ],
+      "images": {
+        "before": "before.png",
+        "after": "after.png",
+        "diff": "diff.png",
+        "change": "change.png"
+      }
     }
   ],
   "notObserved": []

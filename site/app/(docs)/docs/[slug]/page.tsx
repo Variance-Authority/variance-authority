@@ -1,15 +1,15 @@
 import { notFound } from "next/navigation";
+// The example writes these on every run; the page shows the files, not a redrawing.
+import changeSheet from "../../../../../examples/visual-review-case/artifacts/change.png";
+import diffImage from "../../../../../examples/visual-review-case/artifacts/diff.png";
 import type { ReactNode } from "react";
 import { ChangePath, EvidencePath } from "../../../components/ChangePaths";
-import ChangeKinds from "../../../components/ChangeKinds";
 import ConditionsOnTheWay from "../../../components/ConditionsOnTheWay";
 import DocsPage from "../../../components/DocsPage";
 import DocumentFigure from "../../../components/DocumentFigure";
 import MarkdownDocument from "../../../components/MarkdownDocument";
 import MarkdownLead from "../../../components/MarkdownLead";
 import OwnFewerTestShapes from "../../../components/OwnFewerTestShapes";
-import RegionToLine from "../../../components/RegionToLine";
-import ShiftOrChange from "../../../components/ShiftOrChange";
 import {
   documentDescription,
   documentTitle,
@@ -77,30 +77,31 @@ const SECTION_FIGURES: Readonly<
   "path-visual-review": {
     "a-shift-is-told-from-a-change": (
       <figure className="doc-figure doc-figure-panel">
-        <ShiftOrChange />
+        <img
+          src={changeSheet.src}
+          width={changeSheet.width}
+          height={changeSheet.height}
+          alt="Before beside after: striped filler opposite the inserted notice, blue arrows beside the rows that only moved, the Team card washed red and green"
+        />
         <figcaption>
-          The Team card before and after the edits. The name and the button,
-          repainted like every card&apos;s, are causes; the price moved only
-          because the name above it grew, and is reported collateral.
+          The example&apos;s change.png. The notice is inserted, the cards under
+          it only moved, and the Team button and the darker rules are what
+          changed.
         </figcaption>
       </figure>
     ),
     "different-changes-are-reported-differently": (
       <figure className="doc-figure doc-figure-panel">
-        <ChangeKinds />
+        <img
+          src={diffImage.src}
+          width={diffImage.width}
+          height={diffImage.height}
+          alt="The diff image: the inserted notice tinted red, the Team button solid red, the three rules under the cards pale red, everything else dimmed"
+        />
         <figcaption>
-          The four bands a component changes in, and which of them each
-          component of the run changed in.
-        </figcaption>
-      </figure>
-    ),
-    "each-region-is-connected-to-its-component-and-the-page": (
-      <figure className="doc-figure doc-figure-panel">
-        <RegionToLine />
-        <figcaption>
-          The Team button&apos;s region, unfolded: the region, the component
-          that painted it, its landmark path, and the line the component is
-          declared at.
+          The example&apos;s diff.png. The button&apos;s strong pixels are
+          red, the three faint rules pale red, and the inserted notice is
+          tinted so its text stays legible.
         </figcaption>
       </figure>
     ),

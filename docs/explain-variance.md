@@ -13,19 +13,20 @@ asked about one.
 ## Start from the report
 
 Some of the explanation is already on the report. `variance ask describe`
-lists each component as a cause, whose own inputs changed, or collateral, only
-pushed aside by a cause, and each region with its component, its place in the
+lists each component as a cause, whose own inputs changed, or collateral, whose
+geometry alone changed, and each region with its component, its place in the
 page and its source line. In the
-[visual-review example](../examples/visual-review-case/README.md), a longer plan
-name pushes the price below it down, and the price's region says so:
+[visual-review example](../examples/visual-review-case/README.md), a notice
+inserted above three cards pushes the plan names and prices down, and the
+report lists them after the causes:
 
 ```text
-  collateral 524px at 17,221 87×30 — Price
-      in main → region "Plans" → list item 2 of 3
-      examples/visual-review-case/src/plans.js:45
+  cause      Notice — added
+  collateral PlanName — geometry
+  collateral Price — geometry
 ```
 
-For a collateral region, start from the causes listed above it, as
+For a collateral component, start from the causes listed above it, as
 [Review a visual change](path-visual-review.md#a-shift-is-told-from-a-change)
 does for the whole report. The label says only that the component's own
 geometry is all that changed, not which cause moved it; when no cause accounts

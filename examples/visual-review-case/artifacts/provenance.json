@@ -4,7 +4,9 @@
   "raster": "darwin",
   "causes": [
     "ChooseButton",
-    "PlanName"
+    "Notice",
+    "PlanCard",
+    "Plans"
   ],
-  "changedPixels": 12267
+  "changedPixels": 26230
 }

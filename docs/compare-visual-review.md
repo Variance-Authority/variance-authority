@@ -228,21 +228,19 @@ recorded during acquisition. With both present, a region can resolve to a
 component and then to `file:line`. Without them, the observation remains a pixel
 result and the missing fields stay absent.
 
-The same report says which components were edited and which were only pushed
-aside. A component is a **cause** when its own inputs changed, and
-**collateral** when only its geometry changed; the decision is made from
-the components' inputs, not from pixels. Each component lists the bands it
-changed in, and each declared value that changed, from → to. In the
-[visual-review example](../examples/visual-review-case/README.md), a plan name
-that grows to two lines pushes the price below it down, one accent edit
-repaints every button, and `variance ask describe` lists:
+The same report says what was edited and what was only pushed aside. The two
+images are aligned row by row before they are compared, so content inserted
+near the top is counted once, and the rows under it are compared with the rows
+they were rather than turning red. A component is a **cause** when its own
+inputs changed, and **collateral** when only its geometry changed; the decision
+is made from the components' inputs, not from pixels. Each component lists the
+bands it changed in, and each declared value that changed, from → to. In the
+[visual-review example](../examples/visual-review-case/README.md), a notice
+inserted above three cards pushes them 44 pixels down, one button is
+recoloured, and `variance ask describe` answers:
 
 ```text
-components:
-  cause      ChooseButton — token
-      background-color rgb(36 40 42 / 1) → rgb(255 74 25 / 1)
-  cause      PlanName — a11y, geometry, content
-  collateral Price — geometry
+26,230 pixels differ across 2 strong regions in Notice, ChooseButton, and 3 faint regions, 1 changed in shape and 4 only in colour; 44 pixel rows inserted in 1 place, moving the content under them by up to 44 rows, and the subject resized from 480×288 to 480×332
 ```
 
 [Review a visual change](path-visual-review.md#what-a-change-report-gives-you)

@@ -2,13 +2,13 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
-import { recordOf } from '@variance-authority/cli';
+import { recordOf, renderComment } from '@variance-authority/cli';
 import { hashComponents } from '@variance-authority/core/attribute';
 import { normalize } from '@variance-authority/core/rules';
 import { observeRasters, packSnapshot } from '@variance-authority/observe';
 import { acquireFromAgent, createHarness } from '@variance-authority/playwright';
 import { createPlaywrightRenderer } from '@variance-authority/playwright/renderer';
-import { diffImage } from '@variance-authority/png';
+import { changeImages, pngjsDecoder } from '@variance-authority/png';
 import { toolByName } from '@variance-authority/mcp/tools';
 import { indexDeclarations } from '@variance-authority/sense';
 
@@ -22,6 +22,9 @@ const AGENT_ENTRY = join(PACKAGE_ROOT, 'src', 'page-agent.js');
 const HARNESS_PAGE = join(PACKAGE_ROOT, 'page', 'harness.html');
 const SUBJECT = 'pricing/plans';
 const VIEWPORT = { width: 480, height: 440, deviceScaleFactor: 1, colorScheme: 'light' };
+/** Where the comment's pictures resolve: this example's artifacts on `main`. */
+const IMAGE_ROOT =
+  'https://raw.githubusercontent.com/Variance-Authority/variance-authority/main/examples/visual-review-case/artifacts';
 const FONTS = ['Arial/400/normal/system', 'Arial/600/normal/system'];
 
 async function agentBundle() {
@@ -86,7 +89,18 @@ export async function runVisualReviewCase() {
       { ...after.raster, components: hashComponents(after.snapshot) },
       { snapshot: after.snapshot, source },
     );
-    const record = recordOf(observation, { source });
+    // The pictures `variance run` writes beside a changed subject: the whole
+    // difference, and the sheet that cuts it at the regions, before beside after.
+    const [was, now] = await Promise.all([pngjsDecoder.decode(before.png), pngjsDecoder.decode(after.png)]);
+    const { diff, change } = changeImages(was, now, observation.isolation?.regions ?? [], undefined, {
+      subject: SUBJECT,
+      before: 'baseline',
+      after: 'this run',
+    });
+    const record = {
+      ...recordOf(observation, { source }),
+      images: { before: 'before.png', after: 'after.png', diff: 'diff.png', change: 'change.png' },
+    };
     // Assembled here, in the fields `variance run` writes: no shipped function
     // builds a run report outside that command.
     const runReport = {
@@ -98,6 +112,9 @@ export async function runVisualReviewCase() {
       notObserved: [],
     };
     const report = toolByName('variance_describe').run(runReport, { subject: SUBJECT });
+    // The pull-request comment `variance comment` posts for this run, its
+    // pictures read from where the example keeps them.
+    const comment = renderComment({ project: 'visual-review-case', report: runReport, imageRoot: IMAGE_ROOT });
 
     return {
       before: before.snapshot,
@@ -106,9 +123,11 @@ export async function runVisualReviewCase() {
       record,
       runReport,
       report,
+      comment,
       beforePng: before.png,
       afterPng: after.png,
-      diffPng: await diffImage(before.png, after.png),
+      diffPng: diff,
+      changePng: change,
       engine: renderer.identity.engine,
     };
   } finally {
