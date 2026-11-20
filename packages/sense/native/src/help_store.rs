@@ -14,8 +14,6 @@
 
 // compass: variance-authority.report.agent-surface
 
-use std::borrow::Cow;
-
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
@@ -245,10 +243,10 @@ pub(crate) struct MentionRef<'a> {
     pub(crate) text: &'a str,
 }
 
-/// `Entry`, borrowed from whichever side joined it; only its kind may be its own.
+/// `Entry`, borrowed from whichever side joined it.
 pub(crate) struct EntryRef<'a> {
     pub(crate) name: &'a str,
-    pub(crate) kind: Cow<'a, str>,
+    pub(crate) kind: &'a str,
     pub(crate) at: &'a str,
     pub(crate) declared: &'a str,
     pub(crate) line: u32,
@@ -289,7 +287,7 @@ impl<'a> From<&'a StorePackage> for PackageRef<'a> {
                 spec: &opening.spec,
                 entries: opening.entries.iter().map(|entry| EntryRef {
                     name: &entry.name,
-                    kind: Cow::Borrowed(&entry.kind),
+                    kind: &entry.kind,
                     at: &entry.at,
                     declared: &entry.declared,
                     line: entry.line,
@@ -331,9 +329,30 @@ impl<'a> From<&'a DeepRequest> for DeepRef<'a> {
 /// What the store is encoded from: the deep imports, those by path and those
 /// unfollowed, in that order.
 pub(crate) struct StoreRef<'a> {
-    pub(crate) packages: &'a [PackageRef<'a>],
+    pub(crate) packages: &'a dyn Packages,
     pub deep: [Vec<DeepRef<'a>>; 3],
     pub unreadable: &'a [String],
+}
+
+/// The packages a store is encoded from, handed over a run at a time, in
+/// order: only one run's joined rows are held while it is encoded.
+pub(crate) trait Packages: Sync {
+    /// Every entry's name, once per entry: exactly the names `each` hands
+    /// over on its entries.
+    fn names(&self) -> Vec<&str>;
+    /// Each run of packages, in order.
+    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>]));
+}
+
+/// Packages already joined are one run.
+impl Packages for Vec<PackageRef<'_>> {
+    fn names(&self) -> Vec<&str> {
+        self.iter().flat_map(|owner| &owner.openings).flat_map(|opening| &opening.entries).map(|entry| entry.name).collect()
+    }
+
+    fn each<'s>(&'s self, visit: &mut dyn FnMut(&[PackageRef<'s>])) {
+        visit(self);
+    }
 }
 
 use crate::help_store_encode::body_of;

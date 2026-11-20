@@ -25,7 +25,7 @@ use crate::compact::Layer;
 use crate::help_aliases::{aliases, Alias};
 use crate::help_declared::{declared, declared_terms, Declared, Matching};
 use crate::off_thread::{off_thread, OffThread};
-use crate::help_join::{join, mentions, OpeningSkeleton, Skeleton};
+use crate::help_join::{mentions, Joined, OpeningSkeleton, Skeleton};
 use crate::help_store::{encode, DeepRef, StoreDeep, StoreMeta, StoreRef};
 use crate::help_members::{indexed_extensions, member_declarations, members_on, ContainerMember, MemberDeclarations};
 use crate::help_names::{published_names, HelpEntry, PublishedName};
@@ -362,7 +362,7 @@ pub struct WalkedHelp {
 pub fn join_walked_help(walked: WalkedHelp) -> napi::Result<Buffer> {
     let skeleton = skeleton_of(&walked.packages);
     let mentions = mentions(Path::new(&walked.readme_root), &walked.names).map_err(napi::Error::from_reason)?;
-    let packages = join(&skeleton, &walked.names, &walked.uses, &mentions).map_err(napi::Error::from_reason)?;
+    let packages = Joined::new(skeleton, &walked.names, &walked.uses, &mentions).map_err(napi::Error::from_reason)?;
     let deep = [&walked.deep, &walked.by_path, &walked.unfollowed].map(|held| held.iter().map(DeepRef::from).collect());
     let input = StoreRef { packages: &packages, deep, unreadable: &walked.unreadable };
     let (store, _) = encode(&input, &walked.exported, None, None);
@@ -399,7 +399,7 @@ impl Held {
         };
         let skeleton = skeleton_of(&o.packages);
         let mentions = mentions(Path::new(&o.readme_root), names).map_err(napi::Error::from_reason)?;
-        let packages = join(&skeleton, names, &self.uses, &mentions).map_err(napi::Error::from_reason)?;
+        let packages = Joined::new(skeleton, names, &self.uses, &mentions).map_err(napi::Error::from_reason)?;
         let unreadable: Vec<String> = o.unreadable.iter().chain(&self.unreadable).cloned().collect();
         let deep = [&self.deep[0], &self.deep[1], &self.deep[2]].map(|held| held.iter().map(DeepRef::from).collect());
         let input = StoreRef { packages: &packages, deep, unreadable: &unreadable };
