@@ -165,11 +165,6 @@ pub(crate) fn part(sum: Sum) -> Part {
     Part(on().then(|| (sum, Instant::now())))
 }
 
-impl Part {
-    /// The part's end, before the scope's.
-    pub(crate) fn end(self) {}
-}
-
 impl Drop for Part {
     fn drop(&mut self) {
         if let Some((sum, started)) = self.0 {

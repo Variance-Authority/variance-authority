@@ -332,6 +332,20 @@ fn an_untracked_cache_hands_the_comparison_to_status() {
 }
 
 #[test]
+fn a_staged_file_marked_assume_unchanged_still_names_the_working_bytes() {
+    let root = git_fixture::repository("index-assume-unchanged", &[("a.ts", b"before\n")]);
+    let before = git(&root, &["hash-object", "a.ts"]);
+    write(&root, "a.ts", "staged\n");
+    git(&root, &["add", "a.ts"]);
+    write(&root, "a.ts", "before\n");
+    git(&root, &["update-index", "--assume-unchanged", "a.ts"]);
+
+    let listed = snapshot(root.to_str().unwrap()).unwrap();
+    assert_eq!(digest_of(&listed, "a.ts"), Some(before));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn the_inventory_takes_staged_paths_and_blobs_from_the_index_including_below_the_root() {
     let root = git_fixture::repository("index-inventory", &[("src/a.ts", b"before\n"), ("gone.ts", b"gone\n")]);
     write(&root, "src/a.ts", "staged\n");

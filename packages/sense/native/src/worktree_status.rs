@@ -94,7 +94,8 @@ pub(super) fn can_compare(head: &Checkout, config: &Config, index: &gix_index::F
     if head.format != "sha1" || config.fsmonitor || index.untracked().is_some() || index.is_sparse() {
         return false;
     }
-    let handed = |entry: &gix_index::Entry| entry.mode == Mode::COMMIT || entry.flags.contains(gix_index::entry::Flags::SKIP_WORKTREE);
+    // Git's staged delta still exposes an assumed-valid path the native walk skips.
+    let handed = |entry: &gix_index::Entry| entry.mode == Mode::COMMIT || entry.flags.intersects(gix_index::entry::Flags::SKIP_WORKTREE | gix_index::entry::Flags::ASSUME_VALID);
     !index.entries().iter().any(|entry| handed(entry) && entry.path(index).starts_with(head.prefix.as_bytes()))
 }
 
