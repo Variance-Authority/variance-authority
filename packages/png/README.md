@@ -301,7 +301,8 @@ default decoder is `pngjs` for a PNG and WebAssembly libwebp for a WebP, so
 this package still requires nothing native.
 
 `diffImage` resolves to an encoded PNG — the after image dimmed with changed pixels
-in red — for the person who does want to look. It is derived from the same bytes
+in red, pale red where a pixel is faint, short of `STRONG_GRADE` — for the person
+who does want to look. It is derived from the same bytes
 and is not the comparison result.
 
 `changeImages` returns that same diff and, beside it, `change`: the change at
@@ -394,7 +395,8 @@ RGBA, and `alignment` when it aligned the rows. It aligns or pads on its own, so
 something else. Pass
 `{ diffMask: true }` as a fourth argument and it writes only the differing pixels
 and leaves the rest transparent, which is how `comparePngs` gets a mask without
-recovering one from a red-on-grey picture.
+recovering one from a red-on-grey picture. Either way a changed pixel is red, and
+pale red where it is faint.
 
 These are the same functions `comparePngs` runs, not a second implementation of
 them, so a mask built here and a mask built from PNG bytes are the same mask.

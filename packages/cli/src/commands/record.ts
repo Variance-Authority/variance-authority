@@ -335,6 +335,16 @@ function regionRecordOf(region: RankedRegion, source?: SourceIndex): RegionRecor
         ? formatSource(resolved)
         : undefined;
 
+  const box = {
+    x: region.region.x,
+    y: region.region.y,
+    width: region.region.width,
+    height: region.region.height,
+    pixels: region.region.pixels,
+    grade: region.region.grade,
+    cause: region.cause,
+  };
+
   if (region.unattributed) {
     // `nearest` is orientation and never attribution, so it is not written into
     // `component` — a trace tool would then count this as an appearance of a
@@ -347,12 +357,7 @@ function regionRecordOf(region: RankedRegion, source?: SourceIndex): RegionRecor
         : `near ${near.component ?? near.path}${near.where !== undefined ? ` (${near.where})` : ''}`;
 
     return {
-      x: region.region.x,
-      y: region.region.y,
-      width: region.region.width,
-      height: region.region.height,
-      pixels: region.region.pixels,
-      cause: region.cause,
+      ...box,
       unattributed: true,
       ...(region.fingerprint !== undefined ? { fingerprint: region.fingerprint } : {}),
       ...(phrase !== undefined ? { where: phrase } : {}),
@@ -360,12 +365,7 @@ function regionRecordOf(region: RankedRegion, source?: SourceIndex): RegionRecor
   }
 
   return {
-    x: region.region.x,
-    y: region.region.y,
-    width: region.region.width,
-    height: region.region.height,
-    pixels: region.region.pixels,
-    cause: region.cause,
+    ...box,
     ...(region.component !== undefined ? { component: region.component } : {}),
     ...(region.path !== undefined ? { path: region.path } : {}),
     ...(region.where !== undefined ? { where: region.where } : {}),
