@@ -224,13 +224,7 @@ function importsOf(written: string, tree: Tree, found: () => Found, root: string
     const through = hit.through == null ? '' : ` through ${hit.through}`;
     return `imports ${hit.name == null ? '' : `${hit.name} `}from ${hit.from}${as}${through}`;
   });
-  const unread = unreadOf(tree, held);
-  return {
-    header: `${counted(lines.size)} importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\`${said(unread)}`,
-    files: new Set(lines.keys()),
-    evidence: (file) => lines.get(file) ?? [],
-    ...(unread === undefined ? {} : { unread }),
-  };
+  return namedOperand(`importing ${name === undefined ? '' : `\`${name}\` from `}\`${spec}\``, lines, tree, held);
 }
 
 /** Every import of `name` out of `file`, followed through the files that pass it on. */
@@ -269,10 +263,14 @@ function passedOn(through: readonly string[]): string {
 function declaresOf(pattern: string, tree: Tree, found: Found): Operand {
   const asked = found.declares.shift()!;
   if (asked.refused != null) throw new Error(`\`declares\` is not a regular expression the source index reads: ${asked.refused}.`);
-  const lines = linesOf(asked.hits, found, (hit) => `declares ${hit.name}`);
+  return namedOperand(`declaring a name matching /${pattern}/i`, linesOf(asked.hits, found, (hit) => `declares ${hit.name}`), tree, found);
+}
+
+/** A name set's operand: its files, their lines, and the files whose names the index does not hold. */
+function namedOperand(what: string, lines: ReadonlyMap<string, readonly Evidence[]>, tree: Tree, found: Found): Operand {
   const unread = unreadOf(tree, found);
   return {
-    header: `${counted(lines.size)} declaring a name matching /${pattern}/i${said(unread)}`,
+    header: `${counted(lines.size)} ${what}${said(unread)}`,
     files: new Set(lines.keys()),
     evidence: (file) => lines.get(file) ?? [],
     ...(unread === undefined ? {} : { unread }),
