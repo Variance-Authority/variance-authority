@@ -1089,6 +1089,7 @@
         "publishedGeneration": "function",
         "publishedHead": "function",
         "readAgain": "function",
+        "readGenerationNames": "function",
         "readNamedTree": "function",
         "readSearchForAnswer": "function",
         "readWorkspace": "function",
