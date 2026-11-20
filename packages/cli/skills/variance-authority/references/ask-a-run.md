@@ -51,7 +51,7 @@ findings: none in 3 inspected subject(s).
 ```
 
 A **faint** region is one whose pixels all differ by less than threshold 0.2,
-Playwright's default, and hold no inserted row: a repaint by a few levels. A
+Playwright's default, and hold no inserted row: a repaint by a few colour levels. A
 reason names strong regions and only counts the faint ones, so read the named
 components first.
 
