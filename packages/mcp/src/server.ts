@@ -13,7 +13,7 @@ import {
 } from './framing.js';
 import { readEyesRecord, RecordKeepsNoEyes } from './eyes-record.js';
 import { cutFor } from './tools/cut.js';
-import type { Served } from './tools/tool.js';
+import type { Served, ToolInvocation } from './tools/tool.js';
 import type { Tree } from './tools/tree.js';
 
 /**
@@ -79,6 +79,13 @@ export interface ServerOptions<Subject = RunReport, Again extends AskedAgain<Sub
    * resolved against something that is not a tree.
    */
   readonly tree?: () => Tree | undefined | Promise<Tree | undefined>;
+
+  /**
+   * The source index the subject was read off, handed to every call as `invocation.sourceIndex`, for the
+   * questions that name a name. Asked of the subject the call answers from, so a subject read again brings its
+   * own. `undefined` — or no supplier — is a subject read off no index, and such a question is then refused.
+   */
+  readonly sourceIndex?: (subject: Subject) => ToolInvocation<Subject>['sourceIndex'];
 
   /** The checkout this server answers about, handed to every call as `invocation.root`. */
   readonly root?: string;
@@ -170,9 +177,11 @@ export function serve<Subject, Again extends AskedAgain<Subject> = AskedAgain<Su
           if (unread !== undefined) throw unread.error;
           return subject;
         };
+        const sourceIndex = tree === undefined ? undefined : options.sourceIndex?.(subject);
         return answering(request, read, options.served, {
           ...(previous === undefined ? {} : { previous }),
           ...(tree === undefined ? {} : { tree }),
+          ...(sourceIndex === undefined ? {} : { sourceIndex }),
           ...(modules === undefined ? {} : { modules }),
           ...(options.root === undefined ? {} : { root: options.root }),
           ...(unseen === undefined ? {} : { unseen }),

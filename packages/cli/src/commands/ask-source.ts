@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { countingShown, readGenerationNames, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type AnsweringOptions, type Unopened } from '@variance-authority/help';
+import { countingShown, generationSourceIndex, readNamedTree, readSearchForAnswer, readWorkspaceForAnswer, workspaceGeneration, type AnsweringOptions, type Unopened } from '@variance-authority/help';
 import { answerSearch, containmentOf, discover, formatContainment, importingOf, intersection, journeyMapTool, namesWanted, orient, retriedTests, slowestTests, testCompositionTool, type Containment, type Help, type SearchAnswer, searchIndexOf, searchNames, searchQuestionOf } from '@variance-authority/help/tools';
 import { type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { sourceIndexPath } from '@variance-authority/sense';
@@ -72,20 +72,19 @@ export async function searchSource(
 
 /**
  * `discover` answers from no workspace value, but every one of its sets needs
- * the tree, and `declares` and most `imports` need each file's names, which
- * the source index holds beside it; both come from the generation `reading`
+ * the tree, and `declares` and most `imports` ask each file's names of the
+ * source index it was published from; both come from the generation `reading`
  * opens, which dates the answer.
  */
 export async function discoverSource(root: string, input: Readonly<Record<string, unknown>>, reading: SourceReadOptions): Promise<Answering> {
-  const { at, ...read } = await readNamedTree(root, input, answeringOf(root, reading));
+  const { at, ...read } = await readNamedTree(root, answeringOf(root, reading));
   return { answer: () => discover.run(undefined, input, invocationOf({ ...read, root })), at };
 }
 
 /**
  * `intersection` asks each of its questions over one reading: the workspace
  * value the name questions read, the tree when any question names a path, and
- * each file's names when a `discover` among them reads names, off the parses
- * the published source index holds.
+ * the published source index when a `discover` among them reads names.
  */
 export async function intersectionSource(
   root: string,
@@ -94,8 +93,8 @@ export async function intersectionSource(
 ): Promise<Answering> {
   const sourced = await readSource(root, reading);
   const tree = sourced.tree?.();
-  const names = namesWanted(input, tree) ? await readGenerationNames(sourced.help, root, sourceIndexPath(root)) : undefined;
-  const drawn = { ...(tree === undefined ? {} : { tree }), ...(names === undefined ? {} : { names }) };
+  const sourceIndex = namesWanted(input, tree) ? generationSourceIndex(sourced.help, root, sourceIndexPath(root)) : undefined;
+  const drawn = { ...(tree === undefined ? {} : { tree }), ...(sourceIndex === undefined ? {} : { sourceIndex }) };
   return {
     answer: () => intersection.run(sourced.help, input, invocationOf({ ...drawn, root })),
     at: workspaceGeneration(sourced.help),

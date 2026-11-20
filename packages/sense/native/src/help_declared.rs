@@ -172,7 +172,7 @@ type Hit<'a> = (usize, &'a str, Row, Option<Held>);
 type FileHit<'a> = (usize, &'a str, usize, Held);
 
 /// The files of the chain, in `files` when they are named, by file in code units, each joined to its parse.
-fn crossings<'a>(layers: &[Layer], folded: &'a std::collections::HashMap<&'a str, At>, files: Option<&[String]>) -> Vec<Crossing<'a>> {
+pub(crate) fn crossings<'a>(layers: &[Layer], folded: &'a std::collections::HashMap<&'a str, At>, files: Option<&[String]>) -> Vec<Crossing<'a>> {
     let wanted: Option<std::collections::HashSet<&str>> = files.map(|files| files.iter().map(String::as_str).collect());
     let mut crossings: Vec<Crossing> = folded
         .iter()
