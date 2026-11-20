@@ -141,6 +141,10 @@ describe('a Cargo suite recorded one test per process', () => {
     const crate = relative(repository, failing);
     const rows = decodeTestCoverage(await readFile(record)).tests;
     expect(rows.filter((test) => !test.complete).map((test) => test.file).sort()).toEqual([`${crate}/src/lib.rs`, `${crate}/tests/custom.rs`]);
+    // Its build script names nothing it reads, so Cargo watches every file of the package, and so does the record; a Rust file is a module.
+    const held = rows.find((test) => test.file === `${crate}/tests/custom.rs`)!.preconditions.map((input) => input.name);
+    expect(held).toContain(`${crate}/limits.txt`);
+    expect(held).not.toContain(`${crate}/src/lib.rs`);
   }, 240_000);
 
   it('refuses a directory that holds no Cargo workspace, naming `cargo metadata`', async () => {

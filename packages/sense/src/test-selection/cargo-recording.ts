@@ -12,7 +12,7 @@
  * cuts a module.
  */
 
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
@@ -185,14 +185,18 @@ async function built(run: CargoRun, workspace: Workspace, profile: string): Prom
  * keeps beside its `OUT_DIR`: `output` in the long-standing layout, and
  * `run/stdout` in the one that groups a package's builds. A path is the
  * package's, unless absolute, and a directory stands for every file under it,
- * as Cargo watches it.
+ * as Cargo watches it. A script that names nothing, by `rerun-if-changed` or
+ * `rerun-if-env-changed`, is watched by Cargo on every file of its package, so
+ * it reads {@link packageFiles}.
  */
 function rerunIfChanged(outDir: string, crate: string): string[] {
   const at = dirname(outDir);
   const said = [join(at, 'output'), join(at, 'run', 'stdout')].find((path) => existsSync(path));
   if (said === undefined) return [];
   const files: string[] = [];
-  for (const line of readFileSync(said, 'utf8').split('\n')) {
+  const lines = readFileSync(said, 'utf8').split('\n');
+  if (!lines.some((line) => /^cargo::?rerun-if-(env-)?changed=/.test(line.trim()))) return packageFiles(crate);
+  for (const line of lines) {
     const named = /^cargo::?rerun-if-changed=(.+)$/.exec(line.trim())?.[1];
     if (named === undefined) continue;
     const path = isAbsolute(named) ? named : resolve(crate, named);
@@ -201,6 +205,17 @@ function rerunIfChanged(outDir: string, crate: string): string[] {
     else for (const entry of readdirSync(path, { recursive: true, withFileTypes: true })) if (entry.isFile()) files.push(join(entry.parentPath, entry.name));
   }
   return files;
+}
+
+/**
+ * Every file of the package at `crate` but a `.rs` file, which the record holds
+ * as a module when a test runs it: what git lists under it, as Cargo lists a
+ * package, less what a package nested in it holds.
+ */
+function packageFiles(crate: string): string[] {
+  const listed = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], { cwd: crate, encoding: 'utf8' }).split('\0').filter((path) => path !== '');
+  const nested = listed.filter((path) => basename(path) === 'Cargo.toml' && path !== 'Cargo.toml').map((path) => `${dirname(path)}/`);
+  return listed.filter((path) => !path.endsWith('.rs') && !nested.some((at) => path.startsWith(at))).map((path) => resolve(crate, path));
 }
 
 /**

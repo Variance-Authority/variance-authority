@@ -64,7 +64,12 @@ No test reads `Cargo.toml`, `Cargo.lock` or a build script, yet each changes
 what every test runs, so the record holds them under every row: a change to one
 selects every target. So does a change to a file a build script names with
 `cargo::rerun-if-changed`, such as a schema it generates code from, and to a file
-a crate reads as it compiles, through `include_str!` or `include_bytes!`.
+a crate reads as it compiles, through `include_str!` or `include_bytes!`. A
+build script that names nothing is run again by Cargo on a change to any file of
+its package, so every file of that package but its `.rs` files is held the same
+way. A file added later, in a directory a build script names or a package it
+watches whole, is held by no row until you record again, so its addition alone
+selects nothing.
 
 A test that starts one of the workspace's binaries, as an integration test does
 through `CARGO_BIN_EXE_<name>`, is charged with what that process ran too. A
