@@ -68,6 +68,9 @@ export const SEVERITY_LEVELS: readonly number[] = [DEFAULT_POLICY.threshold, 0.0
  */
 export const STRONG_GRADE = SEVERITY_LEVELS.length;
 
+/** Whether a pixel's or a region's `grade` is faint: short of {@link STRONG_GRADE}. */
+export const isFaint = (grade: number): boolean => grade < STRONG_GRADE;
+
 export interface RasterComparison {
   /** Canvas the two images were compared on: the union of their boxes. */
   readonly width: number;

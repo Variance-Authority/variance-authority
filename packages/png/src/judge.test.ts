@@ -5,7 +5,7 @@ import {
   STRICT_POLICY,
   type DiffPolicy,
 } from "@variance-authority/raster";
-import { judgeRows, type SourceStrip } from "./judge.js";
+import { FAINT, judgeRows, type SourceStrip } from "./judge.js";
 import type { DecodedImage } from "./mask.js";
 
 /**
@@ -48,7 +48,8 @@ describe("one scan agrees with pixelmatch", () => {
             POLICIES,
             { picture: { policy: index, diffMask } },
           ).picture;
-          expect(picture).toEqual(oracle(copied, after, policy, diffMask).data);
+          // Pixelmatch paints every changed pixel red; the judge paints a faint one pale.
+          expect(reddened(picture!)).toEqual(oracle(copied, after, policy, diffMask).data);
         }
       }
     });
@@ -335,6 +336,15 @@ function oracle(
     },
   );
   return { changed, data };
+}
+
+/** The picture with every {@link FAINT} pixel painted red, as `pixelmatch` paints it. */
+function reddened(picture: Uint8Array): Uint8Array {
+  const copy = Uint8Array.from(picture);
+  for (let at = 0; at < copy.length; at += 4) {
+    if (copy[at] === FAINT[0] && copy[at + 1] === FAINT[1] && copy[at + 2] === FAINT[2]) copy.set([255, 0, 0], at);
+  }
+  return copy;
 }
 
 function alphaOf(picture: Uint8Array): Uint8Array {
