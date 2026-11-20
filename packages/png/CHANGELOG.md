@@ -1,5 +1,28 @@
 # @variance-authority/png
 
+## 0.34.0
+
+### Minor Changes
+
+- 8cb6a89: A region says whether its shape changed or only its colour
+
+  A changed region now says whether its drawing changed or only its colour. `DiffRegion` gains an optional `change: 'shape' | 'colour'`, `@variance-authority/png` exports `regionChange`, which reads it from the compared pixels, and the verdict counts the regions apart: `120 pixels differ across 2 regions, 1 changed in shape and 1 only in colour`. A recoloured button reads as colour; a block that moved by a pixel, or a page that gained rows, reads as shape. A region with no edge on either side and a pixel too faint to call flat, as a pale tint moved by a pixel, carries no `change`, and the sentence counts only the regions that carry one. `@variance-authority/core/attribute` exports `pixelBox`, the outward rounding of a box to the pixels it touches, which `subtractRegions`, `regionChange` and the Playwright capture's `outward` now share.
+- 4d81728: Content that moves beside a column that stays put, such as a page that grew under a fixed sidebar, is aligned in vertical strips. Each strip that moved is paired on its own, and every span of the alignment carries `columns`, the strip it covers. A page under a fixed sidebar no longer marks everything below the edit as changed. The reason counts the rows a column gained rather than adding up every strip's rows. Rows inserted in one strip join a region only when the region lies inside that strip.
+- d175ab8: A faint region is drawn apart from a strong one. The diff image paints a changed
+  pixel short of `STRONG_GRADE` pale red rather than red, the HTML report draws a
+  faint region's box dashed and lighter, and the run's JSON carries each region's `grade`.
+  `raster` exports `isFaint(grade)`, the one test of faint that the picture, the
+  report and the verdict sentence share.
+- 5d71e42: A changed region is graded by how much its pixels changed in colour: the mask byte is the grade, from 1 for a pixel past the policy's threshold to `SEVERITY_LEVELS.length` for one past 0.2 or a row with no partner, and each `DiffRegion` carries its highest `grade`. The verdict names regions at `STRONG_GRADE` first and counts the rest as faint, so a repaint by a few levels no longer reads like the change beside it. A mask byte is no longer always `1`: test it for non-zero. Regions the 32-region cap leaves out are counted as more regions, not smaller ones, since the faintest go first.
+
+### Patch Changes
+
+- 4d81728: Where two paired runs of rows meet, a before pixel's anti-aliasing is read from the rows around the one it came from, not from the rows the pairing set beside it, so an edge on the seam is no longer marked as changed. Near the page's top and bottom edge, those rows run to the before image's own edge, not the after image's.
+- 4ab49a6: A band repainted by one level beside a real insertion is paired in place, so the verdict no longer marks every row of it as moved and changed.
+- 4d81728: Content pushed down by a height that is not a whole number of pixels reads as one move. Each line of text and each rule under the edge used to land half a row off, and was reported as its own shift with rows inserted beside it.
+- 4d81728: Every diff policy is judged in one scan over the paired rows, instead of a copy of the before image in the after image's order and a `pixelmatch` run for each policy. The counts, the mask and the picture are the ones `pixelmatch` gives, and `pixelmatch` is no longer a runtime dependency.
+- 4d81728: A run that writes the diff images draws them from the pixels the comparison decoded and the rows it paired, instead of decoding both images and aligning their rows a second time.
+
 ## 0.33.0
 
 Lockstep release — nothing in this package changed. Every `@variance-authority/*` package shares one version.

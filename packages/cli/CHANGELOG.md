@@ -1,5 +1,31 @@
 # @variance-authority/cli
 
+## 0.34.0
+
+### Minor Changes
+
+- 16b1d59: A release that changes the source index's format can start from CI's index
+
+  A share takes `sourceIndex`, off by default. When it is `true`, `variance share --suite` on a mainline also publishes the source index CI built, as the entry `source-index-v<format>` beside the record, each segment cut into pieces of 32 MiB that are the entry's images. The share stores an image once, so a commit sends only the pieces no commit before it sent: the segments its update wrote. The names of a segment's pieces are kept beside the index, so a commit hashes only the segments its update wrote too: on Firefox, a commit after the first carries its index in 3 ms rather than 0.8 s. No segment is too large to publish. An update over an index a release in another format wrote fetches that index as it starts, while it lists the checkout; the mainline's record never waits for it, and when another checkout's index of this release opens, the update starts from that one and drops the download without waiting for it, even when the share never answers. The update then reads only the files that differ from it. Every command that updates the index says on stderr when it starts that download, and why it placed none when the share holds no index in this format or it does not check out; `variance index` names the index it fetched. `updateSourceIndex` and `publishedSources` take a `fetch` callback for this, and the update's result has the fetched index as `fetched`. `carriedSourceIndex`, `placeSourceIndex`, `SOURCE_INDEX_PIECE`, `fetchedSourceIndexPath`, `processAlive`, `sourceIndexChain` and `sourceIndexWrittenIn` are exported; `fetch` is given a `signal` that aborts when another checkout's index fits. The index is about the size of the parsed checkout: on Firefox, about 200,000 files, it is about 2 GB, or 0.7 GB compressed.
+
+  A `LineCell` says with `imagesShared` that an image stored for one line is there for every line, as the directory, HTTP and memory cells do; a mainline's commit is then kept without its images sent again.
+- 2794c66: `variance ask` and `variance-authority-help` answer a source question from the generation `variance index` last published, at any age, and do nothing else: they no longer look at the files an answer rests on, refresh a generation over an hour old, or build one when none is published. After an edit, run `variance index`, then ask. With no generation, a question refuses in one line that names `variance index`. `ask discover` and a report question's start point read the file tree and its names from that generation too, instead of scanning the checkout. On Kibana, `ask symbol --name HttpServer` after a one-line edit to the file that declares it went from about 6.6 s to the unedited time. `--just-answer` leaves both commands, since it is what they now always do; `variance serve` and the help server keep it and their one-hour reuse. `--changed-file` and `--taint-file` still ask for a new generation by name.
+
+  `refusalFooter` in `@variance-authority/help` takes `(at, unseen)`: its `caught` argument was always undefined once `ask` stopped looking again.
+
+  `readGenerationNames(help, root, index?)` in `@variance-authority/help` reads every file's names off the source index a published value was read from, spelled as its tree spells them, including a workspace whose members sit beside its directory.
+- d175ab8: A faint region is drawn apart from a strong one. The diff image paints a changed
+  pixel short of `STRONG_GRADE` pale red rather than red, the HTML report draws a
+  faint region's box dashed and lighter, and the run's JSON carries each region's `grade`.
+  `raster` exports `isFaint(grade)`, the one test of faint that the picture, the
+  report and the verdict sentence share.
+- 9ea65e9: `variance janus --since <ref> --file <path>... -- <command>` runs a command with each named file rolled back to its text at the ref, in place, so the old tests run on the new code with nothing checked out. Each file must exist in the checkout and at the ref: janus rolls back changes in existing files, and neither adds nor hides one. A run that never read a file it was served fails and names it.
+
+### Patch Changes
+
+- a882c35: A checkout with no source index it can stand on — none yet, as in a fresh worktree, a damaged one, or one another release wrote — starts from another checkout's index of the same repository and reads only the files that differ from it, rather than reading every file. `variance index` names the index it started from, and the update's result carries it as `from`. A record from the other index stands only where nothing in it was parsed, or where the parse store holds the same parse of that blob. The other checkout may have parsed bytes it edited after git named them, so any other record is read again. With no index in any checkout, every file is read as before.
+- 4d81728: A run that writes the diff images draws them from the pixels the comparison decoded and the rows it paired, instead of decoding both images and aligning their rows a second time.
+
 ## 0.33.0
 
 ### Minor Changes
