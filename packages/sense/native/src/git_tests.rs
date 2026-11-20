@@ -346,6 +346,64 @@ fn a_staged_file_marked_assume_unchanged_still_names_the_working_bytes() {
 }
 
 #[test]
+fn an_intent_to_add_entry_names_the_working_bytes_instead_of_the_empty_blob() {
+    let root = git_fixture::repository("index-intent-to-add", &[("base.ts", b"base\n")]);
+    write(&root, "added.ts", "export const added = true;\n");
+    git(&root, &["add", "-N", "added.ts"]);
+    let working = git(&root, &["hash-object", "added.ts"]);
+    assert_ne!(working, git(&root, &["rev-parse", ":added.ts"]));
+
+    let listed = snapshot(root.to_str().unwrap()).unwrap();
+    assert_eq!(digest_of(&listed, "added.ts"), Some(working));
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn a_git_status_over_a_changed_index_never_keeps_the_old_inventory_digest() {
+    const CHILD: &str = "VARIANCE_AUTHORITY_TEST_INDEX_RACE";
+    if let Some(root) = std::env::var_os(CHILD) {
+        let root = PathBuf::from(root);
+        let working = git(&root, &["hash-object", "a.ts"]);
+        let listed = snapshot(root.to_str().unwrap());
+        assert!(root.join(".git/status-reset").is_file(), "the status wrapper did not reset the index");
+        assert!(listed.as_ref().is_none_or(|tree| digest_of(tree, "a.ts") == Some(working.clone())), "the old inventory survived a changed index: {:?}", listed.as_ref().and_then(|tree| digest_of(tree, "a.ts")));
+        return;
+    }
+    let root = git_fixture::repository("index-status-race", &[("a.ts", b"working\n")]);
+    write(&root, "a.ts", "staged\n");
+    git(&root, &["add", "a.ts"]);
+    write(&root, "a.ts", "working\n");
+    git(&root, &["update-index", "--assume-unchanged", "a.ts"]);
+    let bin = root.join(".git/bin");
+    std::fs::create_dir(&bin).unwrap();
+    let wrapper = bin.join("git");
+    std::fs::write(&wrapper, r#"#!/bin/sh
+for arg in "$@"; do
+    if [ "$arg" = status ]; then
+        "$VARIANCE_AUTHORITY_TEST_REAL_GIT" reset --quiet HEAD -- a.ts || exit $?
+        : > .git/status-reset
+    fi
+done
+exec "$VARIANCE_AUTHORITY_TEST_REAL_GIT" "$@"
+"#).unwrap();
+    std::fs::set_permissions(&wrapper, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    let real_git = Command::new("which").arg("git").output().unwrap();
+    assert!(real_git.status.success());
+    let mut paths = vec![bin];
+    paths.extend(std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default()));
+    // Only this child sees the wrapper; parallel tests keep their own Git and environment.
+    let output = Command::new(std::env::current_exe().unwrap())
+        .args(["git::tests::a_git_status_over_a_changed_index_never_keeps_the_old_inventory_digest", "--exact", "--nocapture", "--test-threads=1"])
+        .env(CHILD, &root)
+        .env("VARIANCE_AUTHORITY_TEST_REAL_GIT", String::from_utf8(real_git.stdout).unwrap().trim())
+        .env("PATH", std::env::join_paths(paths).unwrap())
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_dir_all(root);
+    assert!(output.status.success(), "{}\n{}", String::from_utf8_lossy(&output.stdout), String::from_utf8_lossy(&output.stderr));
+}
+
+#[test]
 fn the_inventory_takes_staged_paths_and_blobs_from_the_index_including_below_the_root() {
     let root = git_fixture::repository("index-inventory", &[("src/a.ts", b"before\n"), ("gone.ts", b"gone\n")]);
     write(&root, "src/a.ts", "staged\n");

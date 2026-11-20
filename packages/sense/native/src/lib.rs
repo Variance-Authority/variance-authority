@@ -69,6 +69,7 @@ mod harvest;
 mod chain_lookup;
 mod change_tree;
 mod held;
+mod file_stamp;
 #[cfg(unix)]
 mod held_listing;
 mod help;

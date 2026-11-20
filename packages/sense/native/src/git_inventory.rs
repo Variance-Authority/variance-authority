@@ -42,6 +42,6 @@ pub(super) fn read(checkout: &Checkout) -> Option<Listed> {
     Some(Listed { index: None, blobs })
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 #[path = "git_inventory_tests.rs"]
 mod tests;

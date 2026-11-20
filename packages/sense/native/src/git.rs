@@ -56,6 +56,8 @@ pub(crate) fn snapshot_since(root: &str, before: &worktree_moved::Before) -> Opt
 /// Tests ask both the native comparison and Git for the same working bytes.
 fn snapshot_of(root: &str, compared: bool, before: Option<&worktree_moved::Before>) -> Option<(Snapshot, bool)> {
     let checkout = summed(Sum::Locate, || crate::git_store::checkout(std::path::Path::new(root)))?;
+    let index_stamp = crate::file_stamp::stamp(&checkout.index);
+    if index_stamp.is_none() && checkout.index.try_exists().ok()? { return None; }
     let (inventory, listed) = std::thread::scope(|scope| {
         let listed = scope.spawn(|| configured(root));
         (summed(Sum::Inventory, || inventory::read(&checkout)), listed.join().ok())
@@ -132,6 +134,9 @@ fn snapshot_of(root: &str, compared: bool, before: Option<&worktree_moved::Befor
         regular.push(vouched);
     }
 
+    // An atomic index replacement must not pair old blob identities with newer status.
+    let after = crate::file_stamp::stamp(&checkout.index);
+    if after != index_stamp || (after.is_none() && checkout.index.try_exists().ok()?) { return None; }
     Some((Snapshot { paths, oids, regular, unhashed }, followed))
 }
 

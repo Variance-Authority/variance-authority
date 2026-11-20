@@ -26,21 +26,7 @@ const REGULAR: &str = "listing.regular";
 const UNHASHED: &str = "listing.unhashed";
 const META: &str = "listing.meta";
 
-/// What a file looked like when the listing was taken; `None` is a file not there.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct Stamp {
-    size: u64,
-    modified: i64,
-    nanos: i64,
-    changed: i64,
-    inode: u64,
-}
-
-fn stamp(path: &Path) -> Option<Stamp> {
-    use std::os::unix::fs::MetadataExt;
-    let metadata = std::fs::metadata(path).ok()?;
-    Some(Stamp { size: metadata.size(), modified: metadata.mtime(), nanos: metadata.mtime_nsec(), changed: metadata.ctime_nsec() + metadata.ctime() * 1_000_000_000, inode: metadata.ino() })
-}
+use crate::file_stamp::{stamp, Stamp};
 
 /// When a held listing still stands, beside it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
