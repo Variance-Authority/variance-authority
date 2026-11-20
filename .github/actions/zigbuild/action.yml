@@ -1,0 +1,14 @@
+name: zigbuild
+description: The linker build.mjs links a Linux scanner at its glibc floor with.
+
+# One place for the version, so the binary a pull request builds and loads is
+# linked by the compiler release publishes with.
+runs:
+  using: composite
+  steps:
+    - uses: mlugg/setup-zig@v2
+      with:
+        version: 0.16.0
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-zigbuild

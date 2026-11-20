@@ -19,7 +19,8 @@
  * existing for them.
  *
  * `--target <triple>` cross-compiles, which is how the release matrix fills one
- * package per runner.
+ * package per runner. A host build on a glibc Linux builds its package's target
+ * the same way, at the same floor, so the binary CI loads is the one we publish.
  *
  * One binary per platform, built for the floor of it: `rustc` builds
  * `aarch64-apple-darwin` for `apple-m1`, which every Apple Silicon Mac runs.
@@ -47,8 +48,8 @@
  * A host build is skipped when the binary already in place was built from the
  * compiled inputs git holds: this directory's tree and the external
  * `record-layout.json` blob compiled by Rust's `include_str!`.
- * `nativeBuildInputs` owns that identity, and a full build writes it
- * beside the binary as `scan.node.tree`. Git owns what the directory contains;
+ * `nativeBuildInputs` owns that identity, and a full build writes it, with the
+ * glibc floor it linked against, beside the binary as `scan.node.tree`. Git owns what the directory contains;
  * nothing here hashes it again. A directory with uncommitted changes has no
  * tree id that describes it, and neither does a build narrowed by
  * `SENSE_TARGET_CPU`, `RUSTFLAGS` or `CARGO_ENCODED_RUSTFLAGS` (which `cargo`
@@ -62,7 +63,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TARGETS } from './targets.mjs';
+import { TARGETS, hostTarget } from './targets.mjs';
 import { nativeBuildInputs } from './build-inputs.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -75,19 +76,17 @@ const HOST_ARTIFACT = {
 }[process.platform];
 
 const at = process.argv.indexOf('--target');
-const target = at === -1 ? undefined : process.argv[at + 1];
+const asked = at === -1 ? undefined : process.argv[at + 1];
 
-if (at !== -1 && (target === undefined || !(target in TARGETS))) {
-  console.error(`sense: no such target \`${target}\` — one of ${Object.keys(TARGETS).join(', ')}`);
+if (at !== -1 && (asked === undefined || !(asked in TARGETS))) {
+  console.error(`sense: no such target \`${asked}\` — one of ${Object.keys(TARGETS).join(', ')}`);
   process.exit(1);
 }
 
 // A host build lands in its own package when we publish one for this host, and
 // in `dist/native/` when we do not.
-const forHost = Object.values(TARGETS).find(({ package: name }) =>
-  name.startsWith(`${process.platform}-${process.arch}`),
-);
-const published = target === undefined ? forHost?.package : TARGETS[target].package;
+const host = hostTarget();
+const published = asked === undefined ? host?.package : TARGETS[asked].package;
 const into =
   published === undefined ? join(here, '..', 'dist', 'native') : join(here, '..', 'npm', published);
 const stamp = join(into, 'scan.node.tree');
@@ -104,17 +103,20 @@ function builtFrom() {
   return inputs?.clean ? inputs.identity : undefined;
 }
 
+/** The glibc a build links against when its subcommand can: the target's floor. */
+const wanted = asked === undefined ? host?.glibc : TARGETS[asked].glibc;
 const tree = builtFrom();
+const identity = tree === undefined || wanted === undefined ? tree : `${tree} glibc ${wanted}`;
 const plain =
-  target === undefined &&
+  asked === undefined &&
   (process.env['SENSE_TARGET_CPU'] ?? '') === '' &&
   (process.env['RUSTFLAGS'] ?? '') === '' &&
   (process.env['CARGO_ENCODED_RUSTFLAGS'] ?? '') === '';
 const stamped = existsSync(stamp) ? readFileSync(stamp, 'utf8').trim() : undefined;
 
-if (plain && tree !== undefined && stamped === tree && existsSync(join(into, 'scan.node'))) {
+if (plain && identity !== undefined && stamped === identity && existsSync(join(into, 'scan.node'))) {
   console.log(
-    `sense: native scanner at ${join(into, 'scan.node')} was built from inputs ${tree}, ` +
+    `sense: native scanner at ${join(into, 'scan.node')} was built from inputs ${identity}, ` +
       'which is unchanged — not rebuilt',
   );
   process.exit(0);
@@ -133,8 +135,8 @@ const cargo = [process.env['CARGO'], 'cargo', join(process.env['HOME'] ?? '', '.
   .find((candidate) => spawnSync(candidate, ['--version'], { stdio: 'ignore' }).status === 0);
 
 if (cargo === undefined) {
-  if (target !== undefined) {
-    console.error(`sense: no cargo, so ${target} cannot be built`);
+  if (asked !== undefined) {
+    console.error(`sense: no cargo, so ${asked} cannot be built`);
     process.exit(1);
   }
   console.log('sense: no cargo on PATH, skipping the native scanner');
@@ -149,19 +151,26 @@ if (cargo === undefined) {
  * suffix and writes under the plain triple. Asked for and missing is a failure
  * like a missing target: the binary it would have produced loads on fewer
  * machines than the one we publish, and nothing would say so until a `dlopen`.
+ * A host build without it links against this machine's glibc, says so, and
+ * leaves no stamp: it loads here, and it is not the binary we publish.
  */
-const floor = target === undefined ? undefined : TARGETS[target].glibc;
-const subcommand = floor === undefined ? 'build' : 'zigbuild';
-const triple = floor === undefined ? target : `${target}.${floor}`;
-
 const linkable =
-  floor === undefined || spawnSync(cargo, ['zigbuild', '--help'], { stdio: 'ignore' }).status === 0;
-if (!linkable) {
+  wanted === undefined || spawnSync(cargo, ['zigbuild', '--help'], { stdio: 'ignore' }).status === 0;
+if (!linkable && asked !== undefined) {
   console.error(
-    `sense: ${target} links against glibc ${floor} through \`cargo zigbuild\`, which is not installed`,
+    `sense: ${asked} links against glibc ${wanted} through \`cargo zigbuild\`, which is not installed`,
   );
   process.exit(1);
 }
+if (!linkable) {
+  console.error(
+    `sense: no \`cargo zigbuild\`, so this scanner links against this machine's glibc, not the ${wanted} floor we publish`,
+  );
+}
+const floor = linkable ? wanted : undefined;
+const target = asked ?? (floor === undefined ? undefined : host.triple);
+const subcommand = floor === undefined ? 'build' : 'zigbuild';
+const triple = floor === undefined ? target : `${target}.${floor}`;
 
 if (target === undefined && HOST_ARTIFACT === undefined) {
   console.log(`sense: no native scanner for ${process.platform}, skipping`);
@@ -244,5 +253,12 @@ copyFileSync(from, staging);
 renameSync(staging, join(into, 'scan.node'));
 
 if (!existsSync(join(into, 'scan.node'))) process.exit(1);
-if (plain && full && tree !== undefined) writeFileSync(stamp, `${tree}\n`);
+// The refusal `prepack` makes at publish, made where the binary was built, so a
+// binary over its floor fails the build that produced it, in CI as at release.
+if (floor !== undefined) {
+  const verify = join(here, '..', 'scripts', 'verify-native-pack.mjs');
+  const checked = spawnSync(process.execPath, [verify, into], { stdio: 'inherit' });
+  if (checked.status !== 0) process.exit(checked.status ?? 1);
+}
+if (plain && full && linkable && identity !== undefined) writeFileSync(stamp, `${identity}\n`);
 console.log(`sense: native scanner at ${join(into, 'scan.node')}`);

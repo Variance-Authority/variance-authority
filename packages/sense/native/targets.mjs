@@ -27,3 +27,18 @@ export const TARGETS = {
   },
   'x86_64-pc-windows-msvc': { package: 'win32-x64-msvc', artifact: 'sense_native.dll' },
 };
+
+/**
+ * The target this host builds into, by its triple, or nothing where we publish
+ * none. Its glibc floor applies only on a glibc host: a musl Linux matches the
+ * gnu package by platform and architecture, and a floor build would not load there.
+ */
+export function hostTarget() {
+  const found = Object.entries(TARGETS).find(([, { package: name }]) =>
+    name.startsWith(`${process.platform}-${process.arch}`),
+  );
+  if (found === undefined) return undefined;
+  const [triple, { glibc, ...rest }] = found;
+  const onGlibc = process.platform === 'linux' && process.report.getReport().header.glibcVersionRuntime !== undefined;
+  return { triple, ...rest, ...(onGlibc && glibc !== undefined ? { glibc } : {}) };
+}
