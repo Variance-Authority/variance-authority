@@ -250,7 +250,12 @@ export function limitOf(threshold: number): number {
  * `pixelmatch`'s checkerboard is read, whichever row the first pixel came from.
  */
 export function colorDelta(first: Uint8Array, second: Uint8Array, at: number, pos: number): number {
-  rgbDelta(first[at]!, first[at + 1]!, first[at + 2]!, first[at + 3]!, second, at, pos);
+  return colorDeltaAt(first, at, second, at, pos);
+}
+
+/** {@link colorDelta} between pixels at different offsets, such as two neighbours in one image. */
+export function colorDeltaAt(first: Uint8Array, at: number, second: Uint8Array, from: number, pos: number): number {
+  rgbDelta(first[at]!, first[at + 1]!, first[at + 2]!, first[at + 3]!, second, from, pos);
   const dr = DELTA[0]!;
   const dg = DELTA[1]!;
   const db = DELTA[2]!;

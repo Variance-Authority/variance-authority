@@ -17,13 +17,14 @@
 export { locate } from './locate.js';
 export type { Location, LocationStep } from './locate.js';
 
-export { isolateRegions, subtractRegions, excludedBoxes } from './mask.js';
+export { isolateRegions, subtractRegions, excludedBoxes, pixelBox } from './mask.js';
 export type {
   ChangeMask,
   DiffRegion,
   ExcludedBox,
   Isolation,
   IsolationOptions,
+  RegionChange,
   Subtraction,
 } from './mask.js';
 

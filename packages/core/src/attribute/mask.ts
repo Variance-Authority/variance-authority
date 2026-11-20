@@ -42,7 +42,16 @@ export interface DiffRegion extends Rect {
   readonly density: number;
   /** The highest grade of its pixels ({@link ChangeMask.data}): how strongly its strongest pixel differs. */
   readonly grade: number;
+  /** Whether the drawing in the box changed or only its colour, where the pixels were read and told the two apart. */
+  readonly change?: RegionChange;
 }
+
+/**
+ * What changed in a region: `shape` where an edge moved, appeared or went, each
+ * side's edges read in its own image; `colour` where every edge stands where it
+ * stood, in another colour.
+ */
+export type RegionChange = 'shape' | 'colour';
 
 export interface IsolationOptions {
   /**
@@ -191,6 +200,23 @@ export interface Subtraction {
 }
 
 /**
+ * The pixels a box excludes: rounded outward. A box is a CSS rectangle and a
+ * mask is a pixel grid; the half-pixel at the edge belongs to the thing that was
+ * excluded, because the alternative is a one-pixel rim of permanent residue
+ * around every ignore.
+ *
+ * It is also how a browser's element screenshot snaps a fractional box, and a
+ * clip rounded this way reproduces its bytes: floor the near edge, ceil the far
+ * one. Rounding the *extent* instead of the far *edge* differs whenever a box
+ * starts at a fraction, an integer size at a fractional offset included.
+ */
+export function pixelBox(box: Rect): Rect {
+  const x = Math.floor(box.x);
+  const y = Math.floor(box.y);
+  return { x, y, width: Math.ceil(box.x + box.width) - x, height: Math.ceil(box.y + box.height) - y };
+}
+
+/**
  * Clear excluded boxes out of a change mask, and say what that cost.
  *
  * The raster half of an ignore (spec 0024). The semantic half drops deltas under
@@ -218,13 +244,11 @@ export function subtractRegions(mask: ChangeMask, boxes: readonly Rect[]): Subtr
   let ignored = 0;
 
   for (const box of boxes) {
-    // Rounded outward. A box is a CSS rectangle and a mask is a pixel grid; the
-    // half-pixel at the edge belongs to the thing that was excluded, because the
-    // alternative is a one-pixel rim of permanent residue around every ignore.
-    const startX = Math.max(0, Math.floor(box.x));
-    const startY = Math.max(0, Math.floor(box.y));
-    const endX = Math.min(mask.width, Math.ceil(box.x + box.width));
-    const endY = Math.min(mask.height, Math.ceil(box.y + box.height));
+    const pixels = pixelBox(box);
+    const startX = Math.max(0, pixels.x);
+    const startY = Math.max(0, pixels.y);
+    const endX = Math.min(mask.width, pixels.x + pixels.width);
+    const endY = Math.min(mask.height, pixels.y + pixels.height);
 
     let inside = 0;
     for (let y = startY; y < endY; y += 1) {

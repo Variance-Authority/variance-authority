@@ -165,8 +165,27 @@ export function describeChange(
 
   return (
     `${count(changed, 'pixel')} differ across ` +
-    `${across}${where}${apart}${capped}${movement(comparison)}${size}`
+    `${across}${where}${apart}${capped}${drawing(isolation)}${movement(comparison)}${size}`
   );
+}
+
+/**
+ * Whether the listed regions' drawing changed or only their colour, so the
+ * marks a reader has to open are told from the repaints before any is opened.
+ */
+function drawing(isolation: Isolation): string {
+  const listed = isolation.regions;
+  const shape = listed.filter((region) => region.change === 'shape').length;
+  const colour = listed.filter((region) => region.change === 'colour').length;
+  if (shape + colour === 0) return '';
+  if (shape > 0 && colour > 0) return `, ${shape} changed in shape and ${colour} only in colour`;
+  // A region whose pixels told neither apart is counted under neither, so "each" would claim it.
+  // Regions the cap left out were not read, so "each" names only those listed.
+  let each: string | undefined = isolation.truncated > 0 ? 'each listed' : 'each';
+  if (shape + colour < listed.length) each = `${shape + colour}`;
+  else if (listed.length === 1) each = undefined;
+  if (colour === 0) return each === undefined ? ', its shape changed' : `, ${each} changed in shape`;
+  return each === undefined ? ', only its colour changed' : `, ${each} changed only in colour`;
 }
 
 /**

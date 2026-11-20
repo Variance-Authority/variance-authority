@@ -53,6 +53,33 @@ dropped first, and the cap is *reported*:
 A capped list that does not report its cap reads as complete coverage, and the
 reader has no way to know the difference.
 
+### Shape, or only colour
+
+A repainted button and a button that moved both leave a region, and only one
+of them needs opening. Each listed region says which it is in `change`, and the
+verdict's sentence counts them: `1 changed in shape and 1 only in colour`.
+
+The pixels inside the box, and 2 more on each side, are read on both images,
+each paired with the before pixel it was compared against, so a page whose rows
+moved is read at the move. Pixels in an excluded subtree are not read. On each
+side, every pixel is an edge or flat by its colour distance to its right and
+lower neighbours in the same image, by the distance the judge measures: as far
+as a 0.05 threshold is an edge, a quarter of that or less is flat, and a pixel
+between them, as an anti-aliased edge often is, abstains. The scale is fixed,
+so a strong edge beside the region changes nothing in it. A pixel that
+is an edge on one side and flat on the other is drawing that moved, appeared or
+went, and makes the region `shape`; a row the after image gained has no
+partner and does the same. Where the edges stand where they stood, only the
+colour changed: `colour`. A bordered button repainted from dark to light, and
+an anti-aliased edge recoloured, stay `colour`. A region with no edge on either
+side and a pixel too faint to call flat, as a pale tint moved by a pixel,
+carries no `change`: nothing in it tells the two apart, and the sentence counts
+only the regions that carry one: `1 changed in shape`.
+
+The 2-pixel margin is there because a block shifted by a pixel leaves two
+regions a pixel wide, with no edge of their own; the margin brings in the edge
+beside each, so each reads as `shape`.
+
 ## How strongly it changed
 
 A screenshot diff says how many pixels differ, and a header repainted one

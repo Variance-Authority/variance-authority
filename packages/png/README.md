@@ -267,6 +267,7 @@ the bytes arrive cannot change a verdict.
 | `compareRasters` | `(before: Raster, after: Raster, options?: CompareOptions & { decoder?: PngDecoder }) => Promise<RasterComparison>` |
 | `diffImage` | `(before: Buffer, after: Buffer, policy?: DiffPolicy, decoder?: PngDecoder) => Promise<Buffer>` |
 | `changeImages` | `(before: DecodedImage, after: DecodedImage, regions: readonly DiffRegion[], policy?: DiffPolicy, labels?: ChangeLabels) => { diff: Buffer; change?: Buffer }` |
+| `regionChange` | `(pixels: ComparedPixels, canvas: { width, height }, region: Rect, excluded: readonly Rect[]) => 'shape' \| 'colour' \| undefined`, whether the drawing in a region changed or only its colour, from the pixels `compareRasters`'s `keep` hands over on the comparison's canvas, and `undefined` when neither side has an edge and a pixel is too faint to call flat; the pixels an `excluded` box covers are not read |
 | `decodePortable` | `(bytes: Buffer) => Promise<DecodedImage>` |
 | `refuseUnkept` | `(bytes: Uint8Array) => void` |
 | `isLosslessWebp` | `(bytes: Uint8Array) => boolean` |

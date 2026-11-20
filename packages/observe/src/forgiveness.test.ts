@@ -54,7 +54,7 @@ describe('what the default policy forgives', () => {
 
     expect(result.verdict).toBe('changed');
     // A change still, and a faint one: Playwright's own default forgives it.
-    expect(result.because).toBe('100 pixels differ across 1 faint region');
+    expect(result.because).toBe('100 pixels differ across 1 faint region, only its colour changed');
   });
 
   it('names the tolerance a green verdict was earned under', async () => {
