@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EXIT_CLEAN, EXIT_OPERATOR, OperatorError } from '../exit.js';
 import { checkout, unprepared, unwalkable } from './index-checkout.fixture.js';
 import { indexOutput } from './index-command.js';
-import { followUpsLockPath, followUpsLogPath, heldBy } from './index-follow-ups.js';
+import { awaitFollowUps, followUpsLockPath, followUpsLogPath, heldBy } from './index-follow-ups.js';
 
 /**
  * `variance index --wait`, and `index` in CI: the follow-ups run in the process
@@ -70,7 +70,7 @@ describe('variance index --wait', () => {
     expect(existsSync(followUpsLockPath(index))).toBe(false);
   });
 
-  it('exits as the operator\'s when that process could not walk the journeys, after every line, and leaves no lock', async () => {
+  it('exits as the operator\'s when that process could not walk the journeys, after every line, and leaves the lock marked with why for every other reader', async () => {
     const root = await checkout();
     unwalkable(root);
     const index = sourceIndexPath(root);
@@ -80,10 +80,12 @@ describe('variance index --wait', () => {
     expect(indexed.stdout.split('\n')).toContain("journeys: not prepared: commit 0123456789ab is not in this checkout's object store. Fetch it with `git fetch origin 0123456789abcdef0123456789abcdef01234567`, or check out every commit: `fetch-depth: 0` with `filter: tree:0` on `actions/checkout`");
     expect(indexed.stdout).toContain('questions: published at');
     expect(indexed.status).toBe(EXIT_OPERATOR);
-    expect(existsSync(followUpsLockPath(index))).toBe(false);
+    // Only this run heard it over the channel: a command that waited beside it, or comes next, reads it from the lock.
+    expect(heldBy(index)?.failed).toEqual([expect.stringContaining("commit 0123456789ab is not in this checkout's object store")]);
+    expect(await awaitFollowUps(index, () => undefined)).toMatchObject({ held: true, finished: true, lock: { failed: [expect.any(String)] } });
   });
 
-  it('hands that process the lock while it runs, and refuses as the operator\'s, with its exit, when it ended without finishing', async () => {
+  it('hands that process the lock while it runs, and refuses as the operator\'s, with its exit, when it ended without finishing, leaving its lock for the next reader to make them', async () => {
     const root = await checkout();
     const index = sourceIndexPath(root);
     const pid = gone();
@@ -100,7 +102,9 @@ describe('variance index --wait', () => {
     await expect(run).rejects.toBeInstanceOf(OperatorError);
     await expect(run).rejects.toThrow(`process ${pid}, making the follow-ups \`variance index\` waited on, ended with exit code 1 before it finished; what it wrote is in ${followUpsLogPath(index)}`);
     expect(held).toBe(pid);
-    expect(existsSync(followUpsLockPath(index))).toBe(false);
+    // A gone process's lock is how the next command knows the follow-ups are unmade.
+    expect(heldBy(index)?.pid).toBe(pid);
+    expect(await awaitFollowUps(index, () => undefined)).toEqual({ held: true, lock: { pid, log: followUpsLogPath(index) }, finished: false });
   });
 
   it('carries what that process handed back, its failed walks with it, though another command let its lock go first', async () => {
@@ -141,7 +145,8 @@ describe('variance index --wait', () => {
 
     await expect(run).rejects.toBeInstanceOf(OperatorError);
     await expect(run).rejects.toThrow(`process ${pid}, making the follow-ups \`variance index\` waited on, handed them back, then ended with ${how}; what it wrote is in ${followUpsLogPath(index)}`);
-    expect(existsSync(followUpsLockPath(index))).toBe(false);
+    // It never let its lock go, so the next command makes the follow-ups again.
+    expect(heldBy(index)?.pid).toBe(pid);
   });
 
   it('stops that process when it is stopped itself, and ends once it has', async () => {

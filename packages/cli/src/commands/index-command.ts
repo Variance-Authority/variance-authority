@@ -99,19 +99,20 @@ export async function indexOutput(request: IndexRequest): Promise<string> {
  * over its own channel: a turn it went without is told once, with this run's,
  * and a walk it could not make is told to `failed`, because this run's exit
  * carries it. A process that ended before it handed them back, or ended other
- * than its failed walks say after it did, is a refusal, and its lock is let go
- * for the next reader to make them.
+ * than its failed walks say after it did, is a refusal. The lock is left as that
+ * process left it, for every other reader: let go when the follow-ups are
+ * whole, marked with why when a walk failed, and a gone process's otherwise, so
+ * the next reader makes them.
  */
 async function waitedOn(request: IndexRequest, { pid, ended }: Running, alone: Alone): Promise<readonly string[]> {
   const index = sourceIndexPath(request.cwd);
   const { handed, code, signal } = await ended;
-  releaseFollowUps(index, pid);
   const how = signal === null ? `exit code ${String(code)}` : `signal ${signal}`;
   if (handed === undefined) {
     throw new OperatorError(`process ${pid}, making the follow-ups \`variance index\` waited on, ended with ${how} before it finished; what it wrote is in ${followUpsLogPath(index)}`);
   }
-  // What it handed back is not how it ended: its lock and its last lines come
-  // after, and its exit is the one its failed walks give, or it failed past them.
+  // What it handed back is not how it ended: its last lines come after, and its
+  // exit is the one its failed walks give, or it failed past them.
   if (signal !== null || code !== (handed.failed.length > 0 ? EXIT_OPERATOR : EXIT_CLEAN)) {
     throw new OperatorError(`process ${pid}, making the follow-ups \`variance index\` waited on, handed them back, then ended with ${how}; what it wrote is in ${followUpsLogPath(index)}`);
   }
@@ -174,11 +175,12 @@ function turnLine({ pid, root }: IndexTurnHolder): string {
  * What the process `index` hands its follow-ups to runs: the update again,
  * which finds the index it was handed and writes nothing, for the listing of
  * the checkout it carries; then the follow-ups, the lock marked once the index
- * is readied; then the lock is let go. Waited on, it hands its lines and the
- * walks git could not read back to the run waiting on it. Detached, a walk git
- * could not read marks the lock with why instead, for the next command that
- * reads the follow-ups to tell. A process that threw keeps the lock unmarked,
- * so that command finds its holder gone and makes them itself.
+ * is readied; then the lock is let go, or, when a walk git could not read,
+ * marked with why, for the next command that reads the follow-ups to tell:
+ * only a whole set of follow-ups is a release. Waited on, it then hands its
+ * lines and those walks back to the run waiting on it too, which is the one
+ * reader the lock is not for. A process that threw keeps the lock unmarked,
+ * so the next command finds its holder gone and makes them itself.
  */
 export async function followUpsOutput(request: Omit<IndexRequest, 'detach' | 'apart'> & { readonly handBack?: HandBack }): Promise<string> {
   const index = sourceIndexPath(request.cwd);
@@ -187,10 +189,10 @@ export async function followUpsOutput(request: Omit<IndexRequest, 'detach' | 'ap
   const told = { ...request, failed: (why: string) => { failed.push(why); request.failed?.(why); } };
   const update = await written(told, alone);
   const lines = await followUps(told, update, alone, () => readiedFollowUps(index, process.pid));
-  if (request.handBack !== undefined) await request.handBack({ lines, alone: [...alone], failed });
   const held = heldBy(index);
-  if (request.handBack === undefined && failed.length > 0 && held?.pid === process.pid) holdFollowUps(index, { ...held, failed });
+  if (failed.length > 0 && held?.pid === process.pid) holdFollowUps(index, { ...held, failed });
   else releaseFollowUps(index, process.pid);
+  if (request.handBack !== undefined) await request.handBack({ lines, alone: [...alone], failed });
   return report(update, alone, lines);
 }
 

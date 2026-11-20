@@ -42,9 +42,10 @@ export interface FollowUpsLock {
   readonly readied?: true;
   /**
    * The process finished, and git could not read what these walks needed. Its
-   * exit reaches nobody, so the next command that reads the follow-ups tells
-   * each reason and exits as the operator's. A process a run waits on hands its
-   * reasons back to that run instead, and never writes them here.
+   * exit reaches nobody but a run that waits on it, so the next command that
+   * reads the follow-ups tells each reason and exits as the operator's. A
+   * process a run waits on writes them here too: its channel reaches that run
+   * alone, and a command waiting beside it would read a release as whole.
    */
   readonly failed?: readonly string[];
 }
