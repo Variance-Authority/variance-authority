@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { relationsOfFiles } from '@variance-authority/core/relate';
-import { scanRelations } from '../scan.js';
+import { scanRelations } from '../test-support/scan.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { coveringTests, ranWhileLoading, type ExecutionIndex } from './reverse.js';
 

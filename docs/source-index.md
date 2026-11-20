@@ -183,10 +183,10 @@ write them one per line and hand the file to a source question:
 variance ask search --query button --from src/issue-view.tsx --changed-file /tmp/changed-paths
 ```
 
-The paths are relative to the scan root. The file is authoritative, including
-when it is empty; a rename writes both its old and new path. Git still supplies
-the committed path set and the named paths are hashed from disk, but `git
-status` is not run to rediscover them.
+The paths are relative to the scan root. The file asks for a new generation
+now, whatever the age of the last; an empty file says nothing changed and keeps
+the generation as it stands. A list does not narrow the read: the source index
+finds what moved from Git and reads those files again, listed or not.
 
 Declarative loaders can be supplied beside that list as a
 [Sense taint table](../packages/sense/README.md):
@@ -355,8 +355,8 @@ The index is a private cache, not an interchange format, and no command prints
 it: the layout belongs to the version that wrote it, and the reader refuses
 anything it does not recognise. To read the graph, call `readPublishedSources`,
 which returns the published records and opens nothing but the index. To build
-it, call `updateSourceIndex`, which runs [`scanRelations`](source.md) over the
-index. To fix an index, delete it.
+it, call [`updateSourceIndex`](source.md), which reads the checkout into the
+index, re-reading only the files whose content changed. To fix an index, delete it.
 
 An index another release wrote is named as such rather than as damaged, and
 `variance index` rebuilds it. `select`, `review` and the other commands that
@@ -370,8 +370,8 @@ what ran as over a text not known.
 `state: 'other-version'` and the version that wrote it in `written`.
 `ask orient --files` refuses it, naming both versions and `variance index`.
 
-`openSourceIndex` returns the parse cache, the record cache and a `save`
-operation together. Point reads query segments newest to oldest and stop at the
+`updateSourceIndex` holds the parse cache and the record cache open together
+while it reads, and saves them once. Point reads query segments newest to oldest and stop at the
 first value or tombstone; iteration materializes them oldest to newest. `save`
 keeps only the rows the scan used or wrote, compares them with what is
 committed, and writes the smallest segment that connects the two. A save

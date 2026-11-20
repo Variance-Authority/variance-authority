@@ -10,6 +10,20 @@
 import { stat } from 'node:fs/promises';
 import type { FileRecord } from '@variance-authority/core/relate';
 
+/**
+ * One megabyte, which is larger than source people write and smaller than
+ * output machines generate.
+ *
+ * Files past a megabyte are bundles; at the cap one costs about a hundred
+ * megabytes of arena, at ten times it eight hundred.
+ *
+ * A record declined at this limit names the bytes it declined and is kept, and
+ * a run at the default names no limit in its configuration digest (`configOf`
+ * in [`reuse.ts`](./reuse.ts)). So a change to this value bumps `VERSION`
+ * there, or every index keeps the records the old limit declined.
+ */
+export const LARGEST_FILE = 1024 * 1024;
+
 /** The rest of the reason a file declined for its size is given: `too_large` in `acquire.rs` writes the same words. */
 const TOO_LARGE =
   'this scan opens: parsing it costs about fifty times that in memory, and it is ' +

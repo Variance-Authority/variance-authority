@@ -35,7 +35,7 @@ vi.mock('@variance-authority/package/help', async (original) => {
 
 vi.mock('@variance-authority/sense', async (original) => {
   const actual = await original<typeof import('@variance-authority/sense')>();
-  return { ...actual, scanRelations: vi.fn(actual.scanRelations) };
+  return { ...actual, updateSourceIndex: vi.fn(actual.updateSourceIndex) };
 });
 
 /** Every read of the manifests since `beforeEach`, by the function that made it. */
@@ -53,7 +53,7 @@ function forget(): void {
   vi.mocked(help.readImportTargets).mockClear();
   vi.mocked(help.readOfferings).mockClear();
   vi.mocked(help.readWorkspaceManifests).mockClear();
-  vi.mocked(sense.scanRelations).mockClear();
+  vi.mocked(sense.updateSourceIndex).mockClear();
 }
 
 /** When `variance index` began reading, which the publish that follows it cannot know for itself. */
@@ -104,7 +104,7 @@ describe('publishing the questions from the index', () => {
     expect(published).toEqual({ generation: expect.any(String), kept: false });
     expect(await publishedGeneration(root, index)).toBe(published?.generation);
     expect(manifestReads()).toEqual(ONCE);
-    expect(sense.scanRelations).not.toHaveBeenCalled();
+    expect(sense.updateSourceIndex).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -122,7 +122,7 @@ describe('publishing the questions from the index', () => {
 
     expect(await publishedGeneration(root, index)).toBe(published?.generation);
     expect(manifestReads()).toEqual(ONCE);
-    expect(sense.scanRelations).not.toHaveBeenCalled();
+    expect(sense.updateSourceIndex).not.toHaveBeenCalled();
   });
 
   /** Every file beside the index, with its size and when it was last written. */
@@ -214,8 +214,8 @@ describe('publishing the questions from the index', () => {
   it('reads the workspace for a question with no parse handed to JavaScript', async () => {
     await read.readWorkspace(root, { index });
 
-    expect(sense.scanRelations).toHaveBeenCalled();
-    for (const [options] of vi.mocked(sense.scanRelations).mock.calls) {
+    expect(sense.updateSourceIndex).toHaveBeenCalled();
+    for (const [, options] of vi.mocked(sense.updateSourceIndex).mock.calls) {
       expect(options).not.toHaveProperty('parsed');
       expect(options).not.toHaveProperty('indexed');
     }

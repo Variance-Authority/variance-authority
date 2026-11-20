@@ -6,7 +6,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { updateNatively } from './native-update.js';
 import { readPublishedSources, updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 import { importReferences } from './test-selection/references.js';
 import { declaredTsconfig, parseTypescript, TypescriptError } from './typescript.js';
 import { tsconfigUse } from './typescript-use.js';

@@ -5,7 +5,7 @@ import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
-import { scanRelations } from '../scan.js';
+import { scanRelations } from '../test-support/scan.js';
 import { INSTRUMENTATION_ID, instrumentationId } from '../instrument/index.js';
 import { countCrossings } from './cases.js';
 import { decodeTestCoverage } from './format.js';

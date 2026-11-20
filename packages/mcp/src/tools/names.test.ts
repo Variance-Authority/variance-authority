@@ -106,4 +106,8 @@ describe('readTree draws the names with the tree when asked', () => {
     await readTree({ root, names: (names) => { drawn = names; } });
     expect(drawn?.get('src/closure.ts')?.declared).toEqual([{ name: 'run', line: 2 }]);
   });
+
+  it('refuses an index it cannot write, rather than answering from the tree before the edit', async () => {
+    await expect(readTree({ root, index: join(root, 'package.json', 'index') })).rejects.toThrow('package.json/index: Not a directory');
+  });
 });

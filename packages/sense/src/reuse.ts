@@ -17,9 +17,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path';
 import { digestString, type Digest } from '@variance-authority/core/format';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { NativeIndexGraph } from './native-index-graph.js';
-import { prunable } from './ordered-map.js';
 import { DEFAULT_CONDITIONS, type ResolveOptions } from './resolve.js';
-import { openSourceIndexFile } from './source-index-file.js';
 import type { IndexedRecord } from './source-index-format.js';
 import { isNamed, treeOf, type Tree } from './tree.js';
 import { movedDirectories } from './witness.js';
@@ -71,17 +69,6 @@ export interface RecordCache {
    * handed each record through `set` instead, which is the scan it always had.
    */
   adopt?(graph: NativeIndexGraph): void;
-}
-
-export interface PersistentRecordCache extends RecordCache {
-  /**
-   * Write what this scan used back to disk, under the tree it adopted.
-   *
-   * Nothing is written when no tree was adopted, which is the case for a scan
-   * with no digests: it reused nothing and validated nothing, and letting it save
-   * would replace a usable cache with an empty one.
-   */
-  save(): Promise<void>;
 }
 
 /** Bumped when what a `FileRecord` holds or the config inputs change, so record keys move. */
@@ -217,59 +204,6 @@ export function memoryRecordCache(): RecordCache {
     getIndexed: (file, digest) => matching(entries.get(file), digest),
     set(record, witnesses, targets) {
       entries.set(record.file, { record, witnesses, ...(targets === undefined ? {} : { targets }) });
-    },
-  };
-}
-
-/**
- * The cache at `path`, loaded if it is there and usable.
- *
- * Every failure is silent and produces an empty cache, for the same reason
- * [`openParseCache`](./cache.ts) does: the cost of every one of them is a full
- * scan, which is what would have happened without a cache at all.
- */
-export async function openRecordCache(path: string): Promise<PersistentRecordCache> {
-  const file = await openSourceIndexFile(path);
-  const generation = file.stored;
-  const entries = prunable(generation.records);
-  const held: TreeShape | undefined = generation.config === undefined
-    ? undefined
-    : { config: generation.config, directories: generation.directories };
-  let adopted: TreeShape | undefined;
-  const used = new Map<string, IndexedRecord>();
-
-  return {
-    under(shape) {
-      adopted = shape;
-      prune(entries, held, shape);
-    },
-    get(file, digest) {
-      const held = used.get(file) ?? entries.get(file);
-      const found = matching(held, digest);
-      // Reading counts as using, exactly as it does for a parse. An unchanged
-      // repository hits every entry and rewrites none of them.
-      if (found !== undefined) used.set(file, held!);
-
-      return found?.record;
-    },
-    getIndexed(file, digest) {
-      const held = used.get(file) ?? entries.get(file);
-      const found = matching(held, digest);
-      if (found !== undefined) used.set(file, found);
-      return found;
-    },
-    set(record, witnesses, targets) {
-      used.set(record.file, { record, witnesses, ...(targets === undefined ? {} : { targets }) });
-    },
-    async save() {
-      if (adopted === undefined) return;
-
-      await file.save({
-        parses: generation.parses,
-        config: adopted.config,
-        directories: adopted.directories,
-        records: used,
-      });
     },
   };
 }

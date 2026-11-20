@@ -10,7 +10,8 @@ import { updateSourceIndex } from './published.js';
 import { realPath } from './resolve.js';
 import { nativeGraph } from './native.js';
 import { shapeOf } from './reuse.js';
-import { LARGEST_FILE, scanRelations } from './scan.js';
+import { LARGEST_FILE } from './record.js';
+import { scanRelations } from './test-support/scan.js';
 import { openSourceIndexFile } from './source-index-file.js';
 import { encodeSourceIndex, SOURCE_INDEX_VERSION } from './source-index-format.js';
 import { readSourceIndexSegment } from './source-index-reader.js';
@@ -388,12 +389,12 @@ describe('the parse store a cache keeps', () => {
     };
     // An update under a larger limit fills the store with what the default declines.
     vi.resetModules();
-    vi.doMock('./scan.js', async (actual) => ({ ...await actual<typeof import('./scan.js')>(), LARGEST_FILE: 2 * LARGEST_FILE }));
+    vi.doMock('./record.js', async (actual) => ({ ...await actual<typeof import('./record.js')>(), LARGEST_FILE: 2 * LARGEST_FILE }));
     try {
       const { updateSourceIndex: larger } = await import('./published.js');
       await larger(join(await committed(), 'packages/a'));
     } finally {
-      vi.doUnmock('./scan.js');
+      vi.doUnmock('./record.js');
       vi.resetModules();
     }
     const second = await committed();

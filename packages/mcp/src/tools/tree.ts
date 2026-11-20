@@ -28,15 +28,15 @@ import { namesOf, type FileNames, type SourceNames } from './names.js';
  * a path the run happened to write down reads as *found* whether or not
  * anything is there.
  *
- * So the authority is the scanner, and nothing else. It is a machine and works
- * one way: it walks the tree, it holds what it found, and it holds the arrows
- * between them. It cannot invent a file, it cannot invent an import, and it
+ * So the authority is the source index, and nothing else. It is a machine and
+ * works one way: it reads the tree, it holds what it found, and it holds the
+ * arrows between them. It cannot invent a file, it cannot invent an import, and it
  * cannot answer *maybe*.
  *
  * ## Two questions, and only two
  *
  * **Does this path exist?** — answered against {@link Tree.files}, which is
- * every coordinate the scan has, compared whole.
+ * every coordinate the index holds, compared whole.
  *
  * **What is reachable from it?** — answered by walking the import graph one
  * way, from the files the path selected along their arrows, at any depth. What
@@ -330,26 +330,29 @@ function unknownAmong(relations: Relations, among: Iterable<string>): readonly s
   return found.sort();
 }
 
-/** What a scan needs to be told, beyond where the repository is. */
+/** What reading the tree needs to be told, beyond where the repository is. */
 export interface TreeOptions {
   /** The repository root. Every coordinate comes back relative to it. */
   readonly root: string;
   /**
-   * Where to start walking, relative to the root. The whole repository when
-   * absent, because a start point may name any path in it and a narrower walk
-   * would answer *not found* about a file that is plainly there.
+   * Where to start walking, relative to the root. The index covers the whole
+   * repository either way; these narrow its records to what they hold and
+   * reach. The whole repository when absent, because a start point may name any
+   * path in it and a narrower walk would answer *not found* about a file that
+   * is plainly there.
    */
   readonly dirs?: readonly string[];
   /**
-   * The persistent scan index, when the caller keeps one.
+   * The source index, when the caller keeps one somewhere other than the
+   * checkout's own, which is written to in the cache directory when absent.
    *
-   * The same file a run's own scan uses, so a reader asking a question after a
-   * run pays a map lookup per unchanged file rather than a parse.
+   * It is updated before it is read, so a question asked after a one-file edit
+   * re-reads that file and holds every other record as it was.
    */
   readonly index?: string;
   /**
-   * Receives every file's names, read off the parses that drew the tree, once
-   * the scan is done. Asked for only by a question that names a name: holding
+   * Receives every file's names, read off the parses the index holds, once
+   * the tree is read. Asked for only by a question that names a name: holding
    * them costs a map the size of the tree, which a question about paths would
    * pay for nothing.
    */
@@ -362,7 +365,9 @@ export interface TreeOptions {
  * The scanner is imported dynamically and its absence is stated rather than
  * absorbed. Every other optional dependency here degrades in cost; this one
  * decides an answer, and a start point resolved against something that is not
- * the tree is the defect this module exists to remove.
+ * the tree is the defect this module exists to remove. An index the update
+ * could not write throws for the same reason: what is on disk is the tree
+ * before the edit.
  */
 export async function readTree(options: TreeOptions): Promise<Tree> {
   let scanner: typeof import('@variance-authority/sense');
@@ -377,23 +382,28 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
     );
   }
 
-  const source = options.index === undefined ? undefined : await scanner.openSourceIndex(options.index);
-  const names = options.names === undefined ? undefined : new Map<string, FileNames>();
-  const records = await scanner.scanRelations({
-    root: options.root,
-    dirs: options.dirs ?? ['.'],
-    ...(source === undefined ? {} : { cache: source.cache, reuse: source.reuse }),
-    ...(names === undefined ? {} : {
-      indexed: (file, parsed, targets) => nameInto(names, file, parsed, targets),
-    }),
-  });
+  // The addon brings the index up to date over what git says moved; the tree
+  // and the names are read off what it wrote, so no file is read on this side.
+  const updated = await scanner.updateSourceIndex(
+    options.root,
+    options.index === undefined ? {} : { index: options.index },
+  );
+  if (updated.refused !== undefined) throw new Error(updated.refused);
+  const read = await scanner.readPublishedSources(updated.path);
+  const records = options.dirs === undefined ? read.records : scanner.sourcesWithin(read.records, options.root, options.dirs);
+  let names: Map<string, FileNames> | undefined;
+  if (options.names !== undefined) {
+    names = new Map();
+    for (const record of records) {
+      const held = read.indexed(record.file);
+      // A parse that holds no declarations is left out of the names, which
+      // counts its file as unread rather than declaring nothing.
+      if (held?.parsed?.harvested === true) names.set(record.file, namesOf(held.parsed, held.targets));
+    }
+  }
   // The graph every reader of the checkout walks, with the mocks read off
   // what the parse recorded, so it is the graph `variance covering --since` cuts by.
-  const relations = await scanner.runGraphOf(records, {
-    root: options.root,
-    ...(source === undefined ? {} : { cache: source.cache }),
-  });
-  await source?.save();
+  const relations = await scanner.runGraphOf(records, { root: options.root, cache: read.cache });
   if (names !== undefined) options.names?.(names);
 
   return treeFromRelations(relations, options.root);

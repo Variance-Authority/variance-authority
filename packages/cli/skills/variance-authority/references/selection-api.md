@@ -14,7 +14,7 @@ installed:
 ```js
 import { execFileSync } from 'node:child_process';
 import { relationsOfFiles } from '@variance-authority/core/relate';
-import { scanRelations } from '@variance-authority/sense';
+import { readPublishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
 import {
   distanceByExecution,
   groupByDistance,
@@ -33,8 +33,11 @@ const commit = await recordedCommit(file);
 // coordinates of `commit`: that is what the recording's ranges are numbered in.
 const diff = execFileSync('git', ['diff', commit], { cwd: root, encoding: 'utf8' });
 
-// The import graph. Without it every test that is not a precondition is unmeasured.
-const relations = relationsOfFiles(await scanRelations({ root, dirs: ['src'] }));
+// The import graph, read from the source index after bringing it up to date.
+// Without it every test that is not a precondition is unmeasured.
+const { path } = await updateSourceIndex(root);
+const { records } = await readPublishedSources(path);
+const relations = relationsOfFiles(sourcesWithin(records, root, ['src']));
 
 const { narrowing, distances } = await distanceByExecution(file, diff, {
   relations,

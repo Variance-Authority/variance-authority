@@ -34,9 +34,9 @@ export interface PersistentSourceIndex {
   readonly state: SourceIndexState;
   /** The format version the unread segment names, when `state` is `other-version`. */
   readonly written?: number;
-  /** Content-keyed facts passed to `scanRelations` as `cache`. */
+  /** Content-keyed facts a scan reads and adds to. */
   readonly cache: ParseCache;
-  /** Tree-keyed resolved records passed to `scanRelations` as `reuse`. */
+  /** Tree-keyed resolved records a scan reuses and adds to. */
   readonly reuse: RecordCache;
   /**
    * Atomically publish the facts this scan used. I/O failure is absorbed and
@@ -64,7 +64,7 @@ export function sourceIndexPath(root: string, cacheRoot?: string): string {
 }
 
 /** What {@link openSourceIndex} reads beside the chain itself. */
-export interface SourceIndexOptions {
+interface SourceIndexReads {
   /**
    * The cache's parse stores ([`parse-store.ts`](./parse-store.ts)): a parse
    * the chain does not hold is kept from the first that does, so a scan handed
@@ -80,7 +80,7 @@ export interface SourceIndexOptions {
  * or corrupt one as the segments before the first bad one. Either can make this
  * scan slower and neither can change the resulting graph. A store reads the same way.
  */
-export async function openSourceIndex(path: string, options: SourceIndexOptions = {}): Promise<PersistentSourceIndex> {
+export async function openSourceIndex(path: string, options: SourceIndexReads = {}): Promise<PersistentSourceIndex> {
   const file = await openSourceIndexFile(path);
   const stored = file.stored;
   const kept = await Promise.all((options.stores ?? []).map(async (store) => (await openSourceIndexFile(store)).stored.parses));

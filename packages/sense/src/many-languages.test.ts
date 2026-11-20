@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FileRecord } from '@variance-authority/core/relate';
 import type { ParseCache, ParseKey, Parsed } from './cache.js';
 import { keyFor, parseWay } from './files.js';
-import { scanRelations } from './scan.js';
+import { scanRelations } from './test-support/scan.js';
 
 /**
  * One scan, one record space, one graph — over five languages at once.
