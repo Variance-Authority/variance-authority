@@ -3,7 +3,7 @@ import { sourceIndexPath } from '@variance-authority/sense';
 import { readsNames } from './tools/discover.js';
 import { namesWanted } from './tools/intersection.js';
 
-/** The tree, and every file's names when the question reads them, off one scan. */
+/** The tree, and every file's names when the question reads them, off one read of the source index. */
 export interface NamedTree {
   readonly tree: Tree;
   readonly names?: SourceNames;
@@ -12,7 +12,7 @@ export interface NamedTree {
 /**
  * The reading `discover` answers from, for a shell that asks it once.
  *
- * Names are not in the published workspace value, so this is a scan through
+ * Names are not in the published workspace value, so this is a read of
  * the source index a run's selection writes, with the names taken off the parses that draw the tree when
  * the question names an operand that reads them, or crosses a question that
  * does.

@@ -66,9 +66,9 @@ reference to it, since the owner compacts and deletes its segments.
 - `packages/sense/native/src/held_listing.rs`, `packages/sense/native/src/watchman.rs` — the listing an update carries, and Watchman asked whether it stands
 - `packages/sense/native/src/committed_tree.rs` — `HEAD`'s tree below the root, kept by each package's tree id beside the index, so an unchanged tree is not read again and a changed package is diffed against its old tree
 - `packages/sense/src/published.ts` — `updateSourceIndex`, `publishedSources`, `sourcesWithin`
-- `packages/sense/src/source-index.ts` — `openSourceIndex`, the two caches and the append
+- `packages/sense/src/source-index.ts` — the in-memory index the test oracle reads, and the append
 - `packages/sense/src/immutable-log.ts` — the segment chain, and the copy a worktree starts from
-- `packages/sense/src/cache.ts`, `packages/sense/src/reuse.ts` — the parse and record caches
+- `packages/sense/src/cache.ts`, `packages/sense/src/reuse.ts` — the in-memory parse and record caches
 - `packages/cli/src/commands/index-command.ts` — `variance index`, the publishing step
 - `packages/cli/src/commands/source-graph.ts` — `relationsFor`, where every graph reader reads
 

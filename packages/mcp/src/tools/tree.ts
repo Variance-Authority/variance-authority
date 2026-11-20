@@ -27,15 +27,15 @@ import { namesOf, type FileNames, type SourceNames } from './names.js';
  * a path the run happened to write down reads as *found* whether or not
  * anything is there.
  *
- * So the authority is the scanner, and nothing else. It is a machine and works
- * one way: it walks the tree, it holds what it found, and it holds the arrows
- * between them. It cannot invent a file, it cannot invent an import, and it
+ * So the authority is the source index, and nothing else. It is a machine and
+ * works one way: it reads the tree, it holds what it found, and it holds the
+ * arrows between them. It cannot invent a file, it cannot invent an import, and it
  * cannot answer *maybe*.
  *
  * ## Two questions, and only two
  *
  * **Does this path exist?** — answered against {@link Tree.files}, which is
- * every coordinate the scan has, compared whole.
+ * every coordinate the index holds, compared whole.
  *
  * **What is reachable from it?** — answered by walking the import graph one
  * way, from the files the path selected along their arrows, at any depth. What

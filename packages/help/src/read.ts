@@ -1,5 +1,5 @@
 /**
- * What the repository imports and exports, read from the index the scan keeps.
+ * What the repository imports and exports, read from the source index.
  *
  * [`use.ts`](https://github.com/Variance-Authority/variance-authority/blob/main/packages/package/src/use.ts) can answer this by itself: walk every
  * directory, parse every module, collect every specifier. On this repository
@@ -11,10 +11,10 @@
  * Nothing about the reading justifies the cost, because the reading is already
  * done. [`sense`](https://github.com/Variance-Authority/variance-authority/tree/main/packages/sense) keeps a durable, content-keyed index of exactly
  * these bytes: git names each file's content without opening it, the digest
- * names what parsing that content produced, and a scan of an unchanged tree
- * costs a map lookup per file. So a read here scans to bring the index up to
- * date, saves it, and reads the value off the saved index in the addon, as
- * `variance index` does: one producer, and no parse row handed to JavaScript.
+ * names what parsing that content produced, and an update of an unchanged tree
+ * reads no file. So a read here brings the index up to date over what Git says
+ * moved, and reads the value off the written index in the addon, as `variance
+ * index` does: one producer, and no parse row handed to JavaScript.
  *
  * ## Two readings, one index
  *
@@ -189,9 +189,9 @@ export interface IndexedUsageOptions {
  * from a walk, so asking a second question about an unchanged checkout costs the
  * manifests and nothing else.
  *
- * The scan brings the index up to date and saves it, and the value is read off
- * the saved index and published beside it, so a read whose index could not be
- * saved throws {@link UnsavedRead}. Asynchronous because the index is a file: a
+ * The update brings the index up to date and writes it, and the value is read
+ * off the written index and published beside it, so a read whose index could
+ * not be written throws {@link UnsavedRead}. Asynchronous because the index is a file: a
  * caller with no cache directory to write to, or one reading a tree it does not
  * own, wants `readHelp` and should keep having it.
  */
@@ -244,8 +244,8 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
   const wanted = options.taints !== undefined || options.records !== undefined;
   const read = wanted ? await readPublishedSources(at) : undefined;
   const cache = read === undefined ? {} : { cache: read.cache };
-  const given = await taintRecords(read?.records ?? [], options.taints ?? [], { root: scope.root, ...cache });
-  if (given.shadows.size > 0) {
+  const given = read === undefined ? undefined : await taintRecords(read.records, options.taints ?? [], { root: scope.root, ...cache });
+  if (given !== undefined && given.shadows.size > 0) {
     throw new Error(
       `Help source areas cannot apply subtractive taints: ${given.shadows.size} file(s) shadow a module. ` +
       'Pass addition-only taints for declarative module loads.',
@@ -255,8 +255,8 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
   // addon draws it off the saved index; only a caller's taints, which the index
   // never holds, keep the published tree on this side, and then this side joins
   // the mocks the same way. A mock's cut is one test's run and stays out of either.
-  const tainted = options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root, ...cache });
-  if (wanted) options.records?.(tainted.records, scope.root);
+  const tainted = given === undefined || options.taints === undefined ? given : await taintRecords(given.records, [mockTaint()], { root: scope.root, ...cache });
+  if (tainted !== undefined) options.records?.(tainted.records, scope.root);
 
   const published = await publishHelp({
     workspace: where,
@@ -266,7 +266,7 @@ async function readAndPublish(root: string, options: ReadingOptions, readStarted
     index: at,
     own,
     readStartedAt,
-    ...(options.taints === undefined ? {} : { tree: encodeSourceTree(tainted.records) }),
+    ...(options.taints === undefined || tainted === undefined ? {} : { tree: encodeSourceTree(tainted.records) }),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
   if (published === undefined) throw new UnsavedRead(`no source index opens at ${at}`);

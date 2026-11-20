@@ -39,8 +39,9 @@ import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { readPublishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
 
 const root = process.cwd();
-const { path } = await updateSourceIndex(root);
-const records = sourcesWithin((await readPublishedSources(path)).records, root, ['src']);
+const update = await updateSourceIndex(root);
+if (update.refused !== undefined) throw new Error(update.refused);
+const records = sourcesWithin((await readPublishedSources(update.path)).records, root, ['src']);
 // records[0] ->
 // {
 //   file: 'src/components/Button.tsx',
@@ -56,7 +57,7 @@ affected.components; // component names declared in any of them
 affected.missing;    // changed paths the graph does not hold
 ```
 
-`readPublishedSources(path)` returns the records as `readonly FileRecord[]`.
+`readPublishedSources(path)` returns the published sources; their `records` are `readonly FileRecord[]`.
 `readModule(file, contents)` is exported from `@variance-authority/sense/read`
 when you already have a module's source text: it reads requests and names
 without resolving anything or opening the checkout.
@@ -90,7 +91,8 @@ options say what is read and where it is stored:
 | `packs` | `true` | `false` reads each file's bytes from the working tree; Git still lists the tree. |
 | `progress` | absent | Told each step as it starts and ends. |
 
-Resolution uses nearest-config `tsconfig` discovery per importing file and the
+Resolution uses the `typescript.tsconfig` that `variance.config.json` names, or
+else nearest-config `tsconfig` discovery per importing file, and the
 export conditions `source, import, require, default`, in that order. A file
 larger than one mebibyte is not parsed.
 

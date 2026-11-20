@@ -1625,8 +1625,9 @@ import { affectedBy, relationsOfFiles } from '@variance-authority/core/relate';
 import { readPublishedSources, sourcesWithin, updateSourceIndex } from '@variance-authority/sense';
 
 const root = process.cwd();
-const { path } = await updateSourceIndex(root);
-const records = sourcesWithin((await readPublishedSources(path)).records, root, ['src']);
+const update = await updateSourceIndex(root);
+if (update.refused !== undefined) throw new Error(update.refused);
+const records = sourcesWithin((await readPublishedSources(update.path)).records, root, ['src']);
 const relations = relationsOfFiles(records);
 const selection = affectedBy(relations, ['src/tokens.css']);
 
@@ -2333,8 +2334,9 @@ import {
 } from '@variance-authority/sense/test-selection';
 
 const root = process.cwd();
-const { path } = await updateSourceIndex(root);
-const records = sourcesWithin((await readPublishedSources(path)).records, root, ['src', 'test']);
+const update = await updateSourceIndex(root);
+if (update.refused !== undefined) throw new Error(update.refused);
+const records = sourcesWithin((await readPublishedSources(update.path)).records, root, ['src', 'test']);
 const variation = await deviationOfTests(testCoverageFile(root), { root, records });
 
 console.log(variation.coverage);
