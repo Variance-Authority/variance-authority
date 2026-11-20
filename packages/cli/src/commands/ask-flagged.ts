@@ -7,7 +7,7 @@ export type Flagged = Crossing & Pick<
   | 'subject' | 'subjects' | 'component' | 'rule' | 'shape' | 'test' | 'state' | 'build' | 'file' | 'files' | 'area'
   | 'name' | 'line' | 'package' | 'subpath' | 'query'
   | 'under' | 'above' | 'inside' | 'beside' | 'leftOf' | 'rightOf' | 'on'
-  | 'from' | 'to' | 'over' | 'after' | 'limit' | 'offset' | 'story'
+  | 'from' | 'to' | 'over' | 'after' | 'limit' | 'offset' | 'story' | 'claims'
 >;
 
 /**
@@ -49,6 +49,8 @@ export function flagged(request: Flagged): Readonly<Record<string, unknown>> {
     limit: request.limit,
     offset: request.offset,
     story: request.story,
+    // A path, never read here: a question that takes it reads it over this one.
+    claims: request.claims,
     ...crossingOf(request),
   };
 }

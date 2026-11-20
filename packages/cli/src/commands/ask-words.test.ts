@@ -60,6 +60,13 @@ describe('a word a question about the code does not take', () => {
     expect(err).toContain('`--limt 5` is not an argument `variance ask packages` takes, so the answer is what it is without it; it takes none.');
   });
 
+  it('names `--claims` at a question about the source, and never opens its file', async () => {
+    const { err } = await run(['ask', 'packages', '--claims', 'missing.json']);
+
+    expect(err).not.toContain('missing.json');
+    expect(err).toContain('`--claims` is not an argument `variance ask packages` takes, so the answer is what it is without it; it takes none.');
+  });
+
   it('is not the value of an unknown flag when it asks for help', () => {
     // The help scan must not hand an unknown flag a value the lexer would not.
     expect(parseArgs(['ask', 'packages', '--verbose', '--help'])).toEqual({ command: 'help', topic: 'ask' });
