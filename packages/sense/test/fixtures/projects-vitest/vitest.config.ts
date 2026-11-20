@@ -16,10 +16,13 @@ const skip = process.env['FIXTURE_SKIP'];
 const cases = process.env['FIXTURE_CASES'];
 // A refusal the selection makes when it is read, as `selectSuite` refuses a record it cannot read.
 const refusal = process.env['FIXTURE_REFUSE'];
+// `off` selects and places, and records nothing.
+const record = process.env['FIXTURE_RECORD'];
 
 export default withTestSelection({ root, test: { projects: ['unit/vitest.config.ts', 'dom/vitest.config.ts'] } }, {
   coverageFile,
   include: (file) => file.startsWith(source),
+  ...(record === 'off' ? { record: false } : {}),
   ...(skip === undefined
     ? {}
     : { selection: async () => ({

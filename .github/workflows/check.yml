@@ -642,6 +642,20 @@ jobs:
           suite: ${{ matrix.suite }}
           index: ${{ strategy.job-index }}
 
+      # A unit shard's selection again, every hop at once, on shared modules:
+      # `yarn test:shared`, which selects and places as the waves did and
+      # records nothing, so the part handed on above is what the waves ran. A
+      # test that passes only on module state an earlier file left goes red
+      # here, in the leg that gates the change. Its files run in a new order
+      # each time, and the run prints the seed; `--sequence.seed=<seed>` on
+      # `yarn test:shared` with the files it names orders them again.
+      - name: run the selection on shared modules
+        if: matrix.suite == 'unit' && matrix.mode == 'selected'
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: VARIANCE_AUTHORITY_SINCE='' VARIANCE_AUTHORITY_AT_DISTANCE=0- VARIANCE_AUTHORITY_PLACE_AT_DISTANCE=0- yarn test:shared --shard "$SHARD"
+
   record:
     # The suite's record of this change, made whole again from the jobs that
     # ran it, and read: every shard's record laid over the mainline's, the
@@ -993,10 +1007,10 @@ jobs:
     # documentation failure is two minutes to find, so it does not spend a
     # runner on a change that is already red, and it is not in `needs` of
     # `check`, so the wait adds nothing to the gate's time. It runs on `main`
-    # and on a dispatch, not on a pull request: its finding is about the whole slice in one
-    # process, which no change's selection holds, and nothing gates on it, so a
-    # pull request paid a runner to learn what its unit `suite` legs had
-    # already said.
+    # and on a dispatch, not on a pull request: its finding is about the whole
+    # slice in one process, which no change's selection holds. A pull request
+    # runs its own selection on shared modules in its unit `suite` legs, where
+    # a red gates it.
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     needs: rules
     runs-on: ubuntu-24.04

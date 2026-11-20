@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -254,6 +254,32 @@ describe('a Vitest run under --shard, in a cache holding a fetched mainline', ()
     expect(far.ran).toEqual([at('dom/dom.case.ts'), at('unit/unit.case.ts')]);
     expect(far.layer?.pinned).toBeUndefined();
     expect(far.read).toBe(true);
+  });
+
+  // A second run of the same selection under another configuration, as the
+  // shared-modules run follows a pull request's unit waves: its part stays what the waves ran.
+  it('runs what its selection kept and leaves its part as the waves landed it, when it records nothing', async () => {
+    await shard(1, true, [], { skip: [at('dom/dom.case.ts')] }, 'quiet');
+    const coverageFile = testCoverageFile(repository, { cacheRoot: resolve(directory, 'quiet'), suite: 'unit' });
+    const landed = await readFile(coverageFile);
+    const { VARIANCE_AUTHORITY_SINCE: _since, VARIANCE_AUTHORITY_AT_DISTANCE: _distance, ...inherited } = process.env;
+
+    const { stdout, stderr } = await execute(process.execPath, [vitest, 'run', '--config', 'vitest.config.ts', '--shard', '1/2'], {
+      cwd: fixture,
+      env: {
+        ...inherited,
+        VARIANCE_AUTHORITY_COVERAGE: coverageFile,
+        VARIANCE_AUTHORITY_CACHE: resolve(directory, 'quiet'),
+        FIXTURE_SKIP: JSON.stringify([at('unit/unit.case.ts')]),
+        FIXTURE_RECORD: 'off',
+      },
+    });
+
+    expect(stdout).toContain('dom.case.ts');
+    expect(stdout).not.toContain('unit.case.ts');
+    expect(stderr).toContain('variance-authority: selected 1 of 2');
+    expect((await readFile(coverageFile)).equals(landed)).toBe(true);
+    expect((await readdir(dirname(coverageFile))).filter((entry) => entry.startsWith('.run-'))).toEqual([]);
   });
 
   it('leaves no part when it is killed after it selected and before it landed, so the fold is the one without it', async () => {

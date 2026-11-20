@@ -116,6 +116,16 @@ export interface TestSelectionOptions {
    * with that unset every file runs.
    */
   readonly selection?: () => Promise<SuiteSelection>;
+  /**
+   * Whether the run records what it ran. On by default. Off, it selects and
+   * places its files as a recorded run would, from the same record, shuffles
+   * them under `sequence.shuffle` and names the seed, and instruments, writes
+   * and lands nothing: for a second run of a selection under another
+   * configuration, such as one that shares modules between files, whose
+   * record would be a second account of the same files. Vitest's seam only:
+   * Jest's records every run it selects.
+   */
+  readonly record?: boolean;
 }
 
 /**
@@ -186,6 +196,9 @@ export function withTestSelection(
   // Ahead of the project's reporters, so the banner the first of them prints
   // names the seed of a shuffled run, as Vitest's own does.
   const reporters = [{ onInit: seedInBanner }, ...(config.test?.reporters === undefined ? ['default'] : array(config.test.reporters))];
+  if (options.record === false) {
+    return { ...config, test: { ...config.test, ...selecting(config, root, configRoot, options, coverageFile, selection, run), reporters } };
+  }
 
   // A configuration that names projects describes the run rather than a suite:
   // nothing is transformed under it, it is the only place a reporter is read
