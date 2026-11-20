@@ -72,6 +72,14 @@ describe('the published source index', () => {
     expect(read.records).toEqual(await scanRelations({ root, dirs: ['.'] }));
   });
 
+  it('hands back the parse and targets it holds for a file, and nothing for a file it does not hold', async () => {
+    const at = index('indexed');
+    await updateSourceIndex(root, { index: at });
+    const read = await readPublishedSources(at);
+    expect(read.indexed('app/lens.ts')).toMatchObject({ parsed: expect.anything(), targets: ['lib/unit.ts'] });
+    expect(read.indexed('app/missing.ts')).toBeUndefined();
+  });
+
   it('absorbs an edit as a layer, reading only the file that moved', async () => {
     const at = index('layered');
     await updateSourceIndex(root, { index: at });
