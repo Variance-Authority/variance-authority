@@ -262,11 +262,9 @@ export {
   exportLine,
   encodeHelpStore,
   importersOf,
-  joinWalkedHelp,
   memberDeclarationsOf,
   membersOn,
   readHelp,
-  readmeMention,
   restampHelpStore,
   ripgrepNative,
   type Alias,
@@ -282,11 +280,6 @@ export {
   type MemberSite,
   type PublishOpening,
   type PublishPackage,
-  type PublishedName,
-  type ReachedDeclaration,
-  type NameUse,
-  type WalkedHelp,
-  type Mention,
   type HelpStore,
   type StoreDeep,
   type StoreEntry,
@@ -294,6 +287,15 @@ export {
   type StorePackage,
   type StoreUse,
 } from './help-reading.js';
+export {
+  joinWalkedHelp,
+  readmeMention,
+  type Mention,
+  type NameUse,
+  type PublishedName,
+  type ReachedDeclaration,
+  type WalkedHelp,
+} from './help-walked.js';
 
 export {
   taintFile,

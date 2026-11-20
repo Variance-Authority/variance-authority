@@ -176,13 +176,6 @@
   },
   {
     "files": [
-      "packages/package/src/help.ts",
-      "packages/package/src/surface.ts"
-    ],
-    "count": 1
-  },
-  {
-    "files": [
       "packages/playwright-test/src/acquire.ts",
       "packages/presentation/src/playwright.ts"
     ],

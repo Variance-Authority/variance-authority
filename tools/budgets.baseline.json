@@ -1464,9 +1464,6 @@
   "packages/help/src/tools/search.ts overview": [
     76
   ],
-  "packages/help/src/tools/silent.ts docblock": [
-    11
-  ],
   "packages/help/src/tools/uses.ts overview": [
     69
   ],
@@ -1711,9 +1708,6 @@
   "packages/package/src/help.ts docblock": [
     11
   ],
-  "packages/package/src/help.ts overview": [
-    21
-  ],
   "packages/package/src/manifest.ts block": [
     14
   ],
@@ -1722,9 +1716,6 @@
   ],
   "packages/package/src/members.ts docblock": [
     30
-  ],
-  "packages/package/src/mention.ts overview": [
-    20
   ],
   "packages/package/src/use.ts overview": [
     23

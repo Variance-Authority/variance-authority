@@ -2,37 +2,18 @@ import { type OfferingOptions } from './manifest.js';
 import { type Deep, type Named, type Usage, type UsageOptions, type Use } from './use.js';
 
 /**
- * What a workspace publishes, what it says about it, and what uses it.
+ * What a workspace publishes, what it says about it, and what uses it: the
+ * shape of the value `readHelp` in `@variance-authority/help` joins in the
+ * addon, and what reads it.
  *
- * Three readings joined into one value. The manifests say which doors exist, the
- * source behind them says what is on the other side and what was written about
- * it, and the rest of the repository says which of it anybody actually reaches
- * for. Separately each is a partial answer; together they are the thing an agent
- * needs in order to use a library it has never seen.
- *
- * This module holds the value's shape and what reads it. The join itself runs
- * in the addon, behind `readHelp` in `@variance-authority/help`, which is the
- * one join the index's publish runs too.
- *
- * ## Why the third reading changes the answer
- *
- * A published surface of a thousand names is not a document. Handed to a model
- * it is a thousand equally-weighted facts, and the one it needs is as likely to
- * be the last as the first. `uses` is the ordering that was there all along:
- * `digestValue`, imported from nine places, is the front door, and a type
- * nothing has mentioned since it was added is a footnote — or a mistake.
- *
- * That same number is what makes the documentation gap actionable. *61% of names
- * carry a doc* is a statistic nobody acts on. *These eleven names are imported
- * across a package boundary and say nothing about themselves* is a morning's
- * work, and it is the eleven that anyone would have hit first.
- *
- * ## Plain JSON, for the same reason the surface is
- *
- * A reader that returned a rendered page would have decided what could be asked
- * of it. This returns the join and nothing else; rendering it as an index, an
- * `llms.txt`, or an answer to one question over a wire are three consumers of
- * one value, and none of them is privileged.
+ * Three readings make one value. The manifests say which doors exist, the
+ * source behind them what is on the other side and what was written about it,
+ * and the rest of the repository which of it anybody reaches for. `uses` is
+ * the ordering a surface of a thousand names needs: the name imported from
+ * nine places is the front door, and the documentation gap becomes a queue —
+ * the names imported across a boundary that say nothing about themselves,
+ * busiest first. The value is plain JSON: an index, an `llms.txt` and an
+ * answer over a wire are three consumers of it, none privileged.
  */
 
 /**

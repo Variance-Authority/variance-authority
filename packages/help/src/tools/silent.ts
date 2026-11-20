@@ -4,19 +4,13 @@ import type { SilentPackage } from '../dependency-lexicon.js';
 /**
  * What a dependency that publishes no declarations has instead.
  *
- * Such a package is silent about every name, so a question about one name cannot
- * be answered from its declarations, and "nothing found" would be read as "there
- * is nothing". Its README is the one thing it ships. When the caller named the
- * package, its README is reported whether or not it names the symbol; when they
- * did not, a package is listed only if its README does, because a line per
- * silent package on every miss would be the whole lexicon.
- *
- * The passage is the addon's README mention, the one the published surface
- * reads, run on the file the lexicon recorded, and it is labelled as that
- * file's — never presented as a doc comment.
- *
- * The README belongs to the package, not to the door: every door of one package
- * that falls back to it is named on its own line, and the README follows once.
+ * Its README is the one thing such a package ships, so a question about one of
+ * its names is answered from there, not with "nothing found". A named package's
+ * README is reported whether or not it names the symbol; otherwise a package is
+ * listed only if its README does, or every miss would list the whole lexicon.
+ * The passage is the addon's README mention, labelled as the README's, never a
+ * doc comment; each door falling back to one README gets its own line, and the
+ * README follows once.
  */
 export function silentBlocks(root: string, name: string, silent: readonly SilentPackage[], named: boolean): readonly string[] {
   const packages = new Map<string, SilentPackage[]>();
