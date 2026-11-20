@@ -15,7 +15,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 import { native } from '../addon.js';
 import caseOwner from './case-owner.cjs';
 import { finishedCase } from './case-durations.js';
@@ -61,7 +61,9 @@ interface Ran {
 export async function recordCargo(run: CargoRun): Promise<number | undefined> {
   const rustCoverage = native()?.rustCoverage;
   if (rustCoverage === undefined) throw new Error(`recording a Cargo suite requires the Sense native addon: ${whyAbsent('rustCoverage')}`);
-  const root = repositoryRoot(resolve(run.cwd));
+  const workspace = await metadata(run);
+  // The checkout is the workspace's, which `--manifest-path` may place outside the directory Cargo runs in.
+  const root = repositoryRoot(workspace.root);
   const coverageFile = recordFileFor(root, run.cwd, { suite: run.suite, coverageFile: run.coverageFile });
   const selection = newRun(coverageFile, root, 'presence');
   const fold = foldRun(selection, {
@@ -73,7 +75,9 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
   const profiles = `${selection.runDirectory}-profiles`;
   mkdirSync(profiles, { recursive: true });
   try {
-    const binaries = await built(run, join(profiles, 'build-%p.profraw'));
+    // Every test is built from these and reads none of them, so a change to one selects every row.
+    for (const input of workspace.inputs) selection.preconditions.add(input);
+    const binaries = await built(run, workspace.target, join(profiles, 'build-%p.profraw'));
     if (binaries === undefined) return undefined;
     const finished = [];
     let failed = 0;
@@ -119,8 +123,8 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
  * instrumented too and run during the build, so their counters go to `profile`,
  * which nothing reads.
  */
-async function built(run: CargoRun, profile: string): Promise<Binary[] | undefined> {
-  const target = join(await targetDirectory(run.cwd), 'variance');
+async function built(run: CargoRun, targetDirectory: string, profile: string): Promise<Binary[] | undefined> {
+  const target = join(targetDirectory, 'variance');
   const own = process.env['RUSTC_WORKSPACE_WRAPPER'];
   if (own !== undefined && own !== '') process.stderr.write(`variance cargo: the recording build replaces RUSTC_WORKSPACE_WRAPPER (${own}) with its own, which adds -C instrument-coverage.\n`);
   const { code, stdout } = await output('cargo', ['test', '--no-run', '--message-format=json', ...(run.args ?? [])], run.cwd, {
@@ -129,22 +133,24 @@ async function built(run: CargoRun, profile: string): Promise<Binary[] | undefin
     LLVM_PROFILE_FILE: profile,
     CARGO_TARGET_DIR: target,
   });
-  if (code !== 0) return undefined;
   const binaries: Binary[] = [];
   for (const line of stdout.split('\n')) {
     if (!line.startsWith('{')) continue;
     const message = JSON.parse(line) as {
       reason?: string;
+      message?: { rendered?: string };
       executable?: string | null;
       manifest_path?: string;
       profile?: { test?: boolean };
       target?: { src_path?: string };
     };
+    // Cargo writes rustc's diagnostics into the JSON it answers, so a failed build would otherwise say only that it failed.
+    if (message.reason === 'compiler-message' && code !== 0) process.stderr.write(message.message?.rendered ?? '');
     if (message.reason !== 'compiler-artifact' || message.profile?.test !== true) continue;
     if (typeof message.executable !== 'string' || message.target?.src_path === undefined || message.manifest_path === undefined) continue;
     binaries.push({ executable: message.executable, testFile: message.target.src_path, cwd: dirname(message.manifest_path) });
   }
-  return binaries;
+  return code === 0 ? binaries : undefined;
 }
 
 /**
@@ -163,11 +169,36 @@ function instrumenting(target: string): string {
   return wrapper;
 }
 
-/** Cargo's own answer to where it builds: a workspace's target directory, or `CARGO_TARGET_DIR`. */
-async function targetDirectory(cwd: string): Promise<string> {
-  const { code, stdout } = await output('cargo', ['metadata', '--format-version', '1', '--no-deps'], cwd);
-  if (code !== 0) throw new Error(`\`cargo metadata\` failed in ${cwd}`);
-  return (JSON.parse(stdout) as { target_directory: string }).target_directory;
+/**
+ * Cargo's own answer to where the workspace is, where it builds, a workspace's target directory or
+ * `CARGO_TARGET_DIR`, and what the build reads beside the sources: the
+ * manifests, the lockfile and the build scripts. Asked of the manifest the
+ * recorded `cargo test` is given, when it is given one.
+ */
+async function metadata(run: CargoRun): Promise<{ root: string; target: string; inputs: string[] }> {
+  const { code, stdout } = await output('cargo', ['metadata', '--format-version', '1', '--no-deps', ...manifestOf(run.args ?? [])], run.cwd);
+  if (code !== 0) throw new Error(`\`cargo metadata\` failed in ${run.cwd}`);
+  const answer = JSON.parse(stdout) as {
+    target_directory: string;
+    workspace_root: string;
+    packages: { manifest_path: string; targets: { kind: string[]; src_path: string }[] }[];
+  };
+  const inputs = new Set([join(answer.workspace_root, 'Cargo.toml'), join(answer.workspace_root, 'Cargo.lock')]);
+  for (const crate of answer.packages) {
+    inputs.add(crate.manifest_path);
+    for (const target of crate.targets) if (target.kind.includes('custom-build')) inputs.add(target.src_path);
+  }
+  // A workspace that has not been resolved yet has no lockfile.
+  return { root: answer.workspace_root, target: answer.target_directory, inputs: [...inputs].filter((input) => existsSync(input)) };
+}
+
+/** `--manifest-path` as `cargo test` was given it, for `cargo metadata` to read the same workspace. */
+function manifestOf(args: readonly string[]): string[] {
+  for (const [at, arg] of args.entries()) {
+    if (arg === '--manifest-path' && args[at + 1] !== undefined) return [arg, args[at + 1]!];
+    if (arg.startsWith('--manifest-path=')) return [arg];
+  }
+  return [];
 }
 
 function byTestFile(binaries: readonly Binary[]): Map<string, Binary[]> {

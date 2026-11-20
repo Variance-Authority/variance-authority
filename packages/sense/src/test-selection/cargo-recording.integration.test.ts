@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { caseIndexOf } from './case-record.js';
 import { decodeExecutionIndex } from './execution-format.js';
 import { decodeTestCoverage } from './format.js';
@@ -10,6 +10,7 @@ import { recordCargo, selectTestFiles } from './index.js';
 
 const repository = resolve(fileURLToPath(new URL('.', import.meta.url)), '../../../..');
 const fixture = resolve(repository, 'packages/sense/test/fixtures/cargo-crate');
+const broken = resolve(repository, 'packages/sense/test/fixtures/cargo-broken');
 // Recorded names are relative to the checkout, and the fixture sits inside it.
 const lib = `${relative(repository, fixture)}/src/lib.rs`;
 const negates = `${relative(repository, fixture)}/tests/negates.rs`;
@@ -80,6 +81,32 @@ describe('a Cargo suite recorded one test per process', () => {
     await expect(selectTestFiles(coverageFile, editing(source, '    if a > 0 { -a } else { a.abs() * -1 * -1 * -1 }', '    if a > 0 { 0 - a } else { a }')))
       .resolves.toEqual([lib, negates]);
   });
+
+  // What Cargo builds from is read by no test, yet changes what every test runs.
+  it('selects every file when a manifest or a build script changes', async () => {
+    const crate = relative(repository, fixture);
+    for (const file of ['Cargo.toml', 'Cargo.lock', 'build.rs']) {
+      const diff = `--- a/${crate}/${file}\n+++ b/${crate}/${file}\n@@ -1,1 +1,1 @@\n-a\n+b`;
+      await expect(selectTestFiles(coverageFile, diff)).resolves.toEqual([lib, custom, exits, negates].sort());
+    }
+  });
+
+  it('records the workspace `--manifest-path` names, from outside it', async () => {
+    const elsewhere = resolve(directory, 'elsewhere.bin');
+    await expect(recordCargo({ cwd: directory, coverageFile: elsewhere, args: ['--manifest-path', resolve(fixture, 'Cargo.toml')] })).resolves.toBe(0);
+    expect(decodeTestCoverage(await readFile(elsewhere)).tests.map((test) => test.file).sort()).toEqual([lib, custom, exits, negates].sort());
+  }, 240_000);
+
+  it('answers a build that failed, naming what rustc said', async () => {
+    const written: string[] = [];
+    const spy = vi.spyOn(process.stderr, 'write').mockImplementation((chunk) => written.push(String(chunk)) > 0);
+    try {
+      await expect(recordCargo({ cwd: broken, coverageFile: resolve(directory, 'broken.bin') })).resolves.toBeUndefined();
+    } finally {
+      spy.mockRestore();
+    }
+    expect(written.join('')).toContain('mismatched types');
+  }, 240_000);
 
   it('selects every file whose tests ran a file when the edit is outside every function', async () => {
     const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');

@@ -59,6 +59,10 @@ because what their tests ran is not known: a target with its own `main`
 that left its process before writing its counters, as one that calls `_exit`
 does. An incomplete row is selected by every change.
 
+No test reads `Cargo.toml`, `Cargo.lock` or a build script, yet each changes
+what every test runs, so the record holds them under every row: a change to one
+selects every target.
+
 It differs from `cargo test` in three ways:
 
 - doctests are not run, so run `cargo test --doc` beside it;
