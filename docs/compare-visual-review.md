@@ -5,13 +5,10 @@ Argos, Applitools and [Variance Authority](README.md) against each other, and
 their own pages do not agree on which axes decide it. This page sets the six
 side by side on what each captures for a subject, where its pixels are painted,
 who approves a diff, and what that costs in privacy, browser coverage and
-money. If your question is what a failing screenshot tells you beyond a red
-image, [§3.1](#31-a-diff-that-names-a-component-and-a-file) answers it: which
-components were edited and which were only pushed aside, which bands each
-changed in, and the component and source line behind each region.
-[§6](#6-start-beside-the-tool-you-have) is where you install beside the
-tool you already have. For test selection and coverage reporting, [compare
-with the tool you already have](comparison.md).
+money. [§3.1](#31-a-diff-that-names-a-component-and-a-file) is what a failing
+screenshot tells you beyond a red image, and [§6](#6-start-beside-the-tool-you-have)
+is where you install beside the tool you already have. For test selection and
+coverage reporting, [compare with the tool you already have](comparison.md).
 
 **Decide first whether you want to operate it.** There is no hosted service, no
 account, and no per-screenshot bill, and the price of that absent meter is that
@@ -44,10 +41,10 @@ a diff mattered. Both bills are driven by one quantity — how many comparisons
 are shown to a person — and an architecture fixes that quantity long before a
 report does.
 
+## 1. Compare the responsibilities that matter
+
 Vendor documentation is authoritative for vendor behaviour. Verify pricing and
 hosted-service features there before buying; both change independently.
-
-## 1. Compare the responsibilities that matter
 
 | Dimension | `toHaveScreenshot` | Percy | Chromatic | Argos | Applitools | Variance Authority |
 | --- | --- | --- | --- | --- | --- | --- |
