@@ -47,8 +47,6 @@ pub struct IndexGraphOptions {
     pub condition_names: Option<Vec<String>>,
     /// Whether records keep the directories that answered them, for reuse.
     pub remembering: bool,
-    /// `Aliases.table` as JSON, when a configuration maps specifiers.
-    pub aliases: Option<String>,
     /// `builtinModules` that `isBuiltin` accepts: never a package edge.
     pub builtins: Vec<String>,
     /// Extensions whose target keeps its request's kind.
@@ -81,7 +79,7 @@ pub(crate) fn index_graph(
     from_blob: &crate::parse_origin::FromBlob,
     objects: &crate::acquire::TreeObjects,
 ) -> napi::Result<IndexGraph> {
-    let settled = Settled::of(options.remembering, options.aliases.as_deref(), options.builtins, options.code_extensions, options.directories)?;
+    let settled = Settled::of(options.remembering, options.builtins, options.code_extensions, options.directories);
     // A module the caller's cache or a store holds is answered from it, under
     // the size and link rules every walk keeps (`read_kept`), rather than read again.
     let kept = |identity: &str, file: &str| store?.view(identity, &way(file))?.read();

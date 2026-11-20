@@ -1,106 +1,19 @@
-//! Which directories could have answered a record's resolution: `witnessesOf`
-//! in `witness.ts`, for the records a cold build settles on this side.
-//!
-//! The rule is the TypeScript one and so is its arithmetic. A witness is a
-//! repository path spelled by Node's POSIX `normalize`, `dirname` and `join`,
-//! and a wildcard alias is substituted by `String.prototype.replace`, so each
-//! of those is ported here rather than approximated with `std::path`: a
-//! witness spelled differently is a directory the next run never finds moved,
-//! and a record reused past the change that should have rebuilt it.
-//!
-//! The alias patterns are not read here. `aliasesIn` has already read every
-//! configuration and placed each target, and hands the result over as a table
-//! (`Aliases.table`); this side only asks it the question `candidatesFor` asks.
+//! Directories named by lexical requests, resolver-owned candidates and settled edges.
 
 // compass: variance-authority.reach.source-index
 
 use std::collections::{BTreeSet, HashSet};
 
-use serde::Deserialize;
-
 use crate::specifier::{is_relative, request_of};
 
-/// One `paths` pattern, placed: `Mapping` in `witness.ts`.
-#[derive(Debug, Deserialize)]
-pub struct Mapping {
-    prefix: String,
-    /// Absent when the pattern is exact.
-    suffix: Option<String>,
-    targets: Vec<String>,
-}
-
-/// What `aliasesIn` read: the `baseUrl` directories in the order they were
-/// declared, and every mapping.
-#[derive(Debug, Deserialize)]
-pub struct AliasTable {
-    bases: Vec<String>,
-    mappings: Vec<Mapping>,
-}
-
-impl AliasTable {
-    /// `candidatesFor`: every repository path this request could name through
-    /// a configuration, in the order JavaScript lists them.
-    fn candidates_for(&self, request: &str) -> Vec<String> {
-        let mut found: Vec<String> = self.bases.iter().map(|base| join(&[base, request])).collect();
-        for mapping in &self.mappings {
-            match &mapping.suffix {
-                None if request == mapping.prefix => found.extend(mapping.targets.iter().cloned()),
-                None => {}
-                Some(suffix) => {
-                    if request.starts_with(&mapping.prefix)
-                        && request.ends_with(suffix.as_str())
-                        && request.len() >= mapping.prefix.len() + suffix.len()
-                    {
-                        let matched = &request[mapping.prefix.len()..request.len() - suffix.len()];
-                        found.extend(mapping.targets.iter().map(|target| replace_star(target, matched)));
-                    }
-                }
-            }
-        }
-        found
-    }
-}
-
-/// `target.replace('*', matched)`: the first `*` only, with the replacement's
-/// `$` patterns honoured the way `GetSubstitution` honours them for a string
-/// pattern — `$$`, `$&`, `` $` `` and `$'`; anything else after a `$` is text.
-fn replace_star(target: &str, matched: &str) -> String {
-    let Some(at) = target.find('*') else {
-        return target.to_owned();
-    };
-    let (before, after) = (&target[..at], &target[at + 1..]);
-    let mut out = String::with_capacity(target.len() + matched.len());
-    out.push_str(before);
-    let mut characters = matched.chars().peekable();
-    while let Some(character) = characters.next() {
-        if character != '$' {
-            out.push(character);
-            continue;
-        }
-        match characters.peek() {
-            Some('$') => out.push('$'),
-            Some('&') => out.push('*'),
-            Some('`') => out.push_str(before),
-            Some('\'') => out.push_str(after),
-            _ => {
-                out.push('$');
-                continue;
-            }
-        }
-        characters.next();
-    }
-    out.push_str(after);
-    out
-}
-
-/// `witnessesOf`: the directories every request named, lexically, and the
+/// The directories every request named, lexically, and the
 /// directory each settled edge landed in — sorted by code unit, once each.
 pub fn witnesses_of<'a>(
     file: &str,
     requests: impl IntoIterator<Item = &'a str>,
     edges: impl IntoIterator<Item = &'a str>,
     directories: &HashSet<String>,
-    aliases: Option<&AliasTable>,
+    candidates: impl IntoIterator<Item = &'a str>,
 ) -> Vec<String> {
     let directory = parent(file);
     let mut found = BTreeSet::new();
@@ -116,11 +29,10 @@ pub fn witnesses_of<'a>(
         let bare = request.strip_prefix('~').unwrap_or(request);
         if is_relative(bare) {
             candidate(&join(&[&directory, bare]));
-        } else if let Some(aliases) = aliases {
-            for alias in aliases.candidates_for(bare) {
-                candidate(&alias);
-            }
         }
+    }
+    for path in candidates {
+        candidate(path);
     }
     for edge in edges {
         found.insert(Ordered(parent(edge)));

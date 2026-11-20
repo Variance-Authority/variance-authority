@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
@@ -37,16 +37,46 @@ const available = nativeAvailable();
 const root = resolve(import.meta.dirname, '../../..');
 
 describe('a cold closure held by the addon', () => {
+  it.runIf(available)('stores only the importing configuration’s alias witnesses under default settings', async () => {
+    const directory = await realpath(await mkdtemp(join(tmpdir(), 'variance-governing-witness-')));
+    try {
+      await mkdir(join(directory, 'src'));
+      await writeFile(join(directory, 'tsconfig.json'), '{ "compilerOptions": { "paths": { "@app/*": ["src/*"] } } }');
+      await writeFile(join(directory, 'src/app.ts'), 'import "@app/button";\n');
+      await writeFile(join(directory, 'src/button.ts'), 'export const button = 1;\n');
+      for (let index = 0; index < 32; index += 1) {
+        const path = join(directory, `unrelated-${index}`);
+        await mkdir(path);
+        await writeFile(join(path, 'tsconfig.json'), '{ "compilerOptions": { "baseUrl": ".", "paths": { "@app/*": ["other/*"] } } }');
+      }
+      await run('git', ['init', '--quiet'], { cwd: directory });
+      await run('git', ['add', '.'], { cwd: directory });
+      await run('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'fixture'], { cwd: directory });
+      const tree = (await gitTreeOf(directory))!;
+      const { shape } = await shapeOf({ root: directory, tree });
+      const held = nativeIndexGraph(tree.native!, {
+        root: directory, seeds: ['src/app.ts'], largestFile: LARGEST_FILE,
+        remembering: true, directories: shape.directories,
+      });
+      const path = join(directory, 'index.bin');
+      expect(held.publish(path, [])).toBeNull();
+      const indexed = (await openSourceIndexFile(path)).stored.records.get('src/app.ts');
+      expect(indexed?.record.edges).toEqual([{ to: 'src/button.ts', kind: 'imports' }]);
+      expect(indexed?.witnesses).toEqual(['src']);
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
   it.runIf(available)('publishes the index a save of the handed-over records publishes, byte for byte', async () => {
     const seeds = await modules('packages/sense/src/');
     const tree = (await gitTreeOf(root, ['packages/sense/src']))!;
-    const { shape, aliases } = await shapeOf({ root, tree });
+    const { shape } = await shapeOf({ root, tree });
     const request = {
       root,
       seeds,
       largestFile: LARGEST_FILE,
       remembering: true,
-      aliases,
       directories: shape.directories,
     };
     const held = nativeIndexGraph(tree.native!, request)!;
@@ -131,13 +161,12 @@ describe('a cold closure held by the addon', () => {
   it.runIf(available)('publishes the declarations of every module it parses', async () => {
     const seeds = ['packages/sense/src/source-index.ts'];
     const tree = (await gitTreeOf(root, ['packages/sense/src']))!;
-    const { shape, aliases } = await shapeOf({ root, tree });
+    const { shape } = await shapeOf({ root, tree });
     const held = nativeIndexGraph(tree.native!, {
       root,
       seeds,
       largestFile: LARGEST_FILE,
       remembering: true,
-      aliases,
       directories: shape.directories,
     })!;
     const read = graphRecords(held).find((record) => record.file === seeds[0])!;
@@ -155,9 +184,9 @@ describe('a cold closure held by the addon', () => {
   it.runIf(available)('counts the modules it parsed, not the ones it declined', async () => {
     const seeds = ['packages/sense/src/source-index.ts'];
     const tree = (await gitTreeOf(root, ['packages/sense/src']))!;
-    const { shape, aliases } = await shapeOf({ root, tree });
+    const { shape } = await shapeOf({ root, tree });
     const closure = (largestFile: number) => nativeIndexGraph(tree.native!, {
-      root, seeds, largestFile, remembering: true, aliases, directories: shape.directories,
+      root, seeds, largestFile, remembering: true, directories: shape.directories,
     })!;
     const declined = closure(1);
     expect(declined.size).toBe(1);
@@ -219,7 +248,6 @@ describe('a cold closure held by the addon', () => {
       seeds: ['a.ts'],
       largestFile: LARGEST_FILE,
       remembering: false,
-      aliases: undefined,
       directories: new Map(),
     })).toThrow('source index: "x" was never collected into the dictionary');
   });

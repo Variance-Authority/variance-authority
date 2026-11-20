@@ -99,33 +99,21 @@ are not selected at all, and the config is the cause.
 
 ### A `tsconfig` the scan cannot follow
 
-To bound what a new file could change, the scan reads the `paths` and `baseUrl`
-patterns out of every `tsconfig.json` and `jsconfig.json` in the tree — every
-one, because resolution discovers the nearest config per file, so the bound has
-to cover all of them — and out of every base each of them `extends`. A relative
-`extends` is read where it points. A package `extends`, such as
-`"@company/tsconfig/base.json"`, is followed the way the resolver follows it:
-through the `node_modules` link your package manager made, then the package's
-`exports`, to the file it names — the package's `tsconfig.json` when the
-`extends` names only the package. In a workspace, that link leads back into your
-repository, and the base is read there.
+To bound what a new file could change, the scan uses the `paths` and `baseUrl`
+from the configuration that governs each importing file. The resolver selects
+that configuration and follows its `extends` chain; the same effective mappings
+supply the directories the record watches. A target that does not exist still
+contributes its candidate directory, so creating it invalidates the importer's
+record. Configurations that govern unrelated files contribute nothing to that
+record.
 
-A base is read wherever it lands — a registry package in `node_modules`, a file
-outside your checkout, a file of any name — and an `extends` that resolves to
-nothing declares nothing. The scan cannot follow a config, or a base one
-reaches, that cannot be read or is not JSON (comments and trailing commas are
-fine), nor an `extends` that is an absolute path.
-
-Such a config, and every config whose chain of bases reaches one, declares no
-`paths` patterns to watch; every other config still declares its own. A bare
-specifier that only such a config maps watches only the directory its answer
-sits in. An import through one of its patterns that answers nothing today does
-not start answering when the file it names appears, and an import that a new
-file would shadow keeps its old answer. Either is
-corrected when the importing file is edited, or by a cold index: delete the
-index and run `variance index`, as [Source index](source-index.md) says. Reuse
-stays warm: the config itself rebuilds nothing beyond its own record. Fixing the
-file the read stops at restores the patterns.
+When the resolver cannot read the governing configuration or a required base,
+it has no alias candidates to retain for that file. An import that only the
+unreadable configuration would map may therefore have no directory to watch for
+its intended target. Adding that target alone cannot refresh the record. Fix
+the configuration, then edit the importing file or rebuild the index: delete
+the index and run `variance index`, as [Source index](source-index.md) says.
+Configuration edits alone rebuild only the configuration file's own record.
 
 Kibana keeps its base in a workspace package: 1,527 of its 1,534 `tsconfig`
 files extend `@kbn/tsconfig-base/tsconfig.json`, whose link leads back to

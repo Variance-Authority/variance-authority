@@ -217,7 +217,7 @@ pub(crate) fn scan_batch_with_oids(
     let records = match records {
         Some(asked) => {
             let given = asked.identities.unwrap_or_default();
-            let settled = Settled::of(asked.remembering, asked.aliases.as_deref(), asked.builtins, asked.code_extensions, asked.directories)?;
+            let settled = Settled::of(asked.remembering, asked.builtins, asked.code_extensions, asked.directories);
             let identity = |row: usize| given.get(row).filter(|digest| !digest.is_empty()).unwrap_or(&read[row].1).clone();
             Some(records_json(&files, &identity, &read, &targets, &settled.settling()))
         }
@@ -266,7 +266,7 @@ pub(crate) fn scan_graph_with_tree(
     let parse_segment = crate::index::parse_segment(&files, &identities, &read, &answered);
     let records = match records {
         Some(asked) => {
-            let settled = Settled::of(asked.remembering, asked.aliases.as_deref(), asked.builtins, asked.code_extensions, asked.directories)?;
+            let settled = Settled::of(asked.remembering, asked.builtins, asked.code_extensions, asked.directories);
             Some(records_json(&files, &|row| identities[row].clone(), &read, &targets, &settled.settling()))
         }
         None => None,

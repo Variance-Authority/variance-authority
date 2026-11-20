@@ -52,6 +52,8 @@ pub(crate) struct Walked {
 pub(crate) struct Reached {
     pub first: Vec<String>,
     pub more: Vec<(u32, String)>,
+    /// Alias paths from this file's effective module resolver, including misses.
+    pub candidates: Vec<String>,
 }
 
 impl Reached {
@@ -330,13 +332,27 @@ pub(super) fn resolve_all(
                 let governing = std::sync::OnceLock::new();
                 for (index, request) in held.requests.iter().enumerate() {
                     let landed: Vec<String> = match language {
-                        Language::Style => resolvers.resolve_style(root, &from, &request.value, known).into_iter().collect(),
-                        Language::Module => resolvers.resolve_from(root, &from, &request.value, known, &governing).into_iter().collect(),
+                        Language::Style => {
+                            if let Some(value) = crate::specifier::request_of(&request.value) {
+                                for attempt in crate::style::style_requests(value) {
+                                    reached.candidates.extend(resolvers.alias_candidates(root, &from, &attempt, &governing));
+                                }
+                            }
+                            resolvers.resolve_style(root, &from, &request.value, known).into_iter().collect()
+                        },
+                        Language::Module => {
+                            reached.candidates.extend(resolvers.alias_candidates(root, &from, &request.value, &governing));
+                            resolvers.resolve_from(root, &from, &request.value, known, &governing).into_iter().collect()
+                        },
                         _ => world.resolve(language, file, &request.value, request.item),
                     };
                     let mut landed = landed.into_iter();
                     reached.first.push(landed.next().unwrap_or_default());
                     reached.more.extend(landed.map(|file| (index as u32, file)));
+                }
+                if matches!(language, Language::Module | Language::Style) {
+                    reached.candidates.sort_unstable();
+                    reached.candidates.dedup();
                 }
                 reached
             }))

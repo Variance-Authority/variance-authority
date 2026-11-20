@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, rm, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, unlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -385,6 +385,31 @@ describe('a scan that remembers the last one', () => {
     const button = after.find((record) => record.file === 'src/Button.tsx');
     expect(button?.unknown).toBeUndefined();
     expect(button?.edges).toEqual([{ to: 'src/later.ts', kind: 'imports' }]);
+  });
+
+  it.each([
+    ['paths', { paths: { '@alias/*': ['mapped/*'] } }, 'mapped'],
+    ['baseUrl fallback', { baseUrl: 'base', paths: { '@alias/*': ['missing/*'] } }, 'base/@alias'],
+    ['stylesheet fallback', { paths: { '@alias/*': ['mapped/*'] } }, 'mapped'],
+  ] as const)('re-resolves a missing %s target when it appears under default settings', async (name, compilerOptions, target) => {
+    const root = await realpath(await repository());
+    const importer = name === 'stylesheet fallback' ? 'src/theme.scss' : 'src/Clock.tsx';
+    await write(root, 'tsconfig.json', JSON.stringify({ compilerOptions, files: [importer] }));
+    await write(root, importer, name === 'stylesheet fallback' ? '@use "@alias/later";\n' : 'import "@alias/later";\n');
+    await write(root, `${target}/marker.ts`, 'export const marker = 1;\n');
+    const reuse = memoryRecordCache();
+    const scan = () => scanRelations({ root, dirs: ['src'], reuse });
+    const before = await scan();
+    expect(before.find((record) => record.file === importer)?.edges).toBeUndefined();
+
+    await write(root, `${target}/later.ts`, 'export const later = 1;\n');
+    const cold = await scanRelations({ root, dirs: ['src'] });
+    expect(cold.find((record) => record.file === importer)?.edges)
+      .toEqual([{ to: `${target}/later.ts`, kind: name === 'stylesheet fallback' ? 'asset' : 'imports' }]);
+    const after = await scan();
+    expect(after.find((record) => record.file === importer)?.edges)
+      .toEqual([{ to: `${target}/later.ts`, kind: name === 'stylesheet fallback' ? 'asset' : 'imports' }]);
+    expect(after).toEqual(cold);
   });
 
   it('re-resolves a file that did not move, when a file it names is deleted', async () => {

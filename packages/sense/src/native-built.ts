@@ -26,7 +26,6 @@ interface Crossed {
 export function recordOptions(options: NativeFrontierOptions, identities?: readonly (Digest | undefined)[]): NativeRecordOptions {
   return {
     remembering: options.remembering,
-    ...(options.aliases === undefined ? {} : { aliases: JSON.stringify(options.aliases.table) }),
     builtins: BUILTINS,
     codeExtensions: CODE_EXTENSIONS,
     // A witness is only checked against them when records are kept for reuse.
