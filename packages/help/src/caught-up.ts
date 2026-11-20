@@ -65,8 +65,8 @@ export async function outlived(
 
 /**
  * What a source question does before an answer {@link outlived} found changed
- * is believed, on `variance ask`, `variance serve`, and this package's binary
- * and server. A refusal, and a name not found, is not brought here: it answers
+ * is believed, on `variance serve` and this package's server, which hold a
+ * generation across requests. A refusal, and a name not found, is not brought here: it answers
  * from the generation it was refused from, whose date line says when the checkout
  * was not compared with it, and keeping that generation fresh is `variance index`'s
  * job. `answeredAt` is the generation the answer came from. `again` reads a

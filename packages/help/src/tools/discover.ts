@@ -34,7 +34,8 @@ import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
  * ## Names are read with the tree
  *
  * `declares`, and `imports` of a package or a specifier as written, read every
- * file's names, which the scan that drew the tree holds as it parses. A host
+ * file's names, off the parses of the source index the tree came from: the
+ * scan that draws it on a server, the published one on `variance ask`. A host
  * that read the tree without them refuses those operands rather than answering
  * as though no file declared anything. A name out of a file the tree holds is
  * read off the source index, as `uses` reads it, and needs no names.
@@ -380,8 +381,8 @@ export const discover: Tool<unknown> = {
     'who declares a name matching a pattern (`declares`), whose path matches one (`path`). Several ' +
     'values of one operand are several sets, crossed. `except…` operands take their files out, and ' +
     '`text` keeps only the files with a line ripgrep matches. Nearest first, with the line that puts ' +
-    'each file in each set. `declares`, and `imports` of anything but `file#name`, read the names a scan ' +
-    'of the checkout hands over; a host that holds none refuses them.',
+    'each file in each set. `declares`, and `imports` of anything but `file#name`, read every file\'s names ' +
+    'off the source index the tree came from; a host that holds none refuses them.',
   inputSchema: {
     type: 'object',
     properties: {

@@ -45,8 +45,9 @@ the first argument is positional.
   a watcher already has, and the question updates the generation from them
   before it answers.
 - **No run, no config, no revision requirement.**
-- **Working directory.** `variance ask` reads the checkout under the working
-  directory, so run it from the workspace root; it refuses `--root`.
+- **Working directory.** `variance ask` reads the index published for the
+  checkout under the working directory, so run it from the workspace root; it
+  refuses `--root`.
   `variance-authority-help` takes `--root <dir>`.
 
 The timestamp is part of the answer. If you edited a file the answer names

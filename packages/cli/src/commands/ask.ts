@@ -6,12 +6,12 @@ import type { Crossing } from '../ask-args.js';
 import { OperatorError } from '../exit.js';
 import { readClaims } from './adjudicate.js';
 import { inputFor, invocationOf, questionFor, refuseWords, type Question } from './asking.js';
-import { foundNothingAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
+import { foundNothingAnswer, readWorkspaceForAnswer, refusalFooter, snapshotLine, unopenedLine } from '@variance-authority/help';
 import { containment, discover, intersection, journeyMapTool, orient, retriedTests, search, slowestTests, testCompositionTool, type Help } from '@variance-authority/help/tools';
-import { asOneQuestion, sourceIndexPath } from '@variance-authority/sense';
+import { asOneQuestion } from '@variance-authority/sense';
 import type { Taint } from '@variance-authority/sense/taint';
 import { repositoryRoot } from '@variance-authority/sense/test-selection';
-import { cutFor, readTree, verbOf, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
+import { cutFor, verbOf, type CostsSubject, type Reviewed, type ReviewTool, type Tool, type Tree } from '@variance-authority/mcp/tools';
 import { flagged, type Flagged } from './ask-flagged.js';
 import { intersectionInput } from './ask-intersection.js';
 import { ASKED, record, recorded } from './ask-previous.js';
@@ -382,24 +382,15 @@ async function finished(
 }
 
 /**
- * The tree under the working directory, through the run's own scan index.
- *
- * The same index a run's selection scan writes, so a question asked after a run
- * costs a map lookup per unchanged file rather than a parse of the repository.
- *
- * A tree that cannot be read is not fatal here: `scopeOf` refuses a start point
- * it has no tree for, in the sentence a reader can act on, and the questions
- * that name no path are unaffected. What must never happen is the other thing —
- * falling back to the paths the run recorded and answering as though a tree had
- * been read.
+ * The tree `variance index` published for the working directory, as a question
+ * about the source reads it: the checkout is neither scanned nor compared, and
+ * the source index is not written. With nothing published, the refusal names
+ * `variance index` rather than answering as though a tree had been read.
  */
 async function sourceTree(): Promise<Tree | undefined> {
-  const root = process.cwd();
-  try {
-    return await readTree({ root, index: sourceIndexPath(root) });
-  } catch {
-    return undefined;
-  }
+  let tree: Tree | undefined;
+  await readWorkspaceForAnswer(process.cwd(), { justAnswer: true, tree: (drawn) => { tree = drawn; } });
+  return tree;
 }
 
 /**

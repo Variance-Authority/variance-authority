@@ -402,6 +402,23 @@ export async function readTree(options: TreeOptions): Promise<Tree> {
   return treeFromRelations(relations, options.root);
 }
 
+/**
+ * Every file's names, read off the parses the source index at `index` holds:
+ * what a question that names a name reads when it answers from the generation
+ * `variance index` published, so the checkout is neither scanned nor compared
+ * and the index is not written. Keyed as the index keys its files, which is
+ * how a walk over the published tree answers.
+ */
+export async function readPublishedNames(index: string): Promise<SourceNames> {
+  const { readSourceParses } = await import('@variance-authority/sense');
+  const names = new Map<string, FileNames>();
+  // A parse that holds no declarations is left out, as the scan leaves it out.
+  for (const { file, parsed, targets } of await readSourceParses(index)) {
+    if (parsed.harvested === true) names.set(file, namesOf(parsed, targets));
+  }
+  return names;
+}
+
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }

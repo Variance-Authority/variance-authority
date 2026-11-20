@@ -1,18 +1,18 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { readNamedTree } from '@variance-authority/help';
 import { sourceIndexPath } from '@variance-authority/sense';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { run } from './ask-packages.fixture.js';
 import { askSource, type SourceRequest } from './ask.js';
 
 /**
- * `variance ask discover` reads its names from the checkout, through the
- * source index. An ask that finds every file already in the index must still
- * have their names: a file the index serves is not a file that declares
- * nothing. The fixture is committed, so the scan knows every file's digest
- * and the second ask is served from the index rather than parsed again.
+ * `variance ask discover` reads its tree and its names from what `variance
+ * index` published, and nothing else: a file edited since answers as the index
+ * read it, and the index is not written. A file the index serves is not a file
+ * that declares nothing.
  *
  * Asked as `variance ask` asks it, from the checkout's root and with the flags
  * as the command line carries them, so the question reaches the reading that
@@ -27,7 +27,7 @@ function write(file: string, text: string): void {
   writeFileSync(join(root, file), text);
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   root = mkdtempSync(join(tmpdir(), 'ask-discover-'));
   write('package.json', '{"name":"ask-discover-fixture","private":true}\n');
   write('src/Wallet.ts', "import { selectBalance } from './store';\nexport const balance = selectBalance;\n");
@@ -55,6 +55,8 @@ beforeAll(() => {
   commit('add', '.');
   commit('-c', 'user.name=fixture', '-c', 'user.email=fixture@example.com', 'commit', '--quiet', '-m', 'fixture');
   process.chdir(root);
+  const { code, err } = await run(['index']);
+  if (code !== 0) throw new Error(`variance index failed on the fixture: ${err}`);
 });
 
 afterAll(() => {
@@ -121,12 +123,33 @@ describe('ask discover over a checkout', () => {
     expect(text).toContain('src/theme.ts:1  declares ThemeContext');
   });
 
-  it('answers the same when every file is read back from the source index', async () => {
-    rmSync(sourceIndexPath(root), { force: true });
-    const parsed = await declaresBalance();
-    expect(existsSync(sourceIndexPath(root))).toBe(true);
-    const held = await declaresBalance();
-    expect(held).toContain('src/store/selectors.ts:1  declares selectBalance');
-    expect(held).toBe(parsed);
+  it('answers from the names `variance index` published after a file is edited, and writes no index', async () => {
+    const published = readFileSync(sourceIndexPath(root));
+    const selectors = 'src/store/selectors.ts';
+    const text = readFileSync(join(root, selectors), 'utf8');
+    write(selectors, `// moved\n// down\n${text}`);
+    try {
+      expect(await declaresBalance()).toContain('src/store/selectors.ts:1  declares selectBalance');
+    } finally {
+      write(selectors, text);
+    }
+    expect(readFileSync(sourceIndexPath(root)).equals(published)).toBe(true);
+  });
+});
+
+describe('ask discover with nothing published', () => {
+  it('refuses in a line that names `variance index`, and publishes nothing', async () => {
+    const bare = mkdtempSync(join(tmpdir(), 'ask-discover-bare-'));
+    try {
+      writeFileSync(join(bare, 'package.json'), '{"name":"bare","private":true}\n');
+      writeFileSync(join(bare, 'a.ts'), 'export const a = 1;\n');
+      process.chdir(bare);
+      await expect(ask({ declares: '^a$' })).rejects.toThrow(/Run `variance index`/u);
+      await expect(ask({ path: '^a' })).rejects.toThrow(/Run `variance index`/u);
+      expect(existsSync(sourceIndexPath(bare))).toBe(false);
+    } finally {
+      process.chdir(root);
+      rmSync(bare, { recursive: true, force: true });
+    }
   });
 });

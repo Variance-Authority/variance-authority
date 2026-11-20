@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { relative } from 'node:path';
-import type { Tree } from '@variance-authority/mcp/tools';
+import { readPublishedNames, type Tree } from '@variance-authority/mcp/tools';
+import { sourceIndexPath } from '@variance-authority/sense';
 import { ask, askSearch, askSearchJson, countingShown, inputFrom, invocationOf, toolNamed, verbs } from './ask.js';
 import { foundNothingAnswer, refusalFooter, snapshotLine } from './caught-up.js';
 import { readWorkspaceForAnswer } from './read.js';
@@ -32,14 +33,15 @@ import { writePages } from './write.js';
  */
 
 /**
- * An intersection one of whose questions reads every file's names: the names
- * come off the scan that draws the tree, so both are read there rather than
- * the tree the workspace reading keeps.
+ * An intersection one of whose questions reads every file's names: the tree
+ * comes with the workspace value, and the names off the parses the published
+ * source index holds beside it.
  */
 async function crossNamed(root: string, reading: Reading, args: readonly string[]): Promise<Answering> {
   const input = inputFrom(intersection, args);
-  const help = await readWorkspaceForAnswer(root, reading);
-  const names = await readNamedTree(root, input);
+  let tree: Tree | undefined;
+  const help = await readWorkspaceForAnswer(root, { ...reading, tree: (drawn) => { tree = drawn; } });
+  const names = { ...(tree === undefined ? {} : { tree }), names: await readPublishedNames(sourceIndexPath(root)) };
   const at = workspaceGeneration(help);
   return {
     answer: () => {

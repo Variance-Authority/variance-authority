@@ -18,7 +18,8 @@ import { containment, HELP, UNCOMPARED_HELP } from './tools.js';
  * and a `justAnswer` answer says it was not compared with the checkout. A
  * refusal from a reused generation, or an answer whose named files changed
  * since it, is asked again of one read now, as {@link caughtUp} decides for
- * every surface that asks a source question.
+ * this server and `variance serve`; `variance ask` and the binary answer from
+ * the published generation and never ask again.
  *
  * `tools/surface.check.ts` holds the shape of what is served to the recorded
  * surface. No prose in this file reaches a client — `initialize` sends a name
