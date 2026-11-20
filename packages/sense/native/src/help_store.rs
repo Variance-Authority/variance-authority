@@ -14,6 +14,8 @@
 
 // compass: variance-authority.report.agent-surface
 
+use std::borrow::Cow;
+
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
@@ -136,7 +138,8 @@ pub struct EncodedStore {
 #[napi(catch_unwind)]
 pub fn encode_help_store(store: HelpStore, exported: Vec<NamedExport>, meta: Option<StoreMeta>) -> EncodedStore {
     let deep = [&store.deep, &store.by_path, &store.unfollowed].map(|held| held.iter().map(DeepRef::from).collect());
-    let input = StoreRef { packages: &store.packages, deep, unreadable: &store.unreadable };
+    let packages: Vec<PackageRef> = store.packages.iter().map(PackageRef::from).collect();
+    let input = StoreRef { packages: &packages, deep, unreadable: &store.unreadable };
     let (bytes, digest) = encode(&input, &exported, meta.as_ref(), None);
     EncodedStore { bytes: bytes.into(), exported: digest }
 }
@@ -220,6 +223,90 @@ impl<'a> From<&'a NameUse> for UseRef<'a> {
     }
 }
 
+impl<'a> UseRef<'a> {
+    /// A use of one name, as an entry holds it: its name is the entry's, and
+    /// what it is read through is said only when it is read through something.
+    pub(crate) fn site(held: &'a NameUse) -> Self {
+        let through = held.through.is_some();
+        UseRef {
+            name: None,
+            through_line: if through { held.through_line } else { 0 },
+            through_default: through && held.through_default,
+            whole: through && held.whole,
+            ..UseRef::from(held)
+        }
+    }
+}
+
+/// `Mention`, borrowed.
+pub(crate) struct MentionRef<'a> {
+    pub(crate) at: &'a str,
+    pub(crate) line: u32,
+    pub(crate) text: &'a str,
+}
+
+/// `Entry`, borrowed from whichever side joined it; only its kind may be its own.
+pub(crate) struct EntryRef<'a> {
+    pub(crate) name: &'a str,
+    pub(crate) kind: Cow<'a, str>,
+    pub(crate) at: &'a str,
+    pub(crate) declared: &'a str,
+    pub(crate) line: u32,
+    pub(crate) signature: Option<&'a str>,
+    pub(crate) doc: Option<&'a str>,
+    pub(crate) used_by: Vec<&'a str>,
+    pub(crate) uses: u32,
+    pub(crate) sites: Vec<UseRef<'a>>,
+    pub(crate) through_default: Vec<UseRef<'a>>,
+    pub(crate) mention: Option<MentionRef<'a>>,
+}
+
+/// `Opening`, borrowed, with the specifier a search line prints for it.
+pub(crate) struct OpeningRef<'a> {
+    pub(crate) subpath: &'a str,
+    pub(crate) source: &'a str,
+    pub(crate) spec: &'a str,
+    pub(crate) entries: Vec<EntryRef<'a>>,
+    pub(crate) whole: Vec<UseRef<'a>>,
+}
+
+/// `Documented`, borrowed.
+pub(crate) struct PackageRef<'a> {
+    pub(crate) name: &'a str,
+    pub(crate) entry: bool,
+    pub(crate) openings: Vec<OpeningRef<'a>>,
+}
+
+impl<'a> From<&'a StorePackage> for PackageRef<'a> {
+    fn from(held: &'a StorePackage) -> Self {
+        let uses = |held: &'a [StoreUse]| held.iter().map(UseRef::from).collect();
+        PackageRef {
+            name: &held.name,
+            entry: held.entry,
+            openings: held.openings.iter().map(|opening| OpeningRef {
+                subpath: &opening.subpath,
+                source: &opening.source,
+                spec: &opening.spec,
+                entries: opening.entries.iter().map(|entry| EntryRef {
+                    name: &entry.name,
+                    kind: Cow::Borrowed(&entry.kind),
+                    at: &entry.at,
+                    declared: &entry.declared,
+                    line: entry.line,
+                    signature: entry.signature.as_deref(),
+                    doc: entry.doc.as_deref(),
+                    used_by: entry.used_by.iter().map(String::as_str).collect(),
+                    uses: entry.uses,
+                    sites: uses(&entry.sites),
+                    through_default: uses(&entry.through_default),
+                    mention: entry.mention.as_ref().map(|held| MentionRef { at: &held.at, line: held.line, text: &held.text }),
+                }).collect(),
+                whole: uses(&opening.whole),
+            }).collect(),
+        }
+    }
+}
+
 pub(crate) struct DeepRef<'a> {
     pub(crate) specifier: &'a str,
     pub(crate) by: &'a str,
@@ -244,7 +331,7 @@ impl<'a> From<&'a DeepRequest> for DeepRef<'a> {
 /// What the store is encoded from: the deep imports, those by path and those
 /// unfollowed, in that order.
 pub(crate) struct StoreRef<'a> {
-    pub(crate) packages: &'a [StorePackage],
+    pub(crate) packages: &'a [PackageRef<'a>],
     pub deep: [Vec<DeepRef<'a>>; 3],
     pub unreadable: &'a [String],
 }

@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { treeOf, type FileRecord } from '@variance-authority/mcp/tools';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from './walk.js';
 import { verbOf } from '@variance-authority/mcp/tools';
 import { ask, inputFrom, toolNamed, verbs } from './ask.js';
 import { HELP_TOOLS } from './tools.js';

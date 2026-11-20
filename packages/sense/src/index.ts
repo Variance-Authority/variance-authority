@@ -264,14 +264,14 @@ export {
   type EncodedStore,
   type ExportedDeclaration,
   type Grepped,
-  type HelpEncode,
   type HelpEncoded,
+  type HelpPublish,
   type HelpEntry,
   type HelpReading,
   type MemberDeclarations,
   type MemberSite,
-  type PublishedName,
-  type ReachedDeclaration,
+  type PublishOpening,
+  type PublishPackage,
   type HelpStore,
   type StoreDeep,
   type StoreEntry,
@@ -279,6 +279,15 @@ export {
   type StorePackage,
   type StoreUse,
 } from './help-reading.js';
+export {
+  joinWalkedHelp,
+  readmeMention,
+  type Mention,
+  type NameUse,
+  type PublishedName,
+  type ReachedDeclaration,
+  type WalkedHelp,
+} from './help-walked.js';
 
 export {
   taintFile,

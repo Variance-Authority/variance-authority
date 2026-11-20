@@ -17,8 +17,14 @@ pub(crate) mod help_grep;
 pub(crate) mod help_in_file;
 #[path = "help_member_uses.rs"]
 pub(crate) mod help_member_uses;
+#[path = "help_join.rs"]
+pub(crate) mod help_join;
 #[path = "help_members.rs"]
 pub(crate) mod help_members;
+#[path = "help_mention.rs"]
+pub(crate) mod help_mention;
+#[path = "help_readme.rs"]
+pub(crate) mod help_readme;
 #[path = "help_names.rs"]
 pub(crate) mod help_names;
 #[path = "help_origin.rs"]

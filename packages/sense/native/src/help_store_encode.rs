@@ -7,7 +7,7 @@ use std::collections::HashSet;
 
 use rayon::prelude::*;
 
-use crate::help_store::{flags, DeepRef, StoreEntry, StoreRef, UseRef, NONE, USE_KINDS};
+use crate::help_store::{flags, DeepRef, EntryRef, StoreRef, UseRef, NONE, USE_KINDS};
 use crate::help_search::{headed, joined, postings, terms_of, Pool, SPLIT};
 use crate::help_usage::NamedExport;
 use crate::order::code_unit;
@@ -55,17 +55,17 @@ fn maybe<'a>(pool: &mut Pool<'a>, value: Option<&'a str>) -> u32 {
 
 /// The store's columns but its head. A name's id is its place in code-unit
 /// order, so a question lists names in that order by id alone.
-pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column> {
+pub(crate) fn body_of<'a>(input: &'a StoreRef<'a>, exported: &'a [NamedExport]) -> Vec<Column> {
     let split = &*SPLIT;
     let (mut strings, mut names) = (Pool::default(), Pool::default());
 
     // Every entry, in `everyEntry` order, with its opening's specifier.
-    let entries: Vec<(&StoreEntry, &str)> = input.packages.iter()
+    let entries: Vec<(&EntryRef, &str)> = input.packages.iter()
         .flat_map(|owner| owner.openings.iter())
-        .flat_map(|opening| opening.entries.iter().map(move |entry| (entry, opening.spec.as_str())))
+        .flat_map(|opening| opening.entries.iter().map(move |entry| (entry, opening.spec)))
         .collect();
 
-    let mut sorted: Vec<&str> = entries.iter().map(|(entry, _)| entry.name.as_str()).chain(exported.iter().map(|named| named.name.as_str())).collect();
+    let mut sorted: Vec<&str> = entries.iter().map(|(entry, _)| entry.name).chain(exported.iter().map(|named| named.name.as_str())).collect();
     sorted.par_sort_unstable_by(|a, b| code_unit(a, b));
     sorted.dedup();
     let name_string: Vec<u32> = sorted.iter().map(|name| {
@@ -98,41 +98,41 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
     let (mut used_by_off, mut used_by) = (vec![0u32], Vec::new());
     let mut pub_uses = Vec::with_capacity(rows);
     let mut pub_more: [Vec<u32>; 6] = Default::default(); // declared, line, signature, mentionAt, mentionLine, mentionText
-    let doc_lower: Vec<String> = entries.par_iter().map(|(entry, _)| entry.doc.as_deref().unwrap_or("").to_lowercase()).collect();
+    let doc_lower: Vec<String> = entries.par_iter().map(|(entry, _)| entry.doc.unwrap_or("").to_lowercase()).collect();
     let doc_terms: Vec<HashSet<String>> =
-        entries.par_iter().map(|(entry, _)| entry.doc.as_deref().map(|doc| terms_of(split, doc)).unwrap_or_default()).collect();
+        entries.par_iter().map(|(entry, _)| entry.doc.map(|doc| terms_of(split, doc)).unwrap_or_default()).collect();
     let signature_terms: Vec<HashSet<String>> = entries.par_iter()
-        .map(|(entry, _)| headed(&entry.kind).then_some(entry.signature.as_deref()).flatten().map(|signature| terms_of(split, signature)).unwrap_or_default())
+        .map(|(entry, _)| headed(&entry.kind).then_some(entry.signature).flatten().map(|signature| terms_of(split, signature)).unwrap_or_default())
         .collect();
     for (row, (entry, spec)) in entries.iter().enumerate() {
-        let name = name_of!(entry.name.as_str());
+        let name = name_of!(entry.name);
         name_pub[name as usize].push(row as u32);
         pub_cols[0].push(name);
         pub_cols[1].push(strings.id(spec).0);
         pub_cols[2].push(strings.id(&entry.kind).0);
-        pub_cols[3].push(maybe(&mut strings, entry.doc.as_deref()));
-        pub_cols[4].push(strings.id(&entry.at).0);
+        pub_cols[3].push(maybe(&mut strings, entry.doc));
+        pub_cols[4].push(strings.id(entry.at).0);
         used_by.extend(entry.used_by.iter().map(|by| strings.id(by).0));
         used_by_off.push(used_by.len() as u32);
         pub_uses.push(entry.uses);
-        pub_more[0].push(strings.id(&entry.declared).0);
+        pub_more[0].push(strings.id(entry.declared).0);
         pub_more[1].push(entry.line);
-        pub_more[2].push(maybe(&mut strings, entry.signature.as_deref()));
-        pub_more[3].push(maybe(&mut strings, entry.mention.as_ref().map(|held| held.at.as_str())));
+        pub_more[2].push(maybe(&mut strings, entry.signature));
+        pub_more[3].push(maybe(&mut strings, entry.mention.as_ref().map(|held| held.at)));
         pub_more[4].push(entry.mention.as_ref().map_or(0, |held| held.line));
-        pub_more[5].push(maybe(&mut strings, entry.mention.as_ref().map(|held| held.text.as_str())));
+        pub_more[5].push(maybe(&mut strings, entry.mention.as_ref().map(|held| held.text)));
     }
     let mut sites_off = vec![0u32];
     for (entry, _) in &entries {
         for site in &entry.sites {
-            use_of!(&UseRef::from(site));
+            use_of!(site);
         }
         sites_off.push(uses.by.len() as u32);
     }
     let mut td_off = vec![uses.by.len() as u32];
     for (entry, _) in &entries {
         for site in &entry.through_default {
-            use_of!(&UseRef::from(site));
+            use_of!(site);
         }
         td_off.push(uses.by.len() as u32);
     }
@@ -141,15 +141,15 @@ pub(crate) fn body_of(input: &StoreRef, exported: &[NamedExport]) -> Vec<Column>
     let (mut open_subpath, mut open_source, mut open_entry_off, mut open_whole_off) = (Vec::new(), Vec::new(), vec![0u32], vec![uses.by.len() as u32]);
     let mut entry_at = 0u32;
     for owner in input.packages {
-        pkg_name.push(strings.id(&owner.name).0);
+        pkg_name.push(strings.id(owner.name).0);
         pkg_entry.push(u8::from(owner.entry));
         for opening in &owner.openings {
-            open_subpath.push(strings.id(&opening.subpath).0);
-            open_source.push(strings.id(&opening.source).0);
+            open_subpath.push(strings.id(opening.subpath).0);
+            open_source.push(strings.id(opening.source).0);
             entry_at += opening.entries.len() as u32;
             open_entry_off.push(entry_at);
             for site in &opening.whole {
-                use_of!(&UseRef::from(site));
+                use_of!(site);
             }
             open_whole_off.push(uses.by.len() as u32);
         }

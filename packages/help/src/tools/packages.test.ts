@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { NO_ARGS } from '@variance-authority/mcp/tools';
 import type { Help } from '@variance-authority/package/help';
-import { BY_PATH, QUIET, SUBPATHS_ONLY, busier, importOf } from '../__fixtures__/imported-by-path.js';
+import { BY_PATH, QUIET, SUBPATHS_ONLY, busier, importOf, stored } from '../__fixtures__/imported-by-path.js';
 import { HELP_TOOLS } from '../tools.js';
 import { entrypoint } from './entrypoint.js';
 import { packages } from './packages.js';
@@ -172,8 +172,9 @@ function followUps(text: string): readonly (readonly [string, Record<string, str
   });
 }
 
-/** Every command the answer with no argument names, and every one their answers name, each asked once. */
-function everyFollowUp(help: Help): readonly (readonly [string, string])[] {
+/** Every command the answer with no argument names, and every one their answers name, each asked once, of `help` as a store holds it. */
+function everyFollowUp(written: Help): readonly (readonly [string, string])[] {
+  const help = stored(written);
   const answered: (readonly [string, string])[] = [];
   const asked = new Set<string>();
   let pending = followUps(packages.run(help, {}));

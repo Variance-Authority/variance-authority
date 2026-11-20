@@ -41,6 +41,7 @@ export type { StoreHead } from './store-layout.js';
 export { serveWorkspace } from './server.js';
 export type { WorkspaceOptions } from './server.js';
 export { wordsOf } from './words.js';
+export { readHelp } from './walk.js';
 export { writePages } from './write.js';
 export type { PagesOptions, Written } from './write.js';
 export { refreshDependencyLexicon } from './dependency-lexicon.js';

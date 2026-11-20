@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from './walk.js';
 import { HELP, HELP_TOOLS, audience } from './tools.js';
 import { serveWorkspace } from './server.js';
 import { writePages } from './write.js';

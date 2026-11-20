@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { updateSourceIndex } from '@variance-authority/sense';
-import { readHelp } from '@variance-authority/package/help';
+import { readHelp } from './walk.js';
 import { refreshDependencyLexicon, queryDependencyLexicon } from './dependency-lexicon.js';
 import { HELP_TOOLS } from './tools.js';
 

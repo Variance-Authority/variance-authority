@@ -22,7 +22,7 @@ export const NOTHING_PUBLISHED =
   'this workspace publishes no package: no manifest it declares is both named and public';
 
 /** The door a subpath names, written the way somebody would import it. */
-export function specifierOf(published: Documented, opening: Opening): string {
+export function specifierOf(published: Pick<Documented, 'name'>, opening: Pick<Opening, 'subpath'>): string {
   return `${published.name}${opening.subpath === '.' ? '' : opening.subpath.slice(1)}`;
 }
 

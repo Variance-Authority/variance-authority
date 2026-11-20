@@ -438,12 +438,6 @@
     "packages": 1
   },
   {
-    "name": "DeclarationKind",
-    "kind": "type",
-    "at": "packages/package/src/declare.ts",
-    "packages": 1
-  },
-  {
     "name": "DifferenceMetric",
     "kind": "interface",
     "at": "packages/raster/src/difference/metric.ts",
