@@ -108,6 +108,8 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
  */
 async function built(run: CargoRun, profile: string): Promise<Binary[] | undefined> {
   const target = join(await targetDirectory(run.cwd), 'variance');
+  const own = process.env['RUSTC_WORKSPACE_WRAPPER'];
+  if (own !== undefined && own !== '') process.stderr.write(`variance cargo: the recording build replaces RUSTC_WORKSPACE_WRAPPER (${own}) with its own, which adds -C instrument-coverage.\n`);
   const { code, stdout } = await output('cargo', ['test', '--no-run', '--message-format=json', ...(run.args ?? [])], run.cwd, {
     ...process.env,
     RUSTC_WORKSPACE_WRAPPER: instrumenting(target),
@@ -162,28 +164,32 @@ function byTestFile(binaries: readonly Binary[]): Map<string, Binary[]> {
 }
 
 /**
- * The tests a binary declares, as libtest names them; benchmarks are not tests.
- * Listing runs the instrumented binary too, so its counters go to `profile`, which nothing reads.
+ * The tests a binary declares and `cargo test` runs, as libtest names them:
+ * benchmarks are not tests, and an `#[ignore]`d test does not run. Listing runs
+ * the instrumented binary too, so its counters go to `profile`, which nothing reads.
  */
 async function listed(binary: Binary, profile: string): Promise<string[]> {
-  const { code, stdout } = await output(binary.executable, ['--list', '--format', 'terse'], binary.cwd, {
-    ...process.env,
-    LLVM_PROFILE_FILE: profile,
-  });
-  if (code !== 0) throw new Error(`${binary.executable} --list failed`);
-  return stdout.split('\n').flatMap((line) => (line.endsWith(': test') ? [line.slice(0, -': test'.length)] : []));
+  const [all, ignored] = await Promise.all([[], ['--ignored']].map(async (only) => {
+    const { code, stdout } = await output(binary.executable, ['--list', '--format', 'terse', ...only], binary.cwd, running(binary, profile));
+    if (code !== 0) throw new Error(`${binary.executable} --list failed`);
+    return stdout.split('\n').flatMap((line) => (line.endsWith(': test') ? [line.slice(0, -': test'.length)] : []));
+  }));
+  const skipped = new Set(ignored);
+  return all!.filter((name) => !skipped.has(name));
 }
 
 /** One test, alone in its process, its counters written to `profile`. */
 async function alone(binary: Binary, name: string, profile: string): Promise<Ran> {
   const began = performance.now();
-  const { code, stdout } = await output(binary.executable, ['--exact', name, '--test-threads', '1'], binary.cwd, {
-    ...process.env,
-    LLVM_PROFILE_FILE: profile,
-  });
+  const { code, stdout } = await output(binary.executable, ['--exact', name, '--test-threads', '1'], binary.cwd, running(binary, profile));
   const passed = code === 0;
   if (!passed) process.stderr.write(stdout);
   return { name, passed, duration: performance.now() - began, profile };
+}
+
+/** What a test process starts with: what `cargo test` gives it, and where its counters go. */
+function running(binary: Binary, profile: string): NodeJS.ProcessEnv {
+  return { ...process.env, CARGO_MANIFEST_DIR: binary.cwd, LLVM_PROFILE_FILE: profile };
 }
 
 /**

@@ -35,13 +35,12 @@ pub struct RustEntered {
 ///
 /// `binaries` are the instrumented executables the profiles were written by. A
 /// file outside `root`, or one that no longer parses, is left out: the first is
-/// not the checkout's, and the second has no region to charge.
+/// not the checkout's, and the second has no region to charge. A profile that is
+/// missing or cut short entered nothing: its test died before it was written.
 #[napi(js_name = "rustCoverage", catch_unwind)]
 pub fn rust_coverage(binaries: Vec<String>, profiles: Vec<String>, root: String) -> napi::Result<Vec<Vec<RustEntered>>> {
-    let counted: Vec<Counts> = profiles
-        .par_iter()
-        .map(|profile| Counts::read(profile).map_err(|error| napi::Error::from_reason(format!("{profile}: {error}"))))
-        .collect::<napi::Result<_>>()?;
+    // A test whose process died before it wrote its profile, or while it did, entered nothing anybody can tell.
+    let counted: Vec<Counts> = profiles.par_iter().map(|profile| Counts::read(profile).unwrap_or_default()).collect();
     let Some(version) = counted.iter().find_map(|counts| counts.version) else {
         return Ok(profiles.iter().map(|_| Vec::new()).collect());
     };
@@ -50,6 +49,7 @@ pub fn rust_coverage(binaries: Vec<String>, profiles: Vec<String>, root: String)
 }
 
 /// One profile's counters, by the function they count: its name hash and its hash.
+#[derive(Default)]
 struct Counts {
     version: Option<u64>,
     functions: HashMap<(u64, u64), Vec<u64>>,
@@ -149,6 +149,8 @@ impl Map {
             .enumerate()
             .filter(|(_, ordinals)| !ordinals.is_empty())
             .map(|(file, mut ordinals)| {
+                // rustc counts only function bodies, so a file entered had its root run too, as a module's load runs it.
+                ordinals.push(0);
                 ordinals.sort_unstable();
                 ordinals.dedup();
                 RustEntered { id: self.files[file].id.clone(), ordinals: Uint32Array::new(ordinals) }
@@ -210,8 +212,7 @@ impl File {
         let relative = path.strip_prefix(root).ok()?;
         let source = std::fs::read_to_string(path).ok()?;
         let cut = crate::rust_cut::cut(&source)?;
-        let digest = cut.source_digest.split_once(':').map_or(cut.source_digest.as_str(), |(_, hex)| hex);
-        let id = format!("{}@{digest}", relative.to_string_lossy().replace('\\', "/"));
+        let id = variance_sense_instrument::module_id(&relative.to_string_lossy().replace('\\', "/"), &source);
         let lines = std::iter::once(0).chain(source.match_indices('\n').map(|(at, _)| at + 1)).collect();
         let utf16 = (!source.is_ascii()).then(|| Utf16::new(&source));
         Some(File { id, cut, lines, utf16 })
@@ -223,5 +224,17 @@ impl File {
         let at = self.utf16.as_ref().map_or(byte as u32, |table| table.at(byte as u32));
         // Blocks are in pre-order, so the last one around a point is the innermost.
         self.cut.blocks.iter().rposition(|block| block.start <= at && at < block.end).map(|ordinal| ordinal as u32)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_test_that_wrote_no_profile_entered_nothing() {
+        let entered = rust_coverage(Vec::new(), vec!["/nonexistent/aborted.profraw".into()], "/".into()).expect("a missing profile is no error");
+        assert_eq!(entered.len(), 1);
+        assert!(entered[0].is_empty());
     }
 }

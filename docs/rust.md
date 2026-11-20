@@ -10,8 +10,8 @@ rustc places the counters itself, so the source is never rewritten, and the
 profiles are read inside the `variance` process with no `llvm-cov` installed.
 Each test runs alone in its own process, so the cost is one process start per
 test. Recording this repository's own Rust workspace, 833 tests, takes 15 s
-where a plain `cargo test` takes 7 s, once the instrumented build exists; the
-first run also builds it, in about a minute.
+where `cargo test --workspace --lib` takes 7 s, once the instrumented build
+exists; the first run also builds it, in about a minute.
 
 ## Record a Cargo suite
 
@@ -41,7 +41,9 @@ The command:
 
 - builds the test binaries once with `-C instrument-coverage` on your
   workspace's crates, not their dependencies, in a `variance` directory under
-  Cargo's target directory, so your own build is not rebuilt;
+  Cargo's target directory, so your own build is not rebuilt. It sets
+  `RUSTC_WORKSPACE_WRAPPER` for that build, and says so when it replaces one
+  of yours;
 - lists each binary's tests and runs each one alone, as many at once as the
   machine has cores;
 - writes the suite's [execution record](execution-record.md), as every other

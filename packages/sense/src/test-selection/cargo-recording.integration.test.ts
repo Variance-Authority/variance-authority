@@ -64,11 +64,18 @@ describe('a Cargo suite recorded one test per process', () => {
     expect(add?.crossings.map((crossing) => index.tests[crossing.test]!.id).sort()).toEqual([`${lib} > tests::adds`, `${lib} > tests::muls`]);
   });
 
+  // A line inside a function's body: one that opens it, as a one-line `fn` does, is the root's text too.
   it('selects the files whose tests ran an edited function, and skips the rest', async () => {
     const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');
-    await expect(selectTestFiles(coverageFile, editing(source, 'pub fn add(a: i32, b: i32) -> i32 { a + b }', 'pub fn add(a: i32, b: i32) -> i32 { b + a }')))
+    await expect(selectTestFiles(coverageFile, editing(source, '    for _ in 0..b { r = add(r, a); }', '    for _ in 0..b { r = add(a, r); }')))
       .resolves.toEqual([lib]);
     await expect(selectTestFiles(coverageFile, editing(source, '    if a > 0 { -a } else { a.abs() * -1 * -1 * -1 }', '    if a > 0 { 0 - a } else { a }')))
+      .resolves.toEqual([lib, negates]);
+  });
+
+  it('selects every file whose tests ran a file when the edit is outside every function', async () => {
+    const source = await readFile(resolve(fixture, 'src/lib.rs'), 'utf8');
+    await expect(selectTestFiles(coverageFile, editing(source, '    use super::*;', '    use super::{add, mul, neg};')))
       .resolves.toEqual([lib, negates]);
   });
 });
