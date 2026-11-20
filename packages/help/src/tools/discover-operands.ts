@@ -15,14 +15,6 @@ export function textArg(input: Readonly<Record<string, unknown>>, name: string):
   return typeof said === 'string' && said.trim() !== '' ? said : undefined;
 }
 
-export function regexOf(name: string, pattern: string, flags: string): RegExp {
-  try {
-    return new RegExp(pattern, flags);
-  } catch (error) {
-    throw new Error(`\`${name}\` is not a regular expression: ${error instanceof Error ? error.message : String(error)}.`);
-  }
-}
-
 /** `spec#name`, split at the last `#` past the first character; a `#` with nothing after it is refused. */
 export function nameOf(written: string): { readonly spec: string; readonly name: string | undefined } {
   const at = written.lastIndexOf('#');
@@ -35,11 +27,33 @@ export function nameOf(written: string): { readonly spec: string; readonly name:
 }
 
 /**
- * Whether a call names an operand asked of the source index's names, so a
- * host that reads the tree from a published generation names its index.
+ * The file and name of an import operand naming a name out of one of `files`,
+ * which the source index answers without the names; anything else is
+ * undefined. A `#` with nothing after it is refused, as `nameOf` refuses it.
  */
-export function readsNames(input: Readonly<Record<string, unknown>>): boolean {
-  // Read as `operandsOf` reads them, so a set said empty costs no names.
-  return ['imports', 'exceptImports'].some((key) => listArg(input, key).length > 0) ||
+export function fileNamed(written: string, files: ReadonlySet<string>): { readonly file: string; readonly name: string } | undefined {
+  const { spec, name } = nameOf(written);
+  return name !== undefined && files.has(spec) ? { file: spec, name } : undefined;
+}
+
+/**
+ * Whether a call names an operand asked of the source index's names, so a host
+ * names the index it read the tree from. A question about paths alone reads the
+ * tree and nothing else. An import of a name out of
+ * one of `files`, the tree's, is answered off the source index as `importsOf`
+ * routes it, so it reads no names; without the tree, every import is taken to.
+ */
+export function readsNames(input: Readonly<Record<string, unknown>>, files?: ReadonlySet<string>): boolean {
+  // Read as `discover`'s `operandsOf` reads them, so a set said empty costs no names.
+  const offIndex = (written: string): boolean => {
+    if (files === undefined) return false;
+    try {
+      return fileNamed(written, files) !== undefined;
+    } catch {
+      // Refused when `discover` runs, so nothing is read for it here.
+      return true;
+    }
+  };
+  return ['imports', 'exceptImports'].some((key) => listArg(input, key).some((written) => !offIndex(written))) ||
     ['declares', 'exceptDeclares'].some((key) => textArg(input, key) !== undefined);
 }

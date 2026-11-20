@@ -1,6 +1,6 @@
 import type { ToolInvocation, Tree } from '@variance-authority/mcp/tools';
 import { namesFilterOf, READABLE, type NamesFound } from '@variance-authority/sense';
-import { listArg, nameOf, textArg } from './discover-operands.js';
+import { fileNamed, listArg, nameOf, textArg } from './discover-operands.js';
 
 /**
  * The native answer to every name set of one call, consumed in the order the
@@ -24,8 +24,10 @@ export function foundOf(input: Readonly<Record<string, unknown>>, tree: Tree, in
   const declares: string[] = [];
   for (const prefix of ['', 'except'] as const) {
     for (const written of listArg(input, prefix === '' ? 'imports' : 'exceptImports')) {
+      // A name out of a repository file is `importsOf`'s to answer off the index's edges, as `fileNamed` routes it.
+      if (fileNamed(written, tree.files) !== undefined) continue;
       const { spec, name } = nameOf(written);
-      if (name === undefined || !tree.files.has(spec)) imports.push({ spec, ...(name === undefined ? {} : { name }) });
+      imports.push({ spec, ...(name === undefined ? {} : { name }) });
     }
     const pattern = textArg(input, prefix === '' ? 'declares' : 'exceptDeclares');
     if (pattern !== undefined) declares.push(pattern);

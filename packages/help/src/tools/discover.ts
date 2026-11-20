@@ -4,7 +4,7 @@ import { entryPoints, limitOf, notShown, refusalFor, spellingOf } from '@varianc
 import type { NameHit } from '@variance-authority/sense';
 import { startPointNeeded } from './area.js';
 import { foundOf, type Found } from './discover-names.js';
-import { listArg, nameOf, regexOf, textArg } from './discover-operands.js';
+import { fileNamed, listArg, nameOf, textArg } from './discover-operands.js';
 import { ripgrep } from './ripgrep.js';
 import { importsOf as importersOf, type IndexedUse } from './unpublished.js';
 
@@ -91,6 +91,14 @@ function unreadOf(tree: Tree, found: Found): string | undefined {
   let unread = 0;
   for (const file of found.unread) if (tree.files.has(file)) unread += 1;
   return unread === 0 ? undefined : `the names of ${counted(unread)} were not read`;
+}
+
+function regexOf(name: string, pattern: string, flags: string): RegExp {
+  try {
+    return new RegExp(pattern, flags);
+  } catch (error) {
+    throw new Error(`\`${name}\` is not a regular expression: ${error instanceof Error ? error.message : String(error)}.`);
+  }
 }
 
 /** How a step that is not a plain import is said on a chain. */
@@ -216,8 +224,9 @@ function reachingName(term: string, file: string, name: string, tree: Tree, root
  * specifier as written, a file with no name — is matched in the names.
  */
 function importsOf(written: string, tree: Tree, found: () => Found, root: string | undefined): Operand {
+  const named = fileNamed(written, tree.files);
+  if (named !== undefined) return importersOfFile(named.file, named.name, root);
   const { spec, name } = nameOf(written);
-  if (name !== undefined && tree.files.has(spec)) return importersOfFile(spec, name, root);
   const held = found();
   const lines = linesOf(held.imports.shift()!, held, (hit) => {
     const as = hit.local == null ? '' : ` as ${hit.local}`;

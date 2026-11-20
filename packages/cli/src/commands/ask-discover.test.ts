@@ -124,6 +124,16 @@ describe('ask discover over a checkout', () => {
     expect(text).toContain('No file is in all of them.');
   });
 
+  it('asks the source index for no names when every import set names a name out of a repository file, which its edges answer', async () => {
+    // A tree that names no index refuses any set the names filter answers, so a set it answers asked none.
+    const { index: _, ...tree } = await readTree({ root });
+    const asked = (input: Record<string, unknown>): string => discover.run(undefined, input, { tree, root });
+    const named = { imports: ['src/store/selectors.ts#selectBalance'], exceptImports: ['src/lib/greet.ts#wave'] };
+    expect(asked(named)).toContain('importing `selectBalance` from `src/store/selectors.ts`');
+    expect(() => asked({ ...named, imports: [...named.imports, './store'] })).toThrow('names no source index');
+    expect(() => asked({ ...named, exceptImports: ['react'] })).toThrow('names no source index');
+  });
+
   it('finds a declaration the file does not export, which is where a context is made', async () => {
     const text = await ask({ declares: '^ThemeContext$', from: 'src/Nav.ts' });
     expect(text).toContain('src/theme.ts:1  declares ThemeContext');
