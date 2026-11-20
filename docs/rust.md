@@ -31,8 +31,8 @@ npx variance cargo --suite unit
 `unit` is a suite you name under `suites` in `variance.config.json` at the
 repository root, as `{ "suites": { "unit": { "kind": "unit" } } }`. What
 follows `--` goes to `cargo test`: the packages, features and targets to
-build. Every test the build lists runs, so a test filter or a libtest flag
-after a second `--` is refused.
+build. Every test the build lists runs, so a test filter, or a libtest flag
+after a second `--`, is refused.
 
 ```bash
 npx variance cargo --suite unit -- --workspace --lib --locked

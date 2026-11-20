@@ -96,7 +96,7 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
   try {
     // Every test is built from these and reads none of them, so a change to one selects every row.
     for (const input of [...workspace.inputs, ...configuration([run.cwd, workspace.root], root)]) selection.preconditions.add(input);
-    const build = await built(run, workspace, join(profiles, 'build-%p.profraw'));
+    const build = await built(run, workspace, root, join(profiles, 'build-%p.profraw'));
     if (build === undefined) return undefined;
     for (const input of build.read) if (!relative(root, input).startsWith('..')) selection.preconditions.add(input);
     const finished = [];
@@ -145,7 +145,7 @@ export async function recordCargo(run: CargoRun): Promise<number | undefined> {
  * instrumented too and run during the build, so their counters go to `profile`,
  * which nothing reads.
  */
-async function built(run: CargoRun, workspace: Workspace, profile: string): Promise<Build | undefined> {
+async function built(run: CargoRun, workspace: Workspace, root: string, profile: string): Promise<Build | undefined> {
   const target = join(workspace.target, 'variance');
   const own = process.env['RUSTC_WORKSPACE_WRAPPER'];
   if (own !== undefined && own !== '') process.stderr.write(`variance cargo: the recording build replaces RUSTC_WORKSPACE_WRAPPER (${own}) with its own, which adds -C instrument-coverage.\n`);
@@ -178,14 +178,14 @@ async function built(run: CargoRun, workspace: Workspace, profile: string): Prom
     // Cargo writes rustc's diagnostics into the JSON it answers, so a failed build would otherwise say only that it failed.
     if (message.reason === 'compiler-message' && code !== 0) process.stderr.write(message.message?.rendered ?? '');
     if (message.reason === 'build-script-executed' && message.out_dir !== undefined) {
-      const crate = workspace.packages.get(message.package_id ?? '') ?? pathPackage(message.package_id ?? '');
+      const crate = workspace.packages.get(message.package_id ?? '') ?? pathPackage(message.package_id ?? '', root);
       if (crate !== undefined) read.push(...rerunIfChanged(message.out_dir, crate));
     }
     if (message.reason !== 'compiler-artifact') continue;
     const crate = workspace.packages.get(message.package_id ?? '');
     if (crate === undefined) {
       // A path dependency the workspace leaves out is built without counters, so every file it is built from holds every row.
-      const outside = pathPackage(message.package_id ?? '');
+      const outside = pathPackage(message.package_id ?? '', root);
       if (outside !== undefined && !outsiders.has(outside)) {
         outsiders.add(outside);
         read.push(...packageFiles(outside));
@@ -211,10 +211,15 @@ async function built(run: CargoRun, workspace: Workspace, profile: string): Prom
   return { binaries, launchable, launched, read, compiled: (binary) => [...new Set(linked(binary.cwd, binary.sources))] };
 }
 
-/** The directory of a package Cargo names by a `path+file://` id, one it built from the checkout; none for one from a registry or git. */
-function pathPackage(id: string): string | undefined {
+/**
+ * The directory of a package Cargo names by a `path+file://` id, one it built
+ * from the checkout under `root`; none for one from a registry or git, or from
+ * a path outside the checkout, whose files no record names.
+ */
+function pathPackage(id: string, root: string): string | undefined {
   if (!id.startsWith('path+file://')) return undefined;
-  return fileURLToPath(id.slice('path+'.length).split('#')[0]!);
+  const at = fileURLToPath(id.slice('path+'.length).split('#')[0]!);
+  return relative(root, at).startsWith('..') ? undefined : at;
 }
 
 /**

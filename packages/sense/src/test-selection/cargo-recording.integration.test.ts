@@ -1,4 +1,5 @@
-import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -117,6 +118,22 @@ describe('a Cargo suite recorded one test per process', () => {
     const elsewhere = resolve(directory, 'elsewhere.bin');
     await expect(recordCargo({ cwd: directory, coverageFile: elsewhere, args: ['--manifest-path', resolve(fixture, 'Cargo.toml')] })).resolves.toBe(0);
     expect(decodeTestCoverage(await readFile(elsewhere)).tests.map((test) => test.file).sort()).toEqual([lib, main, aborts, constant, custom, exits, launches, negates].sort());
+  }, 240_000);
+
+  // Only files under the checkout are recorded, so a crate beside it, in no checkout at all, is not read.
+  it('records a workspace whose path dependency sits outside every checkout', async () => {
+    const checkout = resolve(directory, 'checkout');
+    const loose = resolve(directory, 'loose');
+    await mkdir(resolve(checkout, 'src'), { recursive: true });
+    await mkdir(resolve(loose, 'src'), { recursive: true });
+    await writeFile(resolve(loose, 'Cargo.toml'), '[package]\nname = "loose"\nversion = "0.1.0"\nedition = "2024"\n');
+    await writeFile(resolve(loose, 'src/lib.rs'), 'pub fn one() -> i32 { 1 }\n');
+    await writeFile(resolve(checkout, 'Cargo.toml'), '[package]\nname = "tied"\nversion = "0.1.0"\nedition = "2024"\n\n[dependencies]\nloose = { path = "../loose" }\n');
+    await writeFile(resolve(checkout, 'src/lib.rs'), '#[test]\nfn ones() { assert_eq!(loose::one(), 1); }\n');
+    execFileSync('git', ['init', '--quiet'], { cwd: checkout });
+    const record = resolve(directory, 'tied.bin');
+    await expect(recordCargo({ cwd: checkout, coverageFile: record })).resolves.toBe(0);
+    expect(decodeTestCoverage(await readFile(record)).tests.map((test) => test.file)).toEqual(['src/lib.rs']);
   }, 240_000);
 
   it('answers a build that failed, naming what rustc said', async () => {
