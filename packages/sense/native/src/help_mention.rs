@@ -12,7 +12,7 @@
 
 // compass: variance-authority.report.agent-surface
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use rayon::prelude::*;
@@ -43,13 +43,15 @@ pub(crate) struct Readme {
 }
 
 /// The READMEs above `files`, every directory from each file's own up to the
-/// root inclusive, each probed once and read once: by the README path it is
-/// named by, `None` where there is none. A README that is there and does not
+/// root inclusive, each probed once: by the README path it is named by, `None`
+/// where there is none. Only the nearest README above some file is read, once,
+/// as the walk reads only the nearest; one of those that is there and does not
 /// read refuses the publish, naming it, as it refuses the walk.
 pub(crate) fn readmes<'a>(root: &Path, files: impl Iterator<Item = &'a str>) -> Result<HashMap<String, Option<Readme>>, String> {
+    let files: Vec<&str> = files.collect();
     let mut asked: Vec<String> = Vec::new();
-    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for file in files {
+    let mut seen: HashSet<String> = HashSet::new();
+    for file in &files {
         for from in candidates(file) {
             if !seen.insert(from.clone()) {
                 // A directory already asked about had its parents asked about with it.
@@ -58,17 +60,31 @@ pub(crate) fn readmes<'a>(root: &Path, files: impl Iterator<Item = &'a str>) -> 
             asked.push(from);
         }
     }
-    asked
+    // `existsSync`: anything there, a directory included, is the README the walk then reads.
+    let there: HashSet<String> = asked.into_par_iter().filter(|from| readme_path(root, from).exists()).collect();
+    let mut nearest_ones: HashSet<String> = HashSet::new();
+    for file in &files {
+        if let Some(from) = candidates(file).find(|from| there.contains(from)) {
+            nearest_ones.insert(from);
+        }
+    }
+    let read: HashMap<String, Option<Readme>> = nearest_ones
         .into_par_iter()
         .map(|from| match std::fs::read(readme_path(root, &from)) {
             Ok(bytes) => {
                 let readme = Readme { from: from.clone(), text: String::from_utf8_lossy(&bytes).encode_utf16().collect() };
                 Ok((from, Some(readme)))
             }
-            Err(missing) if missing.kind() == std::io::ErrorKind::NotFound => Ok((from, None)),
             Err(refused) => Err(format!("{from} is there and could not be read: {refused}")),
         })
-        .collect()
+        .collect::<Result<_, String>>()?;
+    let mut held = read;
+    for from in seen {
+        if !there.contains(&from) {
+            held.insert(from, None);
+        }
+    }
+    Ok(held)
 }
 
 /// The README paths above `at`, nearest first: `nearest`'s walk.
